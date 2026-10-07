@@ -1175,11 +1175,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
         if (batch_threads) out
             << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
         out
-            << "  --ubatch N              Prompt tokens per pass (default: " << infer::kDefaultUbatch << ")\n"
+            << "  --ubatch N              Prompt tokens read in one pass; a longer prompt is read in slices (default: " << infer::kDefaultUbatch << ")\n"
             << "  --cache-type-k T, -ctk  Key cache: " << cache_types(caches.kv_k) << "\n"
             << "  --cache-type-v T, -ctv  Value cache: " << cache_types(caches.kv_v) << "\n"
-            << "  --n-cpu-moe N           First N routed layers' experts on CPU (default: " << defaults.cpu_moe << ")\n"
-            << "  --cpu-moe               All routed layers' experts on CPU\n"
+            << "  --n-cpu-moe N           Keep the experts of the first N mixture-of-experts layers on the CPU (default: " << defaults.cpu_moe << ")\n"
+            << "  --cpu-moe               Keep the experts of all mixture-of-experts layers on the CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
             << "                          at least N tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens and one-token prompts stay on CPU.\n"
@@ -1197,22 +1197,24 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --chat                  Send the prompt as one user message through the model's chat template\n";
         out
             << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
+            << "  --stop TEXT             Stop when generated text contains TEXT\n"
+            << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n";
+        if (chat) out
+            << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
+        out
+            << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n"
+            << "\nSampling options:\n"
             << "  --temp F                Temperature; 0 is greedy (default: " << sampling.temp << ")\n"
             << "  --topk N                Top-k sampling (default: " << sampling.top_k << ")\n"
             << "  --topp F                Nucleus sampling (default: " << sampling.top_p << ")\n"
             << "  --penalty F             Repetition penalty (default: " << sampling.penalty << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
-            << "  --stop TEXT             Stop when generated text contains TEXT\n"
-            << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n"
-            << "  --drafter D             Draft tokens to verify in one pass: off, lookup (the\n"
-            << "                          tokens that followed the last ones earlier), embedded\n"
-            << "                          (the MTP block the file carries), or a drafter file beside\n"
-            << "                          the model: its MTP blocks or a draft model; the output is\n"
-            << "                          the same either way (default: off)\n"
-            << "  --draft-max N           Most drafts a verify takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n"
-            << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n";
-        if (chat) out
-            << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
+            << "\nSpeculative decoding (the output is the same either way):\n"
+            << "  --drafter D             Propose several tokens and check them in one pass: off, lookup (the\n"
+            << "                          tokens that followed the last ones earlier), embedded (the MTP block\n"
+            << "                          the file carries), or a drafter file beside the model: its MTP blocks\n"
+            << "                          or a draft model (default: off)\n"
+            << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(true);
         if (chat) out << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
         out << "\nExample: llmx " << command << " model.gguf"
@@ -1221,33 +1223,49 @@ bool print_usage(const std::string& command, std::ostream& out) {
         const server::Config cfg;
         out << "Serve concurrent requests with streaming and prefix reuse.\n\n"
             << "Usage: llmx serve <model.gguf> [options]\n\n"
-            << "Server options:\n"
+            << "Server:\n"
             << "  --host H                Listen address (default: " << cfg.host << ")\n"
             << "  --port N                Listen port; 0 picks a free one (default: " << cfg.port << ")\n"
-            << "  --max-seqs N            Active request limit (default: " << cfg.max_seqs << ")\n"
-            << "  --max-queue N           Queued request limit, paused requests not counted (default: " << cfg.max_queue << ")\n"
-            << "  --passes N              Passes in flight; above 1 needs a layer split (default: its stages, else 1)\n"
-            << "  --state-checkpoints N   States a recurrent model keeps for prefix reuse (default: fitted, up to --max-seqs)\n"
-            << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none (default: --max-seqs histories as long as a request may hold, within half of free host memory once the model is loaded, none with every cache on the CPU)\n"
+            << "  --ctx-size N, -c        Tokens of conversation memory (KV cache) shared by all requests,\n"
+            << "                          fitted to the devices at load (default: model context)\n"
+            << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
+            << "\nLimits:\n"
+            << "  --max-seqs N            Requests served at once (default: " << cfg.max_seqs << ")\n"
+            << "  --max-queue N           Requests waiting for a place, paused ones not counted; more get a 503 (default: " << cfg.max_queue << ")\n"
+            << "  --passes N              Batches the devices work on at once; above 1 needs the model\n"
+            << "                          split over several devices (default: one per device of a layer split, else 1)\n"
+            << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt):\n"
+            << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none\n"
+            << "                          (default: room for --max-seqs full histories, within half the free\n"
+            << "                          host memory; none when every cache is on the CPU)\n"
             << "  --disk-cache-bytes N    Disk for what the host cache drops; needs a host cache (default: 0, none)\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
-            << "  --disk-cache-floor N    Free space the disk keeps after every write (default: the larger of 16 GiB and a twentieth of the disk)\n"
-            << "  --disk-cache-keep       While idle and at a clean exit (within a printed bound, " << server::kDiskFlush.count() << " s or more), write what memory holds to disk and keep it for the next server\n"
-            << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
-            << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
-            << "  --ctx-size N, -c        Most KV tokens in total, fitted to the devices at load (default: model context)\n"
-            << "  --drafter D             Draft tokens to verify beside other requests: off, lookup, embedded,\n"
-            << "                          or a file of MTP blocks beside the model, where the passes' measured\n"
-            << "                          cost finds a gain; each reply the same either way (default: off)\n"
-            << "  --draft-max N           Most drafts a verify takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
+            << "  --disk-cache-floor N    Free space the disk keeps after every write\n"
+            << "                          (default: the larger of 16 GiB and a twentieth of the disk)\n"
+            << "  --disk-cache-keep       Write what memory holds to disk while idle and at a clean exit, and keep it\n"
+            << "                          for the next server; the exit takes " << server::kDiskFlush.count() << " s or more, and prints its bound\n"
+            << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number\n"
+            << "                          followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
+            << "  --state-checkpoints N   Saved conversation states for models with recurrent layers (Qwen 3.5),\n"
+            << "                          so a follow-up turn skips re-reading its prompt (default: fitted, up to --max-seqs)\n"
+            << "\nSpeculative decoding (replies are the same either way):\n"
+            << "  --drafter D             Propose several tokens and check them in one pass, where measured to help:\n"
+            << "                          off, lookup (the tokens that followed the last ones earlier), embedded\n"
+            << "                          (the MTP block the file carries), or a file of MTP blocks beside the model\n"
+            << "                          (default: off)\n"
+            << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(false);
         out << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
             << "  POST /v1/completions          POST /v1/chat/completions\n"
             << "  POST /v1/tokenize             POST /v1/detokenize\n"
-            << "  GET  /v1/health               GET  /v1/models\n\n"
-            << "Sampling settings belong in each request's JSON body.\n"
-            << "Example: llmx serve model.gguf --device vulkan:0 --port 8080\n";
+            << "  GET  /v1/health               GET  /v1/live\n"
+            << "  GET  /v1/models\n\n"
+            << "Sampling settings belong in each request's JSON body.\n\n"
+            << "Examples:\n"
+            << "  llmx serve model.gguf --device vulkan:0 --port 8080\n"
+            << "  llmx serve model.gguf --device vulkan:0,vulkan:1 --disk-cache-bytes 107374182400 --disk-cache-keep\n"
+            << "  llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4\n";
     } else if (command == "pull") {
         const hub::PullOptions pull;
         out << "Download and verify a GGUF model or complete shard set.\n\n"

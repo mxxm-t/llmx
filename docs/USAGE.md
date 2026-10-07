@@ -656,6 +656,29 @@ The line the server prints as it starts gives the budget it took: with 16
 sequences over a 40k-token budget that is 2.5k tokens each on average, and
 a request whose prompt plus `max_tokens` exceeds the budget or the model
 context, whichever is smaller, is refused with 413.
+
+The flags, in the groups of the help page (`llmx serve --help`); the paragraphs below explain each, and [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
+
+| Group | Flag | Default | What it sets |
+|---|---|---|---|
+| Server | `--host H` | `127.0.0.1` | The listen address |
+| Server | `--port N` | `8080` | The listen port; 0 picks a free one |
+| Server | `--ctx-size N`, `-c` | model context | Tokens of conversation memory (KV cache) shared by all requests |
+| Server | `--timing` | off | Times the rounds and each device's work for `/v1/health` |
+| Limits | `--max-seqs N` | `16` | Requests served at once |
+| Limits | `--max-queue N` | `64` | Requests waiting for a place; more get a 503 |
+| Limits | `--passes N` | one per device of a layer split, else 1 | Batches the devices work on at once |
+| Prefix cache | `--host-cache-bytes N` | `--max-seqs` full histories within half the free host memory | Host memory for prefixes the devices evict |
+| Prefix cache | `--disk-cache-bytes N` | `0` | Disk for what the host cache drops |
+| Prefix cache | `--disk-cache-dir PATH` | `<home>/.cache/llmx/kv` | Where the disk cache lives |
+| Prefix cache | `--disk-cache-floor N` | larger of 16 GiB and a twentieth of the disk | Free space kept after every write |
+| Prefix cache | `--disk-cache-keep` | off | Keeps the entries for the next server |
+| Prefix cache | `--disk-cache-max-age TIME` | `24h` | Deletes entries unused for longer |
+| Prefix cache | `--state-checkpoints N` | fitted, up to `--max-seqs` | Saved states of models with recurrent layers |
+| Speculative decoding | `--drafter D` | `off` | Proposes tokens and checks them in one pass |
+| Speculative decoding | `--draft-max N` | `3` | Most drafted tokens checked at once |
+| Execution | `--device D`, `--dtype T`, `--layer-shares A,B`, `--tensor-width N`, `--threads N`, `--ubatch N`, `--cache-type-k T`, `--cache-type-v T`, `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N`, `--load-mode M` | | Where and how the model runs, as for every model command |
+
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes` and `--ctx-size` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
@@ -685,7 +708,8 @@ The server draws a pass's tokens on its scheduler thread and up to four sampling
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
-| `GET /v1/health` | | `{"status": "ok", "model", "dtype", "active", "queued", "donors", "prefix_hits", "prefix_tokens", "pauses", "paused", "stalls", "waits", "recomputed", "taken_back", "checkpoints", "host_donors", "host_bytes", "host_hits", "host_bytes_moved", "boundaries", "boundary_hits", "disk_entries", "disk_bytes", "disk_bytes_written", "disk_hits", "disk_bytes_read", "disk_waits", "disk_wait_ms", "disk_errors", "host_unwritten", "disk_capped", "disk_writing", "disk_ready", "reprefills", "reprefill_rows", "reprefill_cancels", "passes", "in_flight", "drafted", "kept"}`: `pauses` counts every pause, `paused` the requests paused now, `stalls` the passes requests sat out unable to grow, `waits` those of them whose room waited on a request in flight, `recomputed` the tokens resumes computed again, `taken_back` the resumes that took their paused cache back whole, `checkpoints` the states a model with a recurrent state keeps now, `host_donors` and `host_bytes` the evicted prefixes kept in host memory and their bytes, `host_hits` the ones given back to a request and `host_bytes_moved` the bytes copied either way, `boundaries` the message boundaries' states kept in host memory and `boundary_hits` the requests that forked one, `disk_entries` and `disk_bytes` the entries kept on disk and their files' bytes, `disk_bytes_written` the bytes written ahead of need, every write that finished, the disk's wear, `disk_hits` and `disk_bytes_read` the entries read back for a request and their bytes, the disk's use, `disk_waits` the requests that waited for a read and `disk_wait_ms` the milliseconds they waited, `disk_errors` the writes and reads that failed and `disk_writing` whether the disk cache still writes, false once a failure stopped it or without one, `disk_ready` whether it has started, the model file read for its digest and its directory made, before which the server serves without it, `reprefills` the chat replies read again as prompt rows and kept for the next turn, `reprefill_rows` the rows that took and `reprefill_cancels` the times that work gave way to a request, `passes` the passes kept in flight at most and `in_flight` those in flight now, `drafted` and `kept` by draft position the drafts verifies fed and those they kept, empty without `--drafter`; with `--timing` also `"timing": {"rounds", "round_ms", "recording_ms", "relaying_ms", "sampling_ms", "assembly_ms", "receive_wait_ms", "staging_wait_ms", "open_wait_ms", "logits_wait_ms", "stage_idle", "device_bound_rows_per_s"}`, each time in milliseconds a mean over the rounds, `stage_idle` each stage's idle share and `device_bound_rows_per_s` the rows the passes carried over the busiest stage's device time |
+| `GET /v1/health` | | `{"status": "ok", "server", "precision", "requests", "reuse", "pressure", "reread", "drafting", "passes"}`, each group's numbers split into `now` and `since_start`, and `"timing"` with `--timing`; every field is in the table below |
+| `GET /v1/live` | | `{"status": "ok"}`, answered without the scheduler |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}, "logprobs", "top_logprobs"}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "reasoning_content", "content"}, "logprobs", "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}`, `reasoning_content` only for a reply that reasons, `logprobs` only when asked |
 | `POST /v1/completions` | `{"prompt": "...", ...}` (the same fields, with `logprobs` a count) | as above with `"object": "text_completion"` and `choices[0].text` |
@@ -743,6 +767,74 @@ curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}'
 curl -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
 ```
 
+### `/v1/health` and `/v1/live`
+
+`GET /v1/live` answers `{"status": "ok"}` from the HTTP layer without asking the scheduler, for a liveness probe that must not wait.
+`GET /v1/health` reads the scheduler's counters, which takes its lock, so a reply can wait up to the time of a stage; poll it with a timeout longer than that.
+Its groups put what is true now under `now` and counters that rise from zero at start under `since_start`, with the unit in the name (`_bytes`, `_tokens`, `_ms`, `_s`).
+A server without a disk tier or a drafter still prints the fields, as zeros, `false` and an empty list.
+
+```
+{"status": "ok",
+ "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "devices": ["vulkan:0"]},
+ "precision": {"requested": "auto", "declared": "bf16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "native", "paths": "...", "effective": "f16"}]},
+ "requests": {"now": {"active": 3, "queued": 0, "paused": 0}, "limits": {"active": 16, "queued": 64},
+              "since_start": {"finished": 912, "prompt_tokens": 481203, "generated_tokens": 90112}},
+ "reuse": {"since_start": {"forks": 311, "tokens": 205112},
+           "device": {"now": {"entries": 4, "state_checkpoints": 0}},
+           "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184}, "since_start": {"promotions": 40, "bytes_moved": 4093640704}},
+           "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
+                    "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412, "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
+           "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
+ "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
+ "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
+ "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
+ "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}}
+```
+
+| Field | Unit | Kind | Meaning | Worth a look when |
+|---|---|---|---|---|
+| `server.version`, `server.numerics` | text | fixed | The build, as `--version` prints it, and the first 16 characters of the fingerprint of the sources that decide a result's bits; the disk cache adopts entries only of its own fingerprint | two servers of one deployment differ |
+| `server.uptime_s` | seconds | now | Since the server started | it is small and you did not restart it |
+| `server.model`, `server.context_tokens`, `server.devices` | text, tokens, names | fixed | The model file's name, its context length, and the devices it runs on | |
+| `precision` | | fixed | The activation precision requested and the one each device runs, with `how` it runs (`native`, `emulated` or `fallback`) | a device shows `fallback` |
+| `requests.now.active` | requests | now | Requests running in passes | it sits at `requests.limits.active` |
+| `requests.now.queued` | requests | now | Requests waiting for a place | it stays above 0, or reaches `requests.limits.queued`, where new requests get a 503 |
+| `requests.now.paused` | requests | now | Requests paused for want of KV room, waiting to resume; not counted in `queued` | above 0 for long |
+| `requests.limits.active`, `.queued` | requests | fixed | `--max-seqs` and `--max-queue` | |
+| `requests.since_start.finished` | requests | since start | Clients' requests that were admitted and ended, by any cause, a read-again job not counted; a request is added just after its reply is complete, so a poll right after a reply may not show it yet | |
+| `requests.since_start.prompt_tokens`, `.generated_tokens` | tokens | since start | Prompt tokens and generated tokens of those requests | |
+| `reuse.since_start.forks` | requests | since start | Requests that started from a shared history rather than from nothing | close to 0 for a client that sends conversations |
+| `reuse.since_start.tokens` | tokens | since start | Prompt tokens those requests did not have to read | |
+| `reuse.device.now.entries` | histories | now | Finished or paused conversations kept in device memory, ready to share | |
+| `reuse.device.now.state_checkpoints` | states | now | Saved conversation states, on a model whose layers keep one | |
+| `reuse.host.now.entries`, `.bytes`, `.limit_bytes` | histories, bytes | now | Histories in host memory, their bytes, and the cap `--host-cache-bytes` set (0 where there is no host cache) | `bytes` at `limit_bytes` is normal; the tier makes room by dropping entries |
+| `reuse.host.since_start.promotions` | histories | since start | Histories copied from host memory back to a device for a request | |
+| `reuse.host.since_start.bytes_moved` | bytes | since start | Bytes copied between devices and host memory, both ways | |
+| `reuse.disk.now.entries`, `.bytes`, `.limit_bytes` | files, bytes | now | Entries on disk, their bytes, and the cap `--disk-cache-bytes` set (0 where there is no disk tier) | |
+| `reuse.disk.now.in_flight` | operations | now | The write and the reads the disk tier has under way | |
+| `reuse.disk.now.ready` | yes or no | now | The store is made, which waits for the model file's digest (about twenty seconds for a 27 GB file not hashed before) | false for long after start |
+| `reuse.disk.now.writing` | yes or no | now | The tier has not stopped writing | false after `ready`, with a tier configured: it stopped after a failed write and waits for room |
+| `reuse.disk.since_start.hits`, `.bytes_read` | entries, bytes | since start | Entries read back for a request, and their bytes | |
+| `reuse.disk.since_start.bytes_written` | bytes | since start | Every finished write's bytes | rising fast with a small cap |
+| `reuse.disk.since_start.waits`, `.wait_ms` | requests, milliseconds | since start | Requests that waited for a read, and the time they waited | `wait_ms` grows far faster than `waits` |
+| `reuse.disk.since_start.errors` | operations | since start | Writes and reads that failed | above 0 |
+| `reuse.disk.since_start.dropped_for_cap` | entries | since start | Entries deleted to stay under the disk cap | rising: the cap is small for the load |
+| `reuse.disk.since_start.lost_before_written` | copies | since start | Copies host memory gave up room for before any file held them | rising: the disk is too slow or small for the rate conversations end |
+| `reuse.boundaries.now.entries`, `.since_start.hits` | states, requests | now, since start | Message boundaries' states held in host memory, and requests that forked one | |
+| `pressure.since_start.pauses` | pauses | since start | Times a request was paused to give blocks to another | rising: the pool is small for the load (`--ctx-size`, `--max-seqs`) |
+| `pressure.since_start.stalls` | passes | since start | Passes a request sat out, unable to grow | rising with pauses |
+| `pressure.since_start.waits` | passes | since start | Of those, the ones whose room waited on a request in flight | |
+| `pressure.since_start.recomputed_tokens` | tokens | since start | Rows resumes computed again | the cost of the pauses |
+| `pressure.since_start.resumes_taking_history_back` | resumes | since start | Resumes that took their own kept history back whole, computing nothing | |
+| `reread.since_start.jobs`, `.rows`, `.cancelled` | jobs, rows, jobs | since start | Background jobs that read a reply again so the next turn finds it kept, the rows they read, and the jobs that gave way to a request at a pass boundary | |
+| `drafting.since_start.drafted`, `.kept` | tokens | since start | Drafted tokens that verifies fed, and the ones they kept; `by_position` has the same by draft position, from 1 | `kept` far below `drafted` |
+| `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |
+| `passes.sampling_threads` | threads | fixed | Threads that sample beside the scheduler's | |
+| `timing` | milliseconds | since start | With `--timing` only: the means of the rounds' parts, `stage_idle_share` (a fraction of the span for each stage) and `device_bound_rows_per_s` | |
+
+The flat field names this reply had before (`prefix_hits`, `host_donors`, `disk_ready`, `drafted` and the rest) are gone, and `docs/SERVER.md` (The grouped `/v1/health`) maps each to its place.
+
 ## Serving load (`tools/server_load.py`)
 
 A running server under load, measured the way serving runtimes are compared: `python tools/server_load.py --url http://127.0.0.1:8080 [flags]`, standard library only.
@@ -784,7 +876,7 @@ One row per level: the first eight columns are the tool's earlier table (output 
 Figures are over the completed requests, from a level's first send to its last reply's end; time to first token counts from before the connection is opened.
 A reply's tokens are the count it reports where it reports one, so an event of several tokens counts them all and an event holding only the rest of a character split across tokens counts none.
 A request fails on an HTTP error, a refused or dropped connection, an error event, a stream that ends before its last event, or either timeout; each failure is counted and its reason listed below the table, for every round of a closed level, the ones the table does not show included.
-Reused tokens are read from the replies (`timings.cache_n`) or, on the native route, from the difference of `/v1/health`'s `prefix_tokens` around the level.
+Reused tokens are read from the replies (`timings.cache_n`) or, on the native route, from the difference of `/v1/health`'s `reuse.since_start.tokens` around the level.
 Every prompt starts with "the", so a server that matches prompts token by token reuses that word and any start token, one or two tokens a request.
 `--api completion` sends `cache_prompt: false`, as the tool always has, so the reference server's `/completion` reuses nothing; `--api openai` leaves every server's prefix cache at its default.
 Below the table an open level also notes sends that fell behind their arrival times at the 99th percentile by over 10 ms or a twentieth of the mean gap between arrivals, whichever is longer, and any level the requests that took over 100 ms to connect, as a burst past the server's listen backlog does; every request's send lag and connect time are in `--json`.

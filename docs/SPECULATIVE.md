@@ -93,7 +93,7 @@ A paused request takes its own donor back whole where it survives: its live slot
 **Eviction.** `make_room` stays the one owner, over KV blocks and checkpoint slots together, the slots as one more pool whose unit is a slot.
 A request's checkpoint is optional: it takes a free slot, else the oldest donor goes with its blocks, else it is skipped; nothing is paused for one, and an active request's checkpoint is never taken.
 On a model that keeps a state, a donor without a checkpoint cannot be continued, whatever KV blocks it holds, so a donor whose checkpoint is taken is dropped with its blocks.
-`/v1/health` adds checkpoints held and the forks that read one.
+`/v1/health` gives the checkpoints held (`reuse.device.now.state_checkpoints`) and, in `reuse.since_start.forks`, the requests that started from a shared history.
 
 **Host tier (step 2b, agreed with the other developer and approved by the user 2026-10-01).**
 The device keeps each conversation's latest checkpoint, forked in place; host memory keeps what the device cannot, so an edited earlier message and more conversations than the device slots hold are resumed rather than recomputed.

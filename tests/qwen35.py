@@ -311,7 +311,7 @@ def check_serve(directory):
             p = common.run_process(["generate", served, follow, "-n", "24", "--temp", "0", "--ignore-eos"], cache="f32")
             assert p.returncode == 0, p.stderr.decode("utf-8", "replace")
             assert list(common.generate_text(p.stdout)) == again["ids"], (served, again["ids"])
-            assert srv.get("/v1/health")["checkpoints"] > 0
+            assert srv.get("/v1/health")["reuse"]["device"]["now"]["state_checkpoints"] > 0
             # A regenerate shares nothing with what came before, and its checkpoint lies at its prompt's last whole block, past where an edit of its message parts from it; the boundary it keeps where that message starts is what the edit forks.
             before = [{"role": "user", "content": first[:300]}, {"role": "assistant", "content": first[300:340]}]
             chat = {"temperature": 0, "max_tokens": 8, "ignore_eos": True}
@@ -319,7 +319,7 @@ def check_serve(directory):
             edited = server.post_ok(srv, "/v1/chat", dict(chat, messages=before + [{"role": "user", "content": "something else entirely"}]))
             health = srv.get("/v1/health")
             assert regen["reused_tokens"] == 0 and 0 < edited["reused_tokens"] < edited["prompt_tokens"], (served, regen, edited, health)
-            assert health["boundary_hits"] >= 1, (served, health)
+            assert health["reuse"]["boundaries"]["since_start"]["hits"] >= 1, (served, health)
         finally:
             srv.close()
     # Drafts in the scheduler (docs/SPECULATIVE.md, section 3): with the MTP block's drafter and with lookup, each reply alone and with the others at once is its reply without drafts, greedy and seeded, and drafts were fed.
@@ -337,7 +337,8 @@ def check_serve(directory):
             for body, ids in zip(bodies, want):
                 assert server.post_ok(srv, "/v1/generate", body)["ids"] == ids, (drafter, body)
             health = srv.get("/v1/health")
-            assert sum(health["drafted"]) > 0 and len(health["kept"]) == len(health["drafted"]), (drafter, health)
+            drafting = health["drafting"]["since_start"]
+            assert drafting["drafted"] > 0 and all(p["kept"] <= p["drafted"] for p in drafting["by_position"]), (drafter, health)
         finally:
             srv.close()
     # Uncapped, each request runs to the context the pool holds, so four together pause and resume with the text each gives alone, with checkpoints and without, where each recomputes its history from its start.
@@ -350,9 +351,9 @@ def check_serve(directory):
             for (status, reply), body, text in zip(srv.together("/v1/completions", uncapped), uncapped, alone):
                 assert status == 200 and reply["choices"][0]["text"] == text, (body, reply, text)
             health = srv.get("/v1/health")
-            assert health["active"] == 0 and health["paused"] == 0 and health["pauses"] > 0, health
+            assert health["requests"]["now"]["active"] == 0 and health["requests"]["now"]["paused"] == 0 and health["pressure"]["since_start"]["pauses"] > 0, health
             if kept:
-                assert health["recomputed"] > 0 and health["taken_back"] == 0 and health["donors"] == 0, health
+                assert health["pressure"]["since_start"]["recomputed_tokens"] > 0 and health["pressure"]["since_start"]["resumes_taking_history_back"] == 0 and health["reuse"]["device"]["now"]["entries"] == 0, health
         finally:
             srv.close()
 

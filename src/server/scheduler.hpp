@@ -389,6 +389,8 @@ public:
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
+        uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
+        uint64_t host_limit = 0, disk_limit = 0;  // the host tier's and the disk tier's byte caps, 0 for a tier that is off
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -418,6 +420,11 @@ public:
         s.disk_wait_ms = disk_wait_ms_;
         s.disk_in_flight = (disk_key_ ? 1 : 0) + disk_reads_.size();
         s.disk_ready = disk_ && disk_->readable();
+        s.finished = finished_.load();
+        s.prompt_tokens = prompt_total_.load();
+        s.generated_tokens = generated_total_.load();
+        s.host_limit = host_cap_;
+        s.disk_limit = disk_ ? disk_->cap() : 0;
         s.drafted = tally_.drafted();
         s.kept = tally_.kept();
         return s;
@@ -2655,6 +2662,9 @@ private:
             r->parked_ = park(active, i, history(*r));
         }
         r->end(why, err);
+        ++finished_;
+        prompt_total_ += r->prompt_tokens();
+        generated_total_ += r->gen_.size();
         const Request::Timings t = r->timings();
         char paused[128] = "", stalled[48] = "";
         if (r->pauses_)
@@ -2962,6 +2972,7 @@ private:
     size_t steady_from_ = 0;                      // the least extent from which rows are one class up to the limit
     size_t reprefills_ = 0, reprefill_rows_ = 0, reprefill_cancels_ = 0;   // under the lock
     std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0}, checkpoints_{0};
+    std::atomic<uint64_t> finished_{0}, prompt_total_{0}, generated_total_{0};   // what Stats gives as the totals since start
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t pauses_ = 0;       // under the lock

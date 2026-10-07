@@ -295,26 +295,17 @@ POST /v1/chat        {"messages": [{"role": "user", "content": "..."}], ...}
 POST /v1/tokenize    {"text": "..."} or {"messages": [...]}
                      -> {"tokens": [ids], "count": n}
 POST /v1/detokenize  {"tokens": [ids]} -> {"text": "..."}
-GET  /v1/health      {"status": "ok", "model": "...", "active": n, "queued": m,
-                      "donors": d, "prefix_hits": h, "prefix_tokens": t,
-                      "pauses": p, "paused": w, "stalls": s, "waits": x,
-                      "recomputed": r, "taken_back": b, "checkpoints": c,
-                      "host_donors": h, "host_bytes": B, "host_hits": e,
-                      "host_bytes_moved": m, "boundaries": k,
-                      "boundary_hits": q, "disk_entries": D,
-                      "disk_bytes": S, "disk_bytes_written": W,
-                      "disk_hits": R, "disk_bytes_read": Q,
-                      "disk_waits": V, "disk_wait_ms": T,
-                      "disk_errors": E, "host_unwritten": U,
-                      "disk_capped": C, "disk_writing": true,
-                      "disk_ready": true,
-                      "reprefills": j, "reprefill_rows": n,
-                      "reprefill_cancels": y, "passes": P, "in_flight": f}
-                     with --timing also "timing": {"rounds", "round_ms",
+GET  /v1/health      {"status": "ok", "server": {...}, "precision": {...},
+                      "requests": {...}, "reuse": {...}, "pressure": {...},
+                      "reread": {...}, "drafting": {...}, "passes": {...}}
+                     each group has "now" (true at this moment) and
+                      "since_start" (counters), units in the names;
+                      with --timing also "timing": {"rounds", "round_ms",
                       "recording_ms", "relaying_ms", "sampling_ms",
                       "assembly_ms", "receive_wait_ms", "staging_wait_ms",
-                      "open_wait_ms", "logits_wait_ms", "stage_idle": [..],
+                      "open_wait_ms", "logits_wait_ms", "stage_idle_share": [..],
                       "device_bound_rows_per_s"}, each time a mean a round
+GET  /v1/live        {"status": "ok"}, answered without the scheduler
 GET  /v1/models      {"object": "list", "data": [{"id": "...", "object": "model", ...}]}
 POST /v1/chat/completions   the OpenAI clients' shape over the same scheduler
 POST /v1/completions        request: one parse, one request, one drain loop
@@ -328,7 +319,7 @@ A sampling field takes the range the CLI's flag for it takes, both read from bes
 A streaming response is `text/event-stream`: one `data:` line per token with the id and the decoded text, and a final `data: [DONE]`.
 The server holds a character split across tokens until its bytes complete, and replaces each byte that starts no valid UTF-8 character with U+FFFD, since JSON carries only characters.
 The CLI writes each token's bytes as they come.
-The `dtype` object in `/v1/health` is the placement record passed at startup: `requested`, `declared`, `effective` and `devices`, each with `device`, `effective`, `how` and `paths`. A device may report F32 fallback while another implements the requested dtype. An entirely F32 run reports F32 as the overall effective dtype. The API serializes it without resolving precision or treating the listed paths as execution witnesses.
+The `precision` object in `/v1/health` is the placement record passed at startup: `requested`, `declared`, `effective` and `devices`, each with `device`, `effective`, `how` and `paths`. A device may report F32 fallback while another implements the requested dtype. An entirely F32 run reports F32 as the overall effective dtype. The API serializes it without resolving precision or treating the listed paths as execution witnesses.
 
 The model's name in `/v1/health`, `/v1/models` and every compatible reply is its file name, which on Linux can hold bytes that are not UTF-8, and an error message can carry text from outside the request, such as a chat template's from the model file or a backend's failure.
 Both get the same U+FFFD repair as generated text, so every reply is UTF-8.
@@ -421,11 +412,11 @@ None: forks across row classes, the last, closed with `Model::row_class` ([SPECU
 | 15 | A first admission forks only rows of the classes it computes them in (`Model::row_class`; [SPECULATIVE](SPECULATIVE.md), step 1) | `server-resume`: a follow-up turn, on the CPU and on a device, and a prompt sharing a block of a prompt of another tile split, each equal to the same prompt on a fresh model; `backend-group` and `backend-vulkan`: rows of every pair of extents of one class give the same bits |
 | 14 | A retiring pass's rows drawn on the scheduler's sampling threads beside the scheduler thread (layer split phase 3, step 4) | `sampling-pool`: each index once, the threads side by side, an exception rethrown once every call has returned; TSan over the pool; every reply byte-identical to the step before, as for step 13 (`docs/STATUS.md`, layer split phase 3) |
 
-## Planned: a regrouped `/v1/health` and grouped help pages (2026-10-07)
+## The grouped `/v1/health` and help pages (2026-10-07)
 
 `/v1/health` is one flat object of about 45 fields in the order they were added, and the `serve` help page is two long groups.
 This plan regroups both for a person reading them, keeps every value, renames no flag and changes no default.
-It is a plan: the names here are not yet the code's.
+`docs/USAGE.md` (`/v1/health` and `/v1/live`) lists the fields as the server prints them; this section is the design, and the mapping from the flat names for anyone who read them.
 
 ### The shape
 
@@ -448,7 +439,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
     "device": {"now": {"entries": 4, "state_checkpoints": 0}},
     "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184},
              "since_start": {"promotions": 40, "bytes_moved": 4093640704}},
-    "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "ready": true, "writing": true},
+    "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
              "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412,
                              "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
     "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}
@@ -499,18 +490,18 @@ New, with where each comes from:
 | `server.context_tokens` | `Model::context_length()`, as `/v1/models` gives it |
 | `server.devices` | the names in `Config::dtype.devices` |
 | `requests.limits.*` | `Config::max_seqs`, `Config::max_queue` |
-| `requests.since_start.*` | three plain counters in the scheduler, added where a client's request ends: requests finished, prompt tokens, generated tokens; a re-read job (`reread`) is not counted |
+| `requests.since_start.*` | three atomic counters in the scheduler, added where a client's request that was admitted ends: requests finished, prompt tokens, generated tokens; a re-read job (`reread`) is not counted |
 | `reuse.host.now.limit_bytes` | the scheduler's `host_cap_` |
 | `reuse.disk.now.limit_bytes` | the disk tier's `cap()` |
 | `passes.sampling_threads` | `Stats::samplers`, already kept and not printed |
+| `reuse.disk.now.in_flight` | `Stats::disk_in_flight`, already kept and not printed |
 
-`reuse.disk.now.in_flight` (`Stats::disk_in_flight`, kept and printed nowhere) is one line more if a monitor wants it.
-The new counters are plain reads and increments under the lock the scheduler already takes; nothing in the scheduler's logic changes.
+The new counters are plain reads and atomic increments; nothing in the scheduler's logic changes.
 
 ### Liveness
 
-Recommended: a second route, `GET /v1/live`, answered from the HTTP layer without touching the scheduler, for a load balancer that polls often.
-It returns `{"status": "ok"}`, and may carry `active`, `paused` and `in_flight`, which the scheduler keeps in atomics (`active_count_`, `paused_count_`, `in_flight_`) that need no lock.
+Chosen: a second route, `GET /v1/live`, answered from the HTTP layer without touching the scheduler, for a load balancer that polls often.
+It returns `{"status": "ok"}` and nothing else; `active`, `paused` and `in_flight`, which the scheduler keeps in atomics (`active_count_`, `paused_count_`, `in_flight_`) that need no lock, could be added if a balancer wants more than a constant.
 The ground for a route of its own is that a probe that must not wait on the scheduler should not share a path with one that does.
 `/v1/health` takes the scheduler's lock, which the scheduler holds in admission and eviction, where it waits for the recorders to be quiet, and in the disk flush, so a health answer can wait up to a stage's time and a poll with a short timeout can fail on a healthy loaded server (`docs/src/server.md`).
 `/v1/live` says the process and its listener are up and cannot tell a wedged scheduler; a monitor that must tell that polls `/v1/health` with a timeout longer than a stage.

@@ -45,7 +45,7 @@ Figures per level, over the completed requests:
     in, out      mean prompt and output tokens of a completed request, as the replies report them or as the prompts were counted
     done, fail   completed and failed requests; a request fails on an HTTP error, a refused or dropped connection, an error event, a stream that ends before its last event, or a timeout
     short        completed requests with fewer tokens than they asked for
-    reused       mean prompt tokens a completed request took from the server's prefix cache, from the replies (timings.cache_n) or from the difference of /v1/health's prefix_tokens around the level; - where the server reports neither
+    reused       mean prompt tokens a completed request took from the server's prefix cache, from the replies (timings.cache_n) or from the difference of /v1/health's reuse.since_start.tokens around the level; - where the server reports neither
 
 Every prompt starts with the word "the", so a server that matches a prompt against its cache token by token reuses that word and any start token, one or two tokens a request.
 --api completion sends cache_prompt false, as this tool always has, so the reference server's /completion reuses nothing; the OpenAI route leaves every server's prefix cache at its default.
@@ -498,13 +498,14 @@ class Workload:
 
 
 def health(target):
-    """The server's prefix counters from /v1/health, or None where it has none."""
+    """The server's prefix counters from /v1/health (reuse.since_start), as prefix_hits and prefix_tokens, or None where it has none."""
     try:
         status, h = target.call("GET", "/v1/health", timeout=10)
     except (OSError, http.client.HTTPException):
         return None
-    if status == 200 and isinstance(h, dict) and isinstance(h.get("prefix_hits"), int):
-        return h
+    since = h.get("reuse", {}).get("since_start") if isinstance(h, dict) and isinstance(h.get("reuse"), dict) else None
+    if status == 200 and isinstance(since, dict) and isinstance(since.get("forks"), int):
+        return {"prefix_hits": since["forks"], "prefix_tokens": since.get("tokens", 0)}
     return None
 
 
@@ -920,7 +921,7 @@ class FakeServer:
             def do_GET(self):
                 if self.path == "/v1/health":
                     with fake.lock:
-                        return self.reply(200, {"status": "ok", "prefix_hits": fake.hits, "prefix_tokens": fake.reused})
+                        return self.reply(200, {"status": "ok", "reuse": {"since_start": {"forks": fake.hits, "tokens": fake.reused}}})
                 if self.path == "/v1/models":
                     return self.reply(200, {"object": "list", "data": [{"id": "fake"}]})
                 self.reply(404, {"error": "no such route"})

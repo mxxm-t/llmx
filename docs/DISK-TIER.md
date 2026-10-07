@@ -193,8 +193,8 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - `--disk-cache-max-age TIME`: delete entries unused for longer than TIME, by default `24h`; `0` keeps them until room takes them.
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 
-Until the digest and the store's probe finish, the server serves without the disk tier, writing and reading nothing, and `/v1/health`'s `disk_ready` stays false.
-**`/v1/health`:** `disk_entries`, `disk_bytes`, `disk_hits`, `disk_bytes_written`, `disk_bytes_read`, `disk_waits` (requests that waited for a read) and `disk_wait_ms`, `disk_errors`, `host_unwritten` (copies room took from host memory before any file held them, each a conversation the tiers lost), `disk_capped` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line), and `disk_writing` (false once the tier has stopped writing).
+Until the digest and the store's probe finish, the server serves without the disk tier, writing and reading nothing, and `/v1/health`'s `reuse.disk.now.ready` stays false.
+**`/v1/health`**, under `reuse.disk`: `now.entries`, `now.bytes`, `now.limit_bytes`, `now.in_flight`, `now.ready`, `now.writing` (false once the tier has stopped writing), and `since_start.hits`, `.bytes_written`, `.bytes_read`, `.waits` (requests that waited for a read) with `.wait_ms`, `.errors`, `.lost_before_written` (copies room took from host memory before any file held them, each a conversation the tiers lost) and `.dropped_for_cap` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line).
 
 **Tests:**
 - the store alone (CTest): an entry written and read back bit for bit; each identity field changed refuses it; a flipped payload byte fails its chunk and deletes the entry; a truncated file and a `.tmp` file are never read; the cap and the floor stop a write; an injected `ENOSPC` and `EIO` stop writing and keep reads;

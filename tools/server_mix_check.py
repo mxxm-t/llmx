@@ -166,8 +166,8 @@ def uncapped(args, text, flags):
         print("request %d: %d tokens alone, %d together, %s" % (i, len(a), len(b), "the same" if first is None else "differs from token %d" % first))
     gaps = [(y - x) * 1e3 for i in arrivals for x, y in zip(arrivals[i], arrivals[i][1:])]
     print("uncapped: %d of %d differ; %d pauses, %s tokens recomputed; together %.1f s, %d tokens, inter-token p50 %.2f ms, p99 %.2f ms, longest gap %.0f ms"
-          % (differ, len(prompts), after["pauses"] - before["pauses"],
-             after["recomputed"] - before["recomputed"] if "recomputed" in after else "unreported",
+          % (differ, len(prompts), after["pressure"]["since_start"]["pauses"] - before["pressure"]["since_start"]["pauses"],
+             after["pressure"]["since_start"]["recomputed_tokens"] - before["pressure"]["since_start"]["recomputed_tokens"],
              wall, sum(len(t) for t in together.values()), percentile(gaps, 0.5), percentile(gaps, 0.99), max(gaps or [0])), flush=True)
     if args.ids:
         with open(args.ids, "w", encoding="utf-8") as f:
@@ -193,14 +193,14 @@ def check_phase(port, name, fresh, failures):
     """A finished phase has no requests left; a fresh phase must not have reused or paused one."""
     deadline = time.monotonic() + 120
     state = health(port)
-    while any(state[k] for k in ("active", "queued", "paused")) and time.monotonic() < deadline:
+    while any(state["requests"]["now"].values()) and time.monotonic() < deadline:
         time.sleep(0.2)
         state = health(port)
-    if any(state[k] for k in ("active", "queued", "paused")):
+    if any(state["requests"]["now"].values()):
         failures.append(name + " left requests active, queued or paused")
     if fresh:
         print("fresh phase %s: %s" % (name, json.dumps(state, sort_keys=True)), flush=True)
-        if any(state[k] for k in ("prefix_hits", "prefix_tokens", "pauses")):
+        if state["reuse"]["since_start"]["forks"] or state["reuse"]["since_start"]["tokens"] or state["pressure"]["since_start"]["pauses"]:
             failures.append(name + " reused a donor or paused a request")
 
 
@@ -287,7 +287,7 @@ def main():
             # Drafts that were never fed would hold nothing to the replies without them.
             if args.drafter != "off":
                 state = health(port)
-                fed, kept = sum(state.get("drafted", [])), sum(state.get("kept", []))
+                fed, kept = state["drafting"]["since_start"]["drafted"], state["drafting"]["since_start"]["kept"]
                 print("drafts: %d fed, %d kept%s" % (fed, kept, " in the last phase" if args.fresh_phases else ""), flush=True)
                 if not fed:
                     failures.append("no draft was fed")

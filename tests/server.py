@@ -385,7 +385,7 @@ def check_dtype(model):
         flags = ("--device", "cpu", "--threads", "1", "--dtype", requested)
         srv = Server(model, *flags)
         try:
-            record = srv.get("/v1/health")["dtype"]
+            record = srv.get("/v1/health")["precision"]
             paths = common.CPU_DTYPE_PATHS[effective]
             assert record == {"requested": requested, "declared": "bf16", "effective": effective,
                               "devices": [{"device": "cpu", "effective": effective, "how": how, "paths": paths}]}, record
@@ -400,11 +400,19 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
     srv = Server(model, *flags)
     try:
         health = srv.get("/v1/health")
-        assert health["status"] == "ok" and health["active"] == 0, health
-        dtype = health["dtype"]
+        assert health["status"] == "ok" and health["requests"]["now"]["active"] == 0, health
+        dtype = health["precision"]
         assert set(dtype) == {"requested", "declared", "effective", "devices"} and dtype["requested"] == srv.requested_dtype, dtype
         assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16", "int8"), dtype
         assert dtype["devices"], dtype
+        # The groups and the units in their names (docs/OPERATING.md), and the route a load balancer polls without waiting on the scheduler.
+        assert set(health) >= {"status", "server", "precision", "requests", "reuse", "pressure", "reread", "drafting", "passes"} and "timing" not in health, health
+        info = health["server"]
+        assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
+        assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
+        assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens"}, health["requests"]
+        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries"}, health["reuse"]
+        assert srv.get("/v1/live") == {"status": "ok"}
         for device in dtype["devices"]:
             assert set(device) == {"device", "how", "paths", "effective"} and device["device"] and device["paths"], device
             assert device["how"] in ("native", "emulated", "fallback"), device
@@ -414,7 +422,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         # The model's name is its file name, with each byte that belongs to no UTF-8 character replaced by its own U+FFFD; every reply decodes as UTF-8 only if it is.
         # Python reads such a byte of a file name as a lone surrogate from U+DC80 to U+DCFF.
         name = "".join("\ufffd" if "\udc80" <= ch <= "\udcff" else ch for ch in os.path.basename(model))
-        assert models["data"][0]["id"] == name and health["model"] == name, (models, health, name)
+        assert models["data"][0]["id"] == name and health["server"]["model"] == name, (models, health, name)
 
         # Greedy through the server gives the CLI's text, and the replies are kept for the checks that follow.
         expected, replies = {}, {}
@@ -439,6 +447,8 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         for p in prompts[:4]:
             status, reply = results[p]
             assert status == 200 and reply["ids"] == expected[p], (p, reply, expected[p])
+        since = srv.wait(lambda h: h["requests"]["since_start"]["finished"] >= 4 + len(prompts), "finished requests were not counted")["requests"]["since_start"]
+        assert since["prompt_tokens"] > 0 and since["generated_tokens"] > 0, since
 
         # A stream: token events, then the end marker, with the same ids.
         events = srv.stream("/v1/generate", {"prompt": prompts[0], "max_tokens": n, "temperature": 0, "stream": True})
@@ -475,7 +485,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
 
         # A client that leaves mid-stream once its reply has begun, and the server ends with nothing active.
         common.leave_mid_stream(srv.port, {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0}, 64)
-        srv.wait(lambda h: h["active"] == 0, "a cancelled request stayed active", 60)
+        srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "a cancelled request stayed active", 60)
 
         # /v1/chat renders through the template and answers; the synthetic model's 16-token context has no room for a rendered turn.
         if chat:
@@ -549,7 +559,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert status == 200 and b["reused_tokens"] > 0, b
             assert b["text"] == cli_greedy_text(model, second, n, flags), (b["text"],)
             health = srv.get("/v1/health")
-            assert health["prefix_hits"] >= 1 and health["donors"] >= 1, health
+            assert health["reuse"]["since_start"]["forks"] >= 1 and health["reuse"]["device"]["now"]["entries"] >= 1, health
         return len(prompts)
     finally:
         srv.close()
@@ -983,8 +993,8 @@ def check_mxfp4(directory):
                 assert [e["id"] for e in events if e and "id" in e] == alone[i]["ids"]
                 assert stream_logprobs("/v1/generate", events) == {k: alone[i][k] for k in ("logprobs", "top_logprobs")}
                 assert events[-1] is None and events[-2].get("done") is True, events[-2:]
-            health = srv.wait(lambda h: h["active"] == 0, "MXFP4 request stayed active")
-            assert health["prefix_hits"] == 0 and health["pauses"] == 0, health
+            health = srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "MXFP4 request stayed active")
+            assert health["reuse"]["since_start"]["forks"] == 0 and health["pressure"]["since_start"]["pauses"] == 0, health
         finally:
             srv.close()
     print("server: MXFP4 dense tied/untied and MoE, first-token HF logprobs (max error %.8f, witnessed bounds %s), "
@@ -1071,7 +1081,7 @@ def check_limits(model):
         codes = sorted(status for status, _ in results.values())
         assert codes == [200, 200, 503], codes
         assert [r for s, r in results.values() if s == 503][0]["error"], results
-        assert full["active"] == 1 and full["queued"] == 1 and after["active"] == 1 and after["queued"] == 1, (full, after)
+        assert full["requests"]["now"]["active"] == 1 and full["requests"]["now"]["queued"] == 1 and after["requests"]["now"]["active"] == 1 and after["requests"]["now"]["queued"] == 1, (full, after)
         assert tokenized == (200, {"tokens": long_ids, "count": len(long_ids)}), tokenized
         assert detokenized == (200, {"text": long_text}), detokenized
     finally:
@@ -1131,10 +1141,11 @@ def check_uncapped(model):
             assert reply["usage"]["total_tokens"] <= 1024, (p, reply)
             same_choice(alone[p], reply["choices"][0], "an uncapped request paused beside others, %r" % p)
         health = srv.get("/v1/health")
-        assert health["active"] == 0 and health["queued"] == 0 and health["paused"] == 0, health
-        assert health["pauses"] > before["pauses"], (before, health)
+        assert health["requests"]["now"]["active"] == 0 and health["requests"]["now"]["queued"] == 0 and health["requests"]["now"]["paused"] == 0, health
+        assert health["pressure"]["since_start"]["pauses"] > before["pressure"]["since_start"]["pauses"], (before, health)
         # Resumes take device donors back, promote host donors or recompute missing rows; count only this concurrent group.
-        assert any(health[key] > before[key] for key in ("recomputed", "taken_back", "host_hits")), (before, health)
+        resumed = lambda h: (h["pressure"]["since_start"]["recomputed_tokens"], h["pressure"]["since_start"]["resumes_taking_history_back"], h["reuse"]["host"]["since_start"]["promotions"])
+        assert any(x > y for x, y in zip(resumed(health), resumed(before))), (before, health)
     finally:
         srv.close()
 
@@ -1169,7 +1180,7 @@ def check_paused_prefill(model):
         later = threading.Thread(target=worker)
         later.start()
         # Once the long request is paused the short one leaves, so the long one resumes now rather than after the short one's whole reply.
-        while later.is_alive() and srv.get("/v1/health")["pauses"] == 0:
+        while later.is_alive() and srv.get("/v1/health")["pressure"]["since_start"]["pauses"] == 0:
             time.sleep(0.05)
         s.close()
         later.join()
@@ -1182,7 +1193,7 @@ def check_paused_prefill(model):
         assert reply["choices"][0]["text"] == want, (reply["choices"][0]["text"], want)
         same_choice(alone["choices"][0], reply["choices"][0], "a prompt paused while prefilling")
         health = srv.get("/v1/health")
-        assert health["active"] == 0 and health["pauses"] >= 1, health
+        assert health["requests"]["now"]["active"] == 0 and health["pressure"]["since_start"]["pauses"] >= 1, health
     finally:
         srv.close()
 
@@ -1203,8 +1214,8 @@ def check_conversation(model, text):
             if turn:
                 assert reply["reused_tokens"] <= last, (turn, reply["reused_tokens"], last)
             if last >= 512:
-                assert reply["reused_tokens"] > reused and health["prefix_tokens"] > prefix, (turn, reply["prompt_tokens"], reply["reused_tokens"], reused, health)
-            reused, prefix, last = reply["reused_tokens"], health["prefix_tokens"], reply["prompt_tokens"]
+                assert reply["reused_tokens"] > reused and health["reuse"]["since_start"]["tokens"] > prefix, (turn, reply["prompt_tokens"], reply["reused_tokens"], reused, health)
+            reused, prefix, last = reply["reused_tokens"], health["reuse"]["since_start"]["tokens"], reply["prompt_tokens"]
             prompt += reply["text"] + " " + halves[(turn + 1) % 2]
         assert reply["prompt_tokens"] > pool // 2, reply
         return turns
@@ -1231,7 +1242,7 @@ def check_unrelated_donor(model):
         assert status == 200 and reply["reused_tokens"] > 0, reply
         # One donor went to make room for the follow-up, so the pool was short; the first turn's is the one it consumed.
         health = srv.get("/v1/health")
-        assert health["donors"] == 2, health
+        assert health["reuse"]["device"]["now"]["entries"] == 2, health
         later = unrelated + replies[0]["text"] + " " + text[6000:6200]
         status, reply = srv.post("/v1/generate", {"prompt": later, "max_tokens": n, "temperature": 0})
         assert status == 200 and reply["reused_tokens"] > 0, (reply, srv.get("/v1/health"))
@@ -1249,7 +1260,7 @@ def check_reprefill(model):
     srv = Server(model)
     try:
         a = post_ok(srv, "/v1/chat/completions", first)
-        srv.wait(lambda h: h["reprefills"] >= 1, "the first turn's reply was not read again", 60)
+        srv.wait(lambda h: h["reread"]["since_start"]["jobs"] >= 1, "the first turn's reply was not read again", 60)
         messages = first["messages"] + [{"role": "assistant", "content": a["choices"][0]["message"]["content"]}, {"role": "user", "content": "Shorter."}]
         follow = dict(first, messages=messages, max_tokens=32)
         b = post_ok(srv, "/v1/chat/completions", follow)
@@ -1287,9 +1298,9 @@ def check_host_tier(model):
                 total += reply["reused_tokens"]
             health = srv.get("/v1/health")
             if host != "0":
-                assert total > 0 and health["host_hits"] >= 2 and health["host_bytes_moved"] > 0, (total, health)
+                assert total > 0 and health["reuse"]["host"]["since_start"]["promotions"] >= 2 and health["reuse"]["host"]["since_start"]["bytes_moved"] > 0, (total, health)
             else:
-                assert total == 0 and health["host_donors"] == 0, (total, health)
+                assert total == 0 and health["reuse"]["host"]["now"]["entries"] == 0, (total, health)
             reused[host] = total
         finally:
             srv.close()
@@ -1319,7 +1330,7 @@ def check_disk_exit(model):
         return False
     with tempfile.TemporaryDirectory(prefix="llmx_disk_") as root:
         srv = Server(model, *disk_flags(root))
-        srv.wait(lambda h: h["disk_writing"] and len(servers_in(root)) == 1, "a disk tier made", 60)
+        srv.wait(lambda h: h["reuse"]["disk"]["now"]["writing"] and len(servers_in(root)) == 1, "a disk tier made", 60)
         assert terminate(srv) == 0 and not servers_in(root), servers_in(root)
         killed = Server(model, *disk_flags(root))
         killed.wait(lambda h: len(servers_in(root)) == 1, "a disk tier made", 60)
@@ -1364,7 +1375,7 @@ def check_disk_keep(model):
                 # 449 is a measured edge, not a derived one: where an MI50's profile gives this fixture's matrices one split (`split_blocks` in the Vulkan backend), so another profile or fixture moves it.
                 assert reply["prompt_tokens"] >= 449, (part[:40], reply["prompt_tokens"])
                 first.append(part + reply["text"])
-            srv.wait(lambda h: h["disk_writing"], "a disk tier made", 60)
+            srv.wait(lambda h: h["reuse"]["disk"]["now"]["writing"], "a disk tier made", 60)
         except BaseException:
             srv.close()
             raise
@@ -1372,7 +1383,7 @@ def check_disk_keep(model):
         srv = Server(model, *flags)
         total = 0
         try:
-            health = srv.wait(lambda h: h["disk_entries"] >= 3, "three entries adopted", 60)
+            health = srv.wait(lambda h: h["reuse"]["disk"]["now"]["entries"] >= 3, "three entries adopted", 60)
             for k, more in enumerate((text[2300:2700], text[6300:6700], text[10300:10700])):
                 prompt = first[k] + " " + more
                 reply = post_ok(srv, "/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
@@ -1380,7 +1391,7 @@ def check_disk_keep(model):
                 assert reply["reused_tokens"] > 0, (k, reply)
                 total += reply["reused_tokens"]
             health = srv.get("/v1/health")
-            assert health["disk_hits"] >= 3 and health["disk_errors"] == 0, health
+            assert health["reuse"]["disk"]["since_start"]["hits"] >= 3 and health["reuse"]["disk"]["since_start"]["errors"] == 0, health
         except BaseException:
             srv.close()
             raise
@@ -1388,8 +1399,8 @@ def check_disk_keep(model):
         srv.close()
         srv = Server(model, *flags)
         try:
-            health = srv.wait(lambda h: h["disk_writing"], "a disk tier made", 60)
-            assert health["disk_errors"] == 0, health
+            health = srv.wait(lambda h: h["reuse"]["disk"]["now"]["writing"], "a disk tier made", 60)
+            assert health["reuse"]["disk"]["since_start"]["errors"] == 0, health
         finally:
             srv.close()
     return total
@@ -1403,7 +1414,7 @@ LONG = POOL - 64
 
 def leave_whole(srv):
     s = srv.open("/v1/generate", {"prompt": "Once upon a time", "max_tokens": LONG, "temperature": 0})
-    srv.wait(lambda h: h["active"] == 1, "the whole reply did not start")
+    srv.wait(lambda h: h["requests"]["now"]["active"] == 1, "the whole reply did not start")
     s.close()
     return "a whole reply whose client left"
 
@@ -1414,7 +1425,7 @@ def leave_prefill(srv):
     # About 6400 tokens, one a pass: the stream has sent only its head when the client leaves.
     s = srv.open("/v1/completions", {"prompt": long_prompt, "max_tokens": 8, "temperature": 0, "stream": True})
     s.recv(64)
-    srv.wait(lambda h: h["active"] == 1, "the long prompt did not start")
+    srv.wait(lambda h: h["requests"]["now"]["active"] == 1, "the long prompt did not start")
     s.close()
     return "a streamed prompt whose client left while it was read"
 
@@ -1422,13 +1433,13 @@ def leave_prefill(srv):
 def leave_queued(srv):
     busy = srv.open("/v1/generate", {"prompt": "Once upon a time", "max_tokens": LONG, "temperature": 0, "stream": True})
     busy.recv(64)
-    srv.wait(lambda h: h["active"] == 1, "the busy request did not start")
+    srv.wait(lambda h: h["requests"]["now"]["active"] == 1, "the busy request did not start")
     s = srv.open("/v1/generate", {"prompt": "The capital of France is", "max_tokens": 8, "temperature": 0})
-    srv.wait(lambda h: h["queued"] == 1, "the second request did not queue")
+    srv.wait(lambda h: h["requests"]["now"]["queued"] == 1, "the second request did not queue")
     s.close()
     # It leaves the queue while the slot's request, whose client stays, goes on.
-    health = srv.wait(lambda h: h["queued"] == 0, "a queued request whose client left stayed queued")
-    assert health["active"] == 1, health
+    health = srv.wait(lambda h: h["requests"]["now"]["queued"] == 0, "a queued request whose client left stayed queued")
+    assert health["requests"]["now"]["active"] == 1, health
     busy.close()
     return "a queued request whose client left"
 
@@ -1436,7 +1447,7 @@ def leave_queued(srv):
 def leave_half(srv):
     """A client that shuts its sending side and reads on is taken as gone: its request ends and the connection closes with no answer, not even an error."""
     s = srv.open("/v1/generate", {"prompt": "Once upon a time", "max_tokens": LONG, "temperature": 0})
-    srv.wait(lambda h: h["active"] == 1, "the whole reply did not start")
+    srv.wait(lambda h: h["requests"]["now"]["active"] == 1, "the whole reply did not start")
     s.shutdown(socket.SHUT_WR)
     s.settimeout(5)
     raw = b""
@@ -1454,7 +1465,7 @@ def leave_half(srv):
 
 def settled(srv, what):
     """Nothing active or queued, and a request reaching the whole pool starts, which it can only once no request holds blocks, donors giving theirs up; its first token is enough."""
-    srv.wait(lambda h: h["active"] == 0 and h["queued"] == 0, what + " stayed")
+    srv.wait(lambda h: h["requests"]["now"]["active"] == 0 and h["requests"]["now"]["queued"] == 0, what + " stayed")
     s = srv.open("/v1/generate", {"prompt": "a", "max_tokens": POOL - 1, "temperature": 0, "stream": True})
     s.settimeout(5)
     raw = b""
@@ -1466,7 +1477,7 @@ def settled(srv, what):
     except socket.timeout:
         raise AssertionError(what + ": the pool's blocks did not come back")
     s.close()
-    srv.wait(lambda h: h["active"] == 0, "a request reaching the whole pool stayed after its client left")
+    srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "a request reaching the whole pool stayed after its client left")
 
 
 def check_departed(model):

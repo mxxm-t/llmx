@@ -99,7 +99,7 @@ def check_served(directory):
         for body, ids in zip(bodies, want):
             assert server.post_ok(srv, "/v1/generate", body)["ids"] == ids, body
         health = srv.get("/v1/health")
-        assert sum(health["drafted"]) > 0, health
+        assert health["drafting"]["since_start"]["drafted"] > 0, health
     finally:
         srv.close()
 

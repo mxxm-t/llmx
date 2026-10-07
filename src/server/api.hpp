@@ -13,6 +13,7 @@
 #include <thread>
 #include <vector>
 #include "core/json.hpp"
+#include "config.hpp"
 #include "core/utf8.hpp"
 #include "inference/chat.hpp"
 #include "model/place.hpp"
@@ -114,6 +115,7 @@ public:
         }
         try {
             if (req.method == "GET" && req.path == "/v1/health") return health(c);
+            if (req.method == "GET" && req.path == "/v1/live") return c.respond(200, "application/json", "{\"status\":\"ok\"}");
             if (req.method == "GET" && req.path == "/v1/models") return models(c);
             if (req.method == "POST" && req.path == "/v1/tokenize") return tokenize(c, req);
             if (req.method == "POST" && req.path == "/v1/detokenize") return detokenize(c, req);
@@ -152,35 +154,45 @@ private:
         BadRequest(int s, const std::string& m) : std::runtime_error(m), status(s) {}
     };
 
-    // Counts as a JSON array.
-    static std::string counts_json(const std::vector<size_t>& v) {
-        std::string out = "[";
-        for (size_t i = 0; i < v.size(); ++i) out += (i ? "," : "") + std::to_string(v[i]);
-        return out + "]";
-    }
-
+    // The statistics, grouped as docs/SERVER.md has them: what is true now beside what has been counted since the server started.
     void health(http::Connection& c) {
         const Scheduler::Stats s = sched_.stats();
+        const auto n = [](uint64_t v) { return std::to_string(v); };
+        const auto yes = [](bool v) { return std::string(v ? "true" : "false"); };
+        std::string devices, positions;
+        size_t drafted = 0, kept = 0;
+        for (const auto& dev : cfg_.dtype.devices) devices += (devices.empty() ? "" : ",") + jmini::quote(dev.name);
+        for (size_t i = 0; i < s.drafted.size(); ++i) {
+            const size_t k = i < s.kept.size() ? s.kept[i] : 0;
+            positions += (i ? "," : "") + std::string("{\"position\":") + n(i + 1) + ",\"drafted\":" + n(s.drafted[i]) + ",\"kept\":" + n(k) + "}";
+            drafted += s.drafted[i];
+            kept += k;
+        }
+        const std::string numerics = std::string(LLMX_NUMERICS).substr(0, 16);
+        const int64_t up = (int64_t)std::time(nullptr) - started_;
         c.respond(200, "application/json",
-                  "{\"status\":\"ok\",\"model\":" + jmini::quote(cfg_.model_name) + ",\"dtype\":" + dtype_json(cfg_.dtype) +
-                  ",\"active\":" + std::to_string(s.active) + ",\"queued\":" + std::to_string(s.queued) +
-                  ",\"donors\":" + std::to_string(s.donors) + ",\"prefix_hits\":" + std::to_string(s.prefix_hits) +
-                  ",\"prefix_tokens\":" + std::to_string(s.prefix_tokens) + ",\"pauses\":" + std::to_string(s.pauses) +
-                  ",\"paused\":" + std::to_string(s.paused) + ",\"stalls\":" + std::to_string(s.stalls) + ",\"waits\":" + std::to_string(s.waits) +
-                  ",\"recomputed\":" + std::to_string(s.recomputed) + ",\"taken_back\":" + std::to_string(s.taken_back) +
-                  ",\"checkpoints\":" + std::to_string(s.checkpoints) + ",\"host_donors\":" + std::to_string(s.host_donors) +
-                  ",\"host_bytes\":" + std::to_string(s.host_bytes) + ",\"host_hits\":" + std::to_string(s.host_hits) +
-                  ",\"host_bytes_moved\":" + std::to_string(s.host_bytes_moved) + ",\"boundaries\":" + std::to_string(s.boundaries) +
-                  ",\"boundary_hits\":" + std::to_string(s.boundary_hits) + ",\"disk_entries\":" + std::to_string(s.disk_entries) +
-                  ",\"disk_bytes\":" + std::to_string(s.disk_bytes) + ",\"disk_bytes_written\":" + std::to_string(s.disk_bytes_written) +
-                  ",\"disk_hits\":" + std::to_string(s.disk_hits) + ",\"disk_bytes_read\":" + std::to_string(s.disk_bytes_read) +
-                  ",\"disk_waits\":" + std::to_string(s.disk_waits) + ",\"disk_wait_ms\":" + std::to_string((uint64_t)s.disk_wait_ms) +
-                  ",\"disk_errors\":" + std::to_string(s.disk_errors) + ",\"host_unwritten\":" + std::to_string(s.host_unwritten) + ",\"disk_capped\":" + std::to_string(s.disk_capped) + ",\"disk_writing\":" + (s.disk_writing ? "true" : "false") +
-                  ",\"disk_ready\":" + (s.disk_ready ? "true" : "false") +
-                  ",\"reprefills\":" + std::to_string(s.reprefills) +
-                  ",\"reprefill_rows\":" + std::to_string(s.reprefill_rows) + ",\"reprefill_cancels\":" + std::to_string(s.reprefill_cancels) +
-                  ",\"passes\":" + std::to_string(s.passes) + ",\"in_flight\":" + std::to_string(s.in_flight) +
-                  ",\"drafted\":" + counts_json(s.drafted) + ",\"kept\":" + counts_json(s.kept) +
+                  "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
+                  ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
+                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"devices\":[" + devices + "]}" +
+                  ",\"precision\":" + dtype_json(cfg_.dtype) +
+                  ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) +
+                  "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
+                  "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) + "}}" +
+                  ",\"reuse\":{\"since_start\":{\"forks\":" + n(s.prefix_hits) + ",\"tokens\":" + n(s.prefix_tokens) +
+                  "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + "}}" +
+                  ",\"host\":{\"now\":{\"entries\":" + n(s.host_donors) + ",\"bytes\":" + n(s.host_bytes) + ",\"limit_bytes\":" + n(s.host_limit) +
+                  "},\"since_start\":{\"promotions\":" + n(s.host_hits) + ",\"bytes_moved\":" + n(s.host_bytes_moved) + "}}" +
+                  ",\"disk\":{\"now\":{\"entries\":" + n(s.disk_entries) + ",\"bytes\":" + n(s.disk_bytes) + ",\"limit_bytes\":" + n(s.disk_limit) +
+                  ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) +
+                  "},\"since_start\":{\"hits\":" + n(s.disk_hits) + ",\"bytes_read\":" + n(s.disk_bytes_read) + ",\"bytes_written\":" + n(s.disk_bytes_written) +
+                  ",\"waits\":" + n(s.disk_waits) + ",\"wait_ms\":" + n((uint64_t)s.disk_wait_ms) + ",\"errors\":" + n(s.disk_errors) +
+                  ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"lost_before_written\":" + n(s.host_unwritten) + "}}" +
+                  ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}}" +
+                  ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
+                  ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + "}}" +
+                  ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + "}}" +
+                  ",\"drafting\":{\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"by_position\":[" + positions + "]}}" +
+                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + "}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
     // The run's request and resolved dtype, including each device's emulation or wider fallback.
@@ -204,7 +216,7 @@ private:
         return "{\"rounds\":" + std::to_string(t.rounds) + ",\"round_ms\":" + mean(t.round_ms) + ",\"recording_ms\":" + mean(t.recording_ms) +
                ",\"relaying_ms\":" + mean(t.relaying_ms) + ",\"sampling_ms\":" + mean(t.sampling_ms) + ",\"assembly_ms\":" + mean(t.assembly_ms) +
                ",\"receive_wait_ms\":" + mean(t.receive_wait_ms) + ",\"staging_wait_ms\":" + mean(t.staging_wait_ms) +
-               ",\"open_wait_ms\":" + mean(t.open_wait_ms) + ",\"logits_wait_ms\":" + mean(t.logits_wait_ms) + ",\"stage_idle\":[" + idle +
+               ",\"open_wait_ms\":" + mean(t.open_wait_ms) + ",\"logits_wait_ms\":" + mean(t.logits_wait_ms) + ",\"stage_idle_share\":[" + idle +
                "],\"device_bound_rows_per_s\":" + jmini::number((float)(busiest > 0 ? 1000.0 * (double)t.rows / busiest : 0.0)) + "}";
     }
     // The list clients read the model id from, with the file's context length and vocabulary beside the standard fields.

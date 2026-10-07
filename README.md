@@ -75,7 +75,7 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 Tool calls, embeddings and more than one choice per request are not supported.
 There is no TLS or authentication, so put a reverse proxy in front of a server that faces a network.
 Finished conversations are kept for prefix reuse in device memory, then host memory (`--host-cache-bytes`) and optionally on disk (`--disk-cache-bytes`, `--disk-cache-dir`, `--disk-cache-keep`, `--disk-cache-max-age`; [DISK-TIER](docs/DISK-TIER.md)).
-[USAGE](docs/USAGE.md) lists the request fields and server flags, and [SERVER](docs/SERVER.md) the scheduler's design.
+[USAGE](docs/USAGE.md) lists the request fields and server flags, [OPERATING](docs/OPERATING.md) covers running a server (setups, reading `/v1/health`, troubleshooting) and [SERVER](docs/SERVER.md) the scheduler's design.
 
 ## Speed options
 
@@ -112,6 +112,7 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 ## Documentation
 
 - [USAGE](docs/USAGE.md): every command and flag.
+- [OPERATING](docs/OPERATING.md): running a server.
 - [BUILD](docs/BUILD.md): building on each platform, and running the tests.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
 - [ARCHITECTURE](docs/ARCHITECTURE.md), [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md) and [MULTI-DEVICE](docs/MULTI-DEVICE.md): how the runtime, the server, the Vulkan backend and the multi-device modes work.

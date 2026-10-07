@@ -13,11 +13,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import server_mix_check as tool
 
 
+def health_reply(active=0, queued=0, paused=0, forks=0, tokens=0, pauses=0):
+    """The parts of /v1/health the tool reads, in the reply's shape."""
+    return {"requests": {"now": {"active": active, "queued": queued, "paused": paused}},
+            "reuse": {"since_start": {"forks": forks, "tokens": tokens}},
+            "pressure": {"since_start": {"pauses": pauses, "recomputed_tokens": 0}},
+            "drafting": {"since_start": {"drafted": 0, "kept": 0}}}
+
+
 class ServerMixTool(unittest.TestCase):
     def exercise(self, flags=(), state=None, fail_post=False, fail_leaver=False, change_logprob=False):
         starts, stops, visits = [], [], []
-        quiet = dict(active=0, queued=0, paused=0, prefix_hits=0, prefix_tokens=0, pauses=0)
-        quiet.update(state or {})
+        quiet = health_reply(**(state or {}))
         reqs = [dict(prompt="p%d" % i, max_tokens=2, temperature=0) for i in range(4)]
         if "--logprobs" in flags:
             for request in reqs:
@@ -92,7 +99,7 @@ class ServerMixTool(unittest.TestCase):
             self.assertEqual(command[command.index("--ctx-size") + 1], "8192")
 
     def test_fresh_phase_refuses_reuse_and_pauses(self):
-        for counter in ("prefix_hits", "prefix_tokens", "pauses"):
+        for counter in ("forks", "tokens", "pauses"):
             with self.subTest(counter=counter):
                 self.assertEqual(self.exercise(["--fresh-phases"], {counter: 1})[0], 1)
                 self.assertEqual(self.exercise(state={counter: 1})[0], 0)

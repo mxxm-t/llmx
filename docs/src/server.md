@@ -1,6 +1,6 @@
 # `src/server/` - the multi-user server
 
-The API configuration carries placement's `DtypePlan`; `/v1/health` serializes its requested, declared and effective dtype plus each device's name, effective dtype, implementation mode and paths. The server does not choose precision. This capability record does not establish which kernel a request executed.
+The API configuration carries placement's `DtypePlan`; `/v1/health` serializes it as `precision`, its requested, declared and effective dtype plus each device's name, effective dtype, implementation mode and paths. The server does not choose precision. This capability record does not establish which kernel a request executed.
 
 `llmx serve`, in five headers above the inference layer, designed in
 `docs/SERVER.md`. No external libraries: sockets, HTTP/1.1, JSON and the
@@ -113,6 +113,7 @@ scheduler are the runtime's own.
   While it serves, the first SIGTERM or SIGINT, or on Windows Ctrl-C, Ctrl-Break or a console closing, stops the listener (`detail::StopOnSignal`, through `http::Listener::request_close`, which only stores a flag a signal handler may store), so the server stops as a closed listener stops it and exits cleanly; the next ends the process.
   `Config` carries the scheduler's `passes` and `timing` beside its queue and sequence limits, and `serve` prints the passes the scheduler keeps in flight as it starts.
   `/v1/health` adds a timed scheduler's figures as `timing` (`timing_json`): each time a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate, the rows the passes carried over the busiest stage's device time.
+  `/v1/health` (`health`) prints `Scheduler::Stats` in groups, each with `now` and `since_start`, and `/v1/live` answers a constant without the scheduler's lock; the client's requests ending count in atomics the scheduler adds to in `finish` (`finished`, `prompt_tokens`, `generated_tokens`).
   Native `/v1/generate`, `/v1/chat` and `/v1/health`; the OpenAI-compatible `/v1/chat/completions`, `/v1/completions` and `/v1/models`, one parse, one request and one drain loop shared with the native routes, with the clients' synonyms accepted and errors in their shape.
   Every POST route reads its body through `body_of`, which refuses anything but a JSON object with 400.
   `encode` gives a prompt's ids to the generating routes and `/v1/tokenize` alike, refusing a text the tokenizer cannot encode with 400.

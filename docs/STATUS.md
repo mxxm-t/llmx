@@ -46,6 +46,7 @@
 | The attention tile addresses its staged words directly | Done (record below): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
 | The 8-bit twin block-major where the tile reads it | Done (record below): bit-identical, int8 prompts 1 percent faster on Q8_0 and 3 on Q4_K_M on an MI50; lands by fast-forward |
 | Qwen3-8B Q8_0 int8 prompts against the reference fork | Open (record below): level at pp512, 7 and 13 percent behind at pp2048 and pp4096, which is attention; the 8-bit tile shape not built |
+| Grouped `/v1/health`, `/v1/live`, grouped help pages and `docs/OPERATING.md` | Done (record below): one shape, no copy of the flat fields; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
@@ -121,6 +122,13 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
+## `/v1/health` in groups, `/v1/live`, grouped help pages and the operating guide (2026-10-07, branch feat/health-help, lands by fast-forward)
+
+- **Goal:** a health reply and help pages a person can read, and a page for people who run a server (`docs/OPERATING.md`).
+- **Done:** `/v1/health` is nested groups (`server`, `precision`, `requests`, `reuse` with `device`, `host`, `disk` and `boundaries`, `pressure`, `reread`, `drafting`, `passes`, `timing` under `--timing`), counters split into `now` and `since_start` with units in the names; the mapping from every old field is in `docs/SERVER.md` (The grouped `/v1/health`) and every field is in a table in `docs/USAGE.md`. New values: version, numerics, uptime, context, devices, the limits, the two tier caps, the sampling threads, `in_flight` of the disk tier and three request totals (three atomic counters in `Scheduler::finish`). `GET /v1/live` answers a constant without the scheduler's lock. The `serve` page is in five groups (Server, Limits, Prefix cache, Speculative decoding, Execution) with three examples, the `generate` and `chat` pages in Generation, Sampling and Speculative decoding groups, and the pages' plain words replace "routed layers" and "passes in flight". No flag was renamed, added or removed and no default changed. Every reader in the tree moved with it: `tests/server.py`, `tests/qwen35.py`, `tests/drafters.py`, `tests/server_mix_tool.py`, `tools/server_load.py`, `tools/server_mix_check.py`. `tests/server.py` pins the groups, the totals and `/v1/live`.
+- **Left:** outside the tree, the operator's own readiness polls and the A/B gate scripts that read the flat names move to the new ones. `bench` keeps its one group.
+- **Gotchas:** `--timing` on a CPU server closed the connection at the first request with no message, on main as well as here (checked on main `63354caa`); it was not changed. The `finished` total counts requests that were admitted, so one cancelled while queued is not in it.
 
 ## An idle server does not rewrite a conversation every turn (2026-10-07, branch feat/idle-rewrite-rule, lands by fast-forward)
 

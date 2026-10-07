@@ -854,7 +854,7 @@ private:
         const size_t S = model_.stage_count();
         if (round_.stage_ms.size() != S) {
             round_.stage_ms.assign(S, 0.0);
-            host_stage_ms_.assign(S, 0.0);
+            std::fill(host_stage_ms_.begin(), host_stage_ms_.end(), 0.0);
             for (size_t s = 0; s < S; ++s) quieted().stage_backend(s).device_ms();
             span_start_ = Clock::now();
             span_rows_ = 0;
@@ -2942,7 +2942,7 @@ private:
     infer::spec::Acceptance tally_;       // under the lock, every verify's drafts by position
     Timing round_;                        // the scheduler thread's, published to timing_ each round
     Timing timing_;                       // under the lock
-    std::vector<double> host_stage_ms_;   // per stage on the host, its time since the last reading
+    std::vector<double> host_stage_ms_ = std::vector<double>(model_.stage_count(), 0.0);   // per stage on the host, its time since the last reading; a stage's first pass adds to it before any round has ended
     Clock::time_point span_start_;
     size_t span_rows_ = 0;                // rows the passes retired since the last reading carried
     double formed_stages_ms_ = 0;         // the round's first stages of new passes, which forming them does not count

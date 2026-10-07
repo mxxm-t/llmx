@@ -126,6 +126,13 @@ The status table and the active blocks above give the present state; a record's 
 
 The records of 2026-09 and the historical blocks before them are in [STATUS-2026-09](STATUS-2026-09.md); at each month's end that month's records move to a file of their own.
 
+## A timed server on the CPU keeps a host stage's time from its first pass (2026-10-07, branch fix/timed-cpu, lands by fast-forward)
+
+- **Found** by the health redesign's work and reproduced on main: `llmx serve --timing` on a CPU-only server closed the connection at its first request with no error. A timed scheduler adds a host stage's own time to a per-stage list as the stage is recorded, and sized that list only at the end of the first round; on the CPU the first pass's stage runs on the host before any round has ended, so the first add wrote past an empty list and the process died. A device's stage is not on the host and never added there, which is why every timed run on cards worked.
+- **Fix:** the list is sized with the scheduler. Failing test first: `server-passes-cpu` runs a timed scheduler on one CPU and split over two; at the test's commit it ends in a segmentation fault in three runs of three, at the fix every reply is its reply alone and the timing holds its rounds and a time a stage.
+- **Scope:** `--timing` with a stage on the host, so a CPU-only server or experts on the CPU; an untimed server never reached it.
+- **Reviewed by:** F2DEV at d0968007, one finding, taken: the list is still zeroed where the first span starts, as the device's reading is discarded there, and the test holds every stage's time finite and at least 0.
+
 ## STATUS by month: September's records moved to their own file (2026-10-07, branch docs/status-archive, docs only, lands by fast-forward)
 
 - **Done:** 96 dated records and historical blocks older than 2026-10-01, 10083 lines, moved unchanged and in order to [STATUS-2026-09](STATUS-2026-09.md); STATUS.md went from 11824 to about 1740 lines. Nine "Left: nothing" lines of the kept records were removed and four reworded to the fact they held; the Markdown that named a moved record names the archive, and the status table's rows whose record moved link to it.

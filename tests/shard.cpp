@@ -283,6 +283,15 @@ void footprints() {
             }
     }
     {
+        // A tied head on one device is the embedding's buffer; a member's head is a shard of its own beside the whole table, so a group counts both.
+        Views v;
+        const infer::ModelWeights w = qwen3_model(quant::GGML_TYPE_Q8_0, v, true);
+        const infer::ModelPlan plan = infer::plan_model(w);
+        const infer::Footprint one = infer::footprint(w, plan, o), half = infer::footprint(w, plan, o, 2, 0);
+        require(one.tied && one.output.bytes == 64 * q8, "a tied head on one device is not the embedding's buffer");
+        require(!half.tied && half.embedding.bytes == 64 * q8 && half.output.bytes == 32 * q8, "a member's tied head is not counted as its shard beside the whole embedding");
+    }
+    {
         Views v;
         const infer::ModelWeights w = qwen35_model(quant::GGML_TYPE_Q8_0, v);
         const infer::ModelPlan plan = infer::plan_model(w);

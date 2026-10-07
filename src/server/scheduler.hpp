@@ -1835,6 +1835,7 @@ private:
         size_t length = 0;
         uint64_t bytes = 0;
         std::filesystem::file_time_type used{};   // its last use, which the age limit reads
+        bool superseded = false;                  // under keep, a later turn's copy stands for its conversation: the file stays until that copy's is in place (supersede, settle_disk)
     };
 
     // Host entries whose files are on disk released, the oldest boundaries and then the oldest copies, until `bytes` more fit the host tier; nothing is lost, the files keeping them.
@@ -1937,6 +1938,13 @@ private:
                 for (Boundary& b : bounds_)
                     if (disk_writing_bound_ && b.id == disk_writing_) b.disk = f.key;
                 disk_index_.push_back(std::move(disk_pending_));
+                // The newer copy of a conversation in place, the earlier ones kept for it go.
+                const DiskEntry in_place = disk_index_.back();
+                for (size_t i = 0; !in_place.boundary && i + 1 < disk_index_.size();) {
+                    const DiskEntry& e = disk_index_[i];
+                    if (e.superseded && !e.boundary && e.length <= in_place.length && std::equal(e.tokens.begin(), e.tokens.begin() + (std::ptrdiff_t)e.length, in_place.tokens.begin())) forget_disk(e.key);
+                    else ++i;
+                }
             }
             disk_pending_ = DiskEntry{};
             disk_writing_ = disk_key_ = 0;
@@ -1982,6 +1990,10 @@ private:
             forget_disk(b.key);
             ++alone;
         }
+        // Of two copies of one history, as a crash between a newer file landing and the older going leaves them, the shorter is superseded again, so room takes it first.
+        for (DiskEntry& e : disk_index_)
+            for (const DiskEntry& c : disk_index_)
+                if (!e.boundary && !c.boundary && c.length > e.length && e.tokens.size() <= c.tokens.size() && std::equal(e.tokens.begin(), e.tokens.end(), c.tokens.begin())) e.superseded = true;
         // Within the cap, room taking what it takes first: boundaries, then copies whose conversations did not come back, then the oldest.
         for (int rank = 0; rank < 3 && used > disk_->cap(); ++rank)
             for (size_t i = 0; i < disk_index_.size() && used > disk_->cap();) {
@@ -2097,7 +2109,7 @@ private:
     bool flush_one(std::vector<uint64_t>& tried, bool idle) {
         const auto host_copy = [&](bool back) {
             for (size_t i = host_.size(); i-- > 0;)
-                if (!host_[i].disk && !host_[i].superseded && host_[i].back == back &&
+                if (!host_[i].disk && !host_[i].superseded && host_[i].back == back && !(idle && near_on_disk(host_[i].tokens, host_[i].classes, host_[i].history.length)) &&
                     start_write(false, host_[i].id, host_[i].tokens, host_[i].classes, host_[i].history, host_[i].back, host_[i].used))
                     return true;
             return false;
@@ -2112,7 +2124,7 @@ private:
                 tried.push_back(d.id);
                 // One whose copy is in host memory or on disk already is not copied off the devices again.
                 const size_t n = copy_length(d);
-                if (!n || copied(d, n)) continue;
+                if (!n || copied(d, n) || (idle && near_on_disk(d.tokens, d.classes, n))) continue;
                 write_back(donors_[k], true);
                 if (disk_key_ || host_copy(back)) return true;
             }
@@ -2120,6 +2132,16 @@ private:
             for (size_t i = bounds_.size(); back && i-- > 0;)
                 if (!bounds_[i].disk && start_write(true, bounds_[i].id, bounds_[i].tokens, bounds_[i].classes, bounds_[i].state, true, bounds_[i].used)) return true;
         }
+        return false;
+    }
+
+    // Whether an earlier whole copy of the conversation whose first `n` tokens are `tokens`, computed as `classes` record, is on disk within a quarter of that length: an idle server does not write such a conversation again, the stop does.
+    // Writing a whole copy after every turn cost its bytes a turn, 5 GB at 76k tokens of a 27B model, where the turn added a tenth of that.
+    bool near_on_disk(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n) const {
+        for (const DiskEntry& e : disk_index_)
+            if (!e.boundary && e.length <= n && e.length * 4 >= n * 3 && e.tokens.size() <= tokens.size() && std::equal(e.tokens.begin(), e.tokens.end(), tokens.begin()) &&
+                alike(e.classes, classes, e.length) == e.length)
+                return true;
         return false;
     }
 
@@ -2396,7 +2418,7 @@ private:
         // The order, as ranks: an entry of a rank the newcomer may not take is left.
         const auto rank = [&](const DiskEntry& e) -> int {
             if (being_read(e.key)) return -1;
-            if (orphan(e)) return 0;
+            if (orphan(e) || e.superseded) return 0;
             if (e.boundary) return back ? 1 : -1;
             if (!e.back) return 2;
             return back ? 3 : -1;
@@ -2851,14 +2873,18 @@ private:
         for (HostDonor& h : host_)
             if (h.id != kept && supersedes(j, h.id, h.tokens)) {
                 h.superseded = true;
-                // A superseded copy is never kept on disk: its file goes and its write stops.
-                if (h.disk) forget_disk(h.disk);
-                h.disk = 0;
+                // A superseded copy is not written, and its file goes: at once without keep, and under keep once a newer copy of the conversation is on disk, so a crash meanwhile loses only what the conversation gained since (near_on_disk).
+                if (h.disk && !disk_->keeps()) {
+                    forget_disk(h.disk);
+                    h.disk = 0;
+                }
                 if (disk_writing_ == h.id && !disk_writing_bound_) cancel_disk_write();
             }
         for (size_t i = 0; i < disk_index_.size();) {
-            const DiskEntry& e = disk_index_[i];
-            if (!e.boundary && e.id != kept && supersedes(j, e.id, e.tokens)) forget_disk(e.key);
+            DiskEntry& e = disk_index_[i];
+            const bool gone = !e.boundary && e.id != kept && supersedes(j, e.id, e.tokens);
+            if (gone && disk_->keeps()) e.superseded = true;
+            if (gone && !disk_->keeps()) forget_disk(e.key);
             else ++i;
         }
         std::stable_partition(donors_.begin(), donors_.end(), [](const Donor& d) { return d.superseded; });

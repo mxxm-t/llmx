@@ -122,6 +122,28 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## An idle server does not rewrite a conversation every turn (2026-10-07, branch feat/idle-rewrite-rule, lands by fast-forward)
+
+- **Why (the coordinator for the user, 2026-10-07):** the idle write under `--disk-cache-keep` wrote a conversation's whole copy after its turns, 5.2 GB at 76k tokens of a 27B model, where a turn adds a tenth of that; on the user's pool that is real wear.
+- **Done:** an idle server leaves a conversation alone while an earlier whole copy of it on disk is within a quarter of its new length (`Scheduler::near_on_disk`), and under keep that earlier file is no longer deleted when a later turn's copy supersedes it but once a newer copy's file is in place; room takes such a file first. A clean stop writes everything, as before. The test commit fails without it: a turn that grew a conversation from 1152 to 1280 tokens wrote its whole copy again.
+- **A hole this closes:** before it, the turn after a written one deleted the conversation's file, its copy superseded, and wrote none, the superseded copy in host memory counting as the newer one's; so after each turn that left its checkpoint in the same block as the turn before, three of the ten below, a conversation had no copy on disk and a crash then lost it whole. The table's "on disk" column shows it at turn 2.
+- **Measured** on two MI50s, Qwen3.8-27B Q8_0 with production's flags, one conversation of 76k tokens over ten turns, each followed by the idle writes, then a stop:
+
+  | after turn | written so far, main (GB) | on disk, main (GB) | written so far, this branch (GB) | on disk, this branch (GB) |
+  |---|---|---|---|---|
+  | 1 | 5.62 | 5.62 | 5.62 | 5.62 |
+  | 2 | 5.62 | 0.16 | 5.62 | 5.62 |
+  | 3 | 11.24 | 5.78 | 5.78 | 5.78 |
+  | 5 | 16.87 | 5.95 | 5.94 | 5.94 |
+  | 7 | 22.51 | 6.11 | 6.10 | 6.10 |
+  | 10 | 39.43 | 6.60 | 6.57 | 6.57 |
+  | the stop | 0.6 s, nothing left to write | | 6.2 s, the newest copy written, the older file deleted | |
+
+  39.4 GB against 6.6 GB over the ten turns; what this branch still writes a turn is the turn's message boundary, 0.16 GB. Time to first token is the same in both, 1.3 to 1.9 s a turn after the first.
+- **Cost:** a crash loses at most the last quarter of a conversation's length, which its next turn reads again after forking the earlier copy; the stop writes a copy main had already written, 6 s here.
+- **Planned, not built:** an entry written as what changed (`docs/DISK-TIER.md`, Order of work), which is a redesign of the entry and not a change in the store.
+- **Reviewed** by F2DEV, no finding; its notes taken: after a crash that left two copies of one history the next server marks the shorter superseded again, held by a test; DISK-TIER says the rule is by a history's tokens and names the window in which the age limit or a tight cap can take the earlier file before a newer copy exists.
+
 ## The age-limit check asks about a file being deleted without throwing (2026-10-07, branch fix/age-exists, lands by fast-forward)
 
 - **Found:** `server-resume` failed in a hosted Windows job with "exists: Access is denied" on an entry file, on a branch that does not touch the age limit; seen once before in 96 loaded runs on a Windows PC.

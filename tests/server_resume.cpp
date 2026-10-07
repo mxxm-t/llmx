@@ -2072,6 +2072,7 @@ void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
             stop_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         }
         // What an entry's description holds at this version of the store's layout (Scheduler::disk_blob), read out of the three files: a change to it without a new DiskStore::kVersion moves these digests.
+        // So does a change of behaviour with the layout unchanged, which turn's copy came back or how a prompt's rows are classed, and then the digests are taken again and the version stays.
         if (form == 0) {
             std::vector<std::string> blobs;
             for (const fs::path& file : disk.files(".kv")) {
@@ -2091,7 +2092,7 @@ void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
             const std::vector<std::string> golden{"2f98de67a215a2799f65e301b174357f5783e0e565b774c1d0d413bb53a4a4b4", "768760fb4c567235b600188a73de16e8cddd6695d4be45d9bbf9287a208bbda7", "cac82135e524dfb2c4f744003668b05e88e66db09d289c27406f89e0e4be2d9a"};
             std::string got;
             for (const std::string& b : blobs) got += " " + b;
-            require(blobs == golden, what + ": the entries' descriptions are" + got + ", not those of layout version 1: bump DiskStore::kVersion with disk_blob");
+            require(blobs == golden, what + ": the entries' descriptions are" + got + ", not those of layout version 1: bump DiskStore::kVersion if disk_blob changed, or take the digests again if what the turns leave did");
         }
         const size_t files = disk.files(".kv").size(), want = form == 0 ? 3 : form == 1 ? 0 : 2;
         require(files == want && disk.files(".tmp").empty(), what + ": " + std::to_string(files) + " entry files and " + std::to_string(disk.files(".tmp").size()) + " temporary ones left, against " + std::to_string(want) + " and 0");
@@ -2107,10 +2108,8 @@ void disk_idle_rule(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     auto model = make(4096, 16);
-    const auto kept_length = [&]() -> uint64_t {
-        const std::vector<fs::path> files = disk.files(".kv");
-        if (files.size() != 1) return 0;
-        std::ifstream in(files[0], std::ios::binary);
+    const auto length_of = [](const fs::path& file) -> uint64_t {
+        std::ifstream in(file, std::ios::binary);
         std::string head((size_t)1 << 20, 0);
         in.read(head.data(), (std::streamsize)head.size());
         uint64_t chunks = 0, length = 0;
@@ -2120,6 +2119,11 @@ void disk_idle_rule(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
         std::memcpy(&length, head.data() + 72 + 8 * (size_t)runs + 4 * (size_t)chunks + 16, 8);
         return length;
     };
+    const auto kept_length = [&]() -> uint64_t {
+        const std::vector<fs::path> files = disk.files(".kv");
+        return files.size() == 1 ? length_of(files[0]) : 0;
+    };
+    const fs::path saved = disk.root / "first-copy";
     {
         server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
@@ -2162,6 +2166,7 @@ void disk_idle_rule(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
             settled(before, "after a turn that grew the conversation past a quarter");
             within_a_minute([&] { return sched.stats().disk_entries == 1; }, what + ": the earlier copy's file deleted once the newer was in place");
             require(kept_length() == 1792, what + ": the file's copy is " + std::to_string(kept_length()) + " tokens after the long turn, against 1792");
+            fs::copy_file(disk.files(".kv")[0], saved);
             turn(40);
             quiet("after a fourth, small turn");
         } catch (...) {
@@ -2173,6 +2178,45 @@ void disk_idle_rule(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
         runner.join();
     }
     require(kept_length() == 1920, what + ": the stop left " + std::to_string(disk.files(".kv").size()) + " files, the copy " + std::to_string(kept_length()) + " tokens, against one of 1920");
+    // After a crash between a newer copy landing and the older going both files are there, each of a conversation that came back: the next server takes the shorter as superseded again, so room for another conversation's copy takes it and not the newer, though the shorter was touched last.
+    const fs::path newest = disk.files(".kv")[0];
+    fs::copy_file(saved, newest.parent_path() / "entry-99.kv");
+    fs::last_write_time(newest.parent_path() / "entry-99.kv", fs::file_time_type::clock::now());
+    options.bytes = fs::file_size(newest) + fs::file_size(saved) + ((uint64_t)1 << 20);
+    auto again = make(4096, 16);
+    {
+        server::Scheduler sched(*again, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_entries == 2; }, what + ": both copies adopted");
+            std::vector<uint32_t> prompt = prompt_of(48, 1200, vocab);
+            for (size_t k = 0; k < 2; ++k) {
+                if (k) {
+                    const std::vector<uint32_t> tail = prompt_of(47, 500, vocab);
+                    prompt.insert(prompt.end(), tail.begin(), tail.end());
+                }
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 20}));
+                for (uint32_t id : ids_of(drain(*h))) prompt.push_back(id);
+                prompt.push_back(1);
+                prompt.push_back(2);
+                sched.follow(h, prompt, true);
+                within_a_minute([&] { return sched.stats().reprefills == k + 1; }, what + ": the other conversation's reply " + std::to_string(k + 1) + " read again");
+            }
+            within_a_minute([&] { return sched.stats().disk_bytes_written > 0 && !sched.stats().disk_in_flight; }, what + ": another conversation written while idle");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::vector<uint64_t> lengths;
+    for (const fs::path& file : disk.files(".kv")) lengths.push_back(length_of(file));
+    std::sort(lengths.begin(), lengths.end());
+    std::string got;
+    for (uint64_t n : lengths) got += " " + std::to_string(n);
+    require(lengths == std::vector<uint64_t>{1664, 1920}, what + ": room after a crash left copies of" + got + " tokens, against the other conversation's 1664 and the newer copy's 1920");
 }
 
 void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20), size_t first_host = 4 * ((size_t)64 << 20)) {

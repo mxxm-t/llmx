@@ -2219,7 +2219,13 @@ void disk_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
             demote(sched, vocab, what);
             const std::vector<fs::path> left = disk.files(".kv");
             require(!left.empty(), what + ": no entry file after six turns");
-            const auto remaining = [&] { return (size_t)std::count_if(left.begin(), left.end(), [](const fs::path& f) { return fs::exists(f); }); };
+            // A file being deleted can refuse the question on Windows; it is then still there, and asked again.
+            const auto remaining = [&] {
+                return (size_t)std::count_if(left.begin(), left.end(), [](const fs::path& f) {
+                    std::error_code ec;
+                    return fs::exists(f, ec) || ec;
+                });
+            };
             within_a_minute([&] { return remaining() == 0; }, what + ": the entries deleted");
             files = remaining();
             stats = sched.stats();

@@ -122,6 +122,15 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## The age-limit check asks about a file being deleted without throwing (2026-10-07, branch fix/age-exists, lands by fast-forward)
+
+- **Found:** `server-resume` failed in a hosted Windows job with "exists: Access is denied" on an entry file, on a branch that does not touch the age limit; seen once before in 96 loaded runs on a Windows PC.
+- **Cause:** the check, not the server. While the age limit deletes the entries the check counts those still there with `std::filesystem::exists`, which on Windows throws for a file whose deletion is pending.
+- **Done:** it asks with an error code and counts a file that refuses the question as still there, so it asks again until the file is gone. Tests only.
+- **Reviewed** by the coordinator.
+- **Lesson:** this was seen once in a load run the day before and only noted; a failure seen once is posted as a finding the same hour.
+
+
 ## A kept entry's identity follows the numerics, not the revision (2026-10-07, branch feat/numerics-identity, lands by fast-forward)
 
 - **Goal (the user, 2026-10-06):** an update should keep the conversations on disk unless it changes what their bits depend on. The identity carried the build's version string, so every update of production started with an empty disk tier, four times in one day.

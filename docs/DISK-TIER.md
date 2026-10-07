@@ -6,9 +6,9 @@ This page is the plan the tier was built from, kept as agreed; where building ch
 
 ## Why
 
-On the six-user, twenty-turn workload of Qwen3.8-27B Q8_0 on one MI50 ([STATUS](STATUS.md), the edited-turn gap after message boundaries), a conversation's copy holds about 800 MiB at turn 19 and a message boundary 150 MiB, and the default host tier, half of what the host has free, holds about six conversations and four boundaries each.
-Whatever falls out of host memory is recomputed: about 4.4 ms a token, so 43 s for a 9.7k-token conversation, and the edited-turn gap is mostly boundaries the host tier had no room for (2.54 s at a 16 GiB host tier against 3.31 s at 10 GiB).
-A disk read of the same 800 MiB takes about 0.5 s on the MI50 machine (Hardware, below), and the disks hold hundreds of times what host memory does.
+On a long multi-user chat workload on a 27B model a conversation's copy holds hundreds of MiB and a message boundary 150 MiB, so the default host tier, half of what the host has free, holds a few conversations and a few boundaries each ([STATUS](STATUS.md), the edited-turn gap after message boundaries, has the workload and its figures).
+Whatever falls out of host memory is recomputed, and the edited-turn gap is mostly boundaries the host tier had no room for.
+A disk read of an 800 MiB copy takes about 0.5 s on the MI50 machine (Hardware, below), and the disks hold hundreds of times what host memory does.
 
 ## What the host tier does now
 
@@ -55,8 +55,8 @@ One file per entry, written once and never changed in place.
 
 The host tier stays the window of the newest entries and the disk tier keeps what slides out of it.
 - **When.** Just ahead of need: whenever the host entries not yet on disk hold more than three quarters of the host tier and no write is in flight, the entry the host tier would drop next goes to disk, one at a time, while it stays a host entry, readable and promotable. Once its file is in place the entry is marked on disk, and room the host tier needs later releases it at once (below).
-  Demoting only at the moment of need, as a first version of this plan had it, keeps nothing: the entry handed to the writer still holds its slabs, so the room the copy needs is never freed, and the room order below cancels that very write each time the tier is full. Writing ahead costs the writes of entries later promoted or superseded instead of dropped; superseded ones are deleted at once, promoted ones keep their file, and the writes stay bounded by what passes through the host tier's last quarter (Hardware, wear). Approved so, with the cost counted: `/v1/health`'s `disk_bytes_written` is every byte written ahead and `disk_bytes_read` every byte read back for a request, the disk's wear against its use.
-- **Which.** The host tier's ranking chooses which entry goes next: boundaries, oldest first, then copies whose conversations did not come back, oldest first, then the oldest copies; the disk tier only decides whether the chosen entry is kept:
+  Demoting only at the moment of need keeps nothing: the entry handed to the writer still holds its slabs, so the room the copy needs is never freed, and the room order below cancels that very write each time the tier is full. Writing ahead costs the writes of entries later promoted or superseded instead of dropped; superseded ones are deleted at once, promoted ones keep their file, and the writes stay bounded by what passes through the host tier's last quarter (Hardware, wear). Approved so, with the cost counted: `/v1/health`'s `disk_bytes_written` is every byte written ahead and `disk_bytes_read` every byte read back for a request, the disk's wear against its use.
+- **Which.** The host tier's ranking (Ranking, above) chooses which entry goes next; the disk tier only decides whether the chosen entry is kept:
   - a superseded copy is never written (it was never worth host room either);
   - a boundary is written, and so is a copy whose conversation came back;
   - a copy whose conversation never came back (one-time conversations, Age, below) is written only into free disk room and the room of other such entries, and is the first to go, the host tier's come-back rule carried down;
@@ -74,7 +74,7 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 
 - **Size cap.** `--disk-cache-bytes` bounds the bytes of entry files, temporary files included.
 - **Free-space floor.** Before every write the writer reads the file system's free space (`statvfs`, `GetDiskFreeSpaceExW`) and writes only if the file system keeps at least the floor after it (`--disk-cache-floor`); with several servers on one disk the floor is the same physical free space for all of them, so together they never fill it.
-- **Order**, the host tier's ranking carried down: superseded entries are deleted at once (a copy superseded while on disk is deleted, not kept for room); then boundaries of the conversation longest unheard; then copies whose conversations did not come back, oldest first; then the oldest.
+- **Order**, the host tier's ranking (Ranking, above) carried down, with superseded entries deleted at once (a copy superseded while on disk is deleted, not kept for room).
   A boundary whose conversation has no copy left in any tier can never be forked and goes first of all.
 - **Disk full and I/O errors.** `ENOSPC`, `EIO`, `EROFS` or any failed write ends the tier's writing until the server restarts or the free space recovers above the floor plus the cap's tenth on a later check (every minute); reads go on while they succeed. A read error or a checksum failure deletes that entry and the request computes its history as if the entry had never been there. Counted in `/v1/health` (Surface, below).
 
@@ -147,7 +147,7 @@ Many conversations are used once, and nothing should be kept forever.
 
 ## Privacy
 
-- Directories 0700 and files 0600 on POSIX; on Windows the directory under the user's profile inherits its owner-only ACL, and the server refuses a `--disk-cache-dir` whose existing ACL grants others access.
+- Directories 0700 and files 0600 on POSIX; on Windows the server sets no permissions and checks no ACL, so its directory and files inherit the ACL of `--disk-cache-dir`, and that directory is where access is decided (the default is under the user's profile).
 - File names carry no tokens or text; the files hold token ids and caches from which a conversation could be reconstructed, so they are as private as the conversations.
 - By default nothing remains after a clean exit, and after a crash only until the next sweep; `--disk-cache-keep` is the one way to keep entries past an exit.
 - A stronger mode, planned as an option after measurement: entries as files unlinked as soon as they are open (`O_TMPFILE` on Linux, `FILE_FLAG_DELETE_ON_CLOSE` on Windows), so nothing remains after any exit, crash included, at the cost of an open handle per entry and no adoption.

@@ -125,15 +125,7 @@ Predeclare one reference policy per workload from the arithmetic it reaches, inc
 - `f32` means F32 activations on every path. Vulkan quantized weights use the F32-activation row kernel for narrow batches and the float tile for wider batches, bypassing the integer activation twins.
 - `int8` (2026-10-05) sets the input precision of every matrix product at every row count, prompt and decode alike, as every value does, at 8 bits: a speed option below the default precision, which auto never chooses. Quantized-weight products read the activations rounded per block of 32 to 8-bit integers by the twin's rule at 127 levels, with exact integer sums and F32 scaling. A product without an 8-bit build takes the next wider form it has, as `f16` does where it has no F16 build: F32-weight products F32, MXFP4 block-int16. On Vulkan a device that prefers the integer dot lists it natively (the 8-bit builds of `matmul_row.comp`, `matmul_vec_q8.comp` and `matmul_tile_q.comp`, `LLMX_I8`); the CPU and the Radeon VII do not, and run it as `f16` with the warning. Its witness is `block-int8`, and a run whose products reached no 8-bit input is held to the F16 budget.
 
-What each value covers, stated the same way for every value:
-
-| `--dtype` | quantized-weight products, the output head included, at every row count | F32-weight products | routers | attention and KV cache |
-|---|---|---|---|---|
-| `auto` | the preferred common dtype: `f16` on the MI50, the Radeon VII and an AVX2 CPU | as that dtype | F32 | outside `--dtype` |
-| `f32` | F32 inputs | F32 | F32 | outside `--dtype` |
-| `f16` | F16 or wider: blocks of 32 scaled to 16-bit integers, or F32 | F32 | F32 | outside `--dtype` |
-| `bf16` | inputs rounded to BF16, widened to F32 | rounded to BF16 | F32 | outside `--dtype` |
-| `int8` | blocks of 32 scaled to 8-bit integers; MXFP4, which has no 8-bit build yet, as `f16` | as `f16` | F32 | outside `--dtype` |
+What each value covers, stated the same way for every value, is the table in [USAGE](USAGE.md#precision): its columns are the quantized-weight products, the F32-weight products, the routers, and attention and the KV cache.
 
 ## 6. Approved delivery order (2026-09-30)
 

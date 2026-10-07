@@ -130,6 +130,34 @@ The records of 2026-09 and the historical blocks before them are in [STATUS-2026
 - **Done:** 96 dated records and historical blocks older than 2026-10-01, 10083 lines, moved unchanged and in order to [STATUS-2026-09](STATUS-2026-09.md); STATUS.md went from 11824 to about 1740 lines. Nine "Left: nothing" lines of the kept records were removed and four reworded to the fact they held; the Markdown that named a moved record names the archive, and the status table's rows whose record moved link to it.
 - **Left:** comments in the code still name moved records as `docs/STATUS.md`, to follow in a code change: `src/server/scheduler.hpp` (Exact resume; layer split phase 3, step 4; step 2c), `src/inference/load.hpp` (the loader's step 5), `tests/backend_vulkan.cpp` (MI50 prompt activations at 16 bits, which keeps a stub heading here until the comment follows), `tools/multi_device_bench.cpp` (layer split phase 3, step 0), `tests/data/decode_probe_30b_a3b.json` (the half-block order, in its `_comment`), and `src/backends/vulkan/shaders/rms_norm_rows.comp`, `tests/baseline_qwen35.py` and `tests/int8.py`, whose records are to be looked up. The docs check reads the archive as records because its title is dated; at each month's end that month's records move the same way.
 
+## Docs tightness: repeated text kept once (2026-10-07, branch docs/tightness-h, docs only, lands by fast-forward)
+
+- **Done:** the `--dtype` table is kept in USAGE and PRECISION points to it; the disk tier's ranking and read bounds are stated once in DISK-TIER and SERVER and `docs/src/server.md` refer to them; `docs/CI.md` counts the suite's 28 components from `tests/run_tests.py`; and `docs/DISK-TIER.md` no longer claims the server refuses a `--disk-cache-dir` whose ACL grants others access, which no code does. On Windows `owner_only` sets nothing and no ACL is read, so the directory and its files inherit the ACL of `--disk-cache-dir`; USAGE, `docs/src/server.md` and `docs/src/format-file_writer.md` say owner-only for POSIX alone. Writing the check is the alternative.
+- **Left:** `docs/CI.md` still holds the first hosted runs of the five-job workflow (the run on `08351b0` and the repair `851d375`, near the end of the page's first section), history of the same kind that the audits did not name.
+
+## History sentences moved out of live docs (2026-10-07, branch docs/tightness-h, docs only, lands by fast-forward)
+
+- **Done:** the sentences below were measurements and history in pages that describe how things are now; they are kept here as they stood, and the pages say what is true now or point to the records.
+
+- From docs/USAGE.md, the tensor split section:
+  > On two MI50s a group of two decodes about as fast as one card on a model one card holds and reads a prompt 1.6 times as fast, and decodes a model too large for one card faster than a layer split; serving many users, one group of two is below a layer split of the same two cards at default precision from 16 users on.
+  > Stages of groups overlap when several passes are in flight: on four MI50s, Qwen3-32B Q8_0 as two stages of two at `--dtype int8` served more than a layer split of four at every user count from 1 to 64, and at default precision up to 16 users, about level or below beyond; on eight MI50s two stages of four are below a layer split of eight from 4 users on.
+
+- From docs/MULTI-DEVICE.md, Tensor split:
+  > - The group sum is deterministic: partial sums added in a fixed member order on every member. Earlier, an 8-card reduction that added peers in per-rank order silently diverged at 100k context, and a reused scatter region raced when message sizes grew; both are design constraints here.
+
+- From docs/DISK-TIER.md, Why:
+  > On the six-user, twenty-turn workload of Qwen3.8-27B Q8_0 on one MI50 ([STATUS](STATUS.md), the edited-turn gap after message boundaries), a conversation's copy holds about 800 MiB at turn 19 and a message boundary 150 MiB, and the default host tier, half of what the host has free, holds about six conversations and four boundaries each.
+  > Whatever falls out of host memory is recomputed: about 4.4 ms a token, so 43 s for a 9.7k-token conversation, and the edited-turn gap is mostly boundaries the host tier had no room for (2.54 s at a 16 GiB host tier against 3.31 s at 10 GiB).
+
+- From docs/DISK-TIER.md, Demotion: host to disk:
+  > the clause "as a first version of this plan had it," after "Demoting only at the moment of need," (the sentence goes on: keeps nothing, because the entry handed to the writer still holds its slabs)
+
+- From docs/CI.md, the optional 8B consumer:
+  > At `dacf18c` local Windows and Linux runs each passed the 37 checks the consumer had before the per-token half, with identical printed NLLs and HF deltas.
+  > The Linux ordinary suite passed its 11 components with `--no-perf-floor` at that commit.
+  > These local results do not establish hosted 8B coverage; the optional consumer is not run by the workflow.
+
 ## `/v1/health` in groups, `/v1/live`, grouped help pages and the operating guide (2026-10-07, branch feat/health-help, lands by fast-forward)
 
 - **Goal:** a health reply and help pages a person can read, and a page for people who run a server (`docs/OPERATING.md`).

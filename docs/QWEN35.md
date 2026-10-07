@@ -2,7 +2,7 @@
 
 Design for the next architectures of ROADMAP #2, written before the code; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device as it describes (`src/model/arch/qwen35.hpp`) and are served with prefix reuse through state checkpoints ([SPECULATIVE](SPECULATIVE.md)), and the chunked prompt form and MTP parts are planned.
 This page holds what the code implements: the models and their shapes, the forward pass of each layer kind, the conventions of the GGUF files the kernels read, the files on hand and how each is handled, and the row classes that keep the recurrent layers exact.
-The plan, its branches and gates, the decisions taken and the questions still open are in [STATUS](STATUS.md), in the block "Qwen 3.5, 3.6 and 3.8".
+The plan, its branches and gates, the decisions taken and the questions still open are in [STATUS-2026-09](STATUS-2026-09.md), in the block "Qwen 3.5, 3.6 and 3.8".
 The full-attention layers use the paged KV cache of [KV-CACHE](KV-CACHE.md), and the recurrent state is the fixed-size, private, per-sequence state that [EXECUTION](EXECUTION.md), "Beyond dense Qwen", leaves room for.
 
 Sources, read on 2026-09-25:
@@ -295,7 +295,7 @@ llmx follows HF, and the HF gate checks it.
 
 ## The files on the Linux MI50 machine
 
-The step numbers are those of the plan in STATUS.
+The step numbers are those of the plan in STATUS-2026-09.
 Type refusals below concern inference. `info`, `tokenize` and `detokenize`
 can open the known storage layouts, including BF16, F16, IQ4_NL and Q5_1,
 without those execution kernels; unknown type IDs are still refused at open.

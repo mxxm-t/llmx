@@ -29,15 +29,15 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
-- Next, planned in `docs/STATUS.md` (Quantization coverage): `F16` and `BF16` weight tensors, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan. Activation dtype support does not implement those weight formats.
+- Next, planned in `docs/STATUS-2026-09.md` (Quantization coverage): `F16` and `BF16` weight tensors, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan. Activation dtype support does not implement those weight formats.
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
   MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
   They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
   The planned 16-bit weight kernels will widen to F32 exactly, since gfx906 has no BF16 arithmetic, and never take a lossy path.
   Each type must meet the six conditions listed there.
 - The lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not planned: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
-  `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS.md`, Quantization coverage, question 11).
-  `Q5_0` and `Q5_1` are not planned; whether they join is an open question of the Qwen 3.x plan in `docs/STATUS.md`.
+  `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS-2026-09.md`, Quantization coverage, question 11).
+  `Q5_0` and `Q5_1` are not planned; whether they join is an open question of the Qwen 3.x plan in `docs/STATUS-2026-09.md`.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
@@ -49,8 +49,8 @@ The `infer::Model` layer covers Qwen3 and its mixture-of-experts form today, and
 Generalize to an architecture registry keyed by `general.architecture` (done: `model/arch/registry.hpp` picks the module that runs a file):
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
-  tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS.md`)
-- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS.md`; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device against HF and are served with prefix reuse through state checkpoints; the chunked prompt form and MTP steps follow.
+  tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS-2026-09.md`)
+- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS-2026-09.md`; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device against HF and are served with prefix reuse through state checkpoints; the chunked prompt form and MTP steps follow.
   Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
   The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.

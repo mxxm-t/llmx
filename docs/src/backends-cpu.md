@@ -13,7 +13,7 @@ Dense Q4_K/Q5_K packed prompts at widths of at least 4096 and eight or more colu
 CPU implementation of the `Backend` interface, in namespace `backend`.
 `supports_type` reads the quant registry, including its F32 entry, and `implements(op)` is true for every `Op`.
 The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
-Every multiply-add in those tails is an explicit FMA (`std::fma`), never `a * b + c`: a compiler that contracts fuses such an expression in one inlined copy and not in another by the code around it, which gave a prompt row different bits by its place in the batch (`tests/backend_group.cpp`, docs/STATUS.md).
+Every multiply-add in those tails is an explicit FMA (`std::fma`), never `a * b + c`: a compiler that contracts fuses such an expression in one inlined copy and not in another by the code around it, which gave a prompt row different bits by its place in the batch (`tests/backend_group.cpp`, docs/STATUS-2026-09.md).
 A compile without them stops at one `#error` at the top of the header.
 
 - Persistent worker pool. The decode row dots and attention both run through it; previously each created and joined `std::thread`s per call, which on Qwen3-8B was thousands of thread creations per token.

@@ -1,7 +1,7 @@
 # Sequence history, state checkpoints and speculative decoding
 
 A design, approved by the user on 2026-09-30 as agreed with XDEV and not yet built: one owner for where a sequence's history can be re-entered, checkpoints of the recurrent state on top of it, and speculative decoding on top of both.
-Its first user is prefix reuse for the hybrid models, the qwen35 plan's step 8c ([QWEN35](QWEN35.md), [STATUS](STATUS.md)), because production serves Qwen 3.5, 3.6 and 3.8 with none: every follow-up chat turn reads the whole conversation again.
+Its first user is prefix reuse for the hybrid models, the qwen35 plan's step 8c ([QWEN35](QWEN35.md), [STATUS-2026-09](STATUS-2026-09.md)), because production serves Qwen 3.5, 3.6 and 3.8 with none: every follow-up chat turn reads the whole conversation again.
 The speculative decoding plan the user approved on 2026-09-26 is taken as input; section 3 says what it keeps and what changes, and section 4 what the user's mx-llama.cpp history teaches.
 The rules every part keeps: output is byte-identical with every feature here on and off, greedy and seeded, alone and among other requests, on one device and on a layer split; kernels follow a row's class, never the batch; one owner per rule ([ARCHITECTURE](ARCHITECTURE.md), Each concern has one owner).
 

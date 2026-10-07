@@ -852,7 +852,7 @@ adding a reference generator does not approve that file or alter any bound.
 
 ### The layered qwen35 reference
 
-From the 9B up, a qwen35 model's float32 forward does not fit the Linux host's free memory whole, so `tools/gen_layered_reference.py` runs HF's own modules one decoder layer at a time (STATUS, Qwen 3.5, 3.6 and 3.8, Decided 2).
+From the 9B up, a qwen35 model's float32 forward does not fit the Linux host's free memory whole, so `tools/gen_layered_reference.py` runs HF's own modules one decoder layer at a time (docs/STATUS-2026-09.md, Qwen 3.5, 3.6 and 3.8, Decided 2).
 It makes the calls of transformers' `Qwen3_5TextModel.forward` in its order: the embedding, the model's own rotary embedding and masks (`create_causal_mask`, `create_recurrent_attention_mask`), each decoder layer, the final norm and the head.
 It builds `Qwen3_5ForCausalLM`, or `Qwen3_5MoeForCausalLM` when the checkpoint's config names the routed text model, on the meta device and gives each module its weights just before it runs, read from the checkpoint's safetensors and widened from bf16 to float32 as `from_pretrained` does, then drops them once the module has run every input.
 The checkpoint's keys are renamed by transformers' own loading rules for the model, and the tool refuses a rule that would reshape a tensor, any key the model neither takes nor ignores (it ignores `mtp.*` and `model.visual.*`, the keys every qwen35 reference may leave unused), and any parameter no key gives other than a tied head.
@@ -1146,11 +1146,11 @@ mx-llama.cpp at `5542318e74`. Every device comparison on the Radeon VII
 used upstream llama.cpp build 11075, commit `335b21fcb`, its own Vulkan
 backend on the AMD proprietary driver; a source tree of mx-llama.cpp is
 present on that machine but was never built, so no Windows figure here
-is against the fork. On the Linux MI50 machine a reference run must be pinned to one card, `GGML_VK_VISIBLE_DEVICES=N` for its Vulkan build and `HIP_VISIBLE_DEVICES=N` for ROCm, because the reference uses every device it can see and that machine has ten: unpinned, its Vulkan build read 3364 and 101.3 tok/s at pp247 and tg32 on Qwen3-0.6B-Q8_0 against 6941 and 299.0 pinned. MI50 reference figures in STATUS before its thirty-fourth paragraph were unpinned. The MI50 comparison used two arms on the same card:
+is against the fork. On the Linux MI50 machine a reference run must be pinned to one card, `GGML_VK_VISIBLE_DEVICES=N` for its Vulkan build and `HIP_VISIBLE_DEVICES=N` for ROCm, because the reference uses every device it can see and that machine has ten: unpinned, its Vulkan build read 3364 and 101.3 tok/s at pp247 and tg32 on Qwen3-0.6B-Q8_0 against 6941 and 299.0 pinned. MI50 reference figures in docs/STATUS-2026-09.md before the Vulkan block's thirty-fourth paragraph were unpinned. The MI50 comparison used two arms on the same card:
 upstream build 11100, commit `7ab4ee7ba`, with ROCm, and mx-llama.cpp
 `eefc4e732` built for gfx906, also with ROCm. Neither ROCm arm is known to
 have been pinned with `HIP_VISIBLE_DEVICES`, so the figures that follow are
-unverified (STATUS, the Vulkan block's thirty-fourth paragraph). The two differ enough to
+unverified (docs/STATUS-2026-09.md, the Vulkan block's thirty-fourth paragraph). The two differ enough to
 matter, the fork reading 4549 tok/s at a 64-token prompt against
 upstream's 1774 and 6782 at 512 against 6087, with decode level at 230
 against 226, so a share quoted against upstream flatters llmx on that

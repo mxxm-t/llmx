@@ -273,7 +273,7 @@ This is an internal comparison of paged against the contiguous cache it
 replaces. The external mx-llama.cpp floor is the separate matched gate in
 ROADMAP #8 and was re-run on the paged runtime; see below.
 
-An A/A calibration run afterwards (see STATUS) found that 0.6B prefill moves
+An A/A calibration run afterwards (see STATUS-2026-09) found that 0.6B prefill moves
 3.53% by median on identical code, so per-cell prefill differences below
 about 4% in the table above carry no weight. The pattern across plans and
 the memory figures below, which are counted rather than timed, are what the
@@ -308,7 +308,7 @@ and the alternating pairs put that load on both arms.
 
 Prefill clears the floor on both models. 8B decode is under it by about
 1.5% when the comparison is repeated on a quiet machine; see the
-2026-09-21 blocks in [STATUS](STATUS.md), which also record that the first
+2026-09-21 blocks in [STATUS-2026-09](STATUS-2026-09.md), which also record that the first
 run of this comparison was slowed by background load and overstated the
 deficit. The
 screening above shows paging did not move decode against the contiguous

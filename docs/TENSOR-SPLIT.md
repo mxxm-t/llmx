@@ -274,7 +274,7 @@ Decision 1 (section 8) keeps it as the fallback, not built now.
 
 **What it is:** every reduction waits for the slowest member, so each sum costs the exchange plus the spread of the members' arrival times, and that spread grows with the width.
 Its sources here:
-- **Launch skew:** one host thread records each member's part in turn, so member W-1 starts later than member 0 by W - 1 recordings; recording an 8B pass took 2.6 to 5.2 ms on one card (`docs/STATUS.md`, layer split phase 3), about 4.6 to 9.2 ms a member a token on a 64-layer model, so at width 4 one thread records 18 to 37 ms a token against about 18 ms of device work, and the host, not the devices, sets the pace.
+- **Launch skew:** one host thread records each member's part in turn, so member W-1 starts later than member 0 by W - 1 recordings; recording an 8B pass took 2.6 to 5.2 ms on one card (`docs/STATUS-2026-09.md`, layer split phase 3), about 4.6 to 9.2 ms a member a token on a 64-layer model, so at width 4 one thread records 18 to 37 ms a token against about 18 ms of device work, and the host, not the devices, sets the pace.
   The fork met the same: 18.5 ms of host enqueue a token and ranks 90 us apart until it dispatched per card.
 - **The exchange's own wait:** a sync-file wait per peer, N - 1 of them a sum, each through the kernel driver; the slowest of N - 1 PCIe latencies is 8.2 us at 4 cards and 20.3 us at 8 for HIP peer stores (MULTI-DEVICE), and Vulkan's spread at 4 and 8 is not measured yet.
 - **Uneven work:** a member with more heads, more rows, a remainder or a routed expert imbalance arrives last at every sum.
@@ -583,4 +583,4 @@ On the server load of section 2.8 the group is bound by its prompts from 16 user
 - Batch invariance: https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/ ; tensor-parallel invariance at a cost: https://arxiv.org/html/2511.17826v2
 - llama.cpp's tensor split on PCIe cards: https://github.com/ggml-org/llama.cpp/pull/19378
 - mx-llama.cpp: `tp-notes/TENSOR_PARALLEL.md`, `tp-notes/SM_TENSOR_PIPELINE.md`, `tp-notes/BENCH_RESULTS.md`, `tp-notes/car_audit_findings.md`, `tp-notes/research/custom-ar-tg-broadcast-mi50.md`, `tp-notes/research/custom-ar-bf16-on-wire.md`, `tp-notes/research/mi50-current-stack-profile.md`; code `ggml/src/ggml-backend-meta.cpp`, `ggml/src/ggml-cuda/tp-allreduce.cu`, `src/llama-model.cpp`; commits `093f2a38f`, `6d82eb5f8`, `92607b5d1`, `5f65f9fa3`, `19d784ad0`, `751b6114cd`, `5d9efc8cad`.
-- llmx: MULTI-DEVICE (Phase 0 results), `docs/STATUS.md` (Multi-device phase 0, layer split phase 3), the head split record `feat/split-head` (`8b60b7aeb`, `d48798487`), and the probe of section 2.6.
+- llmx: MULTI-DEVICE (Phase 0 results), `docs/STATUS-2026-09.md` (Multi-device phase 0, layer split phase 3), the head split record `feat/split-head` (`8b60b7aeb`, `d48798487`), and the probe of section 2.6.

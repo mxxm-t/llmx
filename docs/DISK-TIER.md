@@ -42,7 +42,12 @@ One file per entry, written once and never changed in place.
   - the model file's SHA-256: from the hub manifest when the file was pulled, otherwise computed once on a background thread at startup and kept in a sidecar keyed by the file's path, size, modification time and inode, the tier reading and writing nothing until it is known;
   - the placement: each device's kind and index and the layers it holds, the KV pools' block tokens, the state slots' shape;
   - each device's effective activation dtype and the K and V cache types;
-  - the llmx version string, Git revision and dirty marker included, so any rebuild starts with an empty tier;
+  - what in the build can change a history's bits, and not the revision, so an update that changes none of it reads the entries of the server before (`disk_identity` in `src/server/disk_tier.hpp`):
+    - the numerics fingerprint: the SHA-256 over every file under `src/`, `cmake/`, `CMakeLists.txt` and `build.bat` that `cmake/numerics-sources.txt` does not name out, each file's bytes with CRLF read as LF. A file is in unless a line there argues it out (the CLI, the hub, the server, the tokenizer, and the files that only parse, sample or print), so the backends and their shaders, the model and its architectures, the quantization decoders, the format readers and the loader are in without being named. Both build routes compute it at every build, CMake in `cmake/build-info.cmake` and `build.bat` through `cmake/numerics-fingerprint.ps1`, with no Git, and `tests/version.py` computes it a third time and holds the binary to it;
+    - the compiler's own version text, the compiler, configuration, flags and options the build system used, which no file holds, and the shader compiler's version;
+    - the C library's version where it names itself (glibc), since the math functions in the position tables and norms come from it; on Windows and macOS it is unrecorded;
+    - each device's line of the layout: a Vulkan device's vendor and device ids, its driver's name, info and version and its pipeline cache id, which changes with every build of the driver, also one that keeps its version strings; the CPU's is the word `cpu`, its model unrecorded, the kernels' AVX2 and FMA baseline being one on every machine they run on and a cache directory not moving between machines;
+    A server leaves these components as text in its directory (`identity`), prints the fingerprint's first 16 digits in its start line, and where it adopts nothing from a kept directory says which components differ (`server: a kept directory was not adopted, its numerics differing from this server's`), or that the directory was written by a build that kept no identity beside its entries. `llmx --version` prints the fingerprint too.
   - the row-class signature: a hash of `Model::row_class` over every extent from 1 to the token limit, computed once at startup, since the classes are what make a fork exact ([SPECULATIVE](SPECULATIVE.md), section 1, row classes).
 - **Checksum.** CRC32C, with the SSE4.2 instruction the AVX2 baseline includes and a table fallback, at many GB/s, so verifying an entry costs far less than reading it; SHA-256 at about 1 GB/s a core would be slower than the disk. The header's CRC is checked by the startup sweep and the index rebuild, the payload's chunk by chunk as an entry is read, before anything reaches host slabs that a request can see.
 
@@ -98,7 +103,7 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 
 ## Keeping entries across a restart
 
-With `--disk-cache-keep`, a restart of the same build and model should find the conversations it was serving, the newest included, which until then live only on the devices and in host memory.
+With `--disk-cache-keep`, a restart of the same model on a build of the same numerics (Identity, above) should find the conversations it was serving, the newest included, which until then live only on the devices and in host memory.
 
 **Clean exit.** Today `serve` has no handler for SIGTERM or SIGINT, so either ends the process at once; the plan adds one (on Windows the console's control events), which makes a clean exit:
 1. stop accepting connections and admitting requests;
@@ -182,7 +187,7 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - `--disk-cache-dir PATH`: where it lives, by default `<home>/.cache/llmx/kv`.
 - `--disk-cache-floor N`: the free space the file system keeps after every write, by default the larger of 16 GiB and a twentieth of the file system.
 - At startup the server prints the directory, the file system's free space and the floor, and refuses to start when the cap plus the floor exceed the free space, naming the three numbers.
-- `--disk-cache-keep`: write what memory holds to disk while idle and, on a clean exit, within the bound the server states (20 seconds or more), and keep the entries for the next server of the same build and model, which adopts them; without it nothing remains after a clean exit.
+- `--disk-cache-keep`: write what memory holds to disk while idle and, on a clean exit, within the bound the server states (20 seconds or more), and keep the entries for the next server of the same numerics and model, which adopts them; without it nothing remains after a clean exit.
 - `--disk-cache-max-age TIME`: delete entries unused for longer than TIME, by default `24h`; `0` keeps them until room takes them.
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 

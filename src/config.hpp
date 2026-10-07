@@ -12,6 +12,12 @@
 #define LLMX_BUILD_REVISION "unknown"
 #endif
 #define LLMX_VERSION_STRING LLMX_RELEASE_VERSION "+" LLMX_BUILD_REVISION
+// The numerics fingerprint and what else the build gives the disk tier's identity (cmake/numerics-sources.txt); a build without them adopts only its own kind's entries.
+#ifndef LLMX_NUMERICS
+#define LLMX_NUMERICS "unknown"
+#define LLMX_BUILD_FLAGS ""
+#define LLMX_GLSLC_VERSION ""
+#endif
 
 // Backends compiled in besides the CPU, which is always built: the Vulkan backend is opt-in and needs its SDK at build time.
 #define LLMX_HAS_BACKEND_VULKAN 0

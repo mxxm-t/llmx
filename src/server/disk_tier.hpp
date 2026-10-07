@@ -12,6 +12,9 @@
 #include <string>
 #include <thread>
 #include <vector>
+#if defined(__GLIBC__)
+#include <gnu/libc-version.h>
+#endif
 #include "config.hpp"
 #include "core/sha.hpp"
 #include "format/file_digest.hpp"
@@ -23,16 +26,40 @@
 
 namespace server {
 
-// What the build gives an entry's identity.
+// What the build and the host give an entry's identity (docs/DISK-TIER.md, The entry file).
 struct BuildFacts {
-    std::string revision;   // the Git revision built from
-    std::string numerics;   // the fingerprint of the sources that decide a history's bits
+    std::string revision;   // the Git revision built from, which the identity leaves out
+    std::string numerics;   // the fingerprint of the sources that decide a history's bits (cmake/numerics-sources.txt)
+    std::string compiler;   // the compiler's own version text
+    std::string flags;      // the compiler, configuration, flags and options the build system used
+    std::string shaders;    // the shader compiler's version
+    std::string libm;       // the C library the math functions come from, where it names itself
 };
-inline BuildFacts build_facts() { return {LLMX_BUILD_REVISION, ""}; }
+inline BuildFacts build_facts() {
+    BuildFacts b;
+    b.revision = LLMX_BUILD_REVISION;
+    b.numerics = LLMX_NUMERICS;
+    b.flags = LLMX_BUILD_FLAGS;
+    b.shaders = LLMX_GLSLC_VERSION;
+    b.libm = "unrecorded";
+#if defined(_MSC_VER)
+    b.compiler = "msvc " + std::to_string(_MSC_FULL_VER);
+#else
+    b.compiler = __VERSION__;
+#endif
+#if defined(__GLIBC__)
+    b.libm = std::string("glibc ") + gnu_get_libc_version();
+#endif
+    return b;
+}
 
-// The text an entry's identity is the digest of: the model file's digest, the build and the model's host layout (Model::host_identity).
+// The text an entry's identity is the digest of, a component a line: the model file's digest, what can change a history's bits in the build, and the model's host layout (Model::host_identity), which names each device and its driver.
+// The revision is not among them, so a build that changes none of them reads the entries of the one before.
 inline std::string disk_identity(const std::string& digest, const std::string& layout, const BuildFacts& build) {
-    return digest + "\n" + LLMX_RELEASE_VERSION "+" + build.revision + "\n" + layout;
+    std::string flat = layout;
+    for (char& c : flat)
+        if (c == '\n') c = '|';
+    return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nlayout: " + flat + "\n";
 }
 
 // The server's disk tier, from --disk-cache-bytes, --disk-cache-dir, --disk-cache-floor, --disk-cache-keep and --disk-cache-max-age; `bytes` 0 keeps none.
@@ -95,9 +122,11 @@ public:
                 o.keep = options_.keep;
                 o.max_age = options_.max_age;
                 o.pace = options_.pace;
+                o.identity = text;
                 store = std::make_unique<DiskStore>(o, identity);
-                std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache, %zu entries adopted\n", store->directory().u8string().c_str(),
-                             store->direct() ? "around" : "through", store->adopted().size());
+                std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache, numerics %.16s, %zu entries adopted\n", store->directory().u8string().c_str(),
+                             store->direct() ? "around" : "through", LLMX_NUMERICS, store->adopted().size());
+                for (const std::string& why : store->refused()) std::fprintf(stderr, "server: a kept directory was not adopted, %s\n", why.c_str());
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "server: no disk cache (%s)\n", e.what());
             }

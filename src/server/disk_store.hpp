@@ -46,6 +46,7 @@ public:
         std::string root;            // the directory every server's own directory sits under (--disk-cache-dir)
         uint64_t floor = 0;          // free space the file system keeps after every write (--disk-cache-floor)
         bool keep = false;           // at a clean exit leave the entries for the next server, and at start adopt those other servers left (--disk-cache-keep)
+        std::string identity;        // the text the identity is the digest of, a `name: value` line a component, left in the directory so a server that adopts nothing can say which differs; none leaves no file
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
         std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
     };
@@ -76,6 +77,7 @@ public:
         owner_only(dir_);
         lock_ = lock(dir_);
         if (!lock_.held()) throw std::runtime_error("disk cache: cannot lock " + dir_.u8string());
+        if (!options_.identity.empty()) std::ofstream(dir_ / "identity", std::ios::binary) << options_.identity;
         sweep(true);
         probe();
         thread_ = std::thread([this] { run(); });
@@ -106,6 +108,8 @@ public:
     // Whether entries are written around the file cache, as the probe chose.
     bool direct() const { return direct_; }
     const std::vector<Adopted>& adopted() const { return adopted_; }
+    // For each kept directory of another identity met at start, why it gave nothing: the components that differ, or that it was written before identities were kept.
+    const std::vector<std::string>& refused() const { return refused_; }
 
     // Queues an entry's write and returns its key; `done` runs on the I/O thread once the file is in place, or with the reason it is not: the floor, a failed write, or a cancel.
     // The slabs must not change until `done` has run.
@@ -366,6 +370,33 @@ private:
     // At start under keep: every entry of directory `other` with this store's identity, younger than the age limit, moved into this store's directory under a key of its own.
     void adopt_from(const std::filesystem::path& other) {
         std::error_code ec;
+        // A directory of another identity gives nothing below, its entries' headers carrying that identity; what differs is kept for the server's start line.
+        std::ifstream in(other / "identity", std::ios::binary);
+        const std::string theirs((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        if (!options_.identity.empty() && theirs.empty()) {
+            for (const auto& e : std::filesystem::directory_iterator(other, ec))
+                if (e.path().extension() == ".kv") {
+                    refused_.push_back("written by a build that kept no identity beside its entries");
+                    break;
+                }
+        } else if (!options_.identity.empty() && theirs != options_.identity) {
+            const auto parts = [](const std::string& text) {
+                std::map<std::string, std::string> m;
+                for (size_t at = 0; at < text.size();) {
+                    const size_t end = std::min(text.find('\n', at), text.size()), colon = text.find(": ", at);
+                    if (colon < end) m[text.substr(at, colon - at)] = text.substr(colon + 2, end - colon - 2);
+                    at = end + 1;
+                }
+                return m;
+            };
+            const auto mine = parts(options_.identity), other_parts = parts(theirs);
+            std::string names;
+            for (const auto& part : mine) {
+                const auto it = other_parts.find(part.first);
+                if (it == other_parts.end() || it->second != part.second) names += (names.empty() ? "" : ", ") + part.first;
+            }
+            refused_.push_back("its " + names + " differing from this server's");
+        }
         for (const auto& e : std::filesystem::directory_iterator(other, ec)) {
             if (e.path().extension() != ".kv" || expired(e.path())) continue;
             std::optional<Header> h;
@@ -638,6 +669,7 @@ private:
     Lock lock_;
     bool direct_ = false;
     core::HostPages staging_;              // the I/O thread's page-aligned buffer, one chunk
+    std::vector<std::string> refused_;
     std::vector<Adopted> adopted_;
     mutable std::mutex m_;
     std::condition_variable cv_;

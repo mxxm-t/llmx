@@ -154,6 +154,14 @@ int main(int argc, char** argv) {
             const Outcome put = wait_put(store, key, "the blob", written);
             require(put.ok, "an entry was not written: " + put.error);
             require(in_place(store, key), "a written entry is not there");
+            // The file's bytes at this version of the layout: a change to them without a new DiskStore::kVersion would let a server read another build's entries wrongly, so one that moves this digest moves the version with it.
+            {
+                std::ifstream in(store.directory() / ("entry-" + std::to_string(key) + ".kv"), std::ios::binary);
+                const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+                core::Sha sha(true);
+                sha.update(bytes.data(), bytes.size());
+                require(sha.hex() == "79fe9344253f9b9bb108232310d383782e2f1f18019f43d4d06e78302ef592b3", "an entry file's bytes are " + sha.hex() + ", not those of layout version 1: bump DiskStore::kVersion with the layout");
+            }
             require(fs::file_size(store.directory() / ("entry-" + std::to_string(key) + ".kv")) == server::DiskStore::file_bytes(8, layout),
                     "an entry's file is not the size its layout gives");
             auto back = runs_of(cpu, layout, 0);
@@ -181,10 +189,53 @@ int main(int argc, char** argv) {
         require(fs::exists(kept_dir / "kept") && fs::exists(kept_dir / ("entry-" + std::to_string(key) + ".kv")), "a store with keep did not leave its entries");
 
         // An entry's identity follows what can change a history's bits, not the revision built: two builds of one numerics fingerprint are one identity, two fingerprints are two.
-        require(server::disk_identity("digest", "layout", {"g111111111111", "aaaa"}) == server::disk_identity("digest", "layout", {"g222222222222", "aaaa"}),
+        const auto facts = [](const char* revision, const char* numerics, const char* compiler = "cc 1") {
+            server::BuildFacts b;
+            b.revision = revision;
+            b.numerics = numerics;
+            b.compiler = compiler;
+            b.flags = "-O2";
+            return b;
+        };
+        require(server::disk_identity("digest", "layout", facts("g111111111111", "aaaa")) == server::disk_identity("digest", "layout", facts("g222222222222", "aaaa")),
                 "an entry's identity changes with the revision built, the numerics fingerprint being the same");
-        require(server::disk_identity("digest", "layout", {"g111111111111", "aaaa"}) != server::disk_identity("digest", "layout", {"g111111111111", "bbbb"}),
+        require(server::disk_identity("digest", "layout", facts("g111111111111", "aaaa")) != server::disk_identity("digest", "layout", facts("g111111111111", "bbbb")),
                 "an entry's identity is the same for two numerics fingerprints");
+
+        // A store leaves its identity's text in its directory, and one that meets a kept directory of another identity names the components that differ: none for another revision, the fingerprint for other numerics.
+        {
+            const fs::path named = base / "named";
+            const auto make = [&](const server::BuildFacts& facts, uint8_t id) {
+                server::DiskStore::Options o;
+                o.root = named.u8string();
+                o.keep = true;
+                o.identity = server::disk_identity("digest", "layout", facts);
+                server::DiskStore s(o, identity(id));
+                return s.refused();
+            };
+            require(make(facts("g111111111111", "aaaa"), 1).empty(), "a store alone refused a directory");
+            require(make(facts("g222222222222", "aaaa"), 1).empty(), "a store of another revision and the same numerics refused the kept directory");
+            const std::vector<std::string> differing = make(facts("g222222222222", "bbbb", "cc 2"), 2);
+            require(differing == std::vector<std::string>{"its compiler, numerics differing from this server's"},
+                    "a store of other numerics and another compiler said " + (differing.empty() ? std::string("nothing") : differing[0]));
+            // The build's own facts carry its fingerprint and, beside the compiler, the configuration built.
+            const server::BuildFacts own = server::build_facts();
+            require(own.numerics.size() == 64 && own.flags.find("; ") != std::string::npos && !own.compiler.empty(),
+                    "the build's facts are numerics '" + own.numerics + "', flags '" + own.flags + "', compiler '" + own.compiler + "'");
+            fs::remove_all(named);
+            // A kept directory whose entries came with no identity beside them, as a build before identities were kept left it, is said to be that.
+            {
+                server::DiskStore::Options o;
+                o.root = named.u8string();
+                o.keep = true;
+                server::DiskStore old(o, identity(1));
+                uint64_t k = 0;
+                require(wait_put(old, k, "x", runs_of(cpu, {kSlab}, 2)).ok, "an entry without an identity beside it was not written");
+            }
+            require(make(facts("g111111111111", "aaaa"), 1) == std::vector<std::string>{"written by a build that kept no identity beside its entries"},
+                    "a kept directory without an identity was not said to be one");
+            fs::remove_all(named);
+        }
 
         // Another identity under keep adopts nothing and removes what it cannot read; the same identity adopts the entry, which reads back, and a store without keep removes its directory at exit.
         const fs::path copy = base / "copy";

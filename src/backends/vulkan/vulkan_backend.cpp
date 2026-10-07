@@ -1243,8 +1243,14 @@ public:
         fn.vkGetPhysicalDeviceProperties2(d.physical, &dp);
         d.caps.device = d.props.deviceName;
         d.caps.driver = drv.driverName;
+        // The pipeline cache id changes with every build of the driver, also one that keeps its version strings, so a history kept on disk is not read back under a driver that may compile other kernels.
+        std::string cache;
+        for (const uint8_t byte : d.props.pipelineCacheUUID) {
+            cache += "0123456789abcdef"[byte >> 4];
+            cache += "0123456789abcdef"[byte & 15];
+        }
         d.identity = "vulkan " + std::to_string(d.props.vendorID) + ":" + std::to_string(d.props.deviceID) + " " + d.caps.device + "; " + d.caps.driver + " " +
-                     drv.driverInfo + " " + std::to_string(d.props.driverVersion);
+                     drv.driverInfo + " " + std::to_string(d.props.driverVersion) + " " + cache;
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " is older than Vulkan 1.2");
 

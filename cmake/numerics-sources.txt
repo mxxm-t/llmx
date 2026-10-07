@@ -1,0 +1,35 @@
+# The sources whose bytes decide the bits of a history kept on disk (docs/DISK-TIER.md, The entry file): the numerics fingerprint is taken over them.
+# A file under an `in` root is in unless an `out` line names it or a directory above it, so a new file is in until a line here argues it out.
+# `allow` names an out file that files inside may include, with the reason it cannot change a history's bits through them.
+# One entry a line: in PATH, out PATH | reason, allow PATH | reason. cmake/build-info.cmake, cmake/numerics-fingerprint.ps1 and tests/version.py read this file, and nothing repeats it.
+
+in src
+in CMakeLists.txt
+in cmake
+in build.bat
+
+out src/cli | reads flags and prints, calls down
+out src/hub | fetches model files, whose bytes the model digest covers
+out src/server | decides which rows run in which class, which an entry records, never a matched entry's bits
+out src/tokenizer | an entry is keyed by token ids, so the text a tokenizer gives ids to does not change the bits of given ids
+out src/inference/chat.hpp | renders text
+out src/inference/sampler.hpp | chooses among logits already computed
+out src/inference/logprobs.hpp | reads logits already computed
+out src/inference/generate.hpp | the loop around the passes
+out src/inference/perplexity.hpp | scores logits already computed
+out src/core/json.hpp | parses text
+out src/core/utf8.hpp | text
+out src/core/list.hpp | parses comma-separated lists
+out src/core/sha.hpp | hashes
+out src/core/crc32c.hpp | checksums
+out src/core/cgroup.hpp | reads the limits a process runs under
+out src/core/cpus.hpp | chooses thread counts, across which the tests hold every result bit-identical
+
+allow src/core/cpus.hpp | the CPU backend takes its worker count from it; results do not depend on the count
+allow src/core/cgroup.hpp | host_memory.hpp reads a limit through it; a size, not a value
+allow src/core/json.hpp | raw_convert.hpp reads a tensor list's schema with it
+allow src/core/list.hpp | devices.hpp parses the device list with it
+allow src/core/sha.hpp | file_digest.hpp hashes the model file with it
+allow src/inference/chat.hpp | load.hpp carries the chat format beside the model
+allow src/inference/sampler.hpp | spec.hpp accepts drafts with the sampler's draw; the rows a verify writes are the model's
+allow src/tokenizer/tokenizer.hpp | load.hpp carries the tokenizer beside the model

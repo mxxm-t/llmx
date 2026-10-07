@@ -134,7 +134,7 @@ def main(argv=None):
                 prefix = output / (name + "-" + role)
                 stdout = command(prefix.name, [str(tool), str(model), str(ids), str(prefix), device,
                                                args.cache_type, str(args.ubatch), str(experts)])
-                metadata = capture_metadata(stdout, tokens, version[5:])
+                metadata = capture_metadata(stdout, tokens, version[5:].split(" numerics ")[0])
                 captured = {"prefix": str(prefix), "metadata": metadata,
                             "hashes": {phase: file_sha256(Path(str(prefix) + "." + phase + ".bin")) for phase in ("batched", "decode", "greedy")}}
                 pair.append(captured)

@@ -403,7 +403,7 @@ inline std::string Model::host_identity() const {
         s += "\n";
     }
     s += "placement mixer " + join(place_.mixer_device) + " ffn " + join(place_.ffn_device) + " embed " + std::to_string(place_.embed_device) + " output " +
-         std::to_string(place_.output_device) + " stream " + std::to_string(place_.stream_from) + "\n";
+         std::to_string(place_.output_device) + " stream " + std::to_string(place_.stream_from) + " width " + std::to_string(place_.width) + "\n";
     const size_t limit = std::min((size_t)context_length(), kv_tokens_total());
     std::vector<size_t> last;
     s += "classes";

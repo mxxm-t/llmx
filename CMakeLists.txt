@@ -26,9 +26,28 @@ configure_file(
     @ONLY
 )
 
+# What the build identifier carries beyond the revision, for the disk tier's identity (docs/DISK-TIER.md, The entry file): the compiler, the flags of the configuration built and the shader compiler.
+set(LLMX_GLSLC_VERSION "")
+if(LLMX_HAS_BACKEND_VULKAN)
+    find_program(LLMX_GLSLC glslc HINTS $ENV{VULKAN_SDK}/Bin $ENV{VULKAN_SDK}/bin)
+    if(LLMX_GLSLC)
+        execute_process(COMMAND ${LLMX_GLSLC} --version OUTPUT_VARIABLE LLMX_GLSLC_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        string(REGEX REPLACE "[\r\n]+" ", " LLMX_GLSLC_VERSION "${LLMX_GLSLC_VERSION}")
+    endif()
+endif()
 add_custom_target(llmx-build-info
     COMMAND ${CMAKE_COMMAND}
         "-DSOURCE_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DCOMPILER=${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}"
+        "-DBUILD_CONFIG=$<CONFIG>"
+        "-DCXX_FLAGS=${CMAKE_CXX_FLAGS}"
+        "-DCXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}"
+        "-DCXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}"
+        "-DCXX_FLAGS_RELWITHDEBINFO=${CMAKE_CXX_FLAGS_RELWITHDEBINFO}"
+        "-DCXX_FLAGS_MINSIZEREL=${CMAKE_CXX_FLAGS_MINSIZEREL}"
+        "-DVULKAN=${LLMX_BACKEND_VULKAN_FLAG}"
+        "-DIPO=${CMAKE_INTERPROCEDURAL_OPTIMIZATION}"
+        "-DGLSLC_VERSION=${LLMX_GLSLC_VERSION}"
         "-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/build-info.cmake"
     BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/llmx-build-info.hpp"
@@ -216,7 +235,9 @@ if(BUILD_TESTING)
     add_test(NAME file-reader COMMAND llmx-file-reader-test ${CMAKE_CURRENT_BINARY_DIR}/file-reader-fixtures)
     set_tests_properties(file-reader PROPERTIES TIMEOUT 60)
     add_executable(llmx-disk-store-test tests/disk_store.cpp)
-    target_include_directories(llmx-disk-store-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    # It reads the build's own facts, so it compiles the generated config and not the fallback.
+    add_dependencies(llmx-disk-store-test llmx-build-info)
+    target_include_directories(llmx-disk-store-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
     list(APPEND LLMX_TARGETS llmx-disk-store-test)
     add_test(NAME disk-store COMMAND llmx-disk-store-test ${CMAKE_CURRENT_BINARY_DIR}/disk-store-fixtures)
     set_tests_properties(disk-store PROPERTIES TIMEOUT 120)

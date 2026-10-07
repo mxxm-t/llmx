@@ -137,7 +137,7 @@ class NativeCapture(unittest.TestCase):
         for path, tied in [(self.model, False), (self.control, True)]:
             f32.write_model(path, f32.tensors(tied), config=dict(f32.CONFIG, context_length=128))
         self.tool = Path(common.EXE).with_name("llmx-model-logits" + (".exe" if os.name == "nt" else ""))
-        self.version = subprocess.check_output([common.EXE, "--version"], text=True).strip()[5:]
+        self.version = subprocess.check_output([common.EXE, "--version"], text=True).strip()[5:].split(" numerics ")[0]
 
     def capture(self, cache="f32", ubatch="2", ids=None, shares=None):
         prefix = self.root / "capture"

@@ -122,6 +122,25 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A kept entry's identity follows the numerics, not the revision (2026-10-07, branch feat/numerics-identity, lands by fast-forward)
+
+- **Goal (the user, 2026-10-06):** an update should keep the conversations on disk unless it changes what their bits depend on. The identity carried the build's version string, so every update of production started with an empty disk tier, four times in one day.
+- **Done:** the identity is the digest of components a line each: the model file's digest, a numerics fingerprint, the compiler's version text, the compiler, configuration, flags and options the build system used, the shader compiler's version, the C library where it names itself, and the model's host layout with each device's driver. The revision is not among them.
+- **The fingerprint** is the SHA-256 over every file under `src/`, `cmake/`, `CMakeLists.txt` and `build.bat` that `cmake/numerics-sources.txt` does not name out, CRLF read as LF. In by default: the list names out the CLI, the hub, the server, the tokenizer and the files that only parse, sample or print, each with its reason, and allows eight includes of such files from inside with theirs. Both build routes compute it at every build with no Git; a Linux build with GCC and a Windows checkout with CRLF line endings give the same value at one commit, as does `build.bat`.
+- **Held by `tests/version.py`:** the binary's fingerprint is the one the test computes from the tree; every `src/` file is in or named out; every line names a path that exists; no file inside includes an out file that no allow line argues; and seven planted faults.
+- **Said by the server:** its start line prints the fingerprint, `llmx --version` too, the components are left as text in the server's directory, and a server that adopts nothing from a kept directory names the components that differ.
+- **Measured** on two MI50s, Qwen3.8-27B Q8_0 with production's flags, a 76k-token conversation written by this branch's build and its server stopped:
+
+  | restarted on | fingerprint | adopted | next turn: reused of 76194 tokens | first token (s) | start line |
+  |---|---|---|---|---|---|
+  | a build that changes one server file | the same | 3 of 3 entries | 76160 | 7.7 | 3 entries adopted |
+  | a build that changes one kernel file | another | none | (not sent) | | a kept directory was not adopted, its numerics differing from this server's |
+
+- **Not covered, and said in DISK-TIER:** the C library on Windows and macOS is unrecorded; a file argued out of the list wrongly would let an entry be read against other bits, which the review of each line and the include rule bound, and no test proves.
+- **The idle rewrite's cost (asked with this branch):** USAGE now gives it measured, 5.2 GB a turn at 76k tokens, 260 GB a day at fifty such turns. Writing only what a turn added is not a small change: an entry is one file, written once, laid out layer by layer, and the index, room, age, superseding and adoption all take an entry as a whole. A proposal is in the devlog; nothing is built.
+- **Reviewed** by F2DEV: every out and allow line held against the code. Taken from the review before landing, since a later addition to the identity empties every cache once more: a Vulkan device's line carries its pipeline cache id, which changes with every build of the driver (held by reading, a rebuilt driver not being something the test machines can fake); the flags carry the interprocedural-optimization setting; the layout names the tensor width; an entry file's bytes and the entries' descriptions are held to digests at `DiskStore::kVersion`; `disk-store` holds that the build's facts carry the configuration; a kept directory from before this branch says why it gave nothing.
+
+
 ## An idle server writes ahead under keep, and the stop's flush states its bound (2026-10-06, branch feat/keep-idle-flush, lands by fast-forward)
 
 - **Goal:** a stop under `--disk-cache-keep` should find little left to write, say how long it will take, and say what it did not write; and a conversation larger than the stopping server's host tier should be kept at all, which fix/keep-large left open.

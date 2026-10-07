@@ -2071,6 +2071,28 @@ void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
             runner.join();
             stop_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         }
+        // What an entry's description holds at this version of the store's layout (Scheduler::disk_blob), read out of the three files: a change to it without a new DiskStore::kVersion moves these digests.
+        if (form == 0) {
+            std::vector<std::string> blobs;
+            for (const fs::path& file : disk.files(".kv")) {
+                std::ifstream in(file, std::ios::binary);
+                std::string head((size_t)1 << 20, 0);
+                in.read(head.data(), (std::streamsize)head.size());
+                uint64_t blob = 0, chunks = 0;
+                uint32_t runs = 0;
+                std::memcpy(&blob, head.data() + 52, 8);
+                std::memcpy(&runs, head.data() + 60, 4);
+                std::memcpy(&chunks, head.data() + 64 + 8 * (size_t)runs, 8);
+                core::Sha sha(true);
+                sha.update(head.data() + 72 + 8 * (size_t)runs + 4 * (size_t)chunks, (size_t)blob);
+                blobs.push_back(sha.hex());
+            }
+            std::sort(blobs.begin(), blobs.end());
+            const std::vector<std::string> golden{"2f98de67a215a2799f65e301b174357f5783e0e565b774c1d0d413bb53a4a4b4", "768760fb4c567235b600188a73de16e8cddd6695d4be45d9bbf9287a208bbda7", "cac82135e524dfb2c4f744003668b05e88e66db09d289c27406f89e0e4be2d9a"};
+            std::string got;
+            for (const std::string& b : blobs) got += " " + b;
+            require(blobs == golden, what + ": the entries' descriptions are" + got + ", not those of layout version 1: bump DiskStore::kVersion with disk_blob");
+        }
         const size_t files = disk.files(".kv").size(), want = form == 0 ? 3 : form == 1 ? 0 : 2;
         require(files == want && disk.files(".tmp").empty(), what + ": " + std::to_string(files) + " entry files and " + std::to_string(disk.files(".tmp").size()) + " temporary ones left, against " + std::to_string(want) + " and 0");
         if (form == 1) require(stop_s >= 19 && stop_s < 45, what + ": the stop took " + std::to_string(stop_s) + " s, against the 20 s bound");

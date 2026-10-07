@@ -1379,7 +1379,7 @@ int main(int argc, char** argv) {
         if (argc == 3 && (std::string(argv[2]) == "--help" || std::string(argv[2]) == "-h") && print_usage(cmd, std::cout)) return 0;
         if (cmd == "--version") {
             if (argc > 2) throw UsageError("--version takes nothing after it");
-            std::cout << "llmx " << LLMX_VERSION_STRING << "\n";
+            std::cout << "llmx " << LLMX_VERSION_STRING << " numerics " << std::string(LLMX_NUMERICS).substr(0, 16) << "\n";
             return 0;
         }
 

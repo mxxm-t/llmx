@@ -30,9 +30,14 @@ if not exist build\plain-generated (
     if errorlevel 1 ( echo [build] cannot create version directory & popd & exit /b 1 )
 )
 ver >nul
+set "LLMX_NUMERICS=unknown"
+for /f "delims=" %%R in ('powershell -NoProfile -ExecutionPolicy Bypass -File cmake\numerics-fingerprint.ps1 "%CD%" 2^>nul') do set "LLMX_NUMERICS=%%R"
 >build\plain-generated\llmx-build-info.hpp (
     echo #pragma once
     echo #define LLMX_BUILD_REVISION "%LLMX_BUILD_ID%"
+    echo #define LLMX_NUMERICS "%LLMX_NUMERICS%"
+    echo #define LLMX_BUILD_FLAGS "build.bat"
+    echo #define LLMX_GLSLC_VERSION ""
 ) || ( echo [build] cannot write version header & popd & exit /b 1 )
 cl /nologo /std:c++17 /O2 /EHsc /W4 /we4505 /we4101 /we4189 /arch:AVX2 /I build\plain-generated /I src /Fe:llmx.exe src\cli\main.cpp /link /MANIFEST:EMBED /MANIFESTINPUT:cmake\windows.manifest
 set "LLMX_BUILD_EXIT=%errorlevel%"

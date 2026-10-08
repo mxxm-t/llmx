@@ -2219,6 +2219,108 @@ void disk_idle_rule(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     require(lengths == std::vector<uint64_t>{1664, 1920}, what + ": room after a crash left copies of" + got + " tokens, against the other conversation's 1664 and the newer copy's 1920");
 }
 
+// Disk writes write what changed (docs/DISK-TIER.md, Entries written as what changed): one conversation whose replies are read again, on `make`'s model, under --disk-cache-keep.
+// After each of four turns the idle server has written what the turn added and nothing twice: the bytes written are the bytes on disk, no file having been replaced, a turn that adds one block to the 1200-token first one writes one file on a model that keeps no state, and the stop writes nothing more.
+// A second server adopts the files; a follow-up forks the whole conversation and an edit of its third message forks the conversation below that message, each with the reply of a fresh model.
+void disk_increment(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    DiskRoot disk("increment");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    const auto on_disk = [&] {
+        uint64_t bytes = 0;
+        disk.files(".kv", &bytes);
+        return bytes;
+    };
+    std::vector<std::vector<uint32_t>> prompts;
+    std::vector<uint32_t> prompt = prompt_of(49, 1200, vocab);
+    size_t files_before = 0;
+    {
+        auto model = make(4096, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            const size_t more[4] = {0, 50, 600, 40};
+            for (size_t turn = 0; turn < 4; ++turn) {
+                if (more[turn]) {
+                    const std::vector<uint32_t> tail = prompt_of(50 + (uint32_t)turn, more[turn], vocab);
+                    prompt.insert(prompt.end(), tail.begin(), tail.end());
+                }
+                prompts.push_back(prompt);
+                const uint64_t before = sched.stats().disk_bytes_written;
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 20}));
+                for (uint32_t id : ids_of(drain(*h))) prompt.push_back(id);
+                prompt.push_back(1);
+                prompt.push_back(2);
+                sched.follow(h, prompt, true);
+                within_a_minute([&] { return sched.stats().reprefills == turn + 1; }, what + ": reply " + std::to_string(turn + 1) + " read again");
+                // The idle writes begin five seconds after the turn and end when nothing more is written for two.
+                uint64_t seen = 0;
+                auto still = std::chrono::steady_clock::now();
+                within_a_minute([&] {
+                    const auto stats = sched.stats();
+                    if (stats.disk_bytes_written != seen || stats.disk_in_flight) {
+                        seen = stats.disk_bytes_written;
+                        still = std::chrono::steady_clock::now();
+                    }
+                    return seen > before && std::chrono::steady_clock::now() - still > std::chrono::seconds(2);
+                }, what + ": turn " + std::to_string(turn + 1) + " written while idle");
+                require(seen == on_disk(), what + ": after turn " + std::to_string(turn + 1) + " " + std::to_string(seen) + " bytes were written and " + std::to_string(on_disk()) +
+                                               " are on disk, so something was written twice or replaced");
+                const size_t files = disk.files(".kv").size();
+                require(model->keeps_state() || (turn != 1 && turn != 3) || files == files_before + 1,
+                        what + ": a turn of a block wrote " + std::to_string(files - files_before) + " files, against the one segment it added");
+                files_before = files;
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        const uint64_t before_stop = on_disk();
+        sched.stop();
+        runner.join();
+        require(on_disk() == before_stop, what + ": the stop wrote " + std::to_string(on_disk() - before_stop) + " bytes after the idle writes");
+    }
+    // The follow-up goes on from the whole conversation; the edit replaces the third message and what followed it.
+    Req follow{prompt, 24}, edit{prompts[2], 24};
+    const std::vector<uint32_t> tail = prompt_of(47, 30, vocab);
+    follow.prompt.insert(follow.prompt.end(), tail.begin(), tail.end());
+    edit.prompt.resize(prompts[1].size() + 22);
+    edit.prompt.insert(edit.prompt.end(), tail.begin(), tail.end());
+    Reply follow_got, edit_got;
+    size_t follow_reused = 0, edit_reused = 0;
+    {
+        auto model = make(4096, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_entries > 0; }, what + ": the files adopted");
+            const auto e = sched.submit(edit.prompt, params_of(edit));
+            edit_got = drain(*e);
+            edit_reused = e->reused();
+            const auto f = sched.submit(follow.prompt, params_of(follow));
+            follow_got = drain(*f);
+            follow_reused = f->reused();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    // On a model that keeps a state a request forks where a state was kept: the conversation's last, and the one where the third message starts.
+    const bool state = make(4096, 16)->keeps_state();
+    const size_t whole = prompt.size() / kBlock * kBlock, third = (prompts[1].size() + 22) / kBlock * kBlock;
+    require(follow_reused == whole, what + ": the follow-up after the restart reused " + std::to_string(follow_reused) + " tokens, against " + std::to_string(whole));
+    require(state ? edit_reused == third : edit_reused >= third, what + ": the edit of the third message reused " + std::to_string(edit_reused) + " tokens, against " + std::to_string(third));
+    auto fresh = make(4096, 16);
+    same(serve(*fresh, tok, 3, {{follow}})[0], follow_got, what + ", the follow-up");
+    fresh = make(4096, 16);
+    same(serve(*fresh, tok, 3, {{edit}})[0], edit_got, what + ", the edit");
+}
+
 void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20), size_t first_host = 4 * ((size_t)64 << 20)) {
     const bool through = restart_host < ((size_t)64 << 20), beyond = first_host < ((size_t)64 << 20);
     const std::string what = beyond ? "entries written from a host tier smaller than an entry" : through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
@@ -2424,6 +2526,8 @@ int main(int argc, char** argv) {
             disk_read_bound(one, tok, vocab);
             disk_flush(one, tok, vocab);
             disk_idle_rule(one, tok, vocab);
+            disk_increment(one, tok, vocab, "disk writes of what changed");
+            disk_increment(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "disk writes of what changed, a model keeping a state");
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);

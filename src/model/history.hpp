@@ -301,7 +301,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     out = std::move(h);
 }
 
-// The blocks of the history's tokens from `first` to `length`, whole blocks of every storage, copied to host memory alone, with no state: what a turn added to a history whose earlier blocks are kept elsewhere (docs/DISK-TIER.md, Planned: entries written as what changed).
+// The blocks of the history's tokens from `first` to `length`, whole blocks of every storage, copied to host memory alone, with no state: what a turn added to a history whose earlier blocks are kept elsewhere (docs/DISK-TIER.md, Entries written as what changed).
 // Enqueued and limited as save_host's copies are; `out` is whole or, on a throw, released.
 inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit) {
     settle(s, "a copy to host memory");

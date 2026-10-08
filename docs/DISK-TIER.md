@@ -2,7 +2,7 @@
 
 A third tier for the server's saved histories, below the device tier and the host tier ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier; [SERVER](SERVER.md)).
 What host memory can no longer hold goes to a local disk instead of being dropped, so a conversation that comes back after the host tier has filled reads its history from disk in about half a second rather than recomputing it for tens of seconds.
-This page is the plan the tier was built from, kept as agreed; where building changed the design it says so in place (Demotion; Keeping entries across a restart), and `docs/STATUS.md` records each step and the figures it was measured with.
+This page is the plan the tier was built from, kept as agreed; where building changed the design it says so in place (Demotion; Keeping entries across a restart; Entries written as what changed, which replaced the whole copy as the unit on disk), and `docs/STATUS.md` records each step and the figures it was measured with.
 
 ## Why
 
@@ -22,7 +22,7 @@ Read from `src/server/scheduler.hpp`, `src/model/history.hpp` and `src/server/po
 
 ## What goes to disk
 
-The same entries, unchanged: a host donor's `HostHistory` and a boundary's state, each with its tokens and row classes.
+The same histories, as what changed (Entries written as what changed, below): a host donor's blocks as segments and each state as a file of its own, each named by digests of its history's tokens and row classes.
 - **Bit-exact.** An entry holds the bytes the storages held, as `save_host` copied them, never converted, compressed lossily or requantized; restored, it gives the bytes of a history never evicted, so "same prompt, same result" holds across all three tiers, as it does across two now.
 - **Only from the host tier.** An entry reaches disk only by leaving host memory, and comes back only through host memory: disk to host slabs, then the existing promotion to the devices. The devices never read or write a file, and no new device copy path is added.
 - **Paused requests** leave donors like finished ones, so they reach disk the same way; a paused request's own donor is matched by its id as now.
@@ -32,9 +32,9 @@ The same entries, unchanged: a host donor's `HostHistory` and a boundary's state
 
 One file per entry, written once and never changed in place.
 - **Header**, fixed layout, its own CRC32C:
-  - magic, format version, entry kind (copy or boundary);
+  - magic and format version (`DiskStore::kVersion`, 2 since a file is a segment or a state);
   - identity (below), whose every field must equal the running server's for the entry to be read;
-  - the entry's tokens and row classes (`RowClass` stretches), so the index can be rebuilt from headers alone;
+  - what the file is (`DiskIndex::describe`): a segment's token range or a state's position, the digest of the history below it and at each of its blocks' ends, and whether its conversation came back, so the index is rebuilt from headers alone; the tokens themselves are not written;
   - the layout: per device, the bytes of each run in the order `HostSpan` writes them (each KV storage's blocks layer by layer, K then V, then the state slot, then the carried row), the block tokens, the layers, the K and V block bytes and the state slot bytes;
   - the payload's length and the CRC32C of each 4 MiB chunk of it.
 - **Payload**: the runs, device by device, padded to the file system's direct-I/O granule.
@@ -54,17 +54,17 @@ One file per entry, written once and never changed in place.
 ## Demotion: host to disk
 
 The host tier stays the window of the newest entries and the disk tier keeps what slides out of it.
-- **When.** Just ahead of need: whenever the host entries not yet on disk hold more than three quarters of the host tier and no write is in flight, the entry the host tier would drop next goes to disk, one at a time, while it stays a host entry, readable and promotable. Once its file is in place the entry is marked on disk, and room the host tier needs later releases it at once (below).
+- **When.** Just ahead of need: whenever the host entries not yet on disk hold more than three quarters of the host tier and no write is in flight, the entry the host tier would drop next goes to disk, one at a time, while it stays a host entry, readable and promotable. Each write is one file, what the entry's history lacks on disk: its first segment not there, then the next, then its state (`DiskTier::write_next`). Once the last is in place the entry is marked on disk, and room the host tier needs later releases it at once (below).
   Demoting only at the moment of need keeps nothing: the entry handed to the writer still holds its slabs, so the room the copy needs is never freed, and the room order below cancels that very write each time the tier is full. Writing ahead costs the writes of entries later promoted or superseded instead of dropped; superseded ones are deleted at once, promoted ones keep their file, and the writes stay bounded by what passes through the host tier's last quarter (Hardware, wear). Approved so, with the cost counted: `/v1/health`'s `disk_bytes_written` is every byte written ahead and `disk_bytes_read` every byte read back for a request, the disk's wear against its use.
 - **Which.** The host tier's ranking (Ranking, above) chooses which entry goes next; the disk tier only decides whether the chosen entry is kept:
   - a superseded copy is never written (it was never worth host room either);
   - a boundary is written, and so is a copy whose conversation came back;
   - a copy whose conversation never came back (one-time conversations, Age, below) is written only into free disk room and the room of other such entries, and is the first to go, the host tier's come-back rule carried down;
-  - an entry already on disk with the same history, one promoted from disk earlier, is not written again: its file is renewed, as a host entry promoted to the devices is renewed now.
+  - a history whose files are on disk already, one read from disk earlier or one another conversation wrote, is not written again: its last file is renewed, as a host entry promoted to the devices is renewed now.
 - **How.** The scheduler hands the entry's slabs to the writer thread, which writes them to a temporary file chunk by chunk and renames it into place; the entry stays in the host tier's index meanwhile.
   The scheduler thread enqueues the write and returns; it never waits on a file.
 - **Writes never block admission.** Room the host tier needs now, for a device donor's write-back, a promotion or a read from disk, is taken in this order, and no step waits for a write:
-  1. entries that need no write: superseded copies, and entries whose file is already on disk (renewed ones), which are simply released;
+  1. entries that need no write: superseded copies, and entries whose history is whole on disk, which are simply released;
   2. the host tier's ranking among the rest, each chosen entry dropped as without a disk tier, the entry whose write is in flight last among those the step may take (`Scheduler::written_soon`): the writer writes what the ranking would take next, so taking it first cancelled every write once the writer had fallen behind, and nothing reached the disk again;
   3. that entry, dropped when no other is left, cancels its write: the writer stops at its current chunk, removes the temporary file, and the entry is not kept, as an entry dropped without a disk tier is not. Its slabs return as the chunk in flight ends, at most 4 MiB, a few milliseconds at the measured rates; the room is counted free at once, and the copy that needed it may take new slabs past the host tier's cap by the dropped entry's until they return, so nothing waits on the scheduler thread.
   A demotion that is still writing never delays an admission: the worst it costs is an entry not kept, which is what the host tier does without a disk tier.
@@ -74,20 +74,20 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 
 - **Size cap.** `--disk-cache-bytes` bounds the bytes of entry files, temporary files included.
 - **Free-space floor.** Before every write the writer reads the file system's free space (`statvfs`, `GetDiskFreeSpaceExW`) and writes only if the file system keeps at least the floor after it (`--disk-cache-floor`); with several servers on one disk the floor is the same physical free space for all of them, so together they never fill it.
-- **Order**, the host tier's ranking (Ranking, above) carried down, with superseded entries deleted at once (a copy superseded while on disk is deleted, not kept for room).
-  A boundary whose conversation has no copy left in any tier can never be forked and goes first of all.
+- **Order** (`DiskIndex::victim`): only a file nothing on disk stands on goes, so a history loses its end before its base. First a history's earlier states, those with a state of it both below and above them, the least recently used first; then the files of conversations that did not come back, then the rest, each by its conversation's last use. A file a read is on, or that the file being written stands on, stays, and a history a later turn supersedes is that turn's base and stays.
+  A state whose history's blocks are not all on disk stays while the server runs, a history in memory holding its rows, and is dropped at the next start.
 - **Disk full and I/O errors.** `ENOSPC`, `EIO`, `EROFS` or any failed write ends the tier's writing until the server restarts or the free space recovers above the floor plus the cap's tenth on a later check (every minute); reads go on while they succeed. A read error or a checksum failure deletes that entry and the request computes its history as if the entry had never been there. Counted in `/v1/health` (Surface, below).
 
 ## Restore: disk to host to devices
 
-- **Index in memory.** Every entry's tokens and row classes stay in the scheduler's memory (40 KB for a 10k-token conversation), so matching reads no file; `enter` compares disk entries beside device donors, host donors and boundaries by the same rule (`shareable`).
-- **Prefetch on submit.** When a request is submitted, not when it is admitted, the scheduler looks for a disk entry sharing more whole blocks than every device and host entry; if one does, its read is queued at once, so the read overlaps the request's wait in the queue.
-- **Reading.** A reader thread reads the file with direct I/O into host slabs taken as a promotion takes room (by the order under Demotion, never waiting for a write), verifying each chunk; then the entry is a host entry like any other, and the request's admission promotes it to the devices as now.
+- **Index in memory.** Every file's range and digests, 32 bytes a block, stay in memory (`DiskIndex`), so matching reads no file: a request's history is digested block by block and walked down the tree (`DiskIndex::path`), which shares a file exactly where tokens and row classes are the same.
+- **Prefetch on submit.** When a request is submitted, not when it is admitted, the scheduler looks for a path on disk sharing more whole blocks than every device and host entry; if there is one, the read of its files is queued at once, so the read overlaps the request's wait in the queue.
+- **Reading.** A reader thread reads the path's files in order with direct I/O, each into its blocks' places in host slabs taken as a promotion takes room (by the order under Demotion, never waiting for a write), verifying each chunk; then the entry is a host entry like any other, and the request's admission promotes it to the devices as now.
 - **While it loads** the request is not admitted, but it keeps its place: requests behind it that fit may be admitted past it, the one exception to admission by arrival, since admitting it now would recompute what is about to arrive. Once the entry is in host memory it is admitted first.
 - **Bounds.** At most two reads in flight and at most `--max-seqs` waiting; a read waits at most as long as recomputing its tokens would take at the measured prompt rate, from passes of 64 prompt rows or more, and without a bound until a pass has measured one; past that, or on any error, the request is admitted without it; a cancelled request's read completes and leaves a host entry.
 - **An entry larger than the host tier**, as a long conversation's copy is under the tier a host short of free memory was given at start (a 76k-token conversation of a 27B model is 5.2 GiB), is read through host memory beyond the tier (`Scheduler::start_read`): nothing is dropped for it, the host's free memory with its reserve decides, as for every slab, and where that refuses the server says the entry was not read and why. It counts in no room, nor do its slabs count against the limit the tier's own copies are allocated within (`Scheduler::parked_held`), so a boundary read beside it is not refused; it is released once no request waits that could still promote it, its slabs freed rather than left for the tier's next copy (`Model::trim_host`), and its file stays.
 - **Holders.** A copy in host memory holding a boundary's rows becomes the newest as the boundary's read starts, so the room the read takes goes to other entries first.
-- **Boundaries** load with the copy that holds their conversation's blocks: a boundary whose copy is on disk loads both, the copy first.
+- **States** are read with the blocks of their path, and alone where a history on the devices or in host memory holds the rows (`Scheduler::rows_held`), which the read then becomes a boundary beside.
 
 ## Crash safety and cleanup
 
@@ -112,35 +112,35 @@ With `--disk-cache-keep`, a restart of the same model on a build of the same num
 4. exit.
 
 **The flush.** Everything worth keeping that is not yet on disk is written, the most valuable first, the reverse of the order in which room takes entries:
-- entries already on disk only have their last use recorded; superseded copies, on the devices, in host memory or on disk, are never written and are deleted;
-- then, newest first within each class: copies whose conversations came back, then their boundaries, then copies whose conversations never came back;
-- a device donor goes through host memory as an eviction does (`Model::save_host` into slabs that entries already written have given back), then to disk; a host entry goes straight to disk; the writer streams entry after entry so the device copies and the disk writes overlap;
+- histories whole on disk are not written again; superseded copies in memory are never written, and the files of a superseded history stay as the base of the one that superseded it;
+- then, newest first within each class (`Scheduler::flush_one`): the histories whose conversations came back, a device donor's before host memory's entries before the boundaries' states, then those of conversations that never came back;
+- of a device donor only the blocks not on disk are copied off the devices, a segment at a time into slabs of the tier's own (`Model::save_host_blocks`), and then its state; a host entry's are written from its own slabs;
 - within the cap and the floor, and within a bound the server states before its first write, after which the flush stops at its current entry, removes that entry's temporary file and exits: what is not written is not kept, as with a crash.
 **The bound.** It is 20 seconds (`kDiskFlush`), or, where that is longer, half as long again as the bytes still to write would take at the store's measured write rate, plus five seconds for the copies off the devices (`Scheduler::flush_disk`); the rate is the start's probe and then each entry written (`DiskStore::write_rate`).
 The server prints the bytes and the bound as the flush starts (`server: writing 5194.0 MiB to disk for the next server, within 20 s`) and, as it ends, the entries kept and the bytes it did not write, with the reason where there are any: the bound reached, or writing having stopped.
 A container or service manager must give the server at least the bound before it kills it, and the bound is not a flag: `docker stop` waits 10 seconds by default, so a server under keep runs with a stop timeout of 30 seconds or more, and more where the first line names more; a kill before the flush ends behaves as a crash.
 
-**Written ahead while idle.** A stop should find little to write, so under `--disk-cache-keep` a server with no request active, queued or paused for five seconds (`kDiskIdle`) writes what the flush would, one entry at a time (`Scheduler::disk_round`, `flush_one`): first what host memory holds without a file, then the device donors, newest first, each copied to host memory as an eviction copies it; a donor whose copy is in host memory or on disk already is not copied again.
-A donor's copy larger than the whole host tier is held beyond the tier's bytes until its file is in place and then released (`HostDonor::through`), so a long conversation is written whatever tier the host was given; outside the flush and the idle writes such a copy is not made, as before.
+**Written ahead while idle.** A stop should find little to write, so under `--disk-cache-keep` a server with no request active, queued or paused for five seconds (`kDiskIdle`) writes what the flush would, one file at a time (`Scheduler::disk_round`, `flush_one`), in the flush's order; a history whole on disk is not written again.
+The slabs a device donor's segment is copied into are the tier's own, beyond the host tier's bytes and at most a segment's (`DiskTier::held`), given back as its file lands, so a long conversation is written whatever tier the host was given.
 A request that arrives meanwhile waits for the copy off the devices in progress, as it waits for an eviction's, and its room takes the write in flight last (Demotion, above).
 
-**Not every turn.** An entry is a conversation's whole copy, so writing it after every turn writes the whole conversation for what one turn added: 5.2 GB a turn at 76k tokens of a 27B model. An idle server therefore leaves alone a history whose first three quarters are on disk as one whole copy (`Scheduler::near_on_disk`), by its tokens and not by whose conversation it is, so another conversation that shares that much with one on disk waits too, and under `--disk-cache-keep` that earlier file is not deleted when a later turn's copy supersedes it but once a newer copy's file is in place (`DiskEntry::superseded`, `settle_disk`); room takes such a file first, and after a crash that left two copies of one history the next server takes the shorter so again. Such a file is renewed by no later turn, so the age limit and a tight cap can take it before a newer copy exists; the conversation then has no copy on disk until its next idle write, which writes the whole copy. A crash then loses at most the last quarter of a conversation, which its next turn reads again after forking the earlier copy; a clean stop writes everything, as before, and the pressure of a full host tier writes as before.
+**Every turn, what it added.** A turn's idle write is its new blocks and its state (Entries written as what changed, below), so no rule spaces the writes out: the rule that left a conversation alone until it had grown by a third went with the whole copy it was for, and a crash loses what was not yet written, a turn at most.
 
 **A console closed on Windows.** Windows ends a process a few seconds after its console window is closed, whatever its handler does, so a flush that closing the console starts may not finish and keeps only the entries written by then; Ctrl-C and Ctrl-Break give the flush its whole bound, as SIGTERM and SIGINT do elsewhere.
 
 **SIGTERM against a crash.** SIGTERM and SIGINT take the clean exit and the flush. SIGKILL, a crash, an out-of-memory kill or a power loss keep only what is already on disk: every renamed `.kv` file is complete and every `.tmp` file is removed by the next sweep; the kernel releases the lock, so the directory is adoptable with `--disk-cache-keep` and removed without it.
 
 **What a restart adopts.** A server started with `--disk-cache-keep` adopts, from unlocked directories under its root, the entries whose identity matches:
-- it reads every entry's header, after a clean exit and after a crash alike, which holds the entry's kind, whether its conversation came back, its tokens and its row classes, and takes its last use from its file's modification time, which every write and renewal sets to the entry's last use; no separate index file is written, the headers being one;
-- entries older than the age limit (Age, below) are deleted, and so is a boundary whose conversation has no copy left;
-- the rest are taken, the most valuable first by the flush's order, within its own cap and floor, and the remainder deleted;
-- the index is rebuilt in memory from what it took, so the first request of a returning conversation matches it as it would have before the restart, and the server's line gives the entries it took and, where it dropped any, how many by each rule: a description that did not read, a boundary without a copy of its conversation, the cap.
+- it reads every entry's header, after a clean exit and after a crash alike, which holds the file's kind, whether its conversation came back, its range and its digests, and takes its last use from its file's modification time, which every write and renewal sets to the entry's last use; no separate index file is written, the headers being one;
+- entries older than the age limit (Age, below) are deleted, and so are the files no whole path from an empty history reaches: a segment whose base is gone, a state whose blocks are not all there;
+- the rest are taken within its own cap, the files over it going by the room's order (Disk eviction and room, above);
+- the index is rebuilt in memory from what it took, so the first request of a returning conversation matches it as it would have before the restart, and the server's line gives the entries it took and, where it dropped any, how many by each rule: a description that did not read, files no whole path reaches, the cap (`DiskTier::adopt`).
 Two servers starting together under one root each adopt only directories whose lock they get; a directory one adopts is moved into its own and is gone for the other.
 
 ## Age
 
 Many conversations are used once, and nothing should be kept forever.
-- **The age limit**, `--disk-cache-max-age`, by default 24 hours: an entry whose last use, its writing or its latest renewal or promotion, is older than that is deleted, by the periodic sweep every ten minutes and at adoption. A day covers a conversation picked up again after a meeting, in the afternoon or the next morning, which is when a disk read saves the most recompute; past it, a conversation is more likely abandoned than resumed, and its file holds token ids the privacy default would not keep. The value takes a unit: `90m`, `24h`, `7d`; `0` turns the limit off.
+- **The age limit**, `--disk-cache-max-age`, by default 24 hours: an entry whose last use, its writing or its latest renewal or promotion, is older than that is deleted, by the periodic sweep every ten minutes and at adoption. A day covers a conversation picked up again after a meeting, in the afternoon or the next morning, which is when a disk read saves the most recompute; past it, a conversation is more likely abandoned than resumed, and its file holds a conversation's caches, which the privacy default would not keep. The value takes a unit: `90m`, `24h`, `7d`; `0` turns the limit off.
 - **One-time conversations** are the copies whose conversation never came back, the host tier's `back` flag, carried in the header and the index. They are written to disk, because a user who comes back hours later to a single long first message, a 20k-token document say, would otherwise wait about 90 s of recompute against a few seconds of reading; but only into free disk room and the room of other one-time entries, and they are the first to go, the host tier's come-back rule carried down, so they never push out a conversation that came back. A one-time entry that is read back becomes a conversation that came back.
 - **Wear.** A one-time entry costs one write, once, and only when the host tier loses it; the ones a busy server never needs are overwritten by room long before the age limit, and the cap bounds what they can take. A write budget stays a later option, as planned under Hardware.
 - **Across restarts.** The age runs on the wall clock from an entry's last use and is kept in the index and the files' modification times, so a restart neither resets nor pauses it: an entry written an hour before a clean exit and adopted a day later is deleted at adoption; the flush records last uses as they were and does not renew what it writes.
@@ -148,7 +148,7 @@ Many conversations are used once, and nothing should be kept forever.
 ## Privacy
 
 - Directories 0700 and files 0600 on POSIX; on Windows the server sets no permissions and checks no ACL, so its directory and files inherit the ACL of `--disk-cache-dir`, and that directory is where access is decided (the default is under the user's profile).
-- File names carry no tokens or text; the files hold token ids and caches from which a conversation could be reconstructed, so they are as private as the conversations.
+- File names carry no tokens or text; the files hold no token ids since version 2, only digests of them, and caches from which a conversation could be reconstructed, so they are as private as the conversations.
 - By default nothing remains after a clean exit, and after a crash only until the next sweep; `--disk-cache-keep` is the one way to keep entries past an exit.
 - A stronger mode, planned as an option after measurement: entries as files unlinked as soon as they are open (`O_TMPFILE` on Linux, `FILE_FLAG_DELETE_ON_CLOSE` on Windows), so nothing remains after any exit, crash included, at the cost of an open handle per entry and no adoption.
 - No encryption at rest in this plan; a disk that must not hold conversations should not be given to the tier.
@@ -194,12 +194,12 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 
 Until the digest and the store's probe finish, the server serves without the disk tier, writing and reading nothing, and `/v1/health`'s `reuse.disk.now.ready` stays false.
-**`/v1/health`**, under `reuse.disk`: `now.entries`, `now.bytes`, `now.limit_bytes`, `now.in_flight`, `now.ready`, `now.writing` (false once the tier has stopped writing), and `since_start.hits`, `.bytes_written`, `.bytes_read`, `.waits` (requests that waited for a read) with `.wait_ms`, `.errors`, `.lost_before_written` (copies room took from host memory before any file held them, each a conversation the tiers lost) and `.dropped_for_cap` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line).
+**`/v1/health`**, under `reuse.disk`: `now.entries` (files, segments and states together), `now.bytes`, `now.limit_bytes`, `now.in_flight`, `now.ready`, `now.writing` (false once the tier has stopped writing), and `since_start.hits`, `.bytes_written`, `.bytes_read`, `.waits` (requests that waited for a read) with `.wait_ms`, `.errors`, `.lost_before_written` (copies room took from host memory before any file held them, each a conversation the tiers lost) and `.dropped_for_cap` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line).
 
 **Tests:**
 - the store alone (CTest): an entry written and read back bit for bit; each identity field changed refuses it; a flipped payload byte fails its chunk and deletes the entry; a truncated file and a `.tmp` file are never read; the cap and the floor stop a write; an injected `ENOSPC` and `EIO` stop writing and keep reads;
 - the sweep: a directory whose lock is free is removed, one held by a child process that keeps its lock is untouched, adoption with `--disk-cache-keep` keeps matching entries and removes mismatched ones;
-- the scheduler (`server-resume`): on the dense model and the hybrid one with boundaries, a conversation demoted through host memory to disk and asked for again gives the bytes of a fresh model, on one CPU and over a split; a request waiting for its read lets a later request pass and is admitted first once the read is done; a read that fails or exceeds its bound computes the history; a superseded entry is never written; with every host slab held by entries being written through a writer slowed to a chunk a second, a request needing host room is admitted without waiting for any write, the room coming first from entries already on disk and then from the newest write, cancelled, whose temporary file is gone and whose entry is not kept, every reply its reply alone;
+- the scheduler (`server-resume`): on the dense model and the hybrid one with boundaries, a conversation demoted through host memory to disk and asked for again gives the bytes of a fresh model, on one CPU and over a split; a request waiting for its read lets a later request pass and is admitted first once the read is done; a read that fails or exceeds its bound computes the history; a superseded history's files stay as its successor's base; a conversation of four turns writes each block once, held to the byte, and a restart forks it whole and an edit at its third message; with every host slab held by entries being written through a writer slowed to a chunk a second, a request needing host room is admitted without waiting for any write, the room coming first from entries already on disk and then from the newest write, cancelled, whose temporary file is gone and whose entry is not kept, every reply its reply alone;
 - the age and one-time entries (`server-resume`, with a clock the test drives): an entry past the age limit is deleted by the sweep and refused at adoption; one-time copies take only free room and room of their own kind, go first, and a one-time entry read back counts as come back;
 - the server (`tests/server.py`): `llmx serve` killed with SIGKILL while it writes, then a second server under the same root sweeps the first's directory and serves; a clean exit leaves the root empty; with `--disk-cache-keep`, SIGTERM flushes the device donors and host entries, the next server of the same build adopts them and a returning conversation forks its whole history with the reply it gives on a fresh server; a flush cut short by its limit, and a SIGKILL during the flush, leave only complete entries, which are adopted.
 
@@ -220,11 +220,12 @@ Until the digest and the store's probe finish, the server serves without the dis
 
 Later, each on its own measurement: the unlinked-file privacy mode, a write budget, and the remote store.
 
-Planned, not built: entries written as what changed (Planned: entries written as what changed, below).
+Built after these, 2026-10-08: entries written as what changed (below).
 
-## Planned: entries written as what changed
+## Entries written as what changed
 
-The user, 2026-10-07: disk writes should write what has changed. This section is the design, read by the reviewer and the coordinator before anything is built; the quarter rule (Keeping entries across a restart, above) stays until this replaces it.
+The user, 2026-10-07: disk writes should write what has changed. Built so in three steps (`docs/STATUS.md` has each); what is left is under Planned: the fault cases and the counters, below.
+Nothing in it is specific to a backend: the copies run through `Model::save_host`, `Model::save_host_blocks` and `Model::restore_host`, which reach a device only through `Backend::alloc`, `Backend::copy`, `Backend::submit`, `Backend::wait`, `Backend::sync` and `Buffer::host_ptr`, and what makes two servers' bytes interchangeable is `Backend::identity` and `Backend::kv_layout`.
 
 ### What changes in a turn, measured
 
@@ -238,42 +239,42 @@ Qwen3.8-27B Q8_0 over two MI50s, a conversation of 76k tokens, turns of about 60
 | the whole copy at 76160 tokens | 5207 MiB | 4.8 to 5.2 s |
 | 200 files of 6 MiB, written and flushed one by one | 1.2 GB | 2.1 s, 10 ms a file |
 
-Two facts decide the shape. The KV rows of a history are append-only: a later turn's history is the earlier one's whole blocks and more, block for block the same bytes, since a turn forks the turn before. The state is not: it is dense, the same size at every length, and every byte of it differs a turn later. So what changed in a turn is its new blocks, a few MiB, and one state, 150 MiB on this model; no layout makes the state smaller, and today's rule already writes it each turn as the message boundary. The gain is the 5.2 GB: never written twice, neither every third of growth nor at the stop.
+Two facts decide the shape. The KV rows of a history are append-only: a later turn's history is the earlier one's whole blocks and more, block for block the same bytes, since a turn forks the turn before. The state is not: it is dense, the same size at every length, and every byte of it differs a turn later. So what changed in a turn is its new blocks, a few MiB, and one state, 150 MiB on this model; no layout makes the state smaller. The gain is the 5.2 GB: never written twice, neither every third of growth nor at the stop.
 
 ### The shape on disk
 
-Two kinds of file, both immutable, both written as an entry is today (a temporary name, flushed, renamed, the directory flushed):
+Two kinds of file, both immutable, both written as the store writes any entry (a temporary name, flushed, renamed, the directory flushed):
 
-- **A segment**: the blocks of a token range `[a, b)` of one history, every device, layer by layer, K then V, as an entry's payload is laid out today but for those blocks only. A segment never crosses a multiple of 1024 tokens, a constant of the code: it bounds what a fork copies at 68 MiB on this model and leaves 75 files for 76k tokens.
-- **A state**: the recurrent state at one position, today's boundary entry unchanged. A model that keeps no state writes none.
+- **A segment**: the blocks of a token range `[a, b)` of one history, every device, layer by layer, K then V. A segment never crosses a multiple of 1024 tokens (`DiskIndex::kSegmentTokens`): it bounds what a fork copies at 68 MiB on this model and leaves 75 files for 76k tokens.
+- **A state**: the recurrent state at one position. A model that keeps no state writes none.
 
-A history of `n` tokens is on disk when segments cover `[0, n)` and, on a model that keeps a state, a state at `n` is there. Today's copy, blocks and state in one file, goes; a message boundary is simply an earlier state of the same history.
+A history of `n` tokens is on disk when segments cover `[0, n)` and, on a model that keeps a state, a state at `n` is there. A message boundary is an earlier state of the same history.
 
-Not chosen: fixed files of one block or one group each, with the last partial one rewritten as it fills. It needs no chain, but rewrites each block up to sixteen times within its group at short turns, where a segment a turn writes each block once. Also not chosen: one file a conversation, appended in place, since an append that tears leaves a file whose end is not known to be whole, and every rule here rests on files that are whole or absent. No index file is kept, as today: the headers are the index.
+Not chosen: fixed files of one block or one group each, with the last partial one rewritten as it fills. It needs no chain, but rewrites each block up to sixteen times within its group at short turns, where a segment a turn writes each block once. Also not chosen: one file a conversation, appended in place, since an append that tears leaves a file whose end is not known to be whole, and every rule here rests on files that are whole or absent. No index file is kept: the headers are the index.
 
 ### Naming a segment: the prefix digest
 
-A segment's header carries, beside today's fields, its range, the tokens and row classes of that range alone, the digest of everything below it (SHA-256 over the tokens and classes of `[0, a)`, the parent) and its own at `b`. Two histories that share a prefix share its digests, so a segment belongs to every history whose tokens and classes begin with its prefix, with no reference counts: the segments on disk form a tree by parent digest, and a history is a path from the root. A state names the digest at its position.
+A file's header carries its range, the digest of everything below it and the digest at each of its blocks' ends (`DiskIndex::describe`); a digest is a SHA-256 chained block by block over the block's tokens and the class each of its rows was computed in (`DiskIndex::digests`). As built the header holds no tokens: a request's own tokens give its digests, and equal digests are equal tokens and classes. Two histories that share a prefix share its digests, so a segment belongs to every history whose tokens and classes begin with its prefix, with no reference counts: the segments on disk form a tree, and a history is a path from the root. A state names the digest at its position.
 
 - **A conversation that goes on** adds segments at the end of its path and one state.
-- **An edit or a regenerate** forks at a whole block `p`. Segments wholly below `p` are shared as they are. The one segment that crosses `p` is not cut: the new history writes its own from that segment's start, so it copies at most the blocks of one segment below `p`, under 68 MiB, which is why segments are capped. The other branch stays a path of its own until room or age takes it.
-- **Superseding goes** for blocks, a longer history being its shorter self and more. A regenerated reply's old tail is a branch nothing extends, which room takes first.
+- **An edit or a regenerate** forks at a whole block `p`. Segments wholly below `p` are shared as they are. The one segment that crosses `p` is not cut: the new history writes its own from that segment's start (`DiskIndex::missing`), so it copies at most the blocks of one segment below `p`, under 68 MiB, which is why segments are capped. The other branch stays a path of its own until room or age takes it.
+- **Superseding goes** for blocks, a longer history being its shorter self and more.
 
 ### Reading a history back
 
-A request that wants `[0, n)` reads the segments on its path in order into the host slabs, each run landing at its blocks' offset in the layer's region, then the state. The bytes are today's, so is the rate (production read a 5.4 GB entry and a state in 6.4 s, 852 MB/s); what is added is a header and an open a file, 75 files for 76k tokens with whole groups and up to a few hundred for a conversation of many short turns, at about 10 ms a file written and less read. A request that forks an earlier position reads only the segments below it, where today it reads the whole copy.
+A request that wants `[0, n)` reads the segments on its path in order into the host slabs, each run landing at its blocks' offset in the layer's region, then the state (`DiskTier::read`). A segment the request parts from inside is read whole, its further blocks into slabs of the read's own that are given back as it ends. A request that forks an earlier position reads only the segments below it.
 
-The store keeps moving bytes only: it is given, for each file, the spans of host memory its runs go to or come from. Which files make a history, and in which order, is the scheduler's.
+The store keeps moving bytes only: it is given, for each file, the spans of host memory its runs go to or come from (`Model::host_ranges`, `Model::host_state_ranges`). Which files make a history, and in which order, is the index's.
 
-Which path a request takes is a walk down the tree (`best_disk`): from the root, the child whose tokens and row classes continue the request's, as far as they do, and then the highest state at or below that point on a model that keeps one. Two conversations that begin with one system prompt share its segments. Classes decide that sharing as much as tokens: the same tokens computed as rows of another class are another path, since a fork gives the same bits only over rows of one class.
+Which path a request takes is a walk down the tree (`DiskIndex::path`): from the root, the segment that continues the request's digests, as far as they do, and then the highest state at or below that point on a model that keeps one. Two conversations that begin with one system prompt share its segments. Classes decide that sharing as much as tokens: the same tokens computed as rows of another class are another path, since a fork gives the same bits only over rows of one class.
 
 ### What "on disk" means to the host tier
 
-Three rules of the host tier ask whether a history is on disk, and each means the whole of it: its path covers its length and, on a model that keeps a state, its state is there. `release_written` drops a host copy as one that loses nothing only then; `copied` skips a donor at an idle write only then; and the write-ahead above three quarters counts a host copy as unwritten until then. A history whose last segment or whose state is still to be written is not on disk for any of them, so no host copy is dropped as written while part of it is not.
+The host tier asks whether a history is on disk, and means the whole of it: its path covers its length and, on a model that keeps a state, its state is there (`DiskTier::on_disk`). `release_written` drops a host copy as one that loses nothing only then, an idle write skips a history only then, and the write-ahead above three quarters counts a host copy as unwritten until then. A history whose last segment or whose state is still to be written is not on disk for any of them. A boundary, which holds a state alone, is on disk once its state is (`DiskTier::state_on_disk`).
 
 ### Identity, checksums, version
 
-Every file carries the identity, its own header CRC and a CRC32C for each 4 MiB of payload, as today, and `DiskStore::kVersion` 2. A file of version 1 is not read: the first server of this layout adopts nothing from one before it, once, and says so in its adoption line.
+Every file carries the identity, its own header CRC and a CRC32C for each 4 MiB of payload, and `DiskStore::kVersion` 2. The identity text names the version too (its `entries` line), so a directory a server of version 1 left is not adopted: the first server of this layout starts with an empty cache, once, and names the component that differs.
 
 ### Crash safety, case by case
 
@@ -281,56 +282,35 @@ Every file is whole or absent, so the cases are about which files exist together
 
 - **A crash during a write**: a temporary file, removed by the next sweep.
 - **Blocks without their state** (the segments of a turn landed, the state did not): the path is usable up to its newest state at or below the blocks, and the extra blocks are kept, the conversation's next state making them useful.
-- **A state without its blocks** cannot happen in order, a turn's segments being written before its state; a state whose path is incomplete, by a lost file or a failed checksum, is deleted at adoption, as a boundary without its copy is today.
-- **A gap in a path** (a segment deleted, unreadable or failing its checksum): everything above the gap is unreachable and is deleted; the path below stays.
-- **Adoption** reads every header, builds the tree, and drops, counted by rule in its line: files of another identity or version, segments whose parent is not there, states whose path is not whole, then what is over the cap.
-  A header a file is read where today it is a header a conversation: a conversation of 200 short turns is about 475 files (its segments and a state a turn), and their 475 headers of 1 MiB read in 0.3 s on the test machine's pool with the files in the file cache. A start with thousands of files reads thousands of headers; the two-card check measures a start from a cold cache and the note takes its figure. If that time matters the header's first page can carry what the tree needs, so a start reads a page a file.
+- **A state without its blocks**: a boundary's state is written whatever of its history's blocks is on disk, since a history in memory holds the rows and whoever holds the blocks writes them. A running server forks such a state with the rows in memory; a start drops it.
+- **A gap in a path** (a segment deleted, unreadable or failing its checksum): the segments above the gap are unreachable and are deleted as the gap is found; the path below stays.
+- **Adoption** reads every header, builds the tree, and drops, counted by rule in its line: files whose description does not read, files no whole path reaches, then what is over the cap.
 - **A path whose newest state is missing** serves from the state below it: the restart forks that one and reads the turns above it again.
 
 ### Room, the cap and the age limit
 
 The unit that is deleted is a file, but only ever a leaf: a segment that no segment and no state on disk stands on, or a state. So a path loses its end first and never its base, and a shared prefix goes only after every branch on it.
 
-- **Order**: states no path reaches and branches nothing extends first; then earlier states of a conversation, the oldest first, its first and its newest last; then whole conversations, those that did not come back before those that did, the least recently used first, each from its leaf down to where another path joins.
+- **Order** (`DiskIndex::victim`): a history's earlier states first, the least recently used first, never its first nor its newest; then whole conversations, those that did not come back before those that did, the least recently used first, each from its leaf down to where another path joins. A file of a conversation that did not come back takes no room of one that did.
 - **Age**: a use renews the path's leaf; a node is as old as its newest descendant, so a base outlives its branches' uses without being touched. An expired conversation goes leaf first.
-- **Every state is kept** (the user, 2026-10-07: fast edits remain): each message boundary's state stays on disk, bounded only by the cap and the age limit, as today, so an edit or a regenerate of any earlier message forks the state where that message starts and reads only the message again. The cost is the state a turn, about 150 MiB on Qwen3.8-27B, 7.5 GB for 50 turns and 30 GB for 200 beside 5 GB of blocks at 76k tokens; thinning them to the newest and four was considered and not built.
-- **When the cap bites**, within one conversation, the states go oldest first but for two that go last: the newest, which the next turn forks, and the first, where an edit of the opening message forks. Blocks go only as leaves, after the states that stand on them, so each path's base goes last of all.
+- **Every state is kept** (the user, 2026-10-07: fast edits remain): each message boundary's state stays on disk, bounded only by the cap and the age limit, so an edit or a regenerate of any earlier message forks the state where that message starts and reads only the message again. The cost is the state a turn, about 150 MiB on Qwen3.8-27B, 7.5 GB for 50 turns and 30 GB for 200 beside 5 GB of blocks at 76k tokens; thinning them to the newest and four was considered and not built.
+- **When the cap bites**, within one conversation, the states go first but for two that go last: the newest, which the next turn forks, and the first, where an edit of the opening message forks. Blocks go only as leaves, after the states that stand on them, so each path's base goes last of all.
 
 ### The idle write and the stop
 
-Five idle seconds after a turn the server writes, for each history not wholly on disk, the segments past what its path covers and then its state. The copy off the devices is of those blocks alone (`Model`'s range copy, step 1; today's copies the whole history), so an idle write of a turn costs its bytes: 154 MiB and about 0.15 s where the whole copy costs 5.2 GB and 2 s off the cards plus 5 s to disk. The stop's flush is the same walk, and what it finds after an idle moment is nothing, and without one the last turn. Its bound counts what it will write, the segments not yet on disk and one state a history, so its first line stays true and its last still says what was not written.
+Five idle seconds after a turn the server writes, for each history not wholly on disk, the segments past what its path covers and then its state, one file at a time. The copy off the devices is of those blocks alone (`Model::save_host_blocks`), so an idle write of a turn costs its bytes. The stop's flush is the same walk, and what it finds after an idle moment is nothing, and without one the last turn. Its bound counts what it will write, the segments not yet on disk and one state a history, so its first line stays true and its last still says what was not written.
 
-`near_on_disk`, the quarter rule and `DiskEntry::superseded` go: there is no whole copy to space out, and a crash loses what was not yet written, a turn at most.
+The host tier keeps whole copies in memory as before; when one is written, only the ranges not on disk are.
 
-The host tier keeps whole copies in memory as now; when one is written, only the ranges not on disk are.
+### Planned: the fault cases and the counters
 
-### Counters and lines
+Steps 4 and 5 of the design, not built:
 
-`/v1/health`: `disk_segments` and `disk_states` beside `disk_entries` (their sum), the bytes as now. The write line names what a turn wrote (`server: 64 tokens of a conversation of 76224 written to disk, 4.2 MiB, and its state, 149.6 MiB`); the adoption line counts paths and what each rule dropped.
-
-### What it takes
-
-- `Model`: a copy of a block range to host memory and back (`save_host` and `restore_host` over `[a, b)`), and the spans of a range in a host history.
-- `DiskStore`: a file read into, or written from, given spans; the header's new fields; version 2. No policy.
-- `Scheduler`: the index as a tree by digest in place of a list of entries; coverage in place of `copied` and `near_on_disk`; room, age and adoption over leaves; the read as a sequence of files.
-- No new flag. `--disk-cache-bytes`, the floor, keep and the age limit mean what they mean now.
-
-### Tests
-
-- The store: a segment and a state written and read back bit for bit into spans; a file of version 1 refused; each header field changed refuses it.
-- The tier on the synthetic and the hybrid model: a conversation of several turns writes each block once (the bytes written equal the blocks and states, held to the byte); a restart reads the path and forks it with the replies of a fresh model; an edit shares the segments below its fork and copies at most one; a regenerate leaves a branch room takes first.
-- Faults, one a case: a segment deleted in the middle of a path, a state without its path, a path without its state, a path whose newest state is missing and which serves from the one below, a checksum failed in the second of three segments, a crash file left; each must leave the usable prefix and nothing else, and a restart must serve.
-- Room and age: the cap reached takes leaves in the order above and never a base under a kept leaf; an expired conversation goes whole while a branch that shares its base stays.
-- The two-card check: the 76k-token conversation over ten turns, bytes written a turn, the stop, a restart, and the reads' time against today's single read.
-
-### Steps
-
-1. `Model`'s range copies and spans, with their tests. No file changes.
-2. The store's version 2 and span reads and writes, with `disk-store`.
-3. The scheduler's tree, writes and reads, the quarter rule removed in the same change; `server-resume`.
-4. Room, age and adoption over leaves; the fault cases.
-5. The two-card measurements, the docs, STATUS.
-
+- One test a fault: a segment deleted in the middle of a path, a state without its path, a path without its state, a path whose newest state is missing, a checksum failed in the second of three segments, a crash file left; each must leave the usable prefix and nothing else, and a restart must serve.
+- Room and age held by `server-resume` beside `disk-index`: the cap reached never takes a base under a kept leaf, and an expired conversation goes whole while a branch that shares its base stays.
+- A regenerated reply's old tail, a branch nothing extends, going before other conversations' files.
+- `/v1/health` counting segments and states apart, and a line naming what a turn wrote.
+- If a start with thousands of files is slow, the header's first page carrying what the tree needs, so a start reads a page a file.
 ### Decided in review (2026-10-07)
 
 1. The cap of 1024 tokens a segment stays, a constant with its two numbers beside it; the ten-turn run reports the file count of a conversation of many short turns before anyone tunes it.

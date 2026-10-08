@@ -13,7 +13,7 @@
 | CPU backend optimization                 | Done     |
 | Early backend weight-type refusal and per-layer stream fallback | Done (main `737e082`, six hosted jobs passed) |
 | CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in its record in [STATUS-2026-09](STATUS-2026-09.md) |
-| Disk tier under the host tier (docs/DISK-TIER.md) | Done; steps 1 to 6 on main, measured in the record below |
+| Disk tier under the host tier (docs/DISK-TIER.md) | Done; steps 1 to 6 on main, measured in the record below; since 2026-10-08 its files are what each turn changed (record below), the fault cases and counters of that design still to build |
 | A message boundary where a request's last user message starts | Done at `109784d3` (record below) |
 | Vulkan allocation failure ownership | Done |
 | Vulkan attention width and mixed-cache validation | Done |
@@ -130,6 +130,41 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
+## Disk writes write what changed (2026-10-08, branch feat/disk-increment-3, steps 1 to 3 of DISK-TIER's Entries written as what changed, lands by fast-forward)
+
+- **Why (the user, 2026-10-07):** disk writes should write what has changed. A conversation was one file, its whole copy, 5.2 GB at 76k tokens of a 27B model, written again whenever it had grown by a third and once more at the stop.
+- **Done:** a history on disk is a path of immutable files, segments of its blocks cut at multiples of 1024 tokens and a state where each turn ended, each named by a digest of the tokens and row classes below it, so a turn writes its new blocks and its state and nothing a second time, a longer history stands on its shorter self's files, and an edit shares every segment below its fork. `src/server/disk_index.hpp` (new) is the tree with no model, store or file in it; `DiskTier` owns the index, the write in flight and the reads; the scheduler names a history by its digests and asks. The earlier steps are on main: the range copies and spans of `Model` (`ddd047213`) and the store's runs at offsets under a layout (`aeafa7b64`).
+- **Removed in the same change:** the rule that spaced a conversation's idle writes by a quarter of its length, the list of whole entries with its superseding on disk, and the copy of a whole device donor through host memory for a write. `src/server/scheduler.hpp` goes from 3017 lines to 2760; `disk_tier.hpp` from 294 to 633, `disk_index.hpp` is 363.
+- **Every state is kept** (the user, 2026-10-07: fast edits remain): each turn's state stays on disk within the cap and the age limit, about 150 MiB a turn on Qwen3.8-27B.
+- **The layout's version is 2** (`DiskStore::kVersion`), named in the identity, so the first server of this change adopts nothing from the one before: its disk cache starts empty once.
+- **As built, against the design:** a file's header holds digests and no tokens; a boundary's state is written whatever of its history's blocks is on disk, kept while the server runs and dropped at a start if its blocks never came; the design's fault cases, the order that takes a regenerated reply's old tail first, the separate counters of segments and states and the line a write were not built and are listed under Planned in DISK-TIER.
+- **The failing test first:** `server-resume`'s `disk_increment` on main `24d89d62` stops at "turn 2 written while idle within a minute", the quarter rule writing nothing for a turn that added a block; with the change the bytes written equal the bytes on disk after each of four turns on the dense and the hybrid model, the stop writes nothing, and a second scheduler forks the whole conversation and an edit at its third message with the replies of a fresh model. `disk-index` (new CTest) holds the tree alone.
+- **Measured** on two MI50s, Qwen3.8-27B Q8_0 with production's flags (`--device vulkan:0,vulkan:1 --drafter embedded --disk-cache-bytes 107374182400 --disk-cache-keep --disk-cache-max-age 24h`), one chat of 76k tokens over ten turns, each followed by the idle writes, the cache on the raidz1 pool of six SATA SSDs:
+
+  | after turn | tokens reused of the prompt | first token (s) | files | written so far (GB) | on disk (GB) |
+  |---|---|---|---|---|---|
+  | 1 | 0 of 76018 | 274.0 | 76 | 5.541 | 5.541 |
+  | 2 | 76160 of 76188 | 1.23 | 76 | 5.541 | 5.541 |
+  | 3 | 76160 of 76225 | 1.85 | 78 | 5.705 | 5.705 |
+  | 4 | 76224 of 76258 | 1.23 | 78 | 5.705 | 5.705 |
+  | 5 | 76224 of 76282 | 1.25 | 80 | 5.870 | 5.870 |
+  | 6 | 76288 of 76305 | 1.21 | 80 | 5.870 | 5.870 |
+  | 7 | 76288 of 76355 | 1.84 | 82 | 6.035 | 6.035 |
+  | 8 | 76352 of 76413 | 1.28 | 84 | 6.199 | 6.199 |
+  | 9 | 76416 of 76483 | 1.87 | 86 | 6.364 | 6.364 |
+  | 10 | 76480 of 76560 | 1.84 | 88 | 6.528 | 6.528 |
+  | an edit of turn 3's question | 76160 of 76224 | 1.39 | 90 | 6.697 | 6.697 |
+  | the stop | | 0.57 s, nothing left to write | 90 | 6.697 | 6.697 |
+
+  A turn that crosses a block writes that block and its state, 0.165 GB, and one that does not writes nothing; written and on disk are equal at every row, so no byte was written twice. The 90 files are 74 segments of 1024 tokens (69 MiB), one of 384 tokens, six of one block (6 MiB with its header), the edit's of two blocks, and eight states (151 MiB).
+- **Against the quarter rule** (the record of 2026-10-07 below, the same chat): ten turns wrote 6.53 GB where it wrote 6.57 GB, the same within a turn's state, since over ten short turns that rule never came to its rewrite; what is gone is the rewrite of the whole copy, 5.2 GB each time the conversation has grown by a third and at every stop after a turn (6.2 s there, 0.57 s here), and with it the quarter of a conversation a crash could lose. First-token times are the same, 1.2 to 1.9 s a turn after the first.
+- **A start on the kept directory:** the 90 files were in the index 0.14 s after the store was made (1.5 s after the server answered). The next turn reused 76544 of 76589 tokens with its first token after 10.1 s, 8.2 s of it the read of the 82 files of its path, 5233 MiB, about 670 MB/s; one file a conversation read at 852 MB/s on production, so the path of files costs about a quarter more time on a read this long. An edit of turn 2's question then reused 76160 of 76188 tokens in 3.0 s, reading one state, 150 MiB, since host memory held the rows.
+- **The index's cost** (asked in review): with 1008 files and 50 histories asked about, on the test machine's EPYC 7262, a use of a file cost 3.0 ms, the rebuild of every link, on the scheduler thread; the links are now kept across a use, which changes none, and only what follows from the uses is rebuilt, 0.03 ms. A file that comes or goes still rebuilds them, 3 ms, and the scheduler then asks about its 50 histories again, 1.0 ms, once a file written or deleted. A history's digests at 76k tokens take 0.8 ms, once a request.
+- **A wait on the scheduler thread** (noted in review): an idle write of a device donor copies one file's bytes off the devices and waits for that copy under the lock, 3.7 ms a segment of 1024 tokens (4.8 at most) and 7.1 ms a state, and the call takes 6.6 ms in all on average and 45 ms where it first takes its slabs; a timing build on the same chat's first three turns and an edit, 79 files. It runs only while the server is idle or stopping, so a request that arrives then waits that long at most.
+- **Gates** against main `6f71114ca`, before the rebase onto `761a3828` and the review's two changes to the index: Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q8_0 give the same ids and logits as main on the CPU and on one MI50; the suite on the MI50 passes, `server` included, and `server-resume` with its device half; the host tier's eviction run on Qwen3.5-0.8B Q8_0 gives main's replies with first tokens at a median 0.037 s in both; CTest and the CPU suite pass on Linux and Windows; `bench` on the MI50, Qwen3-0.6B Q8_0, two rounds interleaved, reads a 512-token prompt at 8960.6 and 8964.2 tok/s against main's 8981.4 and 8952.2 and generates at 399.1 and 401.9 against 401.4 and 401.8.
+- **Left:** steps 4 and 5 of the design (Planned in DISK-TIER), and the read of a long path, which one reader thread takes file by file.
+- **Reviewed:** by F2DEV: the ownership is the one agreed, the five departures from the design each accepted, and the failing test holds the bytes written to the bytes on disk. It asked for the index's cost at production's size and noted the wait on the scheduler thread, both above; `DiskIndex::find`, which only the test called, went when the linked check named it, and the delta was read again before landing.
 
 ## A group's members submit side by side (2026-10-08, branch perf/tp-member-threads, lands by fast-forward)
 

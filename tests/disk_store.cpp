@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
                 const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
                 core::Sha sha(true);
                 sha.update(bytes.data(), bytes.size());
-                require(sha.hex() == "79fe9344253f9b9bb108232310d383782e2f1f18019f43d4d06e78302ef592b3", "an entry file's bytes are " + sha.hex() + ", not those of layout version 1: bump DiskStore::kVersion with the layout");
+                require(sha.hex() == "d978911acebafc8fdbc2acc611839ddeeddeab47d068b78a7056a1e16c83319b", "an entry file's bytes are " + sha.hex() + ", not those of layout version 2: bump DiskStore::kVersion with the layout");
             }
             require(fs::file_size(store.directory() / ("entry-" + std::to_string(key) + ".kv")) == server::DiskStore::file_bytes(8, layout),
                     "an entry's file is not the size its layout gives");

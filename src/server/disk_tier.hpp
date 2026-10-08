@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -19,6 +20,7 @@
 #include "core/sha.hpp"
 #include "format/file_digest.hpp"
 #include "model/runtime.hpp"
+#include "server/disk_index.hpp"
 #include "server/disk_store.hpp"
 
 // The disk tier's moving parts below the scheduler (docs/DISK-TIER.md): the store, made once the model file's digest is known, and the one write in flight.
@@ -59,7 +61,7 @@ inline std::string disk_identity(const std::string& digest, const std::string& l
     std::string flat = layout;
     for (char& c : flat)
         if (c == '\n') c = '|';
-    return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nlayout: " + flat + "\n";
+    return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nentries: " + std::to_string(DiskStore::kVersion) + "\nlayout: " + flat + "\n";
 }
 
 // The server's disk tier, from --disk-cache-bytes, --disk-cache-dir, --disk-cache-floor, --disk-cache-keep and --disk-cache-max-age; `bytes` 0 keeps none.
@@ -100,6 +102,7 @@ public:
         uint64_t key = 0;
         bool read = false, ok = false;
         std::string error;
+        uint64_t ticket = 0;   // a read's own number, since two reads may be on one file
     };
 
     // Reads the model file's digest on a thread of its own, the cached one where its stamp is unchanged, then makes the store under options.dir with the identity of the digest, the build and the model's host layout (Model::host_identity); nothing is written before that.
@@ -139,8 +142,8 @@ public:
             if (wake_) wake_();
         });
     }
-    // Stops the write in flight; the store then removes its directory.
-    ~DiskTier() {
+    // Stops the write in flight; the store then leaves or removes its directory, and no call reads a slab any more.
+    void close() {
         if (starter_.joinable()) starter_.join();
         std::unique_ptr<DiskStore> store;
         {
@@ -150,6 +153,7 @@ public:
         }
         store.reset();
     }
+    ~DiskTier() { close(); }
     DiskTier(const DiskTier&) = delete;
     DiskTier& operator=(const DiskTier&) = delete;
 
@@ -176,36 +180,6 @@ public:
             if (free && *free >= options_.floor.value_or(0) + options_.bytes / 10) writing_ = true;
         }
         return store_ && writing_ && !in_flight_;
-    }
-
-    // The bytes an entry of a blob of `blob_bytes` over host history `h` takes on disk.
-    static uint64_t file_bytes(size_t blob_bytes, const infer::HostHistory& h) { return DiskStore::file_bytes(blob_bytes, h.device_bytes); }
-
-    // Starts the write of host history `h` with `blob` and returns its key, after can_write; `h`'s slabs must not change until finished reports the key.
-    uint64_t write(std::string blob, const infer::HostHistory& h, size_t slab) {
-        std::vector<StoreRun> runs = runs_of(h);
-        std::lock_guard<std::mutex> lk(m_);
-        // The key is not known until put returns, so the callback names the write in flight, which no other write replaces before finished has reported it.
-        in_flight_ = store_->put(std::move(blob), std::move(runs), slab, [this](bool ok, const std::string& error) {
-            {
-                std::lock_guard<std::mutex> l(m_);
-                done_.push_back(Finished{in_flight_, false, ok, error});
-            }
-            if (wake_) wake_();
-        });
-        return in_flight_;
-    }
-
-    // Starts the read of entry `key` into host history `h`, whose layout must be the entry's, after the store is made; finished reports it, a read that fails having deleted the entry.
-    void read(uint64_t key, const infer::HostHistory& h, size_t slab) {
-        std::lock_guard<std::mutex> lk(m_);
-        store_->get(key, runs_of(h), slab, [this, key](bool ok, const std::string& error) {
-            {
-                std::lock_guard<std::mutex> l(m_);
-                done_.push_back(Finished{key, true, ok, error});
-            }
-            if (wake_) wake_();
-        });
     }
 
     // The store's measured write rate in bytes a second, 0 until it is made or where it has none.
@@ -269,14 +243,365 @@ public:
         return errors_;
     }
 
+
+    // ---- What is on disk, and the one write and the reads in flight: the scheduler's thread only, under its lock (docs/DISK-TIER.md, Entries written as what changed). ----
+
+    const DiskIndex& index() const { return index_; }
+    // Whether the index gained or lost a file since this was last asked, so the scheduler looks again at which of its entries are on disk.
+    bool take_changed() {
+        const bool c = changed_;
+        changed_ = false;
+        return c;
+    }
+    uint64_t written() const { return written_; }
+    size_t capped() const { return capped_; }
+    size_t calls() const { return (key_ ? 1 : 0) + reads_.size(); }
+    // The host memory the tier's own calls hold beyond the host tier: the slabs a write off the devices is read from, and those for the part of a file a read does not want.
+    size_t held() const {
+        size_t n = staging_.held;
+        for (const Reading& r : reads_) n += r.scratch.held;
+        return n;
+    }
+
+    // The file that makes a history of `n` tokens whole on disk, its state on a model that keeps one (`state`) and its last segment otherwise, or 0 where part of it is not there.
+    uint64_t on_disk(const std::vector<std::string>& d, size_t block, size_t n, bool state) const {
+        const DiskIndex::Path p = index_.path(d, block, n, state);
+        if (!n || p.length != n) return 0;
+        return state ? *p.state : p.pieces.back().key;
+    }
+    // The file holding a history's state at `n`, whatever of its blocks is on disk, or 0.
+    uint64_t state_on_disk(const std::vector<std::string>& d, size_t block, size_t n) const {
+        const auto s = index_.state_below(d, block, n);
+        return s && s->first == n ? s->second : 0;
+    }
+    // A use of file `key` now.
+    void renew(uint64_t key, bool back) {
+        const auto now = DiskIndex::Time::clock::now();
+        index_.touch(key, now, back);
+        touch(key, now);
+    }
+
+    // What the calls finished since the last one left: the write in flight entered in the index, and each read that ended, whole or not.
+    struct Settled {
+        bool changed = false;   // the index gained or lost a file
+        bool wrote = false;     // the write in flight ended, however
+        std::vector<std::pair<uint64_t, bool>> reads;   // each read that ended, and whether every file of it read whole
+    };
+    Settled settle(infer::Model& model) {
+        Settled out;
+        for (const Finished& f : finished()) {
+            if (f.read) {
+                for (size_t i = 0; i < reads_.size(); ++i) {
+                    Reading& r = reads_[i];
+                    if (std::find(r.tickets.begin(), r.tickets.end(), f.ticket) == r.tickets.end()) continue;
+                    r.ok = r.ok && f.ok;
+                    // A file that failed its read is gone, and what stood on it with it.
+                    if (!f.ok && index_.remove(f.key)) out.changed = changed_ = true;
+                    if (--r.left) break;
+                    out.reads.push_back({r.id, r.ok});
+                    model.release_host(r.scratch);
+                    reads_.erase(reads_.begin() + (std::ptrdiff_t)i);
+                    break;
+                }
+                continue;
+            }
+            if (f.key != key_) continue;
+            if (f.ok && cancelled_) {
+                remove(f.key);
+            } else if (f.ok) {
+                pending_.key = f.key;
+                changed_ = true;
+                touch(f.key, pending_.used);
+                written_ += pending_.bytes;
+                index_.add(std::move(pending_));
+                out.changed = true;
+            }
+            pending_ = DiskIndex::File{};
+            key_ = source_ = 0;
+            cancelled_ = false;
+            pins_.clear();
+            model.release_host(staging_);
+            out.wrote = true;
+        }
+        if (out.changed) prune(false);
+        return out;
+    }
+
+    // The files a server left under --disk-cache-keep, once the store has adopted them: into the index by their descriptions, those nothing reaches and those over the cap dropped, and a line saying how many each rule dropped; true once, when there were any.
+    bool adopt() {
+        const std::vector<DiskStore::Adopted> adopted = take_adopted();
+        if (adopted.empty()) return false;
+        size_t unread = 0, over = 0;
+        for (const DiskStore::Adopted& a : adopted) {
+            DiskIndex::File f;
+            if (!DiskIndex::parse(a.blob, f)) {
+                remove(a.key);
+                ++unread;
+                continue;
+            }
+            f.key = a.key;
+            f.bytes = a.bytes;
+            f.used = a.used;
+            index_.add(std::move(f));
+        }
+        const size_t alone = prune(true);
+        while (index_.bytes() > cap()) {
+            const std::optional<DiskIndex::Victim> v = index_.victim();
+            if (!v) break;
+            forget(v->key);
+            ++over;
+        }
+        std::fprintf(stderr, "server: %zu entries on disk from the server before", index_.files().size());
+        if (unread + alone + over) std::fprintf(stderr, "; dropped: %zu whose description did not read, %zu that no whole path reaches, %zu over the cap", unread, alone, over);
+        std::fprintf(stderr, "\n");
+        return true;
+    }
+
+    // Files with nothing beyond them used for longer than the age limit deleted, a conversation going from its end down, but for those read or written on; true where one went.
+    bool expire() {
+        const uint64_t age = max_age();
+        if (!age) return false;
+        bool any = false;
+        const DiskIndex::Time before = DiskIndex::Time::clock::now() - std::chrono::seconds(age);
+        for (std::optional<DiskIndex::Victim> v; (v = index_.victim(before, pinned()));) {
+            forget(v->key);
+            any = true;
+        }
+        return any;
+    }
+
+    // The bytes a block of every device's KV storage and one state take in a file, measured once on slabs taken and given back.
+    void measure(infer::Model& model) {
+        if (measured_) return;
+        measured_ = true;
+        try {
+            infer::HostHistory probe;
+            model.alloc_host(model.kv_block_tokens(), probe, std::numeric_limits<size_t>::max(), true, 0, false);
+            block_bytes_ = probe.bytes;
+            model.release_host(probe);
+            if (model.keeps_state()) {
+                model.alloc_host(0, probe, std::numeric_limits<size_t>::max(), false);
+                state_bytes_ = probe.bytes;
+                model.release_host(probe);
+            }
+        } catch (const std::exception&) {}
+    }
+    // The bytes still to write of a history of `n` tokens: its segments not on disk, where `blocks` says its holder has them, and its state.
+    uint64_t unwritten(const std::vector<std::string>& d, size_t block, size_t n, bool state, bool blocks) const {
+        uint64_t bytes = 0;
+        const auto missing = index_.missing(d, block, n);
+        for (const auto& range : missing) bytes += blocks ? (range.second - range.first) / block * block_bytes_ : 0;
+        if (state && !index_.has_state(d, block, n)) bytes += state_bytes_;
+        return bytes;
+    }
+
+    enum class Wrote { nothing, started, refused };
+    // Starts the write of the next file a history of `n` tokens lacks on disk, after can_write: its first missing segment, out of `held`, a copy in host memory holding its blocks, or copied off the devices from `seq`; then, on a model that keeps a state, its state, out of `held` or `seq`'s checkpoint.
+    // A holder of a state alone writes the state, whatever of the history's blocks is on disk: a history in memory forks it meanwhile, and whoever holds the blocks writes them.
+    // `source` and `bound` name the host entry whose slabs the store reads, 0 where it reads slabs of its own, taken beyond the host tier for the write's time; refused where disk room or host memory is not to be had.
+    Wrote write_next(infer::Model& model, const std::vector<std::string>& d, size_t n, bool back, DiskIndex::Time used, const infer::HostHistory* held, infer::Sequence* seq, uint64_t source, bool bound) {
+        const size_t block = model.kv_block_tokens();
+        const bool state = model.keeps_state();
+        const auto missing = index_.missing(d, block, n);
+        DiskIndex::File f;
+        f.back = back;
+        f.used = used;
+        std::vector<infer::HostRange> ranges;
+        const infer::HostHistory* from = held;
+        try {
+            if (!missing.empty() && (!held || held->blocks)) {
+                f.first = missing.front().first;
+                f.end = missing.front().second;
+                f.below = d[f.first / block];
+                f.ends.assign(d.begin() + (std::ptrdiff_t)(f.first / block) + 1, d.begin() + (std::ptrdiff_t)(f.end / block) + 1);
+                if (!held) {
+                    model.save_host_blocks(*seq, f.first, f.end, staging_, std::numeric_limits<size_t>::max());
+                    from = &staging_;
+                }
+                ranges = model.host_ranges(*from, f.first, f.end);
+            } else if (state && n && !index_.has_state(d, block, n)) {
+                f.state = true;
+                f.first = f.end = n;
+                f.below = d[n / block];
+                if (!held) {
+                    model.save_host(*seq, n, staging_, std::numeric_limits<size_t>::max(), false);
+                    from = &staging_;
+                }
+                ranges = model.host_state_ranges(*from);
+            } else {
+                return Wrote::nothing;
+            }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "server: %zu tokens of a history were not copied for the disk (%s)\n", n, e.what());
+            model.release_host(staging_);
+            return Wrote::refused;
+        }
+        const std::vector<size_t> layout = layout_of(ranges, from->slabs.size());
+        std::string blob = DiskIndex::describe(f);
+        f.bytes = DiskStore::file_bytes(blob.size(), layout);
+        // What the file stands on stays while it is written.
+        pins_.clear();
+        for (const DiskIndex::Piece& p : index_.path(d, block, f.first, false).pieces) pins_.push_back(p.key);
+        if (!room(f.bytes, back)) {
+            pins_.clear();
+            model.release_host(staging_);
+            return Wrote::refused;
+        }
+        model.wait_host(*from);
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            in_flight_ = store_->put(std::move(blob), runs_of(*from, ranges), infer::Model::host_slab_bytes(), [this](bool ok, const std::string& error) {
+                {
+                    std::lock_guard<std::mutex> l(m_);
+                    done_.push_back(Finished{in_flight_, false, ok, error, 0});
+                }
+                if (wake_) wake_();
+            }, layout);
+            key_ = in_flight_;
+        }
+        source_ = from == &staging_ ? 0 : source;
+        bound_ = bound;
+        cancelled_ = false;
+        pending_ = std::move(f);
+        return Wrote::started;
+    }
+    // Whether the write in flight reads host entry `source`'s slabs and has not been stopped.
+    bool writing_from(uint64_t source, bool bound) const { return key_ && source_ && source_ == source && bound_ == bound; }
+    bool write_stopped() const { return cancelled_; }
+    // The write in flight stopped: its file is not kept, even should it land before the cancel reaches it.
+    void cancel_write() {
+        if (!key_ || cancelled_) return;
+        cancelled_ = true;
+        cancel(key_);
+    }
+
+    // Starts the read of path `p` of a history into `target`, slabs for its length: every segment into its blocks' places, one the history parts from inside with its further blocks into slabs of the read's own, and the state into its place; with `state_only`, the state alone into a target that holds no blocks.
+    // Returns the read's id, which settle reports once every file has ended; 0, nothing started, where host memory for the part not wanted is not to be had.
+    uint64_t read(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only) {
+        Reading r;
+        r.id = ++read_ids_;
+        struct Call {
+            uint64_t key;
+            std::vector<StoreRun> runs;
+            std::vector<size_t> layout;
+        };
+        std::vector<Call> calls;
+        try {
+            for (const DiskIndex::Piece& piece : state_only ? std::vector<DiskIndex::Piece>{} : p.pieces) {
+                std::vector<infer::HostRange> ranges = model.host_ranges(target, piece.first, piece.use);
+                std::vector<StoreRun> runs = runs_of(target, ranges);
+                if (piece.use < piece.end) {
+                    model.alloc_host(piece.end, r.scratch, std::numeric_limits<size_t>::max(), true, piece.use, false);
+                    const std::vector<infer::HostRange> rest = model.host_ranges(r.scratch, piece.use, piece.end);
+                    const std::vector<StoreRun> more = runs_of(r.scratch, rest);
+                    std::vector<StoreRun> both;
+                    for (size_t i = 0; i < runs.size(); ++i) {
+                        both.push_back(runs[i]);
+                        both.push_back(more[i]);
+                    }
+                    runs.swap(both);
+                    ranges.insert(ranges.end(), rest.begin(), rest.end());
+                }
+                calls.push_back(Call{piece.key, std::move(runs), layout_of(ranges, target.slabs.size())});
+            }
+            if (p.state) {
+                const std::vector<infer::HostRange> ranges = model.host_state_ranges(target);
+                calls.push_back(Call{*p.state, runs_of(target, ranges), layout_of(ranges, target.slabs.size())});
+            }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "server: a history of %zu tokens was not read from disk (%s)\n", p.length, e.what());
+            model.release_host(r.scratch);
+            return 0;
+        }
+        const uint64_t id = r.id;
+        r.left = calls.size();
+        std::lock_guard<std::mutex> lk(m_);
+        for (Call& c : calls) {
+            const uint64_t ticket = ++tickets_, key = c.key;
+            r.tickets.push_back(ticket);
+            r.keys.push_back(key);
+            store_->get(key, std::move(c.runs), infer::Model::host_slab_bytes(), [this, key, ticket](bool ok, const std::string& error) {
+                {
+                    std::lock_guard<std::mutex> l(m_);
+                    done_.push_back(Finished{key, true, ok, error, ticket});
+                }
+                if (wake_) wake_();
+            }, std::move(c.layout));
+        }
+        reads_.push_back(std::move(r));
+        return id;
+    }
+
+    // At the stop: the slabs the tier's own calls hold given back, once the store is gone.
+    void release(infer::Model& model) {
+        model.release_host(staging_);
+        for (Reading& r : reads_) model.release_host(r.scratch);
+        reads_.clear();
+        key_ = source_ = 0;
+    }
+
 private:
-    static std::vector<StoreRun> runs_of(const infer::HostHistory& h) {
-        std::vector<StoreRun> runs(h.slabs.size());
-        for (size_t i = 0; i < h.slabs.size(); ++i) {
-            runs[i].slabs = h.slabs[i];
-            runs[i].bytes = h.device_bytes[i];
+    // A read in flight: the files it reads, the store's calls still out, and the slabs for the blocks of a file it wants only part of.
+    struct Reading {
+        uint64_t id = 0;
+        std::vector<uint64_t> keys, tickets;
+        size_t left = 0;
+        bool ok = true;
+        infer::HostHistory scratch;
+    };
+
+    // The runs of ranges of a host history, as the store takes them, and the layout a file of them records: the bytes a device.
+    static std::vector<StoreRun> runs_of(const infer::HostHistory& h, const std::vector<infer::HostRange>& ranges) {
+        std::vector<StoreRun> runs;
+        for (const infer::HostRange& r : ranges) {
+            StoreRun run;
+            run.slabs = h.slabs[r.device];
+            run.offset = r.offset;
+            run.bytes = r.bytes;
+            runs.push_back(std::move(run));
         }
         return runs;
+    }
+    static std::vector<size_t> layout_of(const std::vector<infer::HostRange>& ranges, size_t devices) {
+        std::vector<size_t> layout(devices, 0);
+        for (const infer::HostRange& r : ranges) layout[r.device] += r.bytes;
+        return layout;
+    }
+
+    // The files that may not go now: those a read is on, and those the file being written stands on.
+    std::vector<uint64_t> pinned() const {
+        std::vector<uint64_t> keys = pins_;
+        for (const Reading& r : reads_) keys.insert(keys.end(), r.keys.begin(), r.keys.end());
+        return keys;
+    }
+    void forget(uint64_t key) {
+        changed_ = true;
+        index_.remove(key);
+        remove(key);
+    }
+    // Files no whole path reaches any more deleted, states whose history's blocks are not all there only at a start (`states`), when no history in memory can still use them; how many.
+    size_t prune(bool states) {
+        const std::vector<uint64_t> gone = index_.unreachable(states);
+        for (uint64_t key : gone) forget(key);
+        return gone.size();
+    }
+    // Disk room for `bytes` more within the cap, files going as the index orders them (DiskIndex::victim); one of a conversation that did not come back (`back` false) takes no room of one that did.
+    // False, nothing removed, where the room cannot be made.
+    bool room(uint64_t bytes, bool back) {
+        if (bytes > cap()) return false;
+        if (index_.bytes() + bytes <= cap()) return true;
+        DiskIndex trial = index_;
+        std::vector<uint64_t> gone;
+        const std::vector<uint64_t> keep = pinned();
+        while (trial.bytes() + bytes > cap()) {
+            const std::optional<DiskIndex::Victim> v = trial.victim(std::nullopt, keep);
+            if (!v || (!back && v->back)) return false;
+            trial.remove(v->key);
+            gone.push_back(v->key);
+        }
+        for (uint64_t key : gone) forget(key);
+        capped_ += gone.size();
+        return true;
     }
 
     DiskOptions options_;
@@ -289,6 +614,20 @@ private:
     size_t errors_ = 0;                  // under m_
     std::chrono::steady_clock::time_point stopped_;   // under m_, when writing stopped or was last checked
     std::vector<Finished> done_;         // under m_
+    uint64_t tickets_ = 0;               // under m_
+    // The scheduler's thread's, under its lock: the index, the file being written with the host entry or the slabs it is read from and the files it stands on, the reads in flight, and what was written and deleted for the cap.
+    DiskIndex index_;
+    bool changed_ = false;
+    DiskIndex::File pending_;
+    uint64_t key_ = 0, source_ = 0;
+    bool bound_ = false, cancelled_ = false;
+    infer::HostHistory staging_;
+    std::vector<uint64_t> pins_;
+    std::vector<Reading> reads_;
+    uint64_t read_ids_ = 0, written_ = 0;
+    size_t capped_ = 0;
+    bool measured_ = false;
+    uint64_t block_bytes_ = 0, state_bytes_ = 0;
 };
 
 } // namespace server

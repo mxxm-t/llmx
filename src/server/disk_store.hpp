@@ -65,6 +65,9 @@ public:
 
     // The entries' alignment on disk, which every direct-I/O granule up to it divides, and the unit a checksum covers.
     static constexpr size_t kAlign = size_t(1) << 20, kChunk = size_t(4) << 20;
+    // The version of a file's layout and of what its description holds; a file of another is not read.
+    // 2: a file is a segment or a state of a history (DiskIndex::describe), where it was a whole copy.
+    static constexpr uint32_t kVersion = 2;
 
     // Makes the server's own directory under the root, locked for the store's life, after sweeping the root (sweep) and, with keep, adopting what other servers left whose identity is `identity`; then chooses the write mode by a short probe and starts the I/O thread.
     DiskStore(Options options, const std::array<uint8_t, 32>& identity) : options_(std::move(options)), identity_(identity), staging_(kChunk) {
@@ -326,7 +329,6 @@ private:
     static uint64_t round_up(uint64_t n, uint64_t a) { return (n + a - 1) / a * a; }
     static uint64_t chunks(uint64_t payload) { return (payload + kChunk - 1) / kChunk; }
     static constexpr char kMagic[16] = "llmx-disk-entry";
-    static constexpr uint32_t kVersion = 1;
     static uint64_t header_bytes(size_t blob, size_t runs, uint64_t chunk_count) {
         return round_up(16 + 4 + 32 + 8 + 4 + 8 * runs + 8 + 4 * chunk_count + blob + 4, kAlign);
     }

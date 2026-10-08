@@ -407,8 +407,8 @@ public:
         s.host_bytes_moved = host_moved_;
         s.boundaries = bounds_.size();
         s.boundary_hits = bound_hits_;
-        s.disk_entries = disk_index_.size();
-        for (const DiskEntry& e : disk_index_) s.disk_bytes += e.bytes;
+        s.disk_entries = disk_files_;
+        s.disk_bytes = disk_bytes_;
         s.disk_bytes_written = disk_written_;
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.host_unwritten = host_unwritten_;
@@ -418,7 +418,7 @@ public:
         s.disk_waits = disk_waits_;
         s.disk_bytes_read = disk_read_bytes_;
         s.disk_wait_ms = disk_wait_ms_;
-        s.disk_in_flight = (disk_key_ ? 1 : 0) + disk_reads_.size();
+        s.disk_in_flight = disk_ ? disk_->calls() : 0;
         s.disk_ready = disk_ && disk_->readable();
         s.finished = finished_.load();
         s.prompt_tokens = prompt_total_.load();
@@ -549,9 +549,13 @@ public:
             std::lock_guard<std::mutex> lk(m_);
             disk = std::move(disk_);
         }
+        // The store goes first, so nothing reads a slab that is released after it.
+        if (disk) {
+            disk->close();
+            disk->release(model_);
+        }
         disk.reset();
         std::lock_guard<std::mutex> lk(m_);
-        disk_writing_ = disk_key_ = 0;
         for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
         disk_parked_.clear();
         for (DiskRead& rd : disk_reads_) {
@@ -1468,6 +1472,7 @@ private:
         uint64_t on_host = 0;         // the host donor holding the same history, which it was promoted from
         bool superseded = false;      // a job's donor holds what its conversation's next turn needs, so this one is kept only while room allows, as a regenerate's
         bool back = false;            // its conversation came back: the request it holds, or the one a job read the reply of, forked a history a tier kept
+        mutable std::vector<std::string> digests;   // as HostDonor::digests, of what its cache holds
     };
 
     // A resumed request's own donor, the one its pause left, when nothing has evicted it; donors_.size() when there is none.
@@ -1551,7 +1556,8 @@ private:
         infer::HostHistory history;
         bool superseded = false;   // as Donor::superseded
         bool back = false;         // as Donor::back
-        uint64_t disk = 0;         // the disk entry holding the same history, whose file is in place
+        uint64_t disk = 0;         // the file that makes the same history whole on disk (DiskTier::on_disk), 0 while part of it is not there
+        mutable std::vector<std::string> digests;   // its whole blocks' digests, once asked for (digests_of)
         bool through = false;      // read back from an entry larger than the host tier: held beyond the tier's bytes, for its request to promote, and kept no longer (start_read)
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: made, renewed or promoted, which its file keeps
     };
@@ -1564,6 +1570,7 @@ private:
         std::vector<RowClass> classes;
         infer::HostHistory state;
         uint64_t disk = 0;         // as HostDonor::disk
+        mutable std::vector<std::string> digests;   // as HostDonor::digests
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // as HostDonor::used
     };
     // The boundaries a conversation keeps in host memory without a disk tier: the first, the newest and, between them, those that leave the most even spacing; with one, the host tier's room sends the older ones to disk instead.
@@ -1587,7 +1594,7 @@ private:
             if (t.size() > n || !std::equal(t.begin(), t.end(), tokens.begin())) continue;
             if (t.size() == n && alike(bounds_[i].classes, classes, n) == n) {
                 bounds_[i].used = std::filesystem::file_time_type::clock::now();
-                if (bounds_[i].disk) renew_disk(bounds_[i].disk, true);
+                if (bounds_[i].disk) disk_->renew(bounds_[i].disk, true);
                 std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
                 return;
             }
@@ -1633,8 +1640,11 @@ private:
         host_held_ += b.state.held;
         host_moved_ += b.state.bytes;
         std::fprintf(stderr, "server: a message boundary at %zu tokens kept in host memory, %.1f MiB\n", n, (double)b.state.bytes / (1 << 20));
-        b.disk = on_disk(true, b.tokens, b.classes, n, true);
-        if (disk_) write_ahead();
+        if (disk_) {
+            refresh_disk();
+            if (b.disk) disk_->renew(b.disk, true);
+            write_ahead();
+        }
     }
 
     // The boundary `id`, or none.
@@ -1712,7 +1722,7 @@ private:
         return n;
     }
 
-    void write_back(Donor& d, bool beyond = false) {
+    void write_back(Donor& d) {
         if (!host_cap_ || d.superseded) return;
         const size_t n = copy_length(d);
         if (!n) return;
@@ -1726,22 +1736,20 @@ private:
                 host_[i].back = host_[i].back || d.back;
                 host_[i].used = std::filesystem::file_time_type::clock::now();
                 host_refused_ = 0;
-                if (host_[i].disk) renew_disk(host_[i].disk, host_[i].back);
+                if (host_[i].disk) disk_->renew(host_[i].disk, host_[i].back);
                 std::rotate(host_.begin() + (std::ptrdiff_t)i, host_.begin() + (std::ptrdiff_t)i + 1, host_.end());
                 return;
             }
         }
         const size_t bytes = model_.host_bytes(n);
-        // A copy larger than the whole tier is kept only on its way to disk (`beyond`, the keep flush's and the idle writes'): beyond the tier's bytes, taking no room, until its file is in place (HostDonor::through).
-        const bool through = bytes > host_cap_;
-        if (through && !beyond) return;
+        if (bytes > host_cap_) return;
         // Superseded copies go first, then entries whose files are on disk, which lose nothing, then message boundaries, which live in the room the other copies leave.
-        while (!through && !host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
-        if (!through) release_written(bytes);
-        while (!through && host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
+        while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
+        release_written(bytes);
+        while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
         // A donor whose conversation did not come back takes free room and that of superseded entries and of entries whose conversations did not come back either, the oldest first, and the room of the others only once the tier has refused as many such donors in a row as it holds entries.
         // So users taking turns over more conversations than the tier holds keep hitting the ones it holds, where evicting the oldest would evict each time the one needed next, and conversations that stopped coming back still leave.
-        if (!d.back && !through) {
+        if (!d.back) {
             size_t room = host_cap_ - std::min(host_cap_, host_held_);
             for (const HostDonor& h : host_)
                 if ((h.superseded || !h.back) && !h.through) room += h.history.held;
@@ -1755,34 +1763,36 @@ private:
                     else ++i;
                 }
         }
-        while (!through && host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
+        while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
         // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry.
         host_.emplace_back();
         HostDonor& h = host_.back();
-        h.through = through;
         const Clock::time_point start = Clock::now();
         try {
             h.id = d.id ? d.id : ++donor_ids_;
             h.back = d.back;
             h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
             h.classes = clip(d.classes, n);
-            quieted().save_host(d.seq, n, h.history, through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held());
+            quieted().save_host(d.seq, n, h.history, host_cap_ + parked_held());
         } catch (const std::exception& e) {
             host_.pop_back();
             std::fprintf(stderr, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
             return;
         }
-        if (!through) host_held_ += h.history.held;
+        host_held_ += h.history.held;
         host_moved_ += h.history.bytes;
         std::fprintf(stderr, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20),
                      ms_since(start));
         host_refused_ = 0;
-        h.disk = on_disk(false, h.tokens, h.classes, n, h.back);
-        if (disk_) write_ahead();
+        if (disk_) {
+            refresh_disk();
+            if (h.disk) disk_->renew(h.disk, h.back);
+            write_ahead();
+        }
     }
 
     // Whether the entry `id` is the one whose write to disk is in flight: room takes it last among those it may take, since dropping it cancels the write, and a writer whose every write is cancelled keeps nothing once it has fallen behind (docs/DISK-TIER.md, Demotion).
-    bool written_soon(bool boundary, uint64_t id) const { return disk_writing_ && disk_writing_ == id && disk_writing_bound_ == boundary && !disk_cancelled_; }
+    bool written_soon(bool boundary, uint64_t id) const { return disk_ && disk_->writing_from(id, boundary) && !disk_->write_stopped(); }
 
     // The oldest host donor out of host memory, the one being written to disk only when it is the last.
     // Under the lock.
@@ -1813,8 +1823,8 @@ private:
     // A host entry's slabs back to the model, or, for the entry whose disk write is in flight, held until the write has stopped, which a cancel asks of it; the room counts free at once.
     // Under the lock.
     void release_entry(bool boundary, uint64_t id, infer::HostHistory& h) {
-        if (disk_writing_ && disk_writing_ == id && disk_writing_bound_ == boundary) {
-            cancel_disk_write();
+        if (disk_ && disk_->writing_from(id, boundary)) {
+            disk_->cancel_write();
             disk_parked_.push_back(std::move(h));
             h = infer::HostHistory{};
             return;
@@ -1830,20 +1840,9 @@ private:
             if (h.through) n += h.history.held;
         for (const DiskRead& rd : disk_reads_)
             if (rd.through) n += rd.history.held;
+        if (disk_) n += disk_->held();
         return n;
     }
-
-    // An entry on disk (docs/DISK-TIER.md): a host entry's history as its file holds it, with the host entry it was written from, its kind, whether its conversation came back, its tokens and row classes, the length it holds and its file's bytes.
-    struct DiskEntry {
-        uint64_t key = 0, id = 0;
-        bool boundary = false, back = false;
-        std::vector<uint32_t> tokens;
-        std::vector<RowClass> classes;
-        size_t length = 0;
-        uint64_t bytes = 0;
-        std::filesystem::file_time_type used{};   // its last use, which the age limit reads
-        bool superseded = false;                  // under keep, a later turn's copy stands for its conversation: the file stays until that copy's is in place (supersede, settle_disk)
-    };
 
     // Host entries whose files are on disk released, the oldest boundaries and then the oldest copies, until `bytes` more fit the host tier; nothing is lost, the files keeping them.
     // Under the lock.
@@ -1858,207 +1857,83 @@ private:
         }
     }
 
-    // The key of the disk entry holding this history, renewed, or 0: a host entry made of a history already on disk needs no write.
+    // The digests of a history's whole blocks (DiskIndex::digests), each stretch of its rows under the key the model gives its extent (Model::row_class), which is what makes two histories' rows the same bits.
+    std::vector<std::string> digests_of(const uint32_t* tokens, size_t n, const std::vector<RowClass>& classes) const {
+        std::vector<ClassRun> runs;
+        for (const RowClass& c : classes) runs.push_back(ClassRun{c.end, model_.row_class(c.extent)});
+        if (runs.empty()) return {DiskIndex::root()};
+        runs.back().end = std::numeric_limits<size_t>::max();
+        return DiskIndex::digests(tokens, n, runs, model_.kv_block_tokens());
+    }
+    // An entry's own, kept with it.
+    template <class Entry>
+    const std::vector<std::string>& digests(const Entry& e, size_t n) const {
+        if (e.digests.empty()) e.digests = digests_of(e.tokens.data(), std::min(e.tokens.size(), n), e.classes);
+        return e.digests;
+    }
+    const std::vector<std::string>& digests(const HostDonor& h) const { return digests(h, h.history.length); }
+    const std::vector<std::string>& digests(const Boundary& b) const { return digests(b, b.state.length); }
+    const std::vector<std::string>& digests(const Donor& d) const { return digests(d, d.seq.length()); }
+
+    // Which host entries are whole on disk, looked at again after the index gained or lost a file.
     // Under the lock.
-    uint64_t on_disk(bool boundary, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t length, bool back) {
-        for (const DiskEntry& e : disk_index_)
-            if (e.boundary == boundary && e.length == length && e.tokens == tokens && alike(e.classes, classes, length) == length) {
-                const uint64_t key = e.key;
-                renew_disk(key, back);
-                return key;
-            }
-        return 0;
+    void refresh_disk() {
+        const size_t bt = model_.kv_block_tokens();
+        for (HostDonor& h : host_) h.disk = disk_->on_disk(digests(h), bt, h.history.length, model_.keeps_state());
+        for (Boundary& b : bounds_) b.disk = disk_->state_on_disk(digests(b), bt, b.state.length);
+    }
+    // After a call that may have changed the index: the entries' standing and the figures stats gives.
+    void sync_disk() {
+        if (disk_->take_changed()) refresh_disk();
+        disk_files_ = disk_->index().files().size();
+        disk_bytes_ = disk_->index().bytes();
+        disk_written_ = disk_->written();
+        disk_capped_ = disk_->capped();
     }
 
-    // Disk entry `key` used now: the newest in the index, its file's age renewed, and come back once its host entry has.
-    // Under the lock.
-    void renew_disk(uint64_t key, bool back) {
-        for (size_t i = 0; i < disk_index_.size(); ++i)
-            if (disk_index_[i].key == key) {
-                disk_index_[i].back = disk_index_[i].back || back;
-                disk_index_[i].used = std::filesystem::file_time_type::clock::now();
-                std::rotate(disk_index_.begin() + (std::ptrdiff_t)i, disk_index_.begin() + (std::ptrdiff_t)i + 1, disk_index_.end());
-                if (disk_) disk_->touch(key, disk_index_.back().used);
-                return;
-            }
-    }
-
-    // Disk entry `key` out of the index and off the disk, and out of the host entry that names it.
-    // Under the lock.
-    void forget_disk(uint64_t key) {
-        for (size_t i = 0; i < disk_index_.size(); ++i)
-            if (disk_index_[i].key == key) {
-                disk_index_.erase(disk_index_.begin() + (std::ptrdiff_t)i);
-                break;
-            }
-        for (HostDonor& h : host_)
-            if (h.disk == key) h.disk = 0;
-        for (Boundary& b : bounds_)
-            if (b.disk == key) b.disk = 0;
-        if (disk_) disk_->remove(key);
-    }
-
-    // The write in flight stopped: its entry is not kept, even should its file land before the cancel reaches it.
-    // Under the lock.
-    void cancel_disk_write() {
-        if (!disk_key_ || disk_cancelled_) return;
-        disk_cancelled_ = true;
-        if (disk_) disk_->cancel(disk_key_);
-    }
-
-    // The disk tier's part of a round: the writes finished since the last round entered in the index, the slabs of an entry dropped while written released, and the next write started.
+    // The disk tier's part of a round: what the store finished since the last round taken in, what a server before left adopted, files past the age limit deleted, reads started for waiting requests, and the next write started.
     // Under the lock.
     void disk_round(bool idle) {
         disk_wake_ = false;
         if (!disk_) return;
         settle_disk();
-        adopt_disk();
-        expire_disk();
+        if (!disk_measured_ && disk_->readable()) {
+            disk_measured_ = true;
+            disk_->measure(quieted());
+            quieted().trim_host(host_cap_ + parked_held());
+        }
+        disk_->adopt();
+        const auto now = std::chrono::steady_clock::now();
+        if (const uint64_t age = disk_->max_age(); age && now >= next_expiry_) {
+            // Checked every minute, or each quarter of the limit if that is shorter.
+            next_expiry_ = now + std::chrono::seconds(std::max<uint64_t>(1, std::min<uint64_t>(60, age / 4)));
+            disk_->expire();
+        }
+        sync_disk();
         prefetch();
         write_ahead();
-        // Under --disk-cache-keep a server idle for kDiskIdle (`idle`, from run) writes what a stop would have to: the device donors and what host memory holds unwritten, one write at a time, so a stop finds little left (docs/DISK-TIER.md, Keeping entries across a restart).
-        if (idle && queue_.empty() && paused_.empty() && disk_->can_write()) flush_one(idle_tried_, true);
-        // A copy held in host memory beyond the tier, read back or on its way to disk, goes once its file is in place, or the store writes no more, and no request waits that could still promote it.
+        // Under --disk-cache-keep a server idle for kDiskIdle (`idle`, from run) writes what a stop would have to, one file at a time, so a stop finds little left (docs/DISK-TIER.md, Keeping entries across a restart).
+        if (idle && queue_.empty() && paused_.empty() && disk_->can_write()) flush_one(idle_tried_);
+        // A copy read through host memory beyond the tier goes once no request waits that could still promote it; its files stay.
         for (size_t i = 0; queue_.empty() && paused_.empty() && i < host_.size();) {
-            if (host_[i].through && (host_[i].disk || !disk_->writing()) && host_[i].id != promoting_) drop_host(i);
+            if (host_[i].through && host_[i].id != promoting_) drop_host(i);
             else ++i;
         }
+        sync_disk();
     }
 
-    // The calls the store has finished: reads into host entries, writes into the index, the slabs of an entry dropped while written released.
+    // The calls the store has finished: a write's file into the index and the slabs of an entry dropped while written released, and each read that ended made a host entry or given up.
     // Under the lock.
     void settle_disk() {
-        for (const DiskTier::Finished& f : disk_->finished()) {
-            if (f.read) {
-                finish_read(f.key, f.ok);
-                continue;
-            }
-            if (f.key != disk_key_) continue;
-            if (f.ok && disk_cancelled_) {
-                disk_->remove(f.key);
-            } else if (f.ok) {
-                disk_pending_.key = f.key;
-                disk_->touch(f.key, disk_pending_.used);
-                disk_written_ += disk_pending_.bytes;
-                for (HostDonor& h : host_)
-                    if (!disk_writing_bound_ && h.id == disk_writing_) h.disk = f.key;
-                for (Boundary& b : bounds_)
-                    if (disk_writing_bound_ && b.id == disk_writing_) b.disk = f.key;
-                disk_index_.push_back(std::move(disk_pending_));
-                // The newer copy of a conversation in place, the earlier ones kept for it go.
-                const DiskEntry in_place = disk_index_.back();
-                for (size_t i = 0; !in_place.boundary && i + 1 < disk_index_.size();) {
-                    const DiskEntry& e = disk_index_[i];
-                    if (e.superseded && !e.boundary && e.length <= in_place.length && std::equal(e.tokens.begin(), e.tokens.begin() + (std::ptrdiff_t)e.length, in_place.tokens.begin())) forget_disk(e.key);
-                    else ++i;
-                }
-            }
-            disk_pending_ = DiskEntry{};
-            disk_writing_ = disk_key_ = 0;
-            disk_cancelled_ = false;
+        const DiskTier::Settled done = disk_->settle(model_);
+        if (done.wrote) {
             for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
             disk_parked_.clear();
         }
-    }
-
-    // The entries a server left under --disk-cache-keep, once the store has adopted them, into the index by their last use, their blobs read back, one whose blob cannot be read deleted, and then within the cap by the order room takes entries in.
-    // Under the lock.
-    void adopt_disk() {
-        std::vector<DiskStore::Adopted> adopted = disk_->take_adopted();
-        if (adopted.empty()) return;
-        std::sort(adopted.begin(), adopted.end(), [](const DiskStore::Adopted& a, const DiskStore::Adopted& b) { return a.used < b.used; });
-        uint64_t used = 0;
-        size_t unread = 0, alone = 0, over = 0;   // the adopted entries dropped, by the rule that dropped each
-        for (const DiskEntry& e : disk_index_) used += e.bytes;
-        for (DiskStore::Adopted& a : adopted) {
-            DiskEntry e;
-            if (!read_blob(a.blob, e)) {
-                disk_->remove(a.key);
-                ++unread;
-                continue;
-            }
-            e.key = a.key;
-            e.bytes = a.bytes;
-            e.used = a.used;
-            used += e.bytes;
-            disk_index_.push_front(std::move(e));
-        }
-        std::stable_sort(disk_index_.begin(), disk_index_.end(), [](const DiskEntry& a, const DiskEntry& b) { return a.used < b.used; });
-        // A boundary no copy on disk holds the rows of can never be forked.
-        for (size_t i = 0; i < disk_index_.size();) {
-            const DiskEntry& b = disk_index_[i];
-            bool held = !b.boundary;
-            for (const DiskEntry& c : disk_index_) held = held || (!c.boundary && holds(b.tokens, b.classes, b.length, c.tokens, c.classes, c.length));
-            if (held) {
-                ++i;
-                continue;
-            }
-            used -= b.bytes;
-            forget_disk(b.key);
-            ++alone;
-        }
-        // Of two copies of one history, as a crash between a newer file landing and the older going leaves them, the shorter is superseded again, so room takes it first.
-        for (DiskEntry& e : disk_index_)
-            for (const DiskEntry& c : disk_index_)
-                if (!e.boundary && !c.boundary && c.length > e.length && e.tokens.size() <= c.tokens.size() && std::equal(e.tokens.begin(), e.tokens.end(), c.tokens.begin())) e.superseded = true;
-        // Within the cap, room taking what it takes first: boundaries, then copies whose conversations did not come back, then the oldest.
-        for (int rank = 0; rank < 3 && used > disk_->cap(); ++rank)
-            for (size_t i = 0; i < disk_index_.size() && used > disk_->cap();) {
-                const DiskEntry& e = disk_index_[i];
-                if ((rank == 0 && !e.boundary) || (rank == 1 && (e.boundary || e.back))) {
-                    ++i;
-                    continue;
-                }
-                used -= e.bytes;
-                forget_disk(e.key);
-                ++over;
-            }
-        std::fprintf(stderr, "server: %zu entries on disk from the server before", disk_index_.size());
-        if (unread + alone + over) std::fprintf(stderr, "; dropped: %zu whose description did not read, %zu boundaries without a copy of their conversation, %zu over the cap", unread, alone, over);
-        std::fprintf(stderr, "\n");
-    }
-
-    // An entry's blob (disk_blob) read back, false where it is not one; the entry's host entry, which another server's ids named, is none.
-    static bool read_blob(const std::string& b, DiskEntry& e) {
-        size_t at = 0;
-        const auto get = [&](uint64_t& v) {
-            if (b.size() - at < sizeof v) return false;
-            std::memcpy(&v, b.data() + at, sizeof v);
-            at += sizeof v;
-            return true;
-        };
-        uint64_t boundary = 0, back = 0, length = 0, n = 0;
-        if (!get(boundary) || !get(back) || !get(length) || !get(n) || boundary > 1 || back > 1 || n > (b.size() - at) / sizeof(uint32_t) || length > n) return false;
-        e.boundary = boundary;
-        e.back = back;
-        e.length = (size_t)length;
-        e.tokens.resize((size_t)n);
-        std::memcpy(e.tokens.data(), b.data() + at, (size_t)n * sizeof(uint32_t));
-        at += (size_t)n * sizeof(uint32_t);
-        uint64_t classes = 0;
-        if (!get(classes) || classes > (b.size() - at) / (2 * sizeof(uint64_t))) return false;
-        for (uint64_t i = 0; i < classes; ++i) {
-            uint64_t end = 0, extent = 0;
-            get(end);
-            get(extent);
-            e.classes.push_back(RowClass{(size_t)end, (size_t)extent});
-        }
-        e.id = 0;
-        return at == b.size();
-    }
-
-    // Entries unused for longer than --disk-cache-max-age deleted, checked every minute or each quarter of the limit if that is shorter, but for one being read.
-    // Under the lock.
-    void expire_disk() {
-        const uint64_t age = disk_->max_age();
-        const auto now = std::chrono::steady_clock::now();
-        if (!age || disk_index_.empty() || now < next_expiry_) return;
-        next_expiry_ = now + std::chrono::seconds(std::max<uint64_t>(1, std::min<uint64_t>(60, age / 4)));
-        const auto file_now = std::filesystem::file_time_type::clock::now();
-        for (size_t i = 0; i < disk_index_.size();) {
-            if (!being_read(disk_index_[i].key) && file_now - disk_index_[i].used > std::chrono::seconds(age)) forget_disk(disk_index_[i].key);
-            else ++i;
-        }
+        for (const auto& read : done.reads) finish_read(read.first, read.second);
+        // The slabs the tier's own calls took beyond the host tier go back to the host.
+        if (done.wrote || !done.reads.empty()) quieted().trim_host(host_cap_ + parked_held());
+        sync_disk();
     }
 
     // At a clean exit under --disk-cache-keep, what memory holds goes to disk for the next server within a stated bound, the most valuable first, the reverse of the order room takes entries in: copies whose conversations came back, then boundaries, then the other copies, newest first in each, a device donor, copied to host memory as an eviction copies it, before host memory's; a write still running at the limit is cancelled, so only whole entries stay, each keeping its last use.
@@ -2077,78 +1952,63 @@ private:
         for (;;) {
             settle_disk();
             if (!disk_->writing()) { why = ", writing having stopped"; break; }
-            if (disk_->can_write() && !flush_one(tried, false)) break;
+            if (disk_->can_write() && !flush_one(tried)) break;
             if (!cv_.wait_until(lk, until, [&] { return disk_wake_; })) { why = ", the bound reached"; break; }
             disk_wake_ = false;
         }
-        if (disk_key_) cancel_disk_write();
+        disk_->cancel_write();
         const uint64_t left = unwritten_bytes();
-        std::fprintf(stderr, "server: %zu entries kept on disk for the next server, %.1f MiB not written%s\n", disk_index_.size(), (double)left / (1 << 20), left ? why : "");
+        std::fprintf(stderr, "server: %zu entries kept on disk for the next server, %.1f MiB not written%s\n", disk_->index().files().size(), (double)left / (1 << 20), left ? why : "");
+        sync_disk();
     }
 
-    // The bytes a keep flush has still to write: the device donors' copies not yet in host memory or on disk, and the host copies and boundaries without a file.
+    // The bytes a keep flush has still to write: of every history a device or host memory holds, the segments not on disk and its state, a history two entries hold counted once.
     // Under the lock.
     uint64_t unwritten_bytes() const {
+        const size_t bt = model_.kv_block_tokens();
         uint64_t bytes = 0;
-        for (const Donor& d : donors_) {
-            const size_t n = copy_length(d);
-            if (n && !d.superseded && !copied(d, n)) bytes += model_.host_bytes(n);
-        }
+        std::vector<std::string> seen;
+        const auto add = [&](const std::vector<std::string>& d, size_t n, bool blocks) {
+            if (!n || std::find(seen.begin(), seen.end(), d[n / bt]) != seen.end()) return;
+            seen.push_back(d[n / bt]);
+            bytes += disk_->unwritten(d, bt, n, model_.keeps_state(), blocks);
+        };
+        for (const Donor& d : donors_)
+            if (!d.superseded) add(digests(d), copy_length(d), true);
         for (const HostDonor& h : host_)
-            if (!h.disk && !h.superseded) bytes += h.history.bytes;
-        for (const Boundary& b : bounds_)
-            if (!b.disk) bytes += b.state.bytes;
+            if (!h.superseded) add(digests(h), h.history.length, true);
+        for (const Boundary& b : bounds_) add(digests(b), b.state.length, false);
         return bytes;
     }
 
-    // Whether donor d's copy of `n` tokens is in host memory or on disk already.
-    bool copied(const Donor& d, size_t n) const {
-        for (const HostDonor& h : host_)
-            if ((d.on_host && h.id == d.on_host) || (h.history.length == n && std::equal(h.tokens.begin(), h.tokens.end(), d.tokens.begin()) && alike(h.classes, d.classes, n) == n)) return true;
-        for (const DiskEntry& e : disk_index_)
-            if (!e.boundary && e.length == n && e.tokens.size() <= d.tokens.size() && std::equal(e.tokens.begin(), e.tokens.end(), d.tokens.begin()) && alike(e.classes, d.classes, n) == n) return true;
-        return false;
+    // Starts the next file of a host entry's history that is not on disk, out of the entry's own slabs; a boundary's state once its history's blocks are there.
+    bool write_from(const HostDonor& h) { return started(disk_->write_next(model_, digests(h), h.history.length, h.back, h.used, &h.history, nullptr, h.id, false)); }
+    bool write_from(const Boundary& b) { return started(disk_->write_next(model_, digests(b), b.state.length, true, b.used, &b.state, nullptr, b.id, true)); }
+    bool started(DiskTier::Wrote w) {
+        sync_disk();
+        return w == DiskTier::Wrote::started;
     }
 
     // The next write of what memory holds, for flush_disk and for an idle server under --disk-cache-keep: true once one is in flight, false when nothing is left to write.
-    // At a stop the most valuable goes first, the device donors newest first; an idle server writes what host memory holds before it copies a donor in, so the copy drops nothing unwritten.
+    // The most valuable first: the histories whose conversations came back, a device donor's missing blocks and state copied off the devices for it and no more, then host memory's entries, then the boundaries' states; then the others.
+    // A donor refused room or host memory is in `tried` and not asked again in the same flush or idle period.
     // Under the lock.
-    bool flush_one(std::vector<uint64_t>& tried, bool idle) {
-        const auto host_copy = [&](bool back) {
-            for (size_t i = host_.size(); i-- > 0;)
-                if (!host_[i].disk && !host_[i].superseded && host_[i].back == back && !(idle && near_on_disk(host_[i].tokens, host_[i].classes, host_[i].history.length)) &&
-                    start_write(false, host_[i].id, host_[i].tokens, host_[i].classes, host_[i].history, host_[i].back, host_[i].used))
-                    return true;
-            return false;
-        };
-        if (idle && (host_copy(true) || host_copy(false))) return true;
-        // Donors that are gone are forgotten, so an idle server's list stays the donors'.
+    bool flush_one(std::vector<uint64_t>& tried) {
         tried.erase(std::remove_if(tried.begin(), tried.end(), [&](uint64_t id) { return std::none_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return d.id == id; }); }), tried.end());
         for (const bool back : {true, false}) {
             for (size_t k = donors_.size(); k-- > 0;) {
-                const Donor& d = donors_[k];
-                if (d.superseded || d.back != back || std::find(tried.begin(), tried.end(), d.id) != tried.end()) continue;
-                tried.push_back(d.id);
-                // One whose copy is in host memory or on disk already is not copied off the devices again.
+                Donor& d = donors_[k];
                 const size_t n = copy_length(d);
-                if (!n || copied(d, n) || (idle && near_on_disk(d.tokens, d.classes, n))) continue;
-                write_back(donors_[k], true);
-                if (disk_key_ || host_copy(back)) return true;
+                if (!n || d.superseded || d.back != back || std::find(tried.begin(), tried.end(), d.id) != tried.end()) continue;
+                const DiskTier::Wrote w = disk_->write_next(quieted(), digests(d), n, d.back, std::filesystem::file_time_type::clock::now(), nullptr, &d.seq, 0, false);
+                if (started(w)) return true;
+                if (w == DiskTier::Wrote::refused) tried.push_back(d.id);
             }
-            if (host_copy(back)) return true;
+            for (size_t i = host_.size(); i-- > 0;)
+                if (!host_[i].disk && !host_[i].superseded && host_[i].back == back && write_from(host_[i])) return true;
             for (size_t i = bounds_.size(); back && i-- > 0;)
-                if (!bounds_[i].disk && start_write(true, bounds_[i].id, bounds_[i].tokens, bounds_[i].classes, bounds_[i].state, true, bounds_[i].used)) return true;
+                if (!bounds_[i].disk && write_from(bounds_[i])) return true;
         }
-        return false;
-    }
-
-    // Whether an earlier whole copy of the conversation whose first `n` tokens are `tokens`, computed as `classes` record, is on disk within a quarter of that length: an idle server does not write such a conversation again, the stop does.
-    // Writing a whole copy after every turn cost its bytes a turn, 5 GB at 76k tokens of a 27B model, where the turn added a tenth of that.
-    bool near_on_disk(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n) const {
-        for (const DiskEntry& e : disk_index_)
-            if (!e.boundary && e.length <= n && e.length * 4 >= n * 3 && e.tokens.size() <= tokens.size() && std::equal(e.tokens.begin(), e.tokens.end(), tokens.begin()) &&
-                alike(e.classes, classes, e.length) == e.length)
-                return true;
         return false;
     }
 
@@ -2164,7 +2024,7 @@ private:
     // When the loop must wake for the disk tier: the earliest bound of a request waiting for a read, the next check of the entries' age, and the start of an idle server's writes.
     std::optional<std::chrono::steady_clock::time_point> next_disk_bound() const {
         std::optional<std::chrono::steady_clock::time_point> t;
-        if (disk_ && disk_->max_age() && !disk_index_.empty()) t = next_expiry_;
+        if (disk_ && disk_->max_age() && disk_files_) t = next_expiry_;
         for (const auto* q : {&queue_, &paused_})
             for (const auto& r : *q)
                 if (r->disk_wait_ && r->disk_until_ != std::chrono::steady_clock::time_point::max() && (!t || r->disk_until_ < *t)) t = r->disk_until_;
@@ -2185,171 +2045,155 @@ private:
         r.disk_wait_ = 0;
     }
 
-    // Read `key` finished: an entry read whole becomes a host entry of a conversation that came back, its file kept and renewed, and anything else releases its slabs, a failed read's entry being gone; the requests waiting for it go on.
+    // Read `id` finished: a history read whole becomes a host entry of a conversation that came back, its files kept and renewed, and anything else releases its slabs; the requests waiting for it go on.
     // Under the lock.
-    void finish_read(uint64_t key, bool ok) {
+    void finish_read(uint64_t id, bool ok) {
         size_t i = 0;
-        while (i < disk_reads_.size() && disk_reads_[i].key != key) ++i;
+        while (i < disk_reads_.size() && disk_reads_[i].id != id) ++i;
         if (i == disk_reads_.size()) return;
-        infer::HostHistory h = std::move(disk_reads_[i].history);
-        const bool through = disk_reads_[i].through;
+        DiskRead rd = std::move(disk_reads_[i]);
         disk_reads_.erase(disk_reads_.begin() + (std::ptrdiff_t)i);
-        const DiskEntry* e = find_disk(key);
-        if (ok && e) {
-            const size_t length = h.length;
-            const double mib = (double)h.bytes / (1 << 20);
+        if (ok) {
+            const size_t length = rd.history.length;
+            const double mib = (double)rd.history.bytes / (1 << 20);
             ++disk_hits_;
-            disk_read_bytes_ += h.bytes;
-            if (e->boundary) {
+            disk_read_bytes_ += rd.history.bytes;
+            uint64_t* key = nullptr;
+            if (rd.state_only) {
                 bounds_.emplace_back();
                 Boundary& b = bounds_.back();
                 b.id = ++donor_ids_;
-                b.tokens = e->tokens;
-                b.classes = e->classes;
-                b.state = std::move(h);
-                b.disk = key;
+                b.tokens = std::move(rd.tokens);
+                b.classes = std::move(rd.classes);
+                b.state = std::move(rd.history);
+                key = &b.disk;
             } else {
                 host_.emplace_back();
                 HostDonor& d = host_.back();
                 d.id = ++donor_ids_;
-                d.tokens = e->tokens;
-                d.classes = e->classes;
-                d.history = std::move(h);
+                d.tokens = std::move(rd.tokens);
+                d.classes = std::move(rd.classes);
+                d.history = std::move(rd.history);
                 d.back = true;
-                d.disk = key;
-                d.through = through;
+                d.through = rd.through;
+                key = &d.disk;
             }
-            renew_disk(key, true);
-            std::fprintf(stderr, "server: an entry of %zu tokens read from disk, %.1f MiB\n", length, mib);
+            refresh_disk();
+            if (*key) disk_->renew(*key, true);
+            std::fprintf(stderr, "server: %s of %zu tokens read from disk, %.1f MiB\n", rd.state_only ? "a state" : "a history", length, mib);
         } else {
-            if (!through) host_held_ -= h.held;
-            model_.release_host(h);
-            if (through) quieted().trim_host(host_cap_ + parked_held());
-            if (!ok) forget_disk(key);
+            if (!rd.through) host_held_ -= rd.history.held;
+            model_.release_host(rd.history);
         }
         for (auto* q : {&queue_, &paused_})
             for (auto& r : *q)
-                if (r->disk_wait_ == key) end_wait(*r);
+                if (r->disk_wait_ == id) end_wait(*r);
     }
 
-    // Reads for waiting requests whose history an entry on disk shares more whole blocks of than any history on the devices or in host memory, each request looked for once, at most kDiskReads in flight and max_seqs requests waiting; a boundary is read with the copy that holds its rows where no history on the devices or in host memory does, the copy first.
+    // Reads for waiting requests whose history the disk holds more whole blocks of than any history on the devices or in host memory, each request looked for once, at most kDiskReads in flight and max_seqs requests waiting.
+    // On a model that keeps a state the path ends at a state, and where a history on the devices or in host memory holds its rows the state alone is read.
     // A request waits at most as long as recomputing the shared tokens would take at the measured prompt rate, and for its read alone until a pass has measured one.
     // Under the lock.
     void prefetch() {
-        if (disk_index_.empty() || !disk_->readable()) return;
+        if (!disk_files_ || !disk_->readable()) return;
+        const size_t bt = model_.kv_block_tokens();
         size_t waiting = 0;
         for (const auto* q : {&queue_, &paused_})
             for (const auto& r : *q) waiting += r->disk_wait_ != 0;
         for (auto* q : {&paused_, &queue_})
             for (auto& r : *q) {
                 if (r->disk_checked_ || r->disk_wait_ || r->cancel_.load() || waiting >= max_seqs_) continue;
-                size_t tokens = 0;
-                const size_t i = best_disk(*r, tokens);
+                // The request's history as it would compute it: its tokens but the last, under its own classes or, at its first admission, the class of its prompt.
+                const size_t limit = history_tokens(*r) - 1;
+                std::vector<uint32_t> tokens(limit);
+                for (size_t k = 0; k < limit; ++k) tokens[k] = *token_ptr(*r, k);
+                const std::vector<RowClass> first{RowClass{r->prompt_.size(), r->prompt_.size()}};
+                const std::vector<RowClass>& own = r->classes_.empty() ? first : r->classes_;
+                const std::vector<std::string> d = digests_of(tokens.data(), limit, own);
+                DiskIndex::Path path = disk_->index().path(d, bt, limit, model_.keeps_state());
+                // A state higher than the blocks on disk reach serves where a history in memory holds its rows.
+                const auto alone = model_.keeps_state() ? disk_->index().state_below(d, bt, limit) : std::nullopt;
+                if (alone && alone->first > path.length && rows_held(tokens, own, alone->first)) {
+                    path = DiskIndex::Path{};
+                    path.length = alone->first;
+                    path.state = alone->second;
+                }
                 size_t shared = 0, more = 0;
                 best_donor(*r, shared);
                 best_host(*r, more);
                 shared = std::max(shared, more);
                 best_bound(*r, more);
                 shared = std::max(shared, more);
-                if (i == disk_index_.size() || tokens <= shared) {
+                if (path.length <= shared) {
                     r->disk_checked_ = true;
                     continue;
                 }
-                std::vector<uint64_t> keys;
-                const DiskEntry& e = disk_index_[i];
-                if (e.boundary) {
-                    bool held = false;
-                    for (const Donor& d : donors_) held = held || holds(e.tokens, e.classes, e.length, d.tokens, d.classes, d.seq.length());
-                    // A copy in host memory holding its rows becomes the newest, so the room the reads take goes to others first.
-                    for (size_t h = 0; !held && h < host_.size(); ++h)
-                        if (holds(e.tokens, e.classes, e.length, host_[h].tokens, host_[h].classes, host_[h].history.length)) {
-                            if (host_[h].disk) renew_disk(host_[h].disk, host_[h].back);
-                            std::rotate(host_.begin() + (std::ptrdiff_t)h, host_.begin() + (std::ptrdiff_t)h + 1, host_.end());
-                            held = true;
-                        }
-                    for (size_t c = 0; !held && c < disk_index_.size(); ++c)
-                        if (!disk_index_[c].boundary && holds(e.tokens, e.classes, e.length, disk_index_[c].tokens, disk_index_[c].classes, disk_index_[c].length)) {
-                            keys.push_back(disk_index_[c].key);
-                            held = true;
-                        }
-                    if (!held) {
-                        r->disk_checked_ = true;
-                        continue;
-                    }
-                }
-                keys.push_back(e.key);
-                size_t fresh = 0;
-                for (uint64_t k : keys) fresh += !being_read(k);
-                if (disk_reads_.size() + fresh > kDiskReads) continue;
+                const bool state_only = model_.keeps_state() && rows_held(tokens, own, path.length, true);
+                if (disk_reads_.size() + 1 > kDiskReads) continue;
                 r->disk_checked_ = true;
-                bool started = true;
-                for (uint64_t k : keys) started = started && start_read(k);
-                if (!started) continue;
+                const uint64_t id = start_read(path, state_only, tokens, own);
+                if (!id) continue;
                 const auto now = std::chrono::steady_clock::now();
-                r->disk_wait_ = keys.back();
+                r->disk_wait_ = id;
                 r->disk_since_ = now;
-                r->disk_until_ = prompt_ms_row_ > 0 ? now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double, std::milli>((double)tokens * prompt_ms_row_))
+                r->disk_until_ = prompt_ms_row_ > 0 ? now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double, std::milli>((double)path.length * prompt_ms_row_))
                                                     : std::chrono::steady_clock::time_point::max();
                 ++disk_waits_;
                 ++waiting;
             }
     }
 
-    // Starts the read of entry `key` into slabs it takes host room for as a write-back does; true where it is being read.
+    // Whether a history on the devices or in host memory holds the first `n` rows of `tokens` computed as `classes` record, so a state alone at `n` can be forked.
+    // With `renew`, a copy in host memory that does becomes the newest, so the room a read takes goes to others first.
+    bool rows_held(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, bool renew = false) {
+        for (const Donor& d : donors_)
+            if (holds(tokens, classes, n, d.tokens, d.classes, d.seq.length())) return true;
+        for (size_t h = 0; h < host_.size(); ++h)
+            if (holds(tokens, classes, n, host_[h].tokens, host_[h].classes, host_[h].history.length)) {
+                if (renew) {
+                    if (host_[h].disk) disk_->renew(host_[h].disk, host_[h].back);
+                    std::rotate(host_.begin() + (std::ptrdiff_t)h, host_.begin() + (std::ptrdiff_t)h + 1, host_.end());
+                }
+                return true;
+            }
+        return false;
+    }
+
+    // Starts the read of a path into slabs it takes host room for as a write-back does, a history of `tokens` computed as `classes` record; the read's id, or 0 where the room or the memory is not to be had.
     // Under the lock.
-    bool start_read(uint64_t key) {
-        if (being_read(key)) return true;
-        const DiskEntry* e = find_disk(key);
-        if (!e) return false;
-        const size_t length = e->length;
-        const bool blocks = !e->boundary;
+    uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes) {
+        const size_t length = path.length;
+        const bool blocks = !state_only;
         const size_t bytes = model_.host_bytes(length, blocks);
         // A copy larger than the whole host tier, as a long conversation's is under a tier a host short of memory gave, is read through host memory beyond the tier: nothing is dropped for it, the host's own free memory decides, and it is kept only until its request has promoted it (disk_round).
         DiskRead rd;
-        rd.key = key;
         rd.through = blocks && bytes > host_cap_;
+        rd.state_only = state_only;
         if (!rd.through) {
-            if (bytes > host_cap_) return false;
+            if (bytes > host_cap_) return 0;
             while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
             release_written(bytes);
             while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
             while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
-            if (host_held_ + bytes > host_cap_) return false;
+            if (host_held_ + bytes > host_cap_) return 0;
         }
         try {
             quieted().alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
         } catch (const std::exception& x) {
-            std::fprintf(stderr, "server: an entry of %zu tokens was not read from disk (%s)\n", length, x.what());
-            return false;
+            std::fprintf(stderr, "server: a history of %zu tokens was not read from disk (%s)\n", length, x.what());
+            return 0;
+        }
+        rd.id = disk_->read(quieted(), path, rd.history, state_only);
+        if (!rd.id) {
+            model_.release_host(rd.history);
+            return 0;
         }
         if (!rd.through) host_held_ += rd.history.held;
-        disk_->read(key, rd.history, infer::Model::host_slab_bytes());
+        rd.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)length);
+        rd.classes = clip(classes, length);
+        const uint64_t id = rd.id;
         disk_reads_.push_back(std::move(rd));
-        return true;
-    }
-
-    bool being_read(uint64_t key) const {
-        for (const DiskRead& rd : disk_reads_)
-            if (rd.key == key) return true;
-        return false;
-    }
-    const DiskEntry* find_disk(uint64_t key) const {
-        for (const DiskEntry& e : disk_index_)
-            if (e.key == key) return &e;
-        return nullptr;
-    }
-
-    // The entry on disk sharing the most whole blocks with r's history, by best_donor's rule at its length on a model that keeps a state and for a boundary; disk_index_.size() when none shares a block.
-    size_t best_disk(const Request& r, size_t& tokens) const {
-        size_t best = disk_index_.size();
-        tokens = 0;
-        for (size_t i = 0; i < disk_index_.size(); ++i) {
-            const DiskEntry& e = disk_index_[i];
-            const size_t n = model_.keeps_state() || e.boundary ? shareable(r, e.tokens, e.classes, e.length, std::optional<size_t>(e.length))
-                                                                : shareable(r, e.tokens, e.classes, e.length, std::nullopt);
-            if (n > tokens) { tokens = n; best = i; }
-        }
-        return best;
+        return id;
     }
 
     // A pass of prompt rows measures the prompt rate a read's bound takes, a moving mean over passes of 64 rows or more.
@@ -2361,7 +2205,7 @@ private:
         prompt_ms_row_ = prompt_ms_row_ > 0 ? 0.75 * prompt_ms_row_ + 0.25 * per : per;
     }
 
-    // Once host entries not on disk hold more than three quarters of the host tier, the one it would drop next goes to disk while it stays a host entry: boundaries, oldest first, then copies whose conversations did not come back, oldest first, then the oldest copies; never a superseded copy, and one at a time.
+    // Once host entries not on disk hold more than three quarters of the host tier, the one it would drop next is written while it stays a host entry: boundaries, oldest first, then copies whose conversations did not come back, oldest first, then the oldest; one file at a time, each what its history lacks on disk.
     // Room taken later releases entries on disk at once (release_written), so a demotion never waits for a write and writes nothing the host tier keeps (docs/DISK-TIER.md, Demotion).
     // Under the lock.
     void write_ahead() {
@@ -2372,100 +2216,11 @@ private:
         for (const Boundary& b : bounds_)
             if (!b.disk) unwritten += b.state.held;
         if (unwritten <= host_cap_ / 4 * 3) return;
-        for (Boundary& b : bounds_)
-            if (!b.disk && start_write(true, b.id, b.tokens, b.classes, b.state, true, b.used)) return;
+        for (const Boundary& b : bounds_)
+            if (!b.disk && write_from(b)) return;
         for (const bool back : {false, true})
-            for (HostDonor& h : host_)
-                if (!h.disk && !h.superseded && h.back == back && start_write(false, h.id, h.tokens, h.classes, h.history, h.back, h.used)) return;
-    }
-
-    // Starts the write of a host entry where disk room can be made for it (disk_room); false where it cannot.
-    // Under the lock.
-    bool start_write(bool boundary, uint64_t id, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const infer::HostHistory& h, bool back,
-                     std::filesystem::file_time_type used) {
-        DiskEntry e;
-        e.used = used;
-        e.id = id;
-        e.boundary = boundary;
-        e.back = back;
-        e.tokens = tokens;
-        e.classes = classes;
-        e.length = h.length;
-        std::string blob = disk_blob(e);
-        e.bytes = DiskTier::file_bytes(blob.size(), h);
-        if (!disk_room(e.bytes, boundary || back)) return false;
-        // The copies into the slabs are done long before an entry is next to go; a fresh one waits for them here.
-        model_.wait_host(h);
-        disk_key_ = disk_->write(std::move(blob), h, infer::Model::host_slab_bytes());
-        disk_writing_ = id;
-        disk_writing_bound_ = boundary;
-        disk_cancelled_ = false;
-        disk_pending_ = std::move(e);
-        return true;
-    }
-
-    // Disk room for `bytes` more within the cap, entries going in the host tier's order carried down: boundaries no copy in any tier holds the rows of, which nothing can fork, then boundaries, oldest first, then copies whose conversations did not come back, oldest first, then the oldest.
-    // An entry whose conversation did not come back (`back` false) takes only free room and that of such copies and of those boundaries, the come-back rule of write_back; false, nothing removed, where the room cannot be made.
-    // Under the lock.
-    bool disk_room(uint64_t bytes, bool back) {
-        if (bytes > disk_->cap()) return false;
-        uint64_t used = disk_pending_.bytes;
-        for (const DiskEntry& e : disk_index_) used += e.bytes;
-        if (used + bytes <= disk_->cap()) return true;
-        const auto orphan = [&](const DiskEntry& b) {
-            if (!b.boundary) return false;
-            for (const Donor& d : donors_)
-                if (holds(b.tokens, b.classes, b.length, d.tokens, d.classes, d.seq.length())) return false;
             for (const HostDonor& h : host_)
-                if (holds(b.tokens, b.classes, b.length, h.tokens, h.classes, h.history.length)) return false;
-            for (const DiskEntry& c : disk_index_)
-                if (!c.boundary && holds(b.tokens, b.classes, b.length, c.tokens, c.classes, c.length)) return false;
-            return true;
-        };
-        // The order, as ranks: an entry of a rank the newcomer may not take is left.
-        const auto rank = [&](const DiskEntry& e) -> int {
-            if (being_read(e.key)) return -1;
-            if (orphan(e) || e.superseded) return 0;
-            if (e.boundary) return back ? 1 : -1;
-            if (!e.back) return 2;
-            return back ? 3 : -1;
-        };
-        std::vector<std::pair<int, size_t>> order;
-        uint64_t room = 0;
-        for (size_t i = 0; i < disk_index_.size(); ++i) {
-            const int r = rank(disk_index_[i]);
-            if (r < 0) continue;
-            order.push_back({r, i});
-            room += disk_index_[i].bytes;
-        }
-        if (used - room + bytes > disk_->cap()) return false;
-        std::stable_sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-        std::vector<uint64_t> gone;
-        for (const auto& o : order) {
-            if (used + bytes <= disk_->cap()) break;
-            used -= disk_index_[o.second].bytes;
-            gone.push_back(disk_index_[o.second].key);
-        }
-        for (uint64_t key : gone) forget_disk(key);
-        disk_capped_ += gone.size();
-        return true;
-    }
-
-    // An entry's blob in its file: its kind, whether its conversation came back, its length, tokens and row classes, from which a restart's index is rebuilt.
-    static std::string disk_blob(const DiskEntry& e) {
-        std::string b;
-        const auto put = [&](uint64_t v) { b.append(reinterpret_cast<const char*>(&v), sizeof v); };
-        put(e.boundary);
-        put(e.back);
-        put(e.length);
-        put(e.tokens.size());
-        b.append(reinterpret_cast<const char*>(e.tokens.data()), e.tokens.size() * sizeof(uint32_t));
-        put(e.classes.size());
-        for (const RowClass& c : e.classes) {
-            put(c.end);
-            put(c.extent);
-        }
-        return b;
+                if (!h.disk && !h.superseded && h.back == back && write_from(h)) return;
     }
 
     // Host donor i back on the devices as a donor of its own, its blocks and, on a model that keeps a state, its checkpoint slot taken as a first admission takes room, evicting older device donors to host memory; the host entry stays, renewed, so evicting the promoted donor again copies nothing.
@@ -2883,20 +2638,7 @@ private:
         for (HostDonor& h : host_)
             if (h.id != kept && supersedes(j, h.id, h.tokens)) {
                 h.superseded = true;
-                // A superseded copy is not written, and its file goes: at once without keep, and under keep once a newer copy of the conversation is on disk, so a crash meanwhile loses only what the conversation gained since (near_on_disk).
-                if (h.disk && !disk_->keeps()) {
-                    forget_disk(h.disk);
-                    h.disk = 0;
-                }
-                if (disk_writing_ == h.id && !disk_writing_bound_) cancel_disk_write();
             }
-        for (size_t i = 0; i < disk_index_.size();) {
-            DiskEntry& e = disk_index_[i];
-            const bool gone = !e.boundary && e.id != kept && supersedes(j, e.id, e.tokens);
-            if (gone && disk_->keeps()) e.superseded = true;
-            if (gone && !disk_->keeps()) forget_disk(e.key);
-            else ++i;
-        }
         std::stable_partition(donors_.begin(), donors_.end(), [](const Donor& d) { return d.superseded; });
         std::stable_partition(host_.begin(), host_.end(), [](const HostDonor& h) { return h.superseded; });
     }
@@ -2983,21 +2725,22 @@ private:
     size_t taken_back_ = 0;     // under the lock
     std::vector<size_t> reserved_;   // per cache pool, blocks promised to admitted requests and held by donors
     bool stopping_ = false;
-    // The disk tier (docs/DISK-TIER.md), under the lock: its index, oldest first, the host entry whose write is in flight, the slabs of one dropped while written, and the bytes written.
-    std::deque<DiskEntry> disk_index_;
-    uint64_t disk_writing_ = 0, disk_key_ = 0;
-    bool disk_writing_bound_ = false, disk_cancelled_ = false;
-    DiskEntry disk_pending_;
+    // The disk tier (docs/DISK-TIER.md), under the lock: the slabs of a host entry dropped while written, and the tier's figures as stats gives them, kept past the tier itself.
     std::vector<infer::HostHistory> disk_parked_;
-    uint64_t disk_written_ = 0;
+    uint64_t disk_written_ = 0, disk_bytes_ = 0;
+    size_t disk_files_ = 0;
+    bool disk_measured_ = false;
     bool disk_wake_ = false;
     // Reads from disk in flight, each into slabs counted in host_held_, and what they gave.
     std::vector<uint64_t> idle_tried_;   // the donors an idle server has copied towards disk (flush_one), under m_
     std::optional<std::chrono::steady_clock::time_point> idle_at_;   // when a server with nothing to do since may write ahead under keep (run), under m_
     struct DiskRead {
-        uint64_t key = 0;
+        uint64_t id = 0;
         infer::HostHistory history;
-        bool through = false;   // as HostDonor::through
+        bool through = false;      // as HostDonor::through
+        bool state_only = false;   // a state alone, for blocks a history on the devices or in host memory holds
+        std::vector<uint32_t> tokens;
+        std::vector<RowClass> classes;
     };
     std::deque<DiskRead> disk_reads_;
     size_t host_unwritten_ = 0, disk_capped_ = 0;   // Stats::host_unwritten and disk_capped, under the lock

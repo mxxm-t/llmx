@@ -13,9 +13,6 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 |
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which backend-vulkan --isa writes out for the hand check AGENTS.md asks at every row-kernel change; goes only with that check
 
 # Interfaces of an approved plan whose product caller is a later step.
-test-only | src/model/history.hpp | Model::save_host_blocks | 1 | disk increment, step 3 (docs/DISK-TIER.md, Planned: entries written as what changed): the scheduler's writes and reads of segments call it; until then only its tests do
-test-only | src/model/history.hpp | Model::host_ranges | 1 | disk increment, step 3 (docs/DISK-TIER.md, Planned: entries written as what changed): the scheduler's writes and reads of segments call it; until then only its tests do
-test-only | src/model/history.hpp | Model::host_state_ranges | 1 | disk increment, step 3 (docs/DISK-TIER.md, Planned: entries written as what changed): the scheduler's writes and reads of segments call it; until then only its tests do
 
 # Functions only test executables keep, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(unsigned long, int) const | 1 | the const read of a key block, which kv-cache takes on a storage it holds const; product code holds its storage mutable
@@ -27,6 +24,3 @@ linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBacke
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | a sequence's block count, which kv-cache reads to hold reuse, growth and release to the block; nothing else exposes it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user
-linked-test-only | src/model/runtime.hpp | infer::Model::save_host_blocks(infer::Sequence&, unsigned long, unsigned long, infer::HostHistory&, unsigned long) | 1 | disk increment, step 3 (docs/DISK-TIER.md, Planned: entries written as what changed): the scheduler's writes and reads of segments call it; until then only its tests do
-linked-test-only | src/model/runtime.hpp | infer::Model::host_ranges(infer::HostHistory const&, unsigned long, unsigned long) const | 1 | disk increment, step 3 (docs/DISK-TIER.md, Planned: entries written as what changed): the scheduler's writes and reads of segments call it; until then only its tests do
-linked-test-only | src/model/runtime.hpp | infer::Model::host_state_ranges(infer::HostHistory const&) const | 1 | disk increment, step 3 (docs/DISK-TIER.md, Planned: entries written as what changed): the scheduler's writes and reads of segments call it; until then only its tests do

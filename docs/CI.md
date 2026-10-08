@@ -51,7 +51,7 @@ The CPU backend currently uses x86 intrinsics, and CMake enables AVX2/FMA/F16C.
 The kernels use them with no runtime check, so that binary does not run on older CPUs.
 Intel macOS is intentional; ARM and a portable scalar build are not covered.
 
-The CPU jobs' limit is 15 minutes, 40 on macOS and 25 on Windows, whose job ran 16 min 49 s and 19 min 6 s on main's last two runs (37266284797 and 37262765652), and a fitted budget's settle waits in `arch-qwen35` then ended it at 20 minutes in its last step, every step before passing (run 37269626273).
+The CPU jobs' limit is 15 minutes, 40 on macOS and 35 on Windows. The Windows job ran 23 min 46 s and 24 min 5 s on main a0922bb62 and 07c21c6ee (runs 37778710464 and 37743681404), and was then ended at its 25 minutes twice on a branch that added no time to it, every step passing, the second time after its last step (runs 37778848475 and 37785016981); its build takes 6 minutes, the native tests 9 and the suite 6 and a half, and no test or check changes.
 The macOS allowance is based on the retained [timeout comparison](#macos-intel-timeout-2026-10-03); individual test timeouts and checks are unchanged.
 The UBSan job's limit is 25 minutes: its instrumented build and tests ran 14 min 36 s on main 235375a9, and the disk tier's tests then ended it at 15 minutes in the suite's last components, every step before passing, twice in a row (runs 37227214118 and 37235049535); the margin is the instrumented build's, and no test or check changes.
 The Vulkan job's limit is 25 minutes too: it ran 14 min 17 s on main 235375a9 and 14 min 46 s on a2f32b8f, and the disk tier's read-back tests then ended it at 15 minutes in its linked dead-code step, every step before passing (run 37246868334); no test or check changes.

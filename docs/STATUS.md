@@ -131,6 +131,13 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## The hosted Windows job's limit is 35 minutes (2026-10-08, branch ci/windows-limit, the workflow and its page only, lands by fast-forward)
+
+- **Why:** the job took 1426 and 1445 s of its 1500 on main `a0922bb62` and `07c21c6ee`, and was ended at the limit twice on feat/disk-increment-4 with every step passing, once after its last step; that branch's native tests take what main's do there, 550 s against 549 and 550.
+- **Done:** `timeout-minutes` for `windows-2022` is 35, and `docs/CI.md` gives the runs. No test, check or source changes.
+- **Left:** the job's time itself, 6 minutes of build, 9 of native tests and 6 and a half of the suite.
+- **Reviewed:** by F2DEV before landing.
+
 ## The tensor split runs routed experts (2026-10-07, branch feat/tp-moe, the tensor split's step 8, lands by fast-forward)
 
 - **Goal:** `--tensor-width N` on the mixture-of-experts models the layer split serves, qwen3moe and qwen35moe, which a group refused (`docs/TENSOR-SPLIT.md`, step 8).

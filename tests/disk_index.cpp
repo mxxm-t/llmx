@@ -162,6 +162,22 @@ int main() {
         require(!index.victim(at(150)).has_value(), "a use at 300 did not keep a conversation from the age limit at 150");
         require(index.victim(at(250))->key == wc[1] && !index.victim(at(250))->back && !index.victim(at(250), {wc[1]}), "the age limit at 250 does not take the conversation last used at 200");
 
+        // The age limit takes an expired conversation whole but for what a younger branch stands on: of two histories sharing their first 1024 tokens, the one last used at 100 loses its own segment and state at a limit of 250, and the one used at 400 stays whole on the shared base.
+        DiskIndex aged;
+        const std::vector<uint32_t> old = tokens(5, 24 * kBlock, 1024), young = tokens(6, 24 * kBlock, 1024);
+        const auto dold = digests(old, classed(old.size())), dyoung = digests(young, classed(young.size()));
+        const std::vector<uint64_t> wold = write(aged, dold, old.size(), true, 100, true), wyoung = write(aged, dyoung, young.size(), true, 400, true);
+        require(wold.size() == 3 && wyoung.size() == 2, "two histories sharing 1024 tokens were not written as a base, a segment each and a state each");
+        size_t expired = 0;
+        for (std::optional<DiskIndex::Victim> v; (v = aged.victim(at(250)));) {
+            require(v->key == wold[1] || v->key == wold[2], "the age limit took a file the younger history stands on, or one of its own");
+            aged.remove(v->key);
+            ++expired;
+        }
+        require(expired == 2 && aged.files().size() == 3 && aged.unreachable().empty() && aged.path(dyoung, kBlock, young.size(), true).length == young.size(),
+                "an expired conversation did not go whole, or the branch sharing its base is not whole after it");
+        require(aged.path(dold, kBlock, old.size(), false).length == 1024, "the expired conversation's shared base is not what is left of it");
+
         // A file lost from the middle of a path leaves everything above it unreachable and the path below whole.
         const std::vector<uint64_t> wa = write(index, da, third_turn, true, 400);
         require(wa.size() == 4, "a conversation written again is not three segments and a state");

@@ -11,6 +11,7 @@
 #include <mutex>
 #include <set>
 
+#include "server/disk_index.hpp"
 #include "server_harness.hpp"
 
 namespace {
@@ -2419,6 +2420,247 @@ void disk_increment(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab,
     same(serve(*fresh, tok, 3, {{edit}})[0], edit_got, what + ", the edit");
 }
 
+// What a file of a kept directory is, read from its header as a start reads it: a segment's range or a state's position.
+struct OnDisk {
+    fs::path path;
+    bool state = false;
+    size_t first = 0, end = 0;
+};
+std::vector<OnDisk> described(const DiskRoot& disk) {
+    std::vector<OnDisk> out;
+    for (const fs::path& file : disk.files(".kv")) {
+        std::ifstream in(file, std::ios::binary);
+        std::string head(size_t(1) << 20, 0);
+        in.read(head.data(), (std::streamsize)head.size());
+        uint64_t blob = 0, chunks = 0;
+        uint32_t runs = 0;
+        std::memcpy(&blob, head.data() + 52, 8);
+        std::memcpy(&runs, head.data() + 60, 4);
+        std::memcpy(&chunks, head.data() + 64 + 8 * (size_t)runs, 8);
+        const size_t from = 72 + 8 * (size_t)runs + 4 * (size_t)chunks;
+        server::DiskIndex::File f;
+        require(in.gcount() == (std::streamsize)head.size() && from + blob <= head.size() && server::DiskIndex::parse(head.substr(from, (size_t)blob), f), "a kept file's description did not read: " + file.u8string());
+        out.push_back(OnDisk{file, f.state, f.first, f.end});
+    }
+    std::sort(out.begin(), out.end(), [](const OnDisk& a, const OnDisk& b) { return a.state != b.state ? !a.state : a.end < b.end; });
+    return out;
+}
+
+// Files lost or damaged between two servers (docs/DISK-TIER.md, Crash safety, case by case), on `make`'s model: one conversation of three turns is written while idle and its directory kept; each case then starts a scheduler on a copy of that directory with one fault in it.
+// The start must keep exactly the files a whole path from an empty history still reaches, and the conversation's next turn must fork what those files give, their segments end to end and, on a model that keeps a state, the highest state on them, with the reply of a fresh model.
+// The faults: a segment lost from the middle of the path, the first segment lost, a temporary file a crash left, a byte flipped in the second segment's payload, which adoption cannot see and the read finds, and on a model that keeps a state its newest state lost and every state lost.
+void disk_faults(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    DiskRoot kept("faults");
+    const auto options_of = [](const DiskRoot& d) {
+        server::DiskOptions o = d.options(uint64_t(1) << 30);
+        o.keep = true;
+        return o;
+    };
+    std::vector<uint32_t> prompt = prompt_of(41, 1200, vocab);
+    {
+        auto model = make(4096, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options_of(kept));
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            const size_t more[3] = {0, 200, 500};
+            for (size_t turn = 0; turn < 3; ++turn) {
+                if (more[turn]) {
+                    const std::vector<uint32_t> tail = prompt_of(42 + (uint32_t)turn, more[turn], vocab);
+                    prompt.insert(prompt.end(), tail.begin(), tail.end());
+                }
+                const uint64_t before = sched.stats().disk_bytes_written;
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 20}));
+                for (uint32_t id : ids_of(drain(*h))) prompt.push_back(id);
+                prompt.push_back(1);
+                prompt.push_back(2);
+                sched.follow(h, prompt, true);
+                within_a_minute([&] { return sched.stats().reprefills == turn + 1; }, what + ": reply " + std::to_string(turn + 1) + " read again");
+                uint64_t seen = 0;
+                auto still = std::chrono::steady_clock::now();
+                within_a_minute([&] {
+                    const auto stats = sched.stats();
+                    if (stats.disk_bytes_written != seen || stats.disk_in_flight) {
+                        seen = stats.disk_bytes_written;
+                        still = std::chrono::steady_clock::now();
+                    }
+                    return seen > before && std::chrono::steady_clock::now() - still > std::chrono::seconds(2);
+                }, what + ": turn " + std::to_string(turn + 1) + " written while idle");
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const bool state = make(4096, 16)->keeps_state();
+    const std::vector<OnDisk> whole = described(kept);
+    size_t segments = 0;
+    for (const OnDisk& f : whole) segments += !f.state;
+    require(segments >= 3 && whole[0].first == 0 && whole[0].end == 1024 && (!state || whole.size() >= segments + 2),
+            what + ": the conversation was kept as " + std::to_string(segments) + " segments and " + std::to_string(whole.size() - segments) + " states, too few for the faults");
+    Req follow{prompt, 24};
+    const std::vector<uint32_t> tail = prompt_of(40, 30, vocab);
+    follow.prompt.insert(follow.prompt.end(), tail.begin(), tail.end());
+    auto fresh = make(4096, 16);
+    const Reply alone = serve(*fresh, tok, 3, {{follow}})[0];
+
+    // What a start keeps of the files `left`, and what the next turn forks of them: the segments from 0 end to end, the states on them, and the highest of those or, without states, the segments' end.
+    // A server that loses a segment while it runs (`running`) keeps the states above it until its next start: the history is computed again and its blocks written again under them.
+    struct Usable {
+        size_t files = 0, states = 0, reuse = 0;
+    };
+    const auto usable = [&](const std::vector<OnDisk>& left, bool running) {
+        Usable u;
+        size_t cover = 0;
+        for (bool more = true; more;) {
+            more = false;
+            for (const OnDisk& f : left)
+                if (!f.state && f.first == cover && f.end > cover) {
+                    cover = f.end;
+                    ++u.files;
+                    more = true;
+                }
+        }
+        for (const OnDisk& f : left)
+            if (f.state && (running || f.end <= cover)) {
+                ++u.files;
+                ++u.states;
+                u.reuse = std::max(u.reuse, f.end);
+            }
+        if (!state) u.reuse = cover;
+        return u;
+    };
+    // One case: `fault` damages a copy of the kept directory; `late` says the start cannot see it, so every file is adopted and the read finds it.
+    const auto run = [&](const std::string& name, const std::function<void(const std::vector<OnDisk>&, std::vector<OnDisk>&)>& fault, bool late = false) {
+        const std::string at = what + ", " + name;
+        DiskRoot disk("fault");
+        fs::copy(kept.root, disk.root, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+        const std::vector<OnDisk> files = described(disk);
+        std::vector<OnDisk> left = files;
+        fault(files, left);
+        const Usable u = usable(left, late);
+        auto model = make(4096, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options_of(disk));
+        std::thread runner([&] { sched.run(); });
+        Reply got;
+        size_t reused = 0;
+        server::Scheduler::Stats after;
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, at + ": the disk tier made");
+            const auto f = sched.submit(follow.prompt, params_of(follow));
+            got = drain(*f);
+            reused = f->reused();
+            after = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        require(disk.files(".tmp").empty(), at + ": a temporary file is left");
+        require(after.disk_entries == u.files, at + ": " + std::to_string(after.disk_entries) + " files are kept, against the " + std::to_string(u.files) + " a whole path reaches");
+        require(late ? after.disk_errors == 1 : (after.disk_errors == 0 && reused == u.reuse),
+                at + ": the next turn reused " + std::to_string(reused) + " tokens with " + std::to_string(after.disk_errors) + " errors, against " + std::to_string(u.reuse));
+        same(alone, got, at);
+    };
+    const auto lose = [](std::vector<OnDisk>& left, const fs::path& file) {
+        fs::remove(file);
+        left.erase(std::remove_if(left.begin(), left.end(), [&](const OnDisk& f) { return f.path == file; }), left.end());
+    };
+    run("a segment lost from the middle of the path", [&](const std::vector<OnDisk>& files, std::vector<OnDisk>& left) { lose(left, files[1].path); });
+    run("the first segment lost", [&](const std::vector<OnDisk>& files, std::vector<OnDisk>& left) { lose(left, files[0].path); });
+    run("a temporary file a crash left", [&](const std::vector<OnDisk>& files, std::vector<OnDisk>&) { std::ofstream(files[0].path.parent_path() / "entry-9999.tmp", std::ios::binary) << "half a file"; });
+    run("a byte flipped in the second segment", [&](const std::vector<OnDisk>& files, std::vector<OnDisk>& left) {
+        std::fstream f(files[1].path, std::ios::binary | std::ios::in | std::ios::out);
+        f.seekg((std::streamoff)(size_t(1) << 20) + 100);
+        char c = 0;
+        f.get(c);
+        f.seekp((std::streamoff)(size_t(1) << 20) + 100);
+        f.put((char)(c ^ 0x40));
+        // The read finds it: the file goes, and the segments above it with it.
+        left.erase(std::remove_if(left.begin(), left.end(), [&](const OnDisk& x) { return !x.state && x.first >= files[1].first; }), left.end());
+    }, true);
+    if (!state) return;
+    run("the newest state lost", [&](const std::vector<OnDisk>& files, std::vector<OnDisk>& left) { lose(left, files.back().path); });
+    run("every state lost", [&](const std::vector<OnDisk>& files, std::vector<OnDisk>& left) {
+        for (const OnDisk& f : files)
+            if (f.state) lose(left, f.path);
+    });
+}
+
+// The cap never takes a file another stands on (docs/DISK-TIER.md, Room, the cap and the age limit): with disk room for the two segments of a conversation's first turn and no more, its second turn's segment finds only files it would stand on, so it is not written and nothing is deleted for it.
+// The two files stay through eight idle seconds and the stop, and a second scheduler forks their 1152 tokens for the next turn with the reply of a fresh model.
+void disk_cap_base(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "the cap and a conversation's base";
+    DiskRoot disk("capbase");
+    server::DiskOptions options = disk.options(5 << 20);
+    options.keep = true;
+    std::vector<uint32_t> prompt = prompt_of(45, 1200, vocab);
+    {
+        auto model = make(4096, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            for (size_t turn = 0; turn < 2; ++turn) {
+                if (turn) {
+                    const std::vector<uint32_t> tail = prompt_of(46, 200, vocab);
+                    prompt.insert(prompt.end(), tail.begin(), tail.end());
+                }
+                const auto h = sched.submit(prompt, params_of(Req{prompt, 20}));
+                for (uint32_t id : ids_of(drain(*h))) prompt.push_back(id);
+                prompt.push_back(1);
+                prompt.push_back(2);
+                sched.follow(h, prompt, true);
+                within_a_minute([&] { return sched.stats().reprefills == turn + 1; }, what + ": reply " + std::to_string(turn + 1) + " read again");
+                if (!turn) within_a_minute([&] { return sched.stats().disk_entries == 2 && !sched.stats().disk_in_flight; }, what + ": the first turn's two segments written while idle");
+                else std::this_thread::sleep_for(std::chrono::seconds(8));
+                const auto stats = sched.stats();
+                require(stats.disk_entries == 2 && stats.disk_capped == 0 && stats.disk_errors == 0 && stats.disk_writing,
+                        what + ": after turn " + std::to_string(turn + 1) + " " + std::to_string(stats.disk_entries) + " files are on disk and " + std::to_string(stats.disk_capped) + " were deleted for the cap, against the first turn's two and none");
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const std::vector<OnDisk> files = described(disk);
+    require(files.size() == 2 && files[0].first == 0 && files[0].end == 1024 && files[1].first == 1024 && files[1].end == 1152, what + ": the stop did not leave the first turn's two segments");
+    Req follow{prompt, 24};
+    const std::vector<uint32_t> tail = prompt_of(40, 30, vocab);
+    follow.prompt.insert(follow.prompt.end(), tail.begin(), tail.end());
+    options.bytes = uint64_t(1) << 30;
+    Reply got;
+    size_t reused = 0;
+    {
+        auto model = make(4096, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the second disk tier made");
+            const auto f = sched.submit(follow.prompt, params_of(follow));
+            got = drain(*f);
+            reused = f->reused();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 1152, what + ": the next turn after the restart reused " + std::to_string(reused) + " tokens, against the 1152 on disk");
+    auto fresh = make(4096, 16);
+    same(serve(*fresh, tok, 3, {{follow}})[0], got, what);
+}
+
 void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t restart_host = 4 * ((size_t)64 << 20), size_t first_host = 4 * ((size_t)64 << 20)) {
     const bool through = restart_host < ((size_t)64 << 20), beyond = first_host < ((size_t)64 << 20);
     const std::string what = beyond ? "entries written from a host tier smaller than an entry" : through ? "entries kept across a restart into a host tier smaller than an entry" : "entries kept across a restart";
@@ -2626,6 +2868,9 @@ int main(int argc, char** argv) {
             disk_flush(one, tok, vocab);
             disk_increment(one, tok, vocab, "disk writes of what changed");
             disk_increment(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "disk writes of what changed, a model keeping a state");
+            disk_faults(one, tok, vocab, "files lost between two servers");
+            disk_faults(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "files lost between two servers, a model keeping a state");
+            disk_cap_base(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);

@@ -301,6 +301,18 @@ What would work instead, if this is ever picked up:
 - Payoff: no build step for users, and kernels updatable without shipping a new
   llmx binary
 
+## 10. Image and audio input **[design]**
+The Qwen 3.5 and 3.6 checkpoints are vision-language models, and llmx runs their text part only: the reference checkpoints carry a vision tower (`model.visual.*`, which the reference generator lists as unused, `docs/ASSETS.md`), a GGUF keeps its projector in a separate `mmproj` file, and nothing in `src/` reads one.
+This item adds image input for those checkpoints, then audio input and omni models.
+Its place in the order is not fixed: it is taken up when it makes most sense against the items above.
+Before it starts, the cache key and the chat routes' message handling should leave room for non-text parts, since both are built on token ids and text today.
+- **The vision encoder** is a module under `model/arch/` with its backend kernels on the CPU and on Vulkan, built in the order and held to the gates of `docs/ADDING-AN-ARCHITECTURE.md`: the HF reference on tiny random-weight fixtures and on the released files.
+- **Image decoding** is written here, since the runtime has no dependencies: PNG and JPEG first, other formats when a use asks.
+- **A prompt of token ids and encoder rows**: the model reads rows from the encoder at the places the template marks, and gives them the positions these models give image rows, so the runtime's history holds rows that are not token ids.
+- **The chat routes** accept image content parts. The compatible route refuses everything but text parts today (`only text content parts are supported`, `src/server/api.hpp`).
+- **Cache identity**: prefix reuse, checkpoints and the disk tier key a history by its token ids and row classes (`src/server/disk_index.hpp`). A row from an encoder is keyed by a digest of its content beside the token ids, so a repeated image reuses what it computed and a changed one does not, in every tier, with saved caches kept.
+- **Audio input and audio output** follow images, with an audio encoder as a module of the same kind, an audio decoder written here, and the omni models' output side after that.
+
 ## Non-goals (for now)
 - Training / fine-tuning in-tree
 - Dependencies - keep the "no external libs" property as long as practical

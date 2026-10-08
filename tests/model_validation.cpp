@@ -706,6 +706,10 @@ void placement_checks() {
     auto device = std::make_shared<LoadingBackend>();
     device->set_threads(1);
     rejects("experts on the CPU of a model without routed layers", [&] { infer::place_model(weights, {device}, request, options); });
+    // A width a model's shards cannot take is refused by its name before the fit reads a member's shards: a Q8_0 feed-forward width of 96, 48 columns a member of two.
+    request = {}; request.width = 2; request.names = {"a", "b"};
+    const gguf::GGUFModel off_block = infer::synthetic_model({1, 64, 96, 2, 2, 32, 64, 7u});
+    rejects("a tensor width refused before the fit", [&] { infer::place_model(infer::gguf_weights(off_block), {cpu(), cpu()}, request, options); });
     request = {};
     rejects("a split without device names", [&] { infer::place_model(weights, {cpu(), cpu()}, request, options); });
     request.names = {"a", "b"}; request.shares = {1, 1, 1};

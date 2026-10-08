@@ -379,6 +379,7 @@ histories over a null backend: inference: missing backend
 experts on the CPU beside two devices: --n-cpu-moe: not with several devices; list the CPU as a device to give it layers
 experts on the CPU with layer shares: --cpu-moe: not with several devices; list the CPU as a device to give it layers
 experts on the CPU of a model without routed layers: --n-cpu-moe: the model has no expert layers
+a tensor width refused before the fit: inference: a tensor width of 2 splits blk.0.ffn_down.weight off whole Q8_0 blocks
 a split without device names: split: a name for every device
 three layer shares for two devices: split: 3 layer shares for 2 devices
 every layer share zero: split: every layer share is zero

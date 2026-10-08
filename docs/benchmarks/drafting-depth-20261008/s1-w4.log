@@ -1,0 +1,128 @@
+== w4 15:33:30 load 12.54 8.66 8.89
+group of four default draft-max off | prompt 1 | greedy | 96 | 26.9 (26.9, 28.8, 25.5) | - | by position kept/fed 
+group of four default draft-max off | prompt 1 | greedy | 512 | 17.9 (19.2, 17.9, 17.5) | - | by position kept/fed 
+group of four default draft-max off | prompt 1 | seeded | 96 | 18.1 (18.1, 19.2, 17.7) | - | by position kept/fed 
+group of four default draft-max off | prompt 1 | seeded | 512 | 20.6 (17.6, 21.5, 20.6) | - | by position kept/fed 
+group of four default draft-max off | prompt 2 | greedy | 96 | 17.8 (17.8, 16.6, 18.0) | - | by position kept/fed 
+group of four default draft-max off | prompt 2 | greedy | 512 | 20.9 (20.9, 19.0, 28.5) | - | by position kept/fed 
+group of four default draft-max off | prompt 2 | seeded | 96 | 31.8 (27.5, 31.8, 32.3) | - | by position kept/fed 
+group of four default draft-max off | prompt 2 | seeded | 512 | 28.9 (30.7, 28.0, 28.9) | - | by position kept/fed 
+group of four default draft-max off | by position, both prompts: []
+group of four default draft-max 3 | prompt 1 | greedy | 96 | 47.0 (40.4, 47.0, 48.3) | 167 of 342 | by position kept/fed 1:76/114 2:55/114 3:36/114
+group of four default draft-max 3 | prompt 1 | greedy | 512 | 68.8 (69.5, 68.8, 66.1) | 1090 of 1282 | by position kept/fed 1:390/428 2:362/428 3:338/426
+group of four default draft-max 3 | prompt 1 | seeded | 96 | 50.1 (51.6, 50.1, 49.0) | 183 of 297 | by position kept/fed 1:77/99 2:61/99 3:45/99
+group of four default draft-max 3 | prompt 1 | seeded | 512 | 66.7 (60.9, 66.7, 66.8) | 1054 of 1386 | by position kept/fed 1:404/463 2:340/463 3:310/460
+group of four default draft-max 3 | prompt 2 | greedy | 96 | 77.9 (77.9, 76.6, 80.2) | 211 of 211 | by position kept/fed 1:72/72 2:70/70 3:69/69
+group of four default draft-max 3 | prompt 2 | greedy | 512 | 75.0 (73.7, 75.2, 75.0) | 1104 of 1236 | by position kept/fed 1:387/415 2:368/412 3:349/409
+group of four default draft-max 3 | prompt 2 | seeded | 96 | 73.6 (72.9, 74.0, 73.6) | 204 of 234 | by position kept/fed 1:69/78 2:69/78 3:66/78
+group of four default draft-max 3 | prompt 2 | seeded | 512 | 60.5 (59.8, 60.7, 60.5) | 997 of 1458 | by position kept/fed 1:384/486 2:322/486 3:291/486
+group of four default draft-max 3 | by position, both prompts: [{"position": 1, "drafted": 2155, "kept": 1859}, {"position": 2, "drafted": 2150, "kept": 1647}, {"position": 3, "drafted": 2141, "kept": 1504}]
+group of four default draft-max 4 | prompt 1 | greedy | 96 | 48.0 (43.4, 48.0, 51.1) | 178 of 415 | by position kept/fed 1:75/105 2:53/105 3:29/104 4:21/101
+group of four default draft-max 4 | prompt 1 | greedy | 512 | 74.9 (78.4, 72.9, 74.9) | 1131 of 1400 | by position kept/fed 1:362/396 2:335/396 3:305/396 4:129/212
+group of four default draft-max 4 | prompt 1 | seeded | 96 | 55.0 (54.8, 55.0, 58.0) | 186 of 350 | by position kept/fed 1:73/99 2:58/99 3:41/98 4:14/54
+group of four default draft-max 4 | prompt 1 | seeded | 512 | 70.7 (70.8, 70.7, 70.6) | 1119 of 1618 | by position kept/fed 1:326/405 2:279/405 3:262/405 4:252/403
+group of four default draft-max 4 | prompt 2 | greedy | 96 | 90.1 (90.1, 85.8, 92.5) | 225 of 231 | by position kept/fed 1:60/60 2:57/57 3:57/57 4:51/57
+group of four default draft-max 4 | prompt 2 | greedy | 512 | 84.7 (84.7, 84.8, 84.5) | 1185 of 1353 | by position kept/fed 1:320/342 2:306/339 3:290/336 4:269/336
+group of four default draft-max 4 | prompt 2 | seeded | 96 | 79.9 (80.0, 79.9, 79.8) | 216 of 264 | by position kept/fed 1:57/66 2:57/66 3:57/66 4:45/66
+group of four default draft-max 4 | prompt 2 | seeded | 512 | 65.7 (65.8, 65.7, 64.9) | 1088 of 1749 | by position kept/fed 1:338/438 2:282/438 3:255/438 4:213/435
+group of four default draft-max 4 | by position, both prompts: [{"position": 1, "drafted": 1911, "kept": 1611}, {"position": 2, "drafted": 1905, "kept": 1427}, {"position": 3, "drafted": 1900, "kept": 1296}, {"position": 4, "drafted": 1664, "kept": 994}]
+group of four default draft-max 5 | prompt 1 | greedy | 96 | 43.8 (37.5, 43.8, 44.7) | 180 of 497 | by position kept/fed 1:70/102 2:47/101 3:24/100 4:21/97 5:18/97
+group of four default draft-max 5 | prompt 1 | greedy | 512 | 62.9 (76.1, 62.9, 50.3) | 1170 of 1550 | by position kept/fed 1:327/362 2:296/361 3:261/357 4:184/279 5:102/191
+group of four default draft-max 5 | prompt 1 | seeded | 96 | 34.9 (34.0, 34.9, 35.3) | 193 of 392 | by position kept/fed 1:68/92 2:51/92 3:39/89 4:30/89 5:5/30
+group of four default draft-max 5 | prompt 1 | seeded | 512 | 48.4 (48.4, 48.4, 51.4) | 1160 of 1711 | by position kept/fed 1:298/372 2:259/372 3:240/369 4:224/369 5:139/229
+group of four default draft-max 5 | prompt 2 | greedy | 96 | 64.3 (68.0, 64.3, 62.0) | 236 of 239 | by position kept/fed 1:48/48 2:48/48 3:48/48 4:48/48 5:44/47
+group of four default draft-max 5 | prompt 2 | greedy | 512 | 57.1 (55.6, 57.1, 60.7) | 1229 of 1476 | by position kept/fed 1:270/300 2:258/297 3:240/294 4:233/294 5:228/291
+group of four default draft-max 5 | prompt 2 | seeded | 96 | 60.4 (64.5, 56.9, 60.4) | 225 of 282 | by position kept/fed 1:48/57 2:48/57 3:48/57 4:42/57 5:39/54
+group of four default draft-max 5 | prompt 2 | seeded | 512 | 42.9 (44.1, 42.9, 41.8) | 1122 of 2026 | by position kept/fed 1:312/407 2:249/407 3:216/404 4:184/404 5:161/404
+group of four default draft-max 5 | by position, both prompts: [{"position": 1, "drafted": 1740, "kept": 1441}, {"position": 2, "drafted": 1735, "kept": 1256}, {"position": 3, "drafted": 1718, "kept": 1116}, {"position": 4, "drafted": 1637, "kept": 966}, {"position": 5, "drafted": 1343, "kept": 736}]
+group of four default draft-max 6 | prompt 1 | greedy | 96 | 37.4 (37.4, 38.3, 30.8) | 184 of 572 | by position kept/fed 1:70/100 2:43/99 3:24/99 4:20/95 5:17/95 6:10/84
+group of four default draft-max 6 | prompt 1 | greedy | 512 | 59.4 (60.1, 59.4, 51.3) | 1164 of 1640 | by position kept/fed 1:336/367 2:299/367 3:147/237 4:137/234 5:131/232 6:114/203
+group of four default draft-max 6 | prompt 1 | seeded | 96 | 35.2 (31.3, 39.3, 35.2) | 185 of 351 | by position kept/fed 1:75/100 2:57/100 3:32/75 4:16/45 5:4/21 6:1/10
+group of four default draft-max 6 | prompt 1 | seeded | 512 | 55.7 (42.2, 55.7, 64.8) | 1157 of 1734 | by position kept/fed 1:318/376 2:275/376 3:253/374 4:137/241 5:114/229 6:60/138
+group of four default draft-max 6 | prompt 2 | greedy | 96 | 104.1 (106.0, 92.5, 104.1) | 243 of 243 | by position kept/fed 1:42/42 2:42/42 3:42/42 4:39/39 5:39/39 6:39/39
+group of four default draft-max 6 | prompt 2 | greedy | 512 | 86.8 (86.8, 87.5, 82.8) | 1263 of 1569 | by position kept/fed 1:243/267 2:222/264 3:213/261 4:201/261 5:195/258 6:189/258
+group of four default draft-max 6 | prompt 2 | seeded | 96 | 83.5 (69.7, 83.5, 84.3) | 231 of 297 | by position kept/fed 1:42/51 2:42/51 3:39/51 4:36/51 5:36/48 6:36/45
+group of four default draft-max 6 | prompt 2 | seeded | 512 | 59.8 (59.8, 58.7, 60.4) | 1122 of 2127 | by position kept/fed 1:311/411 2:249/411 3:224/411 4:194/405 5:78/260 6:66/229
+group of four default draft-max 6 | by position, both prompts: [{"position": 1, "drafted": 1714, "kept": 1437}, {"position": 2, "drafted": 1710, "kept": 1229}, {"position": 3, "drafted": 1550, "kept": 974}, {"position": 4, "drafted": 1371, "kept": 780}, {"position": 5, "drafted": 1182, "kept": 614}, {"position": 6, "drafted": 1006, "kept": 515}]
+group of four default draft-max 7 | prompt 1 | greedy | 96 | 35.6 (32.0, 35.6, 37.1) | 102 of 166 | by position kept/fed 1:93/139 2:2/6 3:2/6 4:2/6 5:1/3 6:1/3 7:1/3
+group of four default draft-max 7 | prompt 1 | greedy | 512 | 70.8 (56.3, 70.8, 71.1) | 1054 of 1323 | by position kept/fed 1:424/461 2:266/310 3:248/309 4:43/94 5:39/83 6:34/64 7:0/2
+group of four default draft-max 7 | prompt 1 | seeded | 96 | 56.1 (56.7, 55.7, 56.1) | 190 of 360 | by position kept/fed 1:71/95 2:57/95 3:42/94 4:12/36 5:5/23 6:3/17 7:0/0
+group of four default draft-max 7 | prompt 1 | seeded | 512 | 70.2 (67.8, 70.2, 70.7) | 1096 of 1511 | by position kept/fed 1:369/435 2:312/435 3:286/435 4:123/180 5:3/13 6:2/11 7:1/2
+group of four default draft-max 7 | prompt 2 | greedy | 96 | 105.6 (106.4, 95.0, 105.6) | 243 of 243 | by position kept/fed 1:42/42 2:42/42 3:42/42 4:39/39 5:39/39 6:39/39 7:0/0
+group of four default draft-max 7 | prompt 2 | greedy | 512 | 87.6 (87.7, 87.6, 87.6) | 1263 of 1569 | by position kept/fed 1:243/267 2:222/264 3:213/261 4:201/261 5:195/258 6:189/258 7:0/0
+group of four default draft-max 7 | prompt 2 | seeded | 96 | 84.1 (84.1, 84.0, 84.2) | 231 of 297 | by position kept/fed 1:42/51 2:42/51 3:39/51 4:36/51 5:36/48 6:36/45 7:0/0
+group of four default draft-max 7 | prompt 2 | seeded | 512 | 61.9 (61.9, 62.8, 60.2) | 1100 of 1985 | by position kept/fed 1:334/433 2:273/433 3:245/433 4:160/349 5:46/175 6:42/161 7:0/1
+group of four default draft-max 7 | by position, both prompts: [{"position": 1, "drafted": 1923, "kept": 1618}, {"position": 2, "drafted": 1636, "kept": 1216}, {"position": 3, "drafted": 1631, "kept": 1117}, {"position": 4, "drafted": 1016, "kept": 616}, {"position": 5, "drafted": 642, "kept": 364}, {"position": 6, "drafted": 598, "kept": 346}, {"position": 7, "drafted": 8, "kept": 2}]
+group of four default draft-max 8 | prompt 1 | greedy | 96 | 46.6 (34.1, 46.6, 49.3) | 148 of 264 | by position kept/fed 1:83/120 2:43/87 3:17/42 4:1/3 5:1/3 6:1/3 7:1/3 8:1/3
+group of four default draft-max 8 | prompt 1 | greedy | 512 | 62.8 (63.0, 62.8, 60.6) | 987 of 1136 | by position kept/fed 1:501/546 2:459/522 3:14/40 4:3/6 5:3/6 6:3/6 7:2/5 8:2/5
+group of four default draft-max 8 | prompt 1 | seeded | 96 | 52.5 (53.4, 51.4, 52.5) | 165 of 247 | by position kept/fed 1:98/120 2:66/120 3:1/2 4:0/1 5:0/1 6:0/1 7:0/1 8:0/1
+group of four default draft-max 8 | prompt 1 | seeded | 512 | 66.5 (58.6, 66.5, 69.8) | 1050 of 1376 | by position kept/fed 1:410/481 2:357/480 3:141/197 4:137/197 5:2/8 6:1/5 7:1/4 8:1/4
+group of four default draft-max 8 | prompt 2 | greedy | 96 | 90.0 (91.2, 81.8, 90.0) | 225 of 231 | by position kept/fed 1:60/60 2:57/57 3:57/57 4:51/57 5:0/0 6:0/0 7:0/0 8:0/0
+group of four default draft-max 8 | prompt 2 | greedy | 512 | 83.2 (83.5, 83.2, 83.0) | 1189 of 1361 | by position kept/fed 1:320/341 2:305/338 3:290/335 4:270/335 5:1/3 6:1/3 7:1/3 8:1/3
+group of four default draft-max 8 | prompt 2 | seeded | 96 | 79.5 (79.5, 78.1, 79.7) | 216 of 264 | by position kept/fed 1:57/66 2:57/66 3:57/66 4:45/66 5:0/0 6:0/0 7:0/0 8:0/0
+group of four default draft-max 8 | prompt 2 | seeded | 512 | 62.1 (62.2, 62.1, 58.8) | 1076 of 1753 | by position kept/fed 1:357/457 2:299/457 3:261/457 4:102/279 5:30/49 6:27/48 7:0/3 8:0/3
+group of four default draft-max 8 | by position, both prompts: [{"position": 1, "drafted": 2191, "kept": 1886}, {"position": 2, "drafted": 2127, "kept": 1643}, {"position": 3, "drafted": 1196, "kept": 838}, {"position": 4, "drafted": 944, "kept": 609}, {"position": 5, "drafted": 70, "kept": 37}, {"position": 6, "drafted": 66, "kept": 33}, {"position": 7, "drafted": 19, "kept": 5}, {"position": 8, "drafted": 19, "kept": 5}]
+group of four --dtype int8 draft-max off | prompt 1 | greedy | 96 | 29.5 (29.1, 29.5, 30.8) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 1 | greedy | 512 | 30.5 (29.9, 30.6, 30.5) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 1 | seeded | 96 | 31.2 (31.0, 31.2, 31.2) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 1 | seeded | 512 | 31.0 (30.9, 31.1, 31.0) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 2 | greedy | 96 | 30.2 (31.2, 30.0, 30.2) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 2 | greedy | 512 | 30.7 (30.6, 30.8, 30.7) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 2 | seeded | 96 | 30.3 (30.3, 30.2, 30.3) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | prompt 2 | seeded | 512 | 30.5 (30.6, 30.5, 30.5) | - | by position kept/fed 
+group of four --dtype int8 draft-max off | by position, both prompts: []
+group of four --dtype int8 draft-max 3 | prompt 1 | greedy | 96 | 37.8 (27.3, 37.8, 46.1) | 94 of 178 | by position kept/fed 1:51/79 2:37/77 3:6/22
+group of four --dtype int8 draft-max 3 | prompt 1 | greedy | 512 | 67.7 (68.1, 67.7, 67.0) | 1066 of 1377 | by position kept/fed 1:391/460 2:359/459 3:316/458
+group of four --dtype int8 draft-max 3 | prompt 1 | seeded | 96 | 36.2 (30.4, 36.2, 37.1) | 95 of 295 | by position kept/fed 1:58/106 2:27/105 3:10/84
+group of four --dtype int8 draft-max 3 | prompt 1 | seeded | 512 | 44.8 (41.2, 44.8, 45.5) | 789 of 1518 | by position kept/fed 1:466/696 2:299/693 3:24/129
+group of four --dtype int8 draft-max 3 | prompt 2 | greedy | 96 | 76.0 (83.3, 75.2, 76.0) | 213 of 213 | by position kept/fed 1:72/72 2:72/72 3:69/69
+group of four --dtype int8 draft-max 3 | prompt 2 | greedy | 512 | 78.4 (78.4, 77.9, 78.6) | 1128 of 1171 | by position kept/fed 1:383/392 2:378/390 3:367/389
+group of four --dtype int8 draft-max 3 | prompt 2 | seeded | 96 | 73.1 (72.9, 73.1, 73.7) | 204 of 234 | by position kept/fed 1:69/78 2:69/78 3:66/78
+group of four --dtype int8 draft-max 3 | prompt 2 | seeded | 512 | 58.5 (61.2, 48.7, 58.5) | 1020 of 1488 | by position kept/fed 1:394/496 2:326/496 3:300/496
+group of four --dtype int8 draft-max 3 | by position, both prompts: [{"position": 1, "drafted": 2379, "kept": 1884}, {"position": 2, "drafted": 2370, "kept": 1567}, {"position": 3, "drafted": 1725, "kept": 1158}]
+group of four --dtype int8 draft-max 4 | prompt 1 | greedy | 96 | 35.2 (26.0, 35.2, 37.0) | 70 of 117 | by position kept/fed 1:65/99 2:2/7 3:2/7 4:1/4
+group of four --dtype int8 draft-max 4 | prompt 1 | greedy | 512 | 66.9 (51.9, 67.6, 66.9) | 990 of 1285 | by position kept/fed 1:379/447 2:292/363 3:258/363 4:61/112
+group of four --dtype int8 draft-max 4 | prompt 1 | seeded | 96 | 35.5 (35.5, 35.3, 37.3) | 116 of 373 | by position kept/fed 1:69/118 2:30/118 3:10/85 4:7/52
+group of four --dtype int8 draft-max 4 | prompt 1 | seeded | 512 | 44.7 (44.7, 46.9, 44.7) | 812 of 1661 | by position kept/fed 1:452/673 2:288/670 3:61/245 4:11/73
+group of four --dtype int8 draft-max 4 | prompt 2 | greedy | 96 | 92.3 (92.3, 79.6, 92.9) | 225 of 231 | by position kept/fed 1:60/60 2:57/57 3:57/57 4:51/57
+group of four --dtype int8 draft-max 4 | prompt 2 | greedy | 512 | 86.5 (89.8, 86.5, 76.5) | 1205 of 1296 | by position kept/fed 1:315/324 2:309/324 3:299/324 4:282/324
+group of four --dtype int8 draft-max 4 | prompt 2 | seeded | 96 | 79.3 (79.3, 81.6, 78.1) | 216 of 264 | by position kept/fed 1:57/66 2:57/66 3:57/66 4:45/66
+group of four --dtype int8 draft-max 4 | prompt 2 | seeded | 512 | 63.5 (66.5, 63.0, 63.5) | 1093 of 1721 | by position kept/fed 1:350/431 2:285/431 3:253/431 4:205/428
+group of four --dtype int8 draft-max 4 | by position, both prompts: [{"position": 1, "drafted": 2218, "kept": 1747}, {"position": 2, "drafted": 2036, "kept": 1320}, {"position": 3, "drafted": 1578, "kept": 997}, {"position": 4, "drafted": 1116, "kept": 663}]
+group of four --dtype int8 draft-max 5 | prompt 1 | greedy | 96 | 38.0 (25.9, 38.0, 48.4) | 106 of 207 | by position kept/fed 1:47/69 2:34/67 3:23/63 4:1/4 5:1/4
+group of four --dtype int8 draft-max 5 | prompt 1 | greedy | 512 | 58.2 (54.5, 63.8, 58.2) | 1037 of 1370 | by position kept/fed 1:419/496 2:379/494 3:153/236 4:43/72 5:43/72
+group of four --dtype int8 draft-max 5 | prompt 1 | seeded | 96 | 26.5 (25.6, 26.5, 28.2) | 60 of 337 | by position kept/fed 1:36/84 2:12/84 3:6/75 4:3/47 5:3/47
+group of four --dtype int8 draft-max 5 | prompt 1 | seeded | 512 | 41.4 (40.5, 41.4, 41.5) | 723 of 1462 | by position kept/fed 1:435/666 2:276/663 3:6/63 4:3/35 5:3/35
+group of four --dtype int8 draft-max 5 | prompt 2 | greedy | 96 | 102.6 (102.6, 92.7, 102.6) | 237 of 240 | by position kept/fed 1:48/48 2:48/48 3:48/48 4:48/48 5:45/48
+group of four --dtype int8 draft-max 5 | prompt 2 | greedy | 512 | 98.4 (96.3, 98.4, 100.2) | 1254 of 1374 | by position kept/fed 1:264/276 2:261/276 3:249/276 4:243/273 5:237/273
+group of four --dtype int8 draft-max 5 | prompt 2 | seeded | 96 | 86.6 (87.9, 85.2, 86.6) | 225 of 282 | by position kept/fed 1:48/57 2:48/57 3:48/57 4:42/57 5:39/54
+group of four --dtype int8 draft-max 5 | prompt 2 | seeded | 512 | 63.3 (63.2, 63.3, 64.0) | 1126 of 2004 | by position kept/fed 1:321/402 2:251/402 3:220/402 4:181/399 5:153/399
+group of four --dtype int8 draft-max 5 | by position, both prompts: [{"position": 1, "drafted": 2098, "kept": 1618}, {"position": 2, "drafted": 2091, "kept": 1309}, {"position": 3, "drafted": 1220, "kept": 753}, {"position": 4, "drafted": 935, "kept": 564}, {"position": 5, "drafted": 932, "kept": 524}]
+group of four --dtype int8 draft-max 6 | prompt 1 | greedy | 96 | 26.8 (26.8, 26.2, 27.0) | 5 of 24 | by position kept/fed 1:1/4 2:1/4 3:1/4 4:1/4 5:1/4 6:0/4
+group of four --dtype int8 draft-max 6 | prompt 1 | greedy | 512 | 61.6 (54.4, 61.6, 70.9) | 1007 of 1259 | by position kept/fed 1:418/491 2:383/490 3:138/191 4:23/30 5:23/30 6:22/27
+group of four --dtype int8 draft-max 6 | prompt 1 | seeded | 96 | 35.1 (35.1, 35.3, 35.0) | 123 of 471 | by position kept/fed 1:61/111 2:27/111 3:14/91 4:11/62 5:5/49 6:5/47
+group of four --dtype int8 draft-max 6 | prompt 1 | seeded | 512 | 44.1 (44.0, 44.3, 44.1) | 785 of 1561 | by position kept/fed 1:465/700 2:298/697 3:8/65 4:5/35 5:5/32 6:4/32
+group of four --dtype int8 draft-max 6 | prompt 2 | greedy | 96 | 106.1 (113.4, 97.4, 106.1) | 243 of 243 | by position kept/fed 1:42/42 2:42/42 3:42/42 4:39/39 5:39/39 6:39/39
+group of four --dtype int8 draft-max 6 | prompt 2 | greedy | 512 | 106.1 (106.1, 106.1, 105.7) | 1293 of 1419 | by position kept/fed 1:231/237 2:228/237 3:216/237 4:213/237 5:204/237 6:201/234
+group of four --dtype int8 draft-max 6 | prompt 2 | seeded | 96 | 90.2 (90.5, 90.2, 89.3) | 231 of 297 | by position kept/fed 1:42/51 2:42/51 3:39/51 4:36/51 5:36/48 6:36/45
+group of four --dtype int8 draft-max 6 | prompt 2 | seeded | 512 | 64.6 (64.9, 64.6, 64.5) | 1122 of 2131 | by position kept/fed 1:324/408 2:255/408 3:227/408 4:188/405 5:84/289 6:44/213
+group of four --dtype int8 draft-max 6 | by position, both prompts: [{"position": 1, "drafted": 2044, "kept": 1584}, {"position": 2, "drafted": 2040, "kept": 1276}, {"position": 3, "drafted": 1089, "kept": 685}, {"position": 4, "drafted": 863, "kept": 516}, {"position": 5, "drafted": 728, "kept": 397}, {"position": 6, "drafted": 641, "kept": 351}]
+group of four --dtype int8 draft-max 7 | prompt 1 | greedy | 96 | 28.3 (25.7, 28.3, 44.2) | 69 of 143 | by position kept/fed 1:36/56 2:27/54 3:2/9 4:2/9 5:2/9 6:0/3 7:0/3
+group of four --dtype int8 draft-max 7 | prompt 1 | greedy | 512 | 63.7 (56.8, 65.4, 63.7) | 1028 of 1372 | by position kept/fed 1:426/505 2:386/503 3:125/183 4:26/54 5:24/49 6:21/41 7:20/37
+group of four --dtype int8 draft-max 7 | prompt 1 | seeded | 96 | 35.8 (35.8, 36.1, 35.6) | 120 of 442 | by position kept/fed 1:65/114 2:30/114 3:10/76 4:7/44 5:4/38 6:4/38 7:0/18
+group of four --dtype int8 draft-max 7 | prompt 1 | seeded | 512 | 42.0 (46.1, 41.8, 42.0) | 812 of 1790 | by position kept/fed 1:448/673 2:285/670 3:64/253 4:5/52 5:5/52 6:4/50 7:1/40
+group of four --dtype int8 draft-max 7 | prompt 2 | greedy | 96 | 109.3 (109.3, 97.6, 113.5) | 244 of 250 | by position kept/fed 1:38/38 2:38/38 3:38/38 4:38/38 5:37/38 6:28/30 7:27/30
+group of four --dtype int8 draft-max 7 | prompt 2 | greedy | 512 | 110.8 (111.0, 110.7, 110.8) | 1323 of 1446 | by position kept/fed 1:201/207 2:198/207 3:192/207 4:192/207 5:186/207 6:180/207 7:174/204
+group of four --dtype int8 draft-max 7 | prompt 2 | seeded | 96 | 88.9 (88.9, 86.6, 89.2) | 234 of 318 | by position kept/fed 1:36/48 2:36/48 3:36/48 4:33/48 5:33/45 6:30/42 7:30/39
+group of four --dtype int8 draft-max 7 | prompt 2 | seeded | 512 | 62.4 (60.1, 62.4, 62.7) | 1147 of 2431 | by position kept/fed 1:295/383 2:226/383 3:202/383 4:165/380 5:104/323 6:79/295 7:76/284
+group of four --dtype int8 draft-max 7 | by position, both prompts: [{"position": 1, "drafted": 2024, "kept": 1545}, {"position": 2, "drafted": 2017, "kept": 1226}, {"position": 3, "drafted": 1197, "kept": 669}, {"position": 4, "drafted": 832, "kept": 468}, {"position": 5, "drafted": 761, "kept": 395}, {"position": 6, "drafted": 706, "kept": 346}, {"position": 7, "drafted": 655, "kept": 328}]
+group of four --dtype int8 draft-max 8 | prompt 1 | greedy | 96 | 26.4 (25.4, 26.4, 26.7) | 5 of 26 | by position kept/fed 1:1/4 2:1/4 3:1/3 4:1/3 5:1/3 6:0/3 7:0/3 8:0/3
+group of four --dtype int8 draft-max 8 | prompt 1 | greedy | 512 | 56.9 (53.2, 62.7, 56.9) | 963 of 1253 | by position kept/fed 1:450/526 2:411/524 3:21/46 4:20/42 5:19/41 6:17/33 7:13/21 8:12/20
+group of four --dtype int8 draft-max 8 | prompt 1 | seeded | 96 | 36.1 (35.6, 36.1, 36.1) | 123 of 424 | by position kept/fed 1:61/111 2:30/111 3:11/50 4:11/50 5:5/37 6:5/37 7:0/15 8:0/13
+group of four --dtype int8 draft-max 8 | prompt 1 | seeded | 512 | 44.7 (44.1, 46.2, 44.7) | 812 of 1649 | by position kept/fed 1:450/673 2:292/670 3:57/202 4:9/53 5:2/18 6:2/17 7:0/8 8:0/8
+group of four --dtype int8 draft-max 8 | prompt 2 | greedy | 96 | 107.3 (107.3, 98.1, 107.5) | 249 of 264 | by position kept/fed 1:33/33 2:33/33 3:33/33 4:33/33 5:30/33 6:30/33 7:30/33 8:27/33
+group of four --dtype int8 draft-max 8 | prompt 2 | greedy | 512 | 106.2 (106.5, 105.6, 106.2) | 1344 of 1476 | by position kept/fed 1:180/186 2:177/186 3:171/186 4:168/186 5:165/183 6:165/183 7:162/183 8:156/183
+group of four --dtype int8 draft-max 8 | prompt 2 | seeded | 96 | 84.4 (84.9, 84.2, 84.4) | 237 of 330 | by position kept/fed 1:36/45 2:33/45 3:33/45 4:30/45 5:27/42 6:27/39 7:27/36 8:24/33
+group of four --dtype int8 draft-max 8 | prompt 2 | seeded | 512 | 59.5 (59.0, 61.3, 59.5) | 1093 of 2046 | by position kept/fed 1:350/437 2:276/437 3:249/437 4:104/281 5:33/127 6:30/119 7:27/110 8:24/98
+group of four --dtype int8 draft-max 8 | by position, both prompts: [{"position": 1, "drafted": 2015, "kept": 1561}, {"position": 2, "drafted": 2010, "kept": 1253}, {"position": 3, "drafted": 1002, "kept": 576}, {"position": 4, "drafted": 693, "kept": 376}, {"position": 5, "drafted": 484, "kept": 282}, {"position": 6, "drafted": 464, "kept": 276}, {"position": 7, "drafted": 409, "kept": 259}, {"position": 8, "drafted": 391, "kept": 243}]
+dp-finished 16:14:33

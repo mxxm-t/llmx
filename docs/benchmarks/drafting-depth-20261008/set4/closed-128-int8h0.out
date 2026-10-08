@@ -1,0 +1,11 @@
+workload: prompts of 128 tokens; 128 tokens a reply, end of text ignored; greedy; seed 0
+prompts: counted by the server's tokenize route: every word one token, 0 more a prompt
+api         conc     tok/s    req/s   ttft p50   ttft p99    itl p50    itl p99 all tok/s  ttft mean   ttft p90  tpot mean   tpot p50   tpot p99    e2e p50    e2e p99     in    out  done fail short reused
+llmx           1      68.6     0.54    106.7 ms    106.7 ms    13.74 ms    14.73 ms     137.1    106.7 ms    106.7 ms    13.86 ms    13.86 ms    13.86 ms   1866.6 ms   1866.6 ms  128.0  128.0     1    0     0    0.0
+llmx           2     134.1     1.05    125.0 ms    142.3 ms    13.78 ms    14.94 ms     268.3    125.0 ms    139.1 ms    14.02 ms    14.02 ms    14.14 ms   1905.8 ms   1908.0 ms  128.0  128.0     2    0     0    0.0
+llmx           4     229.0     1.79    349.6 ms    350.4 ms    14.75 ms    17.74 ms     458.1    323.5 ms    350.2 ms    15.01 ms    14.82 ms    15.57 ms   2230.0 ms   2234.1 ms  128.0  128.0     4    0     0    0.0
+llmx           8     392.5     3.07    468.9 ms    571.5 ms    15.96 ms    16.64 ms     784.9    489.3 ms    571.0 ms    16.63 ms    16.76 ms    17.77 ms   2602.2 ms   2607.5 ms  128.0  128.0     8    0     0    0.0
+llmx          16     617.4     4.82    633.5 ms    886.7 ms    19.00 ms    23.36 ms    1234.8    659.3 ms    886.5 ms    20.81 ms    21.01 ms    23.15 ms   3302.8 ms   3310.4 ms  128.0  128.0    16    0     0    0.0
+llmx          32     809.0     6.32    934.8 ms   1491.2 ms    28.04 ms   141.32 ms    1618.0    966.3 ms   1380.9 ms    32.01 ms    32.25 ms    36.44 ms   5033.9 ms   5049.9 ms  128.0  128.0    32    0     0    0.0
+llmx          48     934.9     7.30   1233.9 ms   2105.4 ms    35.09 ms   422.96 ms    1869.9   1270.1 ms   1991.0 ms    41.29 ms    41.60 ms    47.77 ms   6519.0 ms   6545.8 ms  128.0  128.0    48    0     0    0.0
+llmx          64     865.9     6.77   1545.1 ms   2763.9 ms    53.21 ms   470.90 ms    1731.9   1588.8 ms   2594.4 ms    61.34 ms    61.74 ms    69.83 ms   9388.5 ms   9428.8 ms  128.0  128.0    64    0     0    0.0

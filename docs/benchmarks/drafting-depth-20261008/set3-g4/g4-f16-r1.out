@@ -1,0 +1,5 @@
+workload: prompts of 128 tokens; 128 tokens a reply, end of text ignored; greedy; seed 0
+prompts: counted by the server's tokenize route: every word one token, 0 more a prompt
+api         conc     tok/s    req/s   ttft p50   ttft p99    itl p50    itl p99 all tok/s  ttft mean   ttft p90  tpot mean   tpot p50   tpot p99    e2e p50    e2e p99     in    out  done fail short reused
+llmx           1      30.2     0.24    333.4 ms    333.4 ms    30.28 ms    36.84 ms      60.4    333.4 ms    333.4 ms    30.74 ms    30.74 ms    30.74 ms   4236.7 ms   4236.7 ms  128.0  128.0     1    0     0    0.0
+llmx           4      91.0     0.71   1271.7 ms   1271.9 ms    33.65 ms    38.52 ms     182.0   1037.3 ms   1271.9 ms    36.06 ms    34.28 ms    41.20 ms   5624.8 ms   5625.3 ms  128.0  128.0     4    0     0    0.0

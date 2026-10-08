@@ -1,0 +1,8 @@
+tensor group vulkan:0+vulkan:1+vulkan:2+vulkan:3 under pci0000:80
+dtype: auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:2 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:3 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers)
+vulkan:0+vulkan:1+vulkan:2+vulkan:3: layers 0-63, weights 8.68 GiB, cache 2.50 GiB, activations and scratch 2.42 GiB, 31.97 GiB free
+host: logits, tables and staging 0.62 GiB
+load: auto, 32.42 GiB read from 1 file direct; construct 5.34 s, read 10.98 s, upload 3.44 s (32.08 GiB copied from the reads), waiting for reads 7.61 s
+bench: pp512    461.17 +- 0.31 tok/s  (3 runs)
+bench: tg128     30.86 +- 0.54 tok/s  (3 runs)
+matrix-paths: {"dtype":"f16","devices":[["block-int16"],["block-int16"],["block-int16"],["block-int16"]]}

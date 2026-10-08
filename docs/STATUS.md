@@ -46,7 +46,7 @@
 | The attention tile addresses its staged words directly | Done (record below): bit-identical, 10.5 percent of the tile on an MI50; lands by fast-forward |
 | The 8-bit twin block-major where the tile reads it | Done (record below): bit-identical, int8 prompts 1 percent faster on Q8_0 and 3 on Q4_K_M on an MI50; lands by fast-forward |
 | Qwen3-8B Q8_0 int8 prompts against the reference fork | Open (record below): level at pp512, 7 and 13 percent behind at pp2048 and pp4096, which is attention; the 8-bit tile shape not built |
-| Tensor split against the reference, same topology (record below) | Open speed cells at `--dtype int8` on Qwen3-32B Q8_0 and MI50s, each shape against the reference's own, figures in the record `Llmx against the reference in the same topology`: one user in every tensor shape, and a group of four at 1 and 4 users (24.4 tok/s at one user with the member threads, 18.5 on main before, 43.2 for the reference), recovery a backend whose submissions do not go through the kernel per sum (the planned ROCm backend, after the tensor split is complete on Vulkan; the kernel route is closed); a group of two at 64 users, recovery not yet named; inter-token p99 at 32 users on short prompts, recovery assembly by predicted stage time (phase 3, step 9). The hybrid models and the embedded drafter have open cells of their own in their records. The K-quant mixture-of-experts files run under a tensor width with covering blocks and have open cells of their own at int8, in the routed experts' record. |
+| Tensor split against the reference, same topology (record below) | Open speed cells at `--dtype int8` on Qwen3-32B Q8_0 and MI50s, each shape against the reference's own, figures in the record `Llmx against the reference in the same topology`: one user in every tensor shape, and a group of four at 1 and 4 users (the newest session, record "Drafting depth" below: 31.0 and 30.2 tok/s at one user on a group of four against the reference's 43.5 and 43.7, and 27.8 and 28.4 on a group of two against 30.5 and 30.6), recovery a backend whose submissions do not go through the kernel per sum (the planned ROCm backend, after the tensor split is complete on Vulkan; the kernel route is closed); a group of two at 64 users, recovery not yet named; inter-token p99 at 32 users on short prompts, recovery assembly by predicted stage time (phase 3, step 9). The hybrid models and the embedded drafter have open cells of their own in their records. The K-quant mixture-of-experts files run under a tensor width with covering blocks and have open cells of their own at int8, in the routed experts' record. |
 | Grouped `/v1/health`, `/v1/live`, grouped help pages and `docs/OPERATING.md` | Done (record below): one shape, no copy of the flat fields; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
 | Chat follow-up cache validation          | Done |
@@ -196,6 +196,266 @@ The status table and the active blocks above give the present state; a record's 
 - **Not proven here:** a draft that fails midway through a chain on a device, as against at the model's own checks, which change nothing; the catch keeps the request, and a pass that then fails on that device ends as any failed pass does, its own requests alone.
 - **Measured, gates:** on Windows, CTest 42 of 42 and the suite's `qwen35`, `server`, `docs`, `dead-code`, `version` and `arch-boundary`; `qwen35` against a build without the fix fails with the production text in two runs of two, and passes three of three with it. On the CPU with the tiny hybrid model, 5800 and 1200 prompt tokens on a pool of 8192: before, the second request ends with the error after 337 tokens; after, both end by length, the second with 6992 tokens, one pause, nothing recomputed. On the test machine: a CPU build, CTest, the whole CPU suite and the linked check; and by hand on the cards before it landed, their figures in the landing's devlog entry: the two-card reproduction on Qwen3.8-27B Q8_0 at the fix, identity with main of Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q8_0 on the CPU and one MI50, the suite on the MI50 and one timing round. The hosted run at the landing head.
 - **Reviewed:** by F2DEV: the change is the pair it asked for, the rule in the model and one call from `propose`, the catch returning before any mark is taken; one fix of placement taken, `can_draft` beside `mark` and `keep`; the device-failure path of a chain marked as not proven, above.
+
+## Drafting depth, the rollback's cost, the tensor split's open cells again and the layer split's loaded cells rerun (2026-10-08, measured, docs only)
+
+Measurements only: no source changed. Main is a0922bb62 (`llmx 0.1.0+ga0922bb623c8`), built once as a Release build with the Vulkan backend in the development image and used by every llmx arm. Raw outputs are in `docs/benchmarks/drafting-depth-20261008/`.
+Every table was taken in one session on MI50s at default clocks, with the server or bench process on whole cores (a core and its sibling thread) that no other session used according to the shared log, arms interleaved or run from fresh servers in the order stated, and every run kept. A monitor wrote the machine's load average and the other sessions' containers every 10 seconds (`monitor.txt`); other sessions' work ran on other cores throughout, so the load average does not describe the cores of these runs. Its range per window is given with each table.
+
+### Set 1: draft depth (`--draft-max`)
+
+Qwen3.8-27B Q8_0, `serve --max-seqs 1 --ctx-size 8192 --drafter embedded --draft-max N` for N of 3 to 8 beside `--drafter off`, a fresh server for each arm, three requests a cell with the median shown (the server's own decode rate) and the drafts the server kept of those it fed over the three. Replies of 96 and 512 tokens with the end token ignored, greedy and seeded (temperature 0.8, top-k 40, top-p 0.95, seed 7). Prompt 1 is the 1500-byte extract of the earlier drafting record. Prompt 2 asks the model to copy a passage of about 900 bytes word for word, where drafts are easy; both prompts ran in the same server in that order. Shapes: one MI50, a layer split of two (`--device vulkan:0,vulkan:1`, production's shape), a group of two (`--tensor-width 2`) and a group of four (`--tensor-width 4`), each at default precision and at `--dtype int8`. The group shapes ran because the drafter now runs under a tensor width. The server drafts at a depth its pass price allows, so the fed counts fall below what a larger depth could feed.
+
+Load average over the windows: one MI50, layer split and group of two 5.0 to 107.2 (13:15 to 15:32 UTC, other sessions' builds on other cores); group of four 7.4 to 37.7. Two group-of-four arms, int8 at depth 3 and depth 4, ran while another session loaded a file onto two of the group's cards for about a minute (16:01 UTC, the monitor shows its container from 16:01:24): their figures are marked affected below, and both arms were rerun in full (16:25 to 16:30 UTC, load 18.6 to 40.8, other sessions' work on other cores). The group-of-four int8 columns for depth 3 and 4 in the tables are the reruns.
+
+The group of four's `off` cells at default precision vary from 17.8 to 31.8 tok/s between fresh servers (26.9, 17.9, 18.1, 20.6, 17.8, 20.9, 31.8 and 28.9 over the eight cells); its int8 `off` cells are 29.5 to 31.2.
+
+Each cell is tok/s (drafts kept/fed).
+
+one MI50, default: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 23.3 | 34.5 (166/341) | 36.1 (157/269) | 28.8 (103/175) | 28.9 (104/171) | 28.6 (104/168) | 26.7 (103/156) |
+| 1, greedy, 512 | 23.5 | 52.8 (1066/1260) | 46.2 (1038/1200) | 45.3 (1017/1201) | 44.6 (1028/1238) | 44.8 (1033/1260) | 46.5 (1010/1170) |
+| 1, seeded, 96 | 23.2 | 42.5 (181/303) | 37.8 (172/292) | 37.3 (170/295) | 34.7 (176/327) | 37.9 (183/356) | 42.5 (180/281) |
+| 1, seeded, 512 | 23.3 | 49.0 (1054/1386) | 44.5 (993/1232) | 43.8 (965/1207) | 43.4 (1030/1333) | 43.7 (969/1242) | 44.7 (981/1240) |
+| 2, greedy, 96 | 23.2 | 59.6 (211/211) | 58.6 (225/231) | 64.8 (237/240) | 66.1 (243/243) | 66.1 (246/252) | 48.6 (191/191) |
+| 2, greedy, 512 | 23.5 | 55.7 (1104/1236) | 52.2 (1187/1353) | 55.7 (1230/1476) | 54.0 (1263/1569) | 56.5 (1287/1653) | 46.1 (1001/1091) |
+| 2, seeded, 96 | 23.6 | 55.5 (204/234) | 51.1 (216/264) | 53.6 (225/282) | 52.3 (231/297) | 51.1 (234/318) | 45.9 (185/203) |
+| 2, seeded, 512 | 23.5 | 45.8 (997/1458) | 42.9 (1055/1586) | 40.9 (1056/1766) | 42.4 (1055/1751) | 38.5 (1044/1888) | 42.3 (1001/1448) |
+
+one MI50, --dtype int8: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 22.5 | 39.3 (167/342) | 39.1 (177/374) | 35.5 (181/505) | 37.8 (159/306) | 38.8 (157/279) | 30.4 (107/191) |
+| 1, greedy, 512 | 22.6 | 56.1 (1089/1285) | 56.6 (1070/1264) | 56.7 (1129/1416) | 57.4 (1108/1359) | 55.0 (1136/1451) | 46.8 (1008/1262) |
+| 1, seeded, 96 | 22.9 | 32.6 (137/378) | 32.3 (135/373) | 31.3 (130/345) | 32.3 (138/409) | 30.7 (141/479) | 29.7 (132/401) |
+| 1, seeded, 512 | 22.7 | 35.0 (762/1603) | 35.1 (744/1505) | 34.3 (743/1465) | 34.9 (757/1581) | 33.7 (734/1533) | 33.7 (727/1435) |
+| 2, greedy, 96 | 22.6 | 66.1 (213/213) | 68.0 (225/231) | 67.1 (225/231) | 85.9 (243/243) | 84.7 (246/252) | 77.9 (249/264) |
+| 2, greedy, 512 | 22.8 | 62.1 (1125/1189) | 67.5 (1208/1284) | 67.0 (1211/1292) | 78.6 (1293/1419) | 82.1 (1320/1467) | 74.4 (1341/1497) |
+| 2, seeded, 96 | 23.5 | 58.5 (204/234) | 59.7 (216/264) | 59.9 (216/264) | 67.1 (231/297) | 68.0 (234/318) | 61.6 (237/330) |
+| 2, seeded, 512 | 22.7 | 52.2 (1056/1384) | 53.8 (1128/1588) | 55.4 (1155/1707) | 56.1 (1184/1941) | 55.9 (1205/2096) | 51.2 (1111/1728) |
+
+layer split of two, default: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 22.8 | 37.5 (167/342) | 35.3 (157/273) | 28.9 (104/182) | 28.9 (104/171) | 28.8 (104/168) | 28.7 (100/152) |
+| 1, greedy, 512 | 23.2 | 54.3 (1090/1282) | 52.5 (1071/1240) | 46.4 (1007/1181) | 45.7 (1025/1223) | 54.1 (1106/1265) | 47.1 (1009/1155) |
+| 1, seeded, 96 | 23.3 | 43.8 (183/297) | 38.1 (171/291) | 38.3 (169/286) | 38.2 (177/327) | 38.1 (179/325) | 40.2 (167/260) |
+| 1, seeded, 512 | 23.2 | 50.1 (1054/1386) | 44.9 (995/1222) | 44.8 (1005/1244) | 44.2 (998/1252) | 45.2 (1024/1358) | 44.3 (962/1171) |
+| 2, greedy, 96 | 23.3 | 58.9 (211/211) | 58.7 (225/231) | 65.6 (237/240) | 69.9 (243/243) | 67.5 (246/252) | 50.1 (191/191) |
+| 2, greedy, 512 | 23.2 | 56.0 (1104/1236) | 54.5 (1188/1349) | 56.4 (1230/1476) | 57.8 (1263/1569) | 57.1 (1287/1653) | 47.9 (1003/1087) |
+| 2, seeded, 96 | 23.4 | 55.5 (204/234) | 51.2 (216/264) | 54.0 (225/282) | 55.6 (231/297) | 53.7 (234/318) | 47.1 (183/204) |
+| 2, seeded, 512 | 23.3 | 45.9 (997/1458) | 42.4 (1039/1570) | 41.4 (1058/1755) | 41.6 (1086/1897) | 42.5 (1072/1861) | 44.6 (966/1377) |
+
+layer split of two, --dtype int8: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 22.7 | 40.6 (167/342) | 39.7 (178/376) | 36.3 (181/506) | 38.8 (158/291) | 38.9 (157/278) | 39.4 (152/296) |
+| 1, greedy, 512 | 23.1 | 58.0 (1089/1285) | 59.3 (1078/1291) | 58.7 (1124/1376) | 57.1 (1125/1428) | 56.6 (1137/1447) | 50.1 (990/1157) |
+| 1, seeded, 96 | 23.1 | 33.5 (137/378) | 32.3 (129/334) | 33.3 (135/375) | 31.3 (131/404) | 31.6 (139/460) | 32.8 (126/285) |
+| 1, seeded, 512 | 23.1 | 35.3 (749/1582) | 35.2 (726/1398) | 35.1 (728/1436) | 35.2 (746/1569) | 34.9 (732/1501) | 35.4 (723/1346) |
+| 2, greedy, 96 | 23.1 | 66.6 (213/213) | 70.0 (225/231) | 79.3 (237/240) | 86.2 (243/243) | 88.7 (246/252) | 66.7 (213/213) |
+| 2, greedy, 512 | 23.2 | 63.3 (1126/1187) | 68.9 (1208/1284) | 74.6 (1257/1359) | 80.3 (1293/1419) | 84.6 (1320/1467) | 63.8 (1134/1200) |
+| 2, seeded, 96 | 23.2 | 59.5 (204/234) | 61.3 (216/264) | 65.0 (225/282) | 68.9 (231/297) | 69.1 (234/318) | 60.1 (204/234) |
+| 2, seeded, 512 | 23.1 | 54.1 (1056/1383) | 55.6 (1131/1576) | 56.2 (1158/1784) | 55.8 (1183/1954) | 57.9 (1199/2075) | 55.1 (1073/1441) |
+
+group of two, default: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 32.0 | 46.8 (155/260) | 46.8 (121/219) | 32.2 (62/133) | 38.8 (104/171) | 45.2 (151/256) | 41.0 (105/183) |
+| 1, greedy, 512 | 33.0 | 72.2 (1088/1262) | 62.4 (1040/1207) | 62.5 (1046/1205) | 60.9 (1024/1232) | 60.8 (1061/1299) | 61.6 (921/1050) |
+| 1, seeded, 96 | 33.3 | 58.5 (183/297) | 51.0 (168/282) | 50.1 (173/326) | 50.5 (180/355) | 51.3 (183/350) | 51.4 (163/252) |
+| 1, seeded, 512 | 32.9 | 66.4 (1056/1381) | 63.7 (1021/1255) | 60.3 (997/1253) | 59.1 (968/1228) | 62.2 (1129/1667) | 61.7 (1013/1297) |
+| 2, greedy, 96 | 33.2 | 80.2 (211/211) | 81.3 (225/231) | 89.3 (237/240) | 94.5 (243/243) | 97.8 (246/252) | 81.0 (225/231) |
+| 2, greedy, 512 | 33.0 | 74.5 (1104/1236) | 74.6 (1186/1353) | 77.1 (1230/1476) | 79.7 (1263/1569) | 81.0 (1287/1653) | 73.9 (1188/1361) |
+| 2, seeded, 96 | 33.0 | 74.4 (204/234) | 71.2 (216/264) | 75.2 (225/282) | 77.4 (231/297) | 76.2 (234/318) | 70.0 (216/264) |
+| 2, seeded, 512 | 32.9 | 60.6 (997/1458) | 59.4 (1056/1599) | 57.2 (1056/1740) | 58.0 (1026/1742) | 56.5 (1067/1905) | 58.8 (1027/1559) |
+
+group of two, --dtype int8: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 32.0 | 41.2 (72/109) | 48.2 (175/425) | 40.1 (105/199) | 34.9 (60/112) | 34.1 (49/79) | 32.6 (34/63) |
+| 1, greedy, 512 | 32.8 | 78.0 (1068/1182) | 80.6 (1114/1344) | 78.2 (1116/1292) | 66.5 (946/1116) | 65.7 (959/1153) | 66.5 (1042/1208) |
+| 1, seeded, 96 | 32.9 | 51.5 (159/312) | 50.0 (157/319) | 50.5 (161/331) | 48.6 (161/359) | 49.7 (160/353) | 48.9 (158/359) |
+| 1, seeded, 512 | 32.6 | 56.6 (917/1538) | 54.6 (883/1453) | 53.6 (804/1290) | 54.6 (880/1425) | 54.0 (865/1409) | 52.8 (792/1281) |
+| 2, greedy, 96 | 32.8 | 85.4 (212/212) | 91.5 (225/231) | 86.1 (213/213) | 91.2 (225/231) | 112.9 (246/252) | 96.1 (233/237) |
+| 2, greedy, 512 | 32.8 | 82.6 (1124/1184) | 89.6 (1208/1284) | 86.6 (1188/1275) | 90.7 (1218/1310) | 107.1 (1320/1467) | 97.2 (1257/1359) |
+| 2, seeded, 96 | 33.0 | 77.9 (204/234) | 79.8 (216/264) | 85.7 (225/282) | 88.9 (231/297) | 88.6 (234/318) | 85.6 (225/282) |
+| 2, seeded, 512 | 32.6 | 76.1 (1089/1286) | 79.4 (1165/1447) | 79.9 (1192/1548) | 86.1 (1244/1709) | 81.4 (1239/1781) | 80.5 (1192/1548) |
+
+group of four, default: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 26.9 | 47.0 (167/342) | 48.0 (178/415) | 43.8 (180/497) | 37.4 (184/572) | 35.6 (102/166) | 46.6 (148/264) |
+| 1, greedy, 512 | 17.9 | 68.8 (1090/1282) | 74.9 (1131/1400) | 62.9 (1170/1550) | 59.4 (1164/1640) | 70.8 (1054/1323) | 62.8 (987/1136) |
+| 1, seeded, 96 | 18.1 | 50.1 (183/297) | 55.0 (186/350) | 34.9 (193/392) | 35.2 (185/351) | 56.1 (190/360) | 52.5 (165/247) |
+| 1, seeded, 512 | 20.6 | 66.7 (1054/1386) | 70.7 (1119/1618) | 48.4 (1160/1711) | 55.7 (1157/1734) | 70.2 (1096/1511) | 66.5 (1050/1376) |
+| 2, greedy, 96 | 17.8 | 77.9 (211/211) | 90.1 (225/231) | 64.3 (236/239) | 104.1 (243/243) | 105.6 (243/243) | 90.0 (225/231) |
+| 2, greedy, 512 | 20.9 | 75.0 (1104/1236) | 84.7 (1185/1353) | 57.1 (1229/1476) | 86.8 (1263/1569) | 87.6 (1263/1569) | 83.2 (1189/1361) |
+| 2, seeded, 96 | 31.8 | 73.6 (204/234) | 79.9 (216/264) | 60.4 (225/282) | 83.5 (231/297) | 84.1 (231/297) | 79.5 (216/264) |
+| 2, seeded, 512 | 28.9 | 60.5 (997/1458) | 65.7 (1088/1749) | 42.9 (1122/2026) | 59.8 (1122/2127) | 61.9 (1100/1985) | 62.1 (1076/1753) |
+
+group of four, --dtype int8: tok/s (drafts kept/fed)
+
+| prompt, sampler, tokens | off | depth 3 | depth 4 | depth 5 | depth 6 | depth 7 | depth 8 |
+|---|---|---|---|---|---|---|---|
+| 1, greedy, 96 | 29.5 | 27.9 (72/140) | 31.8 (81/143) | 38.0 (106/207) | 26.8 (5/24) | 28.3 (69/143) | 26.4 (5/26) |
+| 1, greedy, 512 | 30.5 | 69.1 (1067/1377) | 66.9 (1030/1267) | 58.2 (1037/1370) | 61.6 (1007/1259) | 63.7 (1028/1372) | 56.9 (963/1253) |
+| 1, seeded, 96 | 31.2 | 38.1 (95/278) | 34.8 (116/412) | 26.5 (60/337) | 35.1 (123/471) | 35.8 (120/442) | 36.1 (123/424) |
+| 1, seeded, 512 | 31.0 | 47.0 (836/1725) | 46.2 (815/1694) | 41.4 (723/1462) | 44.1 (785/1561) | 42.0 (812/1790) | 44.7 (812/1649) |
+| 2, greedy, 96 | 30.2 | 78.8 (212/212) | 89.6 (225/231) | 102.6 (237/240) | 106.1 (243/243) | 109.3 (244/250) | 107.3 (249/264) |
+| 2, greedy, 512 | 30.7 | 79.3 (1125/1177) | 87.3 (1203/1295) | 98.4 (1254/1374) | 106.1 (1293/1419) | 110.8 (1323/1446) | 106.2 (1344/1476) |
+| 2, seeded, 96 | 30.3 | 76.9 (204/234) | 78.9 (216/264) | 86.6 (225/282) | 90.2 (231/297) | 88.9 (234/318) | 84.4 (237/330) |
+| 2, seeded, 512 | 30.5 | 62.5 (1018/1491) | 65.6 (1091/1733) | 63.3 (1126/2004) | 64.6 (1122/2131) | 62.4 (1147/2431) | 59.5 (1093/2046) |
+
+Affected figures kept as run (group of four, `--dtype int8`, tok/s with kept/fed):
+
+| prompt, sampler, tokens | depth 3 (affected) | depth 4 (affected) |
+|---|---|---|
+| 1, greedy, 96 | 37.8 (94/178) | 35.2 (70/117) |
+| 1, greedy, 512 | 67.7 (1066/1377) | 66.9 (990/1285) |
+| 1, seeded, 96 | 36.2 (95/295) | 35.5 (116/373) |
+| 1, seeded, 512 | 44.8 (789/1518) | 44.7 (812/1661) |
+| 2, greedy, 96 | 76.0 (213/213) | 92.3 (225/231) |
+| 2, greedy, 512 | 78.4 (1128/1171) | 86.5 (1205/1296) |
+| 2, seeded, 96 | 73.1 (204/234) | 79.3 (216/264) |
+| 2, seeded, 512 | 58.5 (1020/1488) | 63.5 (1093/1721) |
+
+Where each depth won, over the eight cells of a shape and precision (the relative figure is the mean of the eight ratios to depth 3):
+
+| shape, precision | cells won by depth | tok/s relative to depth 3, depths 3 / 4 / 5 / 6 / 7 / 8 |
+|---|---|---|
+| one MI50, default | {3: 5, 4: 1, 6: 1, 7: 1} | 3 1.00 4 0.94 5 0.93 6 0.92 7 0.92 8 0.87 |
+| one MI50, --dtype int8 | {3: 2, 4: 1, 6: 3, 7: 2} | 3 1.00 4 1.02 5 1.00 6 1.09 7 1.09 8 0.99 |
+| layer split of two, default | {3: 5, 6: 3} | 3 1.00 4 0.94 5 0.92 6 0.94 7 0.95 8 0.87 |
+| layer split of two, --dtype int8 | {3: 2, 4: 1, 7: 4, 8: 1} | 3 1.00 4 1.02 5 1.05 6 1.08 7 1.10 8 0.98 |
+| group of two, default | {3: 5, 6: 1, 7: 2} | 3 1.00 4 0.96 5 0.93 6 0.96 7 0.99 8 0.93 |
+| group of two, --dtype int8 | {3: 2, 4: 2, 6: 2, 7: 2} | 3 1.00 4 1.05 5 1.01 6 1.01 7 1.05 8 1.00 |
+| group of four, default | {4: 4, 7: 4} | 3 1.00 4 1.09 5 0.80 6 0.98 7 1.08 8 1.04 |
+| group of four, --dtype int8 | {3: 3, 4: 1, 5: 1, 6: 1, 7: 2} | 3 1.00 4 1.04 5 1.06 6 1.08 7 1.09 8 1.05 |
+
+Drafts kept/fed by draft position (position 1 first) for the 512-token greedy cells, depth 3 and depth 8, by shape and precision. The depth fed falls with the position because the server prices a draft by its pass cost.
+
+| shape, precision, prompt | depth 3 | depth 8 |
+|---|---|---|
+| one MI50, default, prompt 1 | 1:420/458 2:391/458 3:255/344 | 1:465/506 2:413/458 3:127/186 4:1/4 5:1/4 6:1/4 7:1/4 8:1/4 |
+| one MI50, default, prompt 2 | 1:387/415 2:368/412 3:349/409 | 1:496/529 2:481/526 3:5/6 4:5/6 5:4/6 6:4/6 7:3/6 8:3/6 |
+| one MI50, --dtype int8, prompt 1 | 1:391/429 2:362/429 3:336/427 | 1:465/507 2:332/384 3:42/82 4:37/66 5:35/60 6:33/55 7:32/54 8:32/54 |
+| one MI50, --dtype int8, prompt 2 | 1:386/397 2:375/396 3:364/396 | 1:180/189 2:174/189 3:168/189 4:168/186 5:165/186 6:165/186 7:165/186 8:156/186 |
+| layer split of two, default, prompt 1 | 1:390/428 2:362/428 3:338/426 | 1:466/507 2:412/459 3:121/164 4:2/5 5:2/5 6:2/5 7:2/5 8:2/5 |
+| layer split of two, default, prompt 2 | 1:387/415 2:368/412 3:349/409 | 1:494/527 2:479/524 3:5/6 4:5/6 5:5/6 6:5/6 7:5/6 8:5/6 |
+| layer split of two, --dtype int8, prompt 1 | 1:391/429 2:362/429 3:336/427 | 1:501/540 2:465/540 3:14/47 4:2/6 5:2/6 6:2/6 7:2/6 8:2/6 |
+| layer split of two, --dtype int8, prompt 2 | 1:385/396 2:375/396 3:366/395 | 1:387/396 2:373/396 3:364/393 4:2/3 5:2/3 6:2/3 7:2/3 8:2/3 |
+| group of two, default, prompt 1 | 1:398/435 2:369/435 3:321/392 | 1:553/596 2:319/369 3:20/35 4:13/22 5:4/7 6:4/7 7:4/7 8:4/7 |
+| group of two, default, prompt 2 | 1:387/415 2:368/412 3:349/409 | 1:320/342 2:305/339 3:290/336 4:269/336 5:1/2 6:1/2 7:1/2 8:1/2 |
+| group of two, --dtype int8, prompt 1 | 1:413/445 2:332/369 3:323/368 | 1:437/474 2:294/336 3:136/172 4:129/155 5:43/68 6:1/1 7:1/1 8:1/1 |
+| group of two, --dtype int8, prompt 2 | 1:384/395 2:375/395 3:365/394 | 1:264/273 2:261/273 3:252/273 4:243/270 5:237/270 6:0/0 7:0/0 8:0/0 |
+| group of four, default, prompt 1 | 1:390/428 2:362/428 3:338/426 | 1:501/546 2:459/522 3:14/40 4:3/6 5:3/6 6:3/6 7:2/5 8:2/5 |
+| group of four, default, prompt 2 | 1:387/415 2:368/412 3:349/409 | 1:320/341 2:305/338 3:290/335 4:270/335 5:1/3 6:1/3 7:1/3 8:1/3 |
+| group of four, --dtype int8, prompt 1 | 1:391/460 2:359/459 3:317/458 | 1:450/526 2:411/524 3:21/46 4:20/42 5:19/41 6:17/33 7:13/21 8:12/20 |
+| group of four, --dtype int8, prompt 2 | 1:384/394 2:377/392 3:364/391 | 1:180/186 2:177/186 3:171/186 4:168/186 5:165/183 6:165/183 7:162/183 8:156/183 |
+
+### Set 2: a round's rollback
+
+Qwen3.8-27B Q8_0, default precision, `bench --model FILE --drafter embedded --p 512 --n 128 --r 10`: after a mark and a verify of 3 drafts, the retract keeping each of the verify's 4 rows and the step after it as completed work up to the step's logits; the difference to keeping all 4 rows in the same repeat, median of ten runs (the middle half in brackets), and the retract call's own host time. This is the measurement of the earlier record in this file (Rollback, the same file on one MI50: +1.09 to +1.14 ms on a step of about 44 ms). The three shapes ran one after another (15:24 to 15:32 UTC, load average 10 at the start).
+
+| shape | step keeping all 4 rows, ms | keeping 1 of 4 | keeping 2 of 4 | keeping 3 of 4 |
+|---|---|---|---|---|
+| one MI50 | 42.636 | +0.822 ms, +1.93% (+0.713 to +0.869), call 0.546 ms | +0.773 ms, +1.81% (+0.696 to +0.922), call 0.512 ms | +0.912 ms, +2.14% (+0.827 to +0.976), call 0.613 ms |
+| layer split of two | 42.910 | +0.471 ms, +1.10% (+0.121 to +0.923), call 0.432 ms | +0.369 ms, +0.86% (+0.027 to +0.804), call 0.413 ms | +0.501 ms, +1.17% (+0.214 to +0.705), call 0.453 ms |
+| group of two | 30.057 | +0.712 ms, +2.37% (+0.445 to +1.271), call 0.801 ms | +1.183 ms, +3.93% (+0.507 to +1.509), call 0.792 ms | +0.640 ms, +2.13% (-0.231 to +1.288), call 0.782 ms |
+
+### Set 3: the tensor split's open cells again, with a thread per member
+
+Qwen3-32B Q8_0, a group of four (MI50s under one root) and a group of two (under another), the three arms in turn each round with the order rotated, two rounds. Each arm ran a bench (llmx `bench --p 512 --n 128 --r 3`; the reference `llama-bench -ngl 99 -fa on -sm tensor -lm dio -p 512 -n 128 -r 3`) and then a fresh server loaded at 1 and 4 users with 128-token prompts and 128 generated tokens (`tools/server_load.py`, one round, greedy; llmx `--max-seqs 8 --ctx-size 16384`, the reference `-c 16384 -np 8 -cram 0`). The reference is the pinned image's `llama-bench` and `llama-server` with the image's environment and 8 hardware queues; its log shows "creating a Meta device for tensor parallelism from 4 devices (tps=4, n_stages=1)" and from 2 devices (tps=2, n_stages=1), with its custom all-reduce initialised. Each cell gives the first round, then the second. No request failed. Load average 9.8 to 48.5 for the group of four (16:05 to 16:24 UTC) and 10.2 to 24.3 for the group of two (16:31 to 16:40 UTC), other sessions on other cores.
+
+Group of four:
+
+| arm | pp512 tok/s (r1, r2) | tg128 tok/s (r1, r2) | 1 user tok/s (r1, r2) | 1 user itl p99 ms | 4 users tok/s (r1, r2) | 4 users itl p99 ms | failed |
+|---|---|---|---|---|---|---|---|
+| llmx --dtype int8 | 589.11, 588.65 | 29.66, 32.38 | 31.0, 30.2 | 35, 36 | 98.7, 96.4 | 36, 41 | 0 |
+| llmx default | 460.46, 461.17 | 33.08, 30.86 | 30.2, 28.8 | 37, 37 | 91.0, 90.9 | 39, 47 | 0 |
+| reference | 522.32, 523.37 | 51.03, 50.75 | 43.5, 43.7 | 44, 43 | 105.3, 105.5 | 64, 60 | 0 |
+
+Group of two:
+
+| arm | pp512 tok/s (r1, r2) | tg128 tok/s (r1, r2) | 1 user tok/s (r1, r2) | 1 user itl p99 ms | 4 users tok/s (r1, r2) | 4 users itl p99 ms | failed |
+|---|---|---|---|---|---|---|---|
+| llmx --dtype int8 | 544.37, 546.93 | 29.83, 29.98 | 27.8, 28.4 | 37, 34 | 84.7, 85.6 | 40, 41 | 0 |
+| llmx default | 363.61, 366.42 | 29.62, 29.97 | 26.9, 27.3 | 37, 36 | 74.0, 74.7 | 45, 44 | 0 |
+| reference | 575.84, 575.70 | 33.81, 32.44 | 30.5, 30.6 | 52, 47 | 79.7, 80.0 | 68, 68 | 0 |
+
+### Set 4: the layer split of three, the loaded cells rerun
+
+Qwen3-8B Q8_0, three MI50s, llmx `--dtype int8` and default precision (host tier off, as in the earlier gate) against the reference's `-sm layer`, one session (16:46 to 17:16 UTC), arms in rotation, `tools/server_load.py` closed loads of two rounds at 1 to 64 users with 128 generated tokens on 81920 tokens over 64 sequences; skew: 16 users of 128-token prompts beside four 4096-token prompts, 131072 tokens over 20 sequences; near the context: four 16000-token prompts on 65536 tokens over 4 sequences. One of the earlier three-card tables' cards was inside another session's window now, so this session used another card in its place (still one card under a different root than the other two). The greedy 128-token set ran for all three arms. Load average 6.3 to 17.2.
+
+Closed loads, output tok/s (lower and higher round), with the first-token and inter-token tails:
+
+
+| 128-token prompts, output tok/s (lower and higher round) | 1 | 2 | 4 | 8 | 16 | 32 | 48 | 64 |
+|---|---|---|---|---|---|---|---|---|
+| llmx `--dtype int8` | 68.3-68.6 | 133.6-134.1 | 227.0-229.0 | 391.9-392.5 | 593.7-617.4 | 789.1-809.0 | 934.7-934.9 | 855.3-865.9 |
+| llmx, default precision | 64.2-64.3 | 125.5-126.4 | 196.7-198.0 | 319.8-320.1 | 450.6-456.0 | 497.4-505.9 | 584.7-584.8 | 534.9-539.5 |
+| reference, layer split | 61.9-62.1 | 98.1 | 165.4-165.9 | 214.0-215.4 | 230.4-230.5 | 293.1-355.1 | 283.7-360.6 | 408.0-411.0 |
+
+| 128-token prompts, at 16 / 32 / 48 / 64 users | time to first token p99, s | inter-token p50, ms | inter-token p99, ms |
+|---|---|---|---|
+| llmx `--dtype int8` | 0.89-1.02 / 1.49-1.62 / 2.11 / 2.76-2.89 | 19 / 28 / 35 / 53 | 23-24 / 141 / 423 / 471-489 |
+| llmx, default precision | 1.30-1.35 / 2.17-2.32 / 3.10 / 4.06-4.19 | 25 / 47 / 59 / 89 | 28-29 / 213-214 / 637 / 692-715 |
+| reference, layer split | 1.45-1.46 / 2.82-2.83 / 4.56-4.93 / 5.84-5.89 | 58 / 69-88 / 98-132 / 110-111 | 62 / 73-92 / 134-152 / 1360 |
+
+| 128-token prompts: llmx's lower round over the reference's higher round at 16 / 32 / 48 / 64 users (p99s: T time to first token, I inter-token, each llmx's higher round against the reference's lower) | reference, layer split |
+|---|---|
+| llmx `--dtype int8` | 2.58 / 2.22 (I worse) / 2.59 (I worse) / 2.08, needs 2.0 |
+| llmx, default precision | 1.96 / 1.40 (I worse) / 1.62 (I worse) / 1.30, needs 2.0 |
+
+| 1024-token prompts, output tok/s (lower and higher round) | 1 | 2 | 4 | 8 | 16 | 32 | 48 | 64 |
+|---|---|---|---|---|---|---|---|---|
+| llmx `--dtype int8` | 48.0 | 85.2-85.3 | 126.9-132.1 | 194.7-196.7 | 243.9-245.7 | 278.8-281.4 | 298.3-299.3 | 288.1-289.1 |
+| llmx, default precision | 40.0-40.2 | 71.5-71.6 | 102.2-102.8 | 148.4-150.4 | 174.6-175.7 | 187.6-188.6 | 199.8 | 193.2-193.3 |
+| reference, layer split | 50.2-50.3 | 72.7-79.1 | 106.1-106.4 | 123.7-126.7 | 129.4-129.9 | 137.1-147.1 | 123.9-142.2 | 142.1-142.3 |
+
+| 1024-token prompts, at 16 / 32 / 48 / 64 users | time to first token p99, s | inter-token p50, ms | inter-token p99, ms |
+|---|---|---|---|
+| llmx `--dtype int8` | 5.36-5.41 / 10.22-10.36 / 15.08-15.15 / 20.46-20.56 | 23 / 35 / 46 / 68 | 464-465 / 474-484 / 489-491 / 509-513 |
+| llmx, default precision | 7.90-7.97 / 15.18-15.31 / 22.54 / 30.46-30.48 | 29 / 54 / 70 / 104 | 680 / 707-709 / 725-727 / 759-761 |
+| reference, layer split | 7.93-7.96 / 18.19-18.30 / 29.99-30.88 / 41.32-41.66 | 62 / 76-96 / 109-161 / 124-127 | 1057-1061 / 1324-1350 / 1656-1707 / 1723 |
+
+| 1024-token prompts: llmx's lower round over the reference's higher round at 16 / 32 / 48 / 64 users (p99s: T time to first token, I inter-token, each llmx's higher round against the reference's lower) | reference, layer split |
+|---|---|
+| llmx `--dtype int8` | 1.88 / 1.90 / 2.10 / 2.03, needs 2.0 |
+| llmx, default precision | 1.34 (T worse) / 1.28 / 1.40 / 1.36, needs 2.0 |
+
+No request failed in any closed load.
+
+Skewed load (16 users beside four long prompts), users' rounds in order:
+
+| arm | long prompts' first token, s | users' tok/s per round | users' inter-token p99 per round, ms |
+|---|---|---|---|
+| llmx --dtype int8 | 4.5, 4.9, 8.9, 4.7 | 587.3, 618.2, 163.7, 590.2 | 25, 20, 647, 25 |
+| llmx default | 6.7, 12.4, 6.1, 6.4 | 446.5, 122.6, 409.8, 454.9 | 29, 871, 36, 29 |
+| reference layer split | 5.3, 3.1, 8.9, 7.5 | 118.5, 203.3, 173.2, 169.3 | 1103, 86, 113, 86 |
+
+Four 16000-token prompts near the context, two rounds:
+
+| arm | output tok/s | first token p50, s | inter-token p99, ms | failed |
+|---|---|---|---|---|
+| llmx --dtype int8 | 8.5, 8.5 | 29.4, 28.9 | 1328, 1329 | 0 |
+| llmx default | 6.9, 6.9 | 36.3, 36.1 | 1553, 1553 | 0 |
+| reference layer split | 11.0, 11.0 | 26.2, 25.8 | 1769, 1769 | 0 |
+
+### Not run
+
+- Two stages of four on eight cards (the request was the groups of four and two).
+- Set 4 on the exact cards of the earlier three-card tables (one was in another session's window).
 
 ## Disk files lost or damaged between two servers, the segment and state counters, and the long read profiled (2026-10-08, branch feat/disk-increment-4, steps 4 and 5 of DISK-TIER's Entries written as what changed, lands by fast-forward)
 

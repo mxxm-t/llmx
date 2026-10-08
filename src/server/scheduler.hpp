@@ -603,11 +603,11 @@ private:
     using Clock = std::chrono::steady_clock;
     // How requests reserve room, at admission and as uncapped ones grow.
     static constexpr Growth kGrowth{};
-    // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS.md (Exact resume) records the timing that sets it.
+    // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS-2026-09.md (Exact resume of a paused request) records the timing that sets it.
     static constexpr size_t kReplayRows = 64;
-    // The most sampling threads beside the scheduler thread; docs/STATUS.md (layer split phase 3, step 4) records why four.
+    // The most sampling threads beside the scheduler thread; docs/STATUS-2026-09.md (layer split phase 3, step 4) records why four.
     static constexpr size_t kSamplers = 4;
-    // The most rows of a job a pass carries beside requests' rows, while the reply it follows is written; docs/STATUS.md (step 2c) records the latency it costs.
+    // The most rows of a job a pass carries beside requests' rows, while the reply it follows is written; docs/STATUS.md (a reply read again as prompt rows) records the latency it costs.
     static constexpr size_t kJobChunk = 64;
     // The most draft rows a pass carries (docs/SPECULATIVE.md, section 3).
     static constexpr size_t kDraftRows = 64;

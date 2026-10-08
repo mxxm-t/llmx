@@ -1,6 +1,6 @@
 #version 450
 // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row.
-// The sum of squares is a tree, through shared memory down to one subgroup's width and then through that subgroup's shuffles in the same order; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS.md), so the tree stays.
+// The sum of squares is a tree, through shared memory down to one subgroup's width and then through that subgroup's shuffles in the same order; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS-2026-09.md, Vulkan backend, sub-step 1), so the tree stays.
 // With `quant` set the rows are dense and a multiple of 32 wide and the output's twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
 // With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it by its own lane.
 #extension GL_KHR_shader_subgroup_basic : require

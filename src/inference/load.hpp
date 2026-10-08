@@ -503,7 +503,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
             }
         std::vector<std::vector<const Upload*>> destinations(file.tensors.size());
         for (const Upload& u : plan.uploads) destinations[u.tensor].push_back(&u);
-        // 16 MiB pieces (docs/STATUS.md, the loader's step 5).
+        // 16 MiB pieces (docs/STATUS-2026-09.md, Loader in one place).
         auto pieces = detail::plan_pieces(streamed, spans, file_of, granules, size_t(16) << 20);
         auto into_host = detail::plan_pieces(hosted, spans, file_of, granules, size_t(16) << 20);
         for (detail::Piece& p : into_host) {

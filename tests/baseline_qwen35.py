@@ -47,7 +47,7 @@ BOUNDS = {
 # A file against its file-exact goldens is held to this file's bounds whatever its type, since the format's loss is on both sides.
 FILE_EXACT_BOUNDS = "Qwen3.5-0.8B-Q8_0.gguf"
 
-# The Qwen3.5-0.8B Q4_K_M, whose own quantization moves HF's top-1 on two of its eight rankings (docs/STATUS.md).
+# The Qwen3.5-0.8B Q4_K_M, whose own quantization moves HF's top-1 on two of its eight rankings (docs/CI.md).
 # Its correctness gate is its committed file-exact goldens at FILE_EXACT_BOUNDS; against its model's goldens it is held to its own quantization's cost, which the user approved on 2026-09-27 for this file's SHA-256 alone: the top-1 of six rankings of eight, the top-5 overlap measured, and the NLL deltas measured, 0.0189 whole and 0.0235 in windows, plus 11 and 6 percent.
 QWEN35_08B_Q4_K_M_SHA256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
 QWEN35_08B_Q4_K_M_QUALITY = {"top1_matches": 6, "top5_overlap": 4, "continuous_nll": 0.021, "window_nll": 0.025}

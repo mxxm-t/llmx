@@ -1,4 +1,4 @@
-// Each stage's device time of a model split by layers over Vulkan devices as the CLI places it, a decode pass and, when asked, a prefill pass, from GPU timestamps: the stage-time source of the layer split's and the tensor split's models (docs/STATUS.md, layer split phase 3, step 0).
+// Each stage's device time of a model split by layers over Vulkan devices as the CLI places it, a decode pass and, when asked, a prefill pass, from GPU timestamps: the stage-time source of the layer split's and the tensor split's models (docs/STATUS-2026-09.md, layer split phase 3, step 0).
 // `stages MODEL D... [options]` is its one mode.
 #include <algorithm>
 #include <chrono>

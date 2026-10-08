@@ -14,7 +14,7 @@ from f32 import write_model
 DENSE_CONFIG = {"block_count": 2, "embedding_length": 128, "feed_forward_length": 256,
                 "attention.head_count": 2, "attention.head_count_kv": 1,
                 "attention.key_length": 64, "context_length": 512}
-# Every token takes all eight experts, so no routing near a tie can turn over under rounding and set the budget (docs/STATUS.md, the opt-in 8-bit prompt path); each expert still runs its routed products over its own entries.
+# Every token takes all eight experts, so no routing near a tie can turn over under rounding and set the budget (docs/STATUS.md, `--dtype int8` at every row count); each expert still runs its routed products over its own entries.
 MOE_CONFIG = dict(moe.Q8_CONFIG, context_length=512, expert_used_count=8)
 DENSE_SEED = 40961
 MOE_SEED = moe.Q8_SEED

@@ -2972,7 +2972,7 @@ size_t check_qwen35(backend::Backend& vk) {
 }
 
 // `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks, then checks each row kernel build's float multiplies and adds against its one-column build's (check_contraction).
-// The integer-dot tile and every quantized row kernel hold the precision of 16-bit activations: against a double product of the unquantized inputs, an output is within half a 16-bit step of each block's peak times that block's weights, where 8-bit activations miss by the 8-bit step (docs/STATUS.md, MI50 prompt activations at 16 bits).
+// The integer-dot tile and every quantized row kernel hold the precision of 16-bit activations: against a double product of the unquantized inputs, an output is within half a 16-bit step of each block's peak times that block's weights, where 8-bit activations miss by the 8-bit step (docs/STATUS-2026-09.md, MI50 prompt activations at 16 bits).
 // Each block of the inputs holds one value 30 times the others, as a residual stream's outliers do, so a block's step follows its peak.
 // Each type takes a wide tile case and a three-column row case. F32 and BF16 also take one and nine columns, permit only accumulation error on their respective inputs and hold each decode column to the same column alone.
 size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {

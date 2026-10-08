@@ -734,6 +734,117 @@ def check_reasoning(model):
 TOP = 5
 
 
+def check_context_overflow(model):
+    """A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context), on the synthetic chat model under a template without end tokens and a pool of 128 tokens, so a cut drops in steps of 64.
+    By default every route refuses it with a 413 that gives the prompt's tokens, the limit and the flag; with --context-overflow shift a conversation that grows past the pool keeps answering, each cut dropping whole messages after the system message so that the kept window starts at a user message, at the same place while the conversation grows within a step, the reply and its prompt those of a client that sent the kept messages itself; and a text prompt keeps its first rows and loses whole steps after them, saying the cut was not at a turn's end."""
+    f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
+    system = {"role": "system", "content": "s"}
+    reply = REASONING_REPLY.decode()
+
+    def conversation(turns):
+        messages = [system]
+        for t in range(turns):
+            if t:
+                messages.append({"role": "assistant", "content": reply})
+            messages.append({"role": "user", "content": "abcd"})
+        return messages
+
+    text = "".join(chr(97 + i % 26) for i in range(150))
+    srv = Server(model, "--ctx-size", "128")
+    try:
+        for path, body in (("/v1/generate", {"prompt": text, "max_tokens": 4}), ("/v1/completions", {"prompt": text, "max_tokens": 4}),
+                           ("/v1/chat", {"messages": conversation(3), "max_tokens": 16}), ("/v1/chat/completions", {"messages": conversation(3), "max_tokens": 16})):
+            status, err = srv.post(path, body)
+            message = err["error"]["message"] if isinstance(err.get("error"), dict) else err.get("error", "")
+            count = 150 if "prompt" in body else len(reasoning_render(conversation(3)))
+            assert status == 413 and "%d tokens" % count in message and "128" in message and "--context-overflow shift" in message, (path, status, err)
+    finally:
+        srv.close()
+    srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")
+    cuts = []
+    try:
+        for turns in range(1, 7):
+            messages = conversation(turns)
+            status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and got["text"] == reply, (turns, status, got)
+            context = got["context"]
+            assert context["limit"] == 128 and context["tokens"] == got["prompt_tokens"] + got["tokens"], (turns, got)
+            dropped = context.get("dropped_messages", 0)
+            cuts.append(dropped)
+            if len(reasoning_render(messages)) + 16 <= 128:
+                assert not dropped and "dropped_tokens" not in context, (turns, context)
+                continue
+            kept = [system] + messages[1 + dropped:]
+            assert dropped and kept[1]["role"] == "user" and context["at_marker"] is True, (turns, context)
+            assert got["prompt_tokens"] == len(reasoning_render(kept)) and context["dropped_tokens"] == len(reasoning_render(messages)) - len(reasoning_render(kept)), (turns, got)
+            # A client that sends the kept messages itself gets the same reply for the same prompt, and nothing is dropped for it.
+            status, own = srv.post("/v1/chat", {"messages": kept, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and own["text"] == got["text"] and own["prompt_tokens"] == got["prompt_tokens"] and "dropped_messages" not in own["context"], (turns, own)
+            # The compatible route cuts the same conversation alike and says so beside its usage.
+            status, compat = srv.post("/v1/chat/completions", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and compat["context"] == context and compat["usage"]["prompt_tokens"] == got["prompt_tokens"], (turns, compat)
+        # Turns 1 and 2 fit; 3 and 4 are cut at the same message, a step past the system message; 5 and 6 need a step more each.
+        assert cuts[:2] == [0, 0] and cuts[2] == cuts[3] > 0 and cuts[3] < cuts[4] < cuts[5], cuts
+        for path, key in (("/v1/generate", "prompt_tokens"), ("/v1/completions", "usage")):
+            status, got = srv.post(path, {"prompt": text, "max_tokens": 4, "temperature": 0})
+            # No end token in the text: the first 32 rows stay, half a step, and one step of 64 goes after them.
+            kept = text[:32] + text[96:]
+            status_own, own = srv.post(path, {"prompt": kept, "max_tokens": 4, "temperature": 0})
+            assert status == 200 and status_own == 200, (path, got, own)
+            assert got["context"] == {"tokens": len(kept) + 4, "limit": 128, "dropped_tokens": 64, "at_marker": False} and "dropped_tokens" not in own["context"], (path, got["context"], own["context"])
+            if path == "/v1/generate":
+                assert got["prompt_tokens"] == len(kept) and got["ids"] == own["ids"], (got, own)
+            else:
+                assert got["usage"]["prompt_tokens"] == len(kept) and got["choices"][0]["text"] == own["choices"][0]["text"], (got, own)
+        # A prompt whose newest rows alone do not fit is refused under shift too: 100 tokens asked for leave 28 rows, and a step leaves 86.
+        status, err = srv.post("/v1/generate", {"prompt": text, "max_tokens": 100})
+        assert status == 413 and "no cut helps" in err["error"], (status, err)
+    finally:
+        srv.close()
+    return cuts
+
+
+def check_context_overflow_real(model, excerpt):
+    """The same on the real model, whose template ends every turn with the tokenizer's end token, on a pool of 2048 tokens: a chat that grows past it keeps answering, its cuts at turn ends, and the turn after a cut reuses what the cut turn read, the cut being at the same message; a text prompt in the chat format is cut at a turn end with its leading turn kept.
+    The pool is that large so that a kept window is past 449 tokens, where a device's tile takes one split whatever the length and a follow-up may fork the rows."""
+    srv = Server(model, "--ctx-size", "2048", "--max-seqs", "2", "--context-overflow", "shift")
+    try:
+        messages = [{"role": "system", "content": "You answer in a few words."}]
+        cuts, reused = [], []
+        for turn in range(14):
+            messages.append({"role": "user", "content": (excerpt * 8)[turn * 900:(turn + 1) * 900]})
+            status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200, (turn, got)
+            cuts.append(got["context"].get("dropped_messages", 0))
+            reused.append(got["reused_tokens"])
+            assert got["context"].get("at_marker", True) is True and got["context"]["tokens"] <= 2048, (turn, got["context"])
+            if cuts[-1]:
+                assert messages[1 + cuts[-1]]["role"] == "user", (turn, cuts)
+            messages.append({"role": "assistant", "content": got["text"]})
+        assert max(cuts) > 0, cuts
+        # A turn cut at the message the turn before it was cut at shares that turn's prompt and reply, and reuses them.
+        again = [t for t in range(1, len(cuts)) if cuts[t] and cuts[t] == cuts[t - 1]]
+        assert again and all(reused[t] > 0 for t in again), (cuts, reused)
+        # A text prompt in the chat format: the leading turn stays and the cut is at a turn's end.
+        turn = "<|im_start|>user\n%s<|im_end|>\n<|im_start|>assistant\nYes.<|im_end|>\n"
+        text = "<|im_start|>system\nYou answer in a few words.<|im_end|>\n" + "".join(turn % (excerpt * 8)[k * 400:(k + 1) * 400] for k in range(24)) + "<|im_start|>user\nAnd then?<|im_end|>\n<|im_start|>assistant\n"
+        ids = srv.post("/v1/tokenize", {"text": text})[1]["tokens"]
+        end = srv.post("/v1/tokenize", {"text": "<|im_end|>"})[1]["tokens"][0]
+        points = [i + 1 for i, t in enumerate(ids) if t == end]
+        assert len(ids) > 2048 and len(points) == 50, (len(ids), len(points))
+        lead, kept = points[0], None
+        for j in range(1, 8):
+            later = [p for p in points if p >= lead + j * 1024]
+            if later and lead + len(ids) - later[0] + 8 <= 2048:
+                kept = lead + len(ids) - later[0]
+                break
+        status, got = srv.post("/v1/generate", {"prompt": text, "max_tokens": 8, "temperature": 0})
+        assert status == 200 and kept and got["prompt_tokens"] == kept and got["context"]["dropped_tokens"] == len(ids) - kept and got["context"]["at_marker"] is True, (got, kept, len(ids))
+    finally:
+        srv.close()
+    return cuts
+
+
 def volatile(text):
     """A reply with its id and timings blanked, the only bytes in which two runs of one compatible request may differ."""
     text = re.sub(r'"id":"(chat)?cmpl-[0-9]+"', '"id":""', text)
@@ -1545,6 +1656,9 @@ def run():
             if host:
                 check_stream_reuse(directory)
                 print("server: synthetic MoE model, experts on the host and long prompts streamed, a prompt forking a finished prompt's block giving its values alone  [ok]")
+        cuts = check_context_overflow(os.path.join(directory, "overflow.gguf"))
+        print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "
+              "each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows  [ok]" % cuts)
         check_mxfp4(directory)
         if check_disk_exit(model):
             print("server: synthetic F32 model, a disk tier's directory gone after SIGTERM, a killed server's swept by the next, a kept one adopted, and a tier past the free space or without a host tier refused  [ok]")
@@ -1564,6 +1678,8 @@ def run():
                          16, 4000, chat=True, texts=texts, prefix=excerpt)
         check_seeded(real)
         check_limits(real)
+        cuts = check_context_overflow_real(real, excerpt)
+        print("server: %s, a chat past a 2048-token pool with --context-overflow shift cut by %s messages at turn ends, the turn after a cut reusing it, and a text prompt in the chat format cut at a turn end  [ok]" % (os.path.basename(real), cuts))
         check_uncapped(real)
         check_paused_prefill(real)
         turns = check_conversation(real, excerpt)

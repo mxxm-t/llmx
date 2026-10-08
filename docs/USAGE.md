@@ -632,7 +632,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--state-checkpoints N] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -658,7 +658,7 @@ Over several devices the server first prints what each device was given, as `ben
 The line the server prints as it starts gives the budget it took: with 16
 sequences over a 40k-token budget that is 2.5k tokens each on average, and
 a request whose prompt plus `max_tokens` exceeds the budget or the model
-context, whichever is smaller, is refused with 413.
+context, whichever is smaller, is refused with 413, or cut under `--context-overflow shift` (below).
 
 The flags, in the groups of the help page (`llmx serve --help`); the paragraphs below explain each, and [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
 
@@ -678,6 +678,7 @@ The flags, in the groups of the help page (`llmx serve --help`); the paragraphs 
 | Prefix cache | `--disk-cache-keep` | off | Keeps the entries for the next server |
 | Prefix cache | `--disk-cache-max-age TIME` | `24h` | Deletes entries unused for longer |
 | Prefix cache | `--state-checkpoints N` | fitted, up to `--max-seqs` | Saved states of models with recurrent layers |
+| Server | `--context-overflow HOW` | `refuse` | What a prompt that does not fit gets: `refuse`, a 413, or `shift`, the oldest turns dropped |
 | Speculative decoding | `--drafter D` | `off` | Proposes tokens and checks them in one pass |
 | Speculative decoding | `--draft-max N` | `3` | Most drafted tokens checked at once |
 | Execution | `--device D`, `--dtype T`, `--layer-shares A,B`, `--tensor-width N`, `--threads N`, `--ubatch N`, `--cache-type-k T`, `--cache-type-v T`, `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N`, `--load-mode M` | | Where and how the model runs, as for every model command |
@@ -696,6 +697,13 @@ The server writes an entry while it is still in host memory, once the entries no
 Once no request has been active or waiting for five seconds, a server under `--disk-cache-keep` writes the same entries ahead, so a stop finds little left; give the server at least the bound it prints before killing it (`docker stop -t 30` or more).
 What is written is what a turn added: its new blocks, 68 KiB a token on a 27B model over two cards, and its state, 150 MiB on that model, never the conversation again, so an idle moment after a turn writes 0.165 GB, or nothing where the turn filled no block, where the whole copy at 76k tokens is 5.2 GB. A crash loses at most the turn not yet written, and every message boundary's state stays on disk within the size and the age limit, so an edit of any earlier message reads only that message again.
 `--disk-cache-max-age TIME` deletes entries unused for longer than TIME, a number of seconds or one followed by `s`, `m`, `h` or `d`, by default `24h`, `0` keeping them until room takes them; a server under keep adopts only entries younger than its limit.
+`--context-overflow HOW` says what a prompt gets that does not fit what one request may hold, the smaller of the model's context and the KV budget, with what it asks to generate.
+`refuse`, the default, answers 413 on every route with the prompt's tokens, the limit and this flag's name.
+`shift` cuts the prompt on every route and serves it: use it for chat front ends that do not manage their own context.
+A chat route drops the oldest messages after the system message, whole messages only, the kept window starting at a user message so a tool call stays with its results; a text route keeps its leading block, up to the first end token, and drops whole turns after it, or rows where the prompt has no end token.
+A cut drops in steps of half the limit, counted from the prompt's start, so a conversation that goes on is cut at the same message turn after turn: the turn that cuts reads its kept window again, once, since no saved state or cache row of the longer prompt serves the shorter one on any model, and the turns after it reuse it until the next step.
+A reply says what was cut in its `context` object, beside `usage` on the compatible routes: `tokens`, the rows the request holds, `limit`, and after a cut `dropped_messages` (chat routes), `dropped_tokens` and `at_marker`, false where a text prompt had no turn end to cut at.
+A reply that reaches the limit while it is written ends with `length`.
 `--disk-cache-dir PATH` is where it lives, by default `<home>/.cache/llmx/kv`, each server in a directory of its own, readable by its owner alone on Linux and macOS and with the access of `PATH` on Windows, removed when the server exits and by the next server to start if it crashed; `--disk-cache-floor N` is the free space the file system keeps after every write, by default the larger of 16 GiB and a twentieth of the file system.
 SIGTERM or SIGINT, or on Windows Ctrl-C, Ctrl-Break or closing its console, stops the server cleanly: it takes no new request, ends the ones it runs as cancelled and, under `--disk-cache-keep`, writes memory to disk, then exits with status 0; a second one ends it at once.
 As it starts the server prints the directory, the file system's free space and the floor, and refuses to start where the cap and the floor together exceed the free space; a write that fails, the disk full among them, stops writing until a check a minute later finds the floor and a tenth of the cap free.

@@ -17,6 +17,7 @@
 #include "core/utf8.hpp"
 #include "inference/chat.hpp"
 #include "model/place.hpp"
+#include "server/context_cut.hpp"
 #include "server/http.hpp"
 #include "server/scheduler.hpp"
 
@@ -37,6 +38,7 @@ struct Config {
     // The proposer a decoding request drafts with and its most drafts a verify (docs/SPECULATIVE.md, section 3); none drafts nothing.
     infer::spec::Proposer* proposer = nullptr;
     size_t draft_max = 0;
+    bool context_shift = false;   // a prompt that does not fit is cut at a turn's end (--context-overflow shift) and not refused
 };
 
 // The longest prefix of `bytes` that ends on a complete UTF-8 character, so a token whose text ends mid-character is held until the rest comes.
@@ -589,9 +591,77 @@ private:
         c.respond(200, "application/json", "{\"text\":" + jmini::quote(utf8_sanitize(tok_.decode(ids))) + "}");
     }
 
+    // What a cut dropped of a prompt, for the reply's context object and the request's line.
+    struct Fitted {
+        size_t messages = 0, tokens = 0;
+        bool cut = false, at_marker = false;
+    };
+
+    // Where each message of a rendered conversation ends in the prompt's rows (context_cut.hpp): the end tokens the scan finds, where there is one a message, and otherwise the conversation rendered up to each message and counted, a render a message, which runs only where the scan's count differs and only for a prompt that does not fit.
+    std::vector<size_t> message_ends(const std::vector<chat::Message>& messages, const std::vector<chat::TemplateVar>& vars, const std::vector<uint32_t>& ids) const {
+        std::vector<size_t> ends = cut_points(ids.data(), ids.size(), [this](uint32_t id) { return tok_.is_eos(id); });
+        if (ends.size() == messages.size()) return ends;
+        ends.clear();
+        for (size_t k = 1; k <= messages.size(); ++k)
+            ends.push_back(encode(format_.render(std::vector<chat::Message>(messages.begin(), messages.begin() + (std::ptrdiff_t)k), false, vars)).size());
+        return ends;
+    }
+
+    // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, where the server was started with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
+    // A chat route drops its oldest messages after the system message, a kept window starting at a user message so a tool call stays with its results, and renders the rest again; a text route keeps its leading block and drops rows after it (cut_rows).
+    // `body`, `prompt` and `ids` are the cut request's afterwards, so everything after reads it as the client's own.
+    Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids) {
+        const size_t limit = sched_.token_limit(), n = ids.size();
+        const auto fits = [&](size_t rows) { return params.until_limit ? rows < limit : rows + (size_t)params.max_tokens <= limit; };
+        if (fits(n)) return {};
+        const auto refuse = [&](const std::string& why) {
+            throw BadRequest(413, "the prompt is " + std::to_string(n) + " tokens" + (params.until_limit ? "" : " and asks for " + std::to_string(params.max_tokens) + " more") + ", and a request may hold " +
+                                      std::to_string(limit) + "; " + why);
+        };
+        if (!cfg_.context_shift) refuse("shorten it, or start the server with --context-overflow shift, which drops the oldest turns");
+        // The rows the prompt may take beside what it asks to generate, and the step a cut drops in.
+        const size_t room = params.until_limit ? limit - 1 : limit - std::min(limit, (size_t)params.max_tokens), step = limit / kCutTo;
+        Fitted f;
+        f.cut = true;
+        if (route == Route::chat || route == Route::chat_completions) {
+            const std::vector<chat::Message> messages = messages_of(body);
+            const std::vector<size_t> ends = message_ends(messages, template_vars(body), ids);
+            std::vector<char> starts;
+            for (const chat::Message& m : messages) starts.push_back(m.role == "user");
+            const size_t lead = messages[0].role == "system" ? 1 : 0, k = first_kept(ends, starts, lead, n, room, step);
+            if (k == messages.size()) refuse("its newest turns alone do not fit, so no cut helps");
+            for (auto& member : body.obj)
+                if (member.first == "messages") member.second.arr.erase(member.second.arr.begin() + (std::ptrdiff_t)lead, member.second.arr.begin() + (std::ptrdiff_t)k);
+            prompt = prompt_of(body, route);
+            ids = encode(prompt);
+            f.messages = k - lead;
+            f.at_marker = true;
+        } else {
+            const RowCut c = cut_rows(cut_points(ids.data(), n, [this](uint32_t id) { return tok_.is_eos(id); }), n, room, step);
+            if (c.from >= n) refuse("its newest rows alone do not fit, so no cut helps");
+            ids.erase(ids.begin() + (std::ptrdiff_t)c.lead, ids.begin() + (std::ptrdiff_t)c.from);
+            f.at_marker = c.at_marker;
+        }
+        f.tokens = n - ids.size();
+        if (!fits(ids.size())) refuse("cut to " + std::to_string(ids.size()) + " it still does not fit with what it asks for");
+        std::fprintf(stderr, "server: a prompt of %zu tokens cut to %zu to fit %zu, %zu tokens dropped%s%s\n", n, ids.size(), limit, f.tokens,
+                     f.messages ? (", " + std::to_string(f.messages) + " messages").c_str() : "", f.at_marker ? "" : ", not at a turn's end");
+        return f;
+    }
+
+    // A reply's context object: the rows the request holds against what it may, and what a cut dropped of its prompt.
+    std::string context_json(size_t prompt_tokens, size_t tokens, const Fitted& f) const {
+        std::string c = "{\"tokens\":" + std::to_string(prompt_tokens + tokens) + ",\"limit\":" + std::to_string(sched_.token_limit());
+        if (f.cut) {
+            if (f.messages) c += ",\"dropped_messages\":" + std::to_string(f.messages);
+            c += ",\"dropped_tokens\":" + std::to_string(f.tokens) + ",\"at_marker\":" + (f.at_marker ? "true" : "false");
+        }
+        return c + "}";
+    }
+
     void generate(http::Connection& c, const http::Request& req, Route route) {
-        const jmini::Value body = body_of(req);
-        const std::string prompt = prompt_of(body, route);
+        jmini::Value body = body_of(req);
+        std::string prompt = prompt_of(body, route);
         const SampleParams params = params_of(body, route);
         const bool stream = flag(body, "stream");
         const jmini::Value* so = body.get("stream_options");
@@ -599,6 +669,7 @@ private:
 
         std::shared_ptr<Request> r;
         std::vector<uint32_t> ids = encode(prompt);
+        const Fitted fitted = fit(body, route, params, prompt, ids);
         const size_t stable = stable_of(body, route, ids), start = message_start_of(body, route, prompt, ids);
         try { r = sched_.submit(std::move(ids), params, stable, start); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
@@ -698,13 +769,13 @@ private:
                 c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size(), no_logprobs) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
-                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size()) + "}\n\n");
+                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\n");
                 c.write_chunk("data: [DONE]\n\n");
                 c.end_stream();
             } else if (stream) {
                 if (!pending.empty()) c.write_chunk("data: {\"text\":" + jmini::quote(pending) + "}\n\n");
                 c.write_chunk("data: {\"done\":true,\"finish\":" + jmini::quote(finish) +
-                              ",\"tokens\":" + std::to_string(gen.size()) + "}\n\ndata: [DONE]\n\n");
+                              ",\"tokens\":" + std::to_string(gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\ndata: [DONE]\n\n");
                 c.end_stream();
             } else if (compat(route)) {
                 const std::string lp = params.logprobs ? ",\"logprobs\":" + compat_logprobs(route, sampled.data(), sampled.size()) : "";
@@ -721,7 +792,7 @@ private:
                 c.respond(200, "application/json",
                           head(id, route == Route::chat_completions ? "chat.completion" : "text_completion") + ",\"choices\":[" + choice + lp +
                           ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
-                          usage_json(prompt_tokens, gen.size()) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
+                          usage_json(prompt_tokens, gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else {
                 // With logprobs, a list beside the ids, and with top_logprobs a list of each position's most likely tokens.
                 std::string lp;
@@ -737,7 +808,7 @@ private:
                           "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json(gen) + lp +
                           ",\"finish\":" + jmini::quote(finish) + ",\"prompt_tokens\":" +
                           std::to_string(prompt_tokens) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
-                          ",\"tokens\":" + std::to_string(gen.size()) + "}");
+                          ",\"tokens\":" + std::to_string(gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}");
             }
         } catch (...) {
             r->cancel();

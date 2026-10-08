@@ -1246,6 +1246,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          for the next server; the exit takes " << server::kDiskFlush.count() << " s or more, and prints its bound\n"
             << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number\n"
             << "                          followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
+            << "  --context-overflow HOW  What a prompt that does not fit the context gets: refuse, a 413 with its numbers\n"
+            << "                          (the default), or shift, which drops the oldest turns to half the context;\n"
+            << "                          use shift for chat front ends that do not manage their own context\n"
             << "  --state-checkpoints N   Saved conversation states for models with recurrent layers (Qwen 3.5),\n"
             << "                          so a follow-up turn skips re-reading its prompt (default: fitted, up to --max-seqs)\n"
             << "\nSpeculative decoding (replies are the same either way):\n"
@@ -1576,6 +1579,11 @@ int main(int argc, char** argv) {
                 else if (f == "--disk-cache-keep") cfg.disk.keep = true;
                 else if (f == "--disk-cache-max-age") cfg.disk.max_age = seconds_arg(argc, argv, i, a);
                 else if (f == "--timing") cfg.timing = true;
+                else if (f == "--context-overflow") {
+                    const std::string v = nonempty_value(argc, argv, i, a, "refuse or shift");
+                    if (v != "refuse" && v != "shift") throw UsageError("--context-overflow takes refuse or shift, not " + v);
+                    cfg.context_shift = v == "shift";
+                }
                 else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}

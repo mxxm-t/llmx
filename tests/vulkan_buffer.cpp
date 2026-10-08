@@ -1,6 +1,7 @@
 // Include the implementation to exercise private resource ownership with fake Vulkan calls, without adding runtime test hooks.
 #include "backends/vulkan/vulkan_backend.cpp"
 #include <atomic>
+#include <filesystem>
 #include <iostream>
 #include <thread>
 #include <stdexcept>
@@ -509,7 +510,7 @@ int queue_checks() {
 }
 
 namespace {
-// A tensor group's collective over devices 0 and 1 (VulkanCollective): its semaphores freed when a join fails part way, its members drained before any goes, and a sum that fails part way leaving it as new.
+// A tensor group's collective over devices 0 and 1 (VulkanCollective): its semaphores freed when a join fails part way, its members drained before any goes, and a sum that fails part way, in a member's queue call or export on whichever thread makes it or in an import, leaving it as new with no file left open.
 struct CollectiveCalls;
 CollectiveCalls* collective_calls = nullptr;
 struct CollectiveCalls {
@@ -517,7 +518,8 @@ struct CollectiveCalls {
     std::vector<backend::Fn> original;
     std::vector<PFN_vkGetSemaphoreFdKHR> get_fd;
     std::vector<PFN_vkImportSemaphoreFdKHR> import_fd;
-    int creates = 0, live = 0, fail_create = 0, fail_get = 0, fail_import = 0, gets = 0, imports = 0;
+    int creates = 0, live = 0, fail_create = 0, fail_get = 0, fail_import = 0, imports = 0;
+    std::atomic<int> gets{0}, fail_submit{0};   // reached from the members' threads; fail_submit is the member whose next queue call fails, from 1
     bool premature = false;
     explicit CollectiveCalls(const std::vector<backend::VulkanBackend*>& m) : members(m) {
         collective_calls = this;
@@ -528,6 +530,7 @@ struct CollectiveCalls {
             import_fd.push_back(dev->import_semaphore_fd);
             dev->fn.vkCreateSemaphore = create;
             dev->fn.vkDestroySemaphore = destroy;
+            dev->fn.vkQueueSubmit = submit;
             dev->get_semaphore_fd = get;
             dev->import_semaphore_fd = import;
         }
@@ -560,6 +563,14 @@ struct CollectiveCalls {
         --q.live;
         q.original[q.index(d)].vkDestroySemaphore(d, s, alloc);
     }
+    static VKAPI_ATTR VkResult VKAPI_CALL submit(VkQueue queue, uint32_t n, const VkSubmitInfo* info, VkFence fence) {
+        auto& q = *collective_calls;
+        size_t i = 0;
+        while (backend::VulkanLifetimeTest::device(*q.members[i])->queue != queue) ++i;
+        int armed = (int)i + 1;
+        if (q.fail_submit.compare_exchange_strong(armed, 0)) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        return q.original[i].vkQueueSubmit(queue, n, info, fence);
+    }
     static VKAPI_ATTR VkResult VKAPI_CALL get(VkDevice d, const VkSemaphoreGetFdInfoKHR* info, int* fd) {
         auto& q = *collective_calls;
         if (++q.gets == q.fail_get) return VK_ERROR_TOO_MANY_OBJECTS;
@@ -571,6 +582,42 @@ struct CollectiveCalls {
         return q.import_fd[q.index(d)](d, info);
     }
 };
+
+// The files this process holds open, where the system lists them.
+size_t open_files() {
+    size_t n = 0;
+#if defined(__linux__)
+    for (const auto& e : std::filesystem::directory_iterator("/proc/self/fd")) { (void)e; ++n; }
+#endif
+    return n;
+}
+
+// A backend whose queue a submission holds (VulkanBackend::prepare) refuses to record or submit until the queue is taken back, and works as before after.
+int lent_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    const size_t n = 256;
+    std::vector<uint8_t> src(n);
+    for (size_t i = 0; i < n; ++i) src[i] = (uint8_t)(i * 7 + 3);
+    const auto a = b.adopt(src.data(), n);
+    const auto out = b.alloc(n, backend::Memory::host_visible);
+    b.sync();
+    b.copy(*out, 0, *a, 0, n);
+    const auto held = b.prepare({});
+    bool recorded = true, submitted = true;
+    try { b.copy(*out, 0, *a, 0, n); recorded = false; } catch (const std::logic_error&) {}
+    try { b.submit(); submitted = false; } catch (const std::logic_error&) {}
+    b.wait(b.queued(held, held.queue(*b.device())));
+    const bool arrived = std::memcmp(out->host_ptr(), src.data(), n) == 0;
+    std::vector<uint8_t> next(n);
+    for (size_t i = 0; i < n; ++i) next[i] = (uint8_t)~src[i];
+    const auto after = b.adopt(next.data(), n);
+    b.copy(*out, 0, *after, 0, n);
+    b.sync();
+    const bool ok = recorded && submitted && arrived && std::memcmp(out->host_ptr(), next.data(), n) == 0;
+    std::cout << "lent_queue refused_record=" << recorded << " refused_submit=" << submitted << " arrived=" << arrived << (ok ? " PASS\n" : " FAIL\n");
+    return ok ? 0 : 1;
+}
 
 // The one call another thread may make on a backend while its own thread records (Backend::wait): a thread copies and submits without pause while this one waits on each ticket it has been handed, and the bytes must arrive as written.
 int wait_beside_recording() {
@@ -629,24 +676,28 @@ int collective_checks() {
         for (float& v : want) v = value();
         std::vector<backend::BufferPtr> x;
         std::vector<backend::Slice> xs;
-        for (size_t m = 0; m < 2; ++m) {
+        for (size_t m = 0; m < members.size(); ++m) {
             x.push_back(members[m]->alloc(n * sizeof(float)));
             members[m]->write(*x.back(), 0, want.data(), n * sizeof(float));
             xs.push_back({x.back().get(), 0});
         }
         for (size_t k = 0; k < sums; ++k) {
-            std::vector<std::vector<float>> partial(2, std::vector<float>(n));
-            for (size_t m = 0; m < 2; ++m) {
+            std::vector<std::vector<float>> partial(members.size(), std::vector<float>(n));
+            for (size_t m = 0; m < members.size(); ++m) {
                 for (float& v : partial[m]) v = value();
                 const backend::Slice p = sum->partial(m);
                 members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
             }
             sum->sum_into(xs, rows, width);
-            for (size_t i = 0; i < n; ++i) want[i] = want[i] + (partial[0][i] + partial[1][i]);
+            for (size_t i = 0; i < n; ++i) {
+                float p = partial[0][i];
+                for (size_t m = 1; m < members.size(); ++m) p = p + partial[m][i];
+                want[i] = want[i] + p;
+            }
         }
         sum.reset();
         bool same = true;
-        for (size_t m = 0; m < 2; ++m) {
+        for (size_t m = 0; m < members.size(); ++m) {
             std::vector<float> got(n);
             members[m]->read(*x[m], 0, got.data(), n * sizeof(float));
             same = same && std::memcmp(got.data(), want.data(), n * sizeof(float)) == 0;
@@ -694,27 +745,40 @@ int collective_checks() {
             if (!ok) ++failures;
         }
     }
-    for (int kind = 1; kind <= 4; ++kind) {
+    // A sum's failures on a group of three where a third device opens, whose collective has a thread a member but the first, and on the two otherwise: the exports and the queue calls fail on whichever thread makes them, the imports on the caller's; kind 7 destroys the collective right after its failed sum.
+    backend::BackendPtr third;
+    try {
+        third = backend::make_vulkan_backend(2);
+        members.push_back(third.get());
+        if (first->join(members, 1, 1)) vk.push_back(&dynamic_cast<backend::VulkanBackend&>(*third));
+    } catch (const std::exception&) {}
+    if (members.size() > vk.size()) members.pop_back();
+    const int W = (int)members.size();
+    for (int kind = 1; kind <= 7; ++kind) {
         bool threw = false, drained = false, summed = false;
+        const size_t files = open_files();
         {
             CollectiveCalls q(vk);
             auto sum = first->join(members, rows, width);
             const int live = q.live;
-            if (kind <= 2) q.fail_get = kind; else q.fail_import = kind - 2;
+            if (kind <= 2) q.fail_get = kind; else if (kind <= 4) q.fail_import = kind - 2; else q.fail_submit = kind == 5 ? 1 : W;
             std::vector<backend::BufferPtr> x;
             std::vector<backend::Slice> xs;
-            for (size_t m = 0; m < 2; ++m) {
+            for (size_t m = 0; m < members.size(); ++m) {
                 x.push_back(members[m]->alloc(n * sizeof(float)));
                 xs.push_back({x.back().get(), 0});
             }
             try { sum->sum_into(xs, rows, width); }
             catch (const std::exception&) { threw = true; }
-            drained = backend::VulkanLifetimeTest::idle(*vk[0]) && backend::VulkanLifetimeTest::idle(*vk[1]) && q.live == live && !q.premature;
+            drained = q.live == live && !q.premature && q.fail_submit == 0;
+            for (auto* b : vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
             q.fail_get = q.fail_import = 0;
-            summed = chain(sum, 3) && q.live == 0 && !q.premature;
+            if (kind == 7) sum.reset();
+            summed = (kind == 7 || chain(sum, 3)) && q.live == 0 && !q.premature;
         }
-        const bool ok = threw && drained && summed;
-        std::cout << "collective_sum_case=" << kind << " threw=" << threw << " drained=" << drained << " summed=" << summed << (ok ? " PASS\n" : " FAIL\n");
+        const bool closed = open_files() == files;
+        const bool ok = threw && drained && summed && closed;
+        std::cout << "collective_sum_case=" << kind << " members=" << W << " threw=" << threw << " drained=" << drained << " summed=" << summed << " closed=" << closed << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
     }
     return failures;
@@ -838,7 +902,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + wait_beside_recording();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + lent_checks() + wait_beside_recording();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

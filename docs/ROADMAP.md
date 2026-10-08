@@ -193,7 +193,7 @@ loop, the gates and the order of work are in `docs/SERVER.md`.
   A `Backend` is driven by one thread at a time; the scheduler is the single
   submitter per device.
 - `server/` holds `http.hpp`, `scheduler.hpp`, its policy core `policy.hpp`,
-  the sampling threads `sampling_pool.hpp` and `api.hpp`, including the OpenAI-compatible routes. WebSockets are not implemented.
+  `api.hpp`, including the OpenAI-compatible routes. WebSockets are not implemented.
 
 ## 8. Correctness & perf gates
 Two standards, both EXTERNAL. Neither may be replaced by a self-consistency

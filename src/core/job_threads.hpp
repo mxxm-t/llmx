@@ -1,5 +1,5 @@
 #pragma once
-// The scheduler's sampling threads (docs/SERVER.md, Sampling): a pass's rows are drawn on them and on the scheduler thread, which hands them the rows and takes rows too.
+// Threads that sleep until a caller hands them a job over indices and take indices beside it: the scheduler's sampling threads (docs/SERVER.md, Sampling) and a Vulkan tensor group's member threads (docs/TENSOR-SPLIT.md, section 4.3).
 #include <condition_variable>
 #include <cstddef>
 #include <exception>
@@ -8,13 +8,13 @@
 #include <thread>
 #include <vector>
 
-namespace server {
+namespace core {
 
 // A fixed set of threads that run one job at a time over its indices, the calling thread taking indices too.
 // A job's calls touch only what their index names, so the pool decides nothing and any order gives the same result.
-class SamplingPool {
+class JobThreads {
 public:
-    explicit SamplingPool(size_t threads) {
+    explicit JobThreads(size_t threads) {
         try {
             for (size_t i = 0; i < threads; ++i) threads_.emplace_back([this] { work(); });
         } catch (...) {
@@ -22,9 +22,9 @@ public:
             throw;
         }
     }
-    ~SamplingPool() { stop(); }
-    SamplingPool(const SamplingPool&) = delete;
-    SamplingPool& operator=(const SamplingPool&) = delete;
+    ~JobThreads() { stop(); }
+    JobThreads(const JobThreads&) = delete;
+    JobThreads& operator=(const JobThreads&) = delete;
 
     size_t threads() const { return threads_.size(); }
 
@@ -106,4 +106,4 @@ private:
     bool stop_ = false;
 };
 
-} // namespace server
+} // namespace core

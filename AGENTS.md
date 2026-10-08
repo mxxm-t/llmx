@@ -424,7 +424,7 @@ The paused, held and steady loads also run over 1, 2 and 3 stages of tensor grou
 They run the same way over that hybrid model in the shape a group of two splits whole.
 On that model over two stages of groups at two passes, where each stage is recorded on a thread of its own, three requests verify the drafts lookup finds in prompts that end as they began and give the replies they give alone without drafts on one group, with drafts fed and kept: each member saves a marked entry's inputs on its stage's thread, which the TSan job then sees.
 
-`sampling-pool` runs the scheduler's sampling threads (`server/sampling_pool.hpp`) with no thread and with one, three and four: every index of a job once, for jobs of 0, 1, 2, 5, 64 and 1000 indices and 2000 jobs back to back of 1 to 17, a single index on the calling thread, every thread and the calling one taking an index at once, each on a thread of its own, and calls that throw rethrown by `run` only once every call has returned, after which the next job runs whole.
+`job-threads` runs the threads the scheduler draws a pass's rows on and a Vulkan tensor group queues its members' submissions on (`core/job_threads.hpp`) with no thread and with one, three and four: every index of a job once, for jobs of 0, 1, 2, 5, 64 and 1000 indices and 2000 jobs back to back of 1 to 17, a single index on the calling thread, every thread and the calling one taking an index at once, each on a thread of its own, and calls that throw rethrown by `run` only once every call has returned, after which the next job runs whole.
 
 `backend-errors` injects task and startup-allocation failures, checks completion
 before error propagation, and exercises pool reuse and thread reconfiguration.
@@ -505,12 +505,13 @@ It also checks that a device without the integer dot product gets a profile that
 `vulkan-lifetime` opens a device, intercepts transfers and injects allocation failures to check queued storage ownership during KV growth, padded-copy creation/replacement/invalidation and argument-arena overflow. It also varies the integer tile preference independently of the MXFP4 row decoder preference over three free-memory budgets: a profile that cannot create a copied MXFP4 tile must release that copy capacity from its scratch reserve.
 It checks retry and unchanged KV accounting after failed growth.
 A buffer dropped right after `alloc` or `adopt` must outlive its zero fill or its upload.
+A backend whose queue a prepared submission holds must refuse to record and to submit until the queue is taken back, and work as before after.
 Hold setup failing at its timeline or at each of its events destroys what it made, and the request made again holds, with copies around the holds right and nothing left after teardown.
 `alloc_weight` storage written in pieces that end inside a row holds the bytes and gets the float tile's padded copy, which storage from `alloc` does not.
 Five kernel-construction cases substitute calls to check cleanup, poisoned failure outputs, retry and cache reuse.
 Two query cases use a real diagnostic add dispatch to check creation failure/retry and destruction after device idle; these cases skip if diagnostic timestamps are unavailable.
 Transfer ownership cases intercept copies so old failures cannot submit references to freed memory.
-Where devices 0 and 1 form a tensor group's collective, a join whose semaphore creation fails at each of its four semaphores destroys what it made, a join whose second member cannot import its peer's inbox is refused naming its devices and leaves nothing behind, seven sums back to back with nothing read between give the chain of sums in member order once the collective is destroyed, no semaphore going before both members are idle, and a sum whose sync file fails at each export and each import leaves both members drained, its semaphores made again and the next sums right; without a second device or the exchange these cases are skipped and say so.
+Where devices 0 and 1 form a tensor group's collective, a join whose semaphore creation fails at each of its four semaphores destroys what it made, a join whose second member cannot import its peer's inbox is refused naming its devices and leaves nothing behind, seven sums back to back with nothing read between give the chain of sums in member order once the collective is destroyed, no semaphore going before both members are idle, and a sum whose sync file fails at each export and each import, or whose first or last member's queue call fails on whichever thread makes it, on a group of three where a third device opens, whose collective has its member threads, leaves every member drained, its semaphores made again, no file open that was not before (counted on Linux, where the system lists a process's open files) and the next sums right, as does a collective destroyed right after its failed sum; without a second device or the exchange these cases are skipped and say so.
 A thread copies and submits without pause while another waits on each ticket it was handed, the one call a second thread may make on a backend that is recording (`Backend::wait`), and the bytes arrive as written.
 Broad device arithmetic remains covered by `backend-vulkan` and HF.
 
@@ -925,7 +926,7 @@ matters: **each layer depends only on the layers below it** -
 
 | Directory    | Contents                                        |
 |--------------|-------------------------------------------------|
-| `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from |
+| `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from, threads that run a job over its indices |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
 | `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + Q8_0/Q4_0/Q4_1/Q4_K/Q5_K/Q6_K/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |

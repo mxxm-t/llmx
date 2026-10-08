@@ -76,9 +76,6 @@ server/
   policy.hpp     the policy core: the pools' blocks, the growth rule,
                  make_room, the round's stages, the decode share and the
                  logits rows, as free functions
-  sampling_pool.hpp
-                 the scheduler's sampling threads, which draw a retiring
-                 pass's rows beside the scheduler thread
   api.hpp        the routes and their JSON: /v1/generate, /v1/chat,
                  /v1/tokenize, /v1/detokenize, /v1/health, /v1/models,
                  /v1/chat/completions, /v1/completions
@@ -233,7 +230,7 @@ The timestamps and those readings slow serving, so throughput is read from a ser
 Sampling is per request, on the host, from the logits row the pass returns for that entry: the existing `inference/sampler.hpp` with the request's own temperature, top-k, top-p, penalty and seeded RNG, so a request with `seed` set is reproducible regardless of what it was batched with.
 The sampler ranks tokens by score with a tie going to the lower id and takes no sum in an order its selection leaves, so a seeded request gives the tokens `generate` gives with the same settings and seed.
 It reads the row in place in the pass's mapped logits, and the scheduler copies a row only for a request that asks for log-probabilities (below).
-A retiring pass's rows are drawn on the scheduler's sampling threads (`server/sampling_pool.hpp`): four, or one fewer than the CPUs the process may use where that is fewer, beside the scheduler thread, which waits for the pass's logits, hands them the rows and waits for every draw before the pass ends and its logits rows come back.
+A retiring pass's rows are drawn on the scheduler's sampling threads (`core/job_threads.hpp`): four, or one fewer than the CPUs the process may use where that is fewer, beside the scheduler thread, which waits for the pass's logits, hands them the rows and waits for every draw before the pass ends and its logits rows come back.
 Each draw touches only its request's generator and row copy, and a request wants one row a pass, so no draw depends on another, on the thread that takes it or on the order they run in; the scheduler thread then pushes the tokens in entry order, and it alone pushes to the channels, keeps the ledger and calls the backends.
 A pass of one row is drawn on the scheduler thread without waking another.
 A `top_k` of 0, which is what the compatible routes' -1 becomes, ranks only the best tokens, 64 at first and more as the nucleus `top_p` keeps needs them, and with `top_p` 1 ranks none.

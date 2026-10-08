@@ -2,6 +2,7 @@
 #include "backends/device_profile.hpp"
 #include "backends/kv_storage.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
+#include "core/job_threads.hpp"
 #include "quant/quant.hpp"
 
 #include <algorithm>
@@ -1726,10 +1727,72 @@ public:
         return ticket;
     }
 
-    // What a tensor group's exchange chains through (VulkanCollective): the next submission waits on `s`, and submit_signalling submits the open work signalling `signals` beside the timeline.
+    // What a tensor group's exchange chains through (VulkanCollective): the next submission waits on `s`, and prepare, Submission::queue and queued are flush in three steps, signalling `signals` beside the timeline, so the collective can make the queue's call of each member on a thread of its own.
     // A sum's submission is followed by no hold: the member's next work comes at once, and a hold there is a second submission at every sum; the stage's own submit() holds, as on a layer split, so a member waiting for another stage keeps its clock.
     void wait_on(VkSemaphore s) { waits_.push_back(s); }
-    Ticket submit_signalling(const std::vector<VkSemaphore>& signals) { return flush(signals); }
+
+    // The open command buffer ended and its submission filled, with the ticket it will carry.
+    // From here to queued() the queue is lent: only Submission::queue may be called for this backend, from any one thread, and open() and prepare() refuse.
+    struct Submission {
+        VkCommandBuffer cmd = VK_NULL_HANDLE;
+        Ticket ticket = 0;
+        std::vector<VkSemaphore> signal, waits;
+
+        // The queue's call alone; it touches nothing of the backend but the device's queue.
+        VkResult queue(const Device& d) const {
+            std::vector<uint64_t> values(signal.size(), 0), wait_values(waits.size(), 0);
+            values[0] = ticket;
+            const std::vector<VkPipelineStageFlags> stages(waits.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            VkTimelineSemaphoreSubmitInfo tsi{};
+            tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+            tsi.signalSemaphoreValueCount = (uint32_t)values.size();
+            tsi.pSignalSemaphoreValues = values.data();
+            tsi.waitSemaphoreValueCount = (uint32_t)wait_values.size();
+            tsi.pWaitSemaphoreValues = wait_values.data();
+            VkSubmitInfo si{};
+            si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            si.pNext = &tsi;
+            si.commandBufferCount = 1;
+            si.pCommandBuffers = &cmd;
+            si.signalSemaphoreCount = (uint32_t)signal.size();
+            si.pSignalSemaphores = signal.data();
+            si.waitSemaphoreCount = (uint32_t)waits.size();
+            si.pWaitSemaphores = waits.data();
+            si.pWaitDstStageMask = stages.data();
+            return d.fn.vkQueueSubmit(d.queue, 1, &si, VK_NULL_HANDLE);
+        }
+    };
+
+    Submission prepare(const std::vector<VkSemaphore>& signals) {
+        if (hold_.on) {
+            std::lock_guard<std::mutex> lk(hold_.mu);
+            hold_release();
+        }
+        Submission s;
+        s.cmd = open();
+        chunk_ = 0;
+        check(dev_->fn.vkEndCommandBuffer(s.cmd), "vkEndCommandBuffer");
+        s.signal.reserve(1 + signals.size());
+        s.signal.push_back(timeline_);
+        s.signal.insert(s.signal.end(), signals.begin(), signals.end());
+        s.waits.swap(waits_);
+        open_ = false;
+        s.ticket = ++last_ticket_;
+        lent_.store(true, std::memory_order_relaxed);
+        return s;
+    }
+
+    // The queue taken back with what its call returned: the ticket, or the call's failure with the ticket given up.
+    Ticket queued(const Submission& s, VkResult r) {
+        lent_.store(false, std::memory_order_relaxed);
+        if (r != VK_SUCCESS) {
+            --last_ticket_;
+            check(r, "vkQueueSubmit");
+        }
+        ring_ticket_[ring_index_] = s.ticket;
+        ring_index_ = (ring_index_ + 1) % kRing;
+        return s.ticket;
+    }
     const std::shared_ptr<Device>& device() const { return dev_; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::string pci_root() const override { return dev_->pci_root; }
@@ -1801,47 +1864,10 @@ public:
         hold_.timeline = timeline;
     }
 
-    // The queue's submission of the open command buffer, after letting a held queue go, waiting on the semaphores a group's exchange left (wait_on) and signalling `signals` beside the timeline.
-    Ticket flush(const std::vector<VkSemaphore>& signals = {}) {
-        if (hold_.on) {
-            std::lock_guard<std::mutex> lk(hold_.mu);
-            hold_release();
-        }
-        VkCommandBuffer cmd = open();
-        chunk_ = 0;
-        check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
-        const Ticket ticket = ++last_ticket_;
-        std::vector<VkSemaphore> signal{timeline_};
-        signal.insert(signal.end(), signals.begin(), signals.end());
-        std::vector<uint64_t> values(signal.size(), 0), wait_values(waits_.size(), 0);
-        values[0] = ticket;
-        const std::vector<VkPipelineStageFlags> stages(waits_.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-        VkTimelineSemaphoreSubmitInfo tsi{};
-        tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-        tsi.signalSemaphoreValueCount = (uint32_t)values.size();
-        tsi.pSignalSemaphoreValues = values.data();
-        tsi.waitSemaphoreValueCount = (uint32_t)wait_values.size();
-        tsi.pWaitSemaphoreValues = wait_values.data();
-        VkSubmitInfo si{};
-        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        si.pNext = &tsi;
-        si.commandBufferCount = 1;
-        si.pCommandBuffers = &cmd;
-        si.signalSemaphoreCount = (uint32_t)signal.size();
-        si.pSignalSemaphores = signal.data();
-        si.waitSemaphoreCount = (uint32_t)waits_.size();
-        si.pWaitSemaphores = waits_.data();
-        si.pWaitDstStageMask = stages.data();
-        const VkResult r = dev_->fn.vkQueueSubmit(dev_->queue, 1, &si, VK_NULL_HANDLE);
-        waits_.clear();
-        open_ = false;
-        if (r != VK_SUCCESS) {
-            --last_ticket_;
-            check(r, "vkQueueSubmit");
-        }
-        ring_ticket_[ring_index_] = ticket;
-        ring_index_ = (ring_index_ + 1) % kRing;
-        return ticket;
+    // The queue's submission of the open command buffer, after letting a held queue go, waiting on the semaphores a group's exchange left (wait_on).
+    Ticket flush() {
+        const Submission s = prepare({});
+        return queued(s, s.queue(*dev_));
     }
 
     // Callers hold hold_.mu.
@@ -3407,6 +3433,7 @@ private:
 
     // The open command buffer, beginning the next ring slot once its last submission has retired.
     VkCommandBuffer open() {
+        if (lent_.load(std::memory_order_relaxed)) throw std::logic_error("vulkan: a call on a backend whose queue a submission holds");
         if (open_) return ring_[ring_index_];
         waited(host_.slot_ms, ring_ticket_[ring_index_]);
         pending_[ring_index_].clear();
@@ -3483,6 +3510,7 @@ private:
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     std::atomic<Ticket> last_ticket_{0};   // atomic for a wait made from another thread while this one records (Backend::wait)
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
+    std::atomic<bool> lent_{false};           // between prepare() and queued(), while another thread may be making the queue's call
     static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time
     static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host
     struct {
@@ -3545,6 +3573,7 @@ public:
         : members_(members), rows_(rows), width_(width) {
         const size_t W = members.size(), bytes = size_mul(size_mul(rows, width), sizeof(float));
         try {
+            threads_ = std::make_unique<core::JobThreads>(W < 3 ? 0 : W - 1);
             for (VulkanBackend* m : members) {
                 partial_.push_back(m->alloc(bytes, Memory::device));
                 scratch_.push_back(m->alloc(bytes, Memory::device));
@@ -3577,7 +3606,11 @@ public:
             throw;
         }
     }
-    ~VulkanCollective() override { release(); }
+    // The threads go first: release drains members they call; the context that holds a collective goes before the model's backends.
+    ~VulkanCollective() override {
+        threads_.reset();
+        release();
+    }
 
     Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
 
@@ -3646,38 +3679,66 @@ private:
     }
 
     // Each member's open work submitted signalling a binary semaphore a peer, then, once every member has submitted, each imported as a sync file into the peer, whose next submission waits on it, so no member's work toward this round waits for another's.
+    // The recording thread ends every member's command buffer and takes its ticket, the members' queue calls and exports then run side by side, the first member's on the recording thread and each other's on a thread of the collective, and the recording thread takes every member back before it imports or throws.
+    // A member's thread calls its device's queue and its semaphores' exports and nothing else of the backend (Backend, the recording rule).
     void exchange() {
         const size_t W = members_.size();
-        for (size_t m = 0; m < W; ++m) {
-            std::vector<VkSemaphore> signals;
-            for (size_t t = 0; t < W; ++t)
-                if (t != m) signals.push_back(signal_[m][t]);
-            members_[m]->submit_signalling(signals);
+        struct Files {
+            std::vector<int> fd;
+            ~Files() {
+#if !defined(_WIN32)
+                for (int f : fd)
+                    if (f >= 0) close(f);
+#endif
+            }
+        } files{std::vector<int>(W * W, -1)};
+        std::vector<VulkanBackend::Submission> work(W);
+        std::vector<VkResult> result(W, VK_NOT_READY);
+        std::exception_ptr failed;
+        size_t prepared = 0;
+        try {
+            for (; prepared < W; ++prepared) {
+                std::vector<VkSemaphore> signals;
+                for (size_t t = 0; t < W; ++t)
+                    if (t != prepared) signals.push_back(signal_[prepared][t]);
+                work[prepared] = members_[prepared]->prepare(signals);
+            }
+            threads_->run(W, [&](size_t m) {
+                const Device& from = *members_[m]->device();
+                result[m] = work[m].queue(from);
+                if (result[m] != VK_SUCCESS) return;
+                for (size_t t = 0; t < W; ++t) {
+                    if (t == m) continue;
+                    VkSemaphoreGetFdInfoKHR gi{};
+                    gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+                    gi.semaphore = signal_[m][t];
+                    gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                    check(from.get_semaphore_fd(from.device, &gi, &files.fd[m * W + t]), "vkGetSemaphoreFdKHR");
+                }
+            });
+        } catch (...) {
+            failed = std::current_exception();
         }
+        for (size_t m = 0; m < prepared; ++m) {
+            try {
+                members_[m]->queued(work[m], result[m]);
+            } catch (...) {
+                if (!failed) failed = std::current_exception();
+            }
+        }
+        if (failed) std::rethrow_exception(failed);
         for (size_t m = 0; m < W; ++m) {
             for (size_t t = 0; t < W; ++t) {
                 if (t == m) continue;
-                const Device& from = *members_[m]->device();
                 const Device& to = *members_[t]->device();
-                VkSemaphoreGetFdInfoKHR gi{};
-                gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-                gi.semaphore = signal_[m][t];
-                gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-                int fd = -1;
-                check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
                 VkImportSemaphoreFdInfoKHR ii{};
                 ii.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR;
                 ii.semaphore = wait_[t][m];
                 ii.flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT;
                 ii.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-                ii.fd = fd;
-                const VkResult r = to.import_semaphore_fd(to.device, &ii);
-                if (r != VK_SUCCESS) {
-#if !defined(_WIN32)
-                    if (fd >= 0) close(fd);
-#endif
-                    check(r, "vkImportSemaphoreFdKHR");
-                }
+                ii.fd = files.fd[m * W + t];
+                check(to.import_semaphore_fd(to.device, &ii), "vkImportSemaphoreFdKHR");
+                files.fd[m * W + t] = -1;
                 members_[t]->wait_on(wait_[t][m]);
             }
         }
@@ -3720,6 +3781,7 @@ private:
     std::vector<VulkanBackend*> members_;
     size_t rows_, width_;
     int parity_ = 0;
+    std::unique_ptr<core::JobThreads> threads_;   // a thread a member but the first, asleep between exchanges, from three members on (docs/STATUS.md, a group's members submit side by side)
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
     std::vector<std::vector<BufferPtr>> imported_[2];                    // [parity][owner][sender]: that inbox on the sender, its only importer

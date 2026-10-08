@@ -1,4 +1,4 @@
-// The scheduler's sampling pool (server/sampling_pool.hpp): every index of a job run exactly once, on the pool's threads beside the calling one, an exception rethrown only once every other call has returned, and the pool reused after it.
+// A set of job threads (core/job_threads.hpp): every index of a job run exactly once, on the pool's threads beside the calling one, an exception rethrown only once every other call has returned, and the pool reused after it.
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include "server/sampling_pool.hpp"
+#include "core/job_threads.hpp"
 
 namespace {
 
@@ -21,7 +21,7 @@ void require(bool ok, const std::string& what) {
 }
 
 // n indices on `pool`: each must run exactly once.
-void once_each(server::SamplingPool& pool, size_t n, const std::string& what) {
+void once_each(core::JobThreads& pool, size_t n, const std::string& what) {
     std::unique_ptr<std::atomic<int>[]> runs(new std::atomic<int>[n ? n : 1]);
     for (size_t i = 0; i < n; ++i) runs[i] = 0;
     pool.run(n, [&](size_t i) { ++runs[i]; });
@@ -29,7 +29,7 @@ void once_each(server::SamplingPool& pool, size_t n, const std::string& what) {
 }
 
 // Every thread of the pool and the calling one take an index at once: each of the first threads + 1 calls waits until all of them have begun, which only threads running side by side can meet.
-void side_by_side(server::SamplingPool& pool) {
+void side_by_side(core::JobThreads& pool) {
     const size_t k = pool.threads() + 1;
     std::atomic<size_t> begun{0};
     std::atomic<bool> met{true};
@@ -47,7 +47,7 @@ void side_by_side(server::SamplingPool& pool) {
 }
 
 // Calls that throw: run rethrows one of their exceptions, and only once every call has returned, the throwing ones included; the pool then runs the next job whole.
-void throwing(server::SamplingPool& pool) {
+void throwing(core::JobThreads& pool) {
     const size_t n = 64;
     std::atomic<size_t> returned{0}, ran{0};
     bool caught = false;
@@ -73,7 +73,7 @@ int main() {
     try {
         for (size_t threads : {0, 1, 3, 4}) {
             const std::string what = "a pool of " + std::to_string(threads) + " threads";
-            server::SamplingPool pool(threads);
+            core::JobThreads pool(threads);
             require(pool.threads() == threads, what + " holds " + std::to_string(pool.threads()));
             once_each(pool, 0, what);
             std::thread::id on;
@@ -85,10 +85,10 @@ int main() {
             // Jobs back to back, the size of a pass's rows, so a thread still leaving one job meets the next.
             for (size_t r = 0; r < 2000; ++r) once_each(pool, 1 + r % 17, what + ", job " + std::to_string(r));
         }
-        std::cout << "sampling-pool: " << checks << " checks pass\n";
+        std::cout << "job-threads: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& e) {
-        std::cerr << "sampling-pool: " << e.what() << '\n';
+        std::cerr << "job-threads: " << e.what() << '\n';
         return 1;
     }
 }

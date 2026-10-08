@@ -21,13 +21,13 @@
 #include <vector>
 #include "core/cpus.hpp"
 #include "core/host_memory.hpp"
+#include "core/job_threads.hpp"
 #include "inference/logprobs.hpp"
 #include "inference/sampler.hpp"
 #include "inference/spec.hpp"
 #include "model/runtime.hpp"
 #include "server/disk_tier.hpp"
 #include "server/policy.hpp"
-#include "server/sampling_pool.hpp"
 #include "tokenizer/tokenizer.hpp"
 
 namespace server {
@@ -2952,7 +2952,7 @@ private:
     Pools pools_;                              // the model's cache pools, which never change size
     uint64_t formed_ = 0;                      // passes formed, which orders them
     std::vector<infer::BatchEntry> entries_;   // the pass being formed
-    SamplingPool samplers_;
+    core::JobThreads samplers_;
     std::vector<Draw> draws_;                  // the retiring pass's rows the pool draws
     mutable std::mutex m_;
     std::condition_variable cv_;

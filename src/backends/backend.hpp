@@ -408,6 +408,7 @@ public:
     virtual Ticket submit() = 0;
     // Retirement cannot throw: callers release storage afterward, so failure to establish completion must terminate.
     // A backend is one thread's: every call is made by the thread recording on it, but for wait(t) of a ticket submit() has returned, which another thread may make while that one records, as a scheduler waits for a pass's logits while a stage's thread records the next pass (docs/SERVER.md, the round).
+    // A collective may make each member's queue call of a sum on a thread of its own while the recording thread is inside sum_into: that thread calls the member's queue and nothing else of the backend, no other thread calls the member meanwhile but wait(t), and sum_into returns, on success or failure, only once every member's queue is taken back.
     virtual void wait(Ticket t) noexcept = 0;
     // Also retires work behind no ticket, including on failure paths.
     virtual void sync() noexcept = 0;

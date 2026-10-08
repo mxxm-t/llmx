@@ -680,7 +680,7 @@ private:
         std::vector<std::shared_ptr<Request>> decoding_now;
         for (auto& r : active)
             if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) decoding_now.push_back(r);
-        propose(decoding_now, draft_columns(share));
+        propose(decoding_now, draft_columns(share, active.size()));
         for (auto& r : decoding_now) {
             if (r->verify_.size() > 1) {
                 infer::BatchEntry e{&r->seq_, r->verify_.data(), r->verify_.size(), true, true};
@@ -973,12 +973,14 @@ private:
         f.want = 0;
     }
 
-    // The decode columns a pass with `decoders` decode entries leaves for drafts (docs/SPECULATIVE.md, section 3): those its kernels read each weight once for past one a decoder, every draft a lone decoder asks, at most the kDraftRows the logits rows hold for drafts less those the passes in flight carry, and none while a request waits to be admitted or to resume, so drafts never hold room or rows another request needs.
-    size_t draft_columns(size_t decoders) {
+    // The decode columns a pass with `decoders` decode entries leaves for drafts (docs/SPECULATIVE.md, section 3): those its kernels read each weight once for past one a decoder, every draft a lone decoder asks, at most the kDraftRows the logits rows hold for drafts less those the passes in flight carry.
+    // None while every seat is taken (`seated`) and a request is queued for one: measured on a layer split of three at 16 seats under 32 and 64 users, drafts there cost 3 to 10 percent of the output and as much of the first-token p99 (docs/STATUS.md).
+    // A request paused or queued for room changes nothing: it waits for the running requests to end or grow, which their drafts bring sooner.
+    size_t draft_columns(size_t decoders, size_t seated) {
         if (!proposer_) return 0;
-        {
+        if (seated >= max_seqs_) {
             std::lock_guard<std::mutex> lk(m_);
-            if (!queue_.empty() || !paused_.empty()) return 0;
+            if (!queue_.empty()) return 0;
         }
         const size_t columns = model_.decode_columns();
         size_t free = columns > decoders ? columns - decoders : 0;

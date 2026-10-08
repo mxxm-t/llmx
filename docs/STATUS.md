@@ -131,6 +131,27 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A request drafts while another waits for room (2026-10-08, branch perf/draft-while-waiting, lands by fast-forward)
+
+- **Found on production:** three requests generated 7156 tokens with at most 34 verifies between them. A pass took no draft while any request was queued or paused, a rule no record names a measurement for, so the request that held the pool ran at its plain rate for exactly as long as another waited for it to end.
+- **Measured first** (two MI50s, Qwen3.8-27B Q8_0 with its embedded drafter, production's flags and a 16384-token context, a chat generating to the pool's end with a second one paused beside it): from the pause to the first request's end, 160 s and about 3300 tokens, the verifies stood still at 253, and the request ran at 20.8 tok/s.
+- **Done:** a request paused or queued for room no longer stops the drafts; it waits for the running requests to end or grow, which their drafts bring sooner, and a draft stays inside the drafting request's own reservation. The rule stays where every seat is taken and a request is queued for one, which is the half a measurement asked for (below). `scheduler.hpp` is 2769 lines before and 2771 after.
+- **The same reproduction with the change:** the first request runs at 31.3 tok/s and ends after 147 s where it took 220 s, 1328 verifies by then; the second, which waits for it, has its whole reply 71 s sooner.
+- **Why half of the rule stays:** removed whole, it cost output where requests queue for seats. Qwen3.8-27B Q8_0 with its embedded drafter, 16 seats, closed loops of 32 and 64 users of 128-token prompts and replies, tok/s of output, two rounds interleaved with main:
+
+  | shape | users | main | the rule removed whole | the half kept |
+  |---|---|---|---|---|
+  | tensor group of two | 32 | 107.9, 106.2 and 106.0, 104.0 | 105.2, 106.3 | 105.4, 104.6 |
+  | tensor group of two | 64 | 107.3, 107.3 and 107.5, 107.3 | 107.2, 107.5 | 107.7, 106.2 |
+  | layer split of three | 32 | 136.8, 136.5 and 133.0, 136.2 | 122.4, 133.2 | 131.9, 130.3 |
+  | layer split of three | 64 | 140.4, 140.4 and 136.9, 138.5 | 127.6, 134.4 | 139.0, 136.2 |
+
+  Main was run in both sessions, so its cells hold four figures. On the split of three the whole removal lost 3 to 10 percent of the output and raised the first-token p99 from 48.4 to 51.0 and 54.6 s at 64 users, the passes feeding 488 and 987 drafts where main fed 130 and 165; with the half kept the cells are within main's own spread but for 32 users on the split, 131.9 and 130.3 against 133.0 to 136.8, which I leave stated and not explained. With 64 seats, where nothing queues, both builds are level (group 110.5, 123.9, 126.8 against 110.8, 125.4, 127.5 at 16, 32 and 64 users; split 132.9, 154.5, 155.5 against 135.6, 154.6, 155.7).
+- **What the split's loss says and this branch does not fix:** drafts beside 16 decoders on a layer split of three cost output, and the price that should refuse them takes them. That is the price's defect, with the third draft it leaves on a group of two (the record of the drafting rounds); the kept half of the rule covers it only where requests queue for seats.
+- **The failing test first:** `server-spec`: on two seats and 8 blocks a request with drafts beside a queued request the pool has no room for must feed the drafts it feeds alone, which on main it does not, feeding none of them; on one seat, with a second request queued for it, it feeds none.
+- **Measured, gates:** the two tables above; on Windows CTest and the suite's server, qwen35, docs, dead-code and version components; the test machine's CPU gates with the linked check, identity of Qwen3-0.6B Q8_0 with main and the hosted run are named in the landing's devlog entry.
+- **Reviewed:** by F2DEV, no finding: the rule narrowed to its measured half, its reason beside it; the price's taking drafts beside many decoders on a layer split named as its own defect and left as one item with the third draft on the group.
+
 ## `/v1/health`'s host figures say what they count (2026-10-08, branch docs/health-host-wording, docs only, lands by fast-forward)
 
 - **Why:** production showed `reuse.host.now.entries` 0 beside 536870912 `bytes`, and 313868288 `bytes_moved` with no promotion, which read as an error and is not one.

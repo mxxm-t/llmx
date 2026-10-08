@@ -418,9 +418,9 @@ private:
                                                {ffn_down_shexp, part, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", Fs, E, 0, Stream::copy}});
         layer.ops.push_back({part, backend::Op::sigmoid_mul});
         blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
-        // A tensor group splits each routed expert's hidden rows and the shared expert's; the router and the shared expert's gate vector are whole on every member.
-        blocks::shard_experts(layer.roles, ffn_gate_exps, ffn_up_exps, ffn_down_exps, Fe, X);
-        blocks::shard_swiglu(layer.roles, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp, Fs);
+        // A tensor group splits each routed expert's hidden rows and the shared expert's, one more expert, each covered by whole blocks of its down projection; the router and the shared expert's gate vector are whole on every member.
+        blocks::shard_experts(layer.roles, tensors, ffn_gate_exps, ffn_up_exps, ffn_down_exps, Fe, X);
+        blocks::shard_experts(layer.roles, tensors, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp, Fs, 1);
     }
 
     // The first of the drafter's four arena slots (plan_drafter), after those of slot_widths.

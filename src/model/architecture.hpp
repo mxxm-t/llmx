@@ -34,10 +34,12 @@ enum class Axis : uint8_t { none, rows, columns };
 
 // A run of the axis: `tiles` tiles of `units` units of `unit` rows or columns each, a member taking the same share of the units in every tile, so one tile is a contiguous split.
 // `what` names a tile's units in a refusal, and `replicate` lets a width that is a multiple of the units give each unit to width / units members, as KV heads are.
+// With `align` above 1 a member holds, in every tile, the whole runs of `align` rows or columns that cover its share: on the column axis the tensor's own bytes there, and on the row axis zero rows where a covered row is another member's (model/shard.hpp), which an expert's hidden rows take where its down stack's quant blocks do not fall on the members' shares.
 struct ShardSection {
     uint64_t units = 0, unit = 1, tiles = 1;
     const char* what = "rows";
     bool replicate = false;
+    uint64_t align = 1;
 };
 
 // How a role splits: its axis and the sections that cover it, in order (model/shard.hpp).

@@ -952,7 +952,7 @@ void hook_checks() {
     }
 }
 
-// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, columns off whole quant blocks, a dense layer's or an expert stack's, and a state layer's saved row.
+// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, a dense layer's columns off whole quant blocks, and a state layer's saved row; an expert stack's columns are covered by whole blocks and not refused.
 void shard_checks() {
     // A two-layer dense qwen3 plan over views without bytes, F32 but for the `down` type of ffn_down and of a down stack, with or without routed experts in its first layer.
     auto dense = [](int heads, int kv, int dim, int ff, uint64_t vocab, uint32_t down, bool routed) {
@@ -1015,13 +1015,12 @@ void shard_checks() {
         rejects("tensor width vocabulary", [&] { infer::shard::check_plan(plan, views, 2); });
     }
     {
-        // A routed layer splits each expert's 64 hidden rows: whole at widths 2 and 4 in F32, and off whole Q8_0 blocks at width 4, 16 columns a member.
+        // A routed layer splits each expert's 64 hidden rows: whole at widths 2 and 4 in F32, and in Q8_0 at width 4, 16 columns a member, by the whole blocks that cover them.
         const auto pv = dense(8, 2, 128, 1024, 48, f32, true);
         for (size_t width : {size_t(2), size_t(4)}) infer::shard::check_plan(pv.first, pv.second, width);
-        ++checks;
         const auto q8 = dense(8, 2, 128, 1024, 48, quant::GGML_TYPE_Q8_0, true);
-        infer::shard::check_plan(q8.first, q8.second, 2);
-        rejects("tensor width expert blocks", [&] { infer::shard::check_plan(q8.first, q8.second, 4); });
+        for (size_t width : {size_t(2), size_t(4)}) infer::shard::check_plan(q8.first, q8.second, width);
+        ++checks;
     }
     {
         // A qwen35 linear-attention layer of 2 K heads, then a full-attention layer, which 4 members cannot split by K head.

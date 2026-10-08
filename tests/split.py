@@ -17,7 +17,7 @@ import tensor_split
 # Each split runs with f16 caches, the default, and with f32 caches, since a split is exact at either.
 # LLMX_DTYPE reaches both placements through the tool's optional dtype argument; request records and completed paths are checked, including visible fallback.
 # Three decode steps after the 13-token text fill the tiny models' 16-token context.
-# The tensor-split fixtures, dense, qwen3moe, qwen35 and qwen35moe (tests/tensor_split.py), also run as one tensor group of two CPU backends against two stages of such groups, which must give the one group's bits (docs/TENSOR-SPLIT.md, section 4.4).
+# The tensor-split fixtures, dense, qwen3moe in F32 and in Q8_0 with covering blocks, qwen35 and qwen35moe (tests/tensor_split.py), also run as one tensor group of two CPU backends against two stages of such groups, which must give the one group's bits (docs/TENSOR-SPLIT.md, section 4.4).
 # The tiny qwen35 models run over two CPU backends and over four, a layer a stage, where the first and third stages hold only a linear-attention layer, which keeps a state and no KV; a model that keeps a state is not forked, so the tool recomputes it from no fork.
 UBATCHES = (1, 3, 16)
 CACHE_TYPES = ("f16", "f32")
@@ -132,7 +132,8 @@ def run(require=False):
                    f32.write_model(os.path.join(directory, "even-moe.gguf"), moe.tensors(tensor_split.MOE_SEED, tensor_split.MOE_CONFIG, tensor_split.VOCAB),
                                    config=tensor_split.MOE_CONFIG, arch="qwen3moe", tokens=tensor_split.TOKENS),
                    qwen35.write_fixture(directory, tensor_split.QWEN35, tokens=tensor_split.TOKENS),
-                   qwen35.write_fixture(directory, tensor_split.QWEN35MOE, tokens=tensor_split.TOKENS)]
+                   qwen35.write_fixture(directory, tensor_split.QWEN35MOE, tokens=tensor_split.TOKENS),
+                   tensor_split.write_moe_q8(os.path.join(directory, "even-moe-q8.gguf"))]
         for model in grouped:
             for ubatch in UBATCHES:
                 for cache in CACHE_TYPES:
@@ -151,7 +152,7 @@ def run(require=False):
                     assert verifies or steps < 17, "split: no rounds of verifies after %d decode steps" % steps
                     runs += 1
     print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
-          "bit-identical to one, the tensor-split fixtures (dense, qwen3moe, qwen35 and qwen35moe) as two stages of groups of two against one group, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
+          "bit-identical to one, the tensor-split fixtures (dense, qwen3moe in F32 and in Q8_0 with covering blocks, qwen35 and qwen35moe) as two stages of groups of two against one group, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 
 

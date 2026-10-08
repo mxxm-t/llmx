@@ -4,6 +4,7 @@ Groups of CPU backends are formed by llmx-model-logits, since the command line l
 The qwen35 fixture, whose linear-attention layers keep a recurrent state, is held the same way: each member runs its K heads and the V heads that read them over its own state.
 So are the routed fixtures, qwen3moe and qwen35moe: each member holds its share of every expert's hidden rows, and of the shared expert's.
 """
+import hashlib
 import json
 import math
 import os
@@ -40,6 +41,23 @@ MOE_CONFIG = {"block_count": 3, "embedding_length": 40, "feed_forward_length": 3
               "expert_count": 8, "expert_used_count": 3, "expert_feed_forward_length": 16}
 # The seed of the qwen3moe fixture's weights, one whose routing stands clear of a tie for every token of the goldens.
 MOE_SEED = 24680
+# A Q8_0 qwen3moe model whose experts' hidden width is three 32-value blocks, 96, which no member's even share falls on: 48 columns a member of two and 24 of four, so each member holds the blocks that cover its share (docs/TENSOR-SPLIT.md, section 8, covering blocks).
+# Everything else of it splits whole at widths 2 and 4 in Q8_0; its goldens are HF holding the file's own weights (tools/gen_baseline.py tensor-split-moe).
+MOE_Q8_CONFIG = {"block_count": 3, "embedding_length": 128, "feed_forward_length": 128,
+                 "attention.head_count": 4, "attention.head_count_kv": 2,
+                 "attention.key_length": 32, "context_length": 16,
+                 "expert_count": 8, "expert_used_count": 3, "expert_feed_forward_length": 96}
+# Seed 4 is the first of those tried (24792, then 1 on) whose routing stays 0.1 router logits clear of a tie, as the generator requires.
+MOE_Q8_SEED, MOE_Q8_ROUTER_SCALE = 4, 16.0
+
+
+def write_moe_q8(path, context=None):
+    """The Q8_0 routed fixture at `path`, with another context length where given, which changes no weight."""
+    config = dict(MOE_Q8_CONFIG, context_length=context) if context else MOE_Q8_CONFIG
+    return f32.write_model(path, [], config=config, arch="qwen3moe", tokens=TOKENS,
+                           quantized=moe.q8_tensors(MOE_Q8_ROUTER_SCALE, MOE_Q8_SEED, MOE_Q8_CONFIG, vocab=VOCAB))
+
+
 QWEN35MOE = dict(QWEN35, name="split-moe", moe={"expert_count": 4, "expert_used_count": 2, "expert_feed_forward_length": 8, "expert_shared_feed_forward_length": 8})
 WIDTHS = ((2, "cpu,cpu"), (4, "cpu,cpu,cpu,cpu"))
 
@@ -61,7 +79,9 @@ def golden():
         doc = json.load(f)
     with open(GOLDEN_MOE, encoding="utf-8") as f:
         doc["qwen3moe"] = json.load(f)
-    assert doc["qwen3moe"]["vocab"] == VOCAB and doc["qwen3moe"]["seed"] == MOE_SEED, "tensor-split: fixture shapes changed"
+    q8 = doc["qwen3moe"]["q8"]
+    assert doc["qwen3moe"]["vocab"] == VOCAB and doc["qwen3moe"]["seed"] == MOE_SEED and \
+        (q8["config"], q8["seed"], q8["router_scale"]) == (MOE_Q8_CONFIG, MOE_Q8_SEED, MOE_Q8_ROUTER_SCALE), "tensor-split: fixture shapes changed"
     assert doc["config"] == CONFIG and doc["vocab"] == VOCAB and doc["qwen35"]["spec"] == QWEN35 and doc["qwen35moe"]["spec"] == QWEN35MOE and \
         doc["qwen3moe"]["config"] == MOE_CONFIG and doc["qwen3moe"]["dense_layers"] == list(moe.DENSE_LAYERS), "tensor-split: fixture shapes changed"
     for fixture in doc["qwen3"]:
@@ -82,6 +102,11 @@ def fixtures(doc, directory):
                                           config=dict(CONFIG, context_length=128), tokens=TOKENS), fixture))
     out.append(("qwen3moe", f32.write_model(os.path.join(directory, "qwen3moe.gguf"), moe.tensors(MOE_SEED, MOE_CONFIG, VOCAB),
                                             config=dict(MOE_CONFIG, context_length=128), arch="qwen3moe", tokens=TOKENS), doc["qwen3moe"]))
+    q8 = os.path.join(directory, "qwen3moe-q8.gguf")
+    write_moe_q8(q8)
+    with open(q8, "rb") as f:
+        assert hashlib.sha256(f.read()).hexdigest() == doc["qwen3moe"]["q8"]["file_sha256"], "tensor-split: the Q8_0 routed fixture changed"
+    out.append(("qwen3moe Q8_0 with covering blocks", write_moe_q8(q8, 128), doc["qwen3moe"]["q8"]))
     for key, spec in (("qwen35", QWEN35), ("qwen35moe", QWEN35MOE)):
         out.append((key, qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS), doc[key]))
     return out
@@ -183,7 +208,7 @@ def run(require=False):
                     common.check_device_rows(one[phase], rows[phase], list(f32.TEXTS[-1].encode("ascii")))
                 common.check_device_greedy(one["greedy"], rows["greedy"], one_meta["greedy"], meta["greedy"])
         drafted = check_drafter(directory, single, widths, require)
-    print("tensor-split: the qwen3 fixtures, tied and untied, and the qwen3moe, qwen35 and qwen35moe fixtures on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion%s  [ok]"
+    print("tensor-split: the qwen3 fixtures, tied and untied, the qwen3moe one in F32 and in Q8_0 with covering blocks, and the qwen35 and qwen35moe fixtures on %s against HF, max logit error %.8f and NLL error %.8f, and against %s by the device-reference criterion%s  [ok]"
           % (" and ".join("%s as width %d" % (devices, width) for width, devices in widths), worst_logit, worst_nll, single,
              "" if drafted is None else "; the embedded drafter's picks and drafts those of %s, draft logits within %.8f" % (single, drafted)))
     return True

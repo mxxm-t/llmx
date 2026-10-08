@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <cstring>
 #include <optional>
 #include <stdexcept>
@@ -22,8 +23,15 @@ struct Span {
 };
 
 // A run of a tensor's bytes a member holds: `bytes` from offset `from` in the tensor, at offset `to` in the member's packed copy.
+// A `zero` run is `bytes` of zeros at `to`, a covered row that is another member's; its `from` is the tensor's size, past every byte a file run names, and zero runs follow the file runs, which stay in the tensor's order.
 struct Run {
     size_t from = 0, bytes = 0, to = 0;
+    bool zero = false;
+};
+
+// A member's part of one tile of a section: the rows or columns it owns, and the run it holds, which covers them (ShardSection::align).
+struct Part {
+    Span own, cover;
 };
 
 // The length of a role's axis: its rows, an expert stack's over every expert, or its columns, a vector's elements.
@@ -45,24 +53,32 @@ inline std::runtime_error indivisible(const Role& role, const ShardSection& sect
                               section.what + " of " + role.name + (section.replicate ? ", nor is a multiple of them" : ""));
 }
 
-// Member `member`'s spans of `role` at `width`, in order along the axis with adjacent spans joined: the whole axis at width 1 or for a role whose axis is none.
+// Member `member`'s parts of `role` at `width`, one a tile of each section in order along the axis: what it owns and the run it holds, the two the same but under an alignment, where the run is widened to whole runs of `align` inside its tile.
 // A declaration whose sections do not cover the axis is the architecture's error; a width that does not split a section is refused by name.
-inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
+inline std::vector<Part> parts(const Role& role, size_t width, size_t member) {
     if (!width || member >= width) throw std::logic_error("shard: member " + std::to_string(member) + " of a group of " + std::to_string(width));
-    if (role.shard.axis == Axis::none || width == 1) return {Span{0, extent(role)}};
-    std::vector<Span> out;
+    if (role.shard.axis == Axis::none || width == 1) return {Part{Span{0, extent(role)}, Span{0, extent(role)}}};
+    std::vector<Part> out;
     uint64_t at = 0;
     for (const ShardSection& s : role.shard.sections) {
         const std::optional<Span> units = take(s, width, member);
         if (!units) throw indivisible(role, s, width);
-        for (uint64_t t = 0; t < s.tiles; ++t) {
-            const Span span{at + (t * s.units + units->begin) * s.unit, units->count * s.unit};
-            if (!out.empty() && out.back().begin + out.back().count == span.begin) out.back().count += span.count;
-            else out.push_back(span);
-        }
-        at += s.tiles * s.units * s.unit;
+        const uint64_t tile = s.units * s.unit, lo = units->begin * s.unit, hi = lo + units->count * s.unit, a = s.align ? s.align : 1;
+        const uint64_t from = lo / a * a, to = std::min(tile, (hi + a - 1) / a * a);
+        for (uint64_t t = 0; t < s.tiles; ++t) out.push_back(Part{Span{at + t * tile + lo, hi - lo}, Span{at + t * tile + from, to - from}});
+        at += s.tiles * tile;
     }
     if (at != extent(role)) throw std::logic_error("shard: the sections of " + role.name + " cover " + std::to_string(at) + " of its " + std::to_string(extent(role)));
+    return out;
+}
+
+// Member `member`'s spans of `role` at `width`, the runs of the axis it holds, in order with adjacent spans joined: the whole axis at width 1 or for a role whose axis is none.
+inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
+    std::vector<Span> out;
+    for (const Part& p : parts(role, width, member)) {
+        if (!out.empty() && out.back().begin + out.back().count == p.cover.begin) out.back().count += p.cover.count;
+        else out.push_back(p.cover);
+    }
     return out;
 }
 
@@ -95,35 +111,50 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
 
 // The bytes of `role`'s tensor `t` member `member` of `width` holds, as runs of the tensor's bytes in the order they are packed: whole rows of each span on the row axis, and each row's spans on the column axis.
 // At width 1 or for a role whose axis is none, one run of the whole tensor.
+// On the row axis a covered row that is another member's is a zero row, zero bytes, which every storage type decodes as zeros; on the column axis a member holds the tensor's own bytes of every column it covers.
 inline std::vector<Run> runs(const Role& role, const TensorView& t, size_t width, size_t member) {
-    const std::vector<Span> parts = spans(role, width, member);
     if (role.shard.axis == Axis::none || width == 1) return {Run{0, t.bytes, 0}};
     const size_t nin = t.shape.empty() ? 0 : size_t(t.shape[0]);
     const size_t row = quant::row_bytes(t.type, nin);
-    std::vector<Run> out;
-    auto add = [&](size_t from, size_t bytes) {
-        if (!out.empty() && out.back().from + out.back().bytes == from) {
-            out.back().bytes += bytes;
-            return;
-        }
-        out.push_back(Run{from, bytes, out.empty() ? 0 : out.back().to + out.back().bytes});
+    std::vector<Run> out, zeros;
+    size_t at = 0;
+    auto add = [&](std::vector<Run>& list, size_t from, size_t bytes, bool zero) {
+        if (bytes && !list.empty() && list.back().to + list.back().bytes == at && (zero || list.back().from + list.back().bytes == from)) list.back().bytes += bytes;
+        else if (bytes) list.push_back(Run{from, bytes, at, zero});
+        at += bytes;
     };
     if (role.shard.axis == Axis::rows) {
-        for (const Span& s : parts) add(backend::size_mul(size_t(s.begin), row), backend::size_mul(size_t(s.count), row));
-        return out;
+        for (const Part& p : parts(role, width, member)) {
+            add(zeros, t.bytes, backend::size_mul(size_t(p.own.begin - p.cover.begin), row), true);
+            add(out, backend::size_mul(size_t(p.own.begin), row), backend::size_mul(size_t(p.own.count), row), false);
+            add(zeros, t.bytes, backend::size_mul(size_t(p.cover.begin + p.cover.count - p.own.begin - p.own.count), row), true);
+        }
+    } else {
+        const std::vector<Span> held = spans(role, width, member);
+        const size_t rows = row ? t.bytes / row : 0;
+        for (size_t r = 0; r < rows; ++r)
+            for (const Span& s : held) add(out, r * row + quant::row_bytes(t.type, size_t(s.begin)), quant::row_bytes(t.type, size_t(s.count)), false);
     }
-    const size_t rows = row ? t.bytes / row : 0;
-    for (size_t r = 0; r < rows; ++r)
-        for (const Span& s : parts) add(r * row + quant::row_bytes(t.type, size_t(s.begin)), quant::row_bytes(t.type, size_t(s.count)));
+    out.insert(out.end(), zeros.begin(), zeros.end());
     return out;
 }
 
 // The bytes the runs pack.
-inline size_t bytes(const std::vector<Run>& runs) { return runs.empty() ? 0 : runs.back().to + runs.back().bytes; }
+inline size_t bytes(const std::vector<Run>& runs) {
+    size_t n = 0;
+    for (auto r = runs.rbegin(); r != runs.rend(); ++r) {
+        n = std::max(n, r->to + r->bytes);
+        if (!r->zero) break;
+    }
+    return n;
+}
 
 // A member's packed copy of a tensor whose bytes are at `src`, into `dst`, which holds bytes(runs).
 inline void pack(const std::vector<Run>& runs, const uint8_t* src, uint8_t* dst) {
-    for (const Run& r : runs) std::memcpy(dst + r.to, src + r.from, r.bytes);
+    for (const Run& r : runs) {
+        if (r.zero) std::memset(dst + r.to, 0, r.bytes);
+        else std::memcpy(dst + r.to, src + r.from, r.bytes);
+    }
 }
 
 // The rows or columns of `role` member `member` of `width` holds along its axis, an expert stack's rows those of one expert.

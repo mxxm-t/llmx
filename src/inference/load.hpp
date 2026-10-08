@@ -100,9 +100,20 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
         const TensorView& t = weights.tensors[i];
         if (!runs.empty()) {
             backend::BufferPtr buffer = b.alloc_weight(shard::bytes(runs));
-            if (defer) plan.uploads.push_back({i, &b, buffer, runs});
+            // A shard's zero runs are written here, in either load, so no storage is trusted to hold zeros; the file's runs are streamed or written from the mapping.
+            std::vector<shard::Run> file;
+            std::vector<uint8_t> zeros;
+            for (const shard::Run& r : runs) {
+                if (!r.zero) {
+                    file.push_back(r);
+                    continue;
+                }
+                zeros.resize(std::max(zeros.size(), r.bytes));
+                b.write(*buffer, r.to, zeros.data(), r.bytes);
+            }
+            if (defer) plan.uploads.push_back({i, &b, buffer, std::move(file)});
             else
-                for (const shard::Run& r : runs) b.write(*buffer, r.to, t.data + r.from, r.bytes);
+                for (const shard::Run& r : file) b.write(*buffer, r.to, t.data + r.from, r.bytes);
             return buffer;
         }
         if (b.reads_in_place()) {
@@ -332,16 +343,15 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
                     // A member's runs are in the tensor's order, so the ones the part reaches follow the first that ends past its start.
                     const size_t lo = part.tensor_offset, hi = lo + part.bytes;
                     auto r = std::upper_bound(u->runs.begin(), u->runs.end(), lo, [](size_t at, const shard::Run& x) { return at < x.from + x.bytes; });
-                    // Runs shorter than a page, a column shard's of an expert stack, are packed here and written once: they follow one another in the storage, and a device copy a run costs far more than its bytes.
-                    if (r != u->runs.end() && r->from < hi && r->bytes < kPackedRun) {
+                    // Runs shorter than a page, a column shard's of an expert stack, are packed here and written once for as long as they follow one another in the storage, which a shard's zero rows interrupt: a device copy a run costs far more than its bytes.
+                    while (r != u->runs.end() && r->from < hi && r->bytes < kPackedRun) {
                         const size_t to = r->to + (std::max(lo, r->from) - r->from);
                         packed.clear();
-                        for (; r != u->runs.end() && r->from < hi; ++r) {
+                        for (; r != u->runs.end() && r->from < hi && r->bytes < kPackedRun && r->to + (std::max(lo, r->from) - r->from) == to + packed.size(); ++r) {
                             const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);
                             packed.insert(packed.end(), data + part.piece_offset + (from - lo), data + part.piece_offset + (end - lo));
                         }
                         u->backend->write(*u->buffer, to, packed.data(), packed.size());
-                        continue;
                     }
                     for (; r != u->runs.end() && r->from < hi; ++r) {
                         const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);

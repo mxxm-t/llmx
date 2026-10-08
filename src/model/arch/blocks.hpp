@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "quant/types.hpp"
 #include "backends/backend.hpp"
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
@@ -38,10 +39,17 @@ inline void shard(std::vector<Role>& roles, uint16_t id, Axis axis, std::vector<
 }
 
 // A routed layer's split: each expert's hidden rows, the gate and up stacks by the `ff` rows of each of their `experts` matrices and the down stack by as many columns; the router stays whole on every member, so every member routes alike.
-inline void shard_experts(std::vector<Role>& roles, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff, uint64_t experts) {
-    shard(roles, gate, Axis::rows, {{ff, 1, experts, "rows of each expert"}});
-    shard(roles, up, Axis::rows, {{ff, 1, experts, "rows of each expert"}});
-    shard(roles, down, Axis::columns, {{ff, 1, 1, "expert columns"}});
+// A shared expert is split the same way, as one expert.
+// The down stack splits on whole blocks of its storage type, so a member holds the blocks that cover its even share of the columns, and its gate and up stacks a row for each covered column, zero where the column is another member's: that row's SiLU product is 0, so each column counts once, by its owner (ShardSection::align).
+inline void shard_experts(std::vector<Role>& roles, const TensorIndex& tensors, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff, uint64_t experts) {
+    uint64_t block = 1;
+    for (const Role& role : roles)
+        if (role.id == down)
+            if (const auto tensor = tensors.find(role.name))
+                if (const quant::StorageType* type = quant::storage_type(tensors.view(*tensor).type)) block = type->block_size;
+    shard(roles, gate, Axis::rows, {{ff, 1, experts, "rows of each expert", false, block}});
+    shard(roles, up, Axis::rows, {{ff, 1, experts, "rows of each expert", false, block}});
+    shard(roles, down, Axis::columns, {{ff, 1, 1, "expert columns", false, block}});
 }
 
 // The SwiGLU block's split: the gate and up projections by their `ff` rows, the down projection by as many columns.

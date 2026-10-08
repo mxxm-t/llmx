@@ -326,6 +326,18 @@ def check_random(rng):
     print("raw-blocks: the numpy form gives the pure form's bits on random blocks of all %d types  [ok]" % len(sd.TYPES))
 
 
+# A tensor group's member holds zero rows where a covered expert column is another member's (docs/TENSOR-SPLIT.md, section 8, covering blocks), which rests on this: blocks of zero bytes decode to zeros, of either sign, in every type.
+def check_zero_blocks():
+    for type_id in sorted(sd.TYPES):
+        per, size = sd.TYPES[type_id][1], sd.TYPES[type_id][2]
+        count = 3 * per if per > 1 else 96
+        values = sd.decode(type_id, bytes(count // per * size), count)
+        assert len(values) == count and all(v == 0 for v in values), "raw-blocks: zero bytes of %s do not decode to zeros" % sd.type_name(type_id)
+        if sd.np is not None:
+            assert not sd.decode_numpy(type_id, bytes(count // per * size), count).any(), "raw-blocks: the numpy form of zero %s bytes is not zeros" % sd.type_name(type_id)
+    print("raw-blocks: blocks of zero bytes decode to zeros in all %d types  [ok]" % len(sd.TYPES))
+
+
 def load_writer():
     spec = importlib.util.spec_from_file_location("llmx_write_mxfp4", WRITER)
     writer = importlib.util.module_from_spec(spec)
@@ -407,6 +419,7 @@ def run(require=False):
     check_q3_k(rng)
     check_q2_k(rng)
     check_q4_0_q8_0(rng)
+    check_zero_blocks()
     if sd.np is None:
         assert not require, "raw-blocks: numpy is not installed, and the numpy form's checks need it"
         print("raw-blocks: SKIP - the numpy form's checks and the writer's file need numpy")

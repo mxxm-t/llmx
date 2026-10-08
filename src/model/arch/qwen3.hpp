@@ -169,7 +169,7 @@ public:
                 layer.roles.push_back({ffn_up_exps, Part::ffn, RoleKind::experts, pre + "ffn_up_exps.weight", "", E, F, X, Stream::window});
                 layer.roles.push_back({ffn_down_exps, Part::ffn, RoleKind::experts, pre + "ffn_down_exps.weight", "", F, E, X, Stream::window});
                 blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
-                blocks::shard_experts(layer.roles, ffn_gate_exps, ffn_up_exps, ffn_down_exps, F, X);
+                blocks::shard_experts(layer.roles, tensors, ffn_gate_exps, ffn_up_exps, ffn_down_exps, F, X);
             } else {
                 const uint64_t F = (uint64_t)cfg.n_ff;
                 layer.roles.push_back({ffn_gate, Part::ffn, RoleKind::matrix, pre + "ffn_gate.weight", "", E, F});

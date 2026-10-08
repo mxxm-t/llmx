@@ -70,11 +70,13 @@ infer::ModelWeights qwen3_model(uint32_t type, Views& v, bool tied) {
 }
 
 // A dense qwen35 of a linear and a full-attention layer: 8 K heads of 64 and 24 V heads of 128 in three tiles, 4 heads of 256 over 4 KV heads with their gates, the rest as qwen3_model.
-infer::ModelWeights qwen35_model(uint32_t type, Views& v) {
+// With `routed`, as qwen35moe: each dense block replaced by 4 experts of 512, 2 a token, and a shared expert of 512, the widths of Qwen3.6-35B-A3B.
+infer::ModelWeights qwen35_model(uint32_t type, Views& v, bool routed = false) {
     infer::qwen35::Config c;
-    c.n_layer = 2, c.n_embd = 256, c.n_ff = 1024, c.n_head = 4, c.n_head_kv = 4, c.head_dim = 256, c.rope_dim = 64, c.context_length = 256;
+    c.n_layer = 2, c.n_embd = 256, c.n_ff = routed ? 0 : 1024, c.n_head = 4, c.n_head_kv = 4, c.head_dim = 256, c.rope_dim = 64, c.context_length = 256;
     c.k_heads = 8, c.v_heads = 24, c.k_dim = 64, c.v_dim = 128;
     c.full = {0, 1};
+    if (routed) c.n_expert = 4, c.n_expert_used = 2, c.n_ff_exp = 512, c.n_ff_shexp = 512;
     std::mt19937 rng(11 + type);
     const uint64_t E = 256, F = 1024, V = 24 * 128, C = 2 * 8 * 64 + V;
     v.add("token_embd.weight", {E, 64}, type, rng);
@@ -101,6 +103,17 @@ infer::ModelWeights qwen35_model(uint32_t type, Views& v) {
             v.add(pre + "ssm_dt.bias", {24}, quant::GGML_TYPE_F32, rng);
             v.add(pre + "ssm_norm.weight", {128}, quant::GGML_TYPE_F32, rng);
             v.add(pre + "ssm_out.weight", {V, E}, type, rng);
+        }
+        if (routed) {
+            v.add(pre + "ffn_gate_inp.weight", {E, 4}, quant::GGML_TYPE_F32, rng);
+            v.add(pre + "ffn_gate_exps.weight", {E, 512, 4}, type, rng);
+            v.add(pre + "ffn_up_exps.weight", {E, 512, 4}, type, rng);
+            v.add(pre + "ffn_down_exps.weight", {512, E, 4}, type, rng);
+            v.add(pre + "ffn_gate_inp_shexp.weight", {E}, quant::GGML_TYPE_F32, rng);
+            v.add(pre + "ffn_gate_shexp.weight", {E, 512}, type, rng);
+            v.add(pre + "ffn_up_shexp.weight", {E, 512}, type, rng);
+            v.add(pre + "ffn_down_shexp.weight", {512, E}, type, rng);
+            continue;
         }
         v.add(pre + "ffn_gate.weight", {E, F}, type, rng);
         v.add(pre + "ffn_up.weight", {E, F}, type, rng);
@@ -234,6 +247,105 @@ void spans_by_hand() {
     require(spans_text(infer::shard::spans(role_named(dense, "blk.0.ffn_down.weight"), 1, 0)) == "[0+1024]", "the whole axis at width 1");
 }
 
+// A routed qwen3 layer whose experts' hidden width is three 256-value blocks, 768, as Qwen3-30B-A3B's is: 4 experts, the stacks in `type` and the rest F32.
+infer::ModelWeights routed_model(uint32_t type, Views& v) {
+    infer::qwen3::Config c;
+    c.n_layer = 1, c.n_embd = 256, c.n_ff = 0, c.n_head = 8, c.n_head_kv = 2, c.head_dim = 128, c.context_length = 256;
+    c.n_expert = 4, c.n_expert_used = 2, c.n_ff_exp = 768;
+    std::mt19937 rng(11 + type);
+    const uint32_t f32 = quant::GGML_TYPE_F32;
+    const uint64_t E = 256, Q = 1024, KV = 256, F = 768, X = 4;
+    v.add("token_embd.weight", {E, 64}, f32, rng);
+    v.add("output_norm.weight", {E}, f32, rng);
+    for (const char* n : {"attn_norm", "ffn_norm"}) v.add(std::string("blk.0.") + n + ".weight", {E}, f32, rng);
+    for (const char* n : {"attn_q_norm", "attn_k_norm"}) v.add(std::string("blk.0.") + n + ".weight", {128}, f32, rng);
+    v.add("blk.0.attn_q.weight", {E, Q}, f32, rng);
+    v.add("blk.0.attn_k.weight", {E, KV}, f32, rng);
+    v.add("blk.0.attn_v.weight", {E, KV}, f32, rng);
+    v.add("blk.0.attn_output.weight", {Q, E}, f32, rng);
+    v.add("blk.0.ffn_gate_inp.weight", {E, X}, f32, rng);
+    v.add("blk.0.ffn_gate_exps.weight", {E, F, X}, type, rng);
+    v.add("blk.0.ffn_up_exps.weight", {E, F, X}, type, rng);
+    v.add("blk.0.ffn_down_exps.weight", {F, E, X}, type, rng);
+    v.bind();
+    return {std::make_shared<const infer::qwen3::Qwen3>(c), v.views};
+}
+
+// Covering blocks (ShardSection::align): where an expert's hidden width over the group's width is not whole quant blocks of its down stack, a member holds the whole blocks that cover its even share.
+// Its down shard is the file's bytes of every covered column; its gate and up shards hold a row a covered column, the file's where the member owns the column and zero bytes elsewhere; over the members each row is owned once.
+void covers() {
+    for (uint32_t type : {(uint32_t)quant::GGML_TYPE_Q4_K, (uint32_t)quant::GGML_TYPE_Q6_K, (uint32_t)quant::GGML_TYPE_Q8_0}) {
+        Views v;
+        const infer::ModelWeights w = routed_model(type, v);
+        const infer::ModelPlan plan = infer::plan_model(w);
+        const size_t block = quant::storage_type(type)->block_size, F = 768, X = 4, E = 256;
+        const infer::Role down = role_named(plan, "blk.0.ffn_down_exps.weight");
+        if (block == 256) {
+            require(spans_text(infer::shard::spans(down, 2, 0)) == "[0+512]" && spans_text(infer::shard::spans(down, 2, 1)) == "[256+512]", "the down stack's covers at width 2");
+            require(spans_text(infer::shard::spans(down, 4, 0)) == "[0+256]" && spans_text(infer::shard::spans(down, 4, 1)) == "[0+512]" &&
+                    spans_text(infer::shard::spans(down, 4, 2)) == "[256+512]" && spans_text(infer::shard::spans(down, 4, 3)) == "[512+256]", "the down stack's covers at width 4");
+            require(spans_text(infer::shard::spans(role_named(plan, "blk.0.ffn_gate_exps.weight"), 2, 1)) == "[256+512][1024+512][1792+512][2560+512]", "the gate stack's covered rows at width 2");
+        }
+        for (size_t width : {size_t(2), size_t(4)}) {
+            infer::shard::check_plan(plan, w.tensors, width);
+            std::vector<size_t> owners(F, 0);
+            for (size_t m = 0; m < width; ++m) {
+                const size_t own0 = m * F / width, own1 = (m + 1) * F / width, c0 = own0 / block * block, c1 = (own1 + block - 1) / block * block;
+                for (size_t r = own0; r < own1; ++r) ++owners[r];
+                const std::string at = std::string(quant::storage_type(type)->name) + " at width " + std::to_string(width) + ", member " + std::to_string(m);
+                for (const char* name : {"blk.0.ffn_gate_exps.weight", "blk.0.ffn_up_exps.weight"}) {
+                    const infer::Role role = role_named(plan, name);
+                    const infer::TensorView& t = w.tensors[*role.tensor];
+                    const std::vector<infer::shard::Run> runs = infer::shard::runs(role, t, width, m);
+                    const size_t row = quant::row_bytes(type, E);
+                    std::vector<uint8_t> packed(infer::shard::bytes(runs), 0xa5);
+                    infer::shard::pack(runs, t.data, packed.data());
+                    require(packed.size() == X * (c1 - c0) * row && infer::shard::share(role, width, m) == c1 - c0 && infer::shard::shape(role, t, width, m)[1] == c1 - c0, at + ": the covered rows of " + name);
+                    bool ok = true;
+                    for (size_t x = 0; x < X; ++x)
+                        for (size_t r = c0; r < c1; ++r) {
+                            const uint8_t* got = packed.data() + (x * (c1 - c0) + r - c0) * row;
+                            const bool owned = r >= own0 && r < own1;
+                            for (size_t b = 0; b < row; ++b) ok = ok && got[b] == (owned ? t.data[(x * F + r) * row + b] : 0);
+                        }
+                    require(ok, at + ": " + name + " does not hold the file's rows where it owns a column and zero rows elsewhere");
+                    for (size_t k = 1; k < runs.size(); ++k)
+                        require(runs[k - 1].zero ? runs[k].zero : (runs[k].zero || runs[k].from >= runs[k - 1].from + runs[k - 1].bytes), at + ": the file's runs of " + name + " are not in the tensor's order before its zero runs");
+                }
+                const infer::TensorView& t = w.tensors[*down.tensor];
+                const std::vector<infer::shard::Run> runs = infer::shard::runs(down, t, width, m);
+                std::vector<uint8_t> packed(infer::shard::bytes(runs));
+                infer::shard::pack(runs, t.data, packed.data());
+                const size_t row = quant::row_bytes(type, F), part = quant::row_bytes(type, c1 - c0), skip = quant::row_bytes(type, c0);
+                bool ok = packed.size() == X * E * part && infer::shard::shape(down, t, width, m)[0] == c1 - c0;
+                for (size_t r = 0; ok && r < X * E; ++r) ok = !std::memcmp(packed.data() + r * part, t.data + r * row + skip, part);
+                require(ok, at + ": the down stack does not hold the file's bytes of every covered column");
+            }
+            require(std::all_of(owners.begin(), owners.end(), [](size_t n) { return n == 1; }), "an expert's hidden row is not owned by exactly one member");
+        }
+    }
+    // A shared expert is covered as one more expert: 512 wide in Q4_K at width 4, a member owns 128 of its columns and holds the block of 256 around them, its gate rows the file's where it owns the column and zero elsewhere.
+    Views v;
+    const uint32_t type = quant::GGML_TYPE_Q4_K;
+    const infer::ModelWeights w = qwen35_model(type, v, true);
+    const infer::ModelPlan plan = infer::plan_model(w);
+    infer::shard::check_plan(plan, w.tensors, 4);
+    const infer::Role down = role_named(plan, "blk.0.ffn_down_shexp.weight"), gate = role_named(plan, "blk.0.ffn_gate_shexp.weight");
+    const infer::TensorView& t = w.tensors[*gate.tensor];
+    const size_t row = quant::row_bytes(type, 256);
+    for (size_t m = 0; m < 4; ++m) {
+        const size_t c0 = m / 2 * 256, own0 = m * 128;
+        require(spans_text(infer::shard::spans(down, 4, m)) == "[" + std::to_string(c0) + "+256]" && infer::shard::shape(down, w.tensors[*down.tensor], 4, m)[0] == 256, "a shared expert's down projection is not covered by one block at width 4");
+        const std::vector<infer::shard::Run> runs = infer::shard::runs(gate, t, 4, m);
+        std::vector<uint8_t> packed(infer::shard::bytes(runs), 0xa5);
+        infer::shard::pack(runs, t.data, packed.data());
+        bool ok = packed.size() == 256 * row;
+        for (size_t r = 0; ok && r < 256; ++r)
+            for (size_t b = 0; ok && b < row; ++b) ok = packed[r * row + b] == (c0 + r >= own0 && c0 + r < own0 + 128 ? t.data[(c0 + r) * row + b] : 0);
+        require(ok, "a shared expert's gate rows at width 4, member " + std::to_string(m));
+    }
+}
+
 // Every storage type a matrix may have, at widths 1, 2 and 4, on both architectures; the K-quants and every other 256-value block on the columns too.
 void every_type() {
     size_t types = 0;
@@ -326,6 +438,7 @@ int main() {
         spans_by_hand();
         every_type();
         footprints();
+        covers();
         std::cout << "shard: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception& e) {

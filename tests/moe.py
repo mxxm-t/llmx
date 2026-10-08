@@ -81,9 +81,9 @@ Q8_FILES = {"gated": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe187
             "near-tie": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285"}
 
 
-def q8_tensors(router_scale, seed=Q8_SEED, config=Q8_CONFIG, dense=DENSE_LAYERS, tied=False):
+def q8_tensors(router_scale, seed=Q8_SEED, config=Q8_CONFIG, dense=DENSE_LAYERS, tied=False, vocab=257):
     """The Q8_0 model's tensors as (name, shape, GGUF type, bytes), in the F32 model's order: each matrix's blocks a scale of 2^-11 times 1 to 1.875 and 32 codes from -127 to 127, and the norms and router F32 as the F32 model's values.
-    `config`, `dense` (the layers without experts) and `tied` give another model of the same draws, as tests/int8.py's fixtures are; a model whose every layer is dense has no router or experts."""
+    `config`, `dense` (the layers without experts), `tied` and `vocab` give another model of the same draws, as tests/int8.py's fixtures are; a model whose every layer is dense has no router or experts."""
     state = seed
     result = []
     hd = config["attention.key_length"]
@@ -106,7 +106,7 @@ def q8_tensors(router_scale, seed=Q8_SEED, config=Q8_CONFIG, dense=DENSE_LAYERS,
             data += struct.pack("<32b", *(draw() % 255 - 127 for _ in range(32)))
         result.append((name, shape, Q8_0, bytes(data)))
 
-    q8("token_embd.weight", [width, 257])
+    q8("token_embd.weight", [width, vocab])
     f32("output_norm.weight", [width], True)
     q, kv = config["attention.head_count"] * hd, config["attention.head_count_kv"] * hd
     for layer in range(config["block_count"]):
@@ -124,7 +124,7 @@ def q8_tensors(router_scale, seed=Q8_SEED, config=Q8_CONFIG, dense=DENSE_LAYERS,
                               ("ffn_down_exps", [eff, width, n_expert])):
             q8(name + tensor + ".weight", shape)
     if not tied:
-        q8("output.weight", [width, 257])
+        q8("output.weight", [width, vocab])
     return result
 
 

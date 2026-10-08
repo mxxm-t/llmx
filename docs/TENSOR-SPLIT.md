@@ -405,7 +405,7 @@ Nothing specific to a backend sits above the backend layer: a group refused on o
 
 ### 4.10 Out of scope
 
-- Experts owned whole by a member, and data-parallel attention with expert parallelism: a group splits each expert's hidden rows instead (section 8, Step 8 as built), which keeps every member's work even; a file whose expert width does not split on whole quant blocks is refused.
+- Experts owned whole by a member, and data-parallel attention with expert parallelism: a group splits each expert's hidden rows instead (section 8, Step 8 as built), which keeps every member's work even; a file whose expert width does not split on whole quant blocks holds covering blocks (section 8, Covering blocks as built). Uneven shares stay out of scope; a cover is not a share, since every member owns the same number of an expert's columns.
 - Data-parallel attention with expert parallelism (MULTI-DEVICE phase 6b), replicas (phase 5), multi-node.
 - Uneven member shares, groups mixing device kinds or profiles, a group of the CPU and a card.
 - A wire format other than F32, and any algorithm chosen by message size that changes the order of a sum.
@@ -612,6 +612,25 @@ What the rows cost is legality: an expert's width over the group's width must be
 Qwen3.6-35B-A3B (512 hidden rows an expert, 256 experts, 16 heads over 2 KV heads, 16 K and 32 V heads) splits at width 2 in a K-quant and at 2 and 4 in Q8_0; Qwen3-30B-A3B (768, 128 experts, 32 heads over 4 KV heads) splits at 2 and 4 in Q8_0 and at no width in a K-quant, 384 columns not being whole 256-value blocks, and is refused there naming `ffn_down_exps`.
 Uneven shares of an expert's columns, two blocks to one member and one to the other, would open that file and are not built: they are the uneven work section 4.5 rules out, for one file in one quantization.
 `docs/STATUS.md` has the measurements.
+
+### Covering blocks as built (2026-10-08)
+
+The K-quant files step 8 refused run with the form decided on its measurement (`docs/STATUS.md`, the record of this date): only an expert's down stack is bound to quant blocks, since gate and up split by rows, which any type takes at any count.
+Each member owns an even share of every expert's hidden columns, a shared expert's among them, as before, and holds what covers it (`ShardSection::align`, the down stack's block size): of the down stack the whole blocks covering its columns, the file's own bytes, and of the gate and up stacks one row for every covered column, the file's row where the member owns the column and a row of zero bytes elsewhere.
+Zero bytes decode to zeros in every storage type (held by `raw-blocks`), so at a column another member owns the gate and up products are 0, the SiLU product is exactly 0 and the down product adds nothing whatever the block holds: each column counts once across the group, by its owner, and the part's sum is unchanged.
+The zero rows are written by the loader as it places a member's storage, not left to the storage (`shard::Run::zero`, `planning_adopt`).
+A file whose even shares are whole blocks holds exactly what it held; nothing changed in a backend or the collective.
+
+| file, a K-quant | width | columns a member owns | columns it covers | its share of an expert's work, against an even split | the experts' bytes over the group |
+|---|---:|---:|---:|---|---:|
+| Qwen3-30B-A3B (768 an expert, 3 blocks) | 2 | 384 | 512, both members | 2 of 3, against 1 of 2 | 4/3 |
+| Qwen3-30B-A3B | 4 | 192 | 256 the outer members, 512 the middle two | 1 of 3 and 2 of 3, against 1 of 4 | 2 |
+| Qwen3.6-35B-A3B (512, 2 blocks, its shared expert the same) | 2 | 256 | 256 | 1 of 2, even | 1 |
+| Qwen3.6-35B-A3B | 4 | 128 | 256, every member | 1 of 2, against 1 of 4 | 2 |
+
+The cover at width 4 on Qwen3-30B-A3B is uneven, the middle members doing twice the outer ones' expert work; it is allowed and recorded, since the alternative is refusal and that width's decode is bound by its sums.
+Not built, and what to measure if that cell is pursued: three members owning one block each and the fourth none, which puts every member's expert work at 1 of 3 at the price of a member with none.
+Uneven shares on block boundaries open one width of one file at the same critical path, and experts owned whole by members cost an exchange a layer, about 7 ms on a 12 ms token; neither is built.
 
 ## 9. Sources (2026-10-03)
 

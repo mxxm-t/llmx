@@ -111,6 +111,7 @@ public:
         return true;
     }
     const std::vector<File>& files() const { return files_; }
+    size_t states() const { return (size_t)std::count_if(files_.begin(), files_.end(), [](const File& f) { return f.state; }); }
     // A use of file `key`, which makes its whole path as young: a node is as old as its newest descendant, so only the leaf is touched.
     void touch(uint64_t key, Time used, bool back) {
         for (File& f : files_)

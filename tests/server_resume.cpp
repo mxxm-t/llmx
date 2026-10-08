@@ -2325,6 +2325,7 @@ void disk_increment(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab,
     DiskRoot disk("increment");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
+    options.idle = std::chrono::seconds(1);   // the idle writes start a second after a turn, to keep the case short
     const auto on_disk = [&] {
         uint64_t bytes = 0;
         disk.files(".kv", &bytes);
@@ -2353,7 +2354,7 @@ void disk_increment(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab,
                 prompt.push_back(2);
                 sched.follow(h, prompt, true);
                 within_a_minute([&] { return sched.stats().reprefills == turn + 1; }, what + ": reply " + std::to_string(turn + 1) + " read again");
-                // The idle writes begin five seconds after the turn and end when nothing more is written for two.
+                // The idle writes begin a second after the turn and end when nothing more is written for two.
                 uint64_t seen = 0;
                 auto still = std::chrono::steady_clock::now();
                 within_a_minute([&] {
@@ -2454,6 +2455,7 @@ void disk_faults(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, co
     const auto options_of = [](const DiskRoot& d) {
         server::DiskOptions o = d.options(uint64_t(1) << 30);
         o.keep = true;
+        o.idle = std::chrono::seconds(1);
         return o;
     };
     std::vector<uint32_t> prompt = prompt_of(41, 1200, vocab);
@@ -2562,7 +2564,7 @@ void disk_faults(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, co
         sched.stop();
         runner.join();
         require(disk.files(".tmp").empty(), at + ": a temporary file is left");
-        require(after.disk_entries == u.files, at + ": " + std::to_string(after.disk_entries) + " files are kept, against the " + std::to_string(u.files) + " a whole path reaches");
+        require(after.disk_entries == u.files && after.disk_states == u.states, at + ": " + std::to_string(after.disk_entries) + " files are kept, " + std::to_string(after.disk_states) + " of them states, against the " + std::to_string(u.files) + " and " + std::to_string(u.states) + " a whole path reaches");
         require(late ? after.disk_errors == 1 : (after.disk_errors == 0 && reused == u.reuse),
                 at + ": the next turn reused " + std::to_string(reused) + " tokens with " + std::to_string(after.disk_errors) + " errors, against " + std::to_string(u.reuse));
         same(alone, got, at);
@@ -2593,12 +2595,13 @@ void disk_faults(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, co
 }
 
 // The cap never takes a file another stands on (docs/DISK-TIER.md, Room, the cap and the age limit): with disk room for the two segments of a conversation's first turn and no more, its second turn's segment finds only files it would stand on, so it is not written and nothing is deleted for it.
-// The two files stay through eight idle seconds and the stop, and a second scheduler forks their 1152 tokens for the next turn with the reply of a fresh model.
+// The two files stay through four seconds, the idle writes starting after one, and the stop, and a second scheduler forks their 1152 tokens for the next turn with the reply of a fresh model.
 void disk_cap_base(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "the cap and a conversation's base";
     DiskRoot disk("capbase");
     server::DiskOptions options = disk.options(5 << 20);
     options.keep = true;
+    options.idle = std::chrono::seconds(1);
     std::vector<uint32_t> prompt = prompt_of(45, 1200, vocab);
     {
         auto model = make(4096, 16);
@@ -2618,7 +2621,7 @@ void disk_cap_base(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) 
                 sched.follow(h, prompt, true);
                 within_a_minute([&] { return sched.stats().reprefills == turn + 1; }, what + ": reply " + std::to_string(turn + 1) + " read again");
                 if (!turn) within_a_minute([&] { return sched.stats().disk_entries == 2 && !sched.stats().disk_in_flight; }, what + ": the first turn's two segments written while idle");
-                else std::this_thread::sleep_for(std::chrono::seconds(8));
+                else std::this_thread::sleep_for(std::chrono::seconds(4));
                 const auto stats = sched.stats();
                 require(stats.disk_entries == 2 && stats.disk_capped == 0 && stats.disk_errors == 0 && stats.disk_writing,
                         what + ": after turn " + std::to_string(turn + 1) + " " + std::to_string(stats.disk_entries) + " files are on disk and " + std::to_string(stats.disk_capped) + " were deleted for the cap, against the first turn's two and none");

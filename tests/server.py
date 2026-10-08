@@ -1384,6 +1384,8 @@ def check_disk_keep(model):
         total = 0
         try:
             health = srv.wait(lambda h: h["reuse"]["disk"]["now"]["entries"] >= 3, "three entries adopted", 60)
+            now = health["reuse"]["disk"]["now"]
+            assert now["segments"] >= 3 and now["segments"] + now["states"] == now["entries"], health
             for k, more in enumerate((text[2300:2700], text[6300:6700], text[10300:10700])):
                 prompt = first[k] + " " + more
                 reply = post_ok(srv, "/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})

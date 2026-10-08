@@ -814,7 +814,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reuse.host.now.entries`, `.bytes`, `.limit_bytes` | histories, bytes | now | Histories in host memory, their bytes, and the cap `--host-cache-bytes` set (0 where there is no host cache) | `bytes` at `limit_bytes` is normal; the tier makes room by dropping entries |
 | `reuse.host.since_start.promotions` | histories | since start | Histories copied from host memory back to a device for a request | |
 | `reuse.host.since_start.bytes_moved` | bytes | since start | Bytes copied between devices and host memory, both ways | |
-| `reuse.disk.now.entries`, `.bytes`, `.limit_bytes` | files, bytes | now | Entries on disk, their bytes, and the cap `--disk-cache-bytes` set (0 where there is no disk tier) | |
+| `reuse.disk.now.entries`, `.segments`, `.states` | files | now | Files on disk, and how many of them hold blocks of a history (segments) and how many a state | |
+| `reuse.disk.now.bytes`, `.limit_bytes` | bytes | now | The files' bytes, and the cap `--disk-cache-bytes` set (0 where there is no disk tier) | |
 | `reuse.disk.now.in_flight` | operations | now | The write and the reads the disk tier has under way | |
 | `reuse.disk.now.ready` | yes or no | now | The store is made, which waits for the model file's digest (about twenty seconds for a 27 GB file not hashed before) | false for long after start |
 | `reuse.disk.now.writing` | yes or no | now | The tier has not stopped writing | false after `ready`, with a tier configured: it stopped after a failed write and waits for room |

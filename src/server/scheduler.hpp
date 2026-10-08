@@ -379,7 +379,8 @@ public:
         size_t host_hits = 0;                     // donors promoted from host memory for a request
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
-        size_t disk_entries = 0, disk_errors = 0; // entries on disk now, and writes and reads that failed
+        size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed
+        size_t disk_states = 0;                   // those of them that are states, the rest being segments
         size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read
         size_t host_unwritten = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
@@ -407,12 +408,13 @@ public:
         s.host_bytes_moved = host_moved_;
         s.boundaries = bounds_.size();
         s.boundary_hits = bound_hits_;
-        s.disk_entries = disk_files_;
-        s.disk_bytes = disk_bytes_;
-        s.disk_bytes_written = disk_written_;
+        s.disk_entries = disk_now_.files;
+        s.disk_states = disk_now_.states;
+        s.disk_bytes = disk_now_.bytes;
+        s.disk_bytes_written = disk_now_.written;
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.host_unwritten = host_unwritten_;
-        s.disk_capped = disk_capped_;
+        s.disk_capped = disk_now_.capped;
         s.disk_writing = disk_ && disk_->writing();
         s.disk_hits = disk_hits_;
         s.disk_waits = disk_waits_;
@@ -447,7 +449,7 @@ public:
                     idle_at_.reset();
                     idle_tried_.clear();   // each idle period tries every donor again, one whose copy was refused or dropped before its file landed too
                 }
-                else if (!idle_at_) idle_at_ = std::chrono::steady_clock::now() + kDiskIdle;
+                else if (!idle_at_) idle_at_ = std::chrono::steady_clock::now() + disk_->idle();
                 const auto bound = next_disk_bound();
                 if (bound) cv_.wait_until(lk, *bound, due);
                 else cv_.wait(lk, due);
@@ -1885,10 +1887,7 @@ private:
     // After a call that may have changed the index: the entries' standing and the figures stats gives.
     void sync_disk() {
         if (disk_->take_changed()) refresh_disk();
-        disk_files_ = disk_->index().files().size();
-        disk_bytes_ = disk_->index().bytes();
-        disk_written_ = disk_->written();
-        disk_capped_ = disk_->capped();
+        disk_now_ = disk_->figures();
     }
 
     // The disk tier's part of a round: what the store finished since the last round taken in, what a server before left adopted, files past the age limit deleted, reads started for waiting requests, and the next write started.
@@ -1913,7 +1912,7 @@ private:
         prefetch();
         write_ahead();
         // Under --disk-cache-keep a server idle for kDiskIdle (`idle`, from run) writes what a stop would have to, one file at a time, so a stop finds little left (docs/DISK-TIER.md, Keeping entries across a restart).
-        if (idle && queue_.empty() && paused_.empty() && disk_->can_write()) flush_one(idle_tried_);
+        if (idle && queue_.empty() && paused_.empty() && disk_->can_write() && !flush_one(idle_tried_)) disk_->say_written();
         // A copy read through host memory beyond the tier goes once no request waits that could still promote it; its files stay.
         for (size_t i = 0; queue_.empty() && paused_.empty() && i < host_.size();) {
             if (host_[i].through && host_[i].id != promoting_) drop_host(i);
@@ -1952,7 +1951,7 @@ private:
         for (;;) {
             settle_disk();
             if (!disk_->writing()) { why = ", writing having stopped"; break; }
-            if (disk_->can_write() && !flush_one(tried)) break;
+            if (disk_->can_write() && !flush_one(tried)) { why = ", refused room on disk or host memory"; break; }
             if (!cv_.wait_until(lk, until, [&] { return disk_wake_; })) { why = ", the bound reached"; break; }
             disk_wake_ = false;
         }
@@ -2024,7 +2023,7 @@ private:
     // When the loop must wake for the disk tier: the earliest bound of a request waiting for a read, the next check of the entries' age, and the start of an idle server's writes.
     std::optional<std::chrono::steady_clock::time_point> next_disk_bound() const {
         std::optional<std::chrono::steady_clock::time_point> t;
-        if (disk_ && disk_->max_age() && disk_files_) t = next_expiry_;
+        if (disk_ && disk_->max_age() && disk_now_.files) t = next_expiry_;
         for (const auto* q : {&queue_, &paused_})
             for (const auto& r : *q)
                 if (r->disk_wait_ && r->disk_until_ != std::chrono::steady_clock::time_point::max() && (!t || r->disk_until_ < *t)) t = r->disk_until_;
@@ -2095,7 +2094,7 @@ private:
     // A request waits at most as long as recomputing the shared tokens would take at the measured prompt rate, and for its read alone until a pass has measured one.
     // Under the lock.
     void prefetch() {
-        if (!disk_files_ || !disk_->readable()) return;
+        if (!disk_now_.files || !disk_->readable()) return;
         const size_t bt = model_.kv_block_tokens();
         size_t waiting = 0;
         for (const auto* q : {&queue_, &paused_})
@@ -2727,8 +2726,7 @@ private:
     bool stopping_ = false;
     // The disk tier (docs/DISK-TIER.md), under the lock: the slabs of a host entry dropped while written, and the tier's figures as stats gives them, kept past the tier itself.
     std::vector<infer::HostHistory> disk_parked_;
-    uint64_t disk_written_ = 0, disk_bytes_ = 0;
-    size_t disk_files_ = 0;
+    DiskTier::Figures disk_now_;
     bool disk_measured_ = false;
     bool disk_wake_ = false;
     // Reads from disk in flight, each into slabs counted in host_held_, and what they gave.
@@ -2743,7 +2741,7 @@ private:
         std::vector<RowClass> classes;
     };
     std::deque<DiskRead> disk_reads_;
-    size_t host_unwritten_ = 0, disk_capped_ = 0;   // Stats::host_unwritten and disk_capped, under the lock
+    size_t host_unwritten_ = 0;   // Stats::host_unwritten, under the lock
     size_t disk_hits_ = 0, disk_waits_ = 0;
     uint64_t disk_read_bytes_ = 0;
     double disk_wait_ms_ = 0;

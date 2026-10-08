@@ -194,7 +194,7 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 - The tier needs the host tier: with `--host-cache-bytes 0`, or every cache on the CPU where the host tier's default is 0, a nonzero `--disk-cache-bytes` is refused with the reason.
 
 Until the digest and the store's probe finish, the server serves without the disk tier, writing and reading nothing, and `/v1/health`'s `reuse.disk.now.ready` stays false.
-**`/v1/health`**, under `reuse.disk`: `now.entries` (files, segments and states together), `now.bytes`, `now.limit_bytes`, `now.in_flight`, `now.ready`, `now.writing` (false once the tier has stopped writing), and `since_start.hits`, `.bytes_written`, `.bytes_read`, `.waits` (requests that waited for a read) with `.wait_ms`, `.errors`, `.lost_before_written` (copies room took from host memory before any file held them, each a conversation the tiers lost) and `.dropped_for_cap` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line).
+**`/v1/health`**, under `reuse.disk`: `now.entries` (files: `now.segments` and `now.states` together), `now.bytes`, `now.limit_bytes`, `now.in_flight`, `now.ready`, `now.writing` (false once the tier has stopped writing), and `since_start.hits`, `.bytes_written`, `.bytes_read`, `.waits` (requests that waited for a read) with `.wait_ms`, `.errors`, `.lost_before_written` (copies room took from host memory before any file held them, each a conversation the tiers lost) and `.dropped_for_cap` (entries deleted while running to stay within the cap; those a start drops for it are in its adoption line).
 
 **Tests:**
 - the store alone (CTest): an entry written and read back bit for bit; each identity field changed refuses it; a flipped payload byte fails its chunk and deletes the entry; a truncated file and a `.tmp` file are never read; the cap and the floor stop a write; an injected `ENOSPC` and `EIO` stop writing and keep reads;
@@ -224,7 +224,7 @@ Built after these, 2026-10-08: entries written as what changed (below).
 
 ## Entries written as what changed
 
-The user, 2026-10-07: disk writes should write what has changed. Built so in three steps (`docs/STATUS.md` has each); what is left is under Planned: the fault cases and the counters, below.
+The user, 2026-10-07: disk writes should write what has changed. Built so in steps (`docs/STATUS.md` has each).
 Nothing in it is specific to a backend: the copies run through `Model::save_host`, `Model::save_host_blocks` and `Model::restore_host`, which reach a device only through `Backend::alloc`, `Backend::copy`, `Backend::submit`, `Backend::wait`, `Backend::sync` and `Buffer::host_ptr`, and what makes two servers' bytes interchangeable is `Backend::identity` and `Backend::kv_layout`.
 
 ### What changes in a turn, measured
@@ -263,6 +263,7 @@ A file's header carries its range, the digest of everything below it and the dig
 ### Reading a history back
 
 A request that wants `[0, n)` reads the segments on its path in order into the host slabs, each run landing at its blocks' offset in the layer's region, then the state (`DiskTier::read`). A segment the request parts from inside is read whole, its further blocks into slabs of the read's own that are given back as it ends. A request that forks an earlier position reads only the segments below it.
+A path reads as fast as the one file a conversation that was: 76 files of a 76k-token conversation cost 0.16 s of a 6.8 s read, their headers, and the read's time is the slabs taken (2.0 s for 5.2 GiB), the disk (3.1 s), and the checksums and the copy into the slabs (1.5 s) (`docs/STATUS.md` has the profile).
 
 The store keeps moving bytes only: it is given, for each file, the spans of host memory its runs go to or come from (`Model::host_ranges`, `Model::host_state_ranges`). Which files make a history, and in which order, is the index's.
 
@@ -302,15 +303,22 @@ Five idle seconds after a turn the server writes, for each history not wholly on
 
 The host tier keeps whole copies in memory as before; when one is written, only the ranges not on disk are.
 
-### Planned: the fault cases and the counters
+### Faults, counters and lines
 
-Steps 4 and 5 of the design, not built:
+Held by tests since step 4 (`server-resume`'s fault and cap cases, `disk-index`'s age case):
 
-- One test a fault: a segment deleted in the middle of a path, a state without its path, a path without its state, a path whose newest state is missing, a checksum failed in the second of three segments, a crash file left; each must leave the usable prefix and nothing else, and a restart must serve.
-- Room and age held by `server-resume` beside `disk-index`: the cap reached never takes a base under a kept leaf, and an expired conversation goes whole while a branch that shares its base stays.
-- A regenerated reply's old tail, a branch nothing extends, going before other conversations' files.
-- `/v1/health` counting segments and states apart, and a line naming what a turn wrote.
-- If a start with thousands of files is slow, the header's first page carrying what the tree needs, so a start reads a page a file.
+- **A file lost or damaged between two servers** leaves the usable prefix and nothing else, and the restart serves: a segment gone from the middle of a path or its first segment, a temporary file a crash left, a byte flipped in a segment's payload, and, on a model that keeps a state, its newest state or every state gone. A start keeps exactly the files a whole path from an empty history reaches; the next turn forks what they give, and gives the reply of a fresh model.
+- **A flipped byte** is not seen by a start, which reads headers; the read finds it, deletes the file and the segments above it, and the request computes its history. The states above stay until the next start, since the blocks computed again are written again under them. A read counts one error however many of its files fail after the first.
+- **The cap** never takes a file another stands on: a turn whose segment finds only its own base to delete is not written, and nothing is deleted for it. The stop then says what it did not write and that room was refused.
+- **The age limit** takes an expired conversation's own files and leaves what a younger branch stands on.
+- **Counters**: `/v1/health` gives `reuse.disk.now.segments` and `.states` beside `.entries`, their sum. When an idle server's writes end it prints what went to disk since they last ended and the files there (`server: 157.2 MiB written to disk since the idle writes last ended; 78 files on disk, 2 of them states`).
+
+Not built, and why: an order that takes a regenerated reply's old tail before other conversations' files. The index cannot tell such a tail from a conversation that shares a prefix with another, a system prompt say, and taking the older of two such conversations first would be wrong; the tail goes by its own last use, as every leaf does.
+
+### Planned: a start with thousands of files
+
+If a start with thousands of files is slow, the header's first page can carry what the tree needs, so a start reads a page a file. Not built: 90 files were in the index 0.14 s after the store was made.
+
 ### Decided in review (2026-10-07)
 
 1. The cap of 1024 tokens a segment stays, a constant with its two numbers beside it; the ten-turn run reports the file count of a conversation of many short turns before anyone tunes it.

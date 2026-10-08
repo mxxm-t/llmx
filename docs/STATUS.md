@@ -13,7 +13,7 @@
 | CPU backend optimization                 | Done     |
 | Early backend weight-type refusal and per-layer stream fallback | Done (main `737e082`, six hosted jobs passed) |
 | CPU tiny-activation range repair | Done; measured CLI Q5 decode cost retained in its record in [STATUS-2026-09](STATUS-2026-09.md) |
-| Disk tier under the host tier (docs/DISK-TIER.md) | Done; steps 1 to 6 on main, measured in the record below; since 2026-10-08 its files are what each turn changed (record below), the fault cases and counters of that design still to build |
+| Disk tier under the host tier (docs/DISK-TIER.md) | Done; steps 1 to 6 on main, measured in the record below; since 2026-10-08 its files are what each turn changed (record below), its fault cases and counters built (record below) |
 | A message boundary where a request's last user message starts | Done at `109784d3` (record below) |
 | Vulkan allocation failure ownership | Done |
 | Vulkan attention width and mixed-cache validation | Done |
@@ -130,6 +130,25 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
+## Disk files lost or damaged between two servers, the segment and state counters, and the long read profiled (2026-10-08, branch feat/disk-increment-4, steps 4 and 5 of DISK-TIER's Entries written as what changed, lands by fast-forward)
+
+- **Done, the fault cases:** `server-resume` starts a scheduler on a copy of a kept directory with one fault in it, on the dense model and on the hybrid one: a segment gone from the middle of the path, the first segment gone, a temporary file a crash left, a byte flipped in a segment's payload, and on the hybrid model the newest state gone and every state gone. Each start keeps exactly the files a whole path from an empty history reaches, and the next turn forks what they give with the reply of a fresh model. With disk room for a first turn's two segments and no more, the second turn's segment is not written and nothing is deleted for it. `disk-index` holds the age limit to an expired conversation's own files where a younger branch shares its base.
+- **A defect the cases found, fixed here with its test first:** a read whose second file failed its checksum counted two errors, the files after it on the path, deleted with it, failing in turn as missing; a read now counts one error, at its first file that fails. The test commit fails on main at "a byte flipped in the second segment: the next turn reused 0 tokens with 2 errors".
+- **Done, the counters and lines:** `/v1/health` gives `reuse.disk.now.segments` and `.states` beside `.entries`; when an idle server's writes end it prints what went to disk since they last ended and the files there; a stop that could not write everything for want of room says so.
+- **The idle time is an option tests shorten** (`DiskOptions::idle`, `kDiskIdle` by default, no flag): the hosted Windows job stopped at its 25-minute limit on this branch's first form, main's own run of it taking 1426 and 1445 s of the 1500, so the new cases and `disk_increment` wait one idle second in place of five and `server-resume` is no longer than it was. The job's margin on main was about a minute, and its limit has since been raised (the record below).
+- **Not built, decided here for the reviewer to accept or reject:** an order that takes a regenerated reply's old tail before other conversations' files. The index cannot tell such a tail from a conversation that shares a prefix with another, and the tail goes by its own last use as every leaf does.
+- **The long read, profiled before any change** (the coordinator: the restart's next turn read 82 files at about 670 MB/s against 852 for one file). The 852 was production's read, on its own disk, so the two figures were never one environment's. Matched, on the test machine: the whole copy that was (main `761a38286`) against the path of files (`7a24c4560`), timing builds with timers in the store's read, two MI50s, Qwen3.8-27B Q8_0 with production's flags, a 76k-token turn written while idle, then three starts an arm, interleaved, each reading the conversation back for its next turn:
+
+  | arm | files | waited for the read (ms) | first token (s) | slabs taken (ms) | store: open | header | read | checksum | copy (ms) |
+  |---|---|---|---|---|---|---|---|---|---|
+  | one file | 1, or 2 with a boundary's state | 7073, 6836, 6901 | 8.73, 8.44, 8.54 | 2249, 2302, 2084 | 0 | 3 to 7 | 3066 to 3240 | 718 to 755 | 741 to 824 |
+  | the path | 76 | 6810, 6796, 6683 | 8.46, 8.46, 8.29 | 2091, 2069, 1900 | 7 | 161 to 163 | 3073 to 3082 | 666 to 729 | 756 to 791 |
+
+  The path is not slower: 6.68 to 6.81 s waited against 6.84 to 7.07 s. Its files cost 0.16 s, the 76 headers of 1 MiB at 2 ms each, and opening them 7 ms; the runs a segment is cut into cost nothing. The store alone, outside the server, the same 5.2 GiB on the same pool: one file 4.34 s (1263 MB/s), 82 files 4.54 s (1209 MB/s), the 0.2 s again the headers.
+- **Where a long read's 6.8 s goes, for both layouts:** 2.0 s taking 5.2 GiB of host-visible slabs, on the scheduler thread before the read starts; 3.1 s reading around the file cache, the pool's rate; 0.7 s of checksums and 0.8 s copying into the slabs, one after the other on the store's one thread. Two candidates follow from it, neither built: slabs taken off the scheduler thread or kept from the stop of the write before, and the checksum and copy of a chunk overlapping the next chunk's read, worth at most the 1.5 s they take.
+- **Measured, gates:** before the rebase onto `a0922bb62`, at the same src and tests: Qwen3-0.6B Q8_0 gives main's ids and logits on the CPU and on one MI50, and the suite's `server` component and `server-resume` with its device half pass on the MI50. Before the idle option, at the same src otherwise: on the test machine a CPU build, CTest, the whole CPU suite and the linked check. At the landing head: the hosted run, and on Windows CTest with `docs`, `dead-code`, `version` and `arch-boundary`.
+- **Reviewed:** by F2DEV at the test commit and the change before the rebase: no finding in the code; the four decisions put to it accepted (the states above a lost segment staying until the next start, the faulted request reusing nothing, no order for a regenerated reply's old tail, the idle line once a period); of the read's two candidates it names the slabs taken on the scheduler thread worth a branch, a serving defect, and the overlap a record.
 
 ## The hosted Windows job's limit is 35 minutes (2026-10-08, branch ci/windows-limit, the workflow and its page only, lands by fast-forward)
 

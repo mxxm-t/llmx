@@ -65,6 +65,9 @@ inline std::string disk_identity(const std::string& digest, const std::string& l
 }
 
 // The server's disk tier, from --disk-cache-bytes, --disk-cache-dir, --disk-cache-floor, --disk-cache-keep and --disk-cache-max-age; `bytes` 0 keeps none.
+// How long a server under --disk-cache-keep has had nothing to do before it writes ahead what a stop would have to, so a turn that follows at once meets no copy off the devices.
+constexpr std::chrono::seconds kDiskIdle{5};
+
 struct DiskOptions {
     uint64_t bytes = 0;
     std::string dir;
@@ -73,6 +76,7 @@ struct DiskOptions {
     uint64_t max_age = 24 * 3600;    // seconds an entry may go unused before it is deleted, 0 for no limit
     std::string model_path;          // the model file whose digest every entry's identity carries
     std::chrono::milliseconds pace{0};   // DiskStore::Options::pace, for tests
+    std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
 };
 
 // Before the server listens: makes the directory, takes the default floor, prints the directory, the file system's free space and the floor, and refuses a tier the host tier does not feed or whose cap and floor together exceed the free space.
@@ -92,8 +96,6 @@ inline void check_disk_cache(DiskOptions& o, size_t host_cap) {
 
 // How long a clean exit under --disk-cache-keep spends writing what memory holds to disk (docs/DISK-TIER.md, Keeping entries across a restart).
 constexpr std::chrono::seconds kDiskFlush{20};
-// How long a server under --disk-cache-keep has had nothing to do before it writes ahead what a stop would have to, so a turn that follows at once meets no copy off the devices.
-constexpr std::chrono::seconds kDiskIdle{5};
 
 class DiskTier {
 public:
@@ -159,6 +161,7 @@ public:
 
     uint64_t cap() const { return options_.bytes; }
     bool keeps() const { return options_.keep; }
+    std::chrono::milliseconds idle() const { return options_.idle; }
     uint64_t max_age() const { return options_.max_age; }
 
     // The entries the store adopted from servers that left them, once the store is made, and once.
@@ -218,10 +221,7 @@ public:
         std::vector<Finished> out;
         out.swap(done_);
         for (const Finished& f : out) {
-            if (f.read) {
-                if (!f.ok) ++errors_;
-                continue;
-            }
+            if (f.read) continue;   // counted a read, in settle
             in_flight_ = 0;
             if (f.ok) continue;
             if (f.error.find("cancel") != std::string::npos) continue;
@@ -253,8 +253,18 @@ public:
         changed_ = false;
         return c;
     }
-    uint64_t written() const { return written_; }
-    size_t capped() const { return capped_; }
+    // The tier's figures as the scheduler's stats give them: the files on disk and the states among them, their bytes, every finished write's bytes, and the files deleted while running to stay within the cap.
+    struct Figures {
+        size_t files = 0, states = 0, capped = 0;
+        uint64_t bytes = 0, written = 0;
+    };
+    Figures figures() const { return {index_.files().size(), index_.states(), capped_, index_.bytes(), written_}; }
+    // Once an idle server's writes have ended: one line of what went to disk since the last such line.
+    void say_written() {
+        if (written_ == said_) return;
+        std::fprintf(stderr, "server: %.1f MiB written to disk since the idle writes last ended; %zu files on disk, %zu of them states\n", (double)(written_ - said_) / (1 << 20), index_.files().size(), index_.states());
+        said_ = written_;
+    }
     size_t calls() const { return (key_ ? 1 : 0) + reads_.size(); }
     // The host memory the tier's own calls hold beyond the host tier: the slabs a write off the devices is read from, and those for the part of a file a read does not want.
     size_t held() const {
@@ -294,6 +304,11 @@ public:
                 for (size_t i = 0; i < reads_.size(); ++i) {
                     Reading& r = reads_[i];
                     if (std::find(r.tickets.begin(), r.tickets.end(), f.ticket) == r.tickets.end()) continue;
+                    // A read fails once, at its first file that does; those after it on the path fail with it.
+                    if (!f.ok && r.ok) {
+                        std::lock_guard<std::mutex> lk(m_);
+                        ++errors_;
+                    }
                     r.ok = r.ok && f.ok;
                     // A file that failed its read is gone, and what stood on it with it.
                     if (!f.ok && index_.remove(f.key)) out.changed = changed_ = true;
@@ -624,7 +639,7 @@ private:
     infer::HostHistory staging_;
     std::vector<uint64_t> pins_;
     std::vector<Reading> reads_;
-    uint64_t read_ids_ = 0, written_ = 0;
+    uint64_t read_ids_ = 0, written_ = 0, said_ = 0;
     size_t capped_ = 0;
     bool measured_ = false;
     uint64_t block_bytes_ = 0, state_bytes_ = 0;

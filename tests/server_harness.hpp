@@ -59,6 +59,45 @@ inline gguf::GGUFModel served(const Shape& s) {
     return with_tokens(infer::synthetic_model({s.layers, s.embd, s.ff, s.heads, s.kv_heads, s.head_dim, s.vocab, 20260925u}), s.vocab);
 }
 
+// The synthetic model as a routed file: every layer's feed-forward block is 4 experts of half its width, 2 a token, in F32 with seeded weights, beside the dense tensors a routed layer does not read.
+inline gguf::GGUFModel served_routed(const Shape& s) {
+    gguf::GGUFModel m = served(s);
+    const std::string dense = "qwen3.", routed = "qwen3moe";
+    for (auto& kv : m.kv) {
+        if (kv.first.rfind(dense, 0) == 0) kv.first.replace(0, dense.size() - 1, routed);
+        if (kv.first == "general.architecture") kv.second.s = routed;
+    }
+    const uint64_t experts = 4, rows = (uint64_t)s.ff / 2, embd = (uint64_t)s.embd;
+    for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{{"expert_count", experts}, {"expert_used_count", 2}, {"expert_feed_forward_length", rows}}) {
+        gguf::MetaValue v;
+        v.vtype = gguf::V_UINT32;
+        v.u = kv.second;
+        m.kv.push_back({routed + "." + kv.first, v});
+    }
+    std::mt19937 rng(20261008u);
+    std::uniform_real_distribution<float> dist(-0.25f, 0.25f);
+    const auto add = [&](const std::string& name, std::vector<uint64_t> shape) {
+        size_t count = 1;
+        for (uint64_t d : shape) count *= (size_t)d;
+        const size_t offset = m.blob.size();
+        m.blob.resize(offset + count * sizeof(float));
+        for (size_t i = 0; i < count; ++i) {
+            const float v = dist(rng);
+            std::memcpy(m.blob.data() + offset + i * sizeof(float), &v, sizeof v);
+        }
+        m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
+        m.offsets.push_back(offset);
+    };
+    for (int l = 0; l < s.layers; ++l) {
+        const std::string pre = "blk." + std::to_string(l) + ".";
+        add(pre + "ffn_gate_inp.weight", {embd, experts});
+        add(pre + "ffn_gate_exps.weight", {embd, rows, experts});
+        add(pre + "ffn_up_exps.weight", {embd, rows, experts});
+        add(pre + "ffn_down_exps.weight", {rows, embd, experts});
+    }
+    return m;
+}
+
 // A qwen35 model whose layers alternate linear and full attention, so each request holds a recurrent state slot beside its KV blocks (docs/QWEN35.md).
 struct HybridShape {
     int layers, embd, ff, heads, kv_heads, head_dim, rope_dim, k_heads, v_heads, state_k, state_v, vocab;

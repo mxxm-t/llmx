@@ -423,6 +423,22 @@ void grouped(const gguf::GGUFModel& weights, uint32_t vocab) {
     replayed(one, split, tok, vocab);
 }
 
+// Two stages of CPU groups over a routed model at P = 2 and 4: each stage's thread records routed layers, which rebuild the run list of their rows, while the other stage's thread records its own; every reply its reply alone on one group.
+void routed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    const std::vector<Req> reqs = steady_load(vocab);
+    const std::vector<Reply> ref = alone(on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2), tok, pool, reqs);
+    const Make split = on(weights, [] { return cpus(4); }, 8, 0, 0, 0, false, 2);
+    for (const size_t passes : {size_t(2), size_t(4)}) {
+        auto model = split(pool, kUbatch);
+        server::Scheduler::Stats s;
+        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, passes);
+        require(s.passes == passes, "routed layers over two stages of groups: the scheduler kept " + std::to_string(s.passes) + " passes in flight");
+        for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "routed layers over two stages of groups at P = " + std::to_string(passes) + ", request " + std::to_string(i));
+    }
+}
+
 // A CPU backend whose decode kernels hold 16 columns, so a pass of several decoding requests has columns to spare for their drafts.
 struct Wide : backend::CpuBackend {
     Wide() { set_threads(1); }
@@ -558,6 +574,7 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 int main() {
     try {
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
+        routed_groups(served_routed(kSplit), (uint32_t)kSplit.vocab);
         grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
         drafted_groups(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
         timed_groups(served(kSplit), (uint32_t)kSplit.vocab);

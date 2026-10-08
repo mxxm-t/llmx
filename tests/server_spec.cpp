@@ -150,6 +150,45 @@ void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer
     std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted) << " drafts kept" << std::endl;
 }
 
+// A request drafts while another waits for room, and not while one waits for a seat (docs/SPECULATIVE.md, section 3).
+// Room: on two seats and a pool of 8 blocks, a request whose prompt ends as it began, so lookup has drafts for it, runs beside a queued request of 900 prompt tokens the pool cannot hold with it; the drafts fed are those the two feed each alone, the first one's among them.
+// A seat: the same first request and a second like it on one seat; the first feeds no draft while the second is queued for the seat, so the drafts fed are the second one's alone.
+// Every reply is the request's reply alone.
+void drafts_while_one_waits(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    std::vector<Req> reqs;
+    for (uint32_t r = 0; r < 2; ++r) {
+        std::vector<uint32_t> prompt = prompt_of(20 + r, 80, vocab);
+        prompt.insert(prompt.end(), {prompt[0], prompt[1], prompt[2]});
+        reqs.push_back({prompt, 60});
+    }
+    reqs.push_back({prompt_of(22, 900, vocab), 20});
+    std::vector<Reply> alone;
+    std::vector<size_t> fed;
+    for (const Req& r : reqs) {
+        auto model = plain(1024, 0);
+        alone.push_back(serve(*model, tok, 2, {{r}}).back());
+        auto with = drafting(1024, 0);
+        auto p = proposer(*with);
+        server::Scheduler::Stats stats;
+        same(alone.back(), serve(*with, tok, 2, {{r}}, &stats, 0, 0, p.get(), kDraftMax, false).back(), what + ", a request alone with drafts");
+        fed.push_back(total(stats.drafted));
+    }
+    require(fed[0] > 0 && fed[1] > 0, what + ": lookup found no draft for the requests alone");
+    const auto together = [&](size_t seats, const std::vector<size_t>& which, size_t want, const std::string& name) {
+        auto model = drafting(1024, 0);
+        auto p = proposer(*model);
+        server::Scheduler::Stats stats;
+        std::vector<Req> wave;
+        for (size_t i : which) wave.push_back(reqs[i]);
+        const std::vector<Reply> got = serve(*model, tok, seats, {wave}, &stats, 0, 0, p.get(), kDraftMax, false);
+        for (size_t i = 0; i < which.size(); ++i) same(alone[which[i]], got[i], what + ", " + name + ", request " + std::to_string(i));
+        require(total(stats.drafted) == want, what + ", " + name + ": " + std::to_string(total(stats.drafted)) + " drafts fed, against " + std::to_string(want));
+    };
+    together(2, {0, 2}, fed[0] + fed[2], "a request queued for room");
+    together(1, {0, 1}, fed[1], "a request queued for the one seat");
+    std::cout << "server-spec: " << what << ": " << fed[0] << " drafts fed beside a request waiting for room, none beside one waiting for the seat" << std::endl;
+}
+
 }   // namespace
 
 int main() {
@@ -197,6 +236,7 @@ int main() {
         }
         resumed_by_fork(on(hybrid, [] { return cpus(1); }, 4, 3), on(hybrid, [] { return wide(1); }, 4, 3, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab,
                         "a request resumed by a fork of its whole history, the hybrid model with its embedded drafter");
+        drafts_while_one_waits(on(q8, [] { return cpus(1); }), on(q8, [] { return wide(1); }, 8, 0, 4, kDraftMax + 1), lookup, q8_tok, q8_vocab, "drafts while a request waits, Q8_0 with lookup");
         cancelled_in_flight(q8, q8_tok, q8_vocab, lookup, false, 8, "Q8_0 with lookup");
         cancelled_in_flight(hybrid, hybrid_tok, hybrid_vocab, embedded, true, 4, "the hybrid model with its embedded drafter");
         std::cout << "server-spec: " << checks << " checks pass\n";

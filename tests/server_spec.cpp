@@ -103,6 +103,53 @@ std::vector<Req> requests(const Make& plain, const bpe::Tokenizer& tok, uint32_t
     return reqs;
 }
 
+// A request resumed by a fork of its whole history drafts nothing until a pass has fed it, and nobody ends with an error (docs/SPECULATIVE.md, section 3).
+// On a pool of 4096 tokens with a host tier, an uncapped request A of 2306 prompt tokens generates toward the pool's end; an uncapped B of 641 arrives once A has 50 tokens, runs until its reservation ends on a whole block and sits passes out there, is paused for A's growth, and its parked history goes to host memory as A grows on.
+// When A ends at the pool's end B resumes by a fork of the copy promoted from host memory: its sequence holds its whole history, so it decodes at once, on a sequence no pass has fed since the fork, which on a model that keeps a state has no live state for the drafter to read.
+// Both replies are the requests' replies alone, B's promoted and not recomputed.
+// This case passes without the rule too, B's acceptance resting when it resumes here, so it holds the promoted resume's replies with drafts and is not the test that fails; that one is the suite's qwen35 component.
+void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    const Req a{prompt_of(1, 2306, vocab)}, b{prompt_of(2, 641, vocab)};
+    std::vector<Reply> alone;
+    for (const Req& r : {a, b}) {
+        auto model = plain(4096, 0);
+        alone.push_back(serve(*model, tok, 4, {{r}}).back());
+    }
+    auto model = drafting(4096, 0);
+    auto p = proposer(*model);
+    server::Scheduler sched(*model, tok, 4, 64, 0, false, size_t(1) << 28, p.get(), kDraftMax, false);
+    std::thread runner([&] { sched.run(); });
+    Reply got_a, got_b;
+    std::string end_a, end_b;
+    server::Scheduler::Stats stats;
+    try {
+        const auto ha = sched.submit(a.prompt, params_of(a));
+        server::Request::Token t;
+        while (got_a.size() < 50) {
+            require(ha->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, what + ": the first request ended or gave nothing before its 50th token");
+            got_a.push_back(t);
+        }
+        const auto hb = sched.submit(b.prompt, params_of(b));
+        for (const Reply& more : {collect(*ha)}) got_a.insert(got_a.end(), more.begin(), more.end());
+        got_b = collect(*hb);
+        end_a = ha->finish() + " " + ha->error();
+        end_b = hb->finish() + " " + hb->error();
+        stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(end_a == "length " && end_b == "length ", what + ": the requests ended with \"" + end_a + "\" and \"" + end_b + "\", against the pool's end for both");
+    same(alone[0], got_a, what + ", the request that ran to the pool's end");
+    same(alone[1], got_b, what + ", the request paused beside it");
+    require(stats.pauses == 1 && stats.host_hits == 1 && stats.recomputed == 0,
+            what + ": " + std::to_string(stats.pauses) + " pauses, " + std::to_string(stats.host_hits) + " promotions from host memory and " + std::to_string(stats.recomputed) + " tokens recomputed, against one, one and none");
+    std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted) << " drafts kept" << std::endl;
+}
+
 }   // namespace
 
 int main() {
@@ -148,6 +195,8 @@ int main() {
             // Priced by the passes' timing, which decides how much each pass drafts, every reply is still its reply alone.
             against_alone(plain, with_drafter, embedded, hybrid_tok, 4096, 4, stages, reqs, "the hybrid model with its embedded drafter on " + where + ", priced", false, true);
         }
+        resumed_by_fork(on(hybrid, [] { return cpus(1); }, 4, 3), on(hybrid, [] { return wide(1); }, 4, 3, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab,
+                        "a request resumed by a fork of its whole history, the hybrid model with its embedded drafter");
         cancelled_in_flight(q8, q8_tok, q8_vocab, lookup, false, 8, "Q8_0 with lookup");
         cancelled_in_flight(hybrid, hybrid_tok, hybrid_vocab, embedded, true, 4, "the hybrid model with its embedded drafter");
         std::cout << "server-spec: " << checks << " checks pass\n";

@@ -362,6 +362,66 @@ def check_serve(directory):
         finally:
             srv.close()
 
+    check_resume_drafts(directory, drafting_spec)
+
+
+def check_resume_drafts(directory, spec):
+    """A request resumed by a fork of its whole history, with the embedded drafter and a host tier (docs/SPECULATIVE.md, section 3): on a pool of 8192 tokens an uncapped request of 5762 prompt tokens runs toward the pool's end, its reservation of 49 blocks leaving it 511 tokens before its first growth step; an uncapped one of 1281 arrives at its first token, whose 13 blocks end 384 tokens on, stalls there on a whole block, is paused for the first one's growth and has its parked history evicted to host memory.
+    When the first ends the second resumes by a fork of the copy promoted from host memory and decodes at once, on a sequence no pass has fed: it must draft nothing in that pass, and both must end by length with the text each gives alone, nobody with an error.
+    The path is counted, a pause and a promotion, and tried up to three times, since the second request must reach its reservation's end before the first one's growth step, about a hundred tokens of margin."""
+    import http.client
+    import threading
+    import server
+    model = write_model(os.path.join(directory, "tiny-qwen35-resume-mtp.gguf"), gguf_tensors(spec, raw_weights(spec)), eos_id=EOS,
+                        config=dict(gguf_config(spec), context_length=8192), arch="qwen35")
+    flags = ("--max-seqs", "4", "--ctx-size", "8192", "--drafter", "embedded", "--host-cache-bytes", str(1 << 28))
+    prompts = ["".join(chr(97 + (i * 7) % 26) for i in range(5762)), "".join(chr(97 + (i * 5) % 26) for i in range(1281))]
+    bodies = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
+    srv = server.Server(model, *flags)
+    try:
+        alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0] for body in bodies]
+    finally:
+        srv.close()
+    assert all(c["finish_reason"] == "length" for c in alone), [c["finish_reason"] for c in alone]
+
+    def streamed(port, body, out, started=None):
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=300)
+        c.request("POST", "/v1/completions", json.dumps(dict(body, stream=True)), {"Content-Type": "application/json"})
+        text, finish, error = [], None, None
+        for raw in c.getresponse():
+            line = raw.decode("utf-8").strip()
+            if not line.startswith("data: ") or line[6:] == "[DONE]":
+                continue
+            event = json.loads(line[6:])
+            error = event.get("error") or error
+            for choice in event.get("choices", []):
+                text.append(choice.get("text") or "")
+                finish = choice.get("finish_reason") or finish
+                if started is not None:
+                    started.set()
+        out.append(("".join(text), finish, error))
+
+    for attempt in range(3):
+        srv = server.Server(model, *flags)
+        try:
+            first, second, started = [], [], threading.Event()
+            a = threading.Thread(target=streamed, args=(srv.port, bodies[0], first, started))
+            a.start()
+            assert started.wait(120), "the first request gave no token"
+            b = threading.Thread(target=streamed, args=(srv.port, bodies[1], second))
+            b.start()
+            a.join(300)
+            b.join(300)
+            health = srv.get("/v1/health")
+        finally:
+            srv.close()
+        for got, want, name in ((first, alone[0], "the request that ran to the pool's end"), (second, alone[1], "the request resumed beside it")):
+            assert got and got[0][2] is None and got[0][1] == "length", (name, got and got[0][1:])
+            assert got[0][0] == want["text"], name + " gave another text than alone"
+        if health["pressure"]["since_start"]["pauses"] >= 1 and health["reuse"]["host"]["since_start"]["promotions"] >= 1:
+            return
+    raise AssertionError("no run paused the second request and promoted it from host memory: " + json.dumps(health["pressure"]))
+
 
 def check_scores(name, model, perplexity):
     """The windowed NLL of the longest text within its witnessed precision bound of HF's, scored in batched passes of three tokens and one token at a time, the decode path, at 1 and 4 threads."""

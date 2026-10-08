@@ -620,6 +620,7 @@ public:
     void reset(Sequence& s);
     size_t retract(Sequence& s, size_t length);
     bool mark(Sequence& s);
+    bool can_draft(const Sequence& s) const;
     bool keep(Sequence& s);
     std::optional<size_t> checkpoint(const Sequence& s) const;
     size_t host_bytes(size_t length, bool blocks = true, size_t first = 0, bool state = true) const;

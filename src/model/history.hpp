@@ -64,6 +64,9 @@ inline size_t Model::retract(Sequence& s, size_t length) {
     return rewind(s, length);
 }
 
+// Whether a draft of the sequence may be asked for (draft): it holds a history and, on a model that keeps a state, a pass has fed it since its fork, which is when it takes its live state; until then it reads its checkpoint in place and the drafter has no state of its own to read.
+inline bool Model::can_draft(const Sequence& s) const { return s.length() && (!keeps_state() || s.state_.held()); }
+
 // Keep the sequence's state at its current length while one pass runs past it, so a retract into that pass reaches any of its rows exactly (docs/SPECULATIVE.md, section 1): a verify of drafts marks its history first.
 // Nothing on a model that keeps no state, whose caches reach every length; on one that keeps a state, the live slot becomes the mark's and the pass writes a fresh one, saving its rows' recurrent inputs.
 // False when no mark is free, and then nothing is marked; a second mark is refused.

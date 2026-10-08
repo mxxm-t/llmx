@@ -791,7 +791,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
- "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
+ "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
  "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}}
 ```
 
@@ -833,6 +833,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `pressure.since_start.resumes_taking_history_back` | resumes | since start | Resumes that took their own kept history back whole, computing nothing | |
 | `reread.since_start.jobs`, `.rows`, `.cancelled` | jobs, rows, jobs | since start | Background jobs that read a reply again so the next turn finds it kept, the rows they read, and the jobs that gave way to a request at a pass boundary | |
 | `drafting.since_start.drafted`, `.kept` | tokens | since start | Drafted tokens that verifies fed, and the ones they kept; `by_position` has the same by draft position, from 1 | `kept` far below `drafted` |
+| `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |
 | `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |
 | `passes.sampling_threads` | threads | fixed | Threads that sample beside the scheduler's | |
 | `timing` | milliseconds | since start | With `--timing` only: the means of the rounds' parts, `stage_idle_share` (a fraction of the span for each stage) and `device_bound_rows_per_s` | |

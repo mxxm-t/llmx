@@ -390,6 +390,7 @@ public:
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
+        size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
         uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
         uint64_t host_limit = 0, disk_limit = 0;  // the host tier's and the disk tier's byte caps, 0 for a tier that is off
     };
@@ -425,6 +426,7 @@ public:
         s.finished = finished_.load();
         s.prompt_tokens = prompt_total_.load();
         s.generated_tokens = generated_total_.load();
+        s.draft_failures = draft_failures_.load();
         s.host_limit = host_cap_;
         s.disk_limit = disk_ ? disk_->cap() : 0;
         s.drafted = tally_.drafted();
@@ -996,7 +998,8 @@ private:
         keeps_.clear();
         askers_.clear();
         for (const auto& r : rs) {
-            if (r->job_) continue;
+            // A request resumed by a fork of its whole history decodes before any pass has fed its sequence, and drafts from the pass after (Model::can_draft).
+            if (r->job_ || !model_.can_draft(r->seq_)) continue;
             const size_t at = r->seq_.length(), room = std::min(reserved_tokens(*r), token_limit());
             const size_t k = infer::spec::draft_length(draft_max_, (size_t)r->params_.max_tokens - r->gen_.size(), room > at ? room - at : 0, columns, r->acceptance_);
             if (!k) continue;
@@ -1032,7 +1035,14 @@ private:
         }
         if (!n) return;
         const Clock::time_point start = Clock::now();
-        proposer_->draft_all(asks_.data(), n);
+        // A draft is an optimisation: one that fails costs its pass the drafts and no request.
+        try {
+            proposer_->draft_all(asks_.data(), n);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "server: a draft failed and its pass runs without drafts (%s)\n", e.what());
+            ++draft_failures_;
+            return;
+        }
         const double chain = ms_since(start);
         times_.chain(steps, n, chain);
         chain_ms_ += chain;
@@ -2427,7 +2437,7 @@ private:
         if (r->stalls_) std::snprintf(stalled, sizeof stalled, ", sat out %zu pass%s", r->stalls_, r->stalls_ == 1 ? "" : "es");
         std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s\n",
                      r->prompt_tokens(), r->reused(), r->gen_.size(), t.queued_ms, t.prompt_ms,
-                     t.predicted_per_second(r->gen_.size()), why.c_str(), paused, stalled);
+                     t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled);
     }
 
     // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
@@ -2680,6 +2690,7 @@ private:
     Clock::time_point last_retired_;      // when the last pass retired, if one has
     bool retired_ = false;
     double chain_ms_ = 0;                 // the chains drafted since then
+    std::atomic<size_t> draft_failures_{0};   // Stats::draft_failures
     infer::spec::Acceptance tally_;       // under the lock, every verify's drafts by position
     Timing round_;                        // the scheduler thread's, published to timing_ each round
     Timing timing_;                       // under the lock

@@ -811,9 +811,10 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reuse.since_start.tokens` | tokens | since start | Prompt tokens those requests did not have to read | |
 | `reuse.device.now.entries` | histories | now | Finished or paused conversations kept in device memory, ready to share | |
 | `reuse.device.now.state_checkpoints` | states | now | Saved conversation states, on a model whose layers keep one | |
-| `reuse.host.now.entries`, `.bytes`, `.limit_bytes` | histories, bytes | now | Histories in host memory, their bytes, and the cap `--host-cache-bytes` set (0 where there is no host cache) | `bytes` at `limit_bytes` is normal; the tier makes room by dropping entries |
-| `reuse.host.since_start.promotions` | histories | since start | Histories copied from host memory back to a device for a request | |
-| `reuse.host.since_start.bytes_moved` | bytes | since start | Bytes copied between devices and host memory, both ways | |
+| `reuse.host.now.entries` | histories | now | Copies of histories in host memory; message boundaries are counted apart, under `reuse.boundaries` | |
+| `reuse.host.now.bytes`, `.limit_bytes` | bytes | now | Host memory the tier holds, in whole slabs of 64 MiB: the copies, the message boundaries' states and histories read back from disk, so it can be above 0 with no entry; and the cap `--host-cache-bytes` set (0 where there is no host cache) | `bytes` at `limit_bytes` is normal; the tier makes room by dropping entries |
+| `reuse.host.since_start.promotions` | histories | since start | Copies of histories brought from host memory back to a device for a request; a message boundary that is used counts under `reuse.boundaries.since_start.hits` | |
+| `reuse.host.since_start.bytes_moved` | bytes | since start | Bytes copied between devices and host memory, both ways: copies written back and promoted, and each message boundary's state as it is kept | |
 | `reuse.disk.now.entries`, `.segments`, `.states` | files | now | Files on disk, and how many of them hold blocks of a history (segments) and how many a state | |
 | `reuse.disk.now.bytes`, `.limit_bytes` | bytes | now | The files' bytes, and the cap `--disk-cache-bytes` set (0 where there is no disk tier) | |
 | `reuse.disk.now.in_flight` | operations | now | The write and the reads the disk tier has under way | |

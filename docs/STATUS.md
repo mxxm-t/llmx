@@ -131,6 +131,12 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## `/v1/health`'s host figures say what they count (2026-10-08, branch docs/health-host-wording, docs only, lands by fast-forward)
+
+- **Why:** production showed `reuse.host.now.entries` 0 beside 536870912 `bytes`, and 313868288 `bytes_moved` with no promotion, which read as an error and is not one.
+- **Done:** USAGE's table says that `entries` counts copies of histories alone, that `bytes` is the slabs the tier holds, whole slabs, for copies, for message boundaries' states and for histories read back from disk, that `bytes_moved` includes each boundary's state as it is kept, and that a boundary's use counts under `reuse.boundaries`. No source changes.
+- **Traced** on main `a0922bb62`: `host_.size()`, `host_held_`, `host_hits_` and `host_moved_` in `src/server/scheduler.hpp`, the boundaries adding to the held and moved bytes where their state is kept. `timing.stage_idle_share`, asked about with these, is written only under `--timing`, as USAGE and SERVER say.
+
 ## Covering blocks: the K-quant mixture-of-experts files under a tensor width (2026-10-08, branch feat/tp-moe-cover, lands by fast-forward)
 
 - **Goal:** the files the routed experts' step refused: Qwen3-30B-A3B in a K-quant at every width and Qwen3.6-35B-A3B in a K-quant at width 4, an expert's share of its hidden columns not being whole 256-value blocks of its down stack.

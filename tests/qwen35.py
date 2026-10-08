@@ -366,9 +366,9 @@ def check_serve(directory):
 
 
 def check_resume_drafts(directory, spec):
-    """A request resumed by a fork of its whole history, with the embedded drafter and a host tier (docs/SPECULATIVE.md, section 3): on a pool of 8192 tokens an uncapped request of 5762 prompt tokens runs toward the pool's end, its reservation of 49 blocks leaving it 511 tokens before its first growth step; an uncapped one of 1281 arrives at its first token, whose 13 blocks end 384 tokens on, stalls there on a whole block, is paused for the first one's growth and has its parked history evicted to host memory.
+    """A request resumed by a fork of its whole history, with the embedded drafter and a host tier (docs/SPECULATIVE.md, section 3): on a pool of 8192 tokens an uncapped request of 5762 prompt tokens runs toward the pool's end, its reservation of 49 blocks leaving it 511 tokens before its first growth step; an uncapped one of 1281 arrives once the first is admitted, while it still reads its prompt, whose 13 blocks end 384 tokens on, stalls there on a whole block, is paused for the first one's growth and has its parked history evicted to host memory.
     When the first ends the second resumes by a fork of the copy promoted from host memory and decodes at once, on a sequence no pass has fed: it must draft nothing in that pass, and both must end by length with the text each gives alone, nobody with an error.
-    The path is counted, a pause and a promotion, and tried up to three times, since the second request must reach its reservation's end before the first one's growth step, about a hundred tokens of margin."""
+    The path is counted, a pause and a promotion, and tried up to three times, since the second request must reach its reservation's end before the first one's growth step: it has 127 tokens fewer to go and the passes the first still spends on its prompt."""
     import http.client
     import threading
     import server
@@ -384,7 +384,7 @@ def check_resume_drafts(directory, spec):
         srv.close()
     assert all(c["finish_reason"] == "length" for c in alone), [c["finish_reason"] for c in alone]
 
-    def streamed(port, body, out, started=None):
+    def streamed(port, body, out):
         c = http.client.HTTPConnection("127.0.0.1", port, timeout=300)
         c.request("POST", "/v1/completions", json.dumps(dict(body, stream=True)), {"Content-Type": "application/json"})
         text, finish, error = [], None, None
@@ -397,17 +397,15 @@ def check_resume_drafts(directory, spec):
             for choice in event.get("choices", []):
                 text.append(choice.get("text") or "")
                 finish = choice.get("finish_reason") or finish
-                if started is not None:
-                    started.set()
         out.append(("".join(text), finish, error))
 
     for attempt in range(3):
         srv = server.Server(model, *flags)
         try:
-            first, second, started = [], [], threading.Event()
-            a = threading.Thread(target=streamed, args=(srv.port, bodies[0], first, started))
+            first, second = [], []
+            a = threading.Thread(target=streamed, args=(srv.port, bodies[0], first))
             a.start()
-            assert started.wait(120), "the first request gave no token"
+            srv.wait(lambda h: h["requests"]["now"]["active"] >= 1, "the first request was not admitted", 120)
             b = threading.Thread(target=streamed, args=(srv.port, bodies[1], second))
             b.start()
             a.join(300)

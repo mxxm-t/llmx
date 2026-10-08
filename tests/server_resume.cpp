@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <set>
 
 #include "server_harness.hpp"
 
@@ -1936,6 +1937,221 @@ void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, s
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
 
+// The rule a recording backend keeps (backends/backend.hpp, wait), held on the CPU backends of two stages of tensor groups: while a stage's thread records on a device, no other thread calls it but to wait on a returned ticket.
+// A recording is held still: armed, the next submission a thread other than the scheduler's makes on a device of the last stage parks there, its stage being recorded, until it is let go.
+// Counted on that stage's devices: a call from another thread while the recording is parked (`met`), and the scheduler thread's own calls (`own`), a letter each in `calls`: S a copy into the host memory that keeps histories, R a copy out of it, A that memory allocated, s a submission, and the others by their own letters.
+struct Recording {
+    std::mutex m;
+    std::condition_variable cv;
+    std::thread::id scheduler, holder;
+    bool armed = false, parked = false, go = false;
+    size_t met = 0, own = 0;
+    std::string calls;                        // the scheduler thread's calls on the stage's devices, a letter each (Guarded::seen)
+    std::set<const backend::Buffer*> slabs;   // the host memory a model keeps copies of histories in
+    void arm() {
+        std::lock_guard<std::mutex> lk(m);
+        armed = true;
+        go = false;
+    }
+    bool wait_parked() {
+        std::unique_lock<std::mutex> lk(m);
+        return cv.wait_for(lk, std::chrono::seconds(60), [&] { return parked; });
+    }
+    void release() {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            go = true;
+        }
+        cv.notify_all();
+    }
+    size_t count(size_t Recording::* which) {
+        std::lock_guard<std::mutex> lk(m);
+        return this->*which;
+    }
+};
+struct Guarded : backend::CpuBackend {
+    Recording* rule = nullptr;
+    bool last_stage = false;
+    void seen(char kind, const backend::Buffer* dst = nullptr, const backend::Buffer* src = nullptr) {
+        if (!last_stage) return;
+        const std::thread::id me = std::this_thread::get_id();
+        std::lock_guard<std::mutex> lk(rule->m);
+        if (me == rule->scheduler) {
+            ++rule->own;
+            rule->calls += dst && rule->slabs.count(dst) ? 'S' : src && rule->slabs.count(src) ? 'R' : kind;
+        }
+        if (rule->parked && me != rule->holder) ++rule->met;
+    }
+    backend::Ticket submit() override {
+        if (last_stage) {
+            std::unique_lock<std::mutex> lk(rule->m);
+            const std::thread::id me = std::this_thread::get_id();
+            if (rule->armed && me != rule->scheduler) {
+                rule->armed = false;
+                rule->parked = true;
+                rule->holder = me;
+                rule->cv.notify_all();
+                rule->cv.wait(lk, [&] { return rule->go; });
+                rule->parked = false;
+            }
+        }
+        seen('s');
+        return CpuBackend::submit();
+    }
+    void sync() noexcept override {
+        seen('y');
+        CpuBackend::sync();
+    }
+    double device_ms() override {
+        seen('t');
+        return CpuBackend::device_ms();
+    }
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        const bool slab = where == backend::Memory::host_visible && bytes >= ((size_t)1 << 20);
+        seen(slab ? 'A' : 'a');
+        backend::BufferPtr b = CpuBackend::alloc(bytes, where);
+        if (slab && last_stage) {
+            std::lock_guard<std::mutex> lk(rule->m);
+            rule->slabs.insert(b.get());
+        }
+        return b;
+    }
+    void read(const backend::Buffer& src, size_t off, void* dst, size_t bytes) override {
+        seen('r');
+        CpuBackend::read(src, off, dst, bytes);
+    }
+    void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        seen('w', &dst);
+        CpuBackend::write(dst, off, src, bytes);
+    }
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        seen('c', &dst, &src);
+        CpuBackend::copy(dst, dst_off, src, src_off, bytes);
+    }
+};
+
+// What a scheduler's thread does on a stage's devices outside a pass's stage, caused while that stage's recording is parked on a request beside it: a follow-up whose room sends a donor to host memory, a conversation promoted from host memory, and one read back from disk and promoted, after six conversations in turn through a host tier of two copies have left the oldest on disk alone.
+// While the recording is parked no call may reach its devices from another thread and the scheduler's thread makes none there; let go, the scheduler's calls arrive, the first of them the copy the step is for, the counters say the path was taken, and every reply is its reply on a fresh model.
+// A step holds the first call its path makes there: the copy into host memory, the copy out of it; a path's later calls follow a wait the first already made, and slabs taken for a read from disk are idle ones, which is no call on a device.
+// The first letters assume that: a copy that had to allocate its slab would begin with A, a call the rule covers as well, and the letter checks would then need that letter, not the scheduler a fix.
+// The hold is 300 ms, which a scheduler with nothing else to do passes many times over on its way to the call.
+void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "the recorder rule over two stages of groups";
+    Recording rule;
+    const Make make = on(weights, [&rule] {
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < 4; ++i) {
+            auto g = std::make_shared<Guarded>();
+            g->set_threads(1);
+            g->rule = &rule;
+            g->last_stage = i >= 2;
+            v.push_back(g);
+        }
+        return v;
+    }, 8, 0, 0, 0, false, 2);
+    const Make plain = on(weights, [] { return cpus(4); }, 8, 0, 0, 0, false, 2);
+    DiskRoot disk("recorder");
+    auto model = make(2048, 16);
+    std::vector<Req> turns;
+    std::vector<Reply> replies;
+    // A conversation's next turn: its prompt, its reply and 30 tokens more.
+    const auto follow = [&](size_t k, uint32_t seed) {
+        Req r{turns[k].prompt, 32};
+        for (uint32_t id : ids_of(replies[k])) r.prompt.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(seed, 30, vocab);
+        r.prompt.insert(r.prompt.end(), more.begin(), more.end());
+        return r;
+    };
+    struct Step {
+        std::string name;
+        Req trigger, beside;
+        Reply got, got_beside;
+        size_t own_parked = 0, own_after = 0, met = 0;
+        std::string calls;   // the scheduler thread's calls on the stage's devices once the recording was let go
+        server::Scheduler::Stats before, after;
+    };
+    std::vector<Step> steps(4);
+    {
+        server::Scheduler sched(*model, tok, 2, 64, 2, false, 2 * 4 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30));
+        std::thread runner([&] {
+            {
+                std::lock_guard<std::mutex> lk(rule.m);
+                rule.scheduler = std::this_thread::get_id();
+            }
+            sched.run();
+        });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            // Conversations in turn, each turn's writes waited for, until the oldest copy has left host memory for disk.
+            for (uint32_t k = 0; k < 6; ++k) {
+                turns.push_back(Req{prompt_of(30 + k, 300, vocab), 20});
+                replies.push_back(drain(*sched.submit(turns[k].prompt, params_of(turns[k]))));
+                within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": the writes after turn " + std::to_string(k));
+            }
+            require(sched.stats().disk_entries >= 2 && sched.stats().host_donors == 2, what + ": " + std::to_string(sched.stats().disk_entries) + " entries on disk and " + std::to_string(sched.stats().host_donors) + " copies in host memory after " + std::to_string(turns.size()) + " conversations");
+            steps[0].name = "a follow-up whose room sends a donor to host memory";
+            steps[0].trigger = follow(3, 51);
+            steps[1].name = "a new conversation";
+            steps[1].trigger = Req{prompt_of(60, 300, vocab), 20};
+            steps[2].name = "a conversation promoted from host memory";
+            steps[2].trigger = follow(5, 52);
+            steps[3].name = "a conversation read back from disk and promoted";
+            steps[3].trigger = follow(0, 50);
+            for (size_t k = 0; k < steps.size(); ++k) {
+                Step& s = steps[k];
+                s.beside = Req{prompt_of(1 + (uint32_t)k, 20, vocab), 8};
+                s.before = sched.stats();
+                rule.arm();
+                const auto beside = sched.submit(s.beside.prompt, params_of(s.beside));
+                if (!rule.wait_parked()) {
+                    const auto st = sched.stats();
+                    require(false, what + ", " + s.name + ": no recording parked within a minute; active " + std::to_string(st.active) + ", queued " + std::to_string(st.queued) + ", passes " + std::to_string(st.passes) + ", in flight " + std::to_string(st.in_flight) + ", disk in flight " + std::to_string(st.disk_in_flight));
+                }
+                const size_t own0 = rule.count(&Recording::own);
+                {
+                    std::lock_guard<std::mutex> lk(rule.m);
+                    rule.calls.clear();
+                }
+                const auto h = sched.submit(s.trigger.prompt, params_of(s.trigger));
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                s.own_parked = rule.count(&Recording::own) - own0;
+                s.met = rule.count(&Recording::met);
+                rule.release();
+                s.got = drain(*h);
+                s.got_beside = drain(*beside);
+                s.own_after = rule.count(&Recording::own) - own0 - s.own_parked;
+                s.after = sched.stats();
+                {
+                    std::lock_guard<std::mutex> lk(rule.m);
+                    s.calls = rule.calls;
+                }
+            }
+        } catch (...) {
+            rule.release();
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (const Step& s : steps) {
+        require(s.met == 0, what + ", " + s.name + ": " + std::to_string(s.met) + " calls reached the stage's devices from another thread while its recording was parked");
+        require(s.own_parked == 0, what + ", " + s.name + ": the scheduler's thread made " + std::to_string(s.own_parked) + " calls on the stage's devices while its recording was parked");
+        require(s.own_after > 0 || &s == &steps[1], what + ", " + s.name + ": the scheduler's thread made no call on the stage's devices once the recording was let go, so the case did not reach the call it holds");
+        auto fresh = plain(2048, 16);
+        same(serve(*fresh, tok, 1, {{s.trigger}})[0], s.got, what + ", " + s.name);
+        auto fresh_beside = plain(2048, 16);
+        same(serve(*fresh_beside, tok, 1, {{s.beside}})[0], s.got_beside, what + ", the request beside " + s.name);
+    }
+    // What each step held is the first call its path makes on the stage's devices: a copy into host memory, and a copy out of it.
+    require(steps[0].calls[0] == 'S' && steps[0].after.host_bytes_moved > steps[0].before.host_bytes_moved, what + ", " + steps[0].name + ": its first call there was not a donor's copy to host memory (" + steps[0].calls + ")");
+    require(steps[2].calls[0] == 'R' && steps[2].after.host_hits == steps[2].before.host_hits + 1 && steps[2].after.disk_hits == steps[2].before.disk_hits,
+            what + ", " + steps[2].name + ": its first call there was not the copy back from host memory, or it was read from disk (" + steps[2].calls + ")");
+    require(steps[3].after.disk_hits == steps[3].before.disk_hits + 1 && steps[3].after.host_hits == steps[3].before.host_hits + 1, what + ", " + steps[3].name + ": it was not read back from disk and promoted (" + steps[3].calls + ")");
+    std::cout << "server-resume: " << what << ": a donor's copy to host memory, a promotion from it and a conversation read back from disk each waited for a parked recording\n";
+}
+
 // A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, the follow-up of a conversation on disk waits while an unrelated request submitted after it runs to its end, then is admitted, forking the copy read back; and a follow-up whose read fails its checksum, a byte of its file flipped, computes its history, the entry gone and the failure counted; every reply its reply alone.
 void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const bool corrupt : {false, true}) {
@@ -2404,6 +2620,7 @@ int main(int argc, char** argv) {
                 disk_restore(on(mixed, [devices] { return cpus(devices); }, 3, 2), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices,
                              "a hybrid conversation read back from disk on " + on_cpus);
             }
+            recorder_rule(weights, tok, vocab);
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
             disk_flush(one, tok, vocab);

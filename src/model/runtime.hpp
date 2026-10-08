@@ -590,9 +590,11 @@ public:
     bool pipelined() const { return pipelined_; }
     // Whether stage s runs on the host, whose backend computes as its work is recorded, so recording it holds the calling thread for the stage's whole time.
     bool stage_on_host(size_t s) const { return devices_[stages_.at(s).device]->b->is_cpu(); }
-    // Whether recording stage s runs in step with its devices: a tensor group's stage, whose every sum is a submission its members wait on each other for, where a stage of one device is one submission.
-    // A caller that keeps passes in flight records such a stage on a thread of that stage's (record_pass_stage).
-    bool stage_waits(size_t s) const { return stages_.at(s).device < devices_.size() && width_ > 1; }
+    // Whether stage s is a tensor group's, whose recording waits at every sum, each a submission its members wait on each other for.
+    bool stage_grouped(size_t s) const { return stages_.at(s).device < devices_.size() && width_ > 1; }
+    // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it, which it waits for; the first stage of such a split receives nothing and is recorded in the time it takes to write it.
+    // A caller that keeps passes in flight may record such a stage on a thread of that stage's (prepare_pass_stage, record_pass_stage, commit_pass_stage).
+    bool stage_waits(size_t s) const { return stage_grouped(s) || (s > 0 && stages_.at(s).device < devices_.size() && pipelined_ && !stage_on_host(s)); }
     // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
     backend::Backend& stage_backend(size_t s) { return *devices_[stages_.at(s).device]->b; }
 
@@ -1024,10 +1026,11 @@ private:
     void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0);
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
+    void single_prepare(Pass& p, size_t s);
+    void single_record(ExecContext& ctx, Pass& p, size_t s);
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s);
     void clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows);
-    void end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_commit(ExecContext& ctx, Pass& p, size_t s);
     void draft_context(ExecContext& ctx, Pass& p, size_t s);

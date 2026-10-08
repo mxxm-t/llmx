@@ -7,6 +7,8 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <mutex>
+#include <set>
 
 #include "server_harness.hpp"
 
@@ -438,10 +440,73 @@ void routed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     }
 }
 
+// A layer split whose stages are no CPU's, as a split over devices is: with several passes in flight a stage is recorded on a thread of its own (Model::stage_waits) while another pass is in flight, and on the scheduler's thread while its pass is alone.
+// The paused and the held load on 1, 2 and 3 such stages at each P, every reply its reply alone on one CPU, whose bits a layer split gives.
+// Then the rule itself, by the threads that submit to the backends: one request alone is submitted by one thread, the scheduler's, and the steady load at P = S and above by more than one, every reply its reply alone.
+struct Submitters {
+    std::mutex m;
+    std::set<std::thread::id> threads;
+    size_t count() {
+        std::lock_guard<std::mutex> lk(m);
+        return threads.size();
+    }
+    void clear() {
+        std::lock_guard<std::mutex> lk(m);
+        threads.clear();
+    }
+};
+struct NoCpu : backend::CpuBackend {
+    Submitters* seen;
+    explicit NoCpu(Submitters* s) : seen(s) { set_threads(1); }
+    bool is_cpu() const override { return false; }
+    backend::Ticket submit() override {
+        {
+            std::lock_guard<std::mutex> lk(seen->m);
+            seen->threads.insert(std::this_thread::get_id());
+        }
+        return CpuBackend::submit();
+    }
+};
+void recorded_stages(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const Make one = on(weights, [] { return cpus(1); });
+    Submitters seen;
+    const auto split = [&weights, &seen](size_t stages) {
+        return on(weights, [stages, &seen] {
+            std::vector<backend::BackendPtr> v;
+            for (size_t i = 0; i < stages; ++i) v.push_back(std::make_shared<NoCpu>(&seen));
+            return v;
+        });
+    };
+    paused(one, split, tok, vocab);
+    const size_t pool = 32 * kBlock;
+    const std::vector<Req> reqs = steady_load(vocab);
+    const std::vector<Reply> ref = alone(one, tok, pool, reqs);
+    for (const Run& run : runs()) {
+        if (run.stages < 2 || run.passes < run.stages) continue;
+        const std::string what = "stages that are no CPU's on " + name(run);
+        auto model = split(run.stages)(pool, kUbatch);
+        seen.clear();
+        same(ref[0], serve(*model, tok, kSeqs, {{reqs[0]}}, nullptr, run.passes)[0], what + ", a request alone");
+        require(seen.count() == 1, what + ": " + std::to_string(seen.count()) + " threads submitted a lone request's stages, against the scheduler's alone");
+        model = split(run.stages)(pool, kUbatch);
+        seen.clear();
+        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, nullptr, run.passes);
+        require(seen.count() > 1, what + ": no stage of several requests' passes was recorded on a thread of its own");
+        for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], what + ", request " + std::to_string(i));
+    }
+}
+
 // A CPU backend whose decode kernels hold 16 columns, so a pass of several decoding requests has columns to spare for their drafts.
+// It counts its submissions in a plain member, as a device keeps its open command buffer: a submission by one thread while another records on it, which the recorder rule forbids (backends/backend.hpp, wait), is then a data race the thread sanitizer reports, where the CPU's own eager work shares nothing.
 struct Wide : backend::CpuBackend {
+    size_t submissions = 0;
     Wide() { set_threads(1); }
     size_t decode_columns() const override { return 16; }
+    backend::Ticket submit() override {
+        ++submissions;
+        return CpuBackend::submit();
+    }
 };
 
 // Drafting over two stages of tensor groups at two passes, each stage recorded on its own thread (docs/TENSOR-SPLIT.md, step 5): a hybrid model's lookup-draft verifies give the replies they give alone without drafts on one group.
@@ -471,6 +536,28 @@ void drafted_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     for (size_t n : stats.kept) kept += n;
     require(stats.passes == 2 && drafted > 0 && kept > 0,
             "drafts over two stages of hybrid groups: " + std::to_string(stats.passes) + " passes in flight, " + std::to_string(kept) + " of " + std::to_string(drafted) + " drafts kept");
+}
+
+// The same placement drafting with the file's embedded drafter, whose chain is work on the head's group that the scheduler's thread does while the last stage's thread may be recording there: every reply its reply alone without a drafter.
+void chained_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    std::vector<Req> reqs;
+    for (uint32_t r = 0; r < 3; ++r) reqs.push_back({prompt_of(10 + r, 60, vocab), 48});
+    const std::vector<Reply> ref = alone(on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2), tok, pool, reqs);
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < 4; ++i) v.push_back(std::make_shared<Wide>());
+        return v;
+    }, 8, 0, 4, 4, true, 2);
+    auto model = make(pool, kUbatch);
+    infer::spec::Embedded drafter(*model);
+    server::Scheduler::Stats stats;
+    const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &stats, 2, 0, &drafter, 3);
+    for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "the embedded drafter over two stages of hybrid groups, request " + std::to_string(i));
+    size_t drafted = 0;
+    for (size_t n : stats.drafted) drafted += n;
+    require(stats.passes == 2 && drafted > 0, "the embedded drafter over two stages of hybrid groups: " + std::to_string(stats.passes) + " passes in flight, " + std::to_string(drafted) + " drafts");
 }
 
 // A CPU backend that reports a device time, as a timed device does, and notes whether that reading ever met a submission of its own: a device takes its timing read from the thread that records on it and from no other while it records.
@@ -576,8 +663,10 @@ int main() {
         routed_groups(served_routed(kSplit), (uint32_t)kSplit.vocab);
         grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
         drafted_groups(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
+        chained_groups(served_hybrid(kHybridEven, true), (uint32_t)kHybridEven.vocab);
         timed_groups(served(kSplit), (uint32_t)kSplit.vocab);
         timed_cpu(served(kSplit), (uint32_t)kSplit.vocab);
+        recorded_stages(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

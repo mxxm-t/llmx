@@ -64,7 +64,9 @@ struct Sim {
     std::vector<Pass> slots;
     std::vector<char> host;                  // per stage, whether it runs on the host, whose stages the round records after its device stages
     // A stage recorded on a thread of its own, as a tensor group's is (the scheduler's recorders): its recording takes 0 to `slow` rounds, the round going on meanwhile, and now and then fails as it ends.
+    // Half of those schedules are a layer split's, whose stage of one device goes to its thread only while another pass is in flight (recorded_apart).
     std::vector<char> threaded;
+    bool grouped = true;
     struct Recording {
         bool busy = false, fails = false;
         size_t slot = 0;
@@ -110,6 +112,9 @@ struct Sim {
         // One schedule in three records every stage on a thread of its own, each recording 0 to 2 rounds long; a stage's every step then takes up to slow + 1 rounds, and so does a lap.
         if (rng() % 3 == 0) {
             threaded.assign(S, 1);
+            grouped = rng() % 2;
+            // A layer split's first stage receives nothing and has no thread.
+            if (!grouped) threaded[0] = 0;
             slow = rng() % 3;
             lap *= slow + 1;
             // Formation waits for the first stage's recorder, a stage's time more before a pass's first step.
@@ -367,7 +372,8 @@ struct Sim {
     bool record(size_t k, size_t s) {
         Pass& p = slots[k];
         require(p.live && p.ran == s, at + ": a stage recorded out of order");
-        if (threaded[s]) {
+        const size_t live = (size_t)std::count_if(slots.begin(), slots.end(), [](const Pass& q) { return q.live; });
+        if (threaded[s] && server::recorded_apart(grouped, live)) {
             // A stage records one pass at a time: a pass that finds its recorder taken waits for a later round.
             if (recording[s].busy) return false;
             require(!p.recording, at + ": a pass handed to a recorder twice");
@@ -741,6 +747,8 @@ void growth_by_hand() {
     require(server::decode_share(0, 3, 3) == 0 && server::decode_share(7, 1, 1) == 7 && server::decode_share(7, 3, 2) == 3 && server::decode_share(6, 3, 3) == 2 && server::decode_share(1, 4, 2) == 1,
             "the decode share was not the decoding requests over passes that fill the stages, rounded up");
     require(server::decode_share(7, 2, 3) == 7, "passes that do not fill the stages held a decoding request back");
+    require(server::recorded_apart(true, 1) && server::recorded_apart(true, 3), "a tensor group's stage stayed on the scheduler's thread");
+    require(!server::recorded_apart(false, 1) && server::recorded_apart(false, 2), "a single device's stage left the scheduler's thread for a pass alone, or stayed on it beside another");
     const auto most = [](size_t waiting, size_t stages, size_t ubatch, bool alone) { return server::prompt_slice(waiting, stages, ubatch, alone, 0).most; };
     require(most(512, 1, 512, true) == 512 && most(2048, 2, 512, true) == 512 && most(9000, 3, 512, true) == 512, "a prompt slice was cut on one stage or past the ubatch");
     require(most(512, 2, 512, false) == 512 && most(300, 3, 512, false) == 512, "a prompt slice was cut beside other requests");

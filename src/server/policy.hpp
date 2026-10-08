@@ -158,6 +158,10 @@ inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
 // Only passes that fill the stages share, since then a pass retires every round and a request held back joins the next; with fewer, a request held back could wait for most of a pass, and every ready one goes.
 inline size_t decode_share(size_t decoders, size_t passes, size_t stages) { return passes < stages ? decoders : (decoders + passes - 1) / passes; }
 
+// Whether a stage whose recording waits on its devices goes to that stage's thread, with `live` passes in flight, the stage's own among them.
+// A tensor group's does, since its recording waits at every sum; a single device's only while another pass is in flight, since a pass alone has nothing to overlap with and the hand-over would only add to its time.
+inline bool recorded_apart(bool grouped, size_t live) { return grouped || live > 1; }
+
 // The most rows of a request's next prompt slice, and whether that slice closes its pass to other prompts' rows.
 struct PromptSlice {
     size_t most;

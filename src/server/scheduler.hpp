@@ -785,7 +785,7 @@ private:
 
     // Stage s of the pass in slot k; a failure has abandoned the pass in the model, and it fails that pass alone.
     void advance(std::vector<std::shared_ptr<Request>>& active, size_t k, size_t s) {
-        if (Recorder* r = recorders_[s].get()) {
+        if (Recorder* r = recorded_apart(model_.stage_grouped(s), flights_live()) ? recorders_[s].get() : nullptr) {
             // A stage records one pass at a time: a pass that finds its recorder taken waits for a later round, which gives the stage its oldest waiting pass.
             if (recording(s)) return;
             // Nor is a pass handed to a recorder that has yet to publish the end of an abandoned pass's recording, which takes the scheduler's lock: it would hold the pass while it waits for the lock.
@@ -1033,6 +1033,8 @@ private:
         }
         if (!n) return;
         const Clock::time_point start = Clock::now();
+        // The chain is work on the head's device, which a stage's thread may be recording on.
+        quiet();
         // A draft is an optimisation: one that fails costs its pass the drafts and no request.
         try {
             proposer_->draft_all(asks_.data(), n);

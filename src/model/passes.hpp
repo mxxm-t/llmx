@@ -64,13 +64,14 @@ inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     ++p.ran;
 }
 
-// A stage that waits on its devices (stage_waits) in three calls, for a caller that records it on the stage's own thread while its thread goes on.
+// A stage that waits on its devices (stage_waits: a tensor group's, and past the first a device's on a pipelined split) in three calls, for a caller that records it on the stage's own thread.
 // prepare_pass_stage and commit_pass_stage run on the thread that owns the histories and pools, record_pass_stage on the stage's thread; a failure of the first two undoes nothing, so the caller abandons the pass with abort_pass.
 inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     Pass& p = in_flight(ctx, slot);
     if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
-    if (!stage_waits(s)) throw std::logic_error("inference: a stage of one device is recorded whole, by run_pass_stage");
-    group_prepare(p, s);
+    if (!stage_waits(s)) throw std::logic_error("inference: a stage on the host is recorded whole, by run_pass_stage");
+    if (width_ > 1) group_prepare(p, s);
+    else single_prepare(p, s);
 }
 
 inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
@@ -88,7 +89,8 @@ inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
         ~Paths() { swap(); }
     } paths{devices_, st.touches, width_};
     paths.swap();
-    group_record(ctx, p, s);
+    if (width_ > 1) group_record(ctx, p, s);
+    else single_record(ctx, p, s);
 }
 
 inline void Model::commit_pass_stage(ExecContext& ctx, size_t slot) {
@@ -240,6 +242,14 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
         group_stage(ctx, p, s);
         return;
     }
+    single_prepare(p, s);
+    single_record(ctx, p, s);
+    stage_commit(ctx, p, s);
+}
+
+// What a stage of one device takes of its histories and their pool before any device work: each entry's blocks and its view, and the slots its state is read from and written to.
+inline void Model::single_prepare(Pass& p, size_t s) {
+    const Stage& st = stages_[s];
     Device& home = *devices_[st.device];
     const int storage = home.storage_index;
     for (size_t e = 0; storage >= 0 && e < p.entries.size(); ++e) {
@@ -255,6 +265,11 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
         const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
         p.states[st.device][e] = backend::StateView{home.states.get(), src, dst, q.stage_length(s), p.entries[e].n};
     }
+}
+
+// A stage of one device on its devices, through its submissions: it touches the pass, the devices the stage records on and their tickets, and no history or pool.
+inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s) {
+    const Stage& st = stages_[s];
     size_t cur = st.device;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     if (s == 0) {
@@ -288,7 +303,7 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
                                  backend::RowRuns{p.head_runs.data(), p.head_runs.size()},
                                  {ctx.logits_buf.get(), p.logits_base * plan_.vocab}});
     }
-    end_stage(ctx, p, s, cur);
+    stage_submit(ctx, p, s, cur);
 }
 
 // Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective summing the members' partial rows into every member's residual after each part.
@@ -374,12 +389,6 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
 // A member's partial rows cleared, `rows` of them, before a part whose routed experts add their weighted sum to them (blocks::routed_experts): a copy of zero rows the context keeps on the member.
 inline void Model::clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows) {
     devices_[dev]->b->copy(*partial.buffer, partial.offset * sizeof(float), *ctx.zeros[dev], 0, rows * plan_.residual * sizeof(float));
-}
-
-// The end of stage s, the residual or the head last on device `cur`: every device the stage recorded on submits, each member of a tensor group, the pass's ticket that of `cur`, and each entry's history commits the stage.
-inline void Model::end_stage(ExecContext& ctx, Pass& p, size_t s, size_t cur) {
-    stage_submit(ctx, p, s, cur);
-    stage_commit(ctx, p, s);
 }
 
 // The stage's submissions, every device it recorded on and each member of a tensor group, the pass's ticket that of `cur`.

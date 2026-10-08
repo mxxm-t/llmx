@@ -484,7 +484,6 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     ctx.scratch.resize(devices_.size());
     ctx.tickets.resize(devices_.size(), 0);
     // The run list a part rebuilds and a streamed layer's groups hold at most a run per entry, and so per row, so no part grows them.
-    ctx.entry_runs.reserve(rows);
     ctx.part_runs.reserve(rows);
     for (size_t d = 0; d < devices_.size(); ++d) {
         ExecContext::Scratch& sc = ctx.scratch[d];
@@ -497,6 +496,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         sc.arena = std::move(arena);
         sc.offset = std::move(offsets);
         sc.rows = rows;
+        sc.entry_runs.reserve(rows);
     }
     // The host-visible buffers a crossing leaves each sending device through.
     size_t used = 0;
@@ -624,10 +624,10 @@ inline void Model::ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l)
 
 // A call of a part on device `dev`: `rows` rows of the residual from row `base` with their runs, and the row of weights `w` by role id, the layer's kind with it.
 inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs) const {
-    const ExecContext::Scratch& sc = ctx.scratch[dev];
+    ExecContext::Scratch& sc = ctx.scratch[dev];
     const Device& d = *devices_[dev];
     return Step{*d.b, sc.arena.get(), sc.offset.data(), {sc.arena.get(), sc.offset[0] / sizeof(float) + base * plan_.residual},
-                rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &ctx.entry_runs, nullptr, 0, options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]};
+                rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &sc.entry_runs, nullptr, 0, options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]};
 }
 
 // Layer l's mixer over every row of the pass, with the cache views of its device's storage when the layer keeps KV, and the rows' positions.

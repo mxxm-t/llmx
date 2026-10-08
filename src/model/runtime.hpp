@@ -207,6 +207,7 @@ struct ExecContext {
         backend::BufferPtr arena;
         size_t rows = 0;
         std::vector<size_t> offset;            // bytes, per slot of the plan
+        std::vector<backend::RowRun> entry_runs;   // the run list a part on this device may rebuild (Step::scratch): a device's own, since stages are recorded on a thread each
     };
     std::vector<Scratch> scratch;              // per device
     backend::BufferPtr logits_buf;
@@ -216,7 +217,6 @@ struct ExecContext {
     std::vector<Pass> passes;
     size_t slots = 0, pass_rows = 0;           // what reserve_passes froze it for: its pass slots and the rows a pass may take; zero slots while it grows
     std::vector<backend::RowRun> part_runs;    // a streamed layer's group of entries, rebased
-    std::vector<backend::RowRun> entry_runs;   // the run list a part may rebuild (Step::scratch)
     std::vector<backend::Ticket> tickets;      // per device
     std::vector<backend::CSlice> carry;        // per entry, the row an embedded drafter's first context row reads (DraftRowsStep::carry)
     // On a tensor split (Placement::width): per device, a group's collective on its first member, for the rows the arenas hold, and each member of the head's group its slice of the logits rows, which the first member gathers into logits_buf.

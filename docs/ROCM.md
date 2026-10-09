@@ -377,7 +377,11 @@ now measures current Vulkan main, its private one-row no-sum diagnostic and
 shipped mx at widths two/four with F16 and int8 kept separate. All 20 processes
 complete, with output/path witnesses and every activity flag retained. The
 diagnostic's decode outputs are wrong by construction; its derived budget is
-an estimate. Q8 decode compute and full prompt attention remain open before admission.
+an estimate. The [Q8 compute probe](benchmarks/rocm-q8-compute-20261010/README.md)
+now records both the initial HIP loss and a measured load-path improvement,
+with all 64 matrix processes retained. The candidate remains slower than
+Vulkan; profiling overhead and the ordinary-fixture limit stay explicit.
+Resolving that compute cost and full prompt attention remain open before admission.
 
 ## Delivery checkpoints
 

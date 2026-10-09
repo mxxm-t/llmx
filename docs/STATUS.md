@@ -1,5 +1,24 @@
 # llmx - Development Status
 
+## ROCm Q8 compute measured (2026-10-10, docs only, lands by fast-forward)
+
+- **Complete:** [Q8 compute and profile record](benchmarks/rocm-q8-compute-20261010/README.md)
+  retains 24 original and 40 matched candidate processes, 1280 measured chains
+  and 192 warmups. All bounded numerical/path/guard checks pass; no declared
+  contention flags or missing GPU counters. Sources, traces and all samples stay.
+- **Finding:** consecutive raw-weight loads reduce HIP graph latency by 28-41
+  percent, but retain 9-31 percent extra latency versus Vulkan. No standalone
+  mx kernel is measured. Profiling doubles elapsed time, so its marked kernel
+  breakdown is diagnostic and the unprofiled controls carry speed results.
+- **Scope:** ordinary finite Q8 fixtures, canonical blocks, F16/int8 separately;
+  gfx906 execution, gfx1151 compilation only. No production backend or option.
+- **Left:** resolve the remaining compute cost and run full prompt attention
+  before admission; full model/HF/lifetime and mx gates remain open.
+- **Review/checks:** all Markdown inventoried and local links checked; current
+  ROCm, precision, architecture, build and roadmap claims reconciled with this
+  bounded scope. Historical results retain their scope. Docs/dead-code run on
+  the landing tree; no hosted wait is required for this documentation tier.
+
 ## ROCm model budget refreshed (2026-10-10, docs only, lands by fast-forward)
 
 - **Complete:** [matched model matrix](benchmarks/rocm-model-budget-20261010/README.md)

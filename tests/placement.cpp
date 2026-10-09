@@ -17,6 +17,11 @@
 #include "model/arch/registry.hpp"
 #include "model/layer_split.hpp"
 #include "tiny_qwen.hpp"
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#endif
 
 namespace {
 void require(bool ok, const char* message) {
@@ -1296,6 +1301,40 @@ void tensor_groups() {
     }
 }
 
+// Whether the page at `p` is still the process's to read.
+bool mapped(const void* p) {
+#if defined(_WIN32)
+    MEMORY_BASIC_INFORMATION info{};
+    return VirtualQuery(p, &info, sizeof info) && info.State == MEM_COMMIT;
+#else
+    return msync(const_cast<void*>(p), 1, MS_ASYNC) == 0;
+#endif
+}
+
+// A tensor group's logits rows are host pages each member imports, and a device keeps imported memory while its buffer lives, so a context must drop every view before the pages.
+// A buffer that looks, as it goes, whether its pages are still mapped stands for a member's view.
+void context_keeps_logits_pages() {
+    struct View : backend::Buffer {
+        const void* pages;
+        bool* intact;
+        View(const void* p, bool* ok) : pages(p), intact(ok) {}
+        ~View() override { *intact = *intact && mapped(pages); }
+        size_t size() const override { return 4096; }
+        const void* host_ptr() const override { return pages; }
+    };
+    bool intact = true;
+    {
+        infer::ExecContext ctx;
+        ctx.logits_host = core::HostPages(4096);
+        ctx.logits_buf = std::make_shared<View>(ctx.logits_host.data(), &intact);
+        ctx.member_rows.push_back(ctx.logits_buf);
+        ctx.member_rows.push_back(std::make_shared<View>(ctx.logits_host.data(), &intact));
+        require(mapped(ctx.logits_host.data()), "the context's logits pages are not mapped while it lives");
+    }
+    require(intact, "a context freed the host pages of its logits rows before the last buffer that imports them");
+    ++checked;
+}
+
 // The fit of a tensor group counts what a member keeps beside its layers: its collective's rows (Backend::collective_bytes_per_row) and, on the head's group, its slice of every logits row, while the host's rows hold the whole vocabulary.
 void group_fits() {
     const auto weights = tiny_qwen(3, 2 * 128, true);
@@ -1350,6 +1389,7 @@ int main() {
     try {
         tensor_groups();
         group_fits();
+        context_keeps_logits_pages();
         host_scratch_fits();
         split_matches_single();
         layer_split_fits();

@@ -368,6 +368,12 @@ Its existence does not measure llmx launch overhead. Changing runtime or writing
 packets below HIP needs a separate concrete proposal, dependencies and hardware
 qualification. The closed kernel/driver-patch route stays closed.
 
+The [2026-10-09 control matrix](benchmarks/rocm-controls-20261009/README.md)
+now includes fresh direct mx calls and conservative HIP/RCCL transfers at
+widths two, three and four. All bounded outputs pass; background CPU activity,
+larger-vector losses and graph/eager differences remain in the record. The
+refreshed model budget and the other probes above remain open before admission.
+
 ## Delivery checkpoints
 
 Each row is a feature branch with a concrete exit. Land no empty backend stub.

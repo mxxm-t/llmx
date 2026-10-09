@@ -1,5 +1,34 @@
 # llmx - Development Status
 
+## ROCm direct reference and transport controls (2026-10-09, docs only, lands by fast-forward)
+
+- **Complete:** [matched control matrix](benchmarks/rocm-controls-20261009/README.md)
+  adds fresh shipped-mx eager/graph calls and conservative HIP-copy/RCCL-transfer
+  arms beside the retained custom HIP and current Vulkan controls. All 168
+  planned processes pass, 3,360 measured chains and 504 warmups, after 24 smoke
+  processes. All samples, failures during setup, path witnesses and teardown
+  checks are retained and verified locally and on the rig.
+- **Measured:** at width four and 5,120 F32 values, custom graph is 24.50/23.77
+  us per sum against mx graph 23.89/24.08, including the residual in both.
+  With four dependent increments they are 29.07/29.32 and 29.75/28.91.
+  The larger-vector width-two/three custom losses, every eager/conservative
+  row and both block medians are in the linked matrix. These are collective
+  microbenchmarks, not model throughput or passed phase-final mx gates.
+- **Activity:** 96 calls overlap the declared unrelated-CPU flag, all 56 at
+  width four included; observed package/compiler work peaks at 15.02 cores.
+  No GPU counters or leading/trailing coverage are missing. All results stay;
+  there is no small-win claim or replacement of affected samples. Every arm
+  uses the same fine-grain vendor prerequisite and hardware-queue setting;
+  earlier unset-environment figures are separate.
+- **Next:** refresh the model budget before a ROCm admission decision. Q8
+  decode, full prompt attention and the full-backend gates remain open.
+  No production backend/build option is added. Probe resources are released.
+- **Checks:** documentation and dead-code pass on this tree; the linked record gives
+  the bounded experimental checks and their limits. Historical main records
+  are preserved. All 103 Markdown pages and 512 local targets are inventoried;
+  the three changed pages are checked against the retained evidence. This
+  checkpoint changes only documentation and lands as one commit by fast-forward.
+
 ## ROCm research and delivery plan (2026-10-09, docs only, lands by fast-forward)
 
 - **Prepared:** [ROCM](ROCM.md) defines the existing owners, optional HIP runtime,

@@ -882,10 +882,18 @@ may run in parallel when no timing reservation is active. Keep every planned
 performance sample, record ordinary machine activity, and report missing
 telemetry honestly. GitHub receives main and the `gate/<name>` branches whose hosted run checks a stack before it merges (`docs/CI.md`); feature work stays on its branch until its gates pass.
 
-## Records (2026-10-01 to 2026-10-08)
+## Records (2026-10-01 to 2026-10-09)
 
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
+
+## A tensor group is fitted by its largest member (2026-10-09, branch fix/fit-every-member, lands by fast-forward)
+
+- **Found by XDEV's review of main a1b8211b4:** the fit and the automatic KV budget asked `footprint` for a group without naming a member and got member 0's. Since covering blocks (the record of 2026-10-08) a group's members are uneven: with experts 768 wide in Q4_K at width 4 the outer members cover one block of 256 columns and the inner ones two, so a model could be accepted, and its KV sized, as if the inner members held half their expert bytes. XDEV's probe on the test's layout: 442368 bytes of layer weights on member 0 against 884736 on member 1, and a budget of 443392 accepted.
+- **Done:** `footprint` with no member named gives each part as the largest any member's is (each tensor, cache, head slice and drafter part), which is what both fit calls in `place_model` take. Over-counting is possible where different members are largest in different tensors; the fit errs toward refusing.
+- **The failing test first:** `shard`: the footprint a group is fitted by must hold of every tensor at least what each member does, and a budget short of the largest member's layer by what the smallest saves must be refused; on main it fails at member 1.
+- **Gates:** CTest on Windows 43 of 43; the rest named in the landing's devlog entry. A model whose shards are even, as a dense file's are, is fitted as before, since each part is then the same on every member.
+- **Reviewed:** by XDEV, in the landing's devlog entry.
 
 ## A prompt that does not fit its context is refused with its numbers or cut at a turn's end (2026-10-08, branch feat/context-overflow, lands by fast-forward)
 

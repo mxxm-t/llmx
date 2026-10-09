@@ -25,7 +25,29 @@ namespace infer {
 
 // What a model asks of its devices' memory, for a split fitted to them (model/layer_split.hpp), counted from its plan: each layer's tensors once, the embedding and head, the caches by kind, the activations and the handoff rows.
 // For member `member` of a tensor group of `width` (docs/TENSOR-SPLIT.md, section 4.6), split tensors, caches and logits count the member's share (model/shard.hpp), and the arena, handoff rows and mark rows stay one device's.
-inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, const ModelOptions& options, size_t width = 1, size_t member = 0) {
+inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, const ModelOptions& options, size_t width = 1, std::optional<size_t> named = std::nullopt) {
+    // With no member named, each part is the largest any member's: shards are uneven where a tensor's blocks do not split evenly (ShardSection::align), and every member is fitted to one budget.
+    if (width > 1 && !named) {
+        Footprint fp = footprint(weights, plan, options, width, 0);
+        const auto larger = [](Matrix& a, const Matrix& b) {
+            if (b.bytes > a.bytes) a = b;
+        };
+        for (size_t m = 1; m < width; ++m) {
+            const Footprint o = footprint(weights, plan, options, width, m);
+            for (size_t l = 0; l < fp.layers.size(); ++l)
+                for (size_t i = 0; i < fp.layers[l].size(); ++i) larger(fp.layers[l][i], o.layers[l][i]);
+            larger(fp.embedding, o.embedding);
+            larger(fp.output, o.output);
+            larger(fp.output_norm, o.output_norm);
+            larger(fp.drafter_embedding, o.drafter_embedding);
+            for (size_t i = 0; i < fp.drafter.size(); ++i) larger(fp.drafter[i], o.drafter[i]);
+            for (size_t l = 0; l < fp.cache.size(); ++l) fp.cache[l] = std::max(fp.cache[l], o.cache[l]);
+            fp.drafter_cache = std::max(fp.drafter_cache, o.drafter_cache);
+            fp.head_slice_per_row = std::max(fp.head_slice_per_row, o.head_slice_per_row);
+        }
+        return fp;
+    }
+    const size_t member = named.value_or(0);
     auto matrix = [&](size_t i, bool product, const Role* role = nullptr) {
         const TensorView& t = weights.tensors[i];
         const bool split = role && width > 1 && role->shard.axis != Axis::none;

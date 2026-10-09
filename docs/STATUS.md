@@ -1,5 +1,27 @@
 # llmx - Development Status
 
+## ROCm Q8 phases and row layout measured (2026-10-10, docs only, lands by fast-forward)
+
+- **Goal:** locate the remaining compute cost before the full backend's
+  admission decision; complete the bounded Q8 diagnostic work.
+- **Done:** [phase and row-layout follow-up](benchmarks/rocm-q8-compute-20261010/README.md)
+  records 56 phase processes and 32 matched row-layout processes, with all
+  numerical/path/guard checks passing. Preparation is about 1.8 us; product
+  work dominates. The six-wave hint spills and loses, and one row per wave
+  loses despite fewer registers. Those controls are retained and rejected.
+- **Finding:** uniform two-row ownership lowers F16 latency by 6.2-17.7 percent
+  but increases int8 latency by 4.9-14.2 percent. Keep the prior int8 candidate
+  separately. The F16 gap to Vulkan remains about 8-13 percent; no mx kernel
+  or model gate is passed. The phase matrix's one flagged CPU call and four
+  flagged measured chains stay; row-layout timing has no declared flags.
+- **Left:** full prompt attention next, then the combined admission decision;
+  the remaining compute cost and full backend/HF/lifetime/mx gates stay open.
+  gfx1151 remains compile-only. No runtime source or backend option is added.
+- **Review/checks:** all Markdown inventoried, local links and the tree's
+  documentation/dead-code components checked; changed claims reconciled with
+  precision, architecture, build, roadmap and raw evidence. Historical results
+  retain their scope. No hosted wait applies to this documentation-only tier.
+
 ## ROCm Q8 compute measured (2026-10-10, docs only, lands by fast-forward)
 
 - **Complete:** [Q8 compute and profile record](benchmarks/rocm-q8-compute-20261010/README.md)

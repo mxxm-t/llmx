@@ -381,7 +381,11 @@ an estimate. The [Q8 compute probe](benchmarks/rocm-q8-compute-20261010/README.m
 now records both the initial HIP loss and a measured load-path improvement,
 with all 64 matrix processes retained. The candidate remains slower than
 Vulkan; profiling overhead and the ordinary-fixture limit stay explicit.
-Resolving that compute cost and full prompt attention remain open before admission.
+The follow-up isolates preparation at about 1.8 us and reduces F16 latency
+with wave-uniform two-row ownership, while retaining int8 regressions and
+the slower one-row and spilling occupancy controls. F16 remains 8-13 percent
+slower than Vulkan in those cells. Full prompt attention is next; the residual
+compute cost remains in the combined admission budget, not a waived gate.
 
 ## Delivery checkpoints
 

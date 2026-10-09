@@ -145,8 +145,106 @@ activity and cleanup, profiler CSVs and both performance JSON summaries.
 The checkpoint archive is `q8-evidence-20261010.tar.gz`; binaries remain on the
 rig. Standalone experimental source is private and is not runtime support.
 
-Next: measure the remaining F16 register/load-scheduling cost and preparation
-cost before choosing another kernel change, then complete the prompt-attention
-probe. The existing full backend, file-exact HF, lifetime, model and mx gates
-remain required. This documentation-only landing runs docs/dead-code; it does
-not merge the candidate or declare ROCm admission.
+The follow-up below measures preparation and row layout; the initial results
+above remain historical evidence. Full backend gates stay open.
+
+## Phase and row-layout follow-up (2026-10-10)
+
+The follow-up keeps the earlier matrices and binaries frozen. It measures
+preparation separately, tests the F16 register limit, then changes wave row
+ownership. All use the same ordinary finite fixtures, image, compiler flags,
+device and monitor described above. Starting main is `5948174e9`; no runtime
+source changes. The reference Vulkan library is still the same retained build.
+
+### Phase isolation and a rejected occupancy hint
+
+The `parts` diagnostic runs full, preparation-only and product-only graph
+chains. Product-only prepares all eight inputs before timing; preparation-only
+runs products after timing to verify every output. Both retain exact code,
+scale, input and guard checks. Isolated timings are diagnostic and are not
+assumed to add to interleaved model work. Three warmups and five measured
+1024-operation chains per process, two arm orders, 56 processes in total.
+The retained `loads-graph` is a separate binary control for the added modes.
+
+An experimental gfx906-only compiler hint requests six waves per execution
+unit. F16 goes from 46 to 40 vector registers but spills six registers into
+28 bytes of private scratch. Int8 remains at 39 registers with no spills.
+The forced F16 path is substantially slower, so the hint is rejected.
+These are compiler resource limits, not measured achieved occupancy.
+
+Microseconds per operation, both block medians, lower better:
+
+| Width | Dtype | vulkan | loads-graph | base-full | base-prepare | base-product | waves6-full | waves6-product | mx kernel target |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 4096 | f16 | 30.36 / 30.39 | 36.49 / 36.60 | 36.54 / 36.58 | 1.81 / 1.81 | 35.11 / 35.15 | 62.92 / 62.95 | 61.26 / 61.20 | Not measured |
+| 4096 | int8 | 29.73 / 29.72 | 34.76 / 34.78 | 34.78 / 34.78 | 1.80 / 1.80 | 32.80 / 32.80 | 34.77 / 34.79 | 32.80 / 32.81 | Not measured |
+| 5120 | f16 | 44.04 / 43.84 | 57.29 / 57.28 | 57.31 / 57.28 | 1.79 / 1.79 | 55.83 / 55.81 | 86.90 / 86.92 | 85.09 / 85.16 | Not measured |
+| 5120 | int8 | 42.83 / 42.79 | 46.66 / 46.50 | 46.61 / 46.69 | 1.79 / 1.79 | 44.88 / 44.99 | 46.57 / 46.49 | 45.09 / 45.08 | Not measured |
+
+Preparation is about 1.8 us; the F16 product at width 5120 is about 55.8 us.
+The product therefore remains the main target. All 56 processes pass their
+bounded checks: 280 measured chains, 168 warmups and 16,515,072 output checks.
+One call overlaps the predeclared CPU flag: width 5120, int8, forced-six-wave
+full, first block, maximum observed unrelated CPU 3.15 cores. Four measured
+chains and all three warmups in that call are flagged and retained. No missing
+GPU counters or coverage gaps; longest monitor interval is 1.017 seconds.
+
+### Wave-uniform row ownership
+
+Each wave owns the same two rows across its lanes. The next candidate makes
+their row-base index explicitly uniform using `readfirstlane`; the raw loads,
+source arithmetic and reduction order stay. A second control uses one row
+per wave, reducing activation reuse while retaining the per-row computation.
+
+| gfx906 product | Retained loads VGPRs | Uniform two-row VGPRs | Uniform one-row VGPRs |
+| --- | --- | --- | --- |
+| F16 | 46 | 51 | 25 |
+| int8 | 39 | 35 | 22 |
+
+Neither new layout spills or uses private scratch. Both compile for gfx1151
+with no spills too, but gfx1151 remains compile-only. The full-chain smoke
+passes 24 processes, 96 chains and 2,364,160 output checks across both launch
+modes, dtypes, square widths and 96-by-19 tails. The timing matrix uses graph
+replay, three warmups and 20 measured chains per process, two arm orders:
+
+| Width | Dtype | vulkan | loads-graph | uniform-graph | onerow-graph | mx kernel target |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4096 | f16 | 30.36 / 30.45 | 36.66 / 36.70 | 34.39 / 34.43 | 69.05 / 69.11 | Not measured |
+| 4096 | int8 | 29.75 / 29.68 | 34.77 / 34.78 | 39.70 / 39.69 | 65.36 / 65.37 | Not measured |
+| 5120 | f16 | 43.81 / 43.86 | 57.40 / 57.43 | 47.23 / 47.34 | 68.75 / 68.69 | Not measured |
+| 5120 | int8 | 42.83 / 42.82 | 46.60 / 46.60 | 48.91 / 48.90 | 50.25 / 50.25 | Not measured |
+
+All 32 processes pass: 640 measured chains, 96 warmups and 27,131,904 output
+checks. No call or measured chain crosses a declared activity flag; maximum
+observed unrelated CPU is 0.51 cores. No missing counters or coverage gaps;
+longest monitor interval is 1.011 seconds. Maximum error is 0.001210 of the
+frozen bound. Both series restore exactly the initial VRAM and remove their
+owned run containers; all before/after hashes match.
+
+The two-row change lowers measured F16 latency by 6.2 percent at width 4096
+and 17.6-17.7 percent at 5120. It increases int8 latency by 14.1-14.2 and
+4.9-5.0 percent respectively. The one-row control loses in every cell despite
+its much smaller register count. These results reject using register count
+alone to choose a kernel. Keep the retained int8 and uniform two-row F16
+candidates separate in the next screen. No same-behavior layout perturbation
+control was added here, so the smaller differences are not attributed to one
+instruction alone. F16 still costs about 13 percent and 8 percent over Vulkan
+at the two widths; no mx microkernel or model speed gate is established.
+
+The frozen `q8-rows-plan.json` hash is
+`a8693273e1f57d914b2147dd075821118c361a4b258ee10c05abe3d78f7338e9`.
+The raw phase and row-layout outputs, activity, call order, source copies,
+compiler assembly and hashes are retained in the same evidence directory.
+Their summaries are `q8-parts-performance-1.json` and
+`q8-rows-performance-1.json`. The separate follow-up archive is
+`q8-followup-evidence-20261010.tar.gz`, 418 files, SHA256
+`9f8885e9b466018f53736d64c52cc6a6a4b97a8ef743f78d4947dba055cbd55b`.
+The original archive remains unchanged and predates this follow-up; executable
+binaries remain on the rig. All negative controls and the flagged call stay.
+
+Next is the planned prompt-attention probe, isolating QK and PV then timing
+the complete operation. The Q8 gap remains part of the combined compute and
+communication budget before backend admission; the full model/HF, lifetime
+and mx gates remain open. Core dtype is already merged. CPU emulation retains
+correctness coverage but its speed is nonblocking; GPU and native CPU arithmetic
+remain the performance priorities. This record adds no production backend.

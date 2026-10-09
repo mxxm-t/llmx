@@ -1089,6 +1089,13 @@ The status table and the active blocks above give the present state; a record's 
 - **Gates and review:** its own test on Windows, and the stack's gates and readers in the record of the two-shot sum's shares above.
 - **Unchanged:** a model whose shards are even, as a dense file's are, is fitted as before, since each part is then the same on every member.
 
+## The hosted Linux CPU job's limit is 20 minutes (2026-10-09, branch ci/cpu-limit, the workflow and its page only, lands by fast-forward)
+
+- **Why:** the job ran 14 min 36 s of its 15 on main `758ef1394` (run 37957020622: build 5 min 22 s, CTest 6 min 52 s, the suite 2 min 9 s), and 14 min 25 s and 14 min 18 s on main dbe150cc4 and edc5dc766 (runs 37965132739 and 37965776970), so a branch that adds a minute of tests is ended in the suite with every step before it passing, as feat/paced-pieces was (run 37956141135).
+- **Done:** `timeout-minutes` for the Linux CPU job is 20, and `docs/CI.md` gives the runs. No test, check or source changes.
+- **Left:** the job's time itself: CTest is nearly half of it, most of that the server tests.
+- **Reviewed:** by O5REV.
+
 ## A prompt that does not fit its context is refused with its numbers or cut at a turn's end (2026-10-08, branch feat/context-overflow, lands by fast-forward)
 
 - **Why (the user, 2026-10-08):** a server at its context limit must stay usable; a conversation that outgrows the context got a 413 on every turn from then on. "Have an option to refuse and cut", with cheap markers for where to cut; the default stays `refuse`.

@@ -2857,6 +2857,85 @@ void disk_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     require(files == 0 && stats.disk_writing && stats.disk_bytes_written > 0, what + ": " + std::to_string(files) + " entry files left");
 }
 
+// The age limit at a restart follows a conversation, not a file (docs/DISK-TIER.md, Age): a first turn's files made two days old below a second turn's left fresh.
+// A second scheduler under a limit of a day adopts them all, and the third turn forks the whole of the second.
+void disk_age_restart(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "the age limit at a restart below a file used since";
+    DiskRoot disk("age-restart");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    const auto follow = [&](const Req& before, const Reply& reply, uint32_t seed) {
+        Req f{before.prompt, 20};
+        for (uint32_t id : ids_of(reply)) f.prompt.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(seed, 200, vocab);
+        f.prompt.insert(f.prompt.end(), more.begin(), more.end());
+        return f;
+    };
+    std::vector<Req> turns = {{prompt_of(21, 300, vocab), 20}};
+    std::vector<fs::path> first;
+    size_t kept = 0;
+    {
+        auto model = make(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            Reply reply = drain(*sched.submit(turns[0].prompt, params_of(turns[0])));
+            within_a_minute([&] { return sched.stats().disk_entries > 0 && !sched.stats().disk_in_flight; }, what + ": the first turn's files written");
+            first = disk.files(".kv");
+            turns.push_back(follow(turns[0], reply, 22));
+            reply = drain(*sched.submit(turns[1].prompt, params_of(turns[1])));
+            within_a_minute([&] { return disk.files(".kv").size() > first.size() && !sched.stats().disk_in_flight; }, what + ": the second turn's files written");
+            turns.push_back(follow(turns[1], reply, 23));
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    kept = disk.files(".kv").size();
+    require(!first.empty() && kept > first.size(), what + ": " + std::to_string(first.size()) + " files after the first turn and " + std::to_string(kept) + " kept, against some and more");
+    // The first turn's files by their names, which the stop keeps, made two days old; the second turn's stay as written.
+    size_t aged = 0;
+    for (const fs::path& f : disk.files(".kv"))
+        if (std::any_of(first.begin(), first.end(), [&](const fs::path& g) { return g.filename() == f.filename(); })) {
+            fs::last_write_time(f, fs::file_time_type::clock::now() - std::chrono::hours(48));
+            ++aged;
+        }
+    require(aged == first.size(), what + ": " + std::to_string(aged) + " of the first turn's " + std::to_string(first.size()) + " files found after the stop");
+    options.max_age = 24 * 3600;
+    const size_t whole = (turns[1].prompt.size() + 20) / kBlock * kBlock;
+    size_t reused = 0, adopted = 0;
+    Reply got;
+    {
+        auto model = make(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            // The entries are entered in the round after the tier is made; ten seconds for them, and what is there then is what was adopted.
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            while (sched.stats().disk_entries < kept && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            adopted = sched.stats().disk_entries;
+            const auto h = sched.submit(turns[2].prompt, params_of(turns[2]));
+            got = drain(*h);
+            reused = h->reused();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(adopted == kept && reused == whole, what + ": " + std::to_string(adopted) + " of " + std::to_string(kept) + " files adopted and the third turn reused " + std::to_string(reused) +
+                                                    " tokens, against all of them and the " + std::to_string(whole) + " of the second turn");
+    auto fresh = make(2048, 16);
+    same(serve(*fresh, tok, 1, {{turns[2]}})[0], got, what + ", the third turn");
+    std::cout << "server-resume: " << what << ": " << adopted << " files adopted, " << aged << " of them two days old, and the third turn reused " << reused << " tokens\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -2931,6 +3010,7 @@ int main(int argc, char** argv) {
             disk_kept(one, tok, vocab, (size_t)1 << 16);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);
             disk_age(one, tok, vocab);
+            disk_age_restart(one, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

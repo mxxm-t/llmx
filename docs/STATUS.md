@@ -1,5 +1,23 @@
 # llmx - Development Status
 
+## Vulkan quantizer test push constants (2026-10-09, in progress)
+
+- **Goal:** make the word-wise activation quantizer checks set every push
+  constant read by the shader, including its layout width.
+- **Done:** rechecked the two test helpers against the shader and production
+  dispatch. The test sends only the count; the word shader also reads `major`.
+  Added a regression that seeds a prior block-major layout before the existing
+  plain-layout checks; its guard also contains that layout's extra table padding.
+  A fresh MSVC/Vulkan build on the Radeon VII fails with
+  `8-bit activation guard changed`; all 158076 16-bit lane/word words agree
+  before that failure. Logs: `build-check/quantization-build.log` and
+  `build-check/quantization-unfixed.log` in the isolated feature worktree.
+- **Left:** a regression with a defined prior layout, the helper correction,
+  Radeon VII and MI50 checks, the applicable test-only gates and hosted CI.
+- **Gotchas:** this fixes test setup, not runtime arithmetic. GPU checks are
+  manual because the hosted runners have no device. Prior passing results with
+  an undefined layout word do not prove the intended packing path ran.
+
 ## Status table
 
 | Feature                                  | Status   |

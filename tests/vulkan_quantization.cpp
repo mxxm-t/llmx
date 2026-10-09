@@ -44,6 +44,11 @@ struct VulkanQuantizationTest {
         else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
     }
     static size_t x8_base_words(size_t n) { return VulkanBackend::x8_base_bytes(n) / 4; }
+    static void prior_layout(VulkanBackend& b) {
+        const uint32_t major = 1;
+        const auto& k = b.kernel(K_QUANTIZE_XW, 1);
+        b.dev_->fn.vkCmdPushConstants(b.open(), k.layout, VK_SHADER_STAGE_COMPUTE_BIT, sizeof(uint32_t), sizeof(major), &major);
+    }
 };
 }
 }
@@ -453,6 +458,9 @@ void check(backend::VulkanBackend& b) {
     const auto e = b.adopt(twin8.data(), twin8.size() * sizeof(uint32_t));
     const auto f = b.adopt(lanes8.data(), lanes8.size() * sizeof(uint32_t));
     const auto g = b.adopt(alone.data(), alone.size() * sizeof(uint32_t));
+    // A prior block-major layout must not leak into the word writer's plain layout.
+    // Its at most seven padded blocks fit inside the guard if the helper misses the layout word.
+    backend::VulkanQuantizationTest::prior_layout(b);
     backend::VulkanQuantizationTest::run8(b, {x.get(), 0}, {e.get(), guard}, n, true);
     backend::VulkanQuantizationTest::run8(b, {x.get(), 0}, {f.get(), guard}, n, false);
     backend::VulkanQuantizationTest::run(b, {x.get(), 0}, {g.get(), guard}, n, true);

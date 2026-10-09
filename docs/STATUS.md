@@ -1096,6 +1096,15 @@ The status table and the active blocks above give the present state; a record's 
 - **Left:** the job's time itself: CTest is nearly half of it, most of that the server tests.
 - **Reviewed:** by O5REV.
 
+## The age limit at a restart follows a conversation, not a file (2026-10-09, branch fix/disk-age-ancestors, lands by fast-forward)
+
+- **Found by:** XDEV's review of main a1b8211b4, reproduced there on the store and the index, and rechecked against the code before the fix: `DiskStore::adopt_from` left out each file older than the limit by its own modification time, and a renewal touches only the file used (`DiskTier::renew`), the files below it kept young in the index's memory alone.
+- **The defect:** a conversation picked up again an hour ago stands on files written when it began. While the server runs the index keeps them, since something beyond them was used. At a restart under `--disk-cache-keep` the store dropped the old ones by their own age, and the fresh ones, reached by nothing, were dropped after them: the conversation was read again whole.
+- **Done:** the store adopts every file of its identity and says when each was last used; `DiskTier::adopt` enters them in the index and then applies the age limit there (`expire`), where a file goes only when nothing beyond it was used within the limit. The start line counts what the limit dropped. A conversation unused past the limit is still dropped at a restart, whole.
+- **Entries already kept:** nothing is dropped by this change that was kept before, and files in `src/server` are outside the numerics fingerprint, so an update that carries only this adopts what the server before it left.
+- **Comments:** `disk_tier.hpp` and `disk_store.hpp` are swept to the rule of a sentence or two, four blocks each, what they said in more being on docs/src/server.md already; the code is unchanged by it. `tests/server_resume.cpp` has no long block on main, and the gates and reader of this change are in the record of the identity change above.
+- **Tests:** `server-resume`: a first turn's files made two days old and a second turn's left fresh, a restart under a limit of a day, the third turn forking the 512 tokens of the second; on main 0 of 2 files were adopted and nothing reused. `disk-store`: adoption takes a file whatever its age and gives its last use. The case of an old conversation dropped at a restart is unchanged and passes.
+
 ## A prompt that does not fit its context is refused with its numbers or cut at a turn's end (2026-10-08, branch feat/context-overflow, lands by fast-forward)
 
 - **Why (the user, 2026-10-08):** a server at its context limit must stay usable; a conversation that outgrows the context got a 413 on every turn from then on. "Have an option to refuse and cut", with cheap markers for where to cut; the default stays `refuse`.

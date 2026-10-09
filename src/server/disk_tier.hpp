@@ -107,7 +107,7 @@ public:
         uint64_t ticket = 0;   // a read's own number, since two reads may be on one file
     };
 
-    // Reads the model file's digest on a thread of its own, the cached one where its stamp is unchanged, then makes the store under options.dir with the identity of the digest, the build and the model's host layout (Model::host_identity); nothing is written before that.
+    // Makes the store on a thread of its own, once the model file's digest is read, under the identity of the digest, the build and the model's host layout; nothing is written before that.
     // `wake` runs, under no lock of the tier's, when the store is made or refused and when a write finishes.
     DiskTier(const DiskOptions& options, const infer::Model& model, std::function<void()> wake) : options_(options), wake_(std::move(wake)) {
         const std::string layout = model.host_identity();
@@ -342,7 +342,8 @@ public:
         return out;
     }
 
-    // The files a server left under --disk-cache-keep, once the store has adopted them: into the index by their descriptions, those nothing reaches and those over the cap dropped, and a line saying how many each rule dropped; true once, when there were any.
+    // Enters the files a server left under --disk-cache-keep in the index and drops those nothing reaches, those past the age limit and those over the cap, saying how many of each.
+    // True once, when there were any (docs/DISK-TIER.md, Keeping entries across a restart).
     bool adopt() {
         const std::vector<DiskStore::Adopted> adopted = take_adopted();
         if (adopted.empty()) return false;
@@ -360,6 +361,10 @@ public:
             index_.add(std::move(f));
         }
         const size_t alone = prune(true);
+        // The age limit by what the files hold: a file goes only when nothing beyond it was used within the limit (expire), so a conversation used since stands on files older than it.
+        const size_t held = index_.files().size();
+        expire();
+        const size_t old = held - index_.files().size();
         while (index_.bytes() > cap()) {
             const std::optional<DiskIndex::Victim> v = index_.victim();
             if (!v) break;
@@ -367,7 +372,7 @@ public:
             ++over;
         }
         std::fprintf(stderr, "server: %zu entries on disk from the server before", index_.files().size());
-        if (unread + alone + over) std::fprintf(stderr, "; dropped: %zu whose description did not read, %zu that no whole path reaches, %zu over the cap", unread, alone, over);
+        if (unread + alone + old + over) std::fprintf(stderr, "; dropped: %zu whose description did not read, %zu that no whole path reaches, %zu past the age limit, %zu over the cap", unread, alone, old, over);
         std::fprintf(stderr, "\n");
         return true;
     }
@@ -411,9 +416,8 @@ public:
     }
 
     enum class Wrote { nothing, started, refused };
-    // Starts the write of the next file a history of `n` tokens lacks on disk, after can_write: its first missing segment, out of `held`, a copy in host memory holding its blocks, or copied off the devices from `seq`; then, on a model that keeps a state, its state, out of `held` or `seq`'s checkpoint.
-    // A holder of a state alone writes the state, whatever of the history's blocks is on disk: a history in memory forks it meanwhile, and whoever holds the blocks writes them.
-    // `source` and `bound` name the host entry whose slabs the store reads, 0 where it reads slabs of its own, taken beyond the host tier for the write's time; refused where disk room or host memory is not to be had.
+    // Starts the write of the next file a history of `n` tokens lacks on disk, a segment and then its state, out of `held` or off the devices from `seq`.
+    // `source` and `bound` name the host entry whose slabs the store reads, 0 for slabs of its own (docs/src/server.md, the disk tier).
     Wrote write_next(infer::Model& model, const std::vector<std::string>& d, size_t n, bool back, DiskIndex::Time used, const infer::HostHistory* held, infer::Sequence* seq, uint64_t source, bool bound) {
         const size_t block = model.kv_block_tokens();
         const bool state = model.keeps_state();
@@ -490,8 +494,8 @@ public:
         cancel(key_);
     }
 
-    // Starts the read of path `p` of a history into `target`, slabs for its length: every segment into its blocks' places, one the history parts from inside with its further blocks into slabs of the read's own, and the state into its place; with `state_only`, the state alone into a target that holds no blocks.
-    // Returns the read's id, which settle reports once every file has ended; 0, nothing started, where host memory for the part not wanted is not to be had.
+    // Starts the read of path `p` of a history into `target`, or with `state_only` of its state alone, and returns the read's id, which settle reports once every file has ended.
+    // 0, nothing started, where host memory for the part not wanted is not to be had (docs/src/server.md, the disk tier).
     uint64_t read(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only) {
         Reading r;
         r.id = ++read_ids_;

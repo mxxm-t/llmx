@@ -69,7 +69,8 @@ public:
     // 2: a file is a segment or a state of a history (DiskIndex::describe), where it was a whole copy.
     static constexpr uint32_t kVersion = 2;
 
-    // Makes the server's own directory under the root, locked for the store's life, after sweeping the root (sweep) and, with keep, adopting what other servers left whose identity is `identity`; then chooses the write mode by a short probe and starts the I/O thread.
+    // Makes the server's own directory under the root, locked for the store's life, after sweeping the root and, with keep, adopting what servers of this identity left.
+    // It then chooses the write mode by a short probe and starts the I/O thread.
     DiskStore(Options options, const std::array<uint8_t, 32>& identity) : options_(std::move(options)), identity_(identity), staging_(kChunk) {
         const auto root = std::filesystem::u8path(options_.root);
         std::filesystem::create_directories(root);
@@ -116,10 +117,8 @@ public:
     // For each kept directory of another identity met at start, why it gave nothing: the components that differ, or that it was written before identities were kept.
     const std::vector<std::string>& refused() const { return refused_; }
 
-    // Queues an entry's write and returns its key; `done` runs on the I/O thread once the file is in place, or with the reason it is not: the floor, a failed write, or a cancel.
-    // The slabs must not change until `done` has run.
-    // `layout` is what the file records of its payload, a size a device, and the runs' bytes one a run where none is given; runs that do not add up to it are the caller's error.
-    // The payload is one stream, so the runs' ends need not fall where the layout's do: a run may cross from one of its sizes into the next.
+    // Queues an entry's write and returns its key; `done` runs on the I/O thread once the file is in place, or with the reason it is not, and the slabs must not change until then.
+    // `layout` is what the file records of its payload, a size a device; the runs are one stream and need not end where its sizes do (docs/src/server.md, the disk tier).
     uint64_t put(std::string blob, std::vector<StoreRun> runs, size_t slab, Done done, std::vector<size_t> layout = {}) {
         auto j = std::make_shared<Job>();
         j->put = true;
@@ -135,8 +134,8 @@ public:
         return j->key;
     }
 
-    // Queues a read of entry `key` into the runs' slabs, whose bytes must be the entry's; reads go before writes. `done` reports a missing entry, another identity or layout, a failed checksum or read, after which the entry is deleted.
-    // `layout` as put's: the file's must equal it, and the runs, in whatever pieces memory holds them, must add up to it.
+    // Queues a read of entry `key` into the runs' slabs, which must add up to the file's `layout`; reads go before writes.
+    // `done` reports a missing entry, another identity or layout, or a failed checksum or read, after which the entry is deleted.
     void get(uint64_t key, std::vector<StoreRun> runs, size_t slab, Done done, std::vector<size_t> layout = {}) {
         auto j = std::make_shared<Job>();
         j->key = key;
@@ -198,7 +197,7 @@ public:
         return header_bytes(blob_bytes, run_bytes.size(), chunks(payload)) + round_up(payload, kAlign);
     }
 
-    // Removes every directory under the root whose lock is free, which a server that ended left, but a kept one younger than the age limit; with `adopt`, at start under keep, adopts first the entries of those whose identity is this store's, younger than the age limit.
+    // Removes every directory under the root whose lock is free, a server's that ended, but a kept one younger than the age limit; with `adopt` it first adopts those of this store's identity.
     // A directory whose lock is held is a live server's and is never touched.
     void sweep(bool adopt = false) {
         std::error_code ec;
@@ -419,7 +418,8 @@ private:
             refused_.push_back("its " + names + " differing from this server's");
         }
         for (const auto& e : std::filesystem::directory_iterator(other, ec)) {
-            if (e.path().extension() != ".kv" || expired(e.path())) continue;
+            // A file's own age decides nothing here: a file stands below those used since, which only the index of what the files hold can see (DiskTier::adopt).
+            if (e.path().extension() != ".kv") continue;
             std::optional<Header> h;
             try {
                 format::FileReader r(e.path().u8string());

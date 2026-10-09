@@ -347,7 +347,10 @@ int main(int argc, char** argv) {
             }
             o.max_age = 24 * 3600;
             server::DiskStore s(o, identity(1));
-            require(s.adopted().size() == 1 && s.adopted()[0].blob == "young", "adoption took an entry past the age limit");
+            // The store adopts both and says when each was last used: whether an old file goes is decided over what the files hold, where one stands below another (DiskTier::adopt).
+            require(s.adopted().size() == 2, "adoption left a file out by its own age");
+            for (const auto& a : s.adopted())
+                require((fs::file_time_type::clock::now() - a.used > std::chrono::hours(24)) == (a.blob == "old"), "an adopted entry's last use is not its file's");
         }
 
         // A live server's directory is never touched: a child holds its lock while a store starts beside it.

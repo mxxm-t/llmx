@@ -3549,12 +3549,10 @@ private:
     Kernel kernels_[K_COUNT][kVariants];
 };
 
-// Where share k of a two-shot sum of `n` floats over `members` begins, [share_begin(k), share_begin(k + 1)), the last shares empty where n is smaller than the members.
-// `align` is the storage-buffer offset alignment of the members' devices in floats: a share is bound at its own offset.
-inline size_t share_begin(size_t k, size_t n, size_t members, size_t align) {
-    (void)align;
-    return std::min(n, k * ((n + members - 1) / members));
-}
+// Where share k of a two-shot sum of `n` floats over `members` begins; the last shares are empty where n is smaller than the members.
+// Shares are the equal ones rounded up to `align`, the devices' storage-buffer offset alignment in floats, since each is bound at its own offset.
+inline size_t share_size(size_t n, size_t members, size_t align) { return ((n + members - 1) / members + align - 1) / align * align; }
+inline size_t share_begin(size_t k, size_t n, size_t members, size_t align) { return std::min(n, k * share_size(n, members, align)); }
 
 // A tensor group's ordered sum through per-peer dma-buf inboxes and sync files, alternating two parities (docs/TENSOR-SPLIT.md, section 4.3).
 // Each inbox and gather buffer has one importer to avoid serializing unrelated peers.
@@ -3583,7 +3581,7 @@ public:
                 share_align_ = std::max<size_t>(share_align_, ((size_t)m->device()->props.limits.minStorageBufferOffsetAlignment + sizeof(float) - 1) / sizeof(float));
             if (VulkanBackend::two_shot_crossover(W) <= size_mul(rows, width))
                 for (int p = 0; p < 2; ++p) {
-                    const size_t share = size_mul((size_mul(rows, width) + W - 1) / W, sizeof(float));
+                    const size_t share = size_mul(share_size(size_mul(rows, width), W, share_align_), sizeof(float));
                     gather_[p].assign(W, std::vector<std::shared_ptr<VulkanBuffer>>(W));
                     gathered_[p].assign(W, std::vector<BufferPtr>(W));
                     for (size_t t = 0; t < W; ++t)

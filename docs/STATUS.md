@@ -887,6 +887,12 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A shard whose write fails drains its backend before its storage goes (2026-10-09, branch fix/shard-write-drain, lands by fast-forward)
+
+- **Found by XDEV's review of main a1b8211b4:** the loader's hook gives a tensor group's member its shard as storage of its own and writes the shard's zero runs, and in a mapped load its file runs, before it returns the buffer. A write that threw after an earlier one was queued unwound the hook's only reference, so the storage was freed with work pending on it; the model's own drain cannot cover it, since the model holds the buffer only once the hook has returned.
+- **Done:** the hook drains the backend before the error leaves it (`planning_adopt` in `inference/load.hpp`).
+- **The failing test first:** `model-validation`, on the asynchronous test backend: a shard whose second file run fails in a mapped load, and one whose second zero run fails in a streamed load, must give the error with nothing pending and nothing freed early; on main both free the storage with one write pending.
+- **Gates:** on Windows `model-validation` 503 checks and CTest; the rest named in the landing's devlog entry.
 ## A tensor group is fitted by its largest member (2026-10-09, branch fix/fit-every-member, lands by fast-forward)
 
 - **Found by XDEV's review of main a1b8211b4:** the fit and the automatic KV budget asked `footprint` for a group without naming a member and got member 0's. Since covering blocks (the record of 2026-10-08) a group's members are uneven: with experts 768 wide in Q4_K at width 4 the outer members cover one block of 256 columns and the inner ones two, so a model could be accepted, and its KV sized, as if the inner members held half their expert bytes. XDEV's probe on the test's layout: 442368 bytes of layer weights on member 0 against 884736 on member 1, and a budget of 443392 accepted.

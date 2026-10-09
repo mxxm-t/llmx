@@ -97,19 +97,25 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
         if (!runs.empty()) {
             backend::BufferPtr buffer = b.alloc_weight(shard::bytes(runs));
             // A shard's zero runs are written here, in either load, so no storage is trusted to hold zeros; the file's runs are streamed or written from the mapping.
+            // Until it returns, the storage is this call's alone: a write that fails leaves the writes before it queued on it, so the backend drains before the storage goes.
             std::vector<shard::Run> file;
             std::vector<uint8_t> zeros;
-            for (const shard::Run& r : runs) {
-                if (!r.zero) {
-                    file.push_back(r);
-                    continue;
+            try {
+                for (const shard::Run& r : runs) {
+                    if (!r.zero) {
+                        file.push_back(r);
+                        continue;
+                    }
+                    zeros.resize(std::max(zeros.size(), r.bytes));
+                    b.write(*buffer, r.to, zeros.data(), r.bytes);
                 }
-                zeros.resize(std::max(zeros.size(), r.bytes));
-                b.write(*buffer, r.to, zeros.data(), r.bytes);
+                if (!defer)
+                    for (const shard::Run& r : file) b.write(*buffer, r.to, t.data + r.from, r.bytes);
+            } catch (...) {
+                b.sync();
+                throw;
             }
             if (defer) plan.uploads.push_back({i, &b, buffer, std::move(file)});
-            else
-                for (const shard::Run& r : file) b.write(*buffer, r.to, t.data + r.from, r.bytes);
             return buffer;
         }
         if (b.reads_in_place()) {

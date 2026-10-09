@@ -126,7 +126,10 @@ Branch on what a device reports, never on who made it.
   support table. gfx906 also entered ROCm maintenance mode in 5.7 and is
   deprecated, so even on Linux it needs a community or self-built ROCm. This
   backend is therefore developed and validated on the Linux machine, never on the
-  Windows workstation. `LLMX_HAS_BACKEND_ROCM`
+  Windows workstation. `LLMX_HAS_BACKEND_ROCM`. The proposed implementation,
+  hardware profiles, Strix Halo bring-up and same-machine reference gates are
+  in [ROCM](ROCM.md); its source research is pinned separately. This is a plan,
+  not implemented support, and follows the Vulkan tensor-split prerequisite.
 - **CUDA**: NVIDIA. `LLMX_HAS_BACKEND_CUDA`
 - **SYCL**: Intel, through oneAPI/DPC++ over Level Zero. This is what llama.cpp
   calls its SYCL backend. `LLMX_HAS_BACKEND_SYCL`

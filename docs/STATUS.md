@@ -1,5 +1,351 @@
 # llmx - Development Status
 
+## ROCm research and delivery plan (2026-10-09, docs only, lands by fast-forward)
+
+- **Prepared:** [ROCM](ROCM.md) defines the existing owners, optional HIP runtime,
+  kernels, collectives, graph lifetime, numerical policy and checkpoint gates.
+  [Pinned research](research/rocm-20261009.md) compares mx custom all-reduce and
+  compute dispatch with vLLM, SGLang/AITER and Megatron Core. Vulkan's capability
+  and profile structure is reused; its measured RADV choices are not HIP defaults.
+- **RCCL correction:** evaluate custom AR plus optional RCCL for large F32 sums,
+  byte-preserving stage transfers and fallback. The earlier blanket exclusion
+  was unjustified: mx uses both. Adoption requires the pinned MI50 runtime,
+  numerical, lifetime and performance checks; the user authorized its separate
+  off-by-default build option. No dependency has been added.
+- **Peer proposal reconciled:** the 2026-10-08 research is reviewed in the
+  research record and folded into the same plan. Historical sum budgets are
+  calculated from one session and labeled estimates; eager/graph launch, decode,
+  sums and full attention have distinct probes. HRX/direct packets are separate
+  proposals, and loader/fit/lifetime checks remain early.
+- **Future hardware:** gfx1151/Strix Halo is part of the design through wave32
+  portability and compile coverage of kernels already being written. Shared-memory
+  accounting and profiles wait for hardware. Compilation is not a support claim.
+  MI50/Linux is the first execution target.
+- **Deployment clarification:** vendor runtime and driver environment variables
+  may be documented prerequisites, explicitly set in the backend image and
+  reported with the selected fast path or fallback. llmx's runtime knobs stay
+  flags; temporary development variables do not ship as hidden controls.
+  ROCm is an off-by-default build option beside Vulkan, with an independently
+  optional RCCL build option under it; both config forms stay in sync.
+- **Probe checkpoint:** a standalone 500-dependent-add launch smoke passes
+  under HIP eager submission, HIP graph replay and the existing Vulkan backend
+  on one MI50: each checks 64 outputs equal to 500 in all 25 chains, 4,800
+  checked values in total. It uses PCI 0000:89:00.0 on root pci0000:80, separate
+  from production's pci0000:c0, with bounded processes and no peer barriers.
+  The community image is pinned to SHA256
+  `1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87`,
+  HIP 7.2.53211 and clang 22. Both probe sources build with warnings as errors.
+  Concurrent correctness tests make its recorded timings diagnostic only;
+  this proves neither a speed gain nor peer visibility. Source, hashes and
+  outputs are in `/zpool1/llmx-xdev-validation/rocm-probe-20261009`.
+  The same standalone source also compiles for gfx1151 with warnings as errors;
+  that is compile coverage of this launch probe only, with no Strix Halo run
+  or backend-support claim.
+- **Peer probe build:** the standalone peer-memory check compiles independently
+  for gfx906 and gfx1151 with `-O3 -std=c++17 -Wall -Wextra -Werror` in the
+  same pinned image, without access to any GPU. It tests public ordinary,
+  fine-grained and uncached allocations, rotating delayed submissions, guarded
+  peer writes and fixed-order F32 sums after host synchronization. Source and
+  binary hashes and both compile logs are in that probe directory's
+  `build-peer-1`. Compilation alone qualifies no peer-memory run, device-side
+  visibility protocol, collective or RCCL; the hardware checks below are separate.
+- **RCCL inventory:** that image has installed `rccl` and `rccl-dev` packages
+  `2.27.7.70201-81~24.04`. Their header and library live under `/usr/local`,
+  outside the `/opt/rocm` prefix. The header identifies 2.27.7, the loader
+  resolves the library and its dependencies, and `ncclGetVersion` returns
+  success with 22707 without any GPU exposed to the container. Header/library
+  hashes and all inventory attempts are retained in `rccl-inventory*.log` in
+  the probe directory. This establishes availability for the planned probe,
+  not MI50 communicator, graph or numerical qualification.
+  `roc-obj-ls` could not inspect the library's embedded targets because the
+  image lacks Perl's `File::Which`; `rccl-targets.log` retains that tooling
+  failure, from which no target-support conclusion is drawn.
+- **Peer hardware checkpoint:** groups of two, three and four MI50s pass all three
+  public allocation modes, with the frozen source/binary and no environment
+  override. Each cell runs 1, 127 and 5,120 values through 16 epochs apiece.
+
+  | Members | Rig GPUs (PCI suffixes) | Ordinary | Fine-grained | Uncached |
+  | --- | --- | --- | --- | --- |
+  | 2 | 2/3 (83:00.0, 86:00.0) | 48/48 epochs | 48/48 epochs | 48/48 epochs |
+  | 3 | 2/3/5 (83:00.0, 86:00.0, 8c:00.0) | 48/48 epochs | 48/48 epochs | 48/48 epochs |
+  | 4 | 2/3/4/5 (83:00.0, 86:00.0, 89:00.0, 8c:00.0) | 48/48 epochs | 48/48 epochs | 48/48 epochs |
+
+  All directed peer links are available. Every peer payload, guard and local
+  fixed-order F32 sum matches exact bits, including cancellation-sensitive
+  three- and four-member sums and rotating delayed submissions. All 432 epochs pass.
+  `HSA_FORCE_FINE_GRAIN_PCIE` is unset; host stream synchronization separates
+  writes and sums. This does not establish device-side signal visibility,
+  barriers, graph replay, RCCL collectives or performance. All processes drain
+  and each card's VRAM returns to its recorded pre-run value. The nine raw
+  `peer-2-*-1`, `peer-3-*-1` and `peer-4-*-1` directories and `peer-summary.json`
+  retain the checks under the probe directory. Width four ran after the peer
+  developer released its fourth card; production's PCI root remained excluded.
+- **RCCL numerical screen:** the standalone probe compiles for gfx906 and
+  gfx1151 with warnings as errors; linking it says nothing about the library's
+  gfx1151 support. The MI50 runs use the pinned RCCL 2.27.7, F32 data, default
+  algorithm/protocol selection and `NCCL_DEBUG=INFO` for the retained log.
+  Each cell completes all 48 epochs at 1, 127 and 5,120 values, using the same
+  changing inputs, guards, rank delay and independent member-order F32 oracle.
+
+  | Members | Send/receive plus ordered sum | Native all-reduce exact epochs | Native sum mismatched values |
+  | --- | --- | --- | --- |
+  | 2 | 48/48 exact | 48/48 | 0 |
+  | 3 | 48/48 exact | 0/48 | 42,096 |
+  | 4 | 48/48 exact | 0/48 | 63,040 |
+
+  The native three- and four-member cells return 3, the declared numerical
+  failure, after completing every planned epoch. For the one-value positive
+  cancellation case, member order gives 0 and 3 respectively; RCCL gives 1
+  and 4. Different addition order explains why F32 alone cannot promise this
+  contract; this is not a claim that every RCCL result is less accurate.
+  Guard and transfer checks pass. Every size's communicator set initializes
+  and destroys normally; all six containers drain and each card's VRAM returns
+  to its measured starting value. The raw `rccl-*-*-1` records and independent
+  `rccl-summary.json` retain successes and failures. No tolerance or wire
+  precision was changed. Native sums at three and four members in this setup
+  are ineligible for the current ordered-sum contract; the transfer path stays
+  a candidate. Two-member success is scoped to these inputs. Graph replay,
+  failure recovery, arbitrary bit-pattern transfers, size crossovers and
+  matched performance remain unqualified, as does backend adoption.
+- **Device-signal checkpoint:** the independently written one-block probe uses
+  uncached system-release/acquire epoch flags, an explicit system fence from
+  every peer writer, original local contributions and a consumed barrier before
+  staging reuse. Shapes 1, 127, 5,120 and 5,121 run 32 changing epochs inside
+  each kernel and four launches per shape over the same buffers, with rotating
+  2 ms rank launch delays. No host wait separates the in-kernel phases.
+
+  | Members | Uncached payload | Fine-grained payload | Ordinary payload |
+  | --- | --- | --- | --- |
+  | 2 | 512/512 exact epochs | Stale payload, exit 1 | Stale payload, exit 1 |
+  | 3 | 512/512 exact epochs | Stale payload, exit 1 | Stale payload, exit 1 |
+  | 4 | 512/512 exact epochs | Stale payload, exit 1 | Stale payload, exit 1 |
+
+  Each passing epoch checks every consumed contribution independently, every
+  ordered F32 result, unchanged inputs, guards and the untouched self slot.
+  All 1,536 uncached epochs pass with `HSA_FORCE_FINE_GRAIN_PCIE` unset.
+  Every failed cell completes its first 32 signal handshakes but reads the old
+  `0xa5a5a5a5` canary instead of 1.0 at the first checked remote contribution;
+  it stops at that mismatch, so none of its epochs is counted as validated.
+  The six failures remain in the evidence. They show why the earlier
+  host-synchronized pass does not establish in-kernel payload visibility.
+  Ordinary allocation is only a diagnostic control, even had it passed.
+  Missing-member controls at widths two and four omit the final member's
+  launch: every launched member exits at its bounded ready-epoch-1 wait,
+  completing no epoch. The controls also check untouched outputs and guards.
+  Polling is bounded by both 2^24 loads and 500 million shader-clock ticks;
+  these are not wall-clock guarantees. The process has a 120-second timeout
+  and a ten-second kill bound. This is a specific timeout check, not general
+  failed-device recovery. Every process drains, its container disappears and
+  all cards return to their exact pre-run VRAM use, without resets.
+  Both targets compile with warnings as errors. Source SHA256 is
+  `2ece4f597acfa15edc0922eb8af191aa33a1bb63e08b3b94cd9d089cfd68a8fc`,
+  gfx906 binary `ed6bd8cc5c6a1e9a1126e612871cd67dc8a33a584ab96a34bfb73ed91fe4680f`.
+  Emitted assembly records 104 SGPRs, 39 VGPRs and 72 scratch bytes on gfx906;
+  gfx1151 records 62, 33 and 72 respectively, with no hardware claim.
+  Despite the source non-temporal hint, gfx906 payload loads are ordinary
+  global loads. No cause beyond the measured allocation-mode difference is
+  established, and this diagnostic kernel is not performance-ready.
+  The first assembly command failed because the hipcc wrapper added an unused
+  link flag under warnings-as-errors; direct clang generated both assemblies
+  from the unchanged source. Both attempts are retained. Raw `signal-*-1`
+  records, `build-signal-2`, the frozen `signal-protocol.md` and the independently
+  checked `signal-summary.json` are under the same probe evidence directory.
+  Uncached staging is the next candidate; graph replay, multiple blocks,
+  message-size crossovers, model execution and matched latency remain open.
+- **Multi-block graph checkpoint:** a separate standalone probe uses uncached
+  payloads and signals, per-block ready/consumed epochs and an ordered chain
+  of 32 separate collective kernels. The same kernel runs through eager
+  submission and captured graph replay. A stable device descriptor changes
+  the base sequence between four launches while every payload changes.
+  Each block owns the same indices on all members, including empty blocks,
+  and waits only for that block on peers. Grids 1, 2, 4 and 16 are below the
+  queried theoretical residency limit; shapes are 1, 127, 5,120, 5,121 and
+  65,537 values. A rotating member launch is delayed 2 ms per batch.
+
+  | Members | Eager exact epochs | Graph exact epochs |
+  | --- | --- | --- |
+  | 2 | 2,560/2,560 | 2,560/2,560 |
+  | 3 | 2,560/2,560 | 2,560/2,560 |
+  | 4 | 2,560/2,560 | 2,560/2,560 |
+
+  All 15,360 normal epochs match the same independent ordered F32 oracle,
+  including every saved contribution, result, guard, unchanged input, untouched
+  self slot and final block sequence. Thus eager and replay agree exactly on
+  these inputs. Each of the 192 captured member graphs, including the negative
+  controls, has 32 kernel nodes; capture and instantiation leave all initialized
+  buffers and counters unchanged. Every successful replay advances each block
+  by exactly 32 epochs. Host waits occur around batches, not between kernels.
+  Graph controls at widths two and four omit the final member: all 64 active
+  blocks exit at their bounded ready-epoch-1 wait and no result is written.
+  Two other controls first replay successfully, then repeat base sequence zero:
+  all 96 blocks refuse the stale epoch before writing payloads or flags, retain
+  the earlier staging/sequence and leave new outputs untouched. Their two
+  successful preludes add 64 exact epochs separately from the normal matrix.
+  A failed block skips later kernels. Poll and process bounds are unchanged
+  from the signal probe. Every group drains all members before graph or buffer
+  destruction; all ten processes exit zero, containers disappear and cards
+  return to the exact pre-run VRAM use. No reset or production device is used.
+  Source SHA256 is
+  `9acf65c2ec7c911aaaf61b12c70bf3dafc80ff0ef7f11f9ecc626bc2bda49be1`,
+  gfx906 binary `09eeb6bfbab2872a3937a7568a2f89ff7f427fe3b52dfc540c4191edd12d5133`.
+  Both targets compile with warnings as errors. Assembly records gfx906 at
+  96 SGPRs, 15 VGPRs and 72 scratch bytes; gfx1151 at 70, 21 and 72, with no
+  hardware execution claim. `graph-protocol.md`, `build-graph-1`, ten raw
+  `graph-*-1` directories and the locally and remotely verified
+  `graph-summary.json` retain the evidence. The vendor fine-grain override
+  remains unset. This qualifies this bounded probe, not model graph caching,
+  arbitrary shape/allocation reuse, general recovery or performance. The
+  diagnostic copies of every contribution are not a production cost model.
+- **Lean residual checkpoint:** a separate candidate removes those diagnostic
+  copies, takes the helper's target descriptor by const reference and updates
+  one residual in place with the member-ordered F32 sum. It matches
+  `Collective::sum_into`'s residual addition, while inputs still come from a
+  prepared 32-entry array rather than model kernels. Final residuals match an
+  independent volatile F32 oracle in every chain of the same frozen matrix.
+
+  | Members | Eager checked chains | Graph checked chains |
+  | --- | --- | --- |
+  | 2 | 80/80 | 80/80 |
+  | 3 | 80/80 | 80/80 |
+  | 4 | 80/80 | 80/80 |
+
+  These are 480 normal chains of 32 kernels, 15,360 completed kernels; only
+  each chain's final residual is checked, not saved intermediate results.
+  Inputs, final staging, guards, signals and statuses also pass. All 192
+  captures leave initialized storage unchanged, and the four width-two/four
+  missing-member and stale-base controls pass. Their two successful preludes
+  are separate. All ten processes drain and restore the exact starting VRAM.
+  Both targets compile with warnings as errors. gfx906 now uses 49 SGPRs,
+  12 VGPRs and zero scratch bytes; gfx1151 uses 40, 10 and zero. Neither
+  assembly has private buffer loads/stores. This combined simplification
+  removes the diagnostic scratch cost; no isolated attribution or measured
+  speedup is claimed. The original graph probe remains unchanged.
+  Source SHA256 is
+  `10f23d3e9cc15622d57823302e9dd1e5a2c64c88572503dd1fd2d4cb6b1e7430`,
+  gfx906 binary `3e0541ae1f4c691c04bc637a716008412e8753aac5d16df0b0ec4cb7f0fa7913`.
+  `lean-protocol.md`, `build-lean-1`, ten raw `lean-*-1` directories and
+  `lean-summary.json` retain the evidence in the same probe directory.
+  No gfx1151 execution, model correctness or performance qualification follows.
+- **First matched timing checkpoint:** the current-main Vulkan collective and
+  independent HIP eager/graph harnesses build with ROCm clang 22 and run in
+  one image, SHA256
+  `d5591273e00b5735bd3419009ffd7575821dcf957897010e03ba1d1c6a0ae14f`.
+  It has HIP 7.2.1, Mesa 25.2.8 and shaderc 2025.2. This is a fresh control,
+  not a subtraction from the earlier Mesa 25.0.7 image. The initial distro
+  shader compiler lacked the integer-dot extension; its failed build and a
+  subsequent local-image lookup failure remain retained. The successful
+  build uses the project's existing shader compiler in the common image.
+  The Vulkan source is clean main `f80709f20`; the rebuilt llmx reports
+  `llmx 0.1.0+gf80709f204a8 numerics 7cbc01b7c270d329`.
+  The frozen matrix has two forward/reverse arm blocks, 128 sums per chain,
+  three warmup and 20 measured chains per process, sizes 5,120 and 65,537,
+  with zero or four dependent increments after each sum. HIP uses 16 blocks
+  and one persistent host thread per rank; Vulkan uses its existing owner.
+  All 72 processes, 1,440 measured chains and 216 warmups pass final output
+  and guard checks. HIP block statuses/sequences pass too. Intermediates are
+  not saved; constant per-rank inputs exercise repeated submissions, not
+  changing model activations. Both targets compile; only gfx906 executes.
+
+  Host wall time per sum or sum-plus-increments unit, pooled median in us,
+  lower better; the material block spread below is part of these results:
+
+  | Members | F32 values | Increments | Vulkan | HIP eager | HIP graph | mx |
+  | --- | --- | --- | ---: | ---: | ---: | --- |
+  | 2 | 5120 | 0 | 92.65 | 11.87 | 10.65 | Not remeasured |
+  | 2 | 5120 | 4 | 102.68 | 20.26 | 16.08 | Not remeasured |
+  | 2 | 65537 | 0 | 95.78 | 54.00 | 52.72 | Not remeasured |
+  | 2 | 65537 | 4 | 100.34 | 63.42 | 59.95 | Not remeasured |
+  | 3 | 5120 | 0 | 146.35 | 17.83 | 16.64 | Not remeasured |
+  | 3 | 5120 | 4 | 146.19 | 26.47 | 22.04 | Not remeasured |
+  | 3 | 65537 | 0 | 150.22 | 107.99 | 106.85 | Not remeasured |
+  | 3 | 65537 | 4 | 160.02 | 117.63 | 114.12 | Not remeasured |
+  | 4 | 5120 | 0 | 222.91 | 24.75 | 24.19 | Not remeasured |
+  | 4 | 5120 | 4 | 230.36 | 40.99 | 28.96 | Not remeasured |
+  | 4 | 65537 | 0 | 229.44 | 155.69 | 154.55 | Not remeasured |
+  | 4 | 65537 | 4 | 241.43 | 165.37 | 161.79 | Not remeasured |
+
+  Width four's small graph sum has process medians 23.87 and 48.70 us;
+  its eager mixed chain has 34.22 and 58.67 us. Keep both, rather than read
+  the pooled 24.19 as a stable sum budget. The graph mixed medians are
+  29.02/28.88 us, and Vulkan's small-sum medians 222.67/223.79 us.
+  The slow graph block's median rank-start skew is 3,040.51 us against
+  7.78 us in the first block, while median chain wall time is 6,233.91
+  against 3,055.40 us. This locates a host-launch delay in the measurements;
+  it does not yet establish why a worker starts late. Compare the host wait
+  policy next, preserving this baseline and the same workload.
+  Mixed increments are placeholders, a scalar HIP increment versus Vulkan's
+  ones buffer, not equivalent model compute. Device events, enqueue time,
+  per-process medians/p95/ranges and every sample remain separate in the data.
+  The one-second monitor covers all processes, with no GPU counter missing
+  and no leading/trailing coverage gap. One of 72 processes is flagged for
+  unrelated CPU: width three, 65,537 values, four increments, reverse-block
+  Vulkan, peaking at 3.95 observed cores. All results remain included.
+  No recorded flag explains the width-four spread; sampling cannot attribute
+  individual millisecond chains, and transient/inaccessible processes remain
+  coverage limits. Maximum observed monitor sample overhead is 68.35 ms.
+  All containers are removed and exact starting VRAM restored. Evidence in
+  the same probe directory: `latency-protocol.md`, `latency-plan.json`,
+  `build-latency-2`, `latency-timing-1`, the three `latency-activity-1-w*`
+  directories and `latency-summary.json`, verified locally and on the rig.
+  Fresh mx controls, conservative HIP/RCCL alternatives and a refreshed model
+  budget remain required before an advance verdict or a full-model speed claim.
+- **Host-wait checkpoint:** one executable selects per-rank waiting or group
+  waiting, where every rank finishes enqueueing before the controlling thread
+  waits for any member. Both policies use the same kernels. Whole emitted GPU
+  assembly matches the previous harness on gfx906 and gfx1151 after removing
+  only the source filename and compiler-generated unit ID; the first verifier's
+  rejection of that ID is retained, with the corrected check and unchanged
+  binaries. No instruction or resource difference is normalized away.
+  Four MI50s, 5,120 F32 values, the same 128-sum chains and forward/reverse
+  arm blocks give these process medians in us per sum or mixed unit:
+
+  | Increments | Arm | Block 1 | Block 2 | mx |
+  | --- | --- | ---: | ---: | --- |
+  | 0 | Vulkan | 215.47 | 217.47 | Not remeasured |
+  | 0 | HIP eager, rank wait | 24.78 | 24.69 | Not remeasured |
+  | 0 | HIP eager, group wait | 24.93 | 24.80 | Not remeasured |
+  | 0 | HIP graph, rank wait | 23.77 | 30.61 | Not remeasured |
+  | 0 | HIP graph, group wait | 23.52 | 23.57 | Not remeasured |
+  | 4 | Vulkan | 228.56 | 226.06 | Not remeasured |
+  | 4 | HIP eager, rank wait | 57.98 | 36.40 | Not remeasured |
+  | 4 | HIP eager, group wait | 33.36 | 48.58 | Not remeasured |
+  | 4 | HIP graph, rank wait | 28.90 | 28.97 | Not remeasured |
+  | 4 | HIP graph, group wait | 29.10 | 29.15 | Not remeasured |
+
+  All 20 processes, 400 measured chains and 60 warmups pass output, guard,
+  status and sequence checks. The small graph rank-wait control has median
+  launch skew 5.50/819.78 us, against group waiting's 32.66/27.86 us. The
+  earlier exact 3 ms graph delay did not recur; eager mixed rank waiting has
+  3,048.86 us skew in its first block, and group eager still varies. Thus the
+  consistent graph group-wait result supports that submission ownership here,
+  not a claim that every scheduling delay is fixed. All samples are kept.
+  No process triggers the frozen activity flags; maximum observed unrelated
+  CPU is 0.55 core, with the same monitoring limits as before. All containers
+  are removed and starting VRAM restored. `latency-wait-protocol.md`,
+  `latency-wait-plan.json`, `build-wait-1`, `latency-wait-timing-1`,
+  `latency-wait-activity-1-w4` and the locally/remotely verified
+  `latency-wait-summary.json` retain the evidence. No production code changes.
+  Use submission before waiting for the next controls; fresh mx, conservative
+  HIP/RCCL comparisons and the model budget remain open before admission.
+- **State:** this branch adds documentation only; no backend is implemented.
+  The existing
+  full-backend implementation order and closed kernel/driver-patch route remain.
+  The user authorized an earlier bounded probe, owned by XDEV, on a separate
+  PCI root complex from production, with fixed workloads and no device resets.
+  The next hardware evidence is the remaining reference and transport controls;
+  a working first backend and beating every mx gate are separate checkpoints.
+- **Landing checks:** docs and dead-code pass on the integrated current-main
+  tree, using the existing f80709f20 executable; no runtime source changes.
+  All 102 tracked Markdown pages were inventoried with their local links.
+  This landing adds the plan and pinned research, updates the roadmap link and
+  prepends this evidence record while preserving main's existing status text.
+  The four changed pages are ASCII; their claims were checked against the
+  retained sources, builds and raw runs. Unchanged pages retain the earlier
+  review, including separately tracked stale tensor-split wording; historical
+  measurements are not presented as freshly rerun model gates.
+  The docs-only merge tier requires these two checks and does not wait for
+  hosted CI. This consolidated plan lands as one commit by fast-forward.
+
 ## Vulkan int8 twin cache row width (2026-10-09, branch fix/vulkan-int8-twin-width, lands by fast-forward)
 
 - **Goal:** reusing one activation buffer with a different matrix row width must

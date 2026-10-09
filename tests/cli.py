@@ -10,8 +10,8 @@ import f32
 import moe
 
 
-# The command-line surface the numerical components do not reach: a device that cannot run, a model without routed layers refusing experts on the CPU, the file listing, the command lines refused as usage errors, and the help pages against the flags each command reads.
-# It needs no device, so it runs in every job; each command here that takes a device names its own.
+# The command-line surface the numerical components do not reach: device refusals, experts on the CPU, the file listing, usage errors and the help pages against the flags each command reads.
+# It needs no device, so it runs in every job.
 
 
 # How a Vulkan device that cannot be made is refused: a build without the Vulkan backend names the backend, and a Vulkan build names what it lacks.

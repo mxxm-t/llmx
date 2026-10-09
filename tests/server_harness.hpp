@@ -228,7 +228,7 @@ inline std::vector<uint32_t> prompt_of(uint32_t first, size_t n, uint32_t vocab)
 
 using Reply = std::vector<server::Request::Token>;
 
-// One request: its prompt, and a cap, or none (0), which makes it uncapped as a compatible route's request without max_tokens is; a stop string, which ends it where its text first holds it; and a temperature above 0 with a seed for a sampled one.
+// One request: its prompt, a cap or none (0) for an uncapped one, a stop string, and a temperature above 0 with a seed for a sampled one.
 struct Req {
     std::vector<uint32_t> prompt;
     int cap = 0;
@@ -294,8 +294,8 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
                 std::to_string(s.donor_blocks[p]) + ", of " + std::to_string(model.kv_pool_blocks(p)));
 }
 
-// Runs `waves` through one scheduler over `model` with `passes` passes in flight, the scheduler's own number when 0, `host` bytes of host memory for evicted donors and, with a `proposer`, up to `draft_max` drafts a verify, `priced` by the passes' measured cost or else by the decode columns alone: a wave is fully queued before any pass retires, and every request is drained before the next wave starts.
-// The replies come in submission order; the scheduler's counters at the end go to `stats`.
+// Runs `waves` through one scheduler over `model` with `passes` in flight (the scheduler's own number when 0) and `host` bytes of host memory for evicted donors.
+// With a `proposer` it drafts up to `draft_max` a verify, `priced` by measured pass cost or by decode columns; a wave is fully queued before any pass retires, and the replies come in submission order with the counters in `stats`.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
                          size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false) {
@@ -347,9 +347,8 @@ inline void same(const Reply& alone, const Reply& got, const std::string& what, 
 // A fresh model over the backends `backends` makes, with a pool of `pool` tokens and prompts taken `ubatch` tokens a pass (the default when 0).
 using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch)>;
 
-// A hybrid model holds `state_slots` recurrent states, which bounds the requests a scheduler over it runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
-// With `marks` the model marks that many sequences at once for verifies of up to `mark_rows` rows, and with `drafter` it loads the embedded drafter its file carries.
-// With a `width` above 1 the backends form tensor groups of that many, the stages (docs/TENSOR-SPLIT.md).
+// A hybrid model holds `state_slots` recurrent states, bounding the requests a scheduler runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
+// With `marks` it marks that many sequences at once for verifies of up to `mark_rows` rows, with `drafter` it loads the embedded drafter, and with a `width` above 1 the backends form tensor groups (docs/TENSOR-SPLIT.md).
 inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0,
                size_t marks = 0, size_t mark_rows = 0, bool drafter = false, size_t width = 1) {
     return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter, width](size_t pool, int ubatch) {

@@ -1,7 +1,7 @@
 #pragma once
 #include "model/runtime.hpp"
 
-// A pass, the one owner of how it runs: its plan, the stages of its layers over the devices, the crossings of the residual between devices, a streamed layer's split, the embedded drafter's rows after the last stage, and the storage of the context it runs in.
+// A pass, the one owner of how it runs: its plan, its layers' stages over the devices, the residual's crossings, a streamed layer's split, the embedded drafter's rows and the storage of the context it runs in.
 // Members of infer::Model, declared in its class (model/runtime.hpp), which includes this file after it.
 
 namespace infer {
@@ -22,8 +22,8 @@ inline void Model::forward(ExecContext& ctx, const BatchEntry* entries, size_t n
     finish(ctx, p);
 }
 
-// Size a fresh context once, before any pass, for `slots` passes in flight, which above one need a pipelined placement, of up to `rows` rows each, with their handoff buffers and `logit_rows` rows of logits the caller hands out (begin_pass's logits_base); a reservation that fails leaves the context fresh, so a smaller one may follow.
-// The context is frozen from then on: begin_pass refuses a pass that needs more before any work, nothing is replaced while passes are in flight, and forward refuses it.
+// Size a fresh context once, before any pass, for `slots` passes in flight (above one they need a pipelined placement) of up to `rows` rows each, with their handoff buffers and `logit_rows` rows of logits (begin_pass's logits_base).
+// A failed reservation leaves the context fresh, and from then on it is frozen: begin_pass refuses a pass that needs more before any work, and forward refuses it too.
 inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows) {
     if (ctx.slots || !ctx.scratch.empty()) throw std::logic_error("inference: reserve_passes takes a fresh context, once");
     if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
@@ -64,9 +64,8 @@ inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     ++p.ran;
 }
 
-// A stage that waits on its devices (stage_waits) in three calls, for a caller that records it on a thread of that stage's while its own thread goes on.
-// prepare_pass_stage, on the thread that owns the histories and the pools, takes the stage's blocks; record_pass_stage, on the stage's thread, does the device work, touching only this pass, the stage's devices and their tickets; commit_pass_stage, on the owning thread again, commits the histories and counts the stage.
-// Nothing is undone by a failure of the first two: the caller abandons the pass with abort_pass on the owning thread.
+// A stage that waits on its devices (stage_waits) in three calls, for a caller that records it on the stage's own thread while its thread goes on.
+// prepare_pass_stage and commit_pass_stage run on the thread that owns the histories and pools, record_pass_stage on the stage's thread; a failure of the first two undoes nothing, so the caller abandons the pass with abort_pass.
 inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     Pass& p = in_flight(ctx, slot);
     if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
@@ -221,7 +220,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         if (entries[e].keep) p.kept[e] = Checkpoint(slots_, slots_.acquire_kept(), p.start[e] + entries[e].n);
 }
 
-// Stage s of a pass: its storage's blocks reserved, the residual embedded or received from the stage before, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and its storage.
+// Stage s of a pass: its storage's blocks reserved, the residual embedded or received, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and storage.
 inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
     const Stage& st = stages_[s];
     // Backends may be shared by models used in turn.
@@ -292,8 +291,8 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
     end_stage(ctx, p, s, cur);
 }
 
-// Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective sums the members' partial rows into every member's residual after each part, the residual comes in to every member and leaves from the first, and after the last stage each member's slice of the logits rows is gathered into the context's.
-// The placement holds the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer (the constructor's checks); a layer that keeps a state runs on each member over its own heads' state, with no exchange inside the mixer.
+// Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective summing the members' partial rows into every member's residual after each part.
+// The residual comes in to every member and leaves from the first, the logits slices are gathered into the context's after the last stage, and a layer that keeps a state runs on each member over its own heads' state.
 inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
     group_prepare(p, s);
     group_record(ctx, p, s);
@@ -408,9 +407,8 @@ inline void Model::stage_commit(ExecContext& ctx, Pass& p, size_t s) {
     }
 }
 
-// An embedded drafter's context rows of the pass, on the head's device after the last stage (Architecture::draft_rows): each entry's first row reads the row its sequence carries, from where its history left it on the last stage, or a zero row for an empty history.
-// Then each entry's last normed row is carried into the slot its state is written to, and a marked entry's rows are saved for its retract (save_h).
-// On a tensor group every member of the head's group does so over the K and V of its own KV heads, carrying the row itself, the rows being the same on every member.
+// An embedded drafter's context rows of the pass, on the head's device after the last stage (Architecture::draft_rows): each entry's first row reads the row its sequence carries, or a zero row for an empty history.
+// Then each entry's last normed row is carried into the slot its state is written to, a marked entry's rows are saved for its retract (save_h), and on a tensor group every member of the head's group does so over its own KV heads.
 inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
     const size_t E = plan_.residual, n = p.entries.size();
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
@@ -450,15 +448,14 @@ inline void Model::finish(ExecContext& ctx, const Pass& p) {
     ctx.pending = p.want > 0;
 }
 
-// A failed pass: every device drained, then every entry's histories back to where the pass found them, or on a model that keeps a state, whose live state the pass may have written, to its checkpoint (rewind); the blocks and the checkpoint slots its stages reserved or wrote returned.
+// A failed pass: every device drained, every entry's histories back to where the pass found them (rewind, to the checkpoint on a model that keeps a state), and the blocks and checkpoint slots its stages took returned.
 inline void Model::roll_back(Pass& p) noexcept {
     retire();
     for (size_t e = 0; e < p.entries.size(); ++e) rewind(*p.entries[e].seq, p.start[e]);
     p.kept.clear();
 }
 
-// One backend allocation holds the activation slots of a pass, each aligned to 64 bytes.
-// Device allocators handle a few large blocks far better than many small ones, and resizing is one call.
+// One backend allocation holds the activation slots of a pass, each aligned to 64 bytes, since device allocators handle a few large blocks far better than many small ones.
 // The caller only publishes the result once this returns, so an allocation that throws leaves the previous arena intact.
 inline backend::BufferPtr Model::alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const {
     size_t total = 0;
@@ -473,7 +470,7 @@ inline backend::BufferPtr Model::alloc_arena(backend::Backend& b, const std::vec
     return b.alloc(total);
 }
 
-// Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers on each device a crossing leaves (handoffs): grown when a pass needs more rows than the context holds, never shrunk.
+// Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers on each device a crossing leaves (handoffs): grown when a pass needs more rows, never shrunk.
 // Each is allocated whole before it replaces what the context had.
 inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers) {
     auto mul = [](size_t a, size_t b) {
@@ -587,7 +584,7 @@ inline void Model::cross(ExecContext& ctx, size_t from, size_t to, size_t base, 
     receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);
 }
 
-// A streamed layer in a pass with long runs: consecutive entries alike form a group, the long ones run where the residual is on the layer's streamed row, with each window role's bytes written into its window once, and the rest on the host through a crossing each way.
+// A streamed layer in a pass with long runs: consecutive alike entries form a group, the long ones run on the layer's streamed row with each window role's bytes written into its window once, the rest on the host through a crossing each way.
 // The residual ends where it started, on the layer's mixer device.
 inline void Model::ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l) {
     const std::vector<Weight>& home = home_[(size_t)l];

@@ -1,7 +1,5 @@
-// The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model and a hybrid one on one CPU and split over two and three, at P = 1, S, S + 1 and 2S: every request's ids and log-probabilities equal its run alone on one CPU with one pass in flight, and over stages of tensor groups of two CPUs its run alone on one group.
-// The load mixes prompts longer than the ubatch with short ones, capped and uncapped requests on a pool that pauses them, and greedy and seeded sampling with top_logprobs 5.
-// A request cancelled from inside a stage ends cancelled with its reply so far, a stage that fails once ends only its own pass's requests with the error, and a stop from inside a stage ends every request cancelled, each leaving every block free.
-// The passes of a load that never pauses are replayed in their order through Model::forward on a fresh model of the same placement, every logits row bit for bit, and without logprobs, so no row is copied out of the passes' logits, it gives the same ids.
+// The scheduler with passes in flight (docs/SERVER.md, the round) over the synthetic Q8_0 model and a hybrid one, on one CPU and split over two and three, at P = 1, S, S + 1 and 2S, each request equal to its run alone.
+// Cancels, stops and failures from inside a stage, and the replay of a never-pausing load through Model::forward, are checked too, each leaving every block free (AGENTS.md, Tests).
 #include <thread>
 #include <chrono>
 #include <atomic>
@@ -52,7 +50,7 @@ std::vector<Req> paused_load(uint32_t vocab) {
             {prompt_of(6, 25, vocab), 45, {}, 0.7f, 3}};
 }
 
-// Two uncapped requests on 9 blocks, which they fill: the older's growth step falls due at 380 generated tokens, four before the younger's, which then still has room, so with the two in passes of their own the younger is in flight as the older's plan pauses it, and the plan waits for its pass to retire.
+// Two uncapped requests on 9 blocks, which they fill: the older's growth step falls due four tokens before the younger's, so the younger is in flight as the older's plan pauses it, and the plan waits for its pass to retire.
 std::vector<Req> held_load(uint32_t vocab) {
     return {{prompt_of(21, 5, vocab)}, {prompt_of(22, 385, vocab)}};
 }
@@ -148,7 +146,8 @@ void replayed(const Make& one, const std::function<Make(size_t)>& split, const b
     }
 }
 
-// A lone request's prompt slices on two CPU stages with a ubatch of 256 (prompt_slice): a burst of four 512-token prompts queued together takes whole ubatches, never a cut slice, and a lone 768-token prompt's slices shrink to a quarter of what it lacks until a request arrives, which the first pass's retirement submits, after which a slice in a pass of its own brings it back to a whole ubatch and its slices are whole ubatches again; every reply its reply alone.
+// A lone request's prompt slices on two CPU stages with a ubatch of 256 (prompt_slice): a burst of four 512-token prompts takes whole ubatches, and a lone 768-token prompt's slices shrink until a request arrives.
+// Every reply is its reply alone.
 void slices(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
     constexpr int kWide = 256;
     const size_t pool = 32 * kBlock;
@@ -445,8 +444,8 @@ struct Wide : backend::CpuBackend {
     size_t decode_columns() const override { return 16; }
 };
 
-// Drafting over two stages of tensor groups at two passes, where each group's stage is recorded on a thread of its own (docs/TENSOR-SPLIT.md, step 5): requests on a hybrid model that verify the drafts lookup finds in prompts that end as they began give the replies they give alone without drafts on one group.
-// Each member saves a marked entry's recurrent inputs on its stage's thread and reruns its own state on a retract, which the scheduler calls with that thread idle.
+// Drafting over two stages of tensor groups at two passes, each stage recorded on its own thread (docs/TENSOR-SPLIT.md, step 5): a hybrid model's lookup-draft verifies give the replies they give alone without drafts on one group.
+// Each member saves a marked entry's recurrent inputs on its stage's thread and reruns its state on a retract, called with that thread idle.
 void drafted_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
     const size_t pool = 32 * kBlock;
@@ -495,7 +494,7 @@ struct Timed : backend::CpuBackend {
     }
 };
 
-// A timed scheduler (serve --timing) over two stages of tensor groups with two passes in flight: it reads each stage's device time every few rounds, and no reading may meet a recording on that stage's devices; every reply stays its reply alone.
+// A timed scheduler (serve --timing) over two stages of tensor groups with two passes in flight: no reading of a stage's device time may meet a recording on its devices, and every reply stays its reply alone.
 void timed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
     const size_t pool = 32 * kBlock;
@@ -534,7 +533,7 @@ void timed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     ++checks;
 }
 
-// A timed scheduler (serve --timing) on the CPU alone, and split over two CPUs: its stages run on the host, whose time the scheduler keeps a stage, from the first pass on, before any round has ended; every reply is its reply alone and the timing counts its rounds.
+// A timed scheduler (serve --timing) on the CPU alone and split over two CPUs: stages on the host keep a time from the first pass on, every reply is its reply alone and the timing counts its rounds.
 void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
     const size_t pool = 32 * kBlock;

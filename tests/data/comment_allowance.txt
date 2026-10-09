@@ -3,7 +3,6 @@
 # A file not listed holds none; a file whose count or whose walls' text differs from its line fails the check, and so does a line whose file holds none, so a wall is never added or replaced in a listed file.
 # The change that sweeps a file removes its line; the digest is not edited to let a changed wall through.
 
-src/backends/backend.hpp | 15 | 32f7fc2bcdf8 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/backends/cpu/cpu_backend.hpp | 3 | fdaeea200b04 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/backends/cpu/q8_dots.hpp | 3 | c2d20a042197 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/backends/device_profile.hpp | 5 | a4b0843584cb | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
@@ -30,38 +29,23 @@ src/backends/vulkan/shaders/silu_mul.comp | 1 | afef872860d3 | docs/comment-swee
 src/backends/vulkan/shaders/views.glsl | 1 | e3917ade2c9e | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/backends/vulkan/shaders/xquant.glsl | 3 | 20e7402623cf | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/backends/vulkan/vulkan_backend.hpp | 3 | c72395bb4784 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/cli/main.cpp | 10 | 7f3891da214c | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/config.hpp | 1 | 761d25dd0460 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/core/fp16.hpp | 1 | f4236a35a0d2 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/core/host_memory.hpp | 4 | 84bf242ca045 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/format/gguf.hpp | 4 | a3748262946b | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/inference/load.hpp | 6 | a05e22e3fff1 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/inference/pair.hpp | 1 | 46d5de798757 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/inference/spec.hpp | 8 | 3b566a70fc09 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/model/arch/blocks.hpp | 3 | 7ec0965d250c | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/model/arch/qwen3.hpp | 3 | 67540a613a30 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/model/arch/qwen35.hpp | 11 | dbcf6573ca78 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/model/architecture.hpp | 12 | 37ae62ae3eb3 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/model/history.hpp | 18 | 5e905ecf8b04 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/model/kv_cache.hpp | 4 | 08fc3868c0da | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/model/layer_split.hpp | 6 | 0db30c6d258b | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/model/passes.hpp | 10 | 4947b39b5db4 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/model/place.hpp | 9 | f4e11ef23fa9 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/model/runtime.hpp | 12 | 3b569418b551 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/model/shard.hpp | 3 | e2f59d4de582 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/model/weights.hpp | 1 | 12c288409982 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/quant/k_quants.hpp | 1 | c80766bfa8fd | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/quant/quant.hpp | 3 | 6805ab039bea | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/server/api.hpp | 9 | 7b2d0a9293ae | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_index.hpp | 4 | 01d947cdfd56 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_store.hpp | 4 | 970fe262ddaf | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_tier.hpp | 4 | 0f630e964696 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/server/policy.hpp | 3 | bebda1c583b3 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/server/scheduler.hpp | 43 | 7d3344caf639 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/cli.py | 1 | 8bfcd4435afb | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server.py | 8 | 03409e8b8f1f | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_harness.hpp | 3 | 27dc830d4d6d | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_passes.cpp | 8 | 0fce27ba4688 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_passes_cpu.cpp | 6 | a12a27e5603a | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_resume.cpp | 40 | 9b0455d361ad | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_spec.cpp | 5 | d1018839a0e6 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)

@@ -85,8 +85,7 @@ inline std::string compat_number(float logprob) {
 }
 
 // The assistant turn a client sends back for a chat reply `text`, which the reply is read again as (Api::next_turn).
-// On the compatible route that is the content alone, read as the route reads a message without reasoning_content: its clients do not return the reasoning the route gave apart, so a template that keeps the reasoning it is given renders none for them.
-// On the native route it is the text whole, as the format keeps a turn.
+// On the compatible route it is the content alone, since clients do not return the reasoning the route gave apart, and on the native route the text whole, as the format keeps a turn.
 inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text) {
     if (!compatible) return format.assistant(text);
     chat::ReplySplit split(opened);
@@ -205,7 +204,7 @@ private:
         return std::string("{\"requested\":\"") + d.requested_name() + "\",\"declared\":\"" + backend::dtype_name(d.declared) + "\",\"effective\":\"" +
                backend::dtype_name(d.effective) + "\",\"devices\":[" + devices + "]}";
     }
-    // A timed scheduler's figures (--timing): each of the thread's times as a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate, the rows the passes in that span carried over the busiest stage's device time.
+    // A timed scheduler's figures (--timing): each thread time as a mean over the rounds, each stage's idle share over the span its device time was read in, and the device-bound rate of that span.
     static std::string timing_json(const Scheduler::Timing& t) {
         const double n = t.rounds ? (double)t.rounds : 1.0;
         const auto mean = [n](double ms) { return jmini::number((float)(ms / n)); };
@@ -306,7 +305,7 @@ private:
         return text;
     }
 
-    // A request's messages as chat records its own turns: a message's reasoning as the client passes it in `reasoning_content`, or else an assistant message as chat::ChatFormat::assistant keeps chat's own replies, so a conversation renders as chat renders it.
+    // A request's messages as chat records its own turns: a message's reasoning as the client passes it in `reasoning_content`, or else an assistant message as chat::ChatFormat::assistant keeps chat's own replies.
     std::vector<chat::Message> messages_of(const jmini::Value& body) const {
         const jmini::Value* msgs = body.get("messages");
         if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
@@ -349,7 +348,8 @@ private:
         return chat::stable_prefix(format_, tok_, messages_of(body), prompt, template_vars(body));
     }
 
-    // Where a chat request's last user message starts, on a model that keeps a state, where a message boundary would sit: the conversation before that message rendered with two different user messages after it, the text both renders and the prompt's `text` share, counted in the prompt's `ids` that lie wholly within it, so nothing is encoded again; 0 where the message before it is not a reply, a tool's result among them, or the template refuses the render.
+    // Where a chat request's last user message starts, for a model that keeps a state: the text two renders with different last user messages share, counted in the prompt's `ids` lying wholly within it.
+    // It is 0 where the message before it is not a reply, a tool's result among them, or the template refuses the render.
     size_t message_start_of(const jmini::Value& body, Route route, const std::string& text, const std::vector<uint32_t>& ids) const {
         if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return 0;
         std::vector<chat::Message> messages = messages_of(body);
@@ -379,7 +379,7 @@ private:
         return n;
     }
 
-    // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as a client of the route sends it (reply_sent_back): the content alone on the compatible route, the text whole on the native one (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+    // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as a client of the route sends it (reply_sent_back, docs/SPECULATIVE.md, section 2, Idle re-prefill).
     // None while the reply's reasoning is still being written, which a next turn may drop.
     std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing) const {
         const bool opened = chat::opens_reasoning(prompt);
@@ -471,7 +471,8 @@ private:
         for (unsigned char c : bytes) list += (list.empty() ? "" : ",") + std::to_string(c);
         return "{\"token\":" + jmini::quote(token_text(bytes)) + ",\"logprob\":" + compat_number(logprob) + ",\"bytes\":[" + list + "]";
     }
-    // The logprobs of sampled tokens in a compatible route's shape: the chat route's content list beside a null refusal, or the completions route's parallel lists, whose top_logprobs map each listed token's text to its log-probability and hold the sampled token too.
+    // The logprobs of sampled tokens in a compatible route's shape: the chat route's content list beside a null refusal, or the completions route's parallel lists.
+    // Their top_logprobs map each listed token's text to its log-probability and hold the sampled token too.
     std::string compat_logprobs(Route route, const Sampled* sampled, size_t n) const {
         if (route == Route::chat_completions) {
             std::string content;
@@ -597,7 +598,8 @@ private:
         bool cut = false, at_marker = false;
     };
 
-    // Where each message of a rendered conversation ends in the prompt's rows (context_cut.hpp): the end tokens the scan finds, where there is one a message, and otherwise the conversation rendered up to each message and counted, a render a message, which runs only where the scan's count differs and only for a prompt that does not fit.
+    // Where each message of a rendered conversation ends in the prompt's rows (context_cut.hpp): the end tokens the scan finds, where there is one a message.
+    // Otherwise the conversation is rendered up to each message and counted, which runs only where the scan's count differs and only for a prompt that does not fit.
     std::vector<size_t> message_ends(const std::vector<chat::Message>& messages, const std::vector<chat::TemplateVar>& vars, const std::vector<uint32_t>& ids) const {
         std::vector<size_t> ends = cut_points(ids.data(), ids.size(), [this](uint32_t id) { return tok_.is_eos(id); });
         if (ends.size() == messages.size()) return ends;
@@ -607,9 +609,8 @@ private:
         return ends;
     }
 
-    // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, where the server was started with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
-    // A chat route drops its oldest messages after the system message, a kept window starting at a user message so a tool call stays with its results, and renders the rest again; a text route keeps its leading block and drops rows after it (cut_rows).
-    // `body`, `prompt` and `ids` are the cut request's afterwards, so everything after reads it as the client's own.
+    // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
+    // A chat route drops its oldest messages after the system message and a text route rows after its leading block (cut_rows), and `body`, `prompt` and `ids` are the cut request's afterwards.
     Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids) {
         const size_t limit = sched_.token_limit(), n = ids.size();
         const auto fits = [&](size_t rows) { return params.until_limit ? rows < limit : rows + (size_t)params.max_tokens <= limit; };
@@ -680,8 +681,7 @@ private:
         const bool split = route == Route::chat_completions;
         chat::ReplySplit splitter(chat::opens_reasoning(prompt));
 
-        // Drain the channel.
-        // A write that fails means the client went away: cancel the request and stop.
+        // Drain the channel; a write that fails means the client went away, so cancel the request and stop.
         // Between writes the socket is looked at every kProbe, token or not, since a request that is queued, prefilling or building a whole reply writes nothing that could fail.
         std::vector<uint32_t> gen;
         std::string text, pending;

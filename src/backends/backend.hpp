@@ -104,8 +104,7 @@ struct Projection {
 };
 
 // The rows of a matmul grouped by the prompt they belong to, so a device picks a row's kernel by `extent` rather than by the call's width and a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
-// `end` is one past the run's last row, runs in row order; `extent` is the position one past the prompt's last token for prompt rows, 1 for a generated token.
-// Without runs a backend chooses by the call's width.
+// `end` is one past the run's last row and `extent` the position one past the prompt's last token, 1 for a generated token; without runs a backend chooses by the call's width.
 struct RowRun {
     size_t end;
     size_t extent;
@@ -172,8 +171,7 @@ public:
 };
 
 // One sequence's history in one storage: logical block i is physical block blocks[i], `length` entries are committed, and `nq` rows of this pass belong to the sequence.
-// Row b is at position length + b and attends through it, so the table must cover length + nq.
-// `extent` is the rows' RowRun extent, 0 when unknown.
+// Row b is at position length + b and attends through it, so the table must cover length + nq; `extent` is the rows' RowRun extent, 0 when unknown.
 struct KVView {
     KVStorage* storage;
     const int32_t* blocks;
@@ -280,7 +278,7 @@ inline const char* op_name(Op op) {
     return "an unknown op";
 }
 
-// A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3): each member writes the partial rows of a row-parallel product where partial() says, and sum_into adds every member's partial rows to every member's residual rows, in member order, so every member keeps the same bits.
+// A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3): sum_into adds the members' partial rows (partial() says where) into every member's residual in member order.
 class Collective {
 public:
     virtual ~Collective() = default;
@@ -358,7 +356,7 @@ public:
     // Whether this backend is the CPU itself, so experts placed on the CPU beside it are already where they run; a device may read in place and still not be the CPU.
     virtual bool is_cpu() const { return false; }
 
-    // What makes this backend's arithmetic its own, as text: with the same build, two backends of one identity give the same bits for the same work at the same row classes, so a history one computed continues on the other (docs/DISK-TIER.md, The entry file).
+    // What makes this backend's arithmetic its own, as text: with the same build, two backends of one identity give the same bits for the same work at the same row classes (docs/DISK-TIER.md, The entry file).
     // A backend that cannot say gives an identity no other backend shares.
     virtual std::string identity() const { return "unknown " + std::to_string((uintptr_t)this); }
 
@@ -399,16 +397,15 @@ public:
         return nullptr;
     }
 
-    // For a device of a placement over several: between its submissions the device waits on itself rather than going idle, so its clock stays up while another device runs its part of a pass (docs/MULTI-DEVICE.md); a backend without such a wait ignores it.
-    // Each true adds a holder and each false removes one, so a backend kept by several models holds while any of them asks; false must not throw.
+    // For a device of a placement over several: between its submissions the device waits on itself rather than going idle, so its clock stays up while another device runs its part of a pass (docs/MULTI-DEVICE.md).
+    // Each true adds a holder and each false removes one, so a backend kept by several models holds while any asks; a backend without such a wait ignores it, and false must not throw.
     virtual void hold_between_submissions(bool on) { (void)on; }
 
     // Ops enqueue on one stream; submit() flushes and returns a monotonic ticket, and wait(t) retires that submission and everything before it.
     // Results require wait(), sync() or read(); CPU ops complete eagerly (docs/DEVICE-EXECUTION.md).
     virtual Ticket submit() = 0;
-    // Retirement cannot throw: callers release storage afterward, so failure to establish completion must terminate.
-    // A backend is one thread's: every call is made by the thread recording on it, but for wait(t) of a ticket submit() has returned, which another thread may make while that one records, as a scheduler waits for a pass's logits while a stage's thread records the next pass (docs/SERVER.md, the round).
-    // A collective may make each member's queue call of a sum on a thread of its own while the recording thread is inside sum_into: that thread calls the member's queue and nothing else of the backend, no other thread calls the member meanwhile but wait(t), and sum_into returns, on success or failure, only once every member's queue is taken back.
+    // Retirement cannot throw, since callers release storage afterward, and a backend is one thread's: every call is by the recording thread, but wait(t) of a submitted ticket may come from another (docs/SERVER.md, the round).
+    // A collective may make each member's queue call of a sum on a thread of its own while the recording thread is inside sum_into, which returns only once every member's queue is taken back.
     virtual void wait(Ticket t) noexcept = 0;
     // Also retires work behind no ticket, including on failure paths.
     virtual void sync() noexcept = 0;
@@ -445,13 +442,14 @@ public:
                        size_t nin, size_t nrows, const uint32_t* ids,
                        size_t count) = 0;
 
-    // embed with the ids read on the device, `count` 32-bit integers in float-sized slots at `ids`, as a draft chain feeds a drafted token back (docs/SPECULATIVE.md, section 7): an id of `nrows` or more writes a zero row and reads no row of the table.
+    // embed with the ids read on the device, `count` 32-bit integers in float-sized slots at `ids`, as a draft chain feeds a drafted token back (docs/SPECULATIVE.md, section 7): an id of `nrows` or more writes a zero row.
     virtual void embed_ids(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids, size_t count) {
         (void)dst; (void)type; (void)table; (void)nin; (void)nrows; (void)ids; (void)count;
         throw std::runtime_error(std::string("backend: ") + op_name(Op::embed_ids) + " is not implemented");
     }
 
-    // For each of `rows` rows of `n` logits, the id of the largest, ties to the lowest, as a 32-bit integer in a float-sized slot of `ids`: `n` where the largest is not finite or a logit is NaN, and `n` for a row whose id in `after`, when given, is `n` or more, so a chain of drafts ends at its first invalid one.
+    // For each of `rows` rows of `n` logits, the id of the largest, ties to the lowest, as a 32-bit integer in a float-sized slot of `ids`.
+    // It is `n` where the largest is not finite or a logit is NaN, and for a row whose id in `after`, when given, is `n` or more, so a chain of drafts ends at its first invalid one.
     virtual void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) {
         (void)ids; (void)logits; (void)rows; (void)n; (void)after;
         throw std::runtime_error(std::string("backend: ") + op_name(Op::argmax_rows) + " is not implemented");
@@ -470,15 +468,13 @@ public:
     virtual KVLayout kv_layout() const = 0;
 
     // Keys and values for `layers` layers of n_head_kv x head_dim, whole blocks for max_tokens positions, each side stored as f32 or f16 (round-to-nearest, read back exactly), so only the stored precision differs between backends.
-    // Nothing is backed until a block is written.
-    // A backend without a type throws rather than substituting.
+    // Nothing is backed until a block is written, and a backend without a type throws rather than substituting.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim, size_t max_tokens,
                                                 KVType k_type = KVType::f32,
                                                 KVType v_type = KVType::f32) = 0;
 
-    // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows and they go to positions length .. length + nq of its sequence.
-    // Several views carry rows from several sequences in one call.
+    // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows, which go to positions length to length + nq of its sequence, and several views carry several sequences in one call.
     virtual void kv_write(size_t layer, const KVView* views, size_t n_views,
                           CSlice k, CSlice v) = 0;
 
@@ -496,17 +492,13 @@ public:
     // The batched forms below exist so the model layer holds no elementwise loops and needs no host parallelism of its own.
     // Each is one call per layer instead of one per row (or per head, per row), which is what makes the graph expressible on a device: see docs/ROADMAP.md #4a.
 
-    // RMS norm of `rows` rows of `n` floats against a shared weight.
-    // Row r is at src/dst + r*stride. src and dst may alias only if identical.
+    // RMS norm of `rows` rows of `n` floats against a shared weight, row r at src/dst + r*stride, src and dst aliasing only if identical.
     // `runs`, when given, are those of the matmul that reads dst next, so a device can write dst's activations in the form that matmul's kernel reads.
     virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
                                size_t rows, size_t n, size_t stride, float eps, RowRuns runs = {}) = 0;
 
     // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
-    // Source head h of row r starts at src + r * src_stride + h * src_head_stride, and the heads are written contiguously, heads * head_dim floats a row of dst.
-    // Positions are per row because a batch may carry several sequences; norm and RoPE are one op so a device gets one launch per layer.
-    // With rope_dim equal to head_dim it is the whole head's rope; for text the qwen35 rope sections give every frequency the same position, so they reduce to this (docs/QWEN35.md, Gated attention).
-    // dst may alias src only if identical and src's heads are contiguous.
+    // Head h of row r starts at src + r * src_stride + h * src_head_stride, dst may alias src only if identical and contiguous, and with rope_dim equal to head_dim it is the whole head's rope (docs/QWEN35.md, Gated attention).
     virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
                                    size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
                                    CSlice cos, CSlice sin, const uint32_t* pos) = 0;
@@ -541,8 +533,8 @@ public:
     virtual void gather_rows(Slice dst, CSlice src, size_t width,
                              const uint32_t* rows, size_t count) = 0;
 
-    // Mixture of experts (docs/EXECUTION.md). A layer's router scores pick `k` of `n_expert` experts per token row; slot j of row r is entry r*k + j.
-    // `ids` holds the chosen experts as 32-bit integers in float-sized slots, so they live in the activation arena beside everything else and never leave the device.
+    // Mixture of experts (docs/EXECUTION.md): a layer's router scores pick `k` of `n_expert` experts per token row, slot j of row r being entry r*k + j.
+    // `ids` holds the chosen experts as 32-bit integers in float-sized slots, so they live in the activation arena and never leave the device.
     struct Routing {
         CSlice ids, weights;
         size_t k, n_expert;
@@ -580,8 +572,7 @@ public:
     virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) = 0;
 
     // The gated delta rule of the linear-attention layers (docs/QWEN35.md, Linear attention, steps 3 to 5), token by token for every (view, V head) from slot src's matrices into slot dst's.
-    // qkv holds the conv's output rows [q | k | v] of channels(); alpha and b are the rows of `ssm_alpha` and `ssm_beta`, and a and dt_bias `ssm_a` and `ssm_dt.bias`, v_heads floats each; out is v_heads * v_dim floats a row.
-    // q and k are L2-normed with kL2NormEps and q scaled by 1 / sqrt(k_dim), beta is sigmoid(b), and the decay exp(a * softplus(alpha + dt_bias)) is 0 below 2^-126.
+    // qkv holds the conv's output rows [q | k | v] of channels(); q and k are L2-normed with kL2NormEps, q scaled by 1 / sqrt(k_dim), beta is sigmoid(b), and the decay exp(a * softplus(alpha + dt_bias)) is 0 below 2^-126.
     virtual void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
                                   size_t layer, const StateView* views, size_t n_views) = 0;
 
@@ -591,8 +582,7 @@ public:
                                 RowRuns runs = {}) = 0;
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.
-    // The output gate reads each query head's gate in place from `attn_q`'s rows; a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0.
-    // dst may alias x only if identical; `runs` as for silu_mul.
+    // The output gate reads each query head's gate in place from `attn_q`'s rows, a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0, and dst may alias x only if identical; `runs` as for silu_mul.
     virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
                              size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) = 0;
 protected:

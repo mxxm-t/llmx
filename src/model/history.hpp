@@ -1,14 +1,13 @@
 #pragma once
 #include "model/runtime.hpp"
 
-// A sequence's history, the one owner of every operation on it (docs/SPECULATIVE.md, section 1): a fork, a reset, the one call that shortens it and what it goes through, the checkpoint a keep makes and the mark a verify takes, with the recurrent inputs and the drafter's rows a mark saves and the rerun that reads them, and an embedded drafter's chain of drafts past the history (section 7).
+// A sequence's history, the one owner of every operation on it (docs/SPECULATIVE.md, section 1): fork, reset, retract, checkpoint, mark with its rerun, and an embedded drafter's chain of drafts past the history (section 7).
 // Members of infer::Model, declared in its class (model/runtime.hpp), which includes this file after it.
 
 namespace infer {
 
-// A second history holding the first `length` tokens of `src`, which must be whole blocks in every storage: every block below `length` is shared, read-only from now on, and the fork appends into fresh ones, so nothing is allocated or copied here.
-// The fork inherits the tickets of the passes that wrote what it shares.
-// A recurrent state exists only at the end of what it has read, so on a model that keeps one the fork takes src's checkpoint at `length`, whose state its first pass reads in place.
+// A second history holding the first `length` tokens of `src`, which must be whole blocks in every storage: every block below `length` is shared and read-only from now on, so nothing is allocated or copied here.
+// The fork inherits the tickets of the passes that wrote what it shares, and on a model that keeps a state it takes src's checkpoint at `length`, whose state its first pass reads in place.
 inline Sequence Model::fork(const Sequence& src, size_t length) {
     if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
     if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
@@ -31,9 +30,8 @@ inline Sequence Model::fork(const Sequence& src, size_t length) {
     return f;
 }
 
-// Start a new history.
-// Blocks and the state slot return to their pools; their storage is retained.
-// Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still be touching a block or a slot: this waits for those and no more.
+// Start a new history, its blocks and state slot returned to their pools and their storage retained.
+// Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still touch a block or slot: this waits for those and no more.
 inline void Model::reset(Sequence& s) {
     settle(s, "a reset");
     drop_mark(s);
@@ -44,9 +42,8 @@ inline void Model::reset(Sequence& s) {
     s.state_.release();
 }
 
-// The history back to at most `length`, the one call that shortens it (docs/SPECULATIVE.md, section 1), and the length it reached: `length` wherever the caches hold it, else, on a model whose layers keep a state, the sequence's checkpoint at or below it, else 0.
-// The caller computes the rest again, without sampling, as a resume does; blocks and a checkpoint past the length reached return to their pools.
-// Inside a mark it reaches `length` itself: past the mark its state is run again from the mark's over the kept rows' saved inputs (Architecture::recur), at the mark it is the mark's, and the mark goes; a retract that throws keeps the mark, so it may be called again.
+// The history back to at most `length`, the one call that shortens it (docs/SPECULATIVE.md, section 1), returning the length reached: `length` wherever the caches hold it, else the sequence's checkpoint at or below it, else 0.
+// The caller computes the rest again, and inside a mark it reaches `length` itself by running the state again from the mark's over the kept rows' saved inputs (Architecture::recur); a retract that throws keeps the mark.
 inline size_t Model::retract(Sequence& s, size_t length) {
     settle(s, "a retract");
     if (s.mark_.held() && s.mark_.ran && length > s.mark_.pos && length < s.length()) {
@@ -64,12 +61,11 @@ inline size_t Model::retract(Sequence& s, size_t length) {
     return rewind(s, length);
 }
 
-// Whether a draft of the sequence may be asked for (draft): it holds a history and, on a model that keeps a state, a pass has fed it since its fork, which is when it takes its live state; until then it reads its checkpoint in place and the drafter has no state of its own to read.
+// Whether a draft of the sequence may be asked for (draft): it holds a history and, on a model that keeps a state, a pass has fed it since its fork, since until then it reads its checkpoint in place and the drafter has no state to read.
 inline bool Model::can_draft(const Sequence& s) const { return s.length() && (!keeps_state() || s.state_.held()); }
 
 // Keep the sequence's state at its current length while one pass runs past it, so a retract into that pass reaches any of its rows exactly (docs/SPECULATIVE.md, section 1): a verify of drafts marks its history first.
-// Nothing on a model that keeps no state, whose caches reach every length; on one that keeps a state, the live slot becomes the mark's and the pass writes a fresh one, saving its rows' recurrent inputs.
-// False when no mark is free, and then nothing is marked; a second mark is refused.
+// On a model that keeps a state the live slot becomes the mark's and the pass writes a fresh one, saving its rows' recurrent inputs; false when no mark is free, and a second mark is refused.
 inline bool Model::mark(Sequence& s) {
     settle(s, "a mark");
     if (s.mark_.held()) throw std::logic_error("inference: a second mark");
@@ -108,7 +104,8 @@ inline std::optional<size_t> Model::checkpoint(const Sequence& s) const {
     return s.kept_.pos();
 }
 
-// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs; without `blocks`, the slot alone; from `first` on and without `state`, the blocks of a range alone.
+// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs.
+// Without `blocks` it is the slot alone, and from `first` on and without `state` the blocks of a range alone.
 inline size_t Model::host_bytes(size_t length, bool blocks, size_t first, bool state) const {
     size_t n = 0;
     for (const auto& d : devices_) {
@@ -162,7 +159,8 @@ struct HostSpan {
     }
 };
 
-// The idle slabs to free on each device before a copy that needs `need` slabs on each takes them, the devices holding `idle` idle slabs and `alive` slabs in all: none where the idle slabs cover every need, since nothing is allocated then, and otherwise the idle slabs past a device's need, the latest devices first, until the slabs alive once the shortfall is allocated are within `limit` slabs; nullopt where freeing all of those leaves them past it.
+// The idle slabs to free on each device before a copy that needs `need` slabs on each, the devices holding `idle` idle and `alive` slabs in all.
+// None where the idle slabs cover every need, else those past a device's need, latest devices first, until the slabs alive after the shortfall is allocated are within `limit`; nullopt where freeing all of them is not enough.
 inline std::optional<std::vector<size_t>> slabs_to_free(const std::vector<size_t>& need, const std::vector<size_t>& idle, size_t alive, size_t limit) {
     std::vector<size_t> drop(need.size(), 0);
     size_t short_by = 0;
@@ -197,9 +195,8 @@ inline size_t Model::host_allocated() const {
     return n * kHostSlab;
 }
 
-// Slabs for a copy of `length` tokens of this model's layout (HostHistory), as save_host takes them, holding nothing yet: within `limit` and the reserve the fit keeps on the host, idle slabs reused and those of other devices freed first; a read from disk fills them.
-// From `first` on and without `state` they are for the blocks of a range alone (save_host_blocks).
-// `out` is whole or, on a throw, released.
+// Slabs for a copy of `length` tokens of this model's layout (HostHistory), as save_host takes them, holding nothing yet: within `limit` and the host reserve, idle slabs reused and those of other devices freed first.
+// From `first` on and without `state` they are for the blocks of a range alone (save_host_blocks), and `out` is whole or, on a throw, released.
 inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks, size_t first, bool state) {
     release_host(out);
     // Each sized on its own, so one that fails to grow leaves the other's check to grow it next time.
@@ -263,12 +260,8 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
     out = std::move(h);
 }
 
-// The history's first `length` tokens copied to host memory, its blocks and, on a model that keeps a state, its checkpoint's slot, which must be at `length` (docs/SPECULATIVE.md, section 2, Host tier).
-// `length` is whole blocks of every storage.
-// The copies are enqueued on each device's stream behind the passes that wrote the history, into slabs released copies left where there are, and nothing waits for them: whatever writes those blocks or that slot next, and a restore of `out`, comes after them on the same stream.
-// The slabs alive, idle or holding a copy, stay within `limit` bytes: idle slabs of other devices are freed before one is allocated, and a copy they cannot make room for is refused, as is one whose new slabs would leave the host less free memory than the reserve the fit keeps on it.
-// Without `blocks` only the state is copied, for a fork that takes its blocks from a history on the devices (Model::fork with a state).
-// `out` is whole or, on a throw, released.
+// The history's first `length` tokens (whole blocks of every storage) copied to host memory, with its checkpoint's slot at `length` on a model that keeps a state; without `blocks` only the state is copied.
+// The copies are enqueued behind the passes that wrote the history and nothing waits for them, the slabs stay within `limit` and the host's reserve, and `out` is whole or, on a throw, released (docs/SPECULATIVE.md, section 2, Host tier).
 inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks) {
     settle(s, "a copy to host memory");
     release_host(out);
@@ -304,7 +297,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     out = std::move(h);
 }
 
-// The blocks of the history's tokens from `first` to `length`, whole blocks of every storage, copied to host memory alone, with no state: what a turn added to a history whose earlier blocks are kept elsewhere (docs/DISK-TIER.md, Entries written as what changed).
+// The blocks of the history's tokens from `first` to `length` copied to host memory alone, with no state: what a turn added to a history whose earlier blocks are kept elsewhere (docs/DISK-TIER.md, Entries written as what changed).
 // Enqueued and limited as save_host's copies are; `out` is whole or, on a throw, released.
 inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit) {
     settle(s, "a copy to host memory");
@@ -334,7 +327,7 @@ inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, Ho
     out = std::move(h);
 }
 
-// Where the blocks of tokens `first` to `length` lie in host history `h`, which holds them: per device, a layer's K blocks and then its V blocks, in the order a copy of that range alone holds them end to end, so the two are the same bytes in the same order.
+// Where the blocks of tokens `first` to `length` lie in host history `h`, which holds them: per device, a layer's K blocks then its V blocks, in the order a copy of that range alone holds them end to end.
 inline std::vector<HostRange> Model::host_ranges(const HostHistory& h, size_t first, size_t length) const {
     if (h.owner != this || !h.blocks || first < h.first || first >= length || length > h.length) throw std::logic_error("inference: a range outside the host history");
     std::vector<HostRange> out;
@@ -366,9 +359,8 @@ inline std::vector<HostRange> Model::host_state_ranges(const HostHistory& h) con
     return out;
 }
 
-// A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model, at h.length, so a fork or the history itself continues from it with the bits of the history it was copied from.
-// The copies are enqueued ahead of any pass of the history, whose tickets cover them, as do h's.
-// A throw, from a pool, a slot or a copy, leaves nothing held.
+// A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model at h.length, so a fork or the history itself continues with the bits of the history it was copied from.
+// The copies are enqueued ahead of any pass of the history, whose tickets cover them, and a throw leaves nothing held.
 inline Sequence Model::restore_host(HostHistory& h) {
     if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
     if (h.slabs.size() != devices_.size() || !h.blocks || h.first || (state_layers_ && !h.state)) throw std::logic_error("inference: a host history of another layout");
@@ -410,9 +402,8 @@ inline Sequence Model::restore_host(HostHistory& h) {
     return s;
 }
 
-// A second history holding the first `length` tokens of `src`, whose blocks it shares as fork does, and the state at `length` that `state` holds, a state alone copied to host memory (Model::save_host without blocks) from a history whose rows below `length` were these: on a model that keeps a state, a history continued from a message boundary its source has passed (docs/SPECULATIVE.md, section 2, Host tier).
-// The state is copied back into a checkpoint slot of its own, which the fork's first pass reads in place; the copies are enqueued behind the passes that wrote what it shares, which its tickets cover.
-// A throw, from the slot or a copy, leaves nothing held.
+// A second history holding the first `length` tokens of `src`, whose blocks it shares as fork does, and the state at `length` that `state` holds (Model::save_host without blocks, docs/SPECULATIVE.md, section 2, Host tier).
+// The state is copied back into a checkpoint slot of its own, which the fork's first pass reads in place, enqueued behind the passes that wrote what it shares; a throw leaves nothing held.
 inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& state) {
     if (src.owner_ != this || state.owner != this) throw std::runtime_error("inference: sequence or host state of another model");
     if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
@@ -449,8 +440,8 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     return f;
 }
 
-// What a history copied to host memory holds and how, beyond the model file and the build: every device's identity and effective dtype, the cache types, each device's runs (its KV storage's layers, block tokens and K and V block bytes, its state layers and slot bytes, the carried row) and the placement, then the row classes from extent 1 to the most a history holds, given where they change.
-// Two models of one file and one build with equal identities hold the same bytes for the same history, and a fork of rows of equal classes gives the same bits on either, so a copy written by one is restored by the other (docs/DISK-TIER.md, The entry file).
+// What a history copied to host memory holds and how, beyond the model file and the build: each device's identity, effective dtype and runs, the cache types, the placement and the row classes up to the most a history holds.
+// Two models of one file and one build with equal identities hold the same bytes for the same history, so a copy written by one is restored by the other (docs/DISK-TIER.md, The entry file).
 inline std::string Model::host_identity() const {
     std::string s = "llmx-host-history 1\n";
     const auto join = [](const std::vector<int>& v) {
@@ -521,7 +512,7 @@ inline void Model::settle(Sequence& s, const char* what) {
         if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
 }
 
-// A history back to `length`, or on a model that keeps a state to its checkpoint at or below `length`, else 0, whose live state a pass may have written: every stage and storage at the length reached, which is returned, the blocks and a checkpoint beyond it returned.
+// A history back to `length`, or on a model that keeps a state to its checkpoint at or below it, else 0, returning the length reached: every stage and storage at it, the blocks and a checkpoint beyond it returned.
 // The state is then the checkpoint's, or zero, so the live slot goes back too, and the next pass takes one: a donor parked at its checkpoint holds none of the slots admission counts on.
 inline size_t Model::rewind(Sequence& s, size_t length) noexcept {
     // At or past a mark the state is the mark's, and the history goes back to its position; below it the mark is not needed.
@@ -584,9 +575,8 @@ inline void Model::save_h(ExecContext& ctx, const Pass& p) {
     }
 }
 
-// The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: on each device that keeps a state, a tensor group's members each over their own heads, every state layer's update run from the mark's state over its inputs where they were saved (Architecture::recur), the slots it writes in a room of its own, so each phase of the update runs for every layer unordered, one submission on each device after that pass.
-// An embedded drafter's carried row is the last kept row's, copied from the mark's room into the live slot's in the same submission.
-// A failure drains every device and leaves the mark, which a retry reads again.
+// The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: each state layer's update (Architecture::recur) run from the mark's state over its saved inputs, in one submission on each device.
+// An embedded drafter's carried row is the last kept row's, copied from the mark's room into the live slot's in the same submission, and a failure drains every device and leaves the mark, which a retry reads again.
 inline void Model::rerun(Sequence& s, size_t rows) {
     const Sequence::Mark& m = s.mark_;
     try {
@@ -670,11 +660,8 @@ inline void Model::drop_mark(Sequence& s) noexcept {
     s.mark_.ran = false;
 }
 
-// Up to `k` drafts of the tokens after `last`, each history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`, for every sequence asked: one submission on the head's device of a step a draft, step m a row for each sequence whose chain is longer than m, at that history's length plus m, reading the token drafted before it, the first the last pick, and the row before it, the first the row the history carries.
-// The sequences take their rows in order of their chains' lengths, longest first, so the rows of every step are those of the step before it less the last ones; a row computes what it computes alone.
-// Each row writes the drafter's KV at its position into blocks taken for the chain and returned after it, so a history's committed length is unchanged and a verify overwrites those rows before anything reads them.
-// A sequence's drafts end before its first that is not an id of the vocabulary, which the device marks where a row's logits are not finite.
-// On a tensor group every member of the head's group runs each step on its shards of the block, the group summing the members' partial rows into the step's residual after the block's mixer and after its feed-forward block, and reads the head whole, so each member finds the row's id itself; a sequence's drafts also end before the first id its members do not agree on.
+// Up to `k` drafts of the tokens after `last`, each history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`, for every sequence asked: one submission on the head's device of a step a draft.
+// Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it, and a chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
 inline void Model::draft(DraftAsk* asks, size_t n) {
     if (!plan_.drafter) throw std::logic_error("inference: a draft without an embedded drafter");
     const size_t S = stages_.size(), V = plan_.vocab;

@@ -1,7 +1,5 @@
-// Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model whose prompt and decode rows take different CPU paths, and room goes by first admission (docs/SERVER.md).
-// A hybrid model, whose linear-attention layers keep a recurrent state, keeps no donor, and its requests resume by recomputing from their start.
-// A request cancelled, or a scheduler stopped, while a pass is in flight leaves every block to come back and every donor free to fork.
-// Usage: llmx-server-resume-test [cpu|device]; both by default, the device cases on Vulkan device 0 when it opens.
+// Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model, and room goes by first admission (docs/SERVER.md).
+// Usage: llmx-server-resume-test [cpu|device], both by default, the device cases on Vulkan device 0 when it opens; the cases are listed in AGENTS.md, Tests.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -40,7 +38,7 @@ server::Scheduler::Stats alone_then_together(const Make& make, const bpe::Tokeni
 }
 
 // Three uncapped requests whose prompts differ in their first token, so none forks another, on 8 blocks of 128 tokens.
-// Two fit at first; the first reaches its reservation's end ahead of the second, which is paused with generated tokens in its partial block and, its donor taken for the first's growth, recomputes its whole history; the third then runs beside the first and is paused in turn.
+// Two fit at first; the first's growth pauses the second with generated tokens in its partial block and its donor taken, so it recomputes its whole history, and the third then runs beside the first and is paused in turn.
 void three_uncapped(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     const std::vector<Req> reqs = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
     const server::Scheduler::Stats stats = alone_then_together(make, tok, 1024, 0, 3, {}, reqs, what);
@@ -211,7 +209,7 @@ void fork_within_class(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 384");
 }
 
-// B paused as in take_back, its donor intact, and cancelled before it resumes, which C's longer reply (720 tokens in all, on 16 blocks) leaves time for: it ends where it waits, taking nothing back, A and C finish as they do alone, and once the scheduler stops every pool is empty.
+// B paused as in take_back, its donor intact, and cancelled before it resumes, which C's longer reply (720 tokens in all, on 16 blocks) leaves time for: it ends where it waits, taking nothing back, and A and C finish as they do alone.
 void cancel_while_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 16 * kBlock;
     const Req a{prompt_of(1, 40, vocab)}, b{prompt_of(2, 60, vocab)}, c{prompt_of(3, 20, vocab), 700};
@@ -406,7 +404,7 @@ void stall_holds_room(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
 }
 
 // An older request's growth step that falls due in the iteration a newer request could first be admitted takes the room first.
-// On 10 blocks uncapped A and capped E (128 tokens and 345) start together and capped D (138 and 600) waits; E ends in the pass before A's step at 384 tokens falls due, and D fits only in the room that step needs, so D waits for A's stop rather than A sitting out D's reply.
+// On 10 blocks uncapped A and capped E start together and capped D waits; E ends before A's step at 384 tokens falls due, and D fits only in the room that step needs, so D waits for A's stop rather than A sitting out D's reply.
 void growth_before_admission(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 10 * kBlock;
     const Req a = stopping(make, tok, pool, {}, Req{prompt_of(1, 40, vocab)}, 500);
@@ -426,7 +424,7 @@ void growth_before_admission(const Make& make, const bpe::Tokenizer& tok, uint32
 }
 
 // A paused request cancelled while its donor holds less than a block leaves no donor behind, since no fork can share one.
-// On 8 blocks uncapped A and capped E (20 tokens and 300) start together and uncapped B (10) waits for E's end; A's step at 384 tokens pauses B at 54 tokens with its donor kept, and B is cancelled while it waits, so once A ends at its stop string A's history is the one donor.
+// On 8 blocks uncapped A and capped E start together and uncapped B waits for E's end; A's step at 384 tokens pauses B with its donor kept, and B is cancelled while it waits, so once A ends A's history is the one donor.
 void cancelled_short_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 8 * kBlock;
     const Req a = stopping(make, tok, pool, {}, Req{prompt_of(1, 40, vocab)}, 650);
@@ -474,7 +472,7 @@ void cancelled_short_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t
 }
 
 // A request refused room evicts no donor for it.
-// On 8 blocks the setup leaves a donor of 2 blocks, and N finds no room beside capped K even with that donor gone; K ends at its stop string holding less than a block, so N then starts beside the donor, which a prompt repeating the setup's still forks.
+// On 8 blocks the setup leaves a donor of 2 blocks, N finds no room beside capped K even with it gone, and K ends holding less than a block, so N then starts beside the donor, which a prompt repeating the setup's still forks.
 void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 8 * kBlock;
     const Req setup{prompt_of(5, 200, vocab), 1};
@@ -506,9 +504,8 @@ void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_
     runner.join();
 }
 
-// Paused requests wait apart from the queue, so they do not fill the queue --max-queue bounds.
-// With a queue of one, A's growth pauses B as in three_uncapped, and B waits for A's end; a request submitted meanwhile is queued, not refused.
-// The scheduler's own thread submits B inside A's first pass, while A holds three of the pool's eight blocks, and C inside the first pass that finds B paused, so the case follows from the blocks alone and not from when the test's thread runs.
+// Paused requests wait apart from the queue, so they do not fill the queue --max-queue bounds: with a queue of one, A's growth pauses B as in three_uncapped and a request submitted meanwhile is queued, not refused.
+// The scheduler's own thread submits B inside A's first pass and C inside the first pass that finds B paused, so the case follows from the blocks alone and not from when the test's thread runs.
 void paused_outside_queue(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::vector<std::shared_ptr<Hooked>> devices = hooked(1);
     auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(1024, 0);
@@ -606,8 +603,8 @@ void every_slot_free(infer::Model& model, const bpe::Tokenizer& tok, uint32_t vo
     for (size_t i = 0; i < n; ++i) require(got[i].size() == 40, what + ": request " + std::to_string(i) + " on the recycled slots gave " + std::to_string(got[i].size()) + " tokens");
 }
 
-// The hybrid model: requests paused and resumed give their replies alone on one CPU and over a two-CPU split with passes in flight, a follow-up turn recomputes its history rather than forking, and requests cancelled paused, in flight or by a stop leave every block and every state slot free.
-// A hybrid model with checkpoint slots (docs/SPECULATIVE.md, section 2): a finished request keeps its state at its prompt's last whole block, so a follow-up turn forks it and gives the reply of its prompt on a fresh model; with one slot the newer conversation's checkpoint takes the older's; and a paused request keeps its whole history as its checkpoint and takes it back, recomputing nothing, as take_back has it.
+// The hybrid model: requests paused and resumed give their replies alone on one CPU and over a two-CPU split with passes in flight, a follow-up turn recomputes its history, and cancels and stops leave every block and state slot free.
+// With checkpoint slots (docs/SPECULATIVE.md, section 2) a finished request keeps its state at its prompt's last whole block for a follow-up to fork, and a paused request keeps its whole history as its checkpoint.
 void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const auto follow_up_of = [&](const Make& make, const Req& first) {
         auto model = make(1024, 0);
@@ -645,10 +642,8 @@ void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& to
     }
 }
 
-// Message boundaries (docs/SPECULATIVE.md, section 2, Host tier): a hybrid model with three checkpoint slots and a host tier, a conversation of six turns, each a 300-token prompt or 50 more tokens after the ids its last reply's job read, a 100-token reply and two closing ids, read again, so each job's donor supersedes the one before, whose state goes to host memory as it leaves the devices, thinned to four for the conversation, the first kept.
-// A 2000-token request then evicts every donor, the last job's to host memory whole; an edit of turn 2, its prompt the first job's ids with another message, forks the first boundary's tokens with the last job's blocks, promoted from host memory, and a regenerated turn 6 forks the newest boundary's, each giving its reply on a fresh model.
-// With a disk tier under a host tier of two copies a device (docs/DISK-TIER.md), the boundaries the host tier lets go stay on disk, and the edit's and the regenerated turn's are read back, each read with the copy holding its rows where no history in memory holds them.
-// With a disk tier, the host tier keeps every job's boundary until its room sends one to disk, none thinned: `whole`, where given, is how many the six turns leave in host memory.
+// Message boundaries (docs/SPECULATIVE.md, section 2, Host tier): a hybrid model with three checkpoint slots and a host tier, six turns each read again, each job's donor superseding the one before, its state thinned to four in host memory.
+// A 2000-token request then evicts every donor, and an edit of turn 2 and a regenerated turn 6 fork the boundaries and give their replies on a fresh model; `whole`, where given, is how many boundaries the six turns leave in host memory.
 void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what, size_t host = (size_t)1 << 30,
                         const server::DiskOptions& disk = {}, size_t whole = 0) {
     // Under a disk tier its prompts read in passes of 16 rows, which measure no prompt rate, so its requests wait for their reads however fast the model computes.
@@ -724,7 +719,7 @@ void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
             what + ": the turns left " + std::to_string(after_turns.boundaries) + " boundaries in host memory, against " + std::to_string(whole));
     require(!disk.bytes || whole || (stats.disk_hits >= 1 && stats.disk_errors == 0), what + ": " + std::to_string(stats.disk_hits) + " entries read back from disk");
     const size_t first = nexts[0].size() / kBlock * kBlock, newest = nexts[4].size() / kBlock * kBlock;
-    // Under a small host tier beside a disk tier, which boundary room takes while another is being written hangs on when the writer reaches it, so a request may fork an earlier boundary of its conversation than the one before its message: whole blocks, some, and no more than that one.
+    // Under a small host tier beside a disk tier, a boundary room takes mid-write hangs on until the writer reaches it, so a request may fork an earlier boundary than the one before its message.
     const auto forked = [&](size_t reused, size_t most) { return disk.bytes && !whole ? reused && reused <= most && reused % kBlock == 0 : reused == most; };
     require(forked(edit_reused, first), what + ": the edit of turn 2 reused " + std::to_string(edit_reused) + " tokens, against " + std::to_string(first));
     require(forked(regen_reused, newest), what + ": the regenerated turn 6 reused " + std::to_string(regen_reused) + " tokens, against " + std::to_string(newest));
@@ -736,8 +731,8 @@ void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
     same(serve(*fresh, tok, 3, {{Req{prompts[5], 32}}})[0], regen_reply, what + ", the regenerated turn 6");
 }
 
-// A boundary kept where a request's prompt passes its last user message's start (docs/SPECULATIVE.md, section 2, Host tier): with no boundary of an earlier message on hand, a regenerate of it, a 300-token conversation and a 200-token message, given where that message starts, reads its whole prompt and keeps a boundary at the whole block below that start beside its checkpoint at its prompt's last whole block; an edit of the same message, another 50 tokens after the same 300, then forks that boundary with the regenerate's blocks and gives its reply on a fresh model.
-// Without the message's start the regenerate keeps no boundary, its checkpoint lies past what the edit shares, and the edit forks nothing.
+// A boundary kept where a request's prompt passes its last user message's start (docs/SPECULATIVE.md, section 2, Host tier): a regenerate given that start keeps a boundary at the whole block below it beside its prompt-end checkpoint.
+// An edit of the same message then forks that boundary with the regenerate's blocks and gives its reply on a fresh model, while without the start the regenerate keeps no boundary and the edit forks nothing.
 void edit_after_regenerate(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::vector<uint32_t> before = prompt_of(5, 300, vocab);
     std::vector<uint32_t> regen = before, edit = before;
@@ -797,8 +792,8 @@ void edit_after_regenerate(const Make& make, const bpe::Tokenizer& tok, uint32_t
     require(stats.boundaries == 1, what + ": " + std::to_string(stats.boundaries) + " boundaries kept where the message starts, against 1");
 }
 
-// Message boundaries whose copies fail (the other developer's review): three turns of a conversation, each reply read again, the second message 200 tokens so that its request's checkpoint lies past the first boundary, on a hybrid model with three checkpoint slots and a host tier, then an unrelated request, whose donor takes the place of the first job's, and an edit of turn 2 while the last job's donor is on the devices.
-// Copies to host memory failing keep no boundary and no host copy; copies from host memory failing keep the boundaries, and the edit's fork with the first boundary's state, the blocks the last job's donor's, fails, so it reads its prompt from the start; either way every reply is its reply alone and the ledger adds up.
+// Message boundaries whose copies fail: three turns on a hybrid model with three checkpoint slots and a host tier, each reply read again, an unrelated request, and an edit of turn 2 while the last job's donor is on the devices.
+// Copies to host memory failing keep no boundary and no host copy, copies from it failing keep the boundaries and the edit reads its prompt from the start, and either way every reply is its reply alone and the ledger adds up.
 void boundary_faults(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool reads) {
     const std::string what = std::string("message boundaries, copies ") + (reads ? "to" : "from") + " host memory failing";
     std::shared_ptr<FailingCopies> failing;
@@ -868,10 +863,8 @@ void boundary_faults(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
     same(serve(*fresh, tok, 3, {{Req{edit, 32}}})[0], edit_reply, what + ", the edit of turn 2");
 }
 
-// A reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): once a 300-token prompt's reply has ended, the ids its conversation's next turn begins with, the prompt, the reply and two closing ids, go to the scheduler, which reads them on a fork of the request's history and keeps them as a donor at their last whole block; a follow-up turn of those ids and a new message then forks all of that, past the reply, and gives the reply of its prompt on a fresh model.
-// Idle, the reply is 100 tokens and the job reads 128 rows in passes of 16 after it, while nothing else runs; a regenerated reply, the prompt sent again, then forks the request's own donor, which stays beside the job's, at the prompt's 256 tokens and gives the same reply. With `interrupt` k, a request submitted as the job's k-th pass retires, needing four of the pool's eight blocks where the donor and the job leave three at most, cancels the job at that boundary: it gives its reply alone, the job runs again once nothing else does, and the follow-up still forks 384 tokens; with `small`, the request needs one block, which is free, and the job runs on beside it.
-// `writing`, the reply is 400 tokens, and once 100 and 380 are written the next turn's ids as far as they go then reach the scheduler, whose job forks the running request and reads them in chunks beside its decode rows, all 640 tokens the whole ids keep before the reply ends, so the ids once it has ended leave nothing to read; the follow-up forks 640 tokens.
-// `at_once`, only the ids once 100 are written reach it while the reply is written, so the job has read 384 tokens when the reply ends, and the follow-up comes as the whole ids do, before the job can read the rest: with one pass in flight it forks the running job's 384 tokens, at least, and the job completes beside it.
+// A reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): the ids a 300-token prompt's next turn begins with go to the scheduler, whose job reads them on a fork and keeps a donor for a follow-up to fork.
+// The variants (idle, `interrupt` k, `small`, `writing`, `at_once`) are listed in AGENTS.md, Tests, and each gives every reply its reply alone.
 enum class When { idle, writing, at_once };
 
 void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t interrupt, When when, const std::string& what, bool small = false) {
@@ -988,9 +981,8 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     }
 }
 
-// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage and a pass budget past a job's chunk, so the request is in flight in one pass while the next is formed and that pass is not idle (Scheduler, kJobChunk).
-// `idle`: a job begun once a request's reply has ended, beside another request decoding 200 tokens, takes no pass from that request's first pass to its last, completes once it has ended, and the request gives its reply alone.
-// Otherwise a job begun while the reply it follows is written, from ids given once 100 tokens are, keeps reading beside that request's decode rows, at most a chunk a pass, and the request gives its reply alone.
+// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage and a pass budget past a job's chunk (Scheduler, kJobChunk).
+// `idle`: a job begun once the reply has ended takes no pass from that request's first pass to its last, while otherwise a job begun mid-reply reads beside its decode rows, at most a chunk a pass.
 void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool idle) {
     const std::string what = idle ? "a job begun at idle beside a decoding request over a two-CPU split" : "a job begun while its reply is written over a two-CPU split";
     const size_t kJobChunk = 64, ubatch = 256;
@@ -1088,7 +1080,7 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
 }
 
 // A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.
-// Eight requests in turn over a two-CPU split, each a 300-token prompt and 200 tokens, its next turn's ids given from the reader's thread once 100 tokens are read, so at no fixed point of a round, and whole at its end: each job reads the one block past its request's two.
+// Eight requests in turn over a two-CPU split, each a 300-token prompt and 200 tokens, give their next turn's ids from the reader's thread once 100 tokens are read and whole at the end, each job reading the one block past its request's two.
 void job_forks_running(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a job begun while its reply is written";
     auto model = on(weights, [] { return cpus(2); })(4096, 256);
@@ -1127,7 +1119,7 @@ void job_forks_running(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
     runner.join();
 }
 
-// A job whose ids grow while its reply is written reserves the blocks they take before it reads them (XDEV's review of step 2c): on 16 blocks of 128 tokens, a 300-token prompt capped at 700 reserves 8, its job 3 for 384 tokens, then 7 for 896 once 600 tokens are written, 15 in all; a request needing 5 blocks then finds no free room, so the job gives way to it rather than both running past the pool, which ended every request of a pass with an allocation error.
+// A job whose ids grow while its reply is written reserves the blocks they take before it reads them: on 16 blocks a request needing 5 finds no free room beside a 700-token request and its 896-token job, so the job gives way.
 // Every request runs to its length with its reply alone, and once the reply has ended the job starts again and the follow-up forks its 896 tokens.
 void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a job whose ids grow while its reply is written";
@@ -1205,9 +1197,8 @@ void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     same(serve(*fresh, tok, 3, {{Req{again, 32}}})[0], follow_reply, what + ", the follow-up turn");
 }
 
-// Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, room for one finished turn's donor beside the next request, so each turn's admission evicts the other conversation's donor.
-// With a host tier the evicted donor is copied to host memory, and each follow-up turn, the turn's prompt, its reply and 30 tokens more, promotes its own conversation's donor back, evicting the other's to host memory in turn, and forks its 256 tokens, giving the reply it gives on a fresh model; without one it reuses nothing.
-// With `fail` a copy into or out of host memory throws: a write-back that fails keeps nothing in host memory, a promotion that fails keeps its host entry and takes nothing on the devices, and every reply is still its reply alone.
+// Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, so each turn's admission evicts the other conversation's donor.
+// With a host tier each follow-up promotes its conversation's donor back and forks its 256 tokens, without one it reuses nothing, and with `fail` a failing copy to or from host memory loses only the copy; every reply is its reply alone.
 enum class HostFault { none, write_back, promotion };
 
 // With a `width` above 1 the devices form tensor groups of that many (docs/TENSOR-SPLIT.md), each member's storage copied to host memory and back on its own.
@@ -1254,8 +1245,8 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
     }
 }
 
-// A job's donor supersedes the request's donor of the same conversation (one copy per conversation in each tier): on 16 blocks of 128, an unrelated conversation C leaves a 340-token donor (3 blocks), then conversation A's 300-token prompt and 100-token reply leave its request's donor (4 blocks) and, read again, its job's donor of the next turn's 384 tokens (3 blocks).
-// An 800-token request then needs a donor's room: the superseded request donor of A goes, though C is older, and with a host tier it is not copied to host memory, so nothing is held there and a prompt repeating C forks its 256 tokens; A's follow-up then forks its job's 384; every reply is its reply alone.
+// A job's donor supersedes the request's donor of the same conversation (one copy per conversation in each tier): on 16 blocks, C's donor and A's request donor and, read again, A's job's donor of 384 tokens.
+// An 800-token request then takes a donor's room: A's superseded donor goes though C is older, and is not copied to host memory, so C's repeat forks 256 tokens, A's follow-up its job's 384, and every reply is its reply alone.
 void superseded_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const size_t host : {(size_t)0, (size_t)1 << 30}) {
         const std::string what = std::string("a superseded donor") + (host ? " with a host tier" : "");
@@ -1318,8 +1309,8 @@ void superseded_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     }
 }
 
-// One copy per conversation in host memory: conversation A takes two turns, each reply read again, so its second job's donor supersedes its second request's donor and, its tokens beginning with them, the first job's donor, beside an unrelated conversation C.
-// A request needing the whole pool of 16 blocks then evicts every donor: host memory keeps C's and A's second job's alone, so a prompt repeating C forks its 256 tokens and A's third turn forks the 384 of its second job's, both from host memory, every reply its reply alone.
+// One copy per conversation in host memory: conversation A takes two turns, each reply read again, so its second job's donor supersedes its second request's donor and the first job's, beside an unrelated conversation C.
+// A request needing the whole pool of 16 blocks evicts every donor, host memory keeps C's and A's second job's alone, and C's repeat and A's third turn fork 256 and 384 tokens from host memory, every reply its reply alone.
 void one_copy_per_conversation(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "one copy per conversation in host memory";
     const Req c{prompt_of(3, 300, vocab), 40}, a{prompt_of(5, 300, vocab), 40}, big{prompt_of(9, 2000, vocab), 40};
@@ -1380,10 +1371,8 @@ void one_copy_per_conversation(const Make& make, const bpe::Tokenizer& tok, uint
     same(serve(*fresh, tok, 3, {{Req{next, 32}}})[0], third_reply, what + ", the third turn");
 }
 
-// Host memory keeps the conversations that came back against newcomers (Scheduler::write_back): one request at a time, so each finished request's donor evicts the one before it, and each host copy takes one 64 MiB slab.
-// X's 300-token prompt, then X' repeating it with 200 more tokens, which forks X and so came back; then three new prompts Y, Z and W, each evicting the donor before it to host memory.
-// With room for two copies, Y's copy takes X's room and Z's and W's take the room of the newcomer before them, so a prompt repeating X' with 30 more tokens forks the 384 tokens of its prompt from host memory, where evicting the oldest would have dropped it; with room for one, Y's copy is refused, the one after it, the tier having refused as many as it holds, evicts X', and a prompt repeating Z forks its 256 tokens while one repeating X' forks nothing.
-// Every reply is its reply alone.
+// Host memory keeps the conversations that came back against newcomers (Scheduler::write_back): one request at a time, each finished request's donor evicting the one before it, each host copy one 64 MiB slab.
+// X' repeats X and so came back, then new prompts Y, Z and W evict donors: with room for two copies a prompt repeating X' forks from host memory, with room for one it forks nothing; every reply is its reply alone.
 void conversations_that_came_back(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const size_t slabs : {(size_t)2, (size_t)1}) {
         const std::string what = "host memory for " + std::to_string(slabs) + " cop" + (slabs == 1 ? "y" : "ies") + " keeping conversations that came back";
@@ -1426,7 +1415,8 @@ void conversations_that_came_back(const Make& make, const bpe::Tokenizer& tok, u
     }
 }
 
-// The donor count gives up the donors a job's donor supersedes (the other developer's review): with two at most, an unrelated conversation C's donor and conversation A's request's, A's job completing gives up A's request's donor, not C's, so a prompt repeating C forks its 256 tokens and A's follow-up the job's 384; with a host tier nothing has been copied to host memory once the job has completed.
+// The donor count gives up the donors a job's donor supersedes: with two at most, A's job completing gives up A's request's donor, not an unrelated C's.
+// So a prompt repeating C forks its 256 tokens, A's follow-up forks the job's 384, and with a host tier nothing has been copied to host memory.
 void count_gives_up_superseded(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const size_t host : {(size_t)0, (size_t)1 << 30}) {
         const std::string what = std::string("the donor count giving up a superseded donor") + (host ? " with a host tier" : "");
@@ -1485,7 +1475,7 @@ void count_gives_up_superseded(const Make& make, const bpe::Tokenizer& tok, uint
     }
 }
 
-// A host copy that a job's donor of the same history renews stands for that donor again (the other developer's review): conversation A's turn, read again, leaves a job donor J1 that a 2000-token request evicts to host memory; the reply regenerated promotes J1, gives the same reply, and its job, of the same ids, supersedes J1's copy; a second long request evicts the new job's donor, which renews J1's copy, and two more each evict the long donor before them, so host memory for two copies is pressed twice.
+// A host copy that a job's donor of the same history renews stands for that donor again: J1, A's job donor evicted to host memory, is promoted by a regenerated reply whose job supersedes J1's copy, and long requests press host memory twice.
 // The renewed copy is not taken as superseded, so A's follow-up forks its 384 tokens from host memory; every reply is its reply alone.
 void renewed_copy_current(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a renewed host copy standing for its donor";
@@ -1548,7 +1538,8 @@ void renewed_copy_current(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     same(serve(*fresh, tok, 3, {{Req{follow, 32}}})[0], follow_reply, what + ", the follow-up");
 }
 
-// A promotion that fails after evicting the device donor a request would otherwise fork (XDEV's review of step 2b): with one request at a time and host memory for one copy, a 300-token prompt's donor goes to host memory when a second request forks its first block; a third request repeating the first prompt prefers the host copy, but making room for it evicts the second's donor, whose copy takes the host memory the first copy held, so the promotion fails, and the request runs from what is left with its reply alone.
+// A promotion that fails after evicting the device donor a request would otherwise fork: with host memory for one copy, making room for a host copy evicts the second request's donor, whose copy takes the memory the first held.
+// The promotion fails, and the request runs from what is left with its reply alone.
 void failed_promotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Req a{prompt_of(5, 300, vocab), 40};
     std::vector<uint32_t> fork = a.prompt;
@@ -1712,9 +1703,8 @@ void within_a_minute(const std::function<bool()>& done, const std::string& what)
     }
 }
 
-// Demotion to disk (docs/DISK-TIER.md): eight conversations of a 300-token prompt and a 20-token reply in turn, one at a time, so each finished turn's donor evicts the one before to a host tier of four copies.
-// Once four copies not on disk fill the host tier, the oldest is written to disk while it stays in host memory, and the next copy's room releases it at once, so after turn k the disk holds the k - 3 oldest; every reply is its reply alone, the files in the server's directory are the entries counted, and a clean exit leaves no directory.
-// With a disk tier of two entries the oldest files go as newer ones are written, so it holds the two newest, all four having been written.
+// Demotion to disk (docs/DISK-TIER.md): eight conversations in turn evict each donor to a host tier of four copies, the oldest being written to disk while it stays in host memory and released at once when room is needed.
+// So after turn k the disk holds the k - 3 oldest, and with a disk tier of two entries the two newest; every reply is its reply alone, the files in the directory are the entries counted, and a clean exit leaves no directory.
 void disk_demotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices) {
     uint64_t entry_bytes = 0;
     for (const bool small : {false, true}) {
@@ -1773,8 +1763,8 @@ void disk_demotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
     }
 }
 
-// A history a later turn supersedes stays on disk as that turn's base (docs/DISK-TIER.md, Entries written as what changed): conversation A's first turn, its reply read again, leaves a job's donor of 384 tokens, which two unrelated turns B and C evict to a host tier of two copies, where it is written to disk.
-// A's second turn promotes it, the copy kept in host memory beside the file, and forks its 384 tokens; read again, its reply supersedes the first job's donor in host memory, and the file stays, the longer history beginning with it; nothing else is written, and the second turn's reply is its reply on a fresh model.
+// A history a later turn supersedes stays on disk as that turn's base (docs/DISK-TIER.md, Entries written as what changed): A's first job donor, evicted to a host tier of two copies, is written to disk.
+// A's second turn promotes it and forks its 384 tokens, its read-again reply supersedes the first job's donor in host memory while the file stays, nothing else is written, and the reply is its reply on a fresh model.
 void disk_superseded(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a superseded history on disk";
     DiskRoot disk("superseded");
@@ -1834,8 +1824,8 @@ void disk_superseded(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     same(serve(*fresh, tok, 1, {{a2}})[0], a2_reply, what + ", A's second turn");
 }
 
-// Writes never hold up a request (docs/DISK-TIER.md, Demotion): with every write held in flight for a minute a chunk, the turn after the host tier of `copies` copies fills starts the oldest copy's write, and the next turn's copy needs room: the turn runs to its end in far less than the write would take, the copy that needed the room is kept, and every reply is its reply alone.
-// With four copies the room is another copy's, the next oldest, so the write stays in flight, its temporary file in place; with one, the copy being written is the only one to take, so its write is cancelled, its temporary file gone and its entry not kept.
+// Writes never hold up a request (docs/DISK-TIER.md, Demotion): with every write held for a minute a chunk, the turn after the host tier of `copies` copies fills ends in far less than the write would take.
+// With four copies the next oldest copy gives the room and the write stays in flight, with one the copy being written is the only one to take, so its write is cancelled and its entry not kept; every reply is its reply alone.
 void disk_never_blocks(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t copies) {
     const std::string what = copies > 1 ? "a held write left in flight" : "a held write giving way";
     DiskRoot disk("held");
@@ -1886,7 +1876,8 @@ void disk_never_blocks(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     }
 }
 
-// Six conversations of a 300-token prompt and a 20-token reply in turn through a host tier of four copies, each turn's writes waited for, so the first conversation's copy is on disk alone; then that conversation's follow-up, its prompt, reply and 30 tokens more (docs/DISK-TIER.md, Restore).
+// Six conversations in turn through a host tier of four copies, each turn's writes waited for, so the first conversation's copy is on disk alone (docs/DISK-TIER.md, Restore).
+// Then that conversation's follow-up, its prompt, reply and 30 tokens more, is asked for.
 struct Demoted {
     std::vector<Req> turns;
     std::vector<Reply> replies;
@@ -1909,7 +1900,7 @@ Demoted demote(server::Scheduler& sched, uint32_t vocab, const std::string& what
     return d;
 }
 
-// A conversation demoted through host memory to disk and asked for again: its follow-up's history is read back into host memory, promoted and forked at the copy's 256 tokens, with the reply it gives on a fresh model, on the synthetic Q8_0 model and on the hybrid one with checkpoint slots, on one CPU and over two.
+// A conversation demoted to disk and asked for again: its history is read back into host memory, promoted and forked at 256 tokens, with the reply it gives on a fresh model, on the Q8_0 model and the hybrid one.
 // Its prompts read in passes of 16 rows measure no prompt rate, so the follow-up waits for its read however fast the model computes.
 void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices, const std::string& what) {
     DiskRoot disk("restore");
@@ -1944,9 +1935,8 @@ void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, s
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
 
-// The rule a recording backend keeps (backends/backend.hpp, wait), held on the CPU backends of two stages of tensor groups: while a stage's thread records on a device, no other thread calls it but to wait on a returned ticket.
-// A recording is held still: armed, the next submission a thread other than the scheduler's makes on a device of the last stage parks there, its stage being recorded, until it is let go.
-// Counted on that stage's devices: a call from another thread while the recording is parked (`met`), and the scheduler thread's own calls (`own`), a letter each in `calls`: S a copy into the host memory that keeps histories, R a copy out of it, A that memory allocated, s a submission, and the others by their own letters.
+// The rule a recording backend keeps (backends/backend.hpp, wait), on tensor groups' stages: while a stage's thread records on a device, no other thread calls it but to wait.
+// A recording is held still when armed, counting the calls other threads make while it is parked (`met`) and the scheduler's own (`own`), a letter each in `calls`: S copy into host history memory, R copy out, A allocation, s submission.
 struct Recording {
     std::mutex m;
     std::condition_variable cv;
@@ -2037,11 +2027,8 @@ struct Guarded : backend::CpuBackend {
     }
 };
 
-// What a scheduler's thread does on a stage's devices outside a pass's stage, caused while that stage's recording is parked on a request beside it: a follow-up whose room sends a donor to host memory, a conversation promoted from host memory, and one read back from disk and promoted, after six conversations in turn through a host tier of two copies have left the oldest on disk alone.
-// While the recording is parked no call may reach its devices from another thread and the scheduler's thread makes none there; let go, the scheduler's calls arrive, the first of them the copy the step is for, the counters say the path was taken, and every reply is its reply on a fresh model.
-// A step holds the first call its path makes there: the copy into host memory, the copy out of it; a path's later calls follow a wait the first already made, and the slabs those reads from disk take are idle ones, which is no call on a device.
-// A last step holds the read that allocates: under a host tier smaller than an entry no slab is kept, so a conversation read back takes new ones, and its first call there is that allocation.
-// The hold is 300 ms, which a scheduler with nothing else to do passes many times over on its way to the call.
+// What a scheduler's thread does on a stage's devices outside a pass's stage while that stage's recording is parked: room sending a donor to host memory, a promotion from host memory, and a read back from disk.
+// While parked no other thread calls the devices and the scheduler makes none there; let go, the first call is the copy the step is for, after a hold of 300 ms, and every reply is its reply on a fresh model.
 void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "the recorder rule over two stages of groups";
     Recording rule;
@@ -2148,7 +2135,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         sched.stop();
         runner.join();
     }
-    // A read that has to allocate: a second scheduler under the same root, on a fresh model and with a host tier smaller than an entry, which keeps no slab, adopts the entries, and a conversation read back goes through host memory beyond the tier, new slabs taken at the read, a call on each device.
+    // A read that has to allocate: a second scheduler with a host tier smaller than an entry adopts the entries, and a conversation read back goes through host memory beyond the tier, taking new slabs, a call on each device.
     {
         auto again = make(2048, 16);
         {
@@ -2198,7 +2185,8 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
     std::cout << "server-resume: " << what << ": a donor's copy to host memory, a promotion from it, a conversation read back from disk and one read back through host memory beyond the tier, which allocates it, each waited for a parked recording\n";
 }
 
-// A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, the follow-up of a conversation on disk waits while an unrelated request submitted after it runs to its end, then is admitted, forking the copy read back; and a follow-up whose read fails its checksum, a byte of its file flipped, computes its history, the entry gone and the failure counted; every reply its reply alone.
+// A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, a follow-up on disk waits while a later unrelated request runs to its end, then forks the copy read back.
+// A follow-up whose read fails its checksum, a byte flipped, computes its history, the entry gone and the failure counted; every reply is its reply alone.
 void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const bool corrupt : {false, true}) {
         const std::string what = corrupt ? "a read failing its checksum" : "a request waiting for its read";
@@ -2262,7 +2250,8 @@ void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     }
 }
 
-// A read past its bound (docs/DISK-TIER.md, Restore): prompts read in passes of the default size measure the prompt rate, by which recomputing the follow-up's 256 tokens takes far less than a read held two seconds a chunk, so the follow-up is admitted without it, computes its history and ends before the read could, with its reply alone.
+// A read past its bound (docs/DISK-TIER.md, Restore): prompts read in passes of the default size measure the prompt rate, by which recomputing the follow-up's 256 tokens takes far less than a read held two seconds a chunk.
+// So the follow-up is admitted without the read, computes its history and ends before the read could, with its reply alone.
 void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a read past its bound";
     DiskRoot disk("bound");
@@ -2298,14 +2287,8 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
 
-// Entries kept across a restart (docs/DISK-TIER.md, Keeping entries across a restart): under --disk-cache-keep three conversations take turns into a host tier of four copies, whose write-ahead writes nothing, and the scheduler's stop leaves its directory marked kept with three entry files: the two copies in host memory and the device donor copied to it.
-// A second scheduler under the same root, on a fresh model of the same file, adopts the three, and the first and last conversations' follow-ups read them back and fork 256 tokens each, with the replies they give on a fresh model; an entry made older than the age limit is not adopted.
-// With `restart_host` the second scheduler's host tier is that many bytes: one smaller than an entry, as a server started on a host with less free memory has, still reads the entries back, through host memory beyond its tier, and keeps none of them there.
-// Idle after its turns, the first scheduler writes all three without being stopped, the device donor's copied off the devices for it; with `first_host` smaller than an entry the two conversations the devices evicted are lost, as without a disk tier, and the donor still on the devices is written through host memory beyond the tier, which holds nothing of it afterwards.
-// The stop's own flush and a second idle period (docs/DISK-TIER.md, Keeping entries across a restart).
-// Stopped at once after three conversations, before the idle moment, the scheduler writes all three at its stop, the device donor copied for it.
-// With every write held a minute a chunk the flush ends at its bound, 20 seconds, with nothing kept and no temporary file left.
-// Left idle, a scheduler writes a conversation, and after a second one's turn writes that too, each idle period starting afresh.
+// Entries kept across a restart (docs/DISK-TIER.md, Keeping entries across a restart): under --disk-cache-keep three conversations leave three entry files at the stop, which a second scheduler on a fresh model adopts and forks from.
+// Variants: `restart_host` bytes for the second scheduler's host tier, `first_host` for the first's, a stop before the idle moment, a flush held to its 20 second bound, an entry past the age limit, and repeated idle periods.
 void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const int form : {0, 1, 2}) {
         const std::string what = form == 0 ? "a stop before the idle moment" : form == 1 ? "a flush that reaches its bound" : "a second idle period";
@@ -2363,9 +2346,8 @@ void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     }
 }
 
-// Disk writes write what changed (docs/DISK-TIER.md, Entries written as what changed): one conversation whose replies are read again, on `make`'s model, under --disk-cache-keep.
-// After each of four turns the idle server has written what the turn added and nothing twice: the bytes written are the bytes on disk, no file having been replaced, a turn that adds one block to the 1200-token first one writes one file on a model that keeps no state, and the stop writes nothing more.
-// A second server adopts the files; a follow-up forks the whole conversation and an edit of its third message forks the conversation below that message, each with the reply of a fresh model.
+// Disk writes write what changed (docs/DISK-TIER.md, Entries written as what changed): one conversation with replies read again, on `make`'s model, under --disk-cache-keep, writes after each of four turns what it added and nothing twice.
+// The bytes written are the bytes on disk and the stop writes nothing more, and a second server adopts the files, so a follow-up forks the whole conversation and an edit of its third message forks below it.
 void disk_increment(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     DiskRoot disk("increment");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
@@ -2492,9 +2474,8 @@ std::vector<OnDisk> described(const DiskRoot& disk) {
     return out;
 }
 
-// Files lost or damaged between two servers (docs/DISK-TIER.md, Crash safety, case by case), on `make`'s model: one conversation of three turns is written while idle and its directory kept; each case then starts a scheduler on a copy of that directory with one fault in it.
-// The start must keep exactly the files a whole path from an empty history still reaches, and the conversation's next turn must fork what those files give, their segments end to end and, on a model that keeps a state, the highest state on them, with the reply of a fresh model.
-// The faults: a segment lost from the middle of the path, the first segment lost, a temporary file a crash left, a byte flipped in the second segment's payload, which adoption cannot see and the read finds, and on a model that keeps a state its newest state lost and every state lost.
+// Files lost or damaged between two servers (docs/DISK-TIER.md, Crash safety, case by case), on `make`'s model: a three-turn conversation's directory is copied with one fault in it for each case.
+// The start must keep exactly the files a whole path from an empty history still reaches, and the next turn must fork what they give with the reply of a fresh model, for a lost or damaged segment or state or a leftover temporary file.
 void disk_faults(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     DiskRoot kept("faults");
     const auto options_of = [](const DiskRoot& d) {
@@ -2639,8 +2620,8 @@ void disk_faults(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, co
     });
 }
 
-// The cap never takes a file another stands on (docs/DISK-TIER.md, Room, the cap and the age limit): with disk room for the two segments of a conversation's first turn and no more, its second turn's segment finds only files it would stand on, so it is not written and nothing is deleted for it.
-// The two files stay through four seconds, the idle writes starting after one, and the stop, and a second scheduler forks their 1152 tokens for the next turn with the reply of a fresh model.
+// The cap never takes a file another stands on (docs/DISK-TIER.md, Room, the cap and the age limit): with room for two segments only, a second turn's segment finds only files it would stand on, so it is not written and nothing is deleted.
+// The two files stay through four seconds, the idle writes and the stop, and a second scheduler forks their 1152 tokens for the next turn with the reply of a fresh model.
 void disk_cap_base(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "the cap and a conversation's base";
     DiskRoot disk("capbase");
@@ -2812,8 +2793,7 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
 }
 
 // The age limit on a running server (docs/DISK-TIER.md, Age): with entries unused for five seconds deleted, the copies six turns leave on disk are gone within a few seconds, their files with them, and the server writes on.
-// It writes on at once: a copy whose entry the limit deleted is unwritten again, so the writer may land a new file at any moment, and the check follows the files the turns left rather than counting whatever the directory holds at one instant.
-// Five seconds, so that on a slow runner the first copy written still stands while the turns wait for the second; the files are taken as they are when the turns end, at least one, since a turn slower than the limit would already have lost the first.
+// A copy whose entry the limit deleted is unwritten again, so the check follows the files the turns left, taken as they are when the turns end, and the limit of five seconds leaves the first copy written standing on a slow runner.
 void disk_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "the age limit";
     DiskRoot disk("age");
@@ -2937,14 +2917,14 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");
             host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
             failed_promotion(one, tok, vocab);
-            // Over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2), each reply against its run alone on one group, since a group gives its own bits: pauses and resumes on one group and on two stages of groups, a donor taken back, a follow-up turn's fork, and donors in host memory, each member's storage copied on its own.
+            // Over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2), each reply against its run alone on one group, since a group gives its own bits: pauses, take-backs, forks and donors in host memory, each member's storage copied on its own.
             const Make group = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
             three_uncapped(group, tok, vocab, "three uncapped requests on a group of two CPUs");
             three_uncapped(on(weights, [] { return cpus(4); }, 8, 0, 0, 0, false, 2), tok, vocab, "three uncapped requests on two stages of groups of two CPUs");
             take_back(group, tok, vocab);
             follow_up_as_cli(group, tok, vocab, 200, kBlock, "a follow-up turn on a group of two CPUs against its prompt on a fresh model");
             host_tier(weights, tok, vocab, 2, 0, HostFault::none, "donors in host memory on a group of two CPUs", 2);
-            // A hybrid model over a group of two CPUs, each member keeping the state of its own heads under the slot ids the group shares: requests paused and resumed with no checkpoint slot, a repeated prompt's fork at its checkpoint, a paused request's state kept as its checkpoint and taken back, and a donor's state copied to host memory and back member by member.
+            // A hybrid model over a group of two CPUs, each member keeping the state of its own heads under the shared slot ids: pauses, a fork at a checkpoint, a state kept and taken back, and a donor's state copied to host memory and back.
             {
                 const gguf::GGUFModel even = served_hybrid(kHybridEven);
                 const bpe::Tokenizer even_tok(even);

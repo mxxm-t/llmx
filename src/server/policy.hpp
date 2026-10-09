@@ -1,5 +1,5 @@
 #pragma once
-// The scheduler's policy core (docs/SERVER.md, the round): what the pools' blocks hold, how an uncapped request's reservation grows, who gives up blocks for whom, which stages a round records and which passes it retires, how many decode entries a pass takes, and where a pass's logits rows go, as free functions over plain data.
+// The scheduler's policy core (docs/SERVER.md, the round): pool blocks, reservation growth, who gives up blocks, which stages a round records, decode entries per pass and logits rows, as free functions over plain data.
 // The scheduler calls them with its requests and passes, and the server-passes CTest with a simulated executor's.
 #include <algorithm>
 #include <cstddef>
@@ -134,9 +134,7 @@ struct Steps {
 };
 
 // From the last stage down to the first, each stage records the oldest pass waiting for it, and every pass whose last stage an earlier round recorded retires, oldest first.
-// So each device runs its passes in formation order, a pass advances a stage at most a round, and the later stages have their work before the host samples.
-// A stage one of whose passes is being recorded takes no other this round, and a pass being recorded neither advances nor retires, so a stage records one pass at a time in formation order however long its recording takes.
-// The first stage has a pass waiting only where formation left it to the round, which a pass formed with its first stage recorded never is.
+// So each device runs its passes in formation order, and a stage records one pass at a time, a pass advancing a stage at most a round.
 inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
     Steps st;
     const size_t none = slots.size();
@@ -166,9 +164,8 @@ struct PromptSlice {
     bool closes;
 };
 
-// A request's next prompt slice when it lacks `waiting` prompt rows on `stages` stages, `alone` when no other request is active, queued or paused, having read `read_alone` prompt rows while it was: a ubatch, but for a lone request about a 2 * stages-th of what it lacks, a ubatch at most, so consecutive passes carry consecutive slices and every stage reads the prompt at once.
-// Once company comes, a prompt whose lone slices left it off a whole ubatch first takes the rows back to one, in a pass no other prompt shares and before any other prompt's slice, waiting for its pass in flight if it must: a prompt straddling two passes delays every prompt after it by the cut pass, and a short pass on stage 0 behind a full one leaves that stage idle while the host waits for the full one's logits (docs/STATUS.md, a lone prompt read by every stage).
-// Beside other requests the stages already have their passes, and smaller slices only cost the prompt tile; a slice keeps at least kMinSlice rows (docs/STATUS.md, a lone prompt read by every stage), and slices only change where a stretch is cut, never what a row computes.
+// A request's next prompt slice when it lacks `waiting` prompt rows on `stages` stages: a ubatch, but for a lone request (`alone`, having read `read_alone` rows) about a 2 * stages-th of what it lacks, at least kMinSlice rows.
+// Once company comes, a prompt whose lone slices left it off a whole ubatch first takes the rows back to one, in a pass no other prompt shares (docs/STATUS.md, a lone prompt read by every stage).
 inline PromptSlice prompt_slice(size_t waiting, size_t stages, size_t ubatch, bool alone, size_t read_alone) {
     static constexpr size_t kMinSlice = 128;
     if (!alone) return read_alone % ubatch ? PromptSlice{ubatch - read_alone % ubatch, true} : PromptSlice{ubatch, false};

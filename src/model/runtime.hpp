@@ -25,8 +25,8 @@
 
 namespace infer {
 
-// The plan of a model's weights: their tensors indexed once, a repeated name refused there, the architecture's plan over them, with its embedded drafter's when `drafter` asks for one (Architecture::plan_drafter), and each role's tensor, its name's or else its alias's, which the fit, the experts placement and the model all read.
-// A plan whose slot 0 is not the residual's width, or with a role id past its row of weights, is the architecture's error.
+// The plan of a model's weights: their tensors indexed once (a repeated name refused), the architecture's plan over them with its embedded drafter's when `drafter` asks (Architecture::plan_drafter), and each role's tensor by name or alias.
+// The fit, the experts placement and the model all read it, and a plan whose slot 0 is not the residual's width, or with a role id past its row of weights, is the architecture's error.
 inline ModelPlan plan_model(const ModelWeights& weights, bool drafter = false) {
     const TensorIndex tensors(weights.tensors);
     ModelPlan plan = weights.arch->plan(tensors);
@@ -56,9 +56,8 @@ class Model;
 struct Placement {
     std::vector<int> mixer_device, ffn_device;
     int embed_device = 0, output_device = 0;
-    // A routed layer with its feed-forward block on a host and its mixer on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass: past some length a prompt's expert products on the host cost more than moving the experts.
-    // By the prompt's whole length (BatchEntry::extent), so every row a prompt computes takes one path however the prompt is sliced or batched; a server forks a donor's rows only where that path is the new prompt's (row_class).
-    // Zero keeps every run on the host, and neither a generated token nor a one-token prompt, both of extent 1, streams, so 1 streams what 2 does: one row cannot pay for moving a layer's experts.
+    // A routed layer with its feed-forward block on a host and its mixer on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass.
+    // It counts a prompt's whole length (BatchEntry::extent), so a prompt takes one path however it is sliced (row_class); zero keeps every run on the host, and 1 streams what 2 does, since an extent of 1 never streams.
     size_t stream_from = 0;
     // A tensor split (docs/TENSOR-SPLIT.md): each device named above is the first member of a group of `width` consecutive backends that run its roles together, each member its shard of every split role; 1 is one device a name.
     size_t width = 1;
@@ -83,7 +82,7 @@ struct ModelOptions {
     bool kv_backed = false;
 };
 
-// One request's history in a model's cache, made by Model::make_sequence for that model's pools and block sizes: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it, which a release waits on rather than draining the device (docs/EXECUTION.md).
+// One request's history in a model's cache, made by Model::make_sequence: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it (docs/EXECUTION.md).
 // Movable, not copyable; from Model::begin_pass until its end_pass or abort_pass it is in flight, when no other pass, reset or fork takes it and it must not move, since the pass holds its address.
 class Sequence {
 public:
@@ -122,8 +121,8 @@ private:
 
 class Model;
 
-// A history's first `length` tokens copied to host memory (Model::save_host), which only the model that wrote it restores (Model::restore_host) and releases (Model::release_host): per device, slabs of the backend's host-visible memory holding its KV storage's blocks, layer by layer, K then V, and on a model that keeps a state its state storage's slot at `length`, layer by layer, as the storages hold them, with the ticket of the last copy into or out of them.
-// `bytes` is what the copy holds and `held` the slabs it takes.
+// A history's first `length` tokens copied to host memory (Model::save_host), which only the model that wrote it restores (Model::restore_host) and releases (Model::release_host).
+// Per device it holds host-visible slabs with its KV storage's blocks and, on a model that keeps a state, the state slot at `length`, and the ticket of the last copy; `bytes` is what it holds and `held` the slabs it takes.
 struct HostHistory {
     const Model* owner = nullptr;
     size_t length = 0, bytes = 0, held = 0;
@@ -141,8 +140,7 @@ struct HostRange {
 };
 
 // What one sequence contributes to a pass: `n` tokens appended to `seq`, and whether the logits after its last token are wanted.
-// A prefill microbatch is one entry with many tokens, a decode batch is many entries with one, and the two mix freely.
-// A sequence appears in a batch at most once.
+// A prefill microbatch is one entry with many tokens and a decode batch many entries with one, mixing freely, and a sequence appears in a batch at most once.
 struct BatchEntry {
     Sequence* seq;
     const uint32_t* ids;
@@ -150,8 +148,7 @@ struct BatchEntry {
     bool want_logits;
     // The logits after every token of the entry rather than only its last, for scoring a text through the same batched passes a prompt takes; with want_logits.
     bool every_logits = false;
-    // What a device chooses this entry's kernels by (backend::RowRun), and a streamed layer its path (Placement::stream_from): for a prompt's rows the position one past the prompt's last token, for generated tokens 1 however many the entry carries, as a paused request's resume recomputes them.
-    // Zero takes the entry's own row count.
+    // What a device chooses this entry's kernels by (backend::RowRun) and a streamed layer its path (Placement::stream_from): a prompt's rows the position one past its last token, generated tokens 1, zero the entry's own row count.
     // A prompt given its extent takes the same kernels and path whether it arrives in one pass or in slices, alone or beside other sequences, with or without a reused prefix.
     size_t extent = 0;
     // Keep the state after the entry's last token as its sequence's checkpoint (Model::checkpoint), at a position of whole blocks in every storage; the pass takes a checkpoint slot for it.
@@ -179,7 +176,7 @@ struct Pass {
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
 };
 
-// Where a context's passes run, as plain data Model fills: an activation arena per device, which each device's passes use in turn, host-visible handoff buffers on each device a crossing leaves, the host-visible logits rows on the output device, and the tickets of the submissions.
+// Where a context's passes run, as plain data Model fills: an activation arena per device, host-visible handoff buffers on each device a crossing leaves, the logits rows on the output device, and the tickets of the submissions.
 // A forward grows it to the largest pass seen, while Model::reserve_passes sizes it once for passes in flight, each slot with its own handoff buffers and logits rows, and replaces nothing after that.
 struct ExecContext {
     // Row i of the logits the last forward produced, in entry order, valid until the next forward through this context.
@@ -245,7 +242,7 @@ inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& o
 
 class Model {
 public:
-    // Construct from a model's weights on one backend (defaults to the CPU backend), or over several with a placement of every role, each weight put on the backend that hosts it by `adopt`, planned here or given the plan plan_model made of these weights.
+    // Construct from a model's weights on one backend (the CPU by default) or over several with a placement of every role, each weight put on its host backend by `adopt`, planned here or given the plan plan_model made.
     // The views are not kept; the bytes a backend adopted in place must outlive the Model (Backend::adopt).
     explicit Model(const ModelWeights& weights,
                    backend::BackendPtr backend = backend::make_cpu_backend(),
@@ -585,7 +582,7 @@ public:
     // Defined in model/passes.hpp, the owner of a pass and its stages.
     void forward(ExecContext& ctx, const BatchEntry* entries, size_t n_entries);
 
-    // Passes in flight: a caller keeps several passes of different sequences in one context and runs their stages itself, so on a pipelined split every stage works on some pass while the host samples another (docs/MULTI-DEVICE.md, passes in flight).
+    // Passes in flight: a caller keeps several passes of different sequences in one context and runs their stages itself, so on a pipelined split every stage works while the host samples another (docs/MULTI-DEVICE.md, passes in flight).
     // Each pass's stages run in order, and passes interleave as the caller likes: each device runs the stages recorded on it in that order, and a pass keeps its own handoff buffer, logits rows and ticket.
     size_t stage_count() const { return stages_.size(); }
     // Whether passes may be in flight together: several stages, the embedding on the first stage's device, the head on the last's and every feed-forward block beside its mixer.
@@ -689,9 +686,7 @@ public:
     bool mark() { return mark(seq_); }
     void draft(uint32_t last, size_t k, std::vector<uint32_t>& out) { draft(seq_, last, k, out); }
 
-    // Process a whole prompt with matrix-matrix matmuls instead of one token at a time.
-    // Each weight row is then reused across the batch, which is the difference between prefill being compute bound and paying the entire weight stream once per token.
-    // Only the final token's logits are needed, so only the last pass asks for them.
+    // Process a whole prompt with matrix-matrix matmuls instead of one token at a time, so each weight row is reused across the batch and only the last pass asks for the final token's logits.
     // A `keep_at` inside the prompt keeps the state there as the sequence's checkpoint, the chunk before it cut to end there.
     std::vector<float> prefill(const std::vector<uint32_t>& ids, size_t keep_at = 0) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
@@ -875,7 +870,7 @@ private:
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, on the head's device
     size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
-    // The last draft's ids, the last picks first, host visible, and its rows' logits, a step's rows together, per member of the head's group: the first member's logits host visible, every row of every step, and each other member's one step's rows, which only its argmax reads.
+    // The last draft's ids, the last picks first, host visible, and its rows' logits per member of the head's group: the first member's for every row of every step, each other member's one step's rows, which only its argmax reads.
     std::vector<backend::BufferPtr> draft_ids_, draft_logits_;
     size_t draft_id_rows_ = 0, draft_rows_ = 0, draft_seqs_ = 0;   // the ids, the logits rows and a step's rows they hold
     std::vector<size_t> draft_order_, draft_k_;     // the last draft's sequences' places in its steps' rows and their chains' lengths, in the order they were asked for
@@ -902,8 +897,7 @@ private:
     }
 
     // Resolve every role of the plan to a Weight, in plan order: the pass's roles, then each layer's followed by a streamed layer's copies.
-    // Each role reads the tensor plan_model set, a role without one refused here, checked by the role's kind in the same step, so a resolved handle is well-formed by construction and the forward pass never looks a tensor up by name.
-    // Each weight is put on the backend that runs its part, by the caller's hook when it gave one, and a tensor two roles take on one device is put there once, as a tied head beside the embedding reads the embedding's buffer.
+    // Each role reads the tensor plan_model set (a role without one is refused) and is put on its part's backend by the caller's hook when given, once per device for a tensor two roles take, as a tied head beside the embedding.
     void resolve_tensors(const ModelWeights& weights, const AdoptWeight& adopt) {
         const size_t n_devices = devices_.size();
         std::vector<backend::BufferPtr> taken(weights.tensors.size() * n_devices);

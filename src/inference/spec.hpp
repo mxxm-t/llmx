@@ -18,9 +18,8 @@ struct Accepted {
     uint32_t last;
 };
 
-// The rows of a verify of the drafts `drafts[0..k)`, row i the logits after the last pick and the first i drafts, sampled in order exactly as the run without drafts samples a token after each: one call of `sample` a row, with the request's own settings, history and generator.
-// `pick` takes each token as the run without drafts does and says whether the request goes on (an end token, a stop text or the length limit end it), and it adds the token to `gen` where that run would.
-// Sampling stops at the first pick that ends the request or differs from its draft, or after row k: every earlier pick equalled its draft, so it was fed as that run feeds it.
+// The rows of a verify of the drafts `drafts[0..k)`, row i the logits after the last pick and the first i drafts, sampled in order exactly as the run without drafts samples: one call of `sample` a row with the request's own settings.
+// `pick` takes each token as that run does and says whether the request goes on, and sampling stops at the first pick that ends the request or differs from its draft, or after row k.
 template <class Pick>
 Accepted accept(const float* rows, size_t n_vocab, const uint32_t* drafts, size_t k, const Sampling& s, int32_t end, const std::vector<uint32_t>& gen,
                 RNG& rng, Pick&& pick) {
@@ -101,7 +100,7 @@ private:
 };
 
 // A draft model (docs/SPECULATIVE.md, step 6): a model of its own sharing the target's tokenizer, drafting greedily, ties to the lowest id, on its own history, which follows the one it is given.
-// A draft takes that history back to what it shares with the one given, feeds the rest in one pass, as generated tokens where it is no longer than a verify, keeps the state there on a model that keeps one, so the next draft goes back no further, then drafts a token a step; it drafts for the caller's one history, the model's own.
+// A draft takes that history back to what it shares with the given one, feeds the rest in one pass (keeping the state there on a model that keeps one), then drafts a token a step.
 class DraftModel final : public Proposer {
 public:
     explicit DraftModel(Model& model) : model_(model) {}
@@ -116,7 +115,7 @@ public:
         if (shared < fed_.size()) fed_.resize(model_.retract(shared));
         if (h.size() + k > (size_t)model_.context_length()) return;
         const std::vector<uint32_t> rest(h.begin() + (std::ptrdiff_t)fed_.size(), h.end());
-        // What a verify kept and its pick, at most a verify's rows, go in as generated tokens through the decode kernels, a pass of a few rows the prompt path would take several times longer over; a longer rest, a new prompt, goes through the prompt path.
+        // What a verify kept and its pick, at most a verify's rows, go in as generated tokens through the decode kernels; a longer rest, a new prompt, goes through the prompt path.
         std::vector<float> logits;
         if (rest.size() <= size_t(kMaxDrafts) + 1) {
             const float* rows = model_.step(rest.data(), rest.size());
@@ -140,8 +139,8 @@ private:
     std::vector<uint32_t> fed_;   // the tokens the model's history holds
 };
 
-// A request's one acceptance figure (docs/SPECULATIVE.md, section 3): the average of the drafts its verifies kept, each verify moving it an eighth of the way to what that one kept, and below kBreakEven the request drafts nothing for its next 16 tokens, then verifies once more.
-// It also counts, by draft position, the drafts its verifies fed and those they kept.
+// A request's acceptance figure (docs/SPECULATIVE.md, section 3): a running average of the drafts its verifies kept, each moving it an eighth of the way to what that one kept.
+// Below kBreakEven the request drafts nothing for its next 16 tokens, and it counts by draft position the drafts its verifies fed and kept.
 class Acceptance {
 public:
     // A verify that fed `fed` drafts and kept the first `kept` of them.
@@ -176,20 +175,22 @@ private:
     std::vector<size_t> drafted_, kept_;
 };
 
-// How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, since the verify feeds the last pick and every draft, none while it rests (Acceptance), and at most `columns`, the rows the pass's decode kernels read each weight once for that its other rows leave, past which a draft row costs a weight read of its own (docs/SPECULATIVE.md, section 3).
+// How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, and none while it rests (Acceptance).
+// It is also at most `columns`, the rows the pass's decode kernels read each weight once for, past which a draft row costs a weight read of its own (docs/SPECULATIVE.md, section 3).
 inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const Acceptance& acceptance) {
     if (acceptance.resting() || !tokens_left || !context_left) return 0;
     return std::min({draft_max, tokens_left - 1, context_left - 1, columns});
 }
 
-// What a pass of generated rows costs, `base_ms` and `row_ms` a row, and a step of the drafter's chains, which run before the pass, `step_ms` and `step_row_ms` a chain; the pass's part is unknown until passes of different rows have been measured (PassTimes), and until then `seen_rows` is the rows of those measured, 0 for none.
+// What a pass of generated rows costs, `base_ms` and `row_ms` a row, and a step of the drafter's chains, which run before the pass, `step_ms` and `step_row_ms` a chain.
+// The pass's part is unknown until passes of different rows have been measured (PassTimes), and `seen_rows` is the rows of those measured, 0 for none.
 struct PassCost {
     double base_ms = 0, row_ms = 0, step_ms = 0, step_row_ms = 0, seen_rows = 0;
     bool known = false;
 };
 
-// The pass cost measured as passes run: lines through the passes of generated rows, their rows against their milliseconds, and through the chains' steps, their chains against a step's milliseconds, each measurement weighing kForget of the one after it.
-// A line is known while the rows it was fitted to spread by half a row or more, so a server running one width for long enough forgets the price and measures it again; a chain's line not known yet is its mean step.
+// The pass cost measured as passes run: lines through the passes of generated rows (rows against milliseconds) and through the chains' steps, each measurement weighing kForget of the one after it.
+// A line is known while the rows it was fitted to spread by half a row or more, so a width run long enough is forgotten and measured again; an unknown chain line is its mean step.
 class PassTimes {
 public:
     void pass(size_t rows, double ms) { passes_.add((double)rows, ms); }
@@ -230,9 +231,8 @@ private:
     Line passes_, chains_;
 };
 
-// The drafts each of a pass's drafting requests verifies (docs/SPECULATIVE.md, section 3), from the pass cost `c`, the pass's `decoders` and, for each request, the chance it keeps each draft its cap allows (`keeps[i]`, as many as draft_length gives it), into `takes`.
-// A depth K gives request i min(K, its cap) drafts where their expected kept drafts pay for their rows at the rate the pass gives without drafts, and the depth taken is the one whose tokens a millisecond, the decoders' and the kept drafts' over the pass's rows and K steps of the chains, are most, none where no depth beats the pass without drafts.
-// Rows that cost nothing give every request its cap; so does a cost not yet known, so the price is measured, unless the passes measured all had the rows the caps give, when the pass drafts nothing, so passes of another width are measured too.
+// The drafts each of a pass's drafting requests verifies (docs/SPECULATIVE.md, section 3), from the pass cost `c`, the pass's `decoders` and each request's chance of keeping each draft its cap allows (`keeps[i]`), into `takes`.
+// The depth taken is the one with the most tokens a millisecond, request i getting min(K, its cap) drafts, or none where no depth beats the pass without drafts; free rows or an unknown cost give every request its cap.
 inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<std::vector<double>>& keeps, std::vector<size_t>& takes) {
     takes.assign(keeps.size(), 0);
     size_t depth = 0, capped = decoders;

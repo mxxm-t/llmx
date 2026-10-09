@@ -269,7 +269,7 @@ infer::ModelOptions model_options(const ExecOptions& exec) {
     return o;
 }
 
-// The loading progress on stderr: the share of the payload read, then "Preparing model..." once it is complete, while the rest of the load runs (the placement too in mapped mode, which reads first).
+// The loading progress on stderr: the share of the payload read, then the "Preparing model" line once it is complete, while the rest of the load runs.
 // A second report of completion prints nothing.
 format::LoadProgress progress_bar() {
     return [previous = -1, finished = false](size_t completed, size_t total) mutable {
@@ -438,9 +438,8 @@ infer::LoadMode load_mode_arg(int argc, char** argv, int& i, const std::string& 
     }
 }
 
-// The execution flags every model command takes, the "Execution options" of its help: where it runs, its workers, its prompt batch, its caches and how its weights are read.
-// Reads argv[i] (and its value) into `exec` and returns true when it is one of them.
-// `batch_threads` adds --threads-batch (-tb), which only the commands that give a prompt's batched passes their own worker count read: generate, chat and perplexity.
+// The execution flags every model command takes, the "Execution options" of its help: reads argv[i] (and its value) into `exec` and returns true when it is one of them.
+// `batch_threads` adds --threads-batch (-tb), which only generate, chat and perplexity read.
 bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_threads) {
     const std::string a = argv[i];
     const std::string_view f = long_spelling(a);
@@ -486,13 +485,8 @@ std::string load_timing(const infer::LoadTimes& t) {
     return line;
 }
 
-// Open a model file as the flags ask, through infer::load_model: the devices --device lists, made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass (a server's sequences), progress on stderr when `progress`, and a split's plan when `show_plan`.
-// `threads` is the worker count to set, 0 to keep the backend's own; with `profiled`, the one device times its kernels and its address is written there (bench --profile).
-// `history_tokens`, when given, is what each of the `decode_rows` sequences holds, and the cache grows to hold them all at once where its budget would not (infer::PlacementRequest::histories).
-// `slots` is the passes a server keeps in flight, whose handoff buffers and logits rows a split's fit counts, and a server fits its KV budget to the devices and backs it at load; with `timed` every device times its work (serve --timing).
-// `checkpoints` is the states a model that keeps one holds at a position (infer::ModelOptions::checkpoint_slots), -1 for the most a server's fit gives up to `decode_rows`.
-// With `drafter` the file's embedded drafter is loaded with the model, and a `drafter_file` beside it is paired with it (infer::spec::pair) and, holding its MTP blocks, loaded as that drafter.
-// `shared` are the backends of a model already open, which a draft model beside it is placed over rather than devices of its own.
+// Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass.
+// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
@@ -528,7 +522,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     options.checkpoint_slots = checkpoints < 0 ? decode_rows : (size_t)checkpoints;
     request.fit_checkpoints = checkpoints < 0;
     request.drafter = drafter;
-    // A command that verifies drafts marks a sequence before each verify, of up to `mark_rows` rows: its one sequence, or as many of the `decode_rows` a server decodes at once as can draft in one pass, past the first only in the room its budget and checkpoints leave.
+    // A command that verifies drafts marks a sequence before each verify of up to `mark_rows` rows: one sequence, or as many of the `decode_rows` as can draft in one pass, past the first only in the room left.
     if (mark_rows) {
         size_t columns = SIZE_MAX;
         for (const auto& b : backends) columns = std::min(columns, b->decode_columns());
@@ -548,10 +542,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     return loaded;
 }
 
-// One turn's prompt, before its reply is generated: prefill `ids` on the prompt's worker count (--threads-batch, else `decode_threads`), then set `decode_threads` back.
-// `prefilled`, called before the decode lines are shown, gets the prompt's time in milliseconds, which includes setting the decode count back, since a changed count stops the CPU workers the prompt ran on.
-// Returns the logits after the last prompt token.
-// A `keep_at` inside the turn keeps the model's state there as its checkpoint (infer::Model::prefill).
+// One turn's prompt, before its reply is generated: prefill `ids` on the prompt's worker count (--threads-batch, else `decode_threads`), then set `decode_threads` back, returning the logits after the last prompt token.
+// `prefilled`, called before the decode lines are shown, gets the prompt's time in milliseconds including the reset of the count, and a `keep_at` inside the turn keeps the model's state there as its checkpoint (infer::Model::prefill).
 std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, const std::vector<uint32_t>& ids, int decode_threads, bool progress,
                                 const std::function<void(double)>& prefilled = {}, size_t keep_at = 0) {
     model.set_threads(exec.threads_batch > 0 ? exec.threads_batch : decode_threads);
@@ -683,8 +675,7 @@ void matrix_record(infer::LoadedModel& loaded) {
     std::cerr << "]}\n";
 }
 
-// `then_ids` appends exact generated IDs without re-tokenizing their text; `last` reports the final positions.
-// Positions go through the batched passes a prompt takes, or with `per_token` one at a time through step, the decode path a generated token takes.
+// `then_ids` appends exact generated IDs without re-tokenizing their text, and `last` reports the final positions, through the batched passes a prompt takes or with `per_token` one at a time through step.
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false) {
@@ -846,7 +837,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     if (threads > 0) b->set_threads(threads);
     std::cout << "bench: threads " << b->threads_available() << "\n";
 
-    // Square matmul: mat is [nin, nout] = [size, size]. x is the input (length nin), out the result (length nout). nout rows, each nin/32 blocks.
+    // Square matmul: mat is [nin, nout] = [size, size], x the input of length nin and out the result of length nout, nout rows of nin/32 blocks.
     const size_t nblocks = (size_t)size / quant::Q8_0_BLOCK;
     std::vector<float> x(size, 0.5f);
     std::vector<uint8_t> mat((size_t)size * nblocks * quant::Q8_0_TYPESIZE);
@@ -911,8 +902,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     return 0;
 }
 
-// Time model execution over fixed IDs after warm-up; history setup and sampling are outside the timer.
-// Multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth; see docs/USAGE.md.
+// Time model execution over fixed IDs after warm-up, with history setup and sampling outside the timer; multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth (docs/USAGE.md).
 // What bench's `--drafter` value asks for: the file's embedded drafter, the MTP blocks of a file beside it, or neither for off; it drafts nothing either way.
 struct BenchDrafter {
     bool embedded = false;
@@ -1007,8 +997,8 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     for (int r = 0; r < R; r++) tgv.push_back(tg({}));
     report("pp", P, ppv);
     report(seqs > 1 ? ("x" + std::to_string(seqs) + " tg").c_str() : "tg", G, tgv);
-    // With the drafter, a round's rollback (docs/SPECULATIVE.md, section 7): after a mark and a verify of kRollbackDrafts drafts, the retract keeping each number of its rows and the decode step after it, timed as completed work up to the step's logits.
-    // Each repeat takes every rejection position in turn after the same history, so a short rerun cannot stand for a long one, and the cost of keeping fewer rows is its difference from keeping all, whose retract runs nothing, in the same repeat, so a card whose clock drifts with its heat moves both; the median of those differences and their middle half, after one round that is not counted.
+    // With the drafter, a round's rollback (docs/SPECULATIVE.md, section 7): after a mark and a verify of kRollbackDrafts drafts, each retract keeping some rows and the decode step after it are timed up to the step's logits.
+    // Each repeat takes every rejection position in turn after the same history, and the cost of keeping fewer rows is its difference from keeping all in the same repeat, reported as the median and middle half after one uncounted round.
     if (drafter && seqs <= 1 && G > (int)kRollbackDrafts + 1 && rollback_reach > (size_t)model.context_length())
         printf("bench: rollback skipped: the depth, the prompt, the verify's %zu rows and the step after them reach %zu tokens, past the context of %d\n",
                kRollbackDrafts + 1, rollback_reach, model.context_length());
@@ -1358,8 +1348,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
 } // namespace
 
 #if defined(_WIN32)
-// On Windows argv arrives in the system ANSI codepage, which cannot represent most non-ASCII text -- a Japanese or Cyrillic prompt is mangled before it reaches us.
-// Re-read the command line as UTF-16 and convert to UTF-8 so text arguments survive.
+// On Windows argv arrives in the system ANSI codepage, which mangles non-ASCII text, so the command line is re-read as UTF-16 and converted to UTF-8.
 // Storage is owned by the caller and must outlive argv.
 static bool utf8_argv(int& argc, char**& argv,
                       std::vector<std::string>& store, std::vector<char*>& ptrs) {

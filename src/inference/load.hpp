@@ -30,9 +30,7 @@
 namespace infer {
 
 // How a load reads the weights, the CLI's --load-mode, the same on every backend; the first is the default.
-// `automatic` streams the weights a copying backend takes in large reads on up to two reader threads, overlapped with the uploads, around the file cache when they are more than the host can cache, and maps the files only for the weights a host reads in place.
-// `mapped` maps the files, warms their tensors before the model is placed, and copies the weights out of the mapping as the model is built.
-// `direct` streams every weight around the file cache, a host's own into memory laid out as the file, and maps nothing.
+// `automatic` streams what a copying backend takes and maps files only for weights a host reads in place, `mapped` maps and copies as the model is built, and `direct` streams every weight around the file cache and maps nothing.
 enum class LoadMode { automatic, mapped, direct };
 
 inline LoadMode load_mode_of(const std::string& name) {
@@ -88,10 +86,8 @@ struct WeightPlan {
     std::vector<Upload> uploads;
 };
 
-// The adoption hook load_model builds the model with: a backend that reads in place adopts a weight where it lies and plan.host_reads[i] is set.
-// A backend that copies adopts the weight there and then unless `defer`; with `defer` it gets storage the loader streams the weight into once the model is built (Backend::alloc_weight), recorded in plan.uploads.
-// A tensor group's member takes its shard of a split role as storage of its own on every backend, streamed into like a copied weight, or with no `defer` packed from the mapping there and then.
-// The model hands each tensor to each of `backends` at most once whole and once as a shard, and the records are sized for that before the model is built, so recording cannot fail while a buffer is held.
+// The adoption hook load_model builds the model with: a backend that reads in place adopts a weight where it lies, and one that copies adopts it there and then unless `defer`, which gives it storage to stream into (plan.uploads).
+// The model hands each tensor to each of `backends` at most once whole and once as a shard, so the records are sized before the model is built and recording cannot fail while a buffer is held.
 inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
     plan.host_reads.assign(weights.tensors.size(), 0);
     plan.uploads.clear();
@@ -140,7 +136,7 @@ inline std::string gib(size_t bytes) {
 }
 
 // Read the pages of `tensors` in, reporting their bytes to `progress`.
-// Pages read in stay resident only while the host can hold them: tensors larger than the memory available would be evicted before whoever reads them does, and read from disk twice, so they are left to be read once, and the progress goes straight to complete.
+// Tensors larger than the memory available are left to be read once by their reader, and the progress goes straight to complete.
 inline void warm(const gguf::GGUFModel& file, const std::vector<size_t>& tensors, const format::LoadProgress& progress) {
     const size_t bytes = gguf::bytes_of(file, tensors);
     const auto available = core::host_memory_available();
@@ -212,10 +208,8 @@ inline std::vector<Piece> plan_pieces(const std::vector<size_t>& tensors, const 
     return pieces;
 }
 
-// Read `pieces` on up to two reader threads into up to four slots, pieces assigned round-robin among the readers, or straight to a piece's `into`, and on this thread send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
-// A backend that reads a slot in place (Backend::wrap_host) takes a part as one device copy out of the slot, and the slot goes back to the readers once the copies out of it retire; any other takes it as a write, which consumes it at once, as do the parts of an `into` piece.
-// A read that comes up short of a part means the file was cut after its header was read.
-// Whatever fails, the readers are stopped and joined, the copies out of the ring retired and the ring freed before the error goes on; the uploads' storage stays with the model, which drains its backends before it frees any.
+// Read `pieces` on up to two reader threads into up to four slots and, on this thread, send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
+// A backend that reads a slot in place (Backend::wrap_host) takes a part as a device copy out of it and the slot goes back once the copies retire; whatever fails, the readers are joined and the copies retired before the ring is freed.
 inline void stream(const std::vector<Piece>& pieces, const std::vector<std::unique_ptr<format::FileReader>>& readers,
                    const std::vector<std::vector<const Upload*>>& destinations, const std::function<void(size_t)>& streamed,
                    LoadTimes& times) {
@@ -388,9 +382,8 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
 
 } // namespace detail
 
-// Load the model at `path`, a GGUF file or the first shard of a set, over the caller's `backends` as `request` places it, reading the weights as `mode` says: read the headers, build the tokenizer and the chat format, place the model, and fill the weights the backends copy, reporting the payload to `progress`.
-// A `drafter_file` beside it is read to its headers and paired with it first (spec::pair, docs/SPECULATIVE.md, step 6): MTP blocks are joined to the model and loaded as its embedded drafter, from their own file; a draft model is left for the caller to load as a model of its own.
-// The host's copy of the weights is then released when no host reads one in place, and otherwise the pages of every tensor no host reads leave its working set.
+// Load the model at `path`, a GGUF file or the first shard of a set, over `backends` as `request` places it, reading the weights as `mode` says and reporting the payload to `progress`.
+// A `drafter_file` beside it is paired with it first (spec::pair, docs/SPECULATIVE.md, step 6): MTP blocks load as the embedded drafter, and a draft model is left for the caller to load.
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
                                                const format::LoadProgress& progress = {}, LoadMode mode = LoadMode{},
@@ -459,7 +452,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     loaded->model = std::move(placed.model);
     if (mode != LoadMode::mapped) {
         // Every weight has storage now, so a model that cannot be placed has failed before any weight is uploaded.
-        // The payload the backends take, each tensor read once: the copied weights streamed in file order, and those a host reads read into its copy (direct), from which a device that also takes one is written, or warmed from the mapping after (auto).
+        // The payload the backends take, each tensor read once: copied weights streamed in file order, host-read ones read into the host's copy (direct), from which a device that also takes one is written, or warmed from the mapping after (auto).
         std::vector<char> copied(file.tensors.size(), 0);
         for (const Upload& u : plan.uploads) copied[u.tensor] = 1;
         auto in_file_order = [&](std::vector<size_t>& v) {

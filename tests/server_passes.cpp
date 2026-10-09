@@ -1,8 +1,4 @@
-// The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages, the decode share and the logits rows by hand, then the scheduler's round over them under a simulated executor, in random schedules over 1 to 4 stages, some of them on the host, 1 to 2S pass slots and two pools of different block sizes, with random stage times, arrivals, growth, pauses, cancellations, failures and stops.
-// One schedule in four serves a model that keeps a recurrent state and no checkpoint slots: no request leaves a donor, and no more requests are active than there are state slots.
-// The simulated round is the scheduler's at any number of slots: a pass formed in every free slot while a request is ready, each taking an even share of the decoding requests, each request in one pass at a time, the host's stages recorded after the round's device stages, and a failure ending its own pass's requests alone.
-// After every event a request is in at most one pass and no pass is empty, each device runs its passes in formation order, a slot and a run of logits rows belong to one pass until it ends, no pool is over-reserved and nothing in flight is paused, parked or ended, and a request is refused room only when the donors, and for growth the uncapped requests admitted after it, cannot give it, the oldest only when a capped request holds the rest.
-// A growth plan pauses one request at most and waits only on a request in flight, and the oldest request's wait ends in the round that request's pass retires; within one lap every decoder that is not stalled gets a token and a cancellation ends; admission is first-come, no free slot idles while a request is ready, a failed pass leaves every other pass in flight, and a drained schedule ends every request; after a stop the ledger and the logits rows hold nothing.
+// The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages, the decode share and the logits rows by hand, then the scheduler's round under a simulated executor in random schedules (AGENTS.md, Tests).
 // `llmx-server-passes-test N` runs N schedules, 2000 by default.
 #include <algorithm>
 #include <cstdint>
@@ -27,8 +23,8 @@ void require(bool ok, const std::string& what) {
 
 constexpr size_t npos = (size_t)-1;
 
-// The scheduler's round over the policy core, driven by a simulated executor: stage s runs on device s, the host waits for a stage's handoff before it records the next one and for a pass's last stage before it samples, and each stage takes a random time on its device, or on the host's thread for a host stage.
-// The pools, the growth rule, make_room, the round's stages and the logits rows are the scheduler's own functions; the order of the round's steps is the scheduler's run, restated here.
+// The scheduler's round over the policy core, driven by a simulated executor: stage s runs on device s for a random time, the host waiting for a handoff before recording the next stage and for a last stage before it samples.
+// The pools, the growth rule, make_room, the round's stages and the logits rows are the scheduler's own functions, and the order of the round's steps is the scheduler's run restated here.
 struct Sim {
     struct Req {
         uint64_t id = 0, admission = 0, donor = 0;   // donor: the one its last pause left, which it takes back if it is still there
@@ -266,7 +262,7 @@ struct Sim {
         queue.push_back(r);
     }
 
-    // A request leaves the active set: its history a donor when it holds at least `least` tokens (a full block for a finished request, any for a paused one's) and the model keeps no state, its blocks returned otherwise; the donor's id, 0 when none.
+    // A request leaves the active set: its history a donor when it holds at least `least` tokens and the model keeps no state, its blocks returned otherwise; the donor's id, 0 when none.
     uint64_t park(size_t i, size_t least) {
         Req r = active[i];
         require(r.slot == npos, at + ": a request in flight parked");
@@ -391,7 +387,7 @@ struct Sim {
         return true;
     }
 
-    // A failed pass fails as the scheduler's fail_pass does: every device drained, the pass abandoned with its logits rows given back, and its requests ending with the error, giving their blocks back without a donor, while every other pass in flight goes on.
+    // A failed pass fails as the scheduler's fail_pass does: every device drained, the pass abandoned and its requests ended with the error, while every other pass in flight goes on.
     void fail(size_t k) {
         for (double t : device_free) clock = std::max(clock, t);
         const size_t flying = in_flight();
@@ -518,7 +514,7 @@ struct Sim {
     // Whether a request waits for its read: its read and its bound both ahead.
     bool reading(const Req& r) const { return r.reads && round_no < std::min(r.read_end, r.bound); }
 
-    // New passes while a slot is free: ready decoding requests' next tokens up to the decode share, then prompt rows up to the ubatch, a pass's logits rows taken as it is formed, and its first stage, or on the host that stage's place in `deferred`.
+    // New passes while a slot is free: ready decoding requests up to the decode share, then prompt rows up to the ubatch, each pass taking its logits rows and recording its first stage, or leaving a host stage in `deferred`.
     void form(std::vector<std::pair<size_t, size_t>>& deferred) {
         at = "formation";
         for (size_t k = free_slot(); k != npos; k = free_slot()) {
@@ -589,7 +585,7 @@ struct Sim {
         }
     }
 
-    // The round's steps as the scheduler's run takes them: the waiting requests' cancellations, each device stage's oldest waiting pass from the last stage down, the passes whose last stage an earlier round recorded, the requests that ended, the cancelled requests no pass holds, then room and new passes while a slot is free, and last the host stages due.
+    // The round's steps as the scheduler's run takes them: cancellations, each device stage's oldest waiting pass from the last stage down, retirements, ended and cancelled requests, new passes while a slot is free, and last the host stages due.
     void steps() {
         at = "the sweep";
         sweep_waiting();
@@ -685,8 +681,8 @@ struct Sim {
     }
 };
 
-// A few cases by hand: a request that fits takes nothing, one that cannot fit takes nothing, the donor it forks goes last or first, and growth pauses the latest admitted uncapped request after it, its donor going only when its headroom is short.
-// A plan that would pause a request in flight waits and takes nothing, and one that pauses only requests not in flight does not wait.
+// A few cases by hand: a request that fits or cannot fit takes nothing, the donor it forks goes last or first, and growth pauses the latest admitted uncapped request after it, its donor going only when its headroom is short.
+// A plan that would pause a request in flight waits and takes nothing.
 void rooms_by_hand() {
     const std::vector<size_t> pool{10};
     const std::vector<std::vector<size_t>> donors{{2}, {3}};
@@ -728,8 +724,8 @@ void host_cache_by_hand() {
     require(server::host_cache_default(0, 8, 1000) == 0, "histories of no bytes did not take none");
 }
 
-// The growth rule by hand: admission reserves a capped request's history and what it may still generate and an uncapped one's history and a step, and a step falls due only for an uncapped decoding request whose next position passes its blocks, reaching a step past that position, never past what a pool holds.
-// Then the logits rows a context reserves, one pass's alone and twice that once passes overlap, and the decode share, the decoding requests over the passes rounded up once the passes fill the stages.
+// The growth rule by hand: admission reserves a capped request's history and what it may still generate, an uncapped one's history and a step, and a step falls due only for an uncapped decoding request whose next position passes its blocks.
+// Then the logits rows a context reserves, one pass's alone and twice that once passes overlap, and the decode share.
 void growth_by_hand() {
     const server::Pools pools{{10, 5}, {4, 8}};
     const server::Growth g{6};

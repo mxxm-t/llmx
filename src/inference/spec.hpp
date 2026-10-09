@@ -197,6 +197,11 @@ public:
     void chain(size_t steps, size_t chains, double ms) {
         if (steps) chains_.add((double)chains, ms / (double)steps);
     }
+    // What a pass of `rows` generated rows takes, from the line where it is known and else the mean of those seen; 0 before any.
+    double pass_ms(double rows) const {
+        double base = 0, row = 0;
+        return passes_.fit(base, row) ? base + row * rows : passes_.mean();
+    }
     PassCost cost() const {
         PassCost c;
         if (!chains_.fit(c.step_ms, c.step_row_ms)) c.step_ms = chains_.mean();

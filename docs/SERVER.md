@@ -221,6 +221,31 @@ For the same requests a second pass in flight would not hide that time, because 
 Layer split phase 3's step 4 takes the copy out and shares the rest: each row is read in place from the pass's mapped logits, copied only for a request that asks for log-probabilities, and a pass's rows are drawn on the sampling threads beside the scheduler thread (Sampling, below).
 The host also spends the recording of each pass, 0.7 milliseconds at one sequence and 1.7 at eight on Qwen3-0.6B-Q8_0 and 2.6 to 5.2 at one to 32 on the 8B, which no second pass of the same requests hides; only a recorded pass replayed with new inputs would, and that is a backend change noted in STATUS, not a scheduler one.
 
+#### A generating request beside a prompt (`--generating-share`)
+
+At share 0, the default, a generating request's row rides the pass that reads a prompt's rows and waits for that pass on every device, so beside a long prompt its tokens come a prompt pass apart.
+With a share above 0, on one device or one tensor group (`Model::paces` with one stage; `check_share` refuses the flag by name elsewhere), the round forms two kinds of pass.
+A pass apart holds generated rows only, in a second arena on every device (`ExecContext::apart`, reserved by `reserve_passes` and counted by the fit as `PlacementRequest::apart_rows`), with its own slots and its own logits rows, and `round_steps` keeps the kinds apart: a stage holds one pass of each kind at most, each kind in its formation order.
+The prompt's pass is fed to its stage in pieces by the stage's thread (`record_pass_stage` with a `Pace`): a piece ends at each part on a single device, a layer's attention or its feed-forward block, and at each sum on a tensor group (`Collective::wait`).
+Between two pieces that thread records a waiting pass apart on the same devices (`record_pass_within`) when its rows have arrived (`stage_ready`, which asks a ticket without waiting, `Backend::done`) and the stage's share says it is due.
+
+The share is kept by each stage's thread as time owed (`StageShare` in `server/policy.hpp`): a piece earns the generated rows their share of its time, a pass of theirs spends the rest of its own, and they are due while nothing is owed back, so over any stretch they have their share of the stage and no more, however long a pass of theirs is against a piece.
+A pass is priced as the least of the last eight a stage measured (`StageShare::price`): what the rows are owed stops at one pass at that price, so rows that arrive after a quiet stretch take two passes in a row at most, and no pass spends more than two, so one pass held up on the host costs them a bounded wait.
+The time a stage stands still at a boundary for the scheduler thread's own device work (below) is not the prompt's either, so the generated rows spend it (`StageShare::held`), and what they owe for it stops at two passes, so a long copy to host memory does not keep them waiting long.
+While generated rows come or one of their passes waits for its share, each piece is waited for before the next is fed, so a pass recorded at a boundary runs at once and is measured; once none has come for `StageShare::kQuiet` pieces and none waits, the device holds one piece ahead again and a prompt alone is read as without a share.
+A pass recorded behind a piece held ahead is not measured and spends the price.
+
+Generated rows still ride a prompt's pass where that costs them no more than their share would (`rides`): the prompt slice's time times the share is at most a pass of their own at that price, which one slow pass does not move.
+The line the scheduler fits to its passes' times is not that price: under a share a pass apart retires only once it was due, so its time between retirements holds its wait.
+While rows ride, no pass apart is measured, so after eight prompt passes ridden in a row one pass goes apart and is measured (`RideRun`): a ride entered on a price that no longer holds ends there, and one that pays costs a pass apart in nine.
+So the short last slice of a prompt, or a short prompt, takes them along, and `/v1/health` counts those passes (`rode`) beside the passes apart and the ones recorded between pieces.
+A pass's cost is counted from the last pass of its own kind, since passes apart retire past the others.
+
+The scheduler thread's own work on a stage's devices, a mark, a retract, the drafter's chain, a history copied to or from host memory, waits for the stage's thread at a piece boundary and holds it there (`hold`, `Held`), not for the whole stage.
+A request cancelled, a pass failed and a stop inside a piece end as they do without a share: the pass in the stage is abandoned once its thread has returned, and a pass apart recorded within it fails alone.
+
+A layer split refuses a share: a pass fed in pieces stays in flight for its stage's device time and a sequence is in one pass at a time, so the prompt's next slice could not enter the first stage while its last is in the second, and the prompt would lose the overlap of the stages (docs/MULTI-DEVICE.md, Prefill beside decode).
+
 `serve --timing` times the rounds for `/v1/health` over devices made to time their work, each dispatch between two timestamps (Protocol below): the round's period and the thread's time in it, recording, relaying (the uploads that carry a residual into its next stage), sampling and forming passes, apart from where it was held, on the source's ticket in `receive`, on staging, on a free command slot and on the logits; each stage's idle share; and the device-bound rate, the rows the passes carried over the busiest stage's device time.
 A stage on a device is timed by its timestamps, read every 32 rounds, which waits for the device's queue, and a stage on the host by the thread's own time in it.
 The timestamps and those readings slow serving, so throughput is read from a server without `--timing`, and the timed figures from one with it on the same load.

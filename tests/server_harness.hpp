@@ -298,8 +298,8 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
 // With a `proposer` it drafts up to `draft_max` a verify, `priced` by measured pass cost or by decode columns; a wave is fully queued before any pass retires, and the replies come in submission order with the counters in `stats`.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
-                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false) {
-    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced);
+                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, double share = 0) {
+    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {}, share);
     std::mutex submitting;
     // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
     sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
@@ -402,19 +402,23 @@ struct FailingCopies : backend::CpuBackend {
 };
 
 // A CPU backend that runs `hook` whenever the model submits its work, which under the scheduler happens only inside a pass's stages, so a case acts in the scheduler's own thread while that pass is in flight.
+// As a `device` it says it is no CPU, so a scheduler with a share feeds its stage in pieces, each a submission.
 struct Hooked : backend::CpuBackend {
     std::function<void()> hook;
+    bool device = false;
+    bool is_cpu() const override { return !device; }
     backend::Ticket submit() override {
         if (hook) hook();
         return CpuBackend::submit();
     }
 };
 
-inline std::vector<std::shared_ptr<Hooked>> hooked(size_t n) {
+inline std::vector<std::shared_ptr<Hooked>> hooked(size_t n, bool device = false) {
     std::vector<std::shared_ptr<Hooked>> v;
     for (size_t i = 0; i < n; ++i) {
         v.push_back(std::make_shared<Hooked>());
         v.back()->set_threads(1);
+        v.back()->device = device;
     }
     return v;
 }

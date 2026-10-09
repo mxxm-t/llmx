@@ -805,6 +805,7 @@
 | Tensor split against the reference, same topology (record below) | Open speed cells at `--dtype int8` on Qwen3-32B Q8_0 and MI50s, each shape against the reference's own, figures in the record `Llmx against the reference in the same topology`: one user in every tensor shape, and a group of four at 1 and 4 users (the newest session, record "Drafting depth" below: 31.0 and 30.2 tok/s at one user on a group of four against the reference's 43.5 and 43.7, and 27.8 and 28.4 on a group of two against 30.5 and 30.6), recovery a backend whose submissions do not go through the kernel per sum (the planned ROCm backend, after the tensor split is complete on Vulkan; the kernel route is closed); a group of two at 64 users, recovery not yet named; inter-token p99 at 32 users on short prompts, recovery assembly by predicted stage time (phase 3, step 9). The hybrid models and the embedded drafter have open cells of their own in their records. The K-quant mixture-of-experts files run under a tensor width with covering blocks and have open cells of their own at int8, in the routed experts' record. |
 | Grouped `/v1/health`, `/v1/live`, grouped help pages and `docs/OPERATING.md` | Done (record below): one shape, no copy of the flat fields; lands by fast-forward |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
+| A generating request's share of a device beside a prompt (`serve --generating-share`) | Done on one device and on one tensor group, default 0 (record of 2026-10-09 below); a layer split refuses the flag until a sequence may be in consecutive passes at consecutive stages (active block) |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |
@@ -866,6 +867,13 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 - **Left:** broader full-corpus, maximum-context and per-layer references, plus prospective numerical bounds for any new lossy kernels. Short 8B rankings/excerpts are not deep-context validation.
 - **Gotchas:** self-consistency is supplementary. Exact comparison against another llmx path cannot replace HF. Model construction validation does not establish finite weights, arbitrary token-ID safety, request budgets or failed-session recovery.
 
+### A generating request beside a prompt: the layer split, and the share's default
+
+- **Goal:** a request already generating keeps a stated share of each device's time while prompts are read, on every placement (`serve --generating-share`).
+- **Done:** one device and one tensor group, with the default 0 (the record of 2026-10-09 below, with production's table and the many-user tables).
+- **Left:** a layer split, which refuses the flag: fed in pieces a prompt's pass stays in flight for its stage's device time, and a sequence is in one pass at a time, so the stages would stop overlapping on the prompt. The repair is a sequence in consecutive passes at consecutive stages (`docs/MULTI-DEVICE.md`, order of work, 4), then the share's table on a split. A stage on the CPU, which computes as it is recorded, is not fed in pieces. The default stays 0: a share costs output and the first token under many users, so its value is the owner's choice from the record's tables.
+- **Gotchas:** the price of a pass of generated rows leans low, the least of a stage's last eight, so rows go apart a little more often than an exact price would send them, toward the generating request. While rows ride a prompt's passes their price is not measured, so a ride is bounded by a pass apart after eight prompt passes (`RideRun`) and not by its price. The time a stage stands still for the scheduler's own device work is spent by whoever generates on that stage, also when the work is another request's copy to host memory; what they owe for it stops at two passes. A pass's cost counts from the last pass of its own kind, since passes apart retire past the others. The chain beside a recording on the head's device draws no sanitizer report on CPU groups, so its wait has coverage and no failing case.
+
 ### The tensor split on every model the layer split serves
 
 - **Goal:** `--tensor-width N` runs each family the layer split runs, with its gates: the hybrid qwen35 models (Qwen 3.5, 3.6 and 3.8), then an embedded drafter over a group, then routed experts (qwen3moe, qwen35moe); the plan's steps 5, 6 and 8 (`docs/TENSOR-SPLIT.md`, section 6).
@@ -887,6 +895,170 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A generating request keeps a share of a device beside a prompt (2026-10-09, branches refactor/stage-recorders-pp and feat/paced-pieces, lands by fast-forward as two commits)
+
+- **Found on production:** a chat that was writing its reply stood still while another conversation's long prompt was read. A generating request's row rode the pass that read the prompt and waited for that pass on every device. Measured on main before any change: Qwen3.8-27B Q8_0 on a tensor group of two MI50s with the embedded drafter, one request generating beside a 49896-token prompt, 2.2 events a second with 1.8 s between passes that carry its tokens (57 to 65 alone); Qwen3-8B Q8_0 on one MI50 beside a 30000-token prompt, 0.72 tok/s with pauses of 2.4 s (73 alone).
+- **Done:** `serve --generating-share X`, 0 up to 0.9, default 0, where nothing changes. Above 0, on one device or one tensor group, a prompt's pass is fed to its stage in pieces by the stage's thread, a piece ending at each part on a single device and at each sum on a group; the generating requests' rows go in passes of their own kind, in a second arena on every device, and are recorded between two pieces when their share is due. The share is an account of time owed on each stage (`StageShare` in the policy core). A layer split and a placement with a stage on the CPU refuse the flag by name as the server starts (`server::check_share`).
+- **Step 1, its own commit, the base:** each device stage of a pipelined layer split past the first has a recorder, used only while another pass is in flight (`recorded_apart`); the first stage stays on the scheduler's thread. A first build that gave every device stage a recorder lost 3 to 8 percent, and an event log named the hand-over: the recorders' wakes cost 0.01 ms a pass, and the loss was the first stage's end published while the scheduler's thread sat in the retiring pass's logits wait and its sampling, so the last stage's submission came 1.1 ms a pass late. A thread costs a stage nothing by its wake and everything by where the scheduler's thread is when the stage ends. With the first stage inline the round is level with main (Qwen3-8B Q8_0 over two MI50s, `--dtype int8 --host-cache-bytes 0`, closed, two rounds, 128 tokens a reply; main, branch, branch, main in one session, at 4983b938f against main 8278c6b7f):
+
+  | prompts | users | main tok/s (first, last) | branch tok/s (two arms) | inter-token p50 / p99, main | branch |
+  |---|---|---|---|---|---|
+  | 128 | 1 | 70.9, 70.1 | 69.6, 70.0 | 13.3 / 14 ms | 13.4 to 13.5 / 14 to 15 |
+  | 128 | 16 | 562.5, 556.6 | 564.1, 563.5 | 20.0 / 25 | 20.0 / 26 |
+  | 128 | 32 | 662.0, 657.8 | 663.4, 662.9 | 33.0 / 400 | 33.0 / 402 |
+  | 128 | 64 | 724.7, 719.9 | 726.5, 724.9 | 59.0 / 481 | 58.9 to 59.1 / 482 |
+  | 1024 | 1 | 52.0, 51.8 | 52.3, 51.6 | 14.8 / 16 | 14.7 to 14.9 / 16 |
+  | 1024 | 16 | 194.7, 191.7 | 196.2, 193.3 | 26.0 / 459 | 25.6 / 468 to 479 |
+  | 1024 | 32 | 205.7, 202.6 | 207.1, 203.9 | 44.2 / 480 | 43.8 to 44.0 / 488 to 499 |
+  | 1024 | 64 | 209.7, 206.1 | 210.6, 207.0 | 81.3 / 520 | 81.4 / 528 to 542 |
+
+  The drafter over a layer split, the one cell the review asked for before the base is priced, since the chain now waits for a stage's recorder (Qwen3.8-27B Q8_0 over two MI50s, `--drafter embedded`, 128-token prompts and replies, two rounds; main, head, head, main): one user 30.7 and 30.7 tok/s on main against 30.6 and 30.7 at the head, inter-token p50 53.3 ms on each; 16 users 110.8 and 110.3 tok/s against 110.1 and 110.9, inter-token p50 90.9 and 92.0 ms against 93.1 and 90.0, p99 99.1 and 99.0 ms against 104.8 and 100.1. Level.
+- **Production's shape, two runs a cell** (Qwen3.8-27B Q8_0 on a tensor group of two MI50s, `--tensor-width 2 --drafter embedded`, one request generating for the whole read of a 49896-token prompt, at c28038b3c):
+
+  | share | events a second while the prompt is read | between passes with tokens, p50 / p99 | longest gap | the prompt's read |
+  |---|---|---|---|---|
+  | 0 | 2.19, 2.24 | 1876, 1829 / 2549, 2467 ms | 2.55, 2.47 s | 184.1, 180.2 s |
+  | 0.25 | 20.55, 20.66 | 195, 195 / 277, 269 ms | 0.39, 0.37 s | 238.2, 237.3 s |
+  | 0.33 | 26.36, 26.05 | 152, 152 / 202, 203 ms | 0.23, 0.25 s | 264.5, 264.5 s |
+  | 0.5 | 38.05, 37.97 | 97, 98 / 168, 170 ms | 0.23, 0.54 s | 349.1, 350.5 s |
+
+  The request alone writes 57 to 65 events a second. The prompt gives up 23, 31 and 48 percent of its speed for settings of 25, 33 and 50.
+- **One MI50, two runs a cell** (Qwen3-8B Q8_0, one request generating beside a 30000-token prompt, at c28038b3c): | share | tok/s while the prompt is read | between passes with tokens, p50 / p99 | longest gap | the prompt's read |
+  |---|---|---|---|---|
+  | 0 | 0.71, 0.71 | 1454, 1458 / 2433, 2446 ms | 2.43, 2.45 s | 89.5, 89.8 s |
+  | 0.25 | 17.30, 17.40 | 60, 60 / 82, 82 ms | 0.12, 0.16 s | 119.3, 119.4 s |
+  | 0.33 | 22.23, 22.37 | 46, 46 / 73, 72 ms | 0.14, 0.14 s | 133.4, 132.8 s |
+  | 0.5 | 26.54, 26.86 | 29, 28 / 76, 70 ms | 0.11, 0.12 s | 152.2, 150.3 s |
+
+  Alone the request writes 74 tok/s. The prompt gives up 25, 33 and 41 percent: at one half a single request does not use its half, since each of its passes waits for its token to be sampled and the next pass formed, and the prompt keeps what it leaves. Another agent's gates ran on other cores beside these cells and production's (one-minute load 5 to 47 on sixteen logical CPUs); the two runs of each cell agree within 1.3 percent.
+- **Where a paced stage's time goes, by its own thread's clock** (a timing build for no branch, the group with the drafter, one run a row): at one quarter pieces 74.9 percent, the stage standing still for the scheduler's own device work 5.9 percent, passes apart 19.1 percent at 38.8 ms each; at one third 66.9, 7.4 and 25.5 percent. Without a drafter the stage never stands still (pieces 75.0 percent, passes apart 24.9 percent at 30.8 ms each, at one quarter). The stage stands still once a generated step for about 11 ms, the retract, the chain and the mark of one step back to back; that time is spent by the generated rows (`StageShare::held`), so the prompt keeps its side whatever the drafter does.
+- **Many users, Qwen3-8B Q8_0 on one MI50** (`--dtype int8 --host-cache-bytes 0`, 64 seats, 128 tokens a reply, two rounds, every arm in one session on the same card and cores; main is d85a59616, the reference server its image `mxxm/mx-llama.cpp:gfx906`; another agent's gates ran on logical CPUs 4-7 beside most arms, the monitor's one-minute load between 6 and 42 on sixteen logical CPUs, and every run is kept as it is):
+
+  128-token prompts, closed:
+
+  | arm | users | output tok/s (two rounds) | inter-token p50 / p99 | first token p50 / p99 |
+  |---|---|---|---|---|
+  | main | 16 | 335.1, 332.6 | 33 / 366 ms | 1.1 / 1.9 s |
+  | main | 32 | 374.8, 371.5 | 58 / 476 ms | 1.9 / 3.8 s |
+  | main | 64 | 364.9, 366.9 | 119 / 551 ms | 3.9 / 8.1 s |
+  | share 0 | 16 | 329.6, 338.9 | 33 / 357 ms | 1.1 / 1.9 s |
+  | share 0 | 32 | 371.8, 371.7 | 58 / 482 ms | 1.9 / 3.8 s |
+  | share 0 | 64 | 367.3, 369.5 | 118 / 545 ms | 3.9 / 8.1 s |
+  | share 0.25 | 16 | 318.8, 321.3 | 32 / 119 ms | 1.4 / 2.6 s |
+  | share 0.25 | 32 | 348.9, 354.2 | 58 / 206 ms | 2.5 / 4.9 s |
+  | share 0.25 | 64 | 355.2, 354.5 | 118 / 418 ms | 5.0 / 10.5 s |
+  | share 0.33 | 16 | 302.2, 314.2 | 33 / 100 ms | 1.5 / 2.8 s |
+  | share 0.33 | 32 | 339.1, 340.0 | 59 / 166 ms | 2.9 / 5.6 s |
+  | share 0.33 | 64 | 347.1, 351.6 | 117 / 315 ms | 5.5 / 11.5 s |
+  | share 0.5 | 16 | 279.8, 290.1 | 33 / 66 ms | 1.9 / 3.6 s |
+  | share 0.5 | 32 | 315.1, 318.1 | 55 / 110 ms | 3.6 / 7.3 s |
+  | share 0.5 | 64 | 335.5, 335.7 | 97 / 219 ms | 7.4 / 15.4 s |
+  | reference | 16 | 225.3, 225.1 | 58 / 66 ms | 1.7 / 1.7 s |
+  | reference | 32 | 288.0, 341.9 | 82 / 158 ms | 3.2 / 3.4 s |
+  | reference | 64 | 388.3, 390.0 | 110 / 1670 ms | 5.2 / 6.9 s |
+
+  1024-token prompts, closed:
+
+  | arm | users | output tok/s (two rounds) | inter-token p50 / p99 | first token p50 / p99 |
+  |---|---|---|---|---|
+  | main | 16 | 105.3, 107.3 | 44 / 469 ms | 7.7 / 14.2 s |
+  | main | 32 | 108.5, 108.5 | 81 / 510 ms | 14.9 / 29.4 s |
+  | main | 64 | 107.8, 107.9 | 173 / 602 ms | 30.4 / 64.4 s |
+  | share 0 | 16 | 107.2, 108.0 | 43 / 468 ms | 7.7 / 14.1 s |
+  | share 0 | 32 | 109.5, 109.5 | 79 / 509 ms | 14.9 / 29.3 s |
+  | share 0 | 64 | 108.6, 108.6 | 163 / 598 ms | 30.4 / 64.3 s |
+  | share 0.25 | 16 | 96.5, 97.8 | 63 / 126 ms | 10.0 / 18.4 s |
+  | share 0.25 | 32 | 102.0, 102.0 | 89 / 140 ms | 19.4 / 37.1 s |
+  | share 0.25 | 64 | 104.7, 103.8 | 108 / 160 ms | 38.3 / 75.2 s |
+  | share 0.33 | 16 | 91.1, 91.2 | 56 / 70 ms | 11.1 / 20.2 s |
+  | share 0.33 | 32 | 94.9, 94.3 | 64 / 78 ms | 21.4 / 41.1 s |
+  | share 0.33 | 64 | 96.6, 96.9 | 65 / 77 ms | 42.1 / 82.2 s |
+  | share 0.5 | 16 | 72.5, 72.6 | 30 / 39 ms | 14.4 / 26.3 s |
+  | share 0.5 | 32 | 74.0, 74.0 | 31 / 39 ms | 27.9 / 53.4 s |
+  | share 0.5 | 64 | 74.6, 74.7 | 31 / 39 ms | 55.1 / 107.7 s |
+  | reference | 16 | 95.7, 95.3 | 63 / 1747 ms | 8.2 / 13.7 s |
+  | reference | 32 | 103.7, 108.8 | 91 / 1804 ms | 16.1 / 28.1 s |
+  | reference | 64 | 112.3, 111.0 | 130 / 1845 ms | 29.9 / 57.2 s |
+
+  The skew, 16 users generating in a closed loop (128-token prompts and replies, four rounds) and four 4096-token prompts arriving together 10 s in:
+
+  | arm | the long prompts' first tokens | users' output tok/s by round | users' inter-token p50 / p99 over the rounds | longest gap | gaps over 0.3 s |
+  |---|---|---|---|---|---|
+  | main | 8.9, 4.3, 13.4, 17.9 s | 348, 81, 310, 356 | 32 / 640 ms | 0.67 s | 620 |
+  | share 0 | 4.3, 17.9, 13.4, 8.9 s | 344, 81, 313, 355 | 32 / 640 ms | 0.67 s | 620 |
+  | share 0.25 | 19.8, 7.7, 14.0, 25.3 s | 299, 109, 132, 332 | 46 / 218 ms | 0.42 s | 16 |
+  | share 0.33 | 8.3, 20.7, 26.7, 14.7 s | 309, 154, 90, 324 | 38 / 117 ms | 0.22 s | 0 |
+  | share 0.5 | 10.9, 22.9, 28.9, 17.0 s | 273, 205, 76, 300 | 33 / 88 ms | 0.21 s | 0 |
+  | reference | 13.1, 5.5, 9.2, 15.3 s | 85, 201, 184, 179 | 73 / 1803 ms | 1.97 s | 147 |
+
+  Share 0 is main in every cell. A share buys the generating requests their inter-token p99 and costs output and the first token, most where prompts are long: with 1024-token prompts the load is bound by the reading, and at one half the output falls by a third.
+- **The same on a tensor group of two MI50s** (`--tensor-width 2`, the reference `-sm tensor -tps 2`):
+
+  128-token prompts, closed:
+
+  | arm | users | output tok/s (two rounds) | inter-token p50 / p99 | first token p50 / p99 |
+  |---|---|---|---|---|
+  | main | 16 | 444.8, 479.6 | 25 / 226 ms | 0.9 / 1.4 s |
+  | main | 32 | 532.7, 546.0 | 41 / 310 ms | 1.3 / 2.5 s |
+  | main | 64 | 566.2, 561.2 | 77 / 349 ms | 2.5 / 5.1 s |
+  | share 0 | 16 | 414.7, 470.2 | 25 / 228 ms | 0.9 / 1.6 s |
+  | share 0 | 32 | 522.0, 547.3 | 41 / 310 ms | 1.5 / 2.7 s |
+  | share 0 | 64 | 567.2, 563.0 | 77 / 348 ms | 2.5 / 5.1 s |
+  | share 0.25 | 16 | 405.8, 410.1 | 26 / 89 ms | 1.1 / 1.8 s |
+  | share 0.25 | 32 | 483.5, 459.0 | 41 / 147 ms | 2.3 / 4.1 s |
+  | share 0.25 | 64 | 537.5, 533.7 | 78 / 254 ms | 3.3 / 6.7 s |
+  | share 0.33 | 16 | 371.3, 403.2 | 25 / 96 ms | 1.1 / 2.0 s |
+  | share 0.33 | 32 | 489.5, 501.9 | 40 / 113 ms | 1.9 / 3.7 s |
+  | share 0.33 | 64 | 536.2, 523.0 | 76 / 202 ms | 3.6 / 7.4 s |
+  | share 0.5 | 16 | 382.9, 408.1 | 25 / 46 ms | 1.4 / 2.5 s |
+  | share 0.5 | 32 | 469.4, 475.3 | 39 / 76 ms | 2.3 / 4.7 s |
+  | share 0.5 | 64 | 506.8, 515.4 | 68 / 136 ms | 4.8 / 9.5 s |
+  | reference | 16 | 308.4, 302.5 | 43 / 61 ms | 1.1 / 1.1 s |
+  | reference | 32 | 289.4, 435.0 | 89 / 107 ms | 1.3 / 2.5 s |
+  | reference | 64 | 515.9, 516.0 | 85 / 962 ms | 2.8 / 5.0 s |
+
+  1024-token prompts, closed:
+
+  | arm | users | output tok/s (two rounds) | inter-token p50 / p99 | first token p50 / p99 |
+  |---|---|---|---|---|
+  | main | 16 | 157.3, 160.0 | 31 / 306 ms | 5.1 / 9.4 s |
+  | main | 32 | 166.6, 167.0 | 52 / 328 ms | 9.8 / 19.2 s |
+  | main | 64 | 168.4, 168.3 | 101 / 379 ms | 19.8 / 41.5 s |
+  | share 0 | 16 | 157.5, 159.4 | 31 / 306 ms | 5.1 / 9.4 s |
+  | share 0 | 32 | 166.6, 167.1 | 52 / 328 ms | 9.8 / 19.2 s |
+  | share 0 | 64 | 168.3, 168.3 | 101 / 380 ms | 19.8 / 41.5 s |
+  | share 0.25 | 16 | 139.7, 142.1 | 45 / 102 ms | 6.5 / 12.1 s |
+  | share 0.25 | 32 | 150.3, 151.0 | 72 / 116 ms | 12.8 / 24.5 s |
+  | share 0.25 | 64 | 156.8, 153.4 | 93 / 125 ms | 25.5 / 49.8 s |
+  | share 0.33 | 16 | 131.7, 134.6 | 48 / 63 ms | 7.2 / 13.5 s |
+  | share 0.33 | 32 | 141.6, 142.1 | 55 / 72 ms | 14.0 / 26.8 s |
+  | share 0.33 | 64 | 146.5, 146.5 | 56 / 64 ms | 27.6 / 53.8 s |
+  | share 0.5 | 16 | 108.7, 108.5 | 29 / 35 ms | 9.3 / 17.0 s |
+  | share 0.5 | 32 | 112.9, 112.4 | 29 / 35 ms | 18.1 / 34.7 s |
+  | share 0.5 | 64 | 114.4, 112.5 | 30 / 38 ms | 35.7 / 69.8 s |
+  | reference | 16 | 132.6, 133.4 | 46 / 1231 ms | 5.7 / 9.6 s |
+  | reference | 32 | 129.4, 149.6 | 94 / 1273 ms | 11.2 / 19.7 s |
+  | reference | 64 | 159.4, 159.8 | 94 / 1282 ms | 20.5 / 39.8 s |
+
+  The skew, 16 users generating in a closed loop (128-token prompts and replies, four rounds) and four 4096-token prompts arriving together 10 s in:
+
+  | arm | the long prompts' first tokens | users' output tok/s by round | users' inter-token p50 / p99 over the rounds | longest gap | gaps over 0.3 s |
+  |---|---|---|---|---|---|
+  | main | 2.8, 11.4, 5.8, 8.6 s | 447, 144, 297, 477 | 25 / 392 ms | 0.46 s | 424 |
+  | share 0 | 2.8, 8.6, 5.8, 11.4 s | 449, 152, 268, 478 | 25 / 391 ms | 0.45 s | 393 |
+  | share 0.25 | 3.7, 10.8, 7.3, 14.4 s | 421, 266, 128, 449 | 26 / 102 ms | 0.19 s | 0 |
+  | share 0.33 | 4.0, 16.0, 12.0, 8.1 s | 412, 290, 114, 440 | 26 / 76 ms | 0.18 s | 0 |
+  | share 0.5 | 4.7, 13.2, 9.0, 17.4 s | 383, 299, 106, 410 | 26 / 53 ms | 0.19 s | 0 |
+  | reference | 10.4, 6.3, 8.8, 3.8 s | 308, 115, 174, 169 | 84 / 1232 ms | 1.31 s | 132 |
+
+- **Ids and log-probabilities** (`tools/server_mix_check.py --logprobs`, 12 requests alone, together and skewed, at c28038b3c): on Qwen3-8B Q8_0 on one MI50, share 0, one quarter and one half give main's file (502992 bytes), and on a group of two main's (502703 bytes); on Qwen3.8-27B Q8_0 on a group of two with the embedded drafter one half gives share 0's (503339 bytes). On that model the tool's CLI comparison fails for its first request at every arm, main with and without the drafter included, whose ids are the head's: a difference between `generate` and the server on main, reported in the devlog and not this change's.
+- **Radeon VII, Windows, the proprietary driver, at c28038b3c:** a fresh Vulkan build, CTest 48 of 48; the same tool on Qwen3-0.6B Q8_0 at share 0 and one half, each matching the CLI, one file (500674 bytes); a request generating beside a 29957-token prompt, two runs: 1.17 and 1.20 tok/s with 0.87 s between tokens at share 0, 39.2 and 39.2 tok/s with nothing over 0.07 s at one third, the read 55.8 and 55.7 s against 74.5 and 74.4 s.
+- **What a layer split would pay, and why it is refused:** fed in pieces, a prompt's pass stays in flight for its stage's device time and a sequence is in one pass at a time, so the stages stop overlapping on the prompt: Qwen3-8B Q8_0 over two MI50s read 30000 tokens in 120.1 s at one half against 46.0 s at share 0, one run, on an earlier head. The repair is a sequence in consecutive passes at consecutive stages (`docs/MULTI-DEVICE.md`, order of work, 4), a step of its own.
+- **Reached by tests and by no product path until that step:** the scheduler gives a share to any placement that `Model::paces`, a pipelined layer split among them, and only `serve` refuses the split (`check_share`). So `Model::stage_ready` past its first stage, `Backend::done` with its Vulkan override, and a pass apart at each stage of a split are the layer-split step's, kept here with their tests (`server-passes-cpu`, `server-resume`) for it.
+- **Four faults on the way, each found by measurement and held by a hand check in `server-passes`:** (1) the share as a fading average of each side's time delivered 58 percent at a setting of one half and 35 at one quarter; it is an account of time owed. (2) A ride priced by the line fitted to the passes' retirement times, which under a share include the wait until the rows are due, sent generated rows riding the prompt's last slices, a gap of 0.5 to 0.8 s at the end of every read at one quarter and one third; a ride is priced by what a stage's thread measures. (3) Priced by the last pass measured, one pass of over half a second under a neighbour's load held the price and the rows rode for two minutes; the price is the least of the last eight, and a ride goes apart for one pass after eight prompt passes (`RideRun`). (4) A pass recorded behind a piece held ahead is not measured, and charged the last pass measured it kept itself rare and unmeasured after one slow pass; every charge uses the price, a pass spends no more than two at the price, and no piece is held ahead while a pass apart waits.
+- **Tests:** `server-passes` by hand (`rides`, `RideRun`, `StageShare`, the two kinds in `round_steps`) and its simulated executor with two kinds of pass; `server-passes-cpu` over backends that say they are no CPU at one half and one quarter, over stages of groups at one half, and a request cancelled, a submission failing and a stop from inside a piece; `server-resume`'s recorder rule fed in pieces; `backend-vulkan`, two sequences of sums interleaved on one collective; `tests/cli.py`, the refusal on the CPU.
+- **Gates:** the tables above, each binary's version line its commit, llmx alone on its cards at default clocks, logical CPUs 0-3 and 8-11; the many-user arms at c28038b3c against main d85a59616. Rebased over the tensor-split fixes and the comment sweep at 3e28c8a11, production's cell reads the same (2.27 and 2.28 events a second at share 0, 20.64 and 20.70 at one quarter, 26.24 and 26.29 at one third, 38.03 and 37.76 at one half; reads of 180, 237, 264 and 350 s), with one gap of 1.26 s in one run at one half as another agent's 27B server loaded on other cards. At that head on the test machine: a Vulkan build of every target without a warning, CTest 47 of 47 with one MI50, `backend-vulkan` and `vulkan-lifetime` on two, the suite on the CPU and on one MI50, `server-passes-cpu` and `http` under the thread sanitizer with no report, the recorder rule's three cases ten of ten unplanted and none of ten with a device call made outside the hold, and the many-user ids main's on one MI50, a group of two and a layer split; on the Radeon VII CTest 48 of 48 and one ids file at share 0 and one half. The hosted run is named in the landing's devlog entry.
+- **Reviewed:** step 1 as the base and the pieces' design on a tensor group by F2DEV, whose two points are in (the collective's invariant where its parity flips, the interleaved sums in `backend-vulkan`); the price and the ride on 2026-10-09 and the whole stack at d0c48f569 by O5REV, no finding that held the code, whose four points are in (the refusal naming its cause, the names the next step owns, this line, the two comments).
 ## A two-shot sum's shares begin on the device's offset alignment (2026-10-09, branch fix/two-shot-offsets, lands by fast-forward)
 
 - **Found by XDEV's review of main a1b8211b4, by arithmetic:** a sum over three or more members that takes two shots binds each member's share of the rows at the share's own float offset. Equal shares of 327680 floats over three members begin at floats 0, 109227 and 218454, bytes 12 and 8 past a 16-byte boundary, and a device may require a storage-buffer offset to be a multiple of 16 bytes (`minStorageBufferOffsetAlignment`). No failure on an MI50 is claimed; a device with that limit would be given offsets it does not take.

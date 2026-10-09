@@ -29,6 +29,7 @@ struct Config {
     size_t max_seqs = 16;
     size_t max_queue = 64;   // requests waiting for admission; past it, 503
     size_t passes = 0;       // passes in flight; 0 takes the stage count on a pipelined layer split and one elsewhere (Scheduler)
+    double generating_share = 0;   // of each device's time, what generating requests keep while prompts are read (Scheduler); 0 lets prompts go first
     int state_checkpoints = -1;   // on a model that keeps a state, the states kept for prefix reuse; -1 for the most the fit gives up to max_seqs
     bool timing = false;     // time the rounds and the stages for /v1/health, over backends made to time their work
     std::optional<size_t> host_cache_bytes;   // host memory for donors the devices evict (Scheduler); none given takes default_host_cache
@@ -193,7 +194,7 @@ private:
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + "}}" +
                   ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + "}}" +
                   ",\"drafting\":{\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]}}" +
-                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + "}" +
+                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + "}}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
     // The run's request and resolved dtype, including each device's emulation or wider fallback.
@@ -879,11 +880,23 @@ struct StopOnSignal {
 };
 } // namespace detail
 
+// A share for generating requests is honoured where a prompt can be fed in pieces without losing anything else, and refused by its flag's name elsewhere.
+// Over the stages of a layer split a pass fed in pieces stays in flight for the stages' device time, so a prompt beside a generating request would be read by one stage at a time; a stage on the CPU computes as it is recorded.
+inline void check_share(const infer::Model& model, double share) {
+    if (share <= 0) return;
+    for (size_t s = 0; s < model.stage_count(); ++s)
+        if (model.stage_on_host(s)) throw std::runtime_error("--generating-share: a stage on the CPU is not fed in pieces; serve the model on one device or one tensor group");
+    if (!model.paces())
+        throw std::runtime_error("--generating-share: a stage is fed in pieces only with every part of it on its device, and here experts, the embedding or the head run elsewhere; serve the model whole on one device or one tensor group");
+    if (model.stage_count() > 1)
+        throw std::runtime_error("--generating-share: a layer split would read a prompt one stage at a time beside a generating request; serve the model on one device or one tensor group");
+}
+
 // Serve until the listener is closed, or a signal stops it (detail::StopOnSignal): the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)), cfg.proposer,
-                    cfg.draft_max, true, cfg.disk);
+                    cfg.draft_max, true, cfg.disk, cfg.generating_share);
     const Scheduler::Stats started = sched.stats();
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,

@@ -286,6 +286,8 @@ public:
     virtual Slice partial(size_t member) = 0;
     // Each member's residual rows, `rows` rows of `width` floats at residual[m], gain ((p0 + p1) + ...) + p(W-1) of the members' partial rows, enqueued on every member.
     virtual void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) = 0;
+    // Every member done with what the last sum submitted on it (`back` 0), or the sum before it (1); nothing to wait for where the members compute as they are called.
+    virtual void wait(size_t back) noexcept { (void)back; }
 };
 
 class Backend {
@@ -407,6 +409,11 @@ public:
     // Retirement cannot throw, since callers release storage afterward, and a backend is one thread's: every call is by the recording thread, but wait(t) of a submitted ticket may come from another (docs/SERVER.md, the round).
     // A collective may make each member's queue call of a sum on a thread of its own while the recording thread is inside sum_into, which returns only once every member's queue is taken back.
     virtual void wait(Ticket t) noexcept = 0;
+    // Whether submission t has retired, asked without waiting where the backend can tell; any thread may ask, as it may wait.
+    virtual bool done(Ticket t) noexcept {
+        wait(t);
+        return true;
+    }
     // Also retires work behind no ticket, including on failure paths.
     virtual void sync() noexcept = 0;
 

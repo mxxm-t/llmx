@@ -55,6 +55,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   `wait(t)` of a returned ticket may come from another thread while the
   owning one records: the last ticket is atomic and the wait times it
   adds are under a lock, and nothing else of the backend is shared.
+  `done(t)` reads the timeline semaphore with a wait of no time, so it never blocks, and `VulkanCollective::wait(back)` waits each member's ticket of the last sum or of the one before it, which the collective keeps as it submits them.
   Such a backend also times where it holds its caller (`host_times`): its
   ticket waits, its wait for a free ring slot in `open`, its wait for a
   half of staging in `upload`, and its writes apart from those waits;

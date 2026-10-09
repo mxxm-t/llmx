@@ -1922,6 +1922,17 @@ public:
 
     void wait(Ticket t) noexcept override { waited(host_.ticket_ms, t); }
 
+    // A wait of no time; anything but a timeout is left to the wait that follows.
+    bool done(Ticket t) noexcept override {
+        if (t == 0 || t > last_ticket_) return true;
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &timeline_;
+        wi.pValues = &t;
+        return dev_->fn.vkWaitSemaphores(dev_->device, &wi, 0) != VK_TIMEOUT;
+    }
+
     // noexcept by contract: a device that cannot report its work finished has been lost, and nothing here can act on that.
     void wait_for(Ticket t) noexcept {
         if (t == 0 || t > last_ticket_) return;
@@ -3559,7 +3570,7 @@ inline size_t share_begin(size_t k, size_t n, size_t members, size_t align) { re
 class VulkanCollective final : public Collective {
 public:
     VulkanCollective(const std::vector<VulkanBackend*>& members, size_t rows, size_t width)
-        : members_(members), rows_(rows), width_(width) {
+        : members_(members), rows_(rows), width_(width), taken_(members.size(), 0) {
         const size_t W = members.size(), bytes = size_mul(size_mul(rows, width), sizeof(float));
         try {
             threads_ = std::make_unique<core::JobThreads>(W < 3 ? 0 : W - 1);
@@ -3605,6 +3616,11 @@ public:
 
     Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
 
+    void wait(size_t back) noexcept override {
+        const std::vector<Ticket>& sum = back ? before_ : last_;
+        for (size_t m = 0; m < sum.size(); ++m) members_[m]->wait(sum[m]);
+    }
+
     // A sum that fails part way drains the members and makes the semaphores again, so the collective is as new and the passes beside the failed one go on.
     void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) override {
         if (residual.size() != members_.size() || rows > rows_ || width != width_)
@@ -3612,6 +3628,8 @@ public:
         if (signal_.empty()) throw std::runtime_error("vulkan: a tensor group's semaphores could not be made again after a failed sum");
         try {
             sum(residual, rows, width);
+            before_ = last_;
+            last_ = taken_;
         } catch (...) {
             release();
             try { make_semaphores(); } catch (const std::exception&) { release(); }
@@ -3623,6 +3641,8 @@ private:
     void sum(const std::vector<Slice>& residual, size_t rows, size_t width) {
         const size_t W = members_.size();
         const size_t n = rows * width, bytes = n * sizeof(float);
+        // The parity is the collective's, flipped once a sum whichever pass makes it, so passes may interleave their sums here.
+        // A sum's adds are submitted by the next exchange, and two parities are enough only because of that.
         const int p = parity_;
         parity_ ^= 1;
         if (n >= VulkanBackend::two_shot_crossover(W)) return two_shots(residual, n, p);
@@ -3708,7 +3728,7 @@ private:
         }
         for (size_t m = 0; m < prepared; ++m) {
             try {
-                members_[m]->queued(work[m], result[m]);
+                taken_[m] = members_[m]->queued(work[m], result[m]);
             } catch (...) {
                 if (!failed) failed = std::current_exception();
             }
@@ -3768,6 +3788,7 @@ private:
     std::vector<VulkanBackend*> members_;
     size_t rows_, width_;
     int parity_ = 0;
+    std::vector<Ticket> taken_, last_, before_;   // per member, its submission of the last exchange, of the last sum and of the sum before it
     std::unique_ptr<core::JobThreads> threads_;   // a thread a member but the first, asleep between exchanges, from three members on (docs/STATUS.md, a group's members submit side by side)
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows

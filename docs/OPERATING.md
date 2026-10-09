@@ -46,6 +46,34 @@ The server drafts only while its measured cost finds a gain, so it goes off as m
 llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4
 ```
 
+**A generating request beside a long prompt.**
+By default a prompt goes first: a request that is already writing its reply gets a token each time a batch of the prompt has run, which beside a long prompt is one or two seconds a token.
+`--generating-share X` keeps the fraction X of the device's time for the requests that are writing while a prompt is read, on one GPU or on one tensor group; a layer split refuses the flag.
+The trade is direct, and you choose it:
+
+- the prompt's reading takes about 1 / (1 - X) of the time it takes alone, so twice as long at 0.5 and a third longer at 0.25, and only while a request is writing;
+- the writing requests keep about X of the speed they have alone, and their longest pause is about (1 - X) / X of one of their own steps, where at 0 it is a whole prompt batch.
+
+Choose the smallest share that makes a reply readable while a prompt arrives: 0.25 to 0.33 where long prompts are common and a wait for the first token matters, 0.5 where people read replies as they are written and long prompts are rare.
+With nothing writing, a prompt is read at full speed at any share, and the flag costs a small second arena on every device.
+With many users the share also lowers total output, most where prompts are long, because a batch of prompt rows uses a device better than a batch of a few generated rows.
+
+One measured case, to read the trade from (a 27B model on a tensor group of two GPUs with `--drafter embedded`, one request writing while a 50000-token prompt is read; the record with its conditions and the many-user tables is in [STATUS](STATUS.md), A generating request keeps a share of a device beside a prompt):
+
+| share | the writing request, tokens a second | its longest pause | the prompt's read |
+|---|---|---|---|
+| 0 | 2.2 | 2.5 s | 182 s |
+| 0.25 | 20.6 | 0.4 s | 238 s |
+| 0.33 | 26.2 | 0.25 s | 265 s |
+| 0.5 | 38.0 | 0.2 to 0.5 s | 350 s |
+
+Alone, that request writes about 60 tokens a second.
+`passes.since_start` in health shows it at work (Reading health, below).
+
+```
+llmx serve model.gguf --device vulkan:0,vulkan:1 --tensor-width 2 --generating-share 0.33
+```
+
 **Many users.**
 `--max-seqs` is how many requests run at once, `--max-queue` how many wait for a place before a new one gets a 503, and `--ctx-size` the conversation memory (KV cache) they all share.
 More requests at once need a larger `--ctx-size`: a request that sets a token limit waits in the queue until the pool can hold it, and one without a limit is paused when the pool runs out and reads its history again when room returns (`pressure` in health).

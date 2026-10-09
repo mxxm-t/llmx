@@ -66,24 +66,32 @@ std::vector<Req> steady_load(uint32_t vocab) {
             {prompt_of(5, 2, vocab), 40}};
 }
 
-// The paused load and the held load at every run: each reply its reply alone, the paused load pausing a request on every run and the held load's older request waiting on the younger in flight at P = S.
-void paused(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
+// The paused load and the held load at every run, each reply its reply alone; it gives the passes apart that stages recorded between a prompt pass's pieces.
+// With a `share` some pass must be formed apart on every run, and the held load's waits are not asked for, the younger request's rows being in a pass of their own kind.
+uint64_t paused(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab, double share = 0) {
+    uint64_t between = 0;
     const std::vector<Req> reqs = paused_load(vocab), held = held_load(vocab);
     const std::vector<Reply> ref = alone(one, tok, 8 * kBlock, reqs), held_ref = alone(one, tok, 9 * kBlock, held);
     for (const Run& run : runs()) {
+        // With a share one pass slot a stage is enough: the passes apart have slots of their own.
+        if (share > 0 && run.passes != run.stages) continue;
         auto model = split(run.stages)(8 * kBlock, kUbatch);
         server::Scheduler::Stats s;
-        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, run.passes);
+        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, run.passes, 0, nullptr, 0, false, share);
         require(s.passes == run.passes, name(run) + ": the scheduler kept " + std::to_string(s.passes) + " passes in flight");
         require(s.pauses > 0, "the paused load on " + name(run) + ": nothing paused");
+        require((s.apart > 0) == (share > 0), "the paused load on " + name(run) + ": " + std::to_string(s.apart) + " passes formed apart");
+        between += s.between;
         for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "the paused load on " + name(run) + ", request " + std::to_string(i));
         model = split(run.stages)(9 * kBlock, kUbatch);
-        const std::vector<Reply> kept = serve(*model, tok, kSeqs, {held}, &s, run.passes);
-        require(s.pauses == 1 && (run.passes != run.stages || run.stages == 1 || s.waits > 0),
+        const std::vector<Reply> kept = serve(*model, tok, kSeqs, {held}, &s, run.passes, 0, nullptr, 0, false, share);
+        require(s.pauses == 1 && (share > 0 || run.passes != run.stages || run.stages == 1 || s.waits > 0),
                 "the held load on " + name(run) + ": " + std::to_string(s.pauses) + " pauses and " + std::to_string(s.waits) +
                 " plans waiting on a request in flight, against 1 and some at P = S");
         for (size_t i = 0; i < held.size(); ++i) same(held_ref[i], kept[i], "the held load on " + name(run) + ", request " + std::to_string(i));
+        between += s.between;
     }
+    return between;
 }
 
 // The steady load at every run, each pass recorded as it retires, then replayed in that order through forward on a fresh model of the same placement: every logits row bit for bit, and every reply its reply alone.
@@ -272,12 +280,12 @@ struct Ended {
 };
 Ended hooked_run(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, const Run& run, size_t pool,
                  const std::function<void(const std::vector<std::shared_ptr<server::Request>>&, size_t)>& hook,
-                 const std::vector<Req>& reqs, std::unique_ptr<infer::Model>& model) {
-    const std::vector<std::shared_ptr<Hooked>> devices = hooked(run.stages);
+                 const std::vector<Req>& reqs, std::unique_ptr<infer::Model>& model, double share = 0) {
+    const std::vector<std::shared_ptr<Hooked>> devices = hooked(run.stages, share > 0);
     model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(pool, kUbatch);
     Ended out;
     {
-        server::Scheduler sched(*model, tok, kSeqs, 64, run.passes);
+        server::Scheduler sched(*model, tok, kSeqs, 64, run.passes, false, 0, nullptr, 0, true, {}, share);
         std::vector<std::shared_ptr<server::Request>> h;
         for (const Req& r : reqs) h.push_back(sched.submit(r.prompt, params_of(r)));
         size_t submits = 0;
@@ -308,17 +316,19 @@ std::vector<Req> four(uint32_t vocab) {
 }
 
 // A request cancelled from inside the last stage's twelfth and thirteenth submissions, one of which records a pass it is in: it ends cancelled with its ids alone so far, the others with their replies whole.
-void cancelled(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenizer& tok, uint32_t vocab) {
+// With a `share` the stages are no CPU's and fed in pieces, so a submission is a piece's or a pass apart's between two pieces.
+void cancelled(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenizer& tok, uint32_t vocab, double share = 0) {
     const size_t pool = 16 * kBlock;
     const std::vector<Req> reqs = four(vocab);
     const std::vector<Reply> ref = alone(one, tok, pool, reqs);
     for (const Run& run : runs())
         for (size_t at : {12, 13}) {
-            const std::string what = "a request cancelled at the last stage's submission " + std::to_string(at) + " on " + name(run);
+            if (share > 0 && run.passes != run.stages) continue;
+            const std::string what = "a request cancelled at the last stage's submission " + std::to_string(at) + " on " + name(run) + (share > 0 ? " with a share" : "");
             std::unique_ptr<infer::Model> model;
             const Ended e = hooked_run(weights, tok, run, pool, [at](const std::vector<std::shared_ptr<server::Request>>& h, size_t n) {
                 if (n == at) h[0]->cancel();
-            }, reqs, model);
+            }, reqs, model, share);
             // A cancelled request's rows are dropped unread, so its tokens read after the cancel carry no values: its ids must be a prefix of its ids alone.
             require(e.finish[0] == "cancel" && e.replies[0].size() < ref[0].size(), what + ": it ended with " + e.finish[0] + " after " +
                     std::to_string(e.replies[0].size()) + " tokens");
@@ -333,16 +343,18 @@ void cancelled(const gguf::GGUFModel& weights, const Make& one, const bpe::Token
 }
 
 // The last stage's twentieth submission throws, failing the pass it records: that pass's requests end with the error, and with passes in flight beside it the others run to their ends as alone.
-void failed(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenizer& tok, uint32_t vocab) {
+// With a `share` the failing submission is a piece's or a pass apart's between two pieces, and fails that pass alone.
+void failed(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenizer& tok, uint32_t vocab, double share = 0) {
     const size_t pool = 16 * kBlock;
     const std::vector<Req> reqs = four(vocab);
     const std::vector<Reply> ref = alone(one, tok, pool, reqs);
     for (const Run& run : runs()) {
-        const std::string what = "a stage failing on " + name(run);
+        if (share > 0 && run.passes != run.stages) continue;
+        const std::string what = "a stage failing on " + name(run) + (share > 0 ? " with a share" : "");
         std::unique_ptr<infer::Model> model;
         const Ended e = hooked_run(weights, tok, run, pool, [](const std::vector<std::shared_ptr<server::Request>>&, size_t n) {
             if (n == 20) throw std::runtime_error("injected");
-        }, reqs, model);
+        }, reqs, model, share);
         size_t errors = 0;
         for (size_t i = 0; i < reqs.size(); ++i) {
             if (e.finish[i] == "error") {
@@ -355,7 +367,7 @@ void failed(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenize
             same(ref[i], e.replies[i], what + ", request " + std::to_string(i));
         }
         // Four decoding requests share the passes in flight evenly once the passes fill the stages, so a failed pass takes some and leaves the rest.
-        const bool shared = run.passes >= run.stages && run.passes > 1;
+        const bool shared = share > 0 || (run.passes >= run.stages && run.passes > 1);
         require(errors > 0 && (!shared || errors < reqs.size()),
                 what + ": " + std::to_string(errors) + " of " + std::to_string(reqs.size()) + " requests ended with the error");
         whole_pool_free(*model, pool, vocab, what);
@@ -363,14 +375,15 @@ void failed(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenize
 }
 
 // A stop from inside the first stage's twelfth submission: every request ends cancelled, and the ledger and the pool hold nothing.
-void stopped(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+void stopped(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, double share = 0) {
     const size_t pool = 16 * kBlock;
     for (const Run& run : runs()) {
-        const std::string what = "a stop from inside a stage on " + name(run);
-        const std::vector<std::shared_ptr<Hooked>> devices = hooked(run.stages);
+        if (share > 0 && run.passes != run.stages) continue;
+        const std::string what = "a stop from inside a stage on " + name(run) + (share > 0 ? " with a share" : "");
+        const std::vector<std::shared_ptr<Hooked>> devices = hooked(run.stages, share > 0);
         auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(pool, kUbatch);
         {
-            server::Scheduler sched(*model, tok, kSeqs, 64, run.passes);
+            server::Scheduler sched(*model, tok, kSeqs, 64, run.passes, false, 0, nullptr, 0, true, {}, share);
             std::vector<std::shared_ptr<server::Request>> h;
             for (const Req& r : four(vocab)) h.push_back(sched.submit(r.prompt, params_of(r)));
             size_t submits = 0;
@@ -440,9 +453,8 @@ void routed_groups(const gguf::GGUFModel& weights, uint32_t vocab) {
     }
 }
 
-// A layer split whose stages are no CPU's, as a split over devices is: with several passes in flight a stage is recorded on a thread of its own (Model::stage_waits) while another pass is in flight, and on the scheduler's thread while its pass is alone.
-// The paused and the held load on 1, 2 and 3 such stages at each P, every reply its reply alone on one CPU, whose bits a layer split gives.
-// Then the rule itself, by the threads that submit to the backends: one request alone is submitted by one thread, the scheduler's, and the steady load at P = S and above by more than one, every reply its reply alone.
+// A layer split whose stages are no CPU's, as a split over devices is: the paused and the held load at each P, every reply its reply alone.
+// Then the rule by the threads that submit: a request alone by the scheduler's thread only, the steady load by more than one (recorded_apart).
 struct Submitters {
     std::mutex m;
     std::set<std::thread::id> threads;
@@ -457,8 +469,18 @@ struct Submitters {
 };
 struct NoCpu : backend::CpuBackend {
     Submitters* seen;
+    // The CPU's collective takes CPU members, which these are for as long as one is made.
+    static inline thread_local bool joining = false;
     explicit NoCpu(Submitters* s) : seen(s) { set_threads(1); }
-    bool is_cpu() const override { return false; }
+    bool is_cpu() const override { return joining; }
+    // It cannot tell its free memory, so a fit does not wait for it to settle.
+    std::optional<size_t> memory_available() const override { return std::nullopt; }
+    std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
+        joining = true;
+        std::unique_ptr<backend::Collective> c = CpuBackend::join(members, rows, width);
+        joining = false;
+        return c;
+    }
     backend::Ticket submit() override {
         {
             std::lock_guard<std::mutex> lk(seen->m);
@@ -479,6 +501,29 @@ void recorded_stages(const gguf::GGUFModel& weights, uint32_t vocab) {
         });
     };
     paused(one, split, tok, vocab);
+    for (const double share : {0.5, 0.25}) {
+        const uint64_t between = paused(one, split, tok, vocab, share);
+        require(between > 0, "stages that are no CPU's at a share of " + std::to_string(share) + ": no pass apart was recorded between a prompt pass's pieces");
+        std::cout << "server-passes-cpu: at a share of " << share << " the stages recorded " << between << " passes apart between a prompt pass's pieces\n";
+    }
+    // The same over stages of tensor groups of two such backends, where a piece ends at a sum.
+    const Make one_group = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
+    const auto groups = [&weights, &seen](size_t stages) {
+        return on(weights, [stages, &seen] {
+            std::vector<backend::BackendPtr> v;
+            for (size_t i = 0; i < 2 * stages; ++i) v.push_back(std::make_shared<NoCpu>(&seen));
+            return v;
+        }, 8, 0, 0, 0, false, 2);
+    };
+    {
+        const uint64_t between = paused(one_group, groups, tok, vocab, 0.5);
+        require(between > 0, "stages of groups that are no CPU's at a share of one half: no pass apart was recorded between a prompt pass's pieces");
+        std::cout << "server-passes-cpu: over stages of groups at a share of 0.5 the stages recorded " << between << " passes apart between a prompt pass's pieces\n";
+    }
+    // A request cancelled, a submission failing and a stop, each from inside a piece or a pass apart between two.
+    cancelled(weights, one, tok, vocab, 0.5);
+    failed(weights, one, tok, vocab, 0.5);
+    stopped(weights, tok, vocab, 0.5);
     const size_t pool = 32 * kBlock;
     const std::vector<Req> reqs = steady_load(vocab);
     const std::vector<Reply> ref = alone(one, tok, pool, reqs);
@@ -498,7 +543,7 @@ void recorded_stages(const gguf::GGUFModel& weights, uint32_t vocab) {
 }
 
 // A CPU backend whose decode kernels hold 16 columns, so a pass of several decoding requests has columns to spare for their drafts.
-// It counts its submissions in a plain member, as a device keeps its open command buffer: a submission by one thread while another records on it, which the recorder rule forbids (backends/backend.hpp, wait), is then a data race the thread sanitizer reports, where the CPU's own eager work shares nothing.
+// It counts its submissions in a plain member, as a device keeps its open command buffer, so a submission beside a recording is a data race the thread sanitizer reports.
 struct Wide : backend::CpuBackend {
     size_t submissions = 0;
     Wide() { set_threads(1); }

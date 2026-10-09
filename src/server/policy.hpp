@@ -125,6 +125,7 @@ struct Flight {
     uint64_t formed = 0;
     size_t ran = 0;
     bool recording = false;
+    bool apart = false;   // a pass of generated rows alone in its own arena, which a stage takes between the pieces of another pass
 };
 
 // What a round records and retires, by slot, before it makes room and forms passes.
@@ -134,19 +135,21 @@ struct Steps {
 };
 
 // From the last stage down to the first, each stage records the oldest pass waiting for it, and every pass whose last stage an earlier round recorded retires, oldest first.
-// So each device runs its passes in formation order, and a stage records one pass at a time, a pass advancing a stage at most a round.
+// Passes apart are a kind of their own: a stage holds one pass of each kind at most, each kind in its formation order, and passes retire in order within a kind.
 inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
     Steps st;
     const size_t none = slots.size();
     for (size_t s = stages; s-- > 0;) {
-        size_t pick = none;
-        bool busy = false;
-        for (size_t k = 0; k < slots.size(); ++k) {
-            if (!slots[k].live || slots[k].ran != s) continue;
-            if (slots[k].recording) busy = true;
-            else if (pick == none || slots[k].formed < slots[pick].formed) pick = k;
+        for (const bool apart : {true, false}) {
+            size_t pick = none;
+            bool busy = false;
+            for (size_t k = 0; k < slots.size(); ++k) {
+                if (!slots[k].live || slots[k].ran != s || slots[k].apart != apart) continue;
+                if (slots[k].recording) busy = true;
+                else if (pick == none || slots[k].formed < slots[pick].formed) pick = k;
+            }
+            if (pick != none && !busy) st.advance.push_back({pick, s});
         }
-        if (pick != none && !busy) st.advance.push_back({pick, s});
     }
     for (size_t k = 0; k < slots.size(); ++k)
         if (slots[k].live && slots[k].ran == stages) st.retire.push_back(k);
@@ -161,6 +164,62 @@ inline size_t decode_share(size_t decoders, size_t passes, size_t stages) { retu
 // Whether a stage whose recording waits on its devices goes to that stage's thread, with `live` passes in flight, the stage's own among them.
 // A tensor group's does, since its recording waits at every sum; a single device's only while another pass is in flight, since a pass alone has nothing to overlap with and the hand-over would only add to its time.
 inline bool recorded_apart(bool grouped, size_t live) { return grouped || live > 1; }
+
+// Whether generated rows ride the pass that reads prompt rows: where it costs them no more than their share would, the prompt pass taking no longer than their own pass over the share.
+// Without a share they always ride; with prices not yet measured they go apart.
+inline bool rides(double prompt_ms, double generated_ms, double share) {
+    return share <= 0 || (prompt_ms > 0 && generated_ms > 0 && prompt_ms * share <= generated_ms);
+}
+
+// How long generated rows go on riding a prompt's passes: after kProbe ridden in a row they go apart for one pass, which a stage measures since no piece is held ahead while it waits, so a ride on a stale price ends there.
+// While they ride no pass apart is measured, so without this a ride would last until the prompt's own price moved.
+struct RideRun {
+    size_t ridden = 0;
+    static constexpr size_t kProbe = 8;
+    bool allow(bool rides) const { return rides && ridden < kProbe; }
+    void rode() { ++ridden; }
+    void apart() { ridden = 0; }
+};
+
+// What the generated rows are owed of a stage's time beside a prompt's pieces, by the stage's thread's clock: a piece earns them their share of its time, a pass of theirs spends the rest of its own.
+// A pass is priced as the least of the last kRecent measured: the credit stops at one pass at that price and no pass spends more than two (docs/SERVER.md, A generating request beside a prompt).
+struct StageShare {
+    double share = 0;
+    double owed_ms = 0;        // at 0 or above the generated rows may take the stage
+    size_t pieces = kQuiet;    // pieces since the last pass of generated rows
+    static constexpr size_t kRecent = 8;
+    double recent[kRecent] = {};   // the last passes measured, a ring
+    size_t measured = 0;
+
+    static constexpr size_t kQuiet = 32;
+    // What a pass of generated rows takes there: the least of the last kRecent measured; 0 before any.
+    double price() const {
+        const size_t n = std::min(measured, kRecent);
+        return n ? *std::min_element(recent, recent + n) : 0.0;
+    }
+    void piece(double ms) {
+        owed_ms = std::min(owed_ms + share * ms, (1 - share) * std::max(price(), ms));
+        ++pieces;
+    }
+    void generated(double ms) {
+        const double known = price();
+        recent[measured++ % kRecent] = ms;
+        owed_ms -= (1 - share) * (known > 0 ? std::min(ms, 2 * known) : ms);
+        pieces = 0;
+    }
+    // A pass of generated rows recorded behind a piece the device held ahead, whose own time is not seen: it spends the price, or a piece's time until one is measured.
+    void unmeasured(double piece_ms) {
+        const double known = price();
+        owed_ms -= (1 - share) * (known > 0 ? known : piece_ms);
+        pieces = 0;
+    }
+    // The stage stood still for the scheduler's own work on its devices, which is not the prompt's time either: the generated rows spend it, up to two passes owed.
+    void held(double ms) { owed_ms = std::max(owed_ms - (1 - share) * ms, std::min(owed_ms, -2 * (1 - share) * price())); }
+    // Whether the device may hold a piece ahead: once no pass of generated rows has come for kQuiet pieces; the stage's thread holds one only while none waits either.
+    bool ahead() const { return pieces >= kQuiet; }
+    // Whether generated rows may take the stage at this boundary.
+    bool due() const { return share > 0 && owed_ms >= 0; }
+};
 
 // The most rows of a request's next prompt slice, and whether that slice closes its pass to other prompts' rows.
 struct PromptSlice {

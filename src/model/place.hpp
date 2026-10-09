@@ -201,6 +201,7 @@ struct PlacementRequest {
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
+    size_t apart_rows = 0;            // rows of a second arena on every device, for a pass of generated rows recorded between the pieces of a prompt's (Model::reserve_passes), which the fit counts
     size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
     size_t logit_rows = 0;            // rows of logits the caller keeps (Model::reserve_passes), which a split's fit counts; 0 for one per row of a pass
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
@@ -362,7 +363,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(plan_model(weights)) : held;
     const ModelPlan* fitting = &bare_plan;
     std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
-    const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
+    const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.apart_rows;
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
     size_t kept = options.checkpoint_slots;
@@ -523,7 +524,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
-        const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows;
+        const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.apart_rows;
         const Footprint fp = footprint(weights, plan, options, request.width);
         std::optional<LayerSplit> split;
         std::exception_ptr refused;

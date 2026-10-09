@@ -547,7 +547,7 @@ inline size_t Model::saved_at(const Device& d, const LayerPlan& lp, size_t buffe
 inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
     const Device& d = *devices_[dev];
     const LayerPlan& lp = plan_.layers[(size_t)l];
-    const ExecContext::Scratch& sc = ctx.scratch[dev];
+    const ExecContext::Scratch& sc = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
     for (size_t e = 0; e < p.entries.size(); ++e) {
         const Sequence::Mark& m = p.entries[e].seq->mark_;
         if (!m.held()) continue;
@@ -565,7 +565,7 @@ inline void Model::save_h(ExecContext& ctx, const Pass& p) {
     const size_t E = plan_.residual;
     for (size_t o = (size_t)place_.output_device, end = o + width_; o < end; ++o) {
         const Device& d = *devices_[o];
-        const backend::Slice hn = slot(ctx, o, plan_.draft_h);
+        const backend::Slice hn = slot(ctx, o, plan_.draft_h, p.apart);
         for (size_t e = 0; e < p.entries.size(); ++e) {
             const Sequence::Mark& m = p.entries[e].seq->mark_;
             if (!m.held()) continue;

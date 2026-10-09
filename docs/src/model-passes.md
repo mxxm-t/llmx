@@ -48,6 +48,10 @@ The residual stream crosses devices wherever the placement changes, in two halve
   devices; and `commit_pass_stage` on its own thread again, which commits
   the histories and counts the stage. A failed `record_pass_stage` leaves
   the pass for the caller's `abort_pass`.
+  Given a `Pace`, `record_pass_stage` feeds the stage in pieces: on a single device a piece is submitted after each part, a layer's mixer or its feed-forward block, and on a tensor group a piece ends at each sum; the piece before it (`Pace::ahead`) or the piece itself is then waited for, the group's through `Collective::wait`, and the caller's `between` runs.
+  There the caller may record a stage of a pass begun apart on the same devices, `record_pass_within`, once `stage_ready` says the stage before it has retired, asked without waiting (`Backend::done`); that pass's submission is left in `Pace::within`, and `passed` runs once it has retired, before the next piece is waited for.
+  A pass begun apart (`begin_pass` with `apart`) has its rows in the context's second arena (`ExecContext::apart`, the `apart_rows` of `reserve_passes`), so its parts and its handoff read and write other slots than the pass whose pieces it runs between; `Model::paces` says whether a model takes this: every stage one device's or one group's, none the host's, nothing crossing inside a stage.
+  A pass keeps each device's submission of its stage (`Pass::tickets`), which its histories take as their last, since the context's last submission may be another pass's.
   `pass_logits(ctx, slot, i)` waits on the pass's own head
   and returns its wanting row `i`, written from row `logits_base` on.
   `end_pass` takes a pass whose last stage has run out of flight, and

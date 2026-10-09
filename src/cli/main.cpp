@@ -490,7 +490,7 @@ std::string load_timing(const infer::LoadTimes& t) {
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
-                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}) {
+                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
@@ -508,6 +508,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.stream_from = (size_t)exec.moe_stream_from;
     request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
+    request.apart_rows = apart_rows;
     request.slots = slots;
     // A server keeps logits rows for its passes in flight by its own rule, not one for every row of a pass.
     if (slots) request.logit_rows = server::logit_rows(slots, decode_rows).size;
@@ -1075,11 +1076,14 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts) {
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
+    // With a share for generating requests each device holds a second arena for their rows.
+    const size_t apart = cfg.generating_share > 0 ? server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() > 0) : 0;
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file);
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);
+    server::check_share(model, cfg.generating_share);
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
@@ -1224,6 +1228,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-queue N           Requests waiting for a place, paused ones not counted; more get a 503 (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Batches the devices work on at once; above 1 needs the model\n"
             << "                          split over several devices (default: one per device of a layer split, else 1)\n"
+            << "  --generating-share X    While prompts are read, the share of each device's time that requests\n"
+            << "                          already generating keep, 0 up to 0.9; 0 lets prompts go first\n"
+            << "                          (default: " << cfg.generating_share << ")\n"
             << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt):\n"
             << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none\n"
             << "                          (default: room for --max-seqs full histories, within half the free\n"
@@ -1560,6 +1567,7 @@ int main(int argc, char** argv) {
                 else if (f == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--generating-share") cfg.generating_share = float_arg(argc, argv, i, a, 0.0f, 0.9f);
                 else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
                 else if (f == "--host-cache-bytes") host_bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--disk-cache-bytes") cfg.disk.bytes = int_arg<uint64_t>(argc, argv, i, a, 0);

@@ -3231,6 +3231,94 @@ size_t check_collective(const backend::BackendPtr& first) {
         }
     };
     sums(members, *sum, width, {1, 7, 64, 64, 7, 1});
+    // Two passes' sums interleaved on the one collective, as a pass apart's are between a prompt's pieces: each must end with the bits it ends with alone.
+    // The second run clears the partial rows before each sum and writes half of them, as a routed part does.
+    for (const bool cleared : {false, true}) {
+        const size_t W = members.size(), kSums = 3;
+        struct Seq {
+            size_t rows = 0;
+            std::vector<float> start, want;
+            std::vector<backend::BufferPtr> x;                     // per member
+            std::vector<std::vector<backend::BufferPtr>> staged;   // per sum, per member
+        };
+        std::vector<backend::BufferPtr> zeros;
+        for (size_t m = 0; m < W; ++m) zeros.push_back(members[m]->alloc(reserved * width * sizeof(float)));
+        auto make = [&](size_t rows) {
+            Seq q;
+            q.rows = rows;
+            const size_t n = rows * width, kept = cleared ? rows / 2 * width : n;
+            q.start.resize(n);
+            for (float& v : q.start) {
+                seed = seed * 1664525u + 1013904223u;
+                v = float(int(seed >> 8) % 4001 - 2000) / 13.0f;
+            }
+            q.want = q.start;
+            for (size_t m = 0; m < W; ++m) q.x.push_back(members[m]->alloc((n + offset) * sizeof(float)));
+            for (size_t k = 0; k < kSums; ++k) {
+                std::vector<std::vector<float>> part(W, std::vector<float>(n));
+                q.staged.emplace_back();
+                for (size_t m = 0; m < W; ++m) {
+                    for (float& v : part[m]) {
+                        seed = seed * 1664525u + 1013904223u;
+                        v = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
+                    }
+                    q.staged.back().push_back(members[m]->alloc(n * sizeof(float)));
+                    members[m]->write(*q.staged.back().back(), 0, part[m].data(), n * sizeof(float));
+                }
+                for (size_t i = 0; i < n; ++i) {
+                    float all = i < kept ? part[0][i] : 0.0f;
+                    for (size_t m = 1; m < W; ++m) all += i < kept ? part[m][i] : 0.0f;
+                    q.want[i] += all;
+                }
+            }
+            return q;
+        };
+        auto reset = [&](Seq& q) {
+            for (size_t m = 0; m < W; ++m) members[m]->write(*q.x[m], offset * sizeof(float), q.start.data(), q.start.size() * sizeof(float));
+        };
+        auto step = [&](Seq& q, size_t k) {
+            const size_t n = q.rows * width, kept = cleared ? q.rows / 2 * width : n;
+            std::vector<backend::Slice> xs;
+            for (size_t m = 0; m < W; ++m) {
+                const backend::Slice p = sum->partial(m);
+                if (cleared) members[m]->copy(*p.buffer, p.offset * sizeof(float), *zeros[m], 0, n * sizeof(float));
+                members[m]->copy(*p.buffer, p.offset * sizeof(float), *q.staged[k][m], 0, kept * sizeof(float));
+                xs.push_back({q.x[m].get(), offset});
+            }
+            sum->sum_into(xs, q.rows, width);
+        };
+        auto read = [&](Seq& q) {
+            std::vector<std::vector<float>> got(W, std::vector<float>(q.start.size()));
+            for (size_t m = 0; m < W; ++m) {
+                members[m]->submit();
+                members[m]->read(*q.x[m], offset * sizeof(float), got[m].data(), got[m].size() * sizeof(float));
+            }
+            return got;
+        };
+        Seq a = make(7), b = make(64);
+        std::vector<std::vector<std::vector<float>>> alone;
+        for (Seq* q : {&a, &b}) {
+            reset(*q);
+            for (size_t k = 0; k < kSums; ++k) step(*q, k);
+            alone.push_back(read(*q));
+            for (size_t m = 0; m < W; ++m)
+                require(std::memcmp(alone.back()[m].data(), q->want.data(), q->want.size() * sizeof(float)) == 0, "a sequence of sums alone is not its sums in member order");
+        }
+        reset(a);
+        reset(b);
+        for (size_t k = 0; k < kSums; ++k) {
+            step(a, k);
+            sum->wait(1);
+            step(b, k);
+            sum->wait(0);
+        }
+        const std::vector<std::vector<float>> got_a = read(a), got_b = read(b);
+        for (size_t m = 0; m < W; ++m)
+            require(std::memcmp(got_a[m].data(), alone[0][m].data(), got_a[m].size() * sizeof(float)) == 0 && std::memcmp(got_b[m].data(), alone[1][m].data(), got_b[m].size() * sizeof(float)) == 0,
+                    cleared ? "two sequences of sums interleaved on one collective, their partial rows cleared before each sum, differ from each alone" : "two sequences of sums interleaved on one collective differ from each alone");
+        checks += 2;
+    }
+    std::cout << "backend-vulkan: two sequences of sums interleaved on the collective, each its bits alone, with and without the partial rows cleared\n";
     // Three members, where a third device opens: sums on each side of the size from which the backend sends shares in two shots (327680 floats), at an odd width whose shares differ by a float.
     backend::BackendPtr third;
     try {

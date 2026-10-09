@@ -67,13 +67,23 @@ struct Sim {
     // Half of those schedules are a layer split's, whose stage of one device goes to its thread only while another pass is in flight (recorded_apart).
     std::vector<char> threaded;
     bool grouped = true;
+    // Some of those with no stage on the host form the generating requests' rows in passes apart, as a scheduler with a share does: a slot a stage beside the P slots, with logits rows of their own.
+    // Whether the rows ride a round's passes is drawn, where the scheduler prices it (rides).
+    bool apart_mode = false;
+    server::LogitRows rows_apart;
+    server::LogitRows& ring(const Pass& p) { return p.apart ? rows_apart : rows; }
+    void clear(Pass& p) {
+        const bool apart = p.apart;
+        p = Pass{};
+        p.apart = apart;
+    }
     struct Recording {
         bool busy = false, fails = false;
         size_t slot = 0;
         uint64_t until = 0;
     };
     std::vector<Recording> recording;
-    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0;
+    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0;
     server::LogitRows rows;
     std::vector<double> device_free;
     std::vector<uint64_t> device_last;       // per device, the formation order of the last pass it ran
@@ -119,14 +129,25 @@ struct Sim {
             lap *= slow + 1;
             // Formation waits for the first stage's recorder, a stage's time more before a pass's first step.
             lap += slow + 1;
+            if (std::none_of(host.begin(), host.end(), [](char h) { return h != 0; }) && rng() % 2) {
+                apart_mode = true;
+                threaded.assign(S, 1);
+                slots.resize(P + S);
+                for (size_t k = P; k < slots.size(); ++k) slots[k].apart = true;
+                recording.assign(2 * S, Recording{});
+                device_last.assign(2 * S, 0);
+                rows_apart = server::logit_rows(S, max_seqs);
+                // A decoder told to ride waits for a pass of the other kind to leave its slot, and then for its own.
+                lap = 2 * lap + 1;
+            }
         }
     }
 
     // Whether a pass waits for the first stage's recorder or is being recorded there, when no other is formed behind it.
-    bool first_stage_held() const {
+    bool first_stage_held(bool apart) const {
         if (!threaded[0]) return false;
         for (const Pass& p : slots)
-            if (p.live && p.ran == 0) return true;
+            if (p.live && p.ran == 0 && p.apart == apart) return true;
         return false;
     }
 
@@ -144,8 +165,9 @@ struct Sim {
     // The recorders that are done, taken at the start of a round: a recorded stage counts, a failed one fails its pass alone.
     void collect() {
         at = "collection";
-        for (size_t s = 0; s < S; ++s) {
-            Recording& rec = recording[s];
+        for (size_t i = 0; i < recording.size(); ++i) {
+            const size_t s = i % S;
+            Recording& rec = recording[i];
             if (!rec.busy || rec.until > round_no) continue;
             rec.busy = false;
             Pass& p = slots[rec.slot];
@@ -175,8 +197,8 @@ struct Sim {
         for (const Pass& p : slots) n += p.live;
         return n;
     }
-    size_t free_slot() const {
-        for (size_t k = 0; k < slots.size(); ++k)
+    size_t free_slot(bool apart = false) const {
+        for (size_t k = apart ? P : 0; k < (apart ? slots.size() : P); ++k)
             if (!slots[k].live) return k;
         return npos;
     }
@@ -240,11 +262,12 @@ struct Sim {
             for (size_t j = 0; j < slots.size(); ++j)
                 if (j != k && slots[j].live) require(slots[j].formed != p.formed, at + ": two passes formed as one");
             if (p.want) {
-                require(p.base + p.want <= rows.size, at + ": a pass's logits rows past the reservation");
+                const server::LogitRows& own = p.apart ? rows_apart : rows;
+                require(p.base + p.want <= own.size, at + ": a pass's logits rows past the reservation");
                 bool held = false;
-                for (const auto& r : rows.runs) held = held || (r.base == p.base && r.n == p.want && !r.back);
+                for (const auto& r : own.runs) held = held || (r.base == p.base && r.n == p.want && !r.back);
                 require(held, at + ": a pass in flight whose logits rows came back");
-                runs.push_back({p.base, p.want});
+                runs.push_back({p.base + (p.apart ? rows.size : 0), p.want});
             }
         }
         std::sort(runs.begin(), runs.end());
@@ -373,22 +396,29 @@ struct Sim {
         Pass& p = slots[k];
         require(p.live && p.ran == s, at + ": a stage recorded out of order");
         const size_t live = (size_t)std::count_if(slots.begin(), slots.end(), [](const Pass& q) { return q.live; });
-        if (threaded[s] && server::recorded_apart(grouped, live)) {
-            // A stage records one pass at a time: a pass that finds its recorder taken waits for a later round.
-            if (recording[s].busy) return false;
+        // A device runs the passes of a kind in formation order; a pass apart may pass a pass of the other kind there.
+        const size_t i = s + (p.apart ? S : 0);
+        // A pass apart recorded at a stage an older pass of the other kind has yet to leave passes it there.
+        const bool passing = p.apart && std::any_of(slots.begin(), slots.end(), [&](const Pass& q) { return q.live && !q.apart && q.formed < p.formed && q.ran <= s; });
+        // Where passes go apart a pass with prompt rows is fed in pieces on its stage's thread, and a pass apart goes there while another pass is in flight.
+        if (threaded[s] && (apart_mode ? !p.apart || live > 1 : server::recorded_apart(grouped, live))) {
+            // A stage records one pass of a kind at a time: a pass that finds its recorder taken waits for a later round.
+            if (recording[i].busy) return false;
             require(!p.recording, at + ": a pass handed to a recorder twice");
-            require(device_last[s] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one formed earlier");
-            device_last[s] = p.formed;
+            require(device_last[i] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one of its kind formed earlier");
+            device_last[i] = p.formed;
             p.recording = true;
-            recording[s] = Recording{true, rng() % 1000 < 10 * fail_per_mille, k, round_no + rng() % (slow + 1)};
+            passed += passing;
+            recording[i] = Recording{true, rng() % 1000 < 10 * fail_per_mille, k, round_no + rng() % (slow + 1)};
             return true;
         }
-        require(device_last[s] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one formed earlier");
-        device_last[s] = p.formed;
+        require(device_last[i] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one of its kind formed earlier");
+        device_last[i] = p.formed;
         if (rng() % 1000 < fail_per_mille) {
             fail(k);
             return false;
         }
+        passed += passing;
         recorded_stage(p, s);
         return true;
     }
@@ -398,8 +428,8 @@ struct Sim {
         for (double t : device_free) clock = std::max(clock, t);
         const size_t flying = in_flight();
         const std::vector<uint64_t> ids = slots[k].ids;
-        server::give_rows(rows, slots[k].base, slots[k].want);
-        slots[k] = Pass{};
+        server::give_rows(ring(slots[k]), slots[k].base, slots[k].want);
+        clear(slots[k]);
         for (uint64_t id : ids) {
             const size_t i = find(id);
             sub(reserved, active[i].need);
@@ -431,8 +461,8 @@ struct Sim {
                 r.since = round_no;
             }
         }
-        server::give_rows(rows, p.base, p.want);
-        p = Pass{};
+        server::give_rows(ring(p), p.base, p.want);
+        clear(p);
     }
 
     // After the round's retirements, the requests whose last token has been sampled finish, in order of first admission.
@@ -522,22 +552,30 @@ struct Sim {
 
     // New passes while a slot is free: ready decoding requests up to the decode share, then prompt rows up to the ubatch, each pass taking its logits rows and recording its first stage, or leaving a host stage in `deferred`.
     void form(std::vector<std::pair<size_t, size_t>>& deferred) {
+        const bool ride = !apart_mode || rng() % 2;
+        if (!ride) form(deferred, true, true);
+        form(deferred, false, ride);
+    }
+    // Passes of one kind: passes apart of the decoding requests' tokens alone, or the others with those tokens only where they ride.
+    void form(std::vector<std::pair<size_t, size_t>>& deferred, bool apart, bool decodes) {
         at = "formation";
-        for (size_t k = free_slot(); k != npos; k = free_slot()) {
-            // No pass is formed behind one that waits for the first stage's recorder.
-            if (first_stage_held()) {
+        for (size_t k = free_slot(apart); k != npos; k = free_slot(apart)) {
+            // No pass is formed behind one of its kind that waits for the first stage's recorder.
+            if (first_stage_held(apart)) {
                 ++held_formations;
                 return;
             }
             Pass p;
-            size_t budget = ubatch, decoders = 0;
+            p.apart = apart;
+            formed_apart += apart;
+            size_t budget = apart ? 0 : ubatch, decoders = 0;
             std::vector<const Req*> waiting;
             for (const Pass& q : slots) decoders += q.live ? q.decoders : 0;
             for (const Req& r : active)
-                if (r.decoding() && ready(r)) waiting.push_back(&r);
+                if (decodes && r.decoding() && ready(r)) waiting.push_back(&r);
             decoders += waiting.size();
             // The share goes to the decoders that left flight earliest, joining in order of first admission.
-            const size_t share = std::min(server::decode_share(decoders, P, S), waiting.size());
+            const size_t share = std::min(server::decode_share(decoders, apart ? S : P, S), waiting.size());
             std::stable_sort(waiting.begin(), waiting.end(), [](const Req* a, const Req* b) { return a->landed < b->landed; });
             waiting.resize(share);
             for (const Req& r : active)
@@ -568,13 +606,13 @@ struct Sim {
             }
             if (p.ids.empty()) {
                 // No free slot idles while a request is ready: a pass comes out empty only when every active request is in flight or sits the round out, or a prompt read alone, in flight, holds the passes for its slice back to a whole ubatch.
-                for (const Req& r : active) require(held || !ready(r), at + ": a free slot idled while a request was ready");
+                for (const Req& r : active) require(held || !ready(r) || r.decoding() != decodes || (apart && !r.decoding()), at + ": a free slot idled while a request was ready");
                 return;
             }
             for (char w : p.wants) p.want += (size_t)w;
-            p.base = server::take_rows(rows, p.want);
+            p.base = server::take_rows(ring(p), p.want);
             // A failure gives every pass's rows back, and the passes in flight want at most one row a request, half the rows, so a run always fits.
-            require(p.base != rows.size, at + ": no logits rows for a pass though the passes in flight want at most half of them");
+            require(p.base != ring(p).size, at + ": no logits rows for a pass though the passes in flight want at most half of them");
             p.live = true;
             p.formed = ++formed;
             slots[k] = p;
@@ -598,7 +636,7 @@ struct Sim {
         check();
         collect();
         const server::Steps st = server::round_steps(std::vector<server::Flight>(slots.begin(), slots.end()), S);
-        for (const auto& a : st.advance) require(!slots[a.first].recording && !recording[a.second].busy, "the round gave a stage a pass while it records, or a pass being recorded");
+        for (const auto& a : st.advance) require(!slots[a.first].recording && !recording[a.second + (slots[a.first].apart ? S : 0)].busy, "the round gave a stage a pass while it records one of its kind, or a pass being recorded");
         for (size_t k : st.retire) require(!slots[k].recording, "the round retired a pass being recorded");
         std::vector<std::pair<size_t, size_t>> deferred;
         at = "advance";
@@ -621,7 +659,7 @@ struct Sim {
         at = "the active sweep";
         sweep_active();
         check();
-        if (free_slot() != npos) {
+        if (free_slot() != npos || (apart_mode && free_slot(true) != npos)) {
             room();
             form(deferred);
         }
@@ -670,12 +708,12 @@ struct Sim {
     // Every pass in flight is abandoned, and then every request ends and every donor goes.
     void stop() {
         at = "the stop";
-        recording.assign(S, Recording{});
+        recording.assign(recording.size(), Recording{});
         for (Pass& p : slots)
             if (p.live) {
                 for (uint64_t id : p.ids) active[find(id)].slot = npos;
-                server::give_rows(rows, p.base, p.want);
-                p = Pass{};
+                server::give_rows(ring(p), p.base, p.want);
+                clear(p);
             }
         for (const Req& r : active) sub(reserved, r.need);
         ended += active.size() + paused.size() + queue.size();
@@ -683,7 +721,7 @@ struct Sim {
         paused.clear();
         queue.clear();
         while (!donors.empty()) drop(0);
-        require(reserved == std::vector<size_t>(pools.blocks.size(), 0) && rows.runs.empty(), "after a stop the ledger or the logits rows hold something");
+        require(reserved == std::vector<size_t>(pools.blocks.size(), 0) && rows.runs.empty() && rows_apart.runs.empty(), "after a stop the ledger or the logits rows hold something");
     }
 };
 
@@ -775,6 +813,102 @@ void rounds_by_hand() {
             "a stage took a pass while it recorded another, or the first stage did not take its oldest waiting pass");
     st = server::round_steps({{true, 1, 2, true}, {true, 2, 3, false}}, 3);
     require(st.advance.empty() && st.retire == std::vector<size_t>({1}), "a pass being recorded at its last stage advanced or retired");
+    // Passes apart are a kind of their own: a stage that records a pass takes a pass apart beside it and no second pass of either kind, each kind in its formation order, and a pass apart retires past an older pass.
+    st = server::round_steps({{true, 1, 0, true, false}, {true, 2, 0, false, false}, {true, 3, 0, false, true}, {true, 4, 0, false, true}}, 2);
+    require(st.advance == (std::vector<std::pair<size_t, size_t>>{{2, 0}}), "a stage recording a pass took no pass apart, a second pass of its kind, or the younger pass apart first");
+    st = server::round_steps({{true, 1, 0, false, false}, {true, 2, 0, true, true}, {true, 3, 0, false, true}}, 2);
+    require(st.advance == (std::vector<std::pair<size_t, size_t>>{{0, 0}}), "a stage recording a pass apart took a second one, or held a pass of the other kind back");
+    st = server::round_steps({{true, 1, 1, true, false}, {true, 2, 2, false, true}}, 2);
+    require(st.advance.empty() && st.retire == std::vector<size_t>({1}), "a pass apart did not retire past an older pass still at a stage");
+    // Generated rows ride a prompt pass where it costs them no more than their share would: always without a share, never before both prices are measured.
+    require(server::rides(1000, 10, 0) && !server::rides(0, 10, 0.5) && !server::rides(1000, 0, 0.5), "generated rows did not ride without a share, or rode before the prices were known");
+    require(server::rides(20, 10, 0.5) && !server::rides(21, 10, 0.5) && server::rides(40, 10, 0.25) && !server::rides(41, 10, 0.25), "generated rows rode a pass longer than their own over the share, or went apart from a shorter one");
+    // A ride is bounded: on a price of eight slow passes the rows ride prompt passes of 1500 ms at a third, after kProbe of them one pass goes apart, a stage measures it at 46 ms, and the price sends the rows apart from then on.
+    {
+        server::StageShare stage;
+        stage.share = 1.0 / 3;
+        for (size_t i = 0; i < server::StageShare::kRecent; ++i) stage.generated(800);
+        server::RideRun run;
+        size_t ridden = 0;
+        while (run.allow(server::rides(1500, stage.price(), stage.share))) {
+            run.rode();
+            require(++ridden <= server::RideRun::kProbe, "a ride on a stale price went on past its bound");
+        }
+        require(ridden == server::RideRun::kProbe && server::rides(1500, stage.price(), stage.share), "the rows did not ride a stale price up to the bound, or left it before a pass apart was measured");
+        run.apart();
+        stage.generated(46);
+        require(!run.allow(server::rides(1500, stage.price(), stage.share)), "a pass apart measured at 46 ms did not end the ride");
+        // A ride that pays goes on, one pass apart in every kProbe + 1.
+        size_t rode = 0, apart = 0;
+        for (size_t i = 0; i < 90; ++i) {
+            if (run.allow(true)) {
+                run.rode();
+                ++rode;
+            } else {
+                run.apart();
+                ++apart;
+            }
+        }
+        require(rode == 80 && apart == 10 && !run.allow(false), "a ride that pays was not one pass apart in nine, or rows rode against the prices");
+    }
+    // A stage's share: a pass of generated rows of 50 ms between pieces of 10 ms is due again once the pieces since have earned what it spent, 15 pieces at a quarter and 5 at one half.
+    server::StageShare none;
+    require(!none.due() && none.ahead() && none.price() == 0, "a stage without a share was due, held no piece ahead, or had a price before any pass");
+    for (const double share : {0.25, 0.5}) {
+        server::StageShare stage;
+        stage.share = share;
+        require(stage.due(), "generated rows were not due on a stage with no time yet");
+        double generated = 0, prompt = 0;
+        size_t passes = 0, since = 0, longest = 0;
+        for (int i = 0; i < 4000; ++i) {
+            if (stage.due()) {
+                stage.generated(50);
+                generated += 50;
+                longest = std::max(longest, since);
+                since = 0;
+                ++passes;
+                require(!stage.ahead(), "the device held a piece ahead right after a pass of generated rows");
+            }
+            stage.piece(10);
+            prompt += 10;
+            ++since;
+        }
+        const double had = generated / (generated + prompt);
+        require(passes > 100 && had > share - 0.01 && had < share + 0.01, "generated rows had " + std::to_string(had) + " of a stage at a share of " + std::to_string(share));
+        require(longest == (share == 0.25 ? 15u : 5u), "a pass of generated rows waited " + std::to_string(longest) + " pieces at a share of " + std::to_string(share));
+        for (size_t i = 0; i < server::StageShare::kQuiet; ++i) stage.piece(10);
+        require(stage.ahead() && stage.due() && stage.owed_ms <= (1 - share) * 50, "a quiet stage held no piece ahead, or owed generated rows more than one pass");
+        {
+            const double before = stage.owed_ms;
+            stage.unmeasured(10);
+            require(stage.owed_ms == before - (1 - share) * 50, "a pass not measured did not spend the price");
+        }
+        // Time the stage stood still for the scheduler's work is spent as a pass's is, and what is owed for it stops at two passes.
+        {
+            server::StageShare still = stage;
+            const double before = still.owed_ms;
+            still.held(10);
+            require(still.owed_ms == before - (1 - share) * 10, "ten milliseconds held were not spent");
+            still.held(100000);
+            require(still.owed_ms == -2 * (1 - share) * 50, "a long hold left the generated rows owing more than two passes");
+        }
+        // The price of a ride is the least of the last passes measured: one slow pass leaves it, and it follows once every one of them is slow.
+        require(stage.price() == 50, "passes of 50 ms were priced " + std::to_string(stage.price()));
+        // And one slow pass spends no more than two passes at the price, so the rows are due again before the device may hold a piece ahead.
+        {
+            const double before = stage.owed_ms;
+            stage.generated(800);
+            require(stage.price() == 50 && stage.owed_ms == before - (1 - share) * 100, "one slow pass priced the rest, or spent more than two passes");
+            size_t waited = 0;
+            while (!stage.due()) {
+                stage.piece(10);
+                ++waited;
+            }
+            require(waited < server::StageShare::kQuiet && !stage.ahead(), "after one slow pass the rows waited " + std::to_string(waited) + " pieces");
+        }
+        for (size_t i = 1; i < server::StageShare::kRecent; ++i) stage.generated(800);
+        require(stage.price() == 800, "the price did not follow passes that are all slow");
+    }
 }
 
 // The logits rows by hand: runs follow the newest and wrap to row 0, come back oldest first, and a run given back early waits for the ones before it.
@@ -825,7 +959,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[13] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0;
+    size_t totals[13] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -860,10 +994,14 @@ void random_schedules(size_t n) {
         recorded += sim.recorded;
         record_failures += sim.record_failures;
         held_formations += sim.held_formations;
+        formed_apart += sim.formed_apart;
+        passed += sim.passed;
     }
     // Enough schedules must meet every rule's case.
-    if (n >= 1000)
+    if (n >= 1000) {
+        require(formed_apart > 0 && passed > 0, "the schedules formed " + std::to_string(formed_apart) + " passes apart, of which " + std::to_string(passed) + " stages passed an older pass");
         require(recorded > 0 && record_failures > 0 && held_formations > 0, "the schedules met no stage recorded on a thread of its own, none that failed while it was recorded, or no formation held for the first stage's recorder");
+    }
     if (n >= 1000)
         for (size_t i = 1; i < 13; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound and reads that failed");
     std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads\n",

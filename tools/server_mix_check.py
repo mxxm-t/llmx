@@ -14,6 +14,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
+--generating-share X serves with that share for generating requests, whose rows then go in passes of their own between a prompt pass's pieces.
 --tensor-width W groups the devices in tensor groups of W, the server and the CLI alike.
 --drafter lookup|embedded|PATH serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
@@ -221,6 +222,7 @@ def main():
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
     p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
+    p.add_argument("--generating-share", type=float, help="the share of each device's time generating requests keep while prompts are read, the server's own when not given")
     p.add_argument("--drafter", default="off",
                    help="the server's drafter: off, lookup, embedded or a file of MTP blocks beside the model; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
     p.add_argument("--fresh-phases", action="store_true", help="fresh server for each capped phase; fail on prefix reuse or pauses")
@@ -242,6 +244,8 @@ def main():
     if args.cache_type:
         flags += ["--cache-type-k", args.cache_type, "--cache-type-v", args.cache_type]
     server_flags = flags + (["--passes", str(args.passes)] if args.passes else []) + (["--drafter", args.drafter] if args.drafter != "off" else [])
+    if args.generating_share is not None:
+        server_flags += ["--generating-share", str(args.generating_share)]
     if args.uncapped:
         return uncapped(args, text, server_flags)
     rng = random.Random(1 if args.seed is None else args.seed)
@@ -295,10 +299,20 @@ def main():
     # The CLI prints the reply's text between its pp and tg lines, which must be the text the server gave the request alone.
     for i in range(min(args.cli, len(reqs))):
         r = reqs[i]
-        out = subprocess.run([common.EXE, "generate", args.model, r["prompt"], "-n", str(r["max_tokens"])] + cli_sampling(r) + flags,
-                             capture_output=True)
+        command = [common.EXE, "generate", args.model, r["prompt"], "-n", str(r["max_tokens"])] + cli_sampling(r) + flags
+        out = subprocess.run(command, capture_output=True)
+        # A server just stopped gives its devices' memory back over some seconds: a run refused for want of room waits for it, up to a minute.
+        for _ in range(30):
+            if not (out.returncode and b"does not fit" in out.stderr):
+                break
+            time.sleep(2)
+            out = subprocess.run(command, capture_output=True)
+        if out.returncode:
+            last = out.stderr.decode("utf-8", errors="replace").strip().splitlines()[-1:]
+            failures.append("cli %d did not run (exit %d%s)" % (i, out.returncode, ": " + last[0] if last else ""))
+            continue
         try:
-            same = out.returncode == 0 and common.generate_text(out.stdout).decode("utf-8", errors="replace") == replies[i]["text"]
+            same = common.generate_text(out.stdout).decode("utf-8", errors="replace") == replies[i]["text"]
         except ValueError:  # output outside the pp and tg frame
             same = False
         if not same:

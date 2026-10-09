@@ -159,6 +159,17 @@ class ServerMixTool(unittest.TestCase):
                             if cache:
                                 self.assertEqual(command[command.index(name) + 1], cache)
 
+    def test_cli_waits_for_room_and_names_a_failed_launch(self):
+        refused = SimpleNamespace(returncode=1, stdout=b"", stderr=b"error: split: the model does not fit: no placement fits")
+        ran = SimpleNamespace(returncode=0, stdout=b"reply", stderr=b"")
+        broken = SimpleNamespace(returncode=2, stdout=b"", stderr=b"error: something else")
+        for answers, status, calls in (([refused, refused, ran], 0, 3), ([broken], 1, 1)):
+            with self.subTest(calls=calls), patch.object(tool.subprocess, "run", side_effect=answers) as cli, patch.object(tool.time, "sleep"):
+                with patch.object(tool.common, "generate_text", return_value=b"p0"):
+                    result = self.exercise(["--cli", "1"])
+            self.assertEqual(result[0], status)
+            self.assertEqual(cli.call_count, calls)
+
     def test_incompatible_modes_fail_before_start(self):
         for flag in ("--fresh-phases", "--sampled"):
             argv = ["server_mix_check.py", "--model", "absent.gguf", "--text", "absent.txt", flag, "--uncapped"]

@@ -2031,9 +2031,9 @@ struct Guarded : backend::CpuBackend {
 };
 
 // What a scheduler's thread does on a stage's devices outside a pass's stage while that stage's recording is parked: room sending a donor to host memory, a promotion from host memory, and a read back from disk.
-// `width` 2 holds it over two stages of groups, `width` 1 over a layer split of two, where two requests decode beside each other so that the last stage has its recorder.
-void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t width) {
-    const std::string what = width > 1 ? "the recorder rule over two stages of groups" : "the recorder rule over a layer split of two";
+// `width` 2 holds it over two stages of groups, `width` 1 over a layer split of two with two requests decoding, and with a `share` that split is fed in pieces and reached only under a hold (Scheduler::hold).
+void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t width, double share = 0) {
+    const std::string what = std::string(width > 1 ? "the recorder rule over two stages of groups" : "the recorder rule over a layer split of two") + (share > 0 ? " fed in pieces" : "");
     Recording rule;
     const Make make = on(weights, [&rule, width] {
         std::vector<backend::BackendPtr> v;
@@ -2117,7 +2117,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         if (width == 1) s.pair = Req{prompt_of(10 + seed, 20, vocab), 60};
     };
     {
-        server::Scheduler sched(*model, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, 2 * 2 * width * ((size_t)64 << 20), nullptr, 0, false, options);
+        server::Scheduler sched(*model, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, 2 * 2 * width * ((size_t)64 << 20), nullptr, 0, false, options, share);
         sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
         std::thread runner([&] {
             {
@@ -2163,7 +2163,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
             std::lock_guard<std::mutex> lk(rule.m);
             rule.slabs.clear();
         }
-        server::Scheduler sched(*again, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, (size_t)1 << 16, nullptr, 0, false, options);
+        server::Scheduler sched(*again, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, (size_t)1 << 16, nullptr, 0, false, options, share);
         sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
         std::thread runner([&] {
             {
@@ -2918,6 +2918,7 @@ int main(int argc, char** argv) {
             }
             recorder_rule(weights, tok, vocab, 2);
             recorder_rule(weights, tok, vocab, 1);
+            recorder_rule(weights, tok, vocab, 1, 0.5);
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
             disk_flush(one, tok, vocab);

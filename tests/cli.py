@@ -31,6 +31,21 @@ def check_device(model):
         assert p.returncode == 1 and not p.stdout and any(m in p.stderr for m in messages), (args, p.returncode, p.stdout, p.stderr)
 
 
+def check_share_refused(model):
+    """A share for generating requests is refused by its flag's name, with the cause, where a prompt is not fed in pieces: on the CPU, and on a device beside which the experts run on the CPU."""
+    p = common.run_process(["serve", model, "--port", "0", "--generating-share", "0.5", "--device", "cpu"], input="", text=True, timeout=120)
+    expected = "error: --generating-share: a stage on the CPU is not fed in pieces; serve the model on one device or one tensor group\n"
+    assert p.returncode == 1 and p.stderr.endswith(expected), (p.returncode, p.stdout, p.stderr)
+    device = os.environ.get("LLMX_DEVICE", "")
+    if device.startswith("vulkan:") and "," not in device:
+        with tempfile.TemporaryDirectory() as directory:
+            routed = f32.write_model(os.path.join(directory, "tiny-moe.gguf"), moe.tensors(), config=moe.CONFIG, arch="qwen3moe")
+            p = common.run_process(["serve", routed, "--port", "0", "--generating-share", "0.5", "--device", device, "--cpu-moe"], input="", text=True, timeout=300)
+        expected = ("error: --generating-share: a stage is fed in pieces only with every part of it on its device, and here experts, the embedding or the head run elsewhere; "
+                    "serve the model whole on one device or one tensor group\n")
+        assert p.returncode == 1 and p.stderr.endswith(expected), (p.returncode, p.stdout, p.stderr)
+
+
 def check_expert_flags(model):
     """A model without routed layers refuses experts on the CPU on the CPU as on a device, with status 1 and the name of the flag given, from every command that takes the flags.
     The CPU is always tried, and the configured device as well when it is one device other than the CPU; a stream point beside the flag changes nothing in the refusal."""
@@ -191,6 +206,7 @@ def check_usage_errors():
     for args, page in ((["serve", model, "--port", "65536"], "serve"), (["serve", model, "--port", "-1"], "serve"),
                        (["serve", model, "--max-seqs", "0"], "serve"), (["serve", model, "--max-queue", "0"], "serve"),
                        (["serve", model, "--passes", "0"], "serve"),
+                       (["serve", model, "--generating-share", "1"], "serve"), (["serve", model, "--generating-share", "-0.1"], "serve"),
                        (["serve", model, "-c", "0"], "serve"), (["logits", model, "a", "--top", "0"], "logits"),
                        (["logits", model, "a", "--last", "0"], "logits"), (["perplexity", model, "a", "--chunks", "-1"], "perplexity"),
                        (["bench", "--size", "48"], "bench"), (["bench", "--p", "0"], "bench"), (["bench", "--depth", "-1"], "bench"),
@@ -228,7 +244,7 @@ def listed_flags(page):
 
 
 # What each placeholder stands for in a line that takes the flag, a value every command listing that flag accepts.
-PLACEHOLDERS = {"N": "1", "F": "1", "D": "cpu", "T": "f16", "TIME": "24h", "M": "auto", "HOW": "refuse", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
+PLACEHOLDERS = {"N": "1", "F": "1", "X": "0.5", "D": "cpu", "T": "f16", "TIME": "24h", "M": "auto", "HOW": "refuse", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
 
 # The last line a taken line prints: a missing input file's error, which a command may prefix with its name, or pull's on its empty quant.
 UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pull: quant is required$")
@@ -321,6 +337,7 @@ def run():
         check_device(model)
         check_dtype(model)
         devices = check_expert_flags(model)
+        check_share_refused(model)
         check_info(directory)
         check_known_storage(directory)
     check_usage_errors()

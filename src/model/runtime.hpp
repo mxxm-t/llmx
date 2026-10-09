@@ -173,7 +173,18 @@ struct Pass {
     backend::Ticket sent = 0;                          // the submission that copied it out, after the last stage the head's
     std::vector<backend::Ticket> sent_members;         // on a tensor split, after the last stage each member of the head's group's, whose copies of its logits rows the pass's logits wait for
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
+    bool apart = false;                                // its rows are in the context's second arena (Model::begin_pass), so its stage may be recorded between the pieces of another pass's
+    std::vector<backend::Ticket> tickets;              // per device, its stage's submission there, which its histories take as their last
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
+};
+
+// A stage fed to its device in pieces (Model::record_pass_stage, docs/SERVER.md, A generating request beside a prompt): after each piece the caller's `between` runs and may record another pass's stage there.
+// With `ahead` the piece before the last is waited for, so the device holds one ahead; without, the last itself, and a pass recorded at the boundary is left in `within` and `passed` runs once it has retired.
+struct Pace {
+    std::function<void()> between, passed;
+    bool ahead = true;
+    backend::Ticket fed = 0;      // the last piece submitted
+    backend::Ticket within = 0;   // the submission of a pass recorded at the last boundary, 0 once waited for
 };
 
 // Where a context's passes run, as plain data Model fills: an activation arena per device, host-visible handoff buffers on each device a crossing leaves, the logits rows on the output device, and the tickets of the submissions.
@@ -207,6 +218,8 @@ struct ExecContext {
         std::vector<backend::RowRun> entry_runs;   // the run list a part on this device may rebuild (Step::scratch): a device's own, since stages are recorded on a thread each
     };
     std::vector<Scratch> scratch;              // per device
+    std::vector<Scratch> apart;                // per device, a second arena of apart_rows rows for a pass begun apart (Model::reserve_passes)
+    size_t apart_rows = 0;
     // On a tensor split, the logits rows in host memory every member of the head's group imports (logits_buf the first member's view of them, member_rows each member's), into which each copies its vocabulary slice of each row.
     // Declared before every buffer that wraps them, so the views go first: a device keeps imported memory for as long as its buffer lives.
     core::HostPages logits_host;
@@ -592,7 +605,7 @@ public:
     bool stage_on_host(size_t s) const { return devices_[stages_.at(s).device]->b->is_cpu(); }
     // Whether stage s is a tensor group's, whose recording waits at every sum, each a submission its members wait on each other for.
     bool stage_grouped(size_t s) const { return stages_.at(s).device < devices_.size() && width_ > 1; }
-    // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it, which it waits for; the first stage of such a split receives nothing and is recorded in the time it takes to write it.
+    // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it.
     // A caller that keeps passes in flight may record such a stage on a thread of that stage's (prepare_pass_stage, record_pass_stage, commit_pass_stage).
     bool stage_waits(size_t s) const { return stage_grouped(s) || (s > 0 && stages_.at(s).device < devices_.size() && pipelined_ && !stage_on_host(s)); }
     // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
@@ -606,11 +619,25 @@ public:
     }
 
     // Defined in model/passes.hpp, the owner of a pass and its stages.
-    void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows);
-    void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base);
+    void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows, size_t apart_rows = 0);
+    void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool apart = false);
     void run_pass_stage(ExecContext& ctx, size_t slot, size_t s);
     void prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s);
-    void record_pass_stage(ExecContext& ctx, size_t slot, size_t s);
+    void record_pass_stage(ExecContext& ctx, size_t slot, size_t s, Pace* pace = nullptr);
+    void record_pass_within(ExecContext& ctx, size_t slot, size_t s);
+    bool stage_ready(ExecContext& ctx, size_t slot, size_t s);
+    // The submission of the last stage recorded of the pass in `slot`, on that stage's device.
+    backend::Ticket stage_ticket(ExecContext& ctx, size_t slot) { return in_flight(ctx, slot).sent; }
+    // Whether a pass may be begun apart and a stage fed in pieces: every stage one device's or one tensor group's, none the host's, nothing crossing inside a stage.
+    bool paces() const {
+        if (!(pipelined_ || stages_.size() == 1) || place_.embed_device != (int)stages_.front().device || place_.output_device != (int)stages_.back().device) return false;
+        for (size_t s = 0; s < stages_.size(); ++s) {
+            if (stage_on_host(s)) return false;
+            for (int l = stages_[s].first; l < stages_[s].end; ++l)
+                if (place_.ffn_device[(size_t)l] != (int)stages_[s].device) return false;
+        }
+        return true;
+    }
     void commit_pass_stage(ExecContext& ctx, size_t slot);
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
@@ -1027,22 +1054,22 @@ private:
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
     void single_prepare(Pass& p, size_t s);
-    void single_record(ExecContext& ctx, Pass& p, size_t s);
+    void single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace);
     void group_prepare(Pass& p, size_t s);
-    void group_record(ExecContext& ctx, Pass& p, size_t s);
+    void group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace);
     void clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows);
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
-    void stage_commit(ExecContext& ctx, Pass& p, size_t s);
+    void stage_commit(Pass& p, size_t s);
     void draft_context(ExecContext& ctx, Pass& p, size_t s);
     void finish(ExecContext& ctx, const Pass& p);
     void roll_back(Pass& p) noexcept;
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
-    void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers);
-    void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows);
-    void receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
+    void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers, size_t apart_rows = 0);
+    void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows, bool apart = false);
+    void receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows, bool apart = false);
     void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows);
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
-    Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs) const;
+    Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, bool apart = false) const;
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
 
     // Whether `pos` is whole blocks in every KV storage, as a fork and a checkpoint need.
@@ -1075,8 +1102,8 @@ private:
         devices_[d]->b->run_prefill([&] { scoped(d + 1, work); });
     }
 
-    static backend::Slice slot(const ExecContext& ctx, size_t device, size_t i) {
-        const ExecContext::Scratch& sc = ctx.scratch[device];
+    static backend::Slice slot(const ExecContext& ctx, size_t device, size_t i, bool apart = false) {
+        const ExecContext::Scratch& sc = apart ? ctx.apart[device] : ctx.scratch[device];
         return {sc.arena.get(), sc.offset[i] / sizeof(float)};
     }
 

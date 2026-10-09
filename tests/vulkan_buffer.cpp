@@ -898,6 +898,27 @@ int device_need_checks() {
 }
 }
 
+// A two-shot sum's shares (VulkanCollective): they cover the floats once and in order, and each that holds a float begins on the alignment, where a device takes a storage-buffer offset.
+// At an alignment of one float they are the equal shares, as on a device whose alignment is four bytes.
+int share_checks() {
+    int failures = 0;
+    for (const size_t members : {size_t(3), size_t(4), size_t(5)})
+        for (const size_t n : {size_t(327680), size_t(327681), size_t(4097) * 96, size_t(2), size_t(1) << 20})
+            for (const size_t align : {size_t(1), size_t(4), size_t(16), size_t(64)}) {
+                const size_t even = (n + members - 1) / members, most = (even + align - 1) / align * align;
+                bool ok = backend::share_begin(0, n, members, align) == 0 && backend::share_begin(members, n, members, align) == n;
+                for (size_t k = 0; k < members; ++k) {
+                    const size_t lo = backend::share_begin(k, n, members, align), hi = backend::share_begin(k + 1, n, members, align);
+                    ok = ok && lo <= hi && hi - lo <= most && (lo == hi || lo % align == 0) && (align > 1 || lo == std::min(n, k * even));
+                }
+                if (!ok) {
+                    std::cout << "a two-shot sum's shares of " << n << " floats over " << members << " members at an alignment of " << align << " floats FAIL" << std::endl;
+                    ++failures;
+                }
+            }
+    return failures;
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--queue") {
@@ -932,6 +953,8 @@ int main(int argc, char** argv) {
         if (calls.buffers || calls.memory || calls.maps || calls.bad_release) ++failures;
         failures += device_need_checks();
         cases += 14;
+        failures += share_checks();
+        ++cases;
         std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";
         return failures ? 1 : 0;
     } catch (const backend::VulkanUnavailable& e) {

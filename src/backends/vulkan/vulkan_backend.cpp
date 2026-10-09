@@ -3549,6 +3549,13 @@ private:
     Kernel kernels_[K_COUNT][kVariants];
 };
 
+// Where share k of a two-shot sum of `n` floats over `members` begins, [share_begin(k), share_begin(k + 1)), the last shares empty where n is smaller than the members.
+// `align` is the storage-buffer offset alignment of the members' devices in floats: a share is bound at its own offset.
+inline size_t share_begin(size_t k, size_t n, size_t members, size_t align) {
+    (void)align;
+    return std::min(n, k * ((n + members - 1) / members));
+}
+
 // A tensor group's ordered sum through per-peer dma-buf inboxes and sync files, alternating two parities (docs/TENSOR-SPLIT.md, section 4.3).
 // Each inbox and gather buffer has one importer to avoid serializing unrelated peers.
 class VulkanCollective final : public Collective {
@@ -3572,6 +3579,8 @@ public:
                         imported_[p][t][d] = std::make_shared<VulkanBuffer>(members[d]->device(), bytes, inbox_[p][t][d]->export_fd());
                     }
             }
+            for (VulkanBackend* m : members)
+                share_align_ = std::max<size_t>(share_align_, ((size_t)m->device()->props.limits.minStorageBufferOffsetAlignment + sizeof(float) - 1) / sizeof(float));
             if (VulkanBackend::two_shot_crossover(W) <= size_mul(rows, width))
                 for (int p = 0; p < 2; ++p) {
                     const size_t share = size_mul((size_mul(rows, width) + W - 1) / W, sizeof(float));
@@ -3633,12 +3642,9 @@ private:
         }
     }
 
-    // Share k of `n` floats, [lo(k), lo(k + 1)), the last shares empty where n is smaller than the members.
-    static size_t share_begin(size_t k, size_t n, size_t W) { return std::min(n, k * ((n + W - 1) / W)); }
-
     void two_shots(const std::vector<Slice>& residual, size_t n, int p) {
         const size_t W = members_.size(), f = sizeof(float);
-        auto lo = [&](size_t k) { return share_begin(k, n, W); };
+        auto lo = [&](size_t k) { return share_begin(k, n, W, share_align_); };
         auto len = [&](size_t k) { return lo(k + 1) - lo(k); };
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
@@ -3768,6 +3774,7 @@ private:
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows
     std::vector<std::vector<BufferPtr>> imported_[2];                    // [parity][owner][sender]: that inbox on the sender, its only importer
+    size_t share_align_ = 1;   // the members' largest storage-buffer offset alignment, in floats
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> gather_[2];  // [parity][owner][sender]: the owner's gather rows for that sender's share, where a sum may take two shots
     std::vector<std::vector<BufferPtr>> gathered_[2];                    // [parity][owner][sender]: those gather rows on the sender, their only importer
     std::vector<std::vector<VkSemaphore>> signal_, wait_;          // [member][peer]: what member signals to the peer; what member waits on from the peer

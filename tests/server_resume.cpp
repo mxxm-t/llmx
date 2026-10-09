@@ -440,14 +440,20 @@ void cancelled_short_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t
     server::Scheduler sched(*model, tok, 3, 64);
     std::vector<std::shared_ptr<server::Request>> h;
     for (const Req& r : {a, e, b}) h.push_back(sched.submit(r.prompt, params_of(r)));
+    // The cancel comes from the scheduler's own thread, as the first pass after the pause retires, so no round can admit the paused request between its pause and its cancel.
+    std::atomic<bool> cancelled{false};
+    sched.on_retire = [&](const server::Scheduler::Retired&) {
+        if (cancelled.load() || !sched.stats().pauses) return;
+        h[2]->cancel();
+        cancelled.store(true);
+    };
     std::thread runner([&] { sched.run(); });
     try {
         const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-        while (sched.stats().pauses == 0) {
+        while (!cancelled.load()) {
             require(std::chrono::steady_clock::now() < until, "a paused request with a short donor: nothing paused in 60 seconds");
             std::this_thread::yield();
         }
-        h[2]->cancel();
         same(alone[0], drain(*h[0]), "beside a paused request with a short donor cancelled, the uncapped request");
         same(alone[1], drain(*h[1]), "beside a paused request with a short donor cancelled, the capped request");
         server::Request::Token t;

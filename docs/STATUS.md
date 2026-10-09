@@ -519,6 +519,14 @@ Four 16000-token prompts near the context, two rounds:
 - **Measured, gates:** before the rebase onto `a0922bb62`, at the same src and tests: Qwen3-0.6B Q8_0 gives main's ids and logits on the CPU and on one MI50, and the suite's `server` component and `server-resume` with its device half pass on the MI50. Before the idle option, at the same src otherwise: on the test machine a CPU build, CTest, the whole CPU suite and the linked check. At the landing head: the hosted run, and on Windows CTest with `docs`, `dead-code`, `version` and `arch-boundary`.
 - **Reviewed:** by F2DEV at the test commit and the change before the rebase: no finding in the code; the four decisions put to it accepted (the states above a lost segment staying until the next start, the faulted request reusing nothing, no order for a regenerated reply's old tail, the idle line once a period); of the read's two candidates it names the slabs taken on the scheduler thread worth a branch, a serving defect, and the overlap a record.
 
+## The short-donor cancel case cancels from the scheduler's thread (2026-10-09, branch test/short-donor-cancel, tests only, lands by fast-forward)
+
+- **Why:** `server-resume` failed twice in a row in the hosted macOS job on a commit that changes only tests/qwen35.py (runs 37856712190 and 37862276521), "a paused request with a short donor cancelled: 1 pauses, 1 taken back". The case's thread spun on the pause count and then cancelled the paused request; a thread scheduled late found the request already resumed.
+- **Done:** the cancel is made in `on_retire`, on the scheduler's thread, as the first pass after the pause retires, so no round can admit the paused request between its pause and its cancel. The case's assertions are unchanged.
+- **Shown, in a Windows build:** with the test's thread held 200 ms before it acts, the old form fails ("ended with length") and the new form passes; unheld, the CPU half passes three runs of three.
+- **Left:** the other timing-shaped cases of the review's audit of 2026-10-09, which get one branch of their own after feat/pool-edge and the kept-conversations work; this one went ahead because it was failing hosted runs.
+- **Reviewed:** by O5REV before landing.
+
 ## The hosted TSan job's limit is 25 minutes (2026-10-09, branch ci/tsan-limit, the workflow and its page only, lands by fast-forward)
 
 - **Why:** the job's thread tests took 591 and 744 s on main `8278c6b7f` and `5472fcf91`, with a minute of build before them, against a limit of 900 s for the job, and were ended at the limit after 818 s on perf/draft-while-waiting, which adds no work to `http` or `server-passes-cpu`; every other job of that run passed.

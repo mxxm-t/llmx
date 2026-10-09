@@ -6,7 +6,7 @@
 
 namespace core {
 
-// CRC32C (the Castagnoli polynomial, as iSCSI and ext4 use it) of `n` bytes, continuing from `crc` (0 to start), with the SSE4.2 instruction the AVX2 baseline includes, at many GB/s: the disk tier checks its files with it (docs/DISK-TIER.md, The entry file).
+// CRC32C (Castagnoli) of `n` bytes continuing from `crc` (0 to start), with the SSE4.2 instruction the AVX2 baseline includes; the disk tier checks its files with it (docs/DISK-TIER.md, The entry file).
 inline uint32_t crc32c(uint32_t crc, const void* data, size_t n) {
     const auto* p = static_cast<const uint8_t*>(data);
     uint64_t c = (uint32_t)~crc;

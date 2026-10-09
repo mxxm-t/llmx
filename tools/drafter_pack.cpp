@@ -1,7 +1,5 @@
 // A model's MTP blocks moved between its file and a drafter file beside it (docs/SPECULATIVE.md, step 6), every tensor's bytes copied unchanged.
-// `split` writes the model without its MTP blocks, its block count and per-block arrays cut to its layers and its MTP count dropped, and the blocks as a drafter file that holds the model's metadata and only their tensors; the two pair (infer::spec::pair).
-// `embed` writes a model with a drafter file's MTP blocks joined to it, as `--drafter FILE` loads them (infer::spec::join_blocks).
-// Usage: llmx-drafter-pack split <model.gguf> <model-out.gguf> <drafter-out.gguf> | embed <model.gguf> <drafter.gguf> <out.gguf>; it exits 2 on a usage error and 1 on a refusal.
+// `split` writes the model without its MTP blocks and the blocks as a drafter file (infer::spec::pair), and `embed` joins a drafter file's blocks back, as `--drafter FILE` loads them (infer::spec::join_blocks).
 #include <cstdio>
 #include <stdexcept>
 #include <string>

@@ -51,7 +51,7 @@ inline std::vector<float> read(backend::Backend& b, const backend::Buffer& buf, 
     return v;
 }
 
-// Four rows at each extent through each type and dtype, int8 where the backend lists it: matmul at widths 256 and 4096, routed gate and down projections of 8 experts taking 2 a row, then dtype-independent attention of 4 query rows over 128-wide heads after a 70-token history; the pairs found the same.
+// Four rows at each extent through each type and dtype, int8 where the backend lists it: matmul at widths 256 and 4096, routed gate and down projections of 8 experts taking 2 a row, then attention of 4 query rows after a 70-token history.
 inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, const Matrix& matrix) {
     if (b.row_class(1) == b.row_class(2)) throw std::runtime_error("a generated token shares a class with a prompt");
     const size_t rows = 4, nout = 64;

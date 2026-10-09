@@ -510,7 +510,7 @@ int queue_checks() {
 }
 
 namespace {
-// A tensor group's collective over devices 0 and 1 (VulkanCollective): its semaphores freed when a join fails part way, its members drained before any goes, and a sum that fails part way, in a member's queue call or export on whichever thread makes it or in an import, leaving it as new with no file left open.
+// A tensor group's collective over devices 0 and 1 (VulkanCollective): its semaphores freed when a join fails part way, its members drained before any goes, and a sum that fails part way leaving it as new with no file left open.
 struct CollectiveCalls;
 CollectiveCalls* collective_calls = nullptr;
 struct CollectiveCalls {
@@ -745,7 +745,7 @@ int collective_checks() {
             if (!ok) ++failures;
         }
     }
-    // A sum's failures on a group of three where a third device opens, whose collective has a thread a member but the first, and on the two otherwise: the exports and the queue calls fail on whichever thread makes them, the imports on the caller's; kind 7 destroys the collective right after its failed sum.
+    // A sum's failures on a group of three where a third device opens, and on the two otherwise: exports and queue calls fail on whichever thread makes them, imports on the caller's; kind 7 destroys the collective right after the failed sum.
     backend::BackendPtr third;
     try {
         third = backend::make_vulkan_backend(2);
@@ -884,7 +884,7 @@ int device_need_checks() {
                         backend::attention_head_fits(192, 64) && backend::attention_head_fits(256, 64) && !backend::attention_head_fits(260, 64) &&
                         !backend::attention_head_fits(512, 64) && backend::attention_head_fits(64, 64) && backend::attention_head_fits(80, 32);
     std::cout << "attention head widths against 32- and 64-lane subgroups" << (widths ? " PASS\n" : " FAIL\n");
-    // The integer-dot kernels (the Q8_0 decode kernel and the integer-dot tile, whose 16-bit and packed 8-bit dots need the integer dot product) run only under a profile that prefers the integer dot, which a device without the extension never gets, even where its row asks for it.
+    // The integer-dot kernels (the Q8_0 decode kernel and the integer-dot tile) run only under a profile that prefers the integer dot, which a device without the extension never gets, even where its row asks for it.
     backend::DeviceCaps caps;
     caps.device = "AMD Radeon Instinct MI60 / MI50 (RADV VEGA20)";
     caps.driver = "radv Mesa";

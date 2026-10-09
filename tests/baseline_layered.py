@@ -21,8 +21,8 @@ MODEL_CONTEXT = 262144
 BOUNDS = {"top5_overlap": 4, "max_abs_logit": 100.0, "continuous_nll": 0.13, "window_nll": 0.25}
 SCOPE = "20 tokenizer cases, six short prefill rankings and four NLL cases, each scored in batched passes and per token; not full-corpus or deep-context coverage"
 UNCOMPARED = "; its quantized tensors are not compared."
-# The Qwen3.6-35B-A3B Q4_K_M, whose own quantization turns over HF's top-1 of `The three primary colors are red,`, where the checkpoint's top two are 0.0058 logits apart and HF on the file's weights puts them the other way (docs/ASSETS.md, The layered qwen35 reference).
-# Once it has passed every check of its file-exact goldens, it is held against the checkpoint's to the top-1 of five rankings of six, every other bound unchanged, for this file's SHA-256 alone, as agreed on 2026-09-30 at 14:30 under the delegation of 14:26.
+# The Qwen3.6-35B-A3B Q4_K_M, whose own quantization turns over HF's top-1 of `The three primary colors are red,` (docs/ASSETS.md, The layered qwen35 reference).
+# Once it has passed every check of its file-exact goldens, it is held against the checkpoint's to the top-1 of five rankings of six, every other bound unchanged, for this file's SHA-256 alone.
 QWEN36_35B_A3B_Q4_K_M_QUALITY = dict(BOUNDS, top1_matches=5)
 # A file against goldens made from its own weights (tools/gen_layered_reference.py goldens --file-exact) is held to the qwen35 family's file-exact bounds, since the format's loss is on both sides.
 FILE_EXACT_BOUNDS = dict(baseline_qwen35.BOUNDS[baseline_qwen35.FILE_EXACT_BOUNDS], max_abs_logit=100.0)

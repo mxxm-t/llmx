@@ -62,13 +62,13 @@ def tensors(seed=67890, config=None, vocab=257):
     return result
 
 
-# The tiny Q8_0 model: its matrices Q8_0 and every row width, the experts' included, a multiple of 64, so each row holds an even count of 32-value blocks, which a device's Q8_0 decode kernel reads in the order it keeps for such rows (docs/VULKAN.md).
-# Its goldens are HF holding the file's own weights as tests/spec_decode.py decodes them (tools/gen_baseline.py moe-q8): the rows from each prompt's last position through Q8_STEPS forced ids, HF's own greedy continuation.
+# The tiny Q8_0 model: every row width, the experts' included, a multiple of 64, so each row holds an even count of 32-value blocks, which a device's Q8_0 decode kernel reads in the order it keeps for such rows (docs/VULKAN.md).
+# Its goldens are HF holding the file's own weights as tests/spec_decode.py decodes them (tools/gen_baseline.py moe-q8), from each prompt's last position through Q8_STEPS forced ids, HF's own greedy continuation.
 Q8_CONFIG = {"block_count": 3, "embedding_length": 128, "feed_forward_length": 128,
              "attention.head_count": 2, "attention.head_count_kv": 1,
              "attention.key_length": 64, "context_length": 64,
              "expert_count": 8, "expert_used_count": 3, "expert_feed_forward_length": 64}
-# The gated variant's router is scaled up as the F32 model's is, so no routing lies within Q8_MIN_ROUTING_GAP router logits of a tie between a token's k-th and next expert; the near-tie variant's is scaled down so every routing lies near one, and it is reported for sensitivity and never held to the bound.
+# The gated variant's router is scaled up so no routing lies within Q8_MIN_ROUTING_GAP router logits of a tie between a token's k-th and next expert; the near-tie variant's is scaled down, and is reported but never held to the bound.
 Q8_VARIANTS = (("gated", 16.0), ("near-tie", 1 / 16))
 Q8_MIN_ROUTING_GAP = 0.1
 Q8_SEED = 24792
@@ -203,9 +203,8 @@ def run():
     assert golden["config"] == CONFIG and golden["dense_layers"] == list(DENSE_LAYERS), "MoE fixture config changed"
     weights = tensors()
     assert weight_hash(weights) == golden["weights_sha256"], "MoE fixture weights changed"
-    # On a device the experts also run on the CPU beside it: the first routed layer's alone, and all of them.
-    # Experts on the CPU are a placement of one device; with several listed the split places whole layers instead.
-    # Streamed, the host's layers run on the device with their experts copied there: every prompt of two tokens or more (from 1, which streams what 2 does, since neither a generated token nor a one-token prompt streams), and from 4 only the longer ones.
+    # On a device the experts also run on the CPU beside it, the first routed layer's alone and all of them; with several devices listed the split places whole layers instead.
+    # Streamed, the host's layers run on the device with their experts copied there, for every prompt of two tokens or more (from 1, which streams what 2 does) and from 4 only the longer ones.
     device = os.environ.get("LLMX_DEVICE", "cpu")
     placements = [[]] + ([["--n-cpu-moe", "1", "--moe-stream-from", "0"], ["--cpu-moe", "--moe-stream-from", "0"],
                           ["--cpu-moe", "--moe-stream-from", "1"], ["--n-cpu-moe", "1", "--moe-stream-from", "4"]]

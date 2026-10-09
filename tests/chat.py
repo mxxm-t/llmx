@@ -46,7 +46,7 @@ def replies(case, turns=None):
 def run():
     fixture = f32.golden("baseline_chat.json")
     assert [case["spec"] for case in fixture["cases"]] == CASES
-    # Under a tensor width the model is the tensor-split fixtures' shape, which a group splits whole, and a reply is held to the same conversation at every thread count and ubatch rather than to HF's, which the tensor-split component holds the shape's numerics to.
+    # Under a tensor width the model is the tensor-split fixtures' shape, so a reply is held to the same conversation at every thread count and ubatch rather than to HF's, which the tensor-split component holds the shape's numerics to.
     grouped = common.tensor_width() > 1
     weights = f32.tensors(True, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB) if grouped else fixture["weights"]
     shape = {"config": dict(tensor_split.CONFIG, context_length=f32.CONFIG["context_length"]), "tokens": tensor_split.TOKENS} if grouped else {}
@@ -58,7 +58,7 @@ def run():
             spec = case["spec"]
             write(model, spec["template"], spec.get("eos_id"))
             expected = None if grouped else replies(case)
-            # Under a tensor width the first reply is held to `generate` on the same group reading the first turn's prompt as the reference rendered it, which holds no reply of the reference's model; the later turns' rendered prompts do, so they are held to the same conversation at every thread count and ubatch.
+            # Under a tensor width the first reply is held to `generate` on the same group reading the first turn's rendered prompt, and the later turns to the same conversation at every thread count and ubatch.
             first = None
             if grouped:
                 prompt = Path(directory) / "first.txt"

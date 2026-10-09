@@ -565,7 +565,7 @@ def qwen3moe_environment():
 
 
 # The qwen35 checkpoints whose real-model goldens `qwen35` writes from HF's full forward in float32.
-# Each gives its repository and commit with the SHA-256 of every file the reference reads, the pinned GGUF files of tests/data/fixtures.json the goldens are for, the SHA-256 of the chat template those files carry, whose text tests/data/baseline_chat_template.json holds, and the directory under tests/data the goldens go to.
+# Each gives its repository and commit with the SHA-256 of every file the reference reads, the pinned GGUF files of tests/data/fixtures.json it is for, their chat template's SHA-256 and the directory under tests/data the goldens go to.
 QWEN35_MODELS = {
     "Qwen3.5-0.8B": {
         "repo": QWEN35_REPO, "revision": QWEN35_REVISION,

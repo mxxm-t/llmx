@@ -1,6 +1,5 @@
-// The CPU backend's ops of the qwen35 layers (docs/QWEN35.md, The forward pass) against references written here from the math in double precision, each within the bound stated beside it.
-// Also that no result depends on the thread count, on how rows are grouped into calls or on the block a V column runs in, bit for bit, and that length 0 reads a zero state.
-// And the embedded drafter's two ops (docs/SPECULATIVE.md, section 7): argmax_rows over ties, infinities and NaN, after an invalid id, and embed_ids, whose invalid id writes a zero row.
+// The CPU backend's ops of the qwen35 layers (docs/QWEN35.md, The forward pass) against references written here in double precision, each within the bound stated beside it.
+// Also that no result depends on the thread count, the grouping of rows or the block a V column runs in, bit for bit, that length 0 reads a zero state, and the embedded drafter's ops (docs/SPECULATIVE.md, section 7).
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -199,7 +198,7 @@ void delta_reference(const StateShape& sh, const float* qkv, const float* alpha,
     }
 }
 
-// A view's delta-rule rows and matrices against the reference's: each token adds at most 2 sums of k_dim products to the error of state and output, which the decay and the unit-norm key do not grow, so (t + 1) (2 k_dim + 16) units of the magnitude.
+// A view's delta-rule rows and matrices against the reference's: each token adds at most 2 sums of k_dim products to the error of state and output, which the decay and unit-norm key do not grow, so (t + 1) (2 k_dim + 16) units.
 void check_delta(const StateShape& sh, const float* rows, const float* state, const std::vector<double>& out, const std::vector<double>& S, size_t nq,
                  const std::string& what) {
     const size_t Hv = sh.v_heads, Dv = sh.v_dim, Dk = sh.k_dim, M = sh.matrix_floats();
@@ -836,7 +835,7 @@ BufferPtr ids_of(CpuBackend& cpu, const std::vector<uint32_t>& ids) {
     return b;
 }
 
-// argmax_rows on rows beside each other: a plain row, a tie taken at its lower id, an infinity, a NaN anywhere, a row of -infinity, a row whose prior id is invalid, each row's id its own, and an id past the vocabulary only where the definition gives it.
+// argmax_rows on rows beside each other: a plain row, a tie at its lower id, an infinity, a NaN anywhere, a row of -infinity and a row whose prior id is invalid, each row's id its own.
 // Then embed_ids: valid ids give the table's rows, as embed gives them, and an id past the table a zero row beside them.
 size_t check_drafter_ops(std::mt19937& g) {
     CpuBackend cpu;

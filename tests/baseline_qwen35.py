@@ -13,9 +13,8 @@ from baseline_8b import file_sha256
 from qwen35 import refusal
 import spec_decode
 
-# The qwen35 family's real-model check: llmx on a pinned Qwen3.5 file against the HF goldens of its model, which tools/gen_baseline.py qwen35 made with HF's full forward in float32 on the pinned checkpoint.
-# The tokenizer cases are the family's golden, since every checkpoint pinned here has the same tokenizer.json.
-# tests/baseline.py runs the gate's qwen35 files at 512-token windows; the 4096-token windows and the files outside the gate run by hand through main().
+# The qwen35 family's real-model check: llmx on a pinned Qwen3.5 file against the HF goldens of its model, which tools/gen_baseline.py qwen35 made with HF's full forward in float32.
+# tests/baseline.py runs the gate's qwen35 files at 512-token windows, the 4096-token windows and files outside the gate run by hand through main(), and every checkpoint shares one tokenizer.json.
 
 DATA = Path(__file__).resolve().parent / "data"
 TOKENIZER_GOLDEN = "baseline_tokenizer_qwen35.json"
@@ -38,7 +37,7 @@ GOLDEN_SHA256 = {
     "qwen35-0.8b-q4_k_m-file-exact/baseline_perplexity.json": "d723cbe8fc1a2eff5cac8b81d35dd0fa03ffeda182ceaf86b2fa82e38c9aafa7",
 }
 
-# Each file's bounds against its model's goldens, set from llmx's first measurement on it, the largest NLL delta over both window lengths, both cache types and both ways of scoring plus a margin (docs/ASSETS.md); a file without them is measured and fails.
+# Each file's bounds against its model's goldens, set from llmx's first measurement on it plus a margin (docs/ASSETS.md); a file without them is measured and fails.
 # Every top-1 must be HF's.
 BOUNDS = {
     "Qwen3.5-0.8B-Q8_0.gguf": {"top5_overlap": 5, "continuous_nll": 0.02, "window_nll": 0.02},
@@ -48,7 +47,7 @@ BOUNDS = {
 FILE_EXACT_BOUNDS = "Qwen3.5-0.8B-Q8_0.gguf"
 
 # The Qwen3.5-0.8B Q4_K_M, whose own quantization moves HF's top-1 on two of its eight rankings (docs/CI.md).
-# Its correctness gate is its committed file-exact goldens at FILE_EXACT_BOUNDS; against its model's goldens it is held to its own quantization's cost, which the user approved on 2026-09-27 for this file's SHA-256 alone: the top-1 of six rankings of eight, the top-5 overlap measured, and the NLL deltas measured, 0.0189 whole and 0.0235 in windows, plus 11 and 6 percent.
+# Its correctness gate is its committed file-exact goldens at FILE_EXACT_BOUNDS, and against its model's goldens it is held to its own quantization's cost, for this file's SHA-256 alone (docs/ASSETS.md).
 QWEN35_08B_Q4_K_M_SHA256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
 QWEN35_08B_Q4_K_M_QUALITY = {"top1_matches": 6, "top5_overlap": 4, "continuous_nll": 0.021, "window_nll": 0.025}
 # Each file's committed file-exact goldens, by its SHA-256, a directory under tests/data whose goldens GOLDEN_SHA256 pins.

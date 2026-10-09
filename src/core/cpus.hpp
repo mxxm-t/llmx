@@ -129,7 +129,7 @@ inline std::optional<GroupAffinity> group_affinity() {
 }
 #endif
 
-// CPUs this process's affinity allows: sched_getaffinity on Linux; on Windows the process affinity mask when its threads lie in one processor group, else the active processors of the groups they lie in; nothing elsewhere or when it cannot be read.
+// CPUs this process's affinity allows: sched_getaffinity on Linux, on Windows the affinity mask within one processor group or else the active processors of its groups, nothing elsewhere or when unreadable.
 inline std::optional<unsigned> affinity_cpus() {
 #if defined(_WIN32)
     unsigned n = 0;

@@ -12,13 +12,8 @@ import qwen35
 import tensor_split
 
 
-# The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends: raw logits compared bit for bit over the prompt path, the prefill a split pipelines over its stages, greedy decode steps, the recompute by class a resume runs and a decoding sequence beside a fresh prompt.
-# The tool names its own devices and cache type, so the configured device, shares and cache type do not reach it.
-# Each split runs with f16 caches, the default, and with f32 caches, since a split is exact at either.
-# LLMX_DTYPE reaches both placements through the tool's optional dtype argument; request records and completed paths are checked, including visible fallback.
-# Three decode steps after the 13-token text fill the tiny models' 16-token context.
-# The tensor-split fixtures, dense, qwen3moe in F32 and in Q8_0 with covering blocks, qwen35 and qwen35moe (tests/tensor_split.py), also run as one tensor group of two CPU backends against two stages of such groups, which must give the one group's bits (docs/TENSOR-SPLIT.md, section 4.4).
-# The tiny qwen35 models run over two CPU backends and over four, a layer a stage, where the first and third stages hold only a linear-attention layer, which keeps a state and no KV; a model that keeps a state is not forked, so the tool recomputes it from no fork.
+# The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends, raw logits compared bit for bit (AGENTS.md, Tests).
+# The tool names its own devices and cache type, so the configured ones do not reach it, and LLMX_DTYPE reaches both placements; the tensor-split fixtures also run as a group of two CPU backends against two stages of such groups.
 UBATCHES = (1, 3, 16)
 CACHE_TYPES = ("f16", "f32")
 STEPS = 3

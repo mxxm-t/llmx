@@ -69,7 +69,8 @@ void v1_room() {
     }
 }
 
-// The limit less the working set, the usage less the inactive file pages memory.stat gives, which the kernel reclaims before it kills: inactive_file on v2 and total_inactive_file on v1, a working set below 0 taken as 0, and the usage whole when memory.stat is missing, lacks the key or gives it as anything but one decimal number.
+// The limit less the working set, the usage less the inactive file pages memory.stat gives (inactive_file on v2, total_inactive_file on v1), a working set below 0 taken as 0.
+// The usage stands whole when memory.stat is missing, lacks the key or gives it as anything but one decimal number.
 void working_set() {
     struct Case { const char* limit; const char* usage; const char* stat; std::optional<size_t> room; };
     const char* const v2_stat = "anon 1073741824\nfile 5368709120\ninactive_anon 0\nactive_anon 1073741824\ninactive_file 4294967296\nactive_file 1073741824\n";

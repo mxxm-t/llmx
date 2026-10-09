@@ -2,8 +2,7 @@ import os
 import sys
 import argparse
 
-# llmx test runner.
-# Each test generates its own fixtures and cleans up.
+# llmx test runner: each test generates its own fixtures and cleans up.
 # Exit code 0 = no component failed; one that compared nothing reports SKIP.
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

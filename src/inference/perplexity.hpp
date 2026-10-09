@@ -36,7 +36,8 @@ inline double token_nll(const float* logits, size_t vocab, uint32_t target) {
     return -((double)logits[target] - log_sum_exp(logits, vocab));
 }
 
-// Windows of `context_size` tokens, each from an empty history. By default a window is scored through the batched passes a prompt takes, logits for every position of a microbatch at once, which is the path prompt processing uses and on a device a different set of kernels from decode's. `per_token` scores it one token at a time through step instead, the decode path; the HF gate runs both so each set of kernels meets the reference.
+// Windows of `context_size` tokens, each from an empty history, scored through the batched passes a prompt takes, or with `per_token` one token at a time through step, the decode path.
+// The HF gate runs both, since on a device the two use different kernels.
 inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& ids,
                                    int context_size = 0, int max_chunks = 0, bool per_token = false) {
     if (ids.size() < (size_t)kMinPerplexityWindow)

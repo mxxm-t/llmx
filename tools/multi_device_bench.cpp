@@ -1,5 +1,4 @@
-// Each stage's device time of a model split by layers over Vulkan devices as the CLI places it, a decode pass and, when asked, a prefill pass, from GPU timestamps: the stage-time source of the layer split's and the tensor split's models (docs/STATUS-2026-09.md, layer split phase 3, step 0).
-// `stages MODEL D... [options]` is its one mode.
+// Each stage's device time of a model split by layers over Vulkan devices as the CLI places it, from GPU timestamps of a decode and a prefill pass, run as `stages MODEL DEVICES [options]` (docs/STATUS-2026-09.md, layer split phase 3, step 0).
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -54,9 +53,8 @@ std::vector<int> plan_layers(const std::string& plan, size_t devices) {
     return out.size() == devices ? out : std::vector<int>{};
 }
 
-// Decode passes of each row count through the model split over `devices`, every sequence first given `context` tokens, and prefill passes of each prompt row count, each the slice that ends a prompt after `context` tokens, so it wants its last row's logits.
-// Each device's time a pass is the sum of its dispatches' GPU timestamps.
-// The last stage is set against the others, and where the plan gives the layer counts, what it takes beyond its layers at the others' time a layer is the head's.
+// Decode passes of each row count through the model split over `devices`, every sequence first given `context` tokens, and prefill passes of each prompt row count ending a prompt after `context` tokens.
+// Each device's time a pass is the sum of its dispatches' GPU timestamps, and the last stage is set against the others, what it takes beyond its layers being the head's where the plan gives the layer counts.
 int stages(const std::string& path, const std::vector<int>& devices, const StagesOptions& o) {
     std::vector<backend::BackendPtr> backends;
     infer::PlacementRequest request;

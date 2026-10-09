@@ -1,7 +1,5 @@
-// A model on one device against the same model split by layers over several, compared as raw float logits: every position of a scored text through the prompt path, then a prefill in chunks of the ubatch, which a split pipelines over its stages, and greedy decode steps, bit for bit (docs/MULTI-DEVICE.md, phases 1 and 2).
-// Then the prompt and the steps replayed by class on each, as a paused request's resume recomputes them, which must give the decode's logits, and from a fork too unless the model keeps a recurrent state, which is not forked; verifies of drafts, the decode's tokens fed after a mark and retracted, which must give the same rows on both; and passes in flight through the pass API, which must give what the same passes give one after another.
-// Usage: llmx-split-check <model.gguf> <text file> [single device] [split devices, comma separated] [decode steps] [ubatch] [cache type] [dtype] [tensor width]; dtype is auto (the default), f16, bf16, f32 or int8, a device is `cpu` or a Vulkan index, and the cache type, f16 or f32, stores both sides of both models' caches, the model's default when left out.
-// With a tensor width W above 1 (docs/TENSOR-SPLIT.md) the single device is a list of W devices forming one tensor group, and the split's devices form groups of W, its stages, which must give the one group's bits.
+// A model on one device against the same model split by layers over several, as raw float logits bit for bit: a scored text through the prompt path, a prefill in ubatch chunks, and greedy decode steps (docs/MULTI-DEVICE.md, phases 1 and 2).
+// It then replays the prompt and steps by class, verifies marked and retracted drafts, and runs passes in flight, each of which must give what the single path gives (usage in the tool's message, docs/TENSOR-SPLIT.md).
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -55,7 +53,7 @@ static size_t mixed(infer::Model& one, infer::Model& two, const std::vector<uint
     return differ;
 }
 
-// The prompt and the decode's tokens recomputed as a paused request's resume recomputes them (docs/SERVER.md, pausing): the prompt at its extent in ubatch slices, the generated tokens as entries of extent 1 of up to 64 rows, logits only on the last; then a fork at the last whole block short of the end, replaying the rest.
+// The prompt and the decode's tokens recomputed as a paused request's resume recomputes them (docs/SERVER.md, pausing): the prompt in ubatch slices, the tokens as entries of extent 1 of up to 64 rows, whole and from a fork.
 // Each must give the logits the decode gave after its last token, bit for bit; the count of those that differ, each fork counted in `forked`.
 static size_t replay(infer::Model& m, const std::vector<uint32_t>& ids, size_t prompt, const std::vector<float>& want, size_t& forked) {
     m.reset();
@@ -95,9 +93,8 @@ struct Planned {
     size_t extent;
 };
 
-// Passes in flight through the pass API (docs/MULTI-DEVICE.md): 2P sequences, each a prompt of its own length cut from `ids` in chunks of up to 32 tokens and then 8 generated tokens taken from `ids` too, grouped four entries to a pass with P passes in flight, each stage recorded after a random host delay so how far each device runs ahead varies.
-// Each device runs its passes in formation order and a pass retires the round after its last stage, as the server's round has them; every logits row must then equal the same passes run one after another through forward on the split and on the single device, bit for bit.
-// Returns the rows that differ from the split's own forward in `split_differ` and from the single device in `one_differ`, and the passes run.
+// Passes in flight through the pass API (docs/MULTI-DEVICE.md): 2P sequences of a prompt cut from `ids` in chunks of up to 32 tokens and 8 generated tokens, four entries to a pass, P in flight, each stage recorded after a random delay.
+// Every logits row must equal the same passes run in turn on the split and on the single device, each device running its passes in formation order and a pass retiring the round after its last stage as the server's round has them.
 static size_t in_flight(infer::Model& one, infer::Model& two, const std::vector<uint32_t>& ids, size_t P, uint32_t seed, size_t& split_differ, size_t& one_differ) {
     one.reset();
     two.reset();
@@ -218,7 +215,8 @@ static size_t in_flight(infer::Model& one, infer::Model& two, const std::vector<
     return formed.size();
 }
 
-// Verifies of drafts (docs/SPECULATIVE.md, section 3): after the prompt, rounds that mark the history, feed k + 1 of the decode's tokens as generated tokens in one pass, k from 1 to 16, and retract to keep some of them, none and all included, on both models; every verify row and every step after a retract to the mark compared, and the step after the last round. Returns the rows that differ and counts the rounds.
+// Verifies of drafts (docs/SPECULATIVE.md, section 3): after the prompt, rounds that mark the history, feed k + 1 of the decode's tokens in one pass, k from 1 to 16, and retract to keep some of them, none and all included, on both models.
+// Every verify row and every step after a retract is compared, and it returns the rows that differ and counts the rounds.
 static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uint32_t>& history, size_t prompt, size_t& rounds) {
     const size_t vocab = one.n_vocab();
     one.reset();
@@ -287,7 +285,7 @@ int main(int argc, char** argv) {
         const std::vector<uint32_t> ids = first->tok->encode(text);
         if (ids.size() < 2) throw std::runtime_error("the text holds fewer than two tokens");
 
-        // The split takes equal shares of the layers, placed as a device list with --layer-shares 1,1,... places them.
+        // The split takes equal shares of the layers, as a device list with --layer-shares 1,1 and so on places them.
         // Each entry is a backend of its own, without the CLI's listed-once rule (backend::device_specs), so `cpu,cpu` splits over two CPU backends.
         infer::PlacementRequest request;
         for (const std::string& d : core::comma_list(split)) request.names.push_back(name(d));

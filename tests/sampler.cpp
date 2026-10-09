@@ -1,8 +1,5 @@
-// infer::sample against expectations taken from the definitions rather than from the code.
-// Greedy is the argmax, the penalty divides a seen positive score and multiplies a seen negative one, top-k keeps the k best, the nucleus is the shortest ranked prefix whose probability reaches top_p, and a draw follows the softmax of the kept scores over the temperature.
-// Frequencies are held to three binomial standard deviations per token from fixed seeds, so every run draws the same tokens.
-// Every draw is also held, token for token and with the generator's state after it, to a slow reference that sorts all scores but a masked one, ties by the lower id, which fixes the ranking, the tokens kept, the order a draw walks them in and the generator's use.
-// The reference sums the softmax in id order as the definition does, but a sum in another order differs only in its last bits, so no draw here can show that order.
+// infer::sample against expectations taken from the definitions rather than from the code: greedy is the argmax, the penalty divides a seen nonnegative score and multiplies a negative one, top-k keeps the k best.
+// Frequencies are held to three binomial standard deviations from fixed seeds, and every draw, with the generator's state after it, to a slow reference that sorts all scores but a masked one and sums the softmax in id order.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -212,8 +209,7 @@ void masked() {
     require(infer::sample(row.data(), row.size(), s, -1, no_history, rng) == 1, "ignore_eos masked a token of a model without an end id");
 }
 
-// infer::sample as its definition reads, slowly: every token but a masked one ranked by a full sort on score and then id, and the kept tokens' softmax summed in id order.
-// Without top-p the draw walks the kept tokens in id order; with it the nucleus is summed best first and the draw walks it best first.
+// infer::sample as its definition reads, slowly: every token but a masked one ranked by a full sort on score and then id, the kept tokens' softmax summed in id order, and with top-p the nucleus summed and walked best first.
 // Its draws pin the ranking, the tie rule, the walk order and the generator's use; its sums follow the definition's order too, though no draw shows the order of a sum.
 uint32_t reference(const std::vector<float>& logits, float temp, int top_k, float top_p, float penalty,
                    const std::vector<uint32_t>& gen, infer::RNG& rng, int64_t masked) {
@@ -258,9 +254,8 @@ uint32_t reference(const std::vector<float>& logits, float temp, int top_k, floa
     return order[0];
 }
 
-// n scores from a seed.
-// With `levels` they take that many values a quarter apart, so ties are everywhere and fall across every cut, and a zero is -0 or +0 at random, which compare equal.
-// Without they spread as a model's do, with one in 200 far ahead.
+// n scores from a seed: with `levels` they take that many values a quarter apart, so ties are everywhere and fall across every cut, and a zero is -0 or +0 at random.
+// Without, they spread as a model's do, with one in 200 far ahead.
 std::vector<float> scores(size_t n, int levels, uint64_t seed) {
     infer::RNG rng = seeded(seed);
     std::vector<float> s(n);
@@ -327,7 +322,7 @@ void against_reference() {
 }  // namespace
 
 // infer::accept against the loop without drafts written out here: row i sampled after the picks before it, one draw a row, the reply ending at an end token or the limit, and the drafts deciding only where sampling stops.
-// Rows of twelve scores on five levels, so greedy meets ties; drafts are the loop's own picks with one replaced at a random place, or a random id; greedy, seeded at top-k 0 with top-p, and with a penalty; an end token and a limit falling at every row.
+// Rows of twelve scores on five levels, so greedy meets ties; drafts are the loop's own picks with one replaced at a random place, or a random id, with an end token and a limit falling at every row.
 void acceptance() {
     std::mt19937 gen_rows(20261001u);
     const size_t n = 12;
@@ -389,8 +384,8 @@ void acceptance() {
 
 bool close_to(double a, double b, double tolerance = 1e-12) { return std::fabs(a - b) <= tolerance; }
 
-// spec::Acceptance, the one acceptance average: from 2, each empty verify moves it an eighth of the way to 0, so ten still leave it at half a draft or more and the eleventh rests the request; 16 tokens stepped then end the rest, and a verify keeping three moves the same average back above the break-even.
-// Its counts by draft position: every verify feeds its positions, and each keeps a prefix of them.
+// spec::Acceptance, the one acceptance average: from 2, each empty verify moves it an eighth of the way to 0, so ten still leave it at half a draft or more and the eleventh rests the request.
+// 16 tokens stepped then end the rest, a verify keeping three moves the average back above the break-even, and its counts by draft position keep a prefix of each verify.
 void acceptance_rest() {
     infer::spec::Acceptance a;
     for (int i = 0; i < 10; ++i) {

@@ -1,7 +1,6 @@
 #pragma once
 // HTTP/1.1 over blocking sockets, enough for the server in docs/SERVER.md: listen, accept, read one request with a Content-Length body, write one response or a chunked stream, and tell whether the client has left.
-// One thread per connection, no keep-alive beyond one request, no TLS, no external library: a reverse proxy does the rest when the server faces a network.
-// Windows uses Winsock, everything else BSD sockets; the two differ only in the handle type, in how a socket is closed, polled or made non-blocking and in their error codes, which is what the few #if blocks below cover.
+// One thread per connection, no keep-alive beyond one request, no TLS and no external library: a reverse proxy does the rest when the server faces a network.
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -86,7 +85,7 @@ inline bool set_blocking(Socket s, bool blocking) {
     const int flags = fcntl(s, F_GETFL, 0);
     return flags >= 0 && fcntl(s, F_SETFL, blocking ? flags & ~O_NONBLOCK : flags | O_NONBLOCK) == 0;
 }
-// A write to a socket the peer has closed raises SIGPIPE and ends the process unless the process ignores it; a client leaving mid-stream is ordinary here, so the signal is ignored once and every send also passes MSG_NOSIGNAL where the platform has it.
+// A write to a socket the peer has closed raises SIGPIPE, so the signal is ignored once and every send also passes MSG_NOSIGNAL where the platform has it; a client leaving mid-stream is ordinary here.
 inline void platform_init() {
     static std::once_flag once;
     std::call_once(once, [] { signal(SIGPIPE, SIG_IGN); });
@@ -281,9 +280,8 @@ private:
     bool streaming_ = false;
 };
 
-// A listening socket.
-// Port 0 asks the system for a free one; port() says which, for tests.
-// accept() and close() may run on different threads: accept() holds m_ while it uses the socket, which is non-blocking so that it can poll it and look for close() every kCloseCheckMs, and close() takes m_ to close the socket, so it closes it only once no accept() uses it.
+// A listening socket; port 0 asks the system for a free one, and port() says which, for tests.
+// accept() and close() may run on different threads: accept() holds m_ while it uses the non-blocking socket, which it polls for close() every kCloseCheckMs, and close() takes m_ so it closes the socket only once no accept() uses it.
 class Listener {
 public:
     Listener(const std::string& host, uint16_t port) {
@@ -327,7 +325,7 @@ public:
     uint16_t port() const { return port_; }
 
     // Blocks for the next client; an invalid connection means the listener was closed, from this thread or another, which is how the server stops.
-    // Any other failure is retried while the listener is open: at once when it was one client's or said only that no client was waiting, and after 50 ms otherwise, so a shortage of descriptors or buffers can pass and an error that persists cannot spin a core.
+    // Any other failure is retried while the listener is open, at once when it was one client's or only said none was waiting and after 50 ms otherwise, so a shortage of descriptors can pass and a persistent error cannot spin a core.
     Connection accept() {
         std::lock_guard<std::mutex> hold(m_);
         while (!closed_.load()) {

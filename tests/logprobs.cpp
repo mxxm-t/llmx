@@ -155,7 +155,7 @@ std::vector<server::Request::Token> drain(server::Request& r) {
     return out;
 }
 
-// Requests read from the scheduler's channel against a second model fed the same ids through the passes the scheduler runs for a request alone: every value is that row's log-softmax, greedy or drawn at temperature 1.5 with penalty 1.3, which do not reach the values.
+// Requests read from the scheduler's channel against a second model fed the same ids through the passes the scheduler runs for a request alone: every value is that row's log-softmax, greedy or drawn.
 // Without logprobs a request gets the same ids and no values; left unread it holds kRowsWaiting rows and gets the same values, and cancelled its waiting rows are dropped.
 void channel() {
     const gguf::GGUFModel weights = served();

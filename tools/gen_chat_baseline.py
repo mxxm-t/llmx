@@ -88,7 +88,7 @@ def parts(*items):
     return [{"type": "text", "text": x} if isinstance(x, str) else x for x in items]
 
 
-# Conversations every real template renders: the legacy twelve, the same reply raw and split as a client may send it back, tool turns, tools and tool calls, content as parts, the conversations the Qwen 3.5 templates refuse, and text that JSON or whitespace handling could change.
+# Conversations every real template renders: the legacy twelve, a reply raw and split as a client may send it back, tool turns, tools and calls, content as parts, ones the Qwen 3.5 templates refuse, and text that tests escaping.
 # Each is (name, messages, add_generation_prompt), with the tools passed as a fourth item where there are any.
 TEMPLATE_CASES = legacy_cases() + [
     ("user-only", [m("user", "Hello there.")], True),

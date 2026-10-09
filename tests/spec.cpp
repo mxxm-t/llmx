@@ -1,5 +1,5 @@
-// Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: infer::generate with test-only proposers that keep every draft, miss at a chosen draft, draw at random or propose hostile ids, with lookup, and with the embedded drafter of a hybrid model with an MTP block (section 7), on a dense, a routed and a hybrid model on one to four CPU stages, greedy and seeded, must give the ids, the fed history and the next logits of the run without drafts.
-// Then the model's history calls under a verify: every row of a verify equals single steps, a retract to any row continues as if never drafted, the hybrid model's state rerun from its mark included, and a rerun that fails keeps the mark for a retry.
+// Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: test-only proposers, lookup and the embedded drafter, on dense, routed and hybrid models over one to four CPU stages (AGENTS.md, Tests).
+// Then the history calls under a verify: every row equals single steps, a retract to any row continues as if never drafted, and a rerun that fails keeps the mark for a retry.
 #include <iostream>
 #include <random>
 
@@ -61,7 +61,7 @@ struct Run {
 // The tensor width every model here is placed at (docs/TENSOR-SPLIT.md): above 1 each stage is a group of that many CPU backends, and a run is held to the run on one such group, since a group gives its own bits.
 size_t group_width = 1;
 
-// A model of `weights` placed over `stages` stages of CPU backends of one thread, with a mark of up to 17 rows where it keeps a state, and with `drafter` the file's embedded drafter; `submits`, when given, counts the first backend's submissions.
+// A model of `weights` placed over `stages` stages of one-thread CPU backends, with a mark of up to 17 rows where it keeps a state and with `drafter` the file's embedded drafter; `submits`, when given, counts the first backend's submissions.
 std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stages, size_t* submits = nullptr, bool drafter = false) {
     std::vector<backend::BackendPtr> backends;
     for (const auto& h : hooked(stages * group_width)) backends.push_back(h);
@@ -202,7 +202,7 @@ void rounds(const std::string& name, const gguf::GGUFModel& plain, size_t vocab,
     }
 }
 
-// The embedded drafter of a hybrid model with an MTP block (docs/SPECULATIVE.md, section 7) against the run without drafts of the file without the block, on one, two and four CPU stages, or those given, greedy and seeded, prompts of 10, 127 and 129 tokens, at 1, 3 and 8 drafts a verify, each run feeding drafts.
+// The embedded drafter of a hybrid model with an MTP block (docs/SPECULATIVE.md, section 7) against the run without drafts of the file without the block, on one, two and four CPU stages, greedy and seeded, at 1, 3 and 8 drafts a verify.
 void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t vocab, const std::vector<size_t>& stages = {1, 2, 4}) {
     std::vector<infer::GenParams> samplers(2);
     samplers[0].temp = 0;
@@ -224,7 +224,7 @@ void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t v
         }
 }
 
-// A member's footprint with the embedded drafter (infer::footprint with a width) against counts made here, on the hybrid model whose shape a group of two splits whole: its shards of the block, the block's input projection and norms whole, the head whole once more, since a member's own head is a shard and a draft row reads every vocabulary row, the embedding table whole, and the KV of its own KV heads.
+// A member's footprint with the embedded drafter (infer::footprint with a width) against counts made here, on the hybrid model a group of two splits whole: the block's shards, its projection and norms whole, the head and embedding whole.
 void drafter_footprint(const gguf::GGUFModel& mtp) {
     const infer::ModelWeights w = infer::gguf_weights(mtp);
     const infer::ModelPlan plan = infer::plan_model(w, true);
@@ -259,7 +259,7 @@ struct FailingConv : backend::CpuBackend {
 
 bool bits(const float* a, const float* b, size_t n) { return !std::memcmp(a, b, n * sizeof(float)); }
 
-// The history calls under verifies: the hybrid model fed a fixed walk of tokens one step at a time against verifies of k + 1 of them, each retracted to keep j rows, repeated through a long generation; every verify row and every row after a retract the bits of single steps.
+// The history calls under verifies: the hybrid model fed a fixed walk of tokens one step at a time against verifies of k + 1 of them, each retracted to keep j rows; every verify row and every row after a retract the bits of single steps.
 void history(const gguf::GGUFModel& w, size_t vocab, size_t stages) {
     const std::vector<uint32_t> walk = prompt_of(5, 300, (uint32_t)vocab), prompt = prompt_of(2, 20, (uint32_t)vocab);
     auto single = placed(w, 1);
@@ -344,7 +344,7 @@ int main() {
         embedded(hybrid, served_hybrid(kHybrid, true), (size_t)kHybrid.vocab);
         history(dense, (size_t)kCpu.vocab, 2);
         failures(hybrid, (size_t)kHybrid.vocab);
-        // The hybrid model over tensor groups of two CPUs, one stage and two: each member keeps the state of its own heads and reruns it from the mark on its own, and with the file's embedded drafter each member runs its shards of the block and reads the head whole.
+        // The hybrid model over tensor groups of two CPUs, one stage and two: each member keeps the state of its own heads and reruns it from the mark on its own, and with the embedded drafter runs its shards of the block and reads the head whole.
         const gguf::GGUFModel even = served_hybrid(kHybridEven);
         group_width = 2;
         rounds("the hybrid model on groups of two", even, (size_t)kHybridEven.vocab, {1, 2});

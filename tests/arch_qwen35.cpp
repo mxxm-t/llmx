@@ -400,7 +400,7 @@ void state_rules() {
     require(same(broken.prefill(ids), want), "a sequence after a failed step differs from a fresh one");
 }
 
-// State checkpoints (docs/SPECULATIVE.md, section 1), on a model of a 512-token context whose prompts pass a CPU block: a keep changes no logits; a retract reaches the checkpoint and a fork reads it in place, each continuing with the bits of the history never stopped; keep() turns the live state into the checkpoint; a failed pass goes back to the checkpoint; the slots are counted and given back.
+// State checkpoints (docs/SPECULATIVE.md, section 1) on a model of a 512-token context: keep, retract, fork, failed passes and slot counts, each continuing with the bits of the history never stopped (AGENTS.md, Tests).
 void checkpoints() {
     const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -477,7 +477,7 @@ void checkpoints() {
     require(same(broken.prefill(tail), want), "the history after a failed step differs");
 }
 
-// A hybrid history copied to host memory and back (Model::save_host, Model::restore_host): its 128 tokens and its checkpoint's state there, restored once the one checkpoint slot is free into a slot of its own, continue the prompt with the bits of the prompt read in one; a copy where no checkpoint is refused, and a restore with no checkpoint slot free throws and holds nothing.
+// A hybrid history copied to host memory and back (Model::save_host, Model::restore_host) continues the prompt with the bits of the prompt read in one; a copy with no checkpoint is refused, and a restore with no slot free holds nothing.
 void host_round_trip() {
     const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -517,8 +517,8 @@ void host_round_trip() {
     require(model.checkpoints_free() == 1, "a restored history's reset kept its checkpoint slot");
 }
 
-// A state alone copied to host memory (Model::save_host without blocks) at a history's checkpoint at 128, which the history then replaces with one at 200: a fork of the history at 128 with that state (Model::fork with a state) continues the prompt with the bits of the prompt read in one, beside the history's own continuation in one pass.
-// The state takes only its slot's bytes; a fork with a state at another length, with a whole history's copy or with every checkpoint slot held, and a restore of a state alone, are refused and hold nothing.
+// A state alone copied to host memory (Model::save_host without blocks) at a history's checkpoint at 128, which the history then replaces with one at 200.
+// A fork at 128 with that state (Model::fork with a state) continues the prompt with the bits of the prompt read in one; a fork or restore the state cannot serve is refused and holds nothing.
 void host_state_fork() {
     const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -605,7 +605,7 @@ void host_state_fork() {
     require(model.checkpoints_free() == 2, "a fork with a state kept its checkpoint slot after its reset");
 }
 
-// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it the weights its layers take; its first `rise_after` reads report `early` bytes, one unless given, as a card still taking back an ended process's memory does.
+// A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it its layers' weights; its first `rise_after` reads report `early` bytes, as a card still taking back an ended process's memory does.
 // With `device` it says it is not the CPU, as a card does.
 struct Room : backend::CpuBackend {
     size_t room = 0, early = 1;
@@ -616,7 +616,7 @@ struct Room : backend::CpuBackend {
     bool is_cpu() const override { return !device; }
 };
 
-// The automatic checkpoint count is tried through the fit itself (infer::fitted_kv): on a split whose first stage holds only a linear layer's states, on a device with room for its live states and not one checkpoint more, the fit gives no checkpoint slot and the model is placed; on roomy devices it gives the slots asked for. Slot counts whose sum a size cannot hold are refused.
+// The automatic checkpoint count is tried through the fit itself (infer::fitted_kv): a device with room for its live states only gets no checkpoint slot, roomy ones get the slots asked for, and counts whose sum a size cannot hold are refused.
 void checkpoint_fit() {
     const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -656,7 +656,7 @@ void checkpoint_fit() {
     require(none.model->checkpoint_slots() == 0 && none.checkpoint_kv_tokens == 0, "a checkpoint count the first device cannot hold was taken");
     const infer::PlacedModel roomy = infer::place_model(w, devices(size_t(1) << 30), request, options);
     require(roomy.model->checkpoint_slots() == 4 && roomy.checkpoint_kv_tokens == 0, "roomy devices did not take the checkpoint slots asked for");
-    // On one device with room for the whole budget and no more, the checkpoints take at most a quarter of it, in whole blocks of 128: of 512 tokens all four slots asked for, each far smaller than a quarter of the budget's bytes, with 384 tokens left, and of 384 none, since a block is a third; asked for as many as a size holds, the search ends with a count that fits.
+    // On one device with room for the whole budget and no more, the checkpoints take at most a quarter of it in whole blocks of 128: four slots leave 384 of 512 tokens, none are taken of 384, and an oversized count ends with one that fits.
     infer::PlacementRequest one = request;
     one.names = {"device 0"};
     one.shares.clear();
@@ -701,7 +701,7 @@ void checkpoint_fit() {
                         std::to_string(all->kv_tokens_total()) + " KV tokens");
         }
     }
-    // Marks past the first take only the room the budget leaves (PlacementRequest::fit_marks): of six asked for, one on a device that holds the whole budget with one and no more, three where it holds three, all six on a roomy one, the 512-token budget whole each time; one mark more than the device holds is not taken.
+    // Marks past the first take only the room the budget leaves (PlacementRequest::fit_marks): of six asked for, one, three or all six by the device's room, the 512-token budget whole each time; one mark more than the device holds is not taken.
     {
         infer::PlacementRequest marked = one;
         marked.fit_checkpoints = false;
@@ -736,7 +736,7 @@ void checkpoint_fit() {
                         std::to_string(placed.model->kv_tokens_total()) + " KV tokens, where " + std::to_string(want) + " fit beside the whole budget");
         }
     }
-    // A device whose free memory is still coming back when the fit first reads it, as a server restarted on the card its predecessor held finds it: once the memory has settled it holds the whole budget and the checkpoints asked for, so it gets both.
+    // A device whose free memory is still coming back when the fit first reads it, as a server restarted on the card its predecessor held finds it, gets the whole budget and the checkpoints asked for once the memory has settled.
     {
         auto d = std::make_shared<Room>();
         d->room = size_t(1) << 30;
@@ -747,7 +747,7 @@ void checkpoint_fit() {
                 "a device whose memory settled after the first reads took " + std::to_string(settled->checkpoint_slots()) + " checkpoint slots beside " +
                     std::to_string(settled->kv_tokens_total()) + " KV tokens");
     }
-    // A device whose free memory, when the fit first reads it, holds the whole budget alone but not the checkpoints or the marks asked for beside it, as a card still taking back an ended process's memory may: the fit waits for that memory as it does for a budget that falls short, and once it has settled takes the whole budget with every checkpoint and every mark.
+    // A device whose free memory first holds the whole budget alone, as a card still taking back an ended process's memory may: the fit waits for that memory and then takes the budget with every checkpoint and mark asked for.
     {
         const auto least = [&](const infer::ModelOptions& o) {
             const auto holds = [&](size_t room) {
@@ -792,7 +792,7 @@ void checkpoint_fit() {
                 "a device whose memory first held the budget and one mark took " + std::to_string(marks.model->mark_slots()) + " mark slots beside " +
                     std::to_string(marks.model->kv_tokens_total()) + " KV tokens once it had settled");
     }
-    // Two cards fitted to their free memory, the first's coming back in a step some two seconds after the fit first reads it, as when a split server restarts on the cards its predecessor held: the split, the KV budget and the checkpoints are those of idle cards, not the second card holding every layer.
+    // Two cards fitted to their free memory, the first's coming back some two seconds after the fit first reads it, as when a split server restarts: the plan, KV budget and checkpoints are those of idle cards.
     {
         const auto cards = [](int rise) {
             auto a = std::make_shared<Room>(), b = std::make_shared<Room>();
@@ -921,7 +921,7 @@ void failed_admission_takes_no_slot() {
     require(failed > 0, "begin_pass allocated nothing on a fresh reservation");
 }
 
-// A mark's holds are returned once, whatever becomes of its sequence: on a model of one live slot and one mark, a marked sequence destroyed, at length 0 and holding the live slot, leaves both for the next; a marked sequence moved, by construction and by assignment, takes its mark with it, so a reset of the one moved from releases nothing; and a mark whose allocations fail in turn changes nothing, the sequence then stepping and marking as before.
+// A mark's holds are returned once, whatever becomes of its sequence: a marked sequence destroyed or moved leaves the one live slot and one mark for the next, and a mark whose allocations fail in turn changes nothing.
 void marks() {
     // The weights are read in place, so the file outlives the model.
     const gguf::GGUFModel file = tiny();
@@ -1018,8 +1018,8 @@ gguf::GGUFModel tiny_mtp(const std::function<void(gguf::GGUFModel&)>& edit = {})
     });
 }
 
-// Drafting never lowers the budget the fit gives without it (docs/SPECULATIVE.md, section 3): on one device that holds the 512-token budget and nothing more, the embedded drafter and a mark are refused by their text, and so is a mark alone, as lookup asks; on one that holds the budget with the drafter and one mark beside it, the budget is the 512 tokens and one mark is taken.
-// An automatic checkpoint slot gives way: one byte short of the budget, the drafter, a mark and the one checkpoint asked for, the budget stays 512 tokens and the checkpoint goes, where the fit without drafts keeps it; a checkpoint asked for by number does not, and the placement is refused. Over two devices, the first holding only a linear-attention layer's states, roomy ones give the budget and the checkpoints of the fit without drafts.
+// Drafting never lowers the budget the fit gives without it (docs/SPECULATIVE.md, section 3): the embedded drafter and a mark are refused by their text where the budget holds nothing more, and taken where it holds them beside the 512 tokens.
+// An automatic checkpoint slot gives way to the drafter and a mark a byte short of the budget, and a checkpoint asked for by number does not, so that placement is refused; over two devices roomy ones give the fit without drafts.
 void drafting_fit() {
     const gguf::GGUFModel m = tiny_mtp();
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -1167,7 +1167,8 @@ struct NoArgmax : backend::CpuBackend {
     bool implements(backend::Op op) const override { return op != backend::Op::argmax_rows; }
 };
 
-// The embedded drafter (docs/SPECULATIVE.md, section 7) on the tiny MTP model: loaded, it leaves the logits as they were; its drafts and draft logits are those of a fresh sequence fed the same tokens in the same row classes, bit for bit, for a history in slices, beside another sequence, retracted at every position of a verify, forked and retracted at a checkpoint, reset, continued after a failed pass and split over four CPU stages; a first pass reads a zero carried row whatever its slot holds; drafting ends at the first invalid draft; a draft whose blocks run out takes none and changes nothing; and its refusals.
+// The embedded drafter (docs/SPECULATIVE.md, section 7) on the tiny MTP model: loaded, it leaves the logits as they were, and its drafts and draft logits are those of a fresh sequence fed the same tokens (AGENTS.md, Tests).
+// It is held across slices, other sequences, retracts, forks, resets, failed passes and four CPU stages; a draft whose blocks run out takes none and changes nothing.
 void drafts() {
     const gguf::GGUFModel file = tiny_mtp();
     const infer::ModelWeights w = infer::gguf_weights(file);
@@ -1341,7 +1342,7 @@ void drafts() {
         model->reset(s);
         model->release_host(host);
     }
-    // A message boundary's state alone in host memory (Model::save_host without blocks) at the checkpoint at 128, the history going on past it: a fork of the history at 128 with that state, in a checkpoint slot of its own, drafts as one never evicted, the drafter's carried row coming back with the state.
+    // A message boundary's state alone in host memory (Model::save_host without blocks) at the checkpoint at 128, the history going on past it: a fork at 128 with that state, in a checkpoint slot of its own, drafts as one never evicted.
     {
         infer::Sequence s = model->make_sequence();
         feed(*model, s, prompt.data(), 128, prompt.size(), true);

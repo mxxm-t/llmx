@@ -1,5 +1,5 @@
 // binary32 <-> binary16 conversion, checked without an oracle library.
-// The oracle is binary16 itself: every finite half is exactly a float, so encoding that float must return the same bits, and any float's encoded half must be at least as close as either neighbouring half, which is round-to-nearest with ties to even.
+// The oracle is binary16 itself: every finite half is exactly a float, so encoding that float must return the same bits, and any float's encoded half must be at least as close as either neighbour, with ties to even.
 #include <cmath>
 #include <cstdint>
 #include <cstdio>

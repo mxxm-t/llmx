@@ -180,8 +180,7 @@ def q3_k_scale(sc, s):
 
 
 # Q3_K: 256 values as 16 sub-blocks of 16; 32 bytes of high bits, 64 bytes of 2-bit codes in Q2_K's order, 12 bytes of 6-bit scales, then an f16 scale d.
-# Value i, with h, j and l as in Q2_K, takes bit 4h + j of high byte l: a set bit leaves the 2-bit code as it is, and a clear one subtracts 4, so codes run from -4 to 3.
-# It decodes as d * (scale - 32) * code with the scale of sub-block i // 16.
+# Value i, with h, j and l as in Q2_K, takes bit 4h + j of high byte l, a clear bit subtracting 4 so codes run from -4 to 3, and decodes as d * (scale - 32) * code with the scale of sub-block i // 16.
 def q3_k(block):
     hmask, qs, sc = block[0:32], block[32:96], block[96:108]
     d = f16(block, 108)
@@ -196,8 +195,7 @@ def q3_k(block):
 
 
 # IQ4_XS: 256 values as eight sub-blocks of 32; an f16 scale d, a 16-bit word of high scale bits, four bytes of low scale bits, then 128 bytes of codes.
-# Sub-block b's 6-bit scale is nibble b % 2 of low byte b // 2, with bits 2b and 2b + 1 of the word above it.
-# Its 32 codes are the nibbles of bytes 16b to 16b + 15 in Q4_0's order, each d * (scale - 32) * IQ4_VALUES[nibble].
+# Sub-block b's 6-bit scale is nibble b % 2 of low byte b // 2 with bits 2b and 2b + 1 of the word above it, and its 32 codes are the nibbles of bytes 16b to 16b + 15 in Q4_0's order, each d * (scale - 32) * IQ4_VALUES[nibble].
 def iq4_xs(block):
     d = f16(block, 0)
     high = struct.unpack_from("<H", block, 2)[0]

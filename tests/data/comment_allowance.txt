@@ -33,18 +33,11 @@ src/backends/vulkan/vulkan_backend.cpp | 25 | f10ecb7ac4f3 | owed by a branch in
 src/backends/vulkan/vulkan_backend.hpp | 3 | c72395bb4784 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/cli/main.cpp | 10 | 7f3891da214c | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/config.hpp | 1 | 761d25dd0460 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/core/cpus.hpp | 1 | ea014dbad02e | docs/comment-sweep-1
-src/core/crc32c.hpp | 1 | 04b84aaf52c3 | docs/comment-sweep-1
 src/core/fp16.hpp | 1 | f4236a35a0d2 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/core/host_memory.hpp | 4 | 84bf242ca045 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/format/gguf.hpp | 4 | a3748262946b | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/inference/chat.hpp | 5 | 679e43263d13 | docs/comment-sweep-1
-src/inference/generate.hpp | 1 | 776a87eceb0a | docs/comment-sweep-1
 src/inference/load.hpp | 6 | a05e22e3fff1 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/inference/logprobs.hpp | 1 | e1ae4d5e4889 | docs/comment-sweep-1
 src/inference/pair.hpp | 1 | 46d5de798757 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/inference/perplexity.hpp | 1 | e47672753e88 | docs/comment-sweep-1
-src/inference/sampler.hpp | 7 | 1160909892cf | docs/comment-sweep-1
 src/inference/spec.hpp | 8 | 3b566a70fc09 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/model/arch/blocks.hpp | 3 | 7ec0965d250c | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/model/arch/qwen3.hpp | 3 | 67540a613a30 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
@@ -61,66 +54,16 @@ src/model/weights.hpp | 1 | 12c288409982 | docs/comment-sweep-2: a file of the n
 src/quant/k_quants.hpp | 1 | c80766bfa8fd | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/quant/quant.hpp | 3 | 6805ab039bea | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/server/api.hpp | 9 | 7b2d0a9293ae | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/server/context_cut.hpp | 3 | 0ae7bc84e27a | docs/comment-sweep-1
 src/server/disk_index.hpp | 4 | 01d947cdfd56 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_store.hpp | 4 | 970fe262ddaf | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_tier.hpp | 4 | 0f630e964696 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/server/http.hpp | 4 | 84e30f8dd64c | docs/comment-sweep-1
 src/server/policy.hpp | 3 | bebda1c583b3 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/scheduler.hpp | 43 | 7d3344caf639 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-src/tokenizer/tokenizer.hpp | 2 | 55888c956d17 | docs/comment-sweep-1
-tests/arch_qwen35.cpp | 14 | 279c67822a6a | docs/comment-sweep-1
-tests/backend_group.cpp | 4 | cd72d0ffab82 | docs/comment-sweep-1
 tests/backend_vulkan.cpp | 30 | b1d63acf5511 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/baseline.py | 1 | 839204b3c377 | docs/comment-sweep-1
-tests/baseline_layered.py | 1 | a4a006a3e472 | docs/comment-sweep-1
-tests/baseline_qwen35.py | 3 | 8d29a9137430 | docs/comment-sweep-1
-tests/chat.py | 2 | b8a2559850d5 | docs/comment-sweep-1
-tests/chat_template.cpp | 3 | 6ee676058d04 | docs/comment-sweep-1
 tests/cli.py | 1 | 8bfcd4435afb | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/disk_index.cpp | 1 | 2d63aa3c5eff | docs/comment-sweep-1
-tests/file_reader.cpp | 2 | d5c736281a57 | docs/comment-sweep-1
-tests/fp16.cpp | 1 | c994b0605c24 | docs/comment-sweep-1
-tests/fused_dot_overflow.cpp | 1 | d505e310e8cf | docs/comment-sweep-1
-tests/host_memory.cpp | 1 | 6df4cb5ceed3 | docs/comment-sweep-1
-tests/http.cpp | 1 | 9d30f1b25f35 | docs/comment-sweep-1
-tests/int8.py | 1 | f965512224b7 | docs/comment-sweep-1
-tests/kv_cache.cpp | 10 | 1468e0a9e885 | docs/comment-sweep-1
-tests/load_progress.cpp | 5 | 1e303856891c | docs/comment-sweep-1
-tests/logprobs.cpp | 1 | f9470c8d7837 | docs/comment-sweep-1
-tests/model_validation.cpp | 3 | 094cdd85a95b | docs/comment-sweep-1
-tests/moe.py | 3 | 19e0f08801b5 | docs/comment-sweep-1
-tests/placement.cpp | 9 | b3081382b161 | docs/comment-sweep-1
-tests/qwen35.py | 2 | b87065660488 | docs/comment-sweep-1
-tests/qwen35_ops.cpp | 3 | b894bb5e4d4e | docs/comment-sweep-1
-tests/raw_blocks.py | 1 | bf56cdf80042 | docs/comment-sweep-1
-tests/roundtrip.py | 3 | c02da2877cf3 | docs/comment-sweep-1
-tests/row_classes.hpp | 1 | 3a9ec2bb7c0f | docs/comment-sweep-1
-tests/run_tests.py | 1 | f737a46b89de | docs/comment-sweep-1
-tests/sampler.cpp | 5 | cee1531eca0a | docs/comment-sweep-1
 tests/server.py | 8 | 03409e8b8f1f | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_harness.hpp | 3 | 27dc830d4d6d | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_load_tool.py | 1 | 4a6a7fdad9a5 | docs/comment-sweep-1
 tests/server_passes.cpp | 8 | 0fce27ba4688 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_passes_cpu.cpp | 6 | a12a27e5603a | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_resume.cpp | 40 | 9b0455d361ad | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_spec.cpp | 5 | d1018839a0e6 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_utf8.cpp | 1 | 2618e07e289f | docs/comment-sweep-1
-tests/shard.cpp | 3 | 749e07edb589 | docs/comment-sweep-1
-tests/spec.cpp | 6 | 5ff36b2274f3 | docs/comment-sweep-1
-tests/spec_decode.py | 2 | 34c34352be61 | docs/comment-sweep-1
-tests/split.py | 1 | 35dafa8b9992 | docs/comment-sweep-1
-tests/tensor_split.py | 1 | 7e860f98321c | docs/comment-sweep-1
-tests/tiny_qwen.hpp | 1 | a2d4962dda6a | docs/comment-sweep-1
-tests/tokenizer.py | 1 | 0a857101f04e | docs/comment-sweep-1
-tests/vulkan_buffer.cpp | 3 | b02c9c75043e | docs/comment-sweep-1
-tools/ab_runner.py | 1 | 35ce605d7345 | docs/comment-sweep-1
-tools/decode_probe.cpp | 1 | 6739f025c601 | docs/comment-sweep-1
-tools/drafter_pack.cpp | 1 | ddb362a649f3 | docs/comment-sweep-1
-tools/gen_baseline.py | 1 | 96ac84792194 | docs/comment-sweep-1
-tools/gen_chat_baseline.py | 1 | 2f6e131e2516 | docs/comment-sweep-1
-tools/moe_kernel_bench.cpp | 1 | 82bc579dfb38 | docs/comment-sweep-1
-tools/multi_device_bench.cpp | 2 | 7970719623eb | docs/comment-sweep-1
-tools/shaders/exchange.glsl | 1 | 9d4f1a97afc7 | docs/comment-sweep-1
-tools/split_check.cpp | 5 | 6954daa40304 | docs/comment-sweep-1
-tools/vulkan_handoff.cpp | 2 | a0854109bcd4 | docs/comment-sweep-1

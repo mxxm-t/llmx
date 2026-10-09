@@ -87,8 +87,7 @@ inline gguf::GGUFModel tiny_qwen_moe(int layers, uint64_t context, bool tied) {
 }
 
 // A CPU backend that fails once where a test arms it and counts what the passes ask of it, for the tests of a failed pass on these models.
-// `fail_output` fails the next output projection, the only 16-row matmul, after every layer's KV has been written; `fail_attention` fails the Nth attention from now, after its layer's KV has been written.
-// `histories` collects the committed length each attention finds for the pass's first sequence, which is how a test reads back the history of this backend's storage.
+// `fail_output` fails the next output projection (the only 16-row matmul) and `fail_attention` the Nth attention, both after the layer's KV is written; `histories` collects the committed length each attention finds for the first sequence.
 struct FailingCpu : backend::CpuBackend {
     bool fail_output = false;
     int fail_attention = 0;

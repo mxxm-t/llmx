@@ -24,10 +24,8 @@ GOLDEN = os.path.join(HERE, "data", "baseline_tokenizer.json")
 GOLDEN_LOGITS = os.path.join(HERE, "data", "baseline_logits.json")
 GOLDEN_PPL = os.path.join(HERE, "data", "baseline_perplexity.json")
 
-# The fixture models are pinned in tests/data/fixtures.json: family, repo, revision, file, SHA-256 and size, "gate" for the models the logit/PPL gates check, and "hosted" for those the hosted HF job downloads once they join the gate.
-# A family has its own goldens, vocabulary and context: qwen3 here, and qwen35 in tests/baseline_qwen35.py.
-# tools/fetch_test_models.py downloads the gate's models, and the HF job's cache key hashes their pins, so a change of bounds keeps the cached downloads.
-# The other entries are pinned ahead of the tensor types they hold, each joining the gate with its type's bounds (docs/ASSETS.md).
+# The fixture models are pinned in tests/data/fixtures.json: family, repo, revision, file, SHA-256 and size, "gate" for the models the logit/PPL gates check, "hosted" for those the hosted HF job downloads.
+# A family has its own goldens, vocabulary and context (qwen3 here, qwen35 in tests/baseline_qwen35.py), and tools/fetch_test_models.py downloads the gate's models (docs/CI.md, docs/ASSETS.md).
 FIXTURES = os.path.join(HERE, "data", "fixtures.json")
 
 # Each model's bounds against the full-precision reference: the top-5 overlap it reaches, measured per model since coarser quantization reorders more of the tail, and its NLL deltas (docs/ASSETS.md).

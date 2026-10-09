@@ -14,8 +14,8 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
-// The CPU collective of a tensor group (docs/TENSOR-SPLIT.md, section 4.3): at widths 2, 3 and 4, at 1 and 6 workers, every member's residual gains ((p0 + p1) + ...) + p(W-1) of the members' partial rows, the oracle's float bits, at every row count up to the reservation and residuals at an offset; and the refusals of a collective joined by another member or over a backend not the CPU, and of a sum of other members, more rows or another width than it was made for, or past a residual's storage.
-// A CPU backend that says it is not the CPU, as a device sharing the host's memory would.
+// The CPU collective of a tensor group (docs/TENSOR-SPLIT.md, section 4.3): at widths 2, 3 and 4 and 1 and 6 workers every member's residual gains the members' partial rows summed in member order, the oracle's float bits.
+// A CPU backend that says it is not the CPU, as a device sharing the host's memory would, and the collective's refusals are checked too.
 struct NotCpu : backend::CpuBackend {
     bool is_cpu() const override { return false; }
 };
@@ -325,8 +325,7 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     return count;
 }
 
-// Activation magnitude sweep.
-// The ordinary cases above generate x within about +-1.6, which is why this file passed a kernel that produced Inf and NaN on large inputs: a fused dot accumulates sum(q*x) and applies the block scale afterwards, so the inner sum can overflow before a small scale would have bounded it.
+// Activation magnitude sweep: the ordinary cases keep x within about +-1.6, which let a kernel that gave Inf and NaN on large inputs pass, since a fused dot sums q*x before the block scale and can overflow first.
 // The oracle bound is relative to magnitude, so extreme scales are testable here without loosening anything.
 static size_t check_magnitudes(backend::CpuBackend& cpu) {
     size_t values = 0;
@@ -339,9 +338,7 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
             Matrix m(type, 17, width, 1);
             std::vector<float> x(width);
             const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
-            // Sign matters as much as magnitude.
-            // A mixed-sign pattern lets the inner sum cancel and never reach the overflow window.
-            // Same-sign inputs maximise sum(q*x) instead.
+            // Sign matters as much as magnitude: a mixed-sign pattern lets the inner sum cancel and never reach the overflow window, so same-sign inputs maximise sum(q*x) instead.
             for (size_t i = 0; i < width; ++i)
                 x[i] = mag >= 1e30f ? mag
                      : mag * float(int((i * 19 + 7) % 101) - 50) / 50.0f;
@@ -354,9 +351,8 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
                     expected += product;
                     magnitude += std::abs(product);
                 }
-                // Only meaningful where the true answer is representable.
-                // At extreme magnitudes some rows genuinely exceed FLT_MAX, and returning infinity for those is correct rather than a bug.
-                // The interesting rows are the ones whose result fits while the kernel's intermediate sum(q*x) does not - which is the overflow this sweep exists to catch.
+                // Only meaningful where the true answer is representable: at extreme magnitudes some rows genuinely exceed FLT_MAX, and infinity for those is correct.
+                // The interesting rows are those whose result fits while the kernel's intermediate sum(q*x) does not, the overflow this sweep exists to catch.
                 if (!(std::abs(expected) <= 3.0e38)) continue;
                 const float actual = m.separate[1 + o];
                 require(std::isfinite(actual),

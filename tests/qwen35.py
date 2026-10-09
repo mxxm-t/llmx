@@ -11,9 +11,7 @@ from f32 import TEXTS, VOCAB, check_logits_input, weight_hash, write_model
 
 
 # Tiny qwen35 models with deterministic weights against HF Qwen3_5ForCausalLM (tools/gen_baseline.py qwen35-tiny): all 257 logits and windowed NLL over ubatches, threads, both ways of scoring and greedy decode after a prefill.
-# The weights are made as HF holds them, and the writer applies the converter's transforms to write the GGUF, as docs/QWEN35.md, GGUF conventions, gives them.
-# Four layers, linear attention then full attention twice, so layer 3 holds the second KV cache and layer 2 the second recurrent state, which a cache indexed by layer number would miss.
-# A V head is 10 wide against a K head's 12, so the state is not square, and the rotary width is 8 of 40, with a base of 100 so every rotated pair turns within the context.
+# The weights are made as HF holds them, the writer applies the converter's transforms (docs/QWEN35.md, GGUF conventions), and four layers of linear then full attention twice put the second KV cache in layer 3 and the second state in layer 2.
 CONFIG = {"embedding_length": 37, "feed_forward_length": 19, "context_length": 16,
           "attention.head_count": 4, "attention.head_count_kv": 2,
           "attention.key_length": 40, "attention.value_length": 40,
@@ -165,7 +163,7 @@ def float32(value):
 
 
 # The GGUF name and transform the converter gives the parameter of a decoder layer or of the MTP layer, by its name within the layer.
-# "norm" stores 1 + w, "a" stores -exp(A_log) in the tiled order, "heads" tiles whole rows or entries by V head, "channels" tiles the v rows after the q and k ones, "conv" does so for the conv's channels and drops its middle axis, and "columns" tiles each row's input columns.
+# "norm" stores 1 + w, "a" stores -exp(A_log) tiled, "heads" tiles rows or entries by V head, "channels" tiles the v rows after q and k, "conv" does so and drops its middle axis, "columns" tiles each row's input columns.
 BLOCK_TENSORS = {
     "input_layernorm.weight": ("attn_norm.weight", "norm"),
     "post_attention_layernorm.weight": ("post_attention_norm.weight", "norm"),

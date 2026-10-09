@@ -1,7 +1,5 @@
 // What a new Vulkan driver must show before devices share work through it (docs/TENSOR-SPLIT.md, step 0).
-// `probe` lists, per device, the external semaphore and memory handle types, host-pointer import, identifiers and memory budget, and the device groups.
-// `exchange A,B[,C,D]` is a tensor group's all-reduce on 2 to 4 devices: sync files, the members' arrival spread and a flag wait under the Vulkan memory model (docs/TENSOR-SPLIT.md, step 0).
-// Usage: llmx-vk-handoff probe | llmx-vk-handoff exchange A,B[,C,D] [epochs]
+// `probe` lists per device the external handle types, host-pointer import, identifiers, memory budget and device groups; `exchange A,B[,C,D] [epochs]` is a tensor group's all-reduce on 2 to 4 devices.
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -776,9 +774,8 @@ void compute_barrier(Device& d, VkCommandBuffer cb) {
     d.vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
 }
 
-// The all-reduce of a tensor group, measured on 2 to 4 devices (docs/TENSOR-SPLIT.md, step 0): in each epoch every member writes its F32 partial into slot `member` of every member's inbox, waits for the others and adds the slots in member order, every sum checked.
-// Inboxes are uncached device memory exported as dma-buf.
-// It times the dispatch floor with no peer, the exchange through sync files with one submission an epoch a member, and the members' arrival at each epoch on the host's clock, then tries a wait inside one submission on a flag written with the Vulkan memory model at device and at queue-family scope, which on RADV and gfx906 never sees a peer's writes (docs/TENSOR-SPLIT.md, section 2.6), so each spin is bounded at 2^16 reads and a timeout ends the chain's waits.
+// The all-reduce of a tensor group on 2 to 4 devices (docs/TENSOR-SPLIT.md, step 0): each epoch every member writes its F32 partial into slot `member` of every member's inbox (uncached dma-buf memory) and adds the slots in member order.
+// It times the dispatch floor with no peer, the exchange through sync files and the members' arrival, then a flag wait inside one submission, which on RADV and gfx906 never sees a peer's writes (docs/TENSOR-SPLIT.md, 2.6).
 int exchange(const std::vector<int>& ids, int epochs) {
     VkInstance inst = make_instance();
     const auto pds = physical_devices(inst);

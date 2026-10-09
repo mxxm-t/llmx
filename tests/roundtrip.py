@@ -29,9 +29,8 @@ def make_fixtures(d):
     t1 = tensor(512, 256)   # 131072 = 32*4096
     t2 = [rng.gauss(0, 1) for _ in range(256)]
     t3 = tensor(64, 32)
-    # Tiny magnitudes on purpose: the per-block scale is amax/127 (Q8_0) or amax/7 (Q4_0), so values around 1e-4 put the scale in the f16 SUBNORMAL band, below the normal minimum of ~6.1e-5 but above the smallest subnormal of ~5.96e-8.
-    # A bug in that decode path made every subnormal 16x too large and went unnoticed for the life of the project, because ordinary weights never produce one.
-    # Do not shrink this further: below about 1e-5 the scale itself underflows to zero, which is a real f16 limit rather than a defect.
+    # Tiny magnitudes on purpose: values around 1e-4 put the per-block scale (amax/127 for Q8_0, amax/7 for Q4_0) in the f16 SUBNORMAL band, between ~5.96e-8 and ~6.1e-5, where ordinary weights never go.
+    # A decode bug there once made every subnormal 16x too large; do not shrink this below about 1e-5, where the scale itself underflows to zero, a real f16 limit.
     t4 = [rng.gauss(0.0, 1e-4) for _ in range(256)]
 
     json_doc = {
@@ -296,8 +295,7 @@ HALVES = (0x3C00, 0x0001, 0x03FF, 0x0400, 0x7BFF, 0xB555, 0x8201, 0x4AAA)
 
 
 # Nibble byte i of block k, with a = i // 16 and c alternating between 0 and 1 every 16 blocks, has low nibble i + k + c*a and high nibble 5i + 3 + k + (c+2)*a, mod 16.
-# Each block's low nibbles and its high nibbles take all 16 values, the two nibbles of a byte differ, and each run of 16 blocks sharing c gives every position every value.
-# The two values of c tell every pair of positions apart, so a byte read from the wrong one of the 128 changes values.
+# Each block's nibbles take all 16 values, the two of a byte differ, and each run of 16 blocks sharing c gives every position every value, so a byte read from the wrong one of the 128 changes values.
 def nibble_bytes(k, n):
     c = k // 16 % 2
     return bytes(((i + k + c * (i // 16)) & 15) | ((5 * i + 3 + k + (c + 2) * (i // 16)) & 15) << 4
@@ -322,8 +320,7 @@ def q4_1_blocks():
                     for k, (d, m) in enumerate(itertools.product(HALVES, HALVES)))
 
 
-# Q4_K super-block heads whose 12 scale and min bytes are all ones but for one cleared bit, one per bit, then all ones under every pairing of d and dmin.
-# Every 6-bit field reads 63 except the one the cleared bit belongs to, so a bit read from the wrong place or into the wrong sub-block changes values.
+# Q4_K super-block heads whose 12 scale and min bytes are all ones but for one cleared bit, one per bit, then all ones under every pairing of d and dmin, so a bit read from the wrong place changes values.
 # The cleared-bit blocks take d 1 and dmin 13.33, where no scale or min bit is lost to rounding against the other product.
 def q4_k_heads():
     heads = []

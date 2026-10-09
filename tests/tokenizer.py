@@ -8,8 +8,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, tokenize_failures
 
-# Tokenizer round-trip gate.
-# Builds a minimal GGUF with a tiny GPT-2-style BPE vocab + merges (via the CLI's own quantize path is overkill, so we write the GGUF directly), then exercises encode/decode incl. unicode and specials.
+# Tokenizer round-trip gate: builds a minimal GGUF with a tiny GPT-2-style BPE vocab and merges, written directly since going through the CLI's quantize path is overkill, then exercises encode/decode incl. unicode and specials.
 # It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35 pretokenizer to HF's ids through a file written from tests/data/baseline_tokenizer_qwen35.json.
 
 ALIGN = 32

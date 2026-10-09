@@ -21,10 +21,8 @@ void put16(std::vector<uint8_t>& v, size_t at, uint16_t x) {
     v[at + 1] = (uint8_t)(x >> 8);
 }
 
-// Q8_0 for contrast.
-// Its kernel folds the scale into each weight before the activation, (q*d)*x, rather than accumulating sum(q*x) first, so it should have no overflow window at all.
-// Included to verify that by measurement rather than by reading the kernel, and to catch it if that ever changes.
-// Eight 32-value blocks, every weight 127.
+// Q8_0 for contrast: its kernel folds the scale into each weight before the activation, (q*d)*x, rather than accumulating sum(q*x) first, so it should have no overflow window.
+// It is included to verify that by measurement, and to catch it if that changes; eight 32-value blocks, every weight 127.
 std::vector<uint8_t> block_q8_0(uint16_t half) {
     std::vector<uint8_t> b(8 * quant::Q8_0_TYPESIZE, 0);
     for (int blk = 0; blk < 8; blk++) {

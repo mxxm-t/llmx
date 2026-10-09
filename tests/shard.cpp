@@ -11,7 +11,7 @@
 #include "model/shard.hpp"
 #include "model/arch/registry.hpp"
 
-// The tensor split's shards (docs/TENSOR-SPLIT.md, section 4.2, model/shard.hpp): spans by hand, every member's packed bytes against an oracle written here from the declarations' meaning, for every storage type, and a member's footprint against hand counts.
+// The tensor split's shards (docs/TENSOR-SPLIT.md, section 4.2, model/shard.hpp): spans by hand, every member's packed bytes against an oracle written here for every storage type, and a member's footprint against hand counts.
 
 namespace {
 
@@ -123,7 +123,7 @@ infer::ModelWeights qwen35_model(uint32_t type, Views& v, bool routed = false) {
     return {std::make_shared<const infer::qwen35::Qwen35>(c), v.views};
 }
 
-// The members of `width` that hold position `i` of `role`'s axis, from the declaration's meaning alone: the section and tile it lies in, its unit there, and that unit's owners, the unit's share of the members or, replicated, the members a unit is given to.
+// The members of `width` that hold position `i` of `role`'s axis, from the declaration's meaning alone: the section and tile it lies in, its unit there, and that unit's owners, whether shared among the members or replicated.
 std::vector<size_t> owners(const infer::Role& role, uint64_t i, size_t width) {
     if (role.shard.axis == infer::Axis::none || width == 1) {
         std::vector<size_t> all(width);
@@ -422,7 +422,7 @@ void footprints() {
                     "a qwen35 member's state with a mark at width " + std::to_string(width));
             size_t layer = 0;
             for (const infer::Matrix& x : fp.layers[0]) layer += x.bytes;
-            // Norms 2 x 256 floats, ssm_norm 128, the conv's channels of 4 floats, the decay and time step 24 / W each; attn_qkv's channels, z's V rows, alpha's and beta's V heads and the three dense matrices by rows or columns, ssm_out 256 rows of V / W columns.
+            // Norms 2 x 256 floats, ssm_norm 128, the conv's channels of 4 floats, the decay and time step 24 / W each; attn_qkv's channels, z's V rows, alpha's and beta's V heads and the dense matrices by rows or columns.
             const size_t V = 24 * 128 / width;
             const size_t hand = (512 + 128 + 4 * channels + 2 * (24 / width)) * 4 + channels * q8 + V * q8 + 2 * (24 / width) * q8 +
                                 2 * (1024 / width) * q8 + 256 * quant::row_bytes(quant::GGML_TYPE_Q8_0, 1024 / width) + 256 * quant::row_bytes(quant::GGML_TYPE_Q8_0, V);

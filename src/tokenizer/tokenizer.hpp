@@ -53,7 +53,7 @@ public:
     int32_t bos_id = -1;
     int32_t eos_id = -1;
 
-    // Whether `id` ends a generation. A model without an EOS id has no stop token at all; folding it to 0 made token zero, an ordinary token, end every generation.
+    // Whether `id` ends a generation: a model without an EOS id has no stop token at all, since folding it to 0 made token zero, an ordinary token, end every generation.
     // A request's ignore_eos masks the same id before sampling (infer::sample).
     bool is_eos(uint32_t id) const { return eos_id >= 0 && id == (uint32_t)eos_id; }
 
@@ -137,8 +137,7 @@ public:
     //   | \s+(?!\S)
     //   | \s+
     // This is not the GPT-2 regex: leading punctuation or underscore binds to the following word ("_snake", "(x"), digits are emitted one at a time, and a whitespace run ending in newlines stays one piece.
-    // Alternatives are ordered; the first match wins.
-    // qwen35's regex adds \p{M} to the second alternative's letter run and to the fourth's excluded class, so combining marks join letter runs; every byte at or above 0x80 is a letter here, which already does that.
+    // Alternatives are ordered and the first match wins; qwen35's regex adds \p{M} to the second alternative's letter run and the fourth's excluded class, which every byte at or above 0x80 being a letter here already does.
     static bool is_space(unsigned char c) { return c==' '||c=='\t'||c=='\n'||c=='\r'||c=='\f'||c=='\v'; }
     static bool is_ascii_letter(unsigned char c) { return (c>='a'&&c<='z')||(c>='A'&&c<='Z'); }
     static bool is_digit(unsigned char c) { return c>='0'&&c<='9'; }

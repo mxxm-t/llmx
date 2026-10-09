@@ -56,7 +56,7 @@ void exact(const std::vector<float>& a, const std::vector<float>& b, const char*
 
 size_t checked = 0;
 
-// Embedding and layer 0's attention on A, layer 0's feed-forward and layer 1's attention on B, layer 1's feed-forward and the head on A: two crossings per pass, both inside a layer, and none at the layer boundary because both halves of it sit on B.
+// Embedding and layer 0's attention on A, layer 0's feed-forward and layer 1's attention on B, layer 1's feed-forward and the head on A: two crossings per pass, both inside a layer, none at the layer boundary.
 void split_matches_single() {
     const auto weights = fixture();
     auto one = std::make_shared<CountingCpu>();
@@ -74,8 +74,7 @@ void split_matches_single() {
 
     const std::vector<uint32_t> prompt{3, 1, 4, 1, 5};
     exact(single.prefill(prompt), split.prefill(prompt), "split prefill differs from one device");
-    // Three passes for five tokens at ubatch 2, two crossings each, one in each direction, each a copy out of the source and a write into the destination.
-    // The residual ends layer 0 on B, where layer 1's attention runs, so the stage boundary crosses nothing.
+    // Three passes for five tokens at ubatch 2, two crossings each, one in each direction, each a copy out of the source and a write into the destination; the residual ends layer 0 on B, so the stage boundary crosses nothing.
     // Each stage submits the devices it records on, both here, and a crossing its source: three submissions a pass on A and on B, one on the single device.
     require(a->copies == 3 && b->writes == 3 && b->copies == 3 && a->writes == 3,
             "crossings are not where the placement changes");
@@ -190,7 +189,7 @@ void host_scratch_fits() {
     checked += 3;
 }
 
-// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host device given only what the others cannot hold and taken back when endpoint weights leave no room, tied weights counted once and the output norm always, resident copies counted, unknown and zero budgets kept apart, shares honored and refused when wrong, and the fitted placement exact against one device.
+// The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host given only what the others cannot hold, tied weights counted once, and the fit exact against one device.
 void layer_split_fits() {
     const auto weights = fixture();
     const infer::ModelOptions options;
@@ -417,7 +416,7 @@ void layer_split_fits() {
     for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
     ++checked;
 
-    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, experts on the CPU refused beside several devices and on a model without routed layers, and a stream point refused without experts on the CPU.
+    // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, and the refusals of experts on the CPU and of a stream point without them.
     auto cpus = [] {
         std::vector<backend::BackendPtr> v{std::make_shared<backend::CpuBackend>(), std::make_shared<backend::CpuBackend>()};
         for (auto& c : v) c->set_threads(1);
@@ -676,7 +675,8 @@ struct SizedDevice : HostMemoryDevice {
     bool reads_in_place() const override { return !copying; }
 };
 
-// A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made; the most whole blocks that fit where it does not, one more block not fitting; a load refused where not one block fits; and beside experts on the CPU, the device not charged for those layers' feed-forward weights.
+// A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made, else the most whole blocks that fit; a load where not one block fits is refused.
+// Beside experts on the CPU the device is not charged for those layers' feed-forward weights.
 void kv_fitted() {
     const auto weights = fixture();
     auto place = [&](size_t room, size_t budget, bool fit, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
@@ -765,8 +765,8 @@ void kv_fitted() {
     checked += 6;
 }
 
-// A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume recomputes it (docs/SERVER.md, pausing): a 40-token prompt at its extent in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows, logits only on the last.
-// The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay must give the logits one backend gives after the prompt and 199 single decode steps, bit for bit; and so must a fork at the first block replaying the rest.
+// A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.
+// The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay, whole and from a fork at the first block, must give the logits one backend gives after the prompt and 199 single decode steps.
 void replay_over_stages() {
     const gguf::GGUFModel weights = infer::synthetic_model({2, 64, 128, 4, 2, 16, 64, 11u});
     auto one = std::make_shared<backend::CpuBackend>();
@@ -1119,8 +1119,8 @@ struct TightCpu : backend::CpuBackend {
     }
 };
 
-// What the pass API refuses, each before any work and with nothing changed: a context not reserved, reserved twice, used before or on a placement that is not pipelined for more than one slot; forward through a reserved context; a slot beyond the reservation or in use; more rows or logits rows than reserved; a sequence listed twice or already in flight, and reset, fork and forward of one; stages out of order or twice, and logits or an end before the last stage.
-// Beside them, a reservation the devices cannot hold fails with their error and leaves the context fresh, so a smaller one on it succeeds, and a pass ended, one aborted after its first stage and the aborted one run again each leave the histories and rows of the sequences run alone.
+// What the pass API refuses, each before any work and with nothing changed: contexts not reserved or reserved twice, slots beyond or in use, too many rows, a sequence listed twice or in flight, and stages or logits out of order.
+// A reservation the devices cannot hold fails with their error and leaves the context fresh, so a smaller one succeeds, and ended, aborted and rerun passes leave the histories and rows of the sequences run alone.
 void passes_refused() {
     const auto weights = tiny_qwen(4, 2 * 128, true);
     std::vector<std::shared_ptr<TightCpu>> tight{std::make_shared<TightCpu>(), std::make_shared<TightCpu>()};
@@ -1232,7 +1232,7 @@ void passes_refused() {
 }
 }
 
-// A tensor split (docs/TENSOR-SPLIT.md, step 2): one stage of width 2 against two stages of width 2 on four CPU backends, bit for bit, through a prompt, decode steps, a second prompt, every scored row and a two-sequence pass, with the prompt in slices of the ubatch; and against one device within an F32 bound, the sums regrouped.
+// A tensor split (docs/TENSOR-SPLIT.md, step 2): one stage of width 2 against two stages of width 2 on four CPU backends, bit for bit, through prompts, decode steps, scored rows and a two-sequence pass; against one device within an F32 bound.
 void tensor_groups() {
     auto grouped = [](const gguf::GGUFModel& weights, size_t devices, const std::vector<int>& shares, int ubatch) {
         std::vector<backend::BackendPtr> cpus;
@@ -1296,7 +1296,7 @@ void tensor_groups() {
     }
 }
 
-// The fit of a tensor group counts what a member keeps beside its layers: its collective's rows (Backend::collective_bytes_per_row, the most of the group's members) and, on the head's group, its slice of every logits row, while the host's logits rows hold the whole vocabulary.
+// The fit of a tensor group counts what a member keeps beside its layers: its collective's rows (Backend::collective_bytes_per_row) and, on the head's group, its slice of every logits row, while the host's rows hold the whole vocabulary.
 void group_fits() {
     const auto weights = tiny_qwen(3, 2 * 128, true);
     const infer::ModelWeights views = infer::gguf_weights(weights);

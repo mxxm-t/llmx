@@ -13,9 +13,8 @@
 #include "inference/chat.hpp"
 #include "tokenizer/tokenizer.hpp"
 
-// Checks chat templates against the HF reference renderer's output in a fixture tools/gen_chat_baseline.py writes (tests/data/baseline_chat_template.json, or a --scan of GGUF files), and the renderer's own limits; docs/src/inference-chat.md lists the checks.
-// A model's chat goldens given after it (tests/data/qwen35-*/baseline_chat.json) are rendered too, each under the template of the fixture its SHA-256 names.
-// Every failure is printed before the exit status says whether there was one.
+// Checks chat templates against the HF reference renderer's output in a fixture tools/gen_chat_baseline.py writes (tests/data/baseline_chat_template.json or a --scan of GGUF files), and the renderer's own limits.
+// A model's chat goldens given after it are rendered too, each under its fixture's template, and every failure is printed before the exit status says whether there was one (docs/src/inference-chat.md).
 
 using chat::jj::Value;
 
@@ -294,7 +293,7 @@ const char* const qwen3_repositories =
 const char* const qwen3_repositories_expected =
     "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n";
 
-// How much of a prompt a follow-up turn begins with (chat::stable_prefix), over a tokenizer of one token a byte below 128: the ids of the conversation rendered without the generation prompt where they prefix the prompt's, and 0 where the template refuses that render or the tokenizer the text.
+// How much of a prompt a follow-up turn begins with (chat::stable_prefix), over a tokenizer of one token a byte below 128: the ids of the conversation rendered without the generation prompt where they prefix the prompt's, else 0.
 void check_stable_prefix(Tally& tally) {
     gguf::GGUFModel m;
     gguf::MetaValue tokens;
@@ -327,7 +326,7 @@ void check_stable_prefix(Tally& tally) {
     ++tally.cases;
     if (chat::stable_prefix(plain, tok, { { "user", "caf\xc3\xa9", std::nullopt } }, prompt) != 0) tally.fail("a text the tokenizer refuses gives a stable prefix");
 
-    // After a reply, the ids a next turn begins with: up to the next user turn's text, or, while the reply is written, up to its end; a template that renders the last turn's reasoning gives the reply as it renders once a turn follows it, without the reasoning.
+    // After a reply, the ids a next turn begins with: up to the next user turn's text, or up to the reply's end while it is written, and without the reasoning where the template renders it only for the last turn.
     std::vector<chat::Message> replied = messages;
     replied.push_back({ "assistant", "Sure thing.", std::string("Thinking.") });
     const std::string before = "<user>Hello there.\n<assistant>Hi.\n<user>Go on.\n<assistant>Sure thing.";

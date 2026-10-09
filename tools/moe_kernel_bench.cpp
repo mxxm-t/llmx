@@ -1,6 +1,5 @@
 // Times a MoE layer's routed projections against dense matmuls that read the same bytes, on one Vulkan device, so a routed call's cost splits into what its rows cost and what routing them costs.
-// Shapes are Qwen3-30B-A3B's: 2048 wide, 128 experts of 768 rows, 8 per token.
-// Usage: llmx-moe-kernel-bench [device] [iters] [gate-type] [down-type] [timed]; types are GGUF ids (12 = Q4_K, 14 = Q6_K, 8 = Q8_0).
+// Shapes are Qwen3-30B-A3B's, 2048 wide with 128 experts of 768 rows and 8 a token; usage is llmx-moe-kernel-bench [device] [iters] [gate-type] [down-type] [timed], types being GGUF ids (12 = Q4_K, 14 = Q6_K, 8 = Q8_0).
 #include <algorithm>
 #include <chrono>
 #include <cstdint>

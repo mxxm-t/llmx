@@ -12,8 +12,7 @@ namespace server {
 // A cut point is a row offset, the row after a turn's end, never a text offset, so a part that is not text takes rows as any other.
 
 // A cut drops rows in steps of the context over kCutTo, one half: the first cut point at least one step past the leading block, or two steps, and so on, the fewest steps after which the prompt fits.
-// The steps are counted from the prompt's start and not from its end, so a conversation that goes on is cut at the same place turn after turn, and its kept rows are read again once a step, not once a turn.
-// A step of a fraction f of a context C reads up to (1 - f) C rows again and buys f C rows of conversation before the next cut, so at one half each new row costs about one row read again; at a quarter step it would cost three.
+// The steps are counted from the prompt's start, so a conversation that goes on is cut at the same place turn after turn; a step of f of a context C re-reads up to (1 - f) C rows to buy f C new ones, about one per new row at one half.
 constexpr size_t kCutTo = 2;
 
 // The rows a text prompt keeps at its start when no turn end marks a leading block: a fixed count, the same on every device and placement.
@@ -33,9 +32,8 @@ struct RowCut {
     bool at_marker = false;
 };
 
-// The cut of a text prompt of `n` rows to at most `fit`, in steps of `step` rows: its leading block, up to its first cut point, stays, and the rows after it go up to the first cut point a whole number of steps or more past that block, the fewest steps that fit.
-// Where no cut point serves, a leading block longer than a step or none far enough, the first kCutLead rows stay (fewer where a step is shorter) and whole steps of the rows after them go; the cut is then not at a marker.
-// No cut (nothing dropped) where the prompt fits; `from` past `n` where nothing fits, the newest step alone being too long.
+// The cut of a text prompt of `n` rows to at most `fit`, in steps of `step` rows: its leading block, up to the first cut point, stays, and the rows after it go up to the first cut point a whole number of steps on, the fewest that fit.
+// Where no cut point serves, the first kCutLead rows stay (fewer where a step is shorter) and whole steps of the rows after them go, the cut then not at a marker; no cut where the prompt fits, `from` past `n` where nothing fits.
 inline RowCut cut_rows(const std::vector<size_t>& points, size_t n, size_t fit, size_t step) {
     RowCut c;
     if (n <= fit || !step) return c;
@@ -58,8 +56,8 @@ inline RowCut cut_rows(const std::vector<size_t>& points, size_t n, size_t fit, 
     return c;
 }
 
-// The first message a conversation keeps after its leading `lead` messages, for a prompt of `n` rows whose message k ends at row ends[k]: the first message a kept window may start at (`starts[k]`, the start of a turn, so a tool call stays with its results) that lies a whole number of steps or more past the leading messages, the fewest steps that leave no more than `fit` rows.
-// The message count where none does.
+// The first message a conversation keeps after its leading `lead` messages, for a prompt of `n` rows whose message k ends at row ends[k].
+// It is the first turn start (`starts[k]`, so a tool call stays with its results) a whole number of steps or more past them, the fewest steps that leave at most `fit` rows, or the message count where none does.
 inline size_t first_kept(const std::vector<size_t>& ends, const std::vector<char>& starts, size_t lead, size_t n, size_t fit, size_t step) {
     const size_t head = lead ? ends[lead - 1] : 0;
     for (size_t j = 1; step && head + j * step < n; ++j) {

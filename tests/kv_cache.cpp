@@ -255,8 +255,7 @@ void write_block(backend::CpuBackend& cpu, backend::KVStorage& st, size_t layers
 }
 
 // Every growth step and the peak against the rule above: the blocks backed after each write, the bytes retained, and the most held while a growth copies, which is the old blocks plus the new.
-// Ids are written out of order and past twice what is backed, so each branch of the rule is taken, with the two sides of different types.
-// Attention over a block inside the budget that no write backed is refused and backs nothing.
+// Ids are written out of order and past twice what is backed, with the two sides of different types, and attention over a block inside the budget that no write backed is refused and backs nothing.
 void growth_steps_and_peak() {
     for (size_t target = 0; target <= 40; ++target)
         for (size_t max_blocks = 1; max_blocks <= 40; ++max_blocks)
@@ -359,8 +358,7 @@ struct HookedStorage final : backend::BlockKVStorage {
 };
 
 // A growth hands every old buffer to `retire` once and shows the new ones to `after_growth` before publishing them.
-// A growth that fails drains the backend and leaves buffers, accounting and hooks as they were, and the retry grows.
-// Errors carry the storage's prefix.
+// A growth that fails drains the backend and leaves buffers, accounting and hooks as they were, the retry grows, and errors carry the storage's prefix.
 void growth_hooks() {
     FailingAlloc cpu;
     HookedStorage st(cpu, 4 * 8);
@@ -389,10 +387,8 @@ void growth_hooks() {
     require(prefixed, "a storage error without its prefix");
 }
 
-// A fork at a whole-block length shares every block below it, read-only, and allocates and copies nothing, so the two histories agree up to the fork and then diverge without touching each other.
-// A length inside a block or past the history is refused.
-// A history truncated into a shared block cannot be appended to.
-// Releases follow the refcounts.
+// A fork at a whole-block length shares every block below it, read-only, and allocates and copies nothing, so the two histories agree up to the fork and then diverge.
+// A length inside a block or past the history is refused, a history truncated into a shared block cannot be appended to, and releases follow the refcounts.
 void fork_shares_blocks() {
     backend::CpuBackend cpu;
     cpu.set_threads(1);
@@ -530,7 +526,7 @@ void attention_over_blocks() {
     }
 }
 
-// Two sequences in one pass: their rows concatenated in view order through one kv_write and one attention call must equal the same two sequences written and attended separately, bit for bit, since the per-view work is the single-sequence work.
+// Two sequences in one pass: their rows concatenated in view order through one kv_write and one attention call must equal the same two written and attended separately, bit for bit.
 // Histories straddle a block edge and differ in length so a row offset or a length taken from the wrong view shows.
 void batched_views() {
     backend::CpuBackend cpu;
@@ -599,7 +595,8 @@ void batched_views() {
 // One layer and a context of four CPU blocks, so a step can cross a block boundary, for the transaction check below.
 gguf::GGUFModel fixture() { return tiny_qwen(1, 4 * 128, true); }
 
-// Every path handing blocks back to the pool must retire the backend's work first (docs/KV-CACHE.md): failed passes drain with sync(), reset() waits on the pass's ticket. Counting the calls keeps the contract from lapsing on the eager CPU backend.
+// Every path handing blocks back to the pool must retire the backend's work first (docs/KV-CACHE.md): failed passes drain with sync(), reset() waits on the pass's ticket.
+// Counting the calls keeps the contract from lapsing on the eager CPU backend.
 void release_syncs() {
     const auto weights = fixture();
     auto cpu = std::make_shared<FailingCpu>();
@@ -644,9 +641,8 @@ void release_syncs() {
     require(cpu->reads == 0, "a read op was used where a wait suffices");
 }
 
-// Two sequences in one pass through the model: one decoding a token over a three-token history while the other prefills two tokens.
-// Each row must see its own position and its own history, so the logits of the joint pass match the two sequences run on their own, to float tolerance (the three-row matmul takes a different reduction path than one- and two-row ones).
-// A sequence listed twice is refused with every history unchanged.
+// Two sequences in one pass through the model, one decoding a token over a three-token history while the other prefills two: each row must see its own position and history, so the joint logits match the two run alone to float tolerance.
+// The three-row matmul takes a different reduction path than one- and two-row ones, and a sequence listed twice is refused with every history unchanged.
 void batched_forward() {
     const auto weights = fixture();
     auto cpu = std::make_shared<backend::CpuBackend>();
@@ -729,7 +725,7 @@ void model_fork() {
     require(a.length() == 0 && b.length() == 0, "reset after fork");
 }
 
-// A history copied to host memory and back (Model::save_host, Model::restore_host, docs/SPECULATIVE.md, section 2, Host tier): two blocks of a history saved, the history reset and its blocks taken by another, then restored into other physical blocks, continue as the history never copied does, bit for bit.
+// A history copied to host memory and back (Model::save_host, Model::restore_host, docs/SPECULATIVE.md, section 2, Host tier) continues, bit for bit, as the history never copied does, after it was reset and its blocks taken by another.
 // A copy inside a block or past the history and a restore into another model are refused, the refused restore holding nothing.
 void host_round_trip() {
     const auto weights = fixture();
@@ -830,7 +826,7 @@ void host_round_trip() {
     fresh.reset(ref);
 }
 
-// What a history copied to host memory holds and how (Model::host_identity, docs/DISK-TIER.md, The entry file): two models of one file on two CPU backends give one identity, and each of another V cache type, another activation dtype, a backend of another identity, a backend of other row classes and a split over two backends gives another; the identity names each device's backend, its runs and the row classes.
+// What a history copied to host memory holds and how (Model::host_identity, docs/DISK-TIER.md, The entry file): two models of one file on CPU backends give one identity, and another cache type, dtype, backend, row classes or split another.
 // A copy's runs (HostHistory::device_bytes) add up to its bytes, one a device.
 struct OtherCpu : backend::CpuBackend {
     std::string identity() const override { return "another cpu"; }
@@ -880,7 +876,8 @@ void host_identity() {
     model.reset(a);
 }
 
-// Which idle slabs a copy to host memory frees before it allocates (infer::detail::slabs_to_free), so the slabs alive stay within the limit across devices: none where the idle ones cover every need; on a split whose two devices each hold two idle slabs, under a limit of four, a copy needing three on the first and one on the second frees the second's spare one before allocating the first's third (the review's case, which kept five alive); and a copy whose shortfall the spare slabs cannot cover is refused.
+// Which idle slabs a copy to host memory frees before it allocates (infer::detail::slabs_to_free), so the slabs alive stay within the limit across devices.
+// A copy needing three slabs on the first device and one on the second, two idle on each under a limit of four, frees the second's spare one first; a copy the spare slabs cannot cover is refused.
 void host_slab_limit() {
     const auto drop = [](std::vector<size_t> need, std::vector<size_t> idle, size_t alive, size_t limit) {
         return infer::detail::slabs_to_free(need, idle, alive, limit);
@@ -897,8 +894,7 @@ void host_slab_limit() {
 }
 
 // What a paused request's resume relies on (docs/SERVER.md, pausing): a history recomputed in the classes that first computed it gives the logits it gave, bit for bit.
-// The reference is a 40-token prompt at its extent, then 199 greedy tokens each decoded in a pass of its own; the synthetic Q8_0 model's decode rows take the 8-bit dots and its prompt rows the float path, so a class taken wrongly shows.
-// The replays: the prompt at its extent in slices of 16, then the 199 tokens as entries of extent 1 of up to 64 rows, logits only on the last; a fork at the first block of the reference history replaying the rest; and the replay beside another sequence's decode row and a third's prompt slice.
+// The reference is a 40-token prompt then 199 greedy tokens decoded one pass each, replayed as slices of 16 then entries of extent 1 of up to 64 rows, from a fork at the first block, and beside other sequences' rows.
 void replay_by_class() {
     const gguf::GGUFModel weights = infer::synthetic_model({2, 64, 128, 4, 2, 16, 64, 7u});
     auto cpu = std::make_shared<backend::CpuBackend>();

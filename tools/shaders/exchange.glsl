@@ -1,6 +1,5 @@
-// The exchange of llmx-vk-handoff (tools/vulkan_handoff.cpp): every member writes its partial into slot `member` of each member's inbox, and each member adds the slots in member order.
-// An inbox holds, per parity of the epoch, a slot of n floats for each member, then a flag a member for each parity, 64 words apart.
-// With LLMX_MM the stores and loads are Vulkan memory model atomics at scope LLMX_SCOPE, which the flag wait needs; without it they are plain, and a submission boundary orders them.
+// The exchange of llmx-vk-handoff (tools/vulkan_handoff.cpp): every member writes its partial into slot `member` of each member's inbox, then adds the slots in member order.
+// An inbox holds, per epoch parity, a slot of n floats a member and a flag a member 64 words apart; with LLMX_MM accesses are memory-model atomics at scope LLMX_SCOPE, which the flag wait needs, else plain ones.
 
 layout(push_constant) uniform Args { uint n; uint epoch; uint member; uint width; } pc;
 

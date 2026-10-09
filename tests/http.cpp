@@ -1,5 +1,4 @@
-// The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client.
-// A whole response, a body echoed back, a chunked stream whose chunks arrive as written, a whole response refused inside a stream, an oversized body refused with 413, a malformed request line refused with 400, an unknown route 404, a client seen as open while it waits, also after one urgent (out-of-band) byte, and as closed once it leaves, a write to it then throwing ClientGone, and the listener closed from the main thread ending the accept loop, whether its thread is serving a client or waiting in accept.
+// The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client (AGENTS.md, Tests).
 // The hosted TSan job runs it under ThreadSanitizer, which sees the socket read by accept on one thread and closed on another.
 #include <atomic>
 #include <chrono>

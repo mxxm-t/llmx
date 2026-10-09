@@ -85,8 +85,7 @@ inline void in_id_order(std::vector<uint32_t>& ids, size_t n) {
 }
 
 // The kept tokens, the best of the n scores but the one at `skip` (n or more for none), put in rank order only as far as they are read.
-// A top-k set of up to `heap_limit`, and a nucleus up to `nucleus_heap`, is ranked in one pass over the scores with a heap of the best so far.
-// Past that the kept keys not yet ranked are laid out once behind the ranked ones, and each further prefix is ranked by a selection over the unranked rest.
+// A top-k set up to `heap_limit` and a nucleus up to `nucleus_heap` is ranked in one heap pass; past that the unranked kept keys are laid out once and each further prefix is ranked by a selection over the rest.
 class Ranking {
 public:
     Ranking(const float* scores, size_t n, size_t skip, size_t kept)
@@ -112,10 +111,8 @@ private:
     static constexpr size_t nucleus_heap = 512;
     static constexpr size_t first_rank = 64;
 
-    // Ranks at least the best c.
-    // A small kept set is ranked whole, since its ids are all read.
-    // Otherwise a nucleus is read a token at a time: a heap pass ranks eight times what the last one did up to `nucleus_heap`, and past that each selection doubles the ranked prefix, so a large nucleus has fewer than twice its tokens ranked.
-    // A nucleus leaves the heap at 512 rather than 4096 because on rows whose nucleus runs to tens of thousands of tokens a heap pass of 4096 cost more than the selections it saves.
+    // Ranks at least the best c: a small kept set whole, else a heap pass ranks eight times what the last did up to `nucleus_heap`, then each selection doubles the ranked prefix.
+    // A nucleus leaves the heap at nucleus_heap, below heap_limit (docs/src/inference-sampler.md).
     void rank(size_t c) {
         if (kept_ < m_ && kept_ <= heap_limit) c = kept_;
         else c = std::min(kept_, std::max({c, (8 * ranked_ <= nucleus_heap ? 8 : 2) * ranked_, first_rank}));
@@ -188,12 +185,8 @@ private:
 
 } // namespace detail
 
-// Temperature + top-k + top-p nucleus sampling with repetition penalty, over the n logits of one row, which it reads in place and never writes.
-// `penalty` >= 1: divide the score of each already-generated token by penalty to discourage repeats.
-// `masked`, an id of the row or -1 for none, is passed over whatever the penalty: greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so it does not exist for the draw.
-// Returns the chosen token id.
-// Tokens rank by score, and a tie by the lower id, so no sort's handling of equal scores reaches the result.
-// Each sum of weights is taken in id order, or best first for the nucleus, so none depends on the order a selection leaves its candidates in.
+// Temperature, top-k and top-p nucleus sampling over the n logits of one row, read in place and never written; returns the chosen id.
+// `penalty` >= 1 divides a generated token's nonnegative score and multiplies a negative one, `masked` (an id or -1) is passed over, ties rank by the lower id and sums run in id order, best first for the nucleus.
 inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
                        float top_p, float penalty, const std::vector<uint32_t>& gen,
                        RNG& rng, int64_t masked = -1) {
@@ -215,8 +208,7 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
         score = penalized.data();
     }
 
-    // Greedy needs the largest score, not an ordering of the rest.
-    // Ties take the lowest token id.
+    // Greedy needs the largest score, not an ordering of the rest; ties take the lowest token id.
     // The scan starts past a masked id 0, so a row whose other scores are all negative infinity or NaN still does not give it.
     if (temp <= 0.0f) {
         size_t best = skip == 0 ? 1 : 0;
@@ -228,9 +220,8 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
         return (uint32_t)best;
     }
 
-    // A token's weight is exp((score - best score) / temp), its softmax probability before the division by the sum.
+    // A token's weight is exp((score - best score) / temp), its softmax probability before the division by the sum; the draw is r times the drawn tokens' weight, found by walking them in the order it was summed in.
     // Temperature is applied exactly once, here: pre-scaling the scores by temp as well would cancel this division and make --temp a no-op at every value > 0.
-    // The draw is r times the drawn tokens' weight, found by walking them in the order that weight was summed in.
     const size_t keep = (top_k > 0 && (size_t)top_k < m) ? (size_t)top_k : m;
     const float r = rng.unit();
 
@@ -261,9 +252,8 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
     const float best_score = score[ranking.id(0)];
     const auto weight = [&](uint32_t id) { return std::exp((score[id] - best_score) / temp); };
 
-    // The kept tokens' weight, the softmax's sum, over their ids in increasing order.
-    // Each weight is held as it is summed, by place in `kept` or, with every token kept, by id, since a nucleus can then reach most of the row.
-    // The buffer is not zeroed, since every weight read is written first, and zeroing would add a pass over the row that a small nucleus gains nothing from.
+    // The kept tokens' weight, the softmax's sum, over their ids in increasing order; each weight is held as it is summed, by place in `kept` or, with every token kept, by id.
+    // The buffer is not zeroed, since every weight read is written first and zeroing would add a pass a small nucleus gains nothing from.
     std::unique_ptr<float[]> w(new float[keep < m ? keep : n]);
     double sum = 0.0;
     if (keep < m) {
@@ -282,9 +272,8 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
         return ranking.id(0);
     }
 
-    // top-p: the shortest ranked prefix whose weight, summed best first, reaches top_p of the kept weight.
-    // It is ranked only as far as it reaches, and the draw walks it best first.
-    // Within a top-k a nucleus token's weight is taken again, which is at most k of them; with every token kept it is read.
+    // top-p: the shortest ranked prefix whose weight, summed best first, reaches top_p of the kept weight, ranked only as far as it reaches and walked best first by the draw.
+    // Within a top-k a nucleus token's weight is taken again, at most k of them; with every token kept it is read.
     const auto kept_weight = [&](uint32_t id) { return keep < m ? weight(id) : w[id]; };
     const double goal = top_p * sum;
     double nucleus_weight = 0.0;

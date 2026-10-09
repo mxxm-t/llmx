@@ -301,8 +301,7 @@ void loading_window_checks() {
 }
 
 // The model puts each weight on a backend through the loader's hook, which records the tensors a host reads in place (infer::planning_adopt).
-// A copying backend reads none; beside a device, a host that runs a streamed layer's experts reads exactly those, its norm and its router, which the device also takes.
-// The hook sees the weights in the order the loader uploads them: the embedding, the head and its norm, then each layer's attention, its feed-forward block, and a streamed layer's copies beside its mixer.
+// A copying backend reads none; a host running a streamed layer's experts beside a device reads exactly those, its norm and its router, in the order the loader uploads the weights.
 void reader_checks() {
     // What the hook saw: the tensors a host reads in place, sorted, how often each tensor was taken, and each take as "name@backend", in order.
     struct Reads {
@@ -910,7 +909,7 @@ void compare_refusals(const std::string& path) {
 }
 }
 
-// The loader's hook, deferring the copies (the streamed load): a copying backend gets storage for every weight while the model is built and nothing is written or adopted, so a model missing a tensor, or whose cache does not fit, fails after storage but before any weight is uploaded.
+// The loader's hook, deferring the copies (the streamed load): a copying backend gets storage for every weight while the model is built and nothing is written or adopted, so a model missing a tensor fails after storage but before any upload.
 // Without deferring (the mapped load) the backend adopts each weight as the model resolves it.
 void hook_checks() {
     const auto m = fixture();
@@ -952,7 +951,8 @@ void hook_checks() {
     }
 }
 
-// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads neither divided nor a multiple, K heads, vocabulary rows, a dense layer's columns off whole quant blocks, and a state layer's saved row; an expert stack's columns are covered by whole blocks and not refused.
+// A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads, K heads, vocabulary rows, a dense layer's columns off whole blocks.
+// An expert stack's columns are covered by whole blocks and not refused.
 void shard_checks() {
     // A two-layer dense qwen3 plan over views without bytes, F32 but for the `down` type of ffn_down and of a down stack, with or without routed experts in its first layer.
     auto dense = [](int heads, int kv, int dim, int ff, uint64_t vocab, uint32_t down, bool routed) {

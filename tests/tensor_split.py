@@ -41,7 +41,7 @@ MOE_CONFIG = {"block_count": 3, "embedding_length": 40, "feed_forward_length": 3
               "expert_count": 8, "expert_used_count": 3, "expert_feed_forward_length": 16}
 # The seed of the qwen3moe fixture's weights, one whose routing stands clear of a tie for every token of the goldens.
 MOE_SEED = 24680
-# A Q8_0 qwen3moe model whose experts' hidden width is three 32-value blocks, 96, which no member's even share falls on: 48 columns a member of two and 24 of four, so each member holds the blocks that cover its share (docs/TENSOR-SPLIT.md, section 8, covering blocks).
+# A Q8_0 qwen3moe model whose experts' hidden width is three 32-value blocks, 96, which no member's even share falls on, so each member holds the blocks that cover its share (docs/TENSOR-SPLIT.md, section 8, covering blocks).
 # Everything else of it splits whole at widths 2 and 4 in Q8_0; its goldens are HF holding the file's own weights (tools/gen_baseline.py tensor-split-moe).
 MOE_Q8_CONFIG = {"block_count": 3, "embedding_length": 128, "feed_forward_length": 128,
                  "attention.head_count": 4, "attention.head_count_kv": 2,

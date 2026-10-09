@@ -162,7 +162,7 @@ int main() {
         require(!index.victim(at(150)).has_value(), "a use at 300 did not keep a conversation from the age limit at 150");
         require(index.victim(at(250))->key == wc[1] && !index.victim(at(250))->back && !index.victim(at(250), {wc[1]}), "the age limit at 250 does not take the conversation last used at 200");
 
-        // The age limit takes an expired conversation whole but for what a younger branch stands on: of two histories sharing their first 1024 tokens, the one last used at 100 loses its own segment and state at a limit of 250, and the one used at 400 stays whole on the shared base.
+        // The age limit takes an expired conversation whole but for what a younger branch stands on: of two histories sharing 1024 tokens, the one last used at 100 loses its own segment at a limit of 250 and the one used at 400 stays whole.
         DiskIndex aged;
         const std::vector<uint32_t> old = tokens(5, 24 * kBlock, 1024), young = tokens(6, 24 * kBlock, 1024);
         const auto dold = digests(old, classed(old.size())), dyoung = digests(young, classed(young.size()));

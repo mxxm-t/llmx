@@ -9,9 +9,8 @@
 
 namespace infer {
 
-// The log of the sum of exp over a row, in double: its largest value plus the log of the sum of exp of each value less it, so no term overflows.
-// A token's log-probability is its logit less this.
-// The maximum is sought from the row's first value rather than from a fixed floor, so a row lying wholly below any floor still shifts by its own; an empty row gives minus infinity, the log of an empty sum.
+// The log of the sum of exp over a row, in double: its largest value plus the log of the sum of exp of each value less it, so no term overflows; a token's log-probability is its logit less this.
+// The maximum is sought from the row's first value, not a fixed floor, so a row wholly below any floor shifts by its own, and an empty row gives minus infinity.
 inline double log_sum_exp(const float* logits, size_t n) {
     if (n == 0) return -std::numeric_limits<double>::infinity();
     float maxv = logits[0];

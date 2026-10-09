@@ -9,7 +9,7 @@ import moe
 from f32 import write_model
 
 
-# The tiny Q8_0 fixtures of --dtype int8 (docs/PRECISION.md), which rounds the inputs of every quantized product to 8 bits: prompts of 160 to 256 tokens in a 512-token context, read whole, in windows and one token a step, so the row kernels and the prompt tile both run.
+# The tiny Q8_0 fixtures of --dtype int8 (docs/PRECISION.md): prompts of 160 to 256 tokens in a 512-token context, read whole, in windows and one token a step, so the row kernels and the prompt tile both run.
 # Every row width is a multiple of 64, so a device's prompt tile takes each projection; the weights are tests/moe.py's Q8_0 draws.
 DENSE_CONFIG = {"block_count": 2, "embedding_length": 128, "feed_forward_length": 256,
                 "attention.head_count": 2, "attention.head_count_kv": 1,

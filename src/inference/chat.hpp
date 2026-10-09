@@ -41,9 +41,8 @@ struct Message {
     std::optional<std::string> reasoning_content;
 };
 
-// An assistant turn split as the Qwen templates split one themselves: the reply after the last </think> without the newlines that open it, and the reasoning before the first </think>, after the last <think> there, without the newlines around it.
-// A text without </think> is all reply and has no reasoning.
-// This is the one owner of the split, which ChatFormat::assistant applies, where the template needs it, for chat's replies and the server's assistant messages alike.
+// An assistant turn split as the Qwen templates split one: the reply after the last </think> without the newlines that open it, and the reasoning before the first </think>, after the last <think> there, trimmed likewise.
+// A text without </think> is all reply; this is the one owner of the split, which ChatFormat::assistant applies where the template needs it, for chat's replies and the server's assistant messages alike.
 inline Message assistant_turn(const std::string& text) {
     Message m{ "assistant", text, std::nullopt };
     const size_t first = text.find("</think>");
@@ -66,10 +65,8 @@ inline bool opens_reasoning(const std::string& prompt) {
     return open != std::string::npos && prompt.find("</think>", open) == std::string::npos;
 }
 
-// A reply split into its reasoning and its content as it arrives in pieces, as a reasoning model's reply is shown: the reasoning is the text inside <think> up to the first </think>, and the content the rest.
-// The <think> is open from the start when the template opened it (`opened`, see opens_reasoning), or opens where the reply itself begins with <think> after any newlines; a reply that does neither is all content, byte for byte.
-// The newlines around the reasoning and those opening the content after it are dropped, as assistant_turn drops them, and a reply cut off inside <think> is all reasoning.
-// Text that may be the start of <think> or </think>, or newlines that may end the reasoning, is held until a later piece shows which it is, so any cut of the text gives the same parts.
+// A reply split into reasoning and content as it arrives in pieces: the reasoning is the text inside <think> up to the first </think>, the content the rest, newlines around the reasoning dropped as assistant_turn drops them.
+// The <think> is open from the start when the template opened it (`opened`, see opens_reasoning) or when the reply begins with it; any other reply is all content, and one cut off inside <think> all reasoning.
 class ReplySplit {
 public:
     struct Parts {
@@ -2873,7 +2870,7 @@ struct ChatFormat {
     bool split_turns = false;
 
     // An assistant turn as a conversation keeps it, the same for chat's own replies and the turns a client sends back.
-    // It is split by assistant_turn only where the template needs the reasoning apart, and whole elsewhere: a template that splits a turn itself renders the whole text as the reference does, and one that knows no reasoning was written to take the turn as it came.
+    // It is split by assistant_turn only where the template needs the reasoning apart, and whole elsewhere, as that template was written to take it.
     Message assistant(const std::string& text) const {
         if (split_turns) return assistant_turn(text);
         return Message{ "assistant", text, std::nullopt };
@@ -2901,7 +2898,7 @@ inline ChatFormat chat_format(const std::string& source, std::string bos, std::s
     return f;
 }
 
-// How much of `prompt`, the ids of `messages` rendered with the generation prompt, a follow-up turn begins with: the ids of the messages rendered without it, as far as they prefix the prompt's, where a model that keeps its state there lets the next turn fork it (docs/SPECULATIVE.md, section 2).
+// How much of `prompt`, the ids of `messages` rendered with the generation prompt, a follow-up turn begins with: the ids of the messages rendered without it, as far as they prefix the prompt's (docs/SPECULATIVE.md, section 2).
 // A template that refuses that render, or a text the tokenizer refuses, gives 0, so nothing is kept.
 inline size_t stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok, const std::vector<Message>& messages, const std::vector<uint32_t>& prompt,
                             const std::vector<TemplateVar>& vars = {}) {
@@ -2913,9 +2910,8 @@ inline size_t stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok,
     return n;
 }
 
-// The ids a next turn begins with after `messages`, which end with the assistant's reply: what the conversation rendered with a user message after it and the generation prompt shares for two different user messages, so a reply is read as a template renders it once a turn follows, its reasoning dropped or its closing tokens rewritten (docs/SPECULATIVE.md, section 2, Idle re-prefill).
-// With `writing` the reply is still being written, and the two renders also continue it two different ways, so a token the rest of the reply could still join to another is left out.
-// A template that refuses a render, or a text the tokenizer refuses, gives none.
+// The ids a next turn begins with after `messages`, which end with the assistant's reply: what the conversation rendered with a user message after it shares for two different user messages (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+// With `writing` the reply is still being written, so a token the rest of it could still join to another is left out; a refused render gives none.
 inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok, const std::vector<Message>& messages, bool writing,
                                            const std::vector<TemplateVar>& vars = {}) {
     if (messages.empty()) return {};

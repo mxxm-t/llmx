@@ -30,7 +30,7 @@ gguf::GGUFModel load_file(const std::string& path, const format::LoadProgress& p
 }
 
 // A CPU backend playing a device: it copies what it adopts, so no weight reads the file in place.
-// A streamed load gives it alloc_weight storage, poisoned here so a byte the load does not write shows, and fills it with a copy out of the ring it reads in place, or with a write where it is made not to (`wraps`); it keeps that storage and each fill's destination and offset, and the Nth fill can be made to fail.
+// A streamed load gives it alloc_weight storage, poisoned so a byte the load does not write shows, filled by a copy out of the ring it reads in place or by a write where it is made not to (`wraps`); the Nth fill can be made to fail.
 struct CopyingBackend : backend::CpuBackend {
     int writes = 0, fail_write = 0, foreign = 0, copies = 0;
     int slow = 0;   // fills still to take two milliseconds each, so the stream's readers run ahead and fill the ring
@@ -100,7 +100,7 @@ struct DeferredBackend : CopyingBackend {
     void sync() noexcept override { wait(submit()); }
 };
 
-// The load modes to run on the model at `path`: direct only where its file system takes direct reads, and where it does not, the refusal a direct load gives is checked instead, naming the first file with tensors, `named` (the path itself when empty).
+// The load modes to run on the model at `path`: direct only where its file system takes direct reads, else the refusal a direct load gives is checked, naming the first file with tensors, `named` (the path itself when empty).
 std::vector<infer::LoadMode> load_modes(const std::string& path, const std::string& named = {}) {
     try {
         format::FileReader probe(path, true);
@@ -249,7 +249,7 @@ void loader_checks(const std::string& path) {
 // A small qwen3moe model with tokenizer metadata (tiny_qwen_moe).
 gguf::GGUFModel tiny_moe() { return with_tokens(tiny_qwen_moe(2, 2 * 128, false)); }
 
-// Experts on the CPU beside a device: the placement adds a CPU backend that reads the experts in place, so each load mode maps the file for it even though the device copies, and the model gives the logits of the same model built in memory on the CPU.
+// Experts on the CPU beside a device: the placement adds a CPU backend that reads the experts in place, so each load mode maps the file for it though the device copies, and the logits are those of the same model built in memory.
 void experts_checks(const std::string& path) {
     const gguf::GGUFModel source = tiny_moe();
     gguf::write_gguf(source, path);
@@ -373,7 +373,7 @@ void shard_checks(const std::filesystem::path& dir) {
     for (const auto& p : paths) std::filesystem::remove(std::filesystem::u8path(p));
 }
 
-// The reads the stream plans, on spans that need no file: pieces start and end on the granule and hold at most the limit rounded down to it, a gap of one granule is read through and a longer one starts a new piece, a tensor longer than a piece crosses several, a new file starts a new piece, and every tensor's bytes lie in exactly one part each.
+// The reads the stream plans, on spans that need no file: pieces start and end on the granule and hold at most the limit, a gap of one granule is read through and a longer one starts a piece, and every tensor's bytes lie in exactly one part.
 void plan_checks() {
     const size_t g = 7168, limit = size_t(16) << 20, cap = limit / g * g;
     const std::vector<format::FileSpan> spans = {
@@ -499,7 +499,7 @@ void stream_checks(const std::string& path) {
             require(failure > 0 ? error == "injected write failure" : error.empty() && holds_tensors(late->weights, source) && (late->copies == 0) == (failure == -1),
                     "a stream of many reads through the ring lost bytes, a late fill's failure, or refilled a slot before the copies out of it ran");
         }
-        // Two members of a tensor group take their shards of every role (model/shard.hpp), runs crossing the 64-byte reads, attn_output's and ffn_down's columns a run a row: by copies, by writes and by copies that run only when waited for, each member's storage holds its packed shard and nothing of the poison.
+        // Two members of a tensor group take their shards of every role (model/shard.hpp), runs crossing the 64-byte reads, by copies, by writes and by copies that run only when waited for: each member's storage holds its packed shard and no poison.
         {
             const infer::ModelWeights weights = infer::gguf_weights(file);
             const infer::ModelPlan plan = infer::plan_model(weights);

@@ -14,10 +14,7 @@ import roundtrip
 import spec_decode as sd
 
 # Raw-block round trips for the decoders of tests/spec_decode.py, which the file-exact HF references and the MXFP4 writer decode with.
-# Blocks are built from chosen fields and must decode to the values those fields define, computed here with exact fractions and rounded once to f32; a few blocks decode to values written out by hand.
-# A value that is zero must also carry the sign the format's own arithmetic gives it, -0 where a negative scale meets a zero code or a scale of +0 meets a negative one.
-# The numpy form must give the pure form's bits, NaN as NaN, on every block here, on tests/roundtrip.py's raw blocks and on random blocks of every type, and the MXFP4 writer's blocks must decode to the values it intended.
-# It runs no llmx binary; tests/roundtrip.py holds llmx's own decoders to these where llmx reads the type.
+# Blocks built from chosen fields must decode to the values those fields define, exact fractions rounded once to f32, and the numpy form must give the pure form's bits, NaN as NaN (AGENTS.md, Tests).
 
 WRITER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "write_mxfp4.py")
 

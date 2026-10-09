@@ -1,4 +1,5 @@
-// format::FileReader and core::HostPages: reads at any offset and length give the file's bytes, a read past the end is short by exactly what the file lacks, empty and tiny files read, several threads reading one reader at once each get their own range, direct reads where the file system takes them, reserved pages committed and decommitted by range, and a size no whole number of pages holds refused.
+// format::FileReader and core::HostPages: reads at any offset and length give the file's bytes and a read past the end is short by what the file lacks.
+// Also held are empty and tiny files, several threads on one reader, direct reads where the file system takes them, reserved pages committed and decommitted by range, and a size no whole number of pages holds refused.
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -184,7 +185,7 @@ int main(int argc, char** argv) {
             require(std::string(e.what()).find(path.u8string()) != std::string::npos, "a direct refusal does not name its file");
             std::cout << "file-reader: direct reads refused here: " << e.what() << "\n";
         }
-        // A file's SHA-256 (format::file_sha256) is the digest of its bytes, over pieces of 64 MiB and for an empty file; the cache (format::cached_file_sha256) keeps it beside the file's stamp and returns the cached value while the stamp holds, which a planted digest shows, and reads the file again once it changes.
+        // A file's SHA-256 (format::file_sha256) is the digest of its bytes, over pieces of 64 MiB and for an empty file; the cache (format::cached_file_sha256) returns its value while the file's stamp holds and reads the file again once it changes.
         {
             const std::filesystem::path file = dir / "digested.bin", cache = dir / "digests";
             std::filesystem::remove_all(cache);

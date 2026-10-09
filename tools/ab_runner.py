@@ -34,10 +34,8 @@ TOOLS = Path(__file__).resolve().parent
 RATE = re.compile(r"^(pp|tg): .*?, ([0-9.]+) tok/s", re.M)
 KV = re.compile(r"^kv: allocated ([0-9]+) bytes, peak ([0-9]+) bytes, used ([0-9]+) bytes", re.M)
 
-# Frozen before any timing.
-# A step advances unless a phase shows a real regression: mean or median below the noise band, or a baseline win count unlikely by chance.
-# The win threshold is the smallest count whose one-sided Binomial(pairs, 0.5) tail is at most 5%, so a neutral change passes about 95% of the time; a majority rule would fail one half the time.
-# noise_fraction comes from an A/A run (docs/benchmarks); rerun the A/A on new hardware or a new workload before trusting it there.
+# Frozen before any timing: a step advances unless a phase shows a real regression, a mean or median below the noise band or a baseline win count unlikely by chance.
+# The win threshold is the smallest count whose one-sided Binomial(pairs, 0.5) tail is at most 5%, so a neutral change passes about 95% of the time; noise_fraction comes from an A/A run (docs/benchmarks), rerun on new hardware or workload.
 ADVANCE = {
     "noise_fraction": 0.03,
     "alpha": 0.05,

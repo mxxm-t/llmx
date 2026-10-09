@@ -14,11 +14,8 @@
 
 namespace infer {
 
-// Generate tokens starting from `logits` (the prediction after the last fed token), stopping at eos unless gp.ignore_eos masks it.
-// Returns generated ids (excluding the eos token).
-// Text callbacks run synchronously, each token's text before the next step, and may split a UTF-8 character between chunks.
-// Every generated token is fed but an eos and one that completes the stop text, the last one the limit allows included, so the model's history is the same however the tokens were generated.
-// With `drafting`, each round verifies the last pick and the proposer's drafts in one pass of generated tokens, keeps the rows whose picks equalled their drafts and retracts the rest: the tokens, the draws and the history are those without drafts.
+// Generate tokens from `logits`, stopping at eos unless gp.ignore_eos masks it, and return the generated ids without the eos; text callbacks run synchronously and may split a UTF-8 character between chunks.
+// Every generated token is fed but an eos and one completing the stop text, so the history is the same however they were generated; with `drafting`, rounds retract the rows that missed, so tokens, draws and history are those without drafts.
 inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                                       const infer::GenParams& gp, infer::RNG& rng,
                                       std::vector<float> logits,

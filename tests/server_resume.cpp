@@ -1197,6 +1197,69 @@ void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     same(serve(*fresh, tok, 3, {{Req{again, 32}}})[0], follow_reply, what + ", the follow-up turn");
 }
 
+// Turns at the pool's edge (docs/SERVER.md, room by first admission): two uncapped requests on 16 blocks with a host tier each run to the pool's end, which only one can hold.
+// Read from the retired passes, the newer one, once it has waited, must be in a pass again before the older one's last; each reply is its reply alone.
+void turns_at_edge(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    const size_t pool = 16 * kBlock, host = (size_t)1 << 30;
+    const std::vector<Req> reqs = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 60, vocab)}};
+    std::vector<Reply> alone, got;
+    for (const Req& r : reqs) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 2, {{r}}, nullptr, 0, host)[0]);
+    }
+    auto model = make(pool, 0);
+    std::mutex m;
+    std::vector<int> passes;   // a retired pass: 1 with the older request in it, 2 with the newer, 3 with both
+    const server::Request* older = nullptr;
+    const server::Request* newer = nullptr;
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, host);
+        sched.on_retire = [&](const server::Scheduler::Retired& p) {
+            std::lock_guard<std::mutex> lk(m);
+            int in = 0;
+            for (const server::Request* r : p.requests) in |= r == older ? 1 : r == newer ? 2 : 0;
+            passes.push_back(in);
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            std::shared_ptr<server::Request> a, b;
+            {
+                std::lock_guard<std::mutex> lk(m);
+                a = sched.submit(reqs[0].prompt, params_of(reqs[0]));
+                b = sched.submit(reqs[1].prompt, params_of(reqs[1]));
+                older = a.get();
+                newer = b.get();
+            }
+            got.push_back(drain(*a));
+            got.push_back(drain(*b));
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], got[i], what + ", request " + std::to_string(i));
+    // The first pass of the older request alone, the newer one's first pass after it, and the older one's last pass.
+    const size_t n = passes.size();
+    size_t waits = n, back = n, last = 0;
+    bool seen = false;   // the newer request has been in a pass, before which the older one alone is its start and no wait
+    for (size_t i = 0; i < n; ++i) {
+        seen = seen || (passes[i] & 2);
+        if (seen && waits == n && passes[i] == 1) waits = i;
+        if (waits != n && back == n && (passes[i] & 2)) back = i;
+        if (passes[i] & 1) last = i;
+    }
+    require(waits != n, what + ": the newer request never waited for the older one");
+    require(back < last, what + ": the newer request, waiting from pass " + std::to_string(waits) + ", decoded again at pass " + std::to_string(back) + " of " + std::to_string(n) +
+                             ", after the older one's last pass " + std::to_string(last) + " (" + std::to_string(stats.pauses) + " pauses)");
+    std::cout << "server-resume: " << what << ": the newer request waited from pass " << waits << ", decoded again at pass " << back << " and the older one ended at pass " << last << ", " << stats.pauses << " pauses\n";
+}
+
 // Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, so each turn's admission evicts the other conversation's donor.
 // With a host tier each follow-up promotes its conversation's donor back and forks its 256 tokens, without one it reuses nothing, and with `fail` a failing copy to or from host memory loses only the copy; every reply is its reply alone.
 enum class HostFault { none, write_back, promotion };
@@ -2961,6 +3024,7 @@ int main(int argc, char** argv) {
             for (size_t stages = 1; stages <= 3; stages += 2) stopped_in_flight(deep, tok, vocab, stages);
             cancelled_while_paused(one, tok, vocab);
             take_back(one, tok, vocab);
+            turns_at_edge(one, tok, vocab, "turns at the pool's edge");
             take_back_follow_up(one, tok, vocab);
             partial_eviction(one, tok, vocab);
             fork_within_class(one, tok, vocab);
@@ -2974,6 +3038,7 @@ int main(int argc, char** argv) {
             const gguf::GGUFModel mixed = served_hybrid(kHybrid);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            turns_at_edge(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "turns at the pool's edge on a hybrid model");
             for (size_t devices = 1; devices <= 2; ++devices)
                 message_boundaries(on(mixed, [devices] { return cpus(devices); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab,
                                    "message boundaries on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

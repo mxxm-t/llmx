@@ -1,5 +1,26 @@
 # llmx - Development Status
 
+## ROCm model budget refreshed (2026-10-10, docs only, lands by fast-forward)
+
+- **Complete:** [matched model matrix](benchmarks/rocm-model-budget-20261010/README.md)
+  runs all 20 processes, 120 measured phases and 40 warmups on Qwen3-32B Q8_0,
+  widths two and four, default F16 and explicit int8 separately, against shipped
+  mx in the same environment. All samples and setup failures are retained.
+- **Diagnostic:** skipping only one-row sums preserves prompt hashes and
+  deliberately changes decode output. The report gives the refreshed time
+  available per sum beside the previous HIP graph screen. This is a planning
+  estimate, not a correct model result or passed ROCm/HF gate.
+- **Scope:** every llmx phase records executed precision, both runtimes return
+  completed logits inside timing, model hashes agree before/after and per-phase
+  activity flags remain visible. The report preserves the mx precision and
+  communication-policy differences, warnings and the depth-zero workload limit.
+- **Next:** Q8 decode compute and full prompt attention still need their bounded
+  probes before admission. No production backend or build option is added.
+- **Review and checks:** all Markdown is inventoried and local links checked;
+  changed owners are reconciled with the retained samples, protocol and source.
+  Prior status records are preserved. Documentation/dead-code run on the tree
+  that lands; no hosted wait applies to this docs-only tier.
+
 ## Dtype and split guidance correction (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** PRECISION now identifies the activation dtype implementation as

@@ -343,8 +343,8 @@ These are estimates under unchanged non-collective work, not measured HIP
 latencies or release gates. The no-sum binaries produce wrong logits, and their
 data, layout and scheduling can affect other work. The earlier roughly 27 us width-4
 estimate combines the older no-sum result with a later 50.8-51.0 tok/s reference;
-it is a useful target, not a matched measured budget. Refresh the controls in
-one environment before freezing probe thresholds and retain the original rows.
+it is a useful target, not a matched measured budget. The model comparison below
+refreshes the controls in one environment; these original rows remain historical evidence.
 
 | Probe | Required comparison |
 | --- | --- |
@@ -372,7 +372,12 @@ The [2026-10-09 control matrix](benchmarks/rocm-controls-20261009/README.md)
 now includes fresh direct mx calls and conservative HIP/RCCL transfers at
 widths two, three and four. All bounded outputs pass; background CPU activity,
 larger-vector losses and graph/eager differences remain in the record. The
-refreshed model budget and the other probes above remain open before admission.
+[refreshed model budget](benchmarks/rocm-model-budget-20261010/README.md)
+now measures current Vulkan main, its private one-row no-sum diagnostic and
+shipped mx at widths two/four with F16 and int8 kept separate. All 20 processes
+complete, with output/path witnesses and every activity flag retained. The
+diagnostic's decode outputs are wrong by construction; its derived budget is
+an estimate. Q8 decode compute and full prompt attention remain open before admission.
 
 ## Delivery checkpoints
 

@@ -384,8 +384,12 @@ Vulkan; profiling overhead and the ordinary-fixture limit stay explicit.
 The follow-up isolates preparation at about 1.8 us and reduces F16 latency
 with wave-uniform two-row ownership, while retaining int8 regressions and
 the slower one-row and spilling occupancy controls. F16 remains 8-13 percent
-slower than Vulkan in those cells. Full prompt attention is next; the residual
-compute cost remains in the combined admission budget, not a waived gate.
+slower than Vulkan in those cells. The [full attention probe](benchmarks/rocm-attention-20261010/README.md)
+now passes its ordinary-finite oracle and whole-output controls. Phase timing
+selects wider KV staging, which reduces HIP latency by 18-25 percent without
+changing output bits. It beats Vulkan on the 512-row fresh prompt, but retains
+20-23 percent losses at 2048/4096 rows. Matched mx attention and the residual
+compute cost remain in the combined admission budget, not waived gates.
 
 ## Delivery checkpoints
 

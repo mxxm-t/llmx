@@ -1,5 +1,32 @@
 # llmx - Development Status
 
+## ROCm attention measured and exact KV staging improved (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** the private full-attention probe, isolated QK/PV layouts, actual
+  dispatch traces and full-kernel phase clocks are measured. Load plus barrier
+  takes 37-42 percent of recorded workgroup cycles, with 5-8 percent profiling
+  overhead. Wider exact KV loads then cut full HIP latency by 18-25 percent.
+  The candidate beats Vulkan by about 12 percent at 512 fresh rows, stays about
+  2 percent behind with history, and remains 20-23 percent behind at 2048/4096.
+- **Validation:** 114 candidate correctness processes, 19,906,560 independent
+  oracle checks and 152 bit-identical whole-output comparisons pass. All 32
+  matched timing processes pass, with both orders and every sample retained.
+  The earlier phase matrix's four flagged calls and two flagged measured chains
+  remain; inaccessible process activity is unknown. gfx906 and gfx1151 compile
+  without spills, with gfx1151 still untested on hardware. Sources, plans,
+  negative results, monitors and traces are archived in the
+  [attention record](benchmarks/rocm-attention-20261010/README.md).
+- **Docs review:** all tracked Markdown inventoried and local links checked;
+  ROCM and this record reconciled with the measured sources, plans and results.
+  README, architecture, roadmap, precision, build, usage, CI and source-owner
+  pages retain their current CPU/Vulkan scope; no production ROCm support or
+  build option is added. Historical measurements retain their stated scope.
+  Exact-tree docs and dead-code checks pass; runtime and tests are unchanged.
+- **Left:** matched mx attention, remaining long-prompt cost and combined
+  compute/collective admission, then full model/HF/range/lifetime/split gates
+  before production integration. Core dtype remains complete; CPU emulation
+  correctness is required, but its speed is nonblocking.
+
 ## Dtype test guidance refreshed (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** BUILD lists `int8` for the test runner and split tool and describes

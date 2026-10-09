@@ -7,6 +7,7 @@ Standard library only; the command and usage checks ask the built binary for its
 import ast
 import collections
 import functools
+import hashlib
 import io
 import json
 import os
@@ -22,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common
 import cli
 
-CHECKS = ("link", "path", "line-pin", "name", "command", "usage", "test-name", "src-page", "section")
+CHECKS = ("link", "path", "line-pin", "name", "command", "usage", "test-name", "src-page", "section", "comment")
 
 
 def doc_files(texts):
@@ -780,11 +781,117 @@ def src_page_findings(tree):
     return found
 
 
-def all_findings(tree):
+def all_findings(tree, digests):
     found = {}
     for check in (reference_findings, usage_findings, test_name_findings, src_page_findings):
         found.update(check(tree))
+    found.update(comment_findings(tree, digests))
     return found
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Comments: a block of the code is a sentence or two, and holds nothing a doc owns (AGENTS.md, Conventions).
+
+COMMENT_SENTENCES = 2
+COMMENT_LINE = 240
+COMMENT_ROOTS = ("src/", "tests/", "tools/")
+COMMENT_ALLOWANCE = os.path.join(common.ROOT, "tests", "data", "comment_allowance.txt")
+ABBREVIATION = re.compile(r"\b(e\.g|i\.e|etc|vs|cf|approx|incl)\.", re.I)
+SENTENCE_END = re.compile(r"(?<=[.!?])[)\"'`]*\s+(?=\S)")
+
+
+def comment_blocks(p, t):
+    """(first line, [text of each line]) of each comment block of the file `p` holding `t`: a run of comment-only lines, a block comment, or a comment after code."""
+    out = []
+    if p.endswith(CPP_SOURCES):
+        run = None
+        for m in common.CPP_BLANKS.finditer(t):
+            s = m.group(0)
+            if not s.startswith("/"):
+                continue
+            first = t.count("\n", 0, m.start()) + 1
+            alone = not t[t.rfind("\n", 0, m.start()) + 1:m.start()].strip()
+            if s.startswith("//"):
+                text = re.sub(r"^//[/!]?", "", s)
+                if alone and run and run[0] + len(run[1]) == first:
+                    run[1].append(text)
+                    continue
+                run = [first, [text]]
+                out.append(run)
+                if not alone:
+                    run = None
+            else:
+                run = None
+                body = re.sub(r"\*+/$", "", re.sub(r"^/\*+", "", s))
+                out.append((first, [re.sub(r"^\s*\*+", "", l) for l in body.split("\n")]))
+    elif p.endswith(".py"):
+        run = None
+        lines = t.split("\n")
+        try:
+            for tok in tokenize.generate_tokens(io.StringIO(t).readline):
+                if tok.type != tokenize.COMMENT or tok.string.startswith("#!"):
+                    continue
+                n = tok.start[0]
+                alone = not lines[n - 1][:tok.start[1]].strip()
+                text = tok.string.lstrip("#")
+                if alone and run and run[0] + len(run[1]) == n:
+                    run[1].append(text)
+                    continue
+                run = [n, [text]]
+                out.append(run)
+                if not alone:
+                    run = None
+        except (tokenize.TokenError, SyntaxError):
+            pass
+    return [(n, [l.strip() for l in ls if re.search(r"\w", l)]) for n, ls in out]
+
+
+def sentences(lines):
+    """How many sentences the text of a comment block holds."""
+    text = ABBREVIATION.sub(lambda m: m.group(1).replace(".", ""), " ".join(lines))
+    return len([x for x in SENTENCE_END.split(text.strip()) if x.strip()])
+
+
+def comment_walls(p, t, max_sentences=COMMENT_SENTENCES, max_line=COMMENT_LINE):
+    """(first line, sentences, longest line, text) of each comment block of the file `p` holding `t` that is a wall."""
+    walls = []
+    for n, lines in comment_blocks(p, t):
+        k, longest = sentences(lines), max(map(len, lines), default=0)
+        if k > max_sentences or longest > max_line:
+            walls.append((n, k, longest, " ".join(lines)))
+    return walls
+
+
+def wall_digest(walls):
+    """A short digest of the text of a file's walls, so a wall replaced by another one changes it."""
+    return hashlib.sha256("\n".join(w[3] for w in walls).encode("utf-8")).hexdigest()[:12]
+
+
+def comment_findings(tree, digests=None):
+    """Each wall of the code, and each file whose walls differ in text from its allowance's `digests` (file -> digest)."""
+    found = Findings()
+    for p, t in sorted(tree.texts.items()):
+        if p.startswith(COMMENT_ROOTS) and p.endswith(CPP_SOURCES + (".py",)):
+            walls = comment_walls(p, t)
+            for n, k, longest, _ in walls:
+                found.add("comment", p, "wall", n, "%d sentences, longest line %d characters; keep a sentence or two and move the rest to its doc" % (k, longest))
+            if walls and digests and p in digests and digests[p] != wall_digest(walls):
+                found.add("comment", p, "wall-changed", walls[0][0], "the walls are not the ones the allowance lists; sweep the file instead of changing its walls")
+    return found
+
+
+def comment_allowance(text):
+    """(allowance, digests) of the list `text`, whose line is `file | blocks | digest | reason`: the files not yet swept, their blocks and the digest of their walls."""
+    entries, digests = {}, {}
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.strip() and not line.lstrip().startswith("#"):
+            cells = [c.strip() for c in line.split("|", 3)]
+            key = ("comment", cells[0], "wall")
+            if len(cells) != 4 or not cells[1].isdigit() or not re.fullmatch("[0-9a-f]{12}", cells[2]) or not cells[3] or key in entries:
+                raise SystemExit("%s:%d: want `file | blocks | digest | reason`, each file once" % (COMMENT_ALLOWANCE, n))
+            entries[key] = (int(cells[1]), cells[3])
+            digests[cells[0]] = cells[2]
+    return entries, digests
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -825,6 +932,11 @@ def self_test(tree, found, listed):
         ("docs/ARCHITECTURE.md", None, "\nThe note is `PlantedHolder::planted_member`.\n"),
         (page, None, "\nThe route's parser is at `src/server/api.hpp:64` at 4e00bc9.\n"),
     ]
+    four = "\n// One. Two. Three. Four.\n"
+    three = "\n// One. Two. Three.\n"
+    long_line = "\n// " + "word " * 60 + "ends here.\n"
+    short = "\n// A sentence. Another one, with e.g. an abbreviation.\n"
+    walls = planted(tree, [("src/core/utf8.hpp", None, add) for add in (four, three, long_line, short)])
     removed = planted(tree, [])
     removed.ctests = {k: v for k, v in tree.ctests.items() if k not in ("sampler", "kv-cache")}
     cases = [
@@ -845,6 +957,7 @@ def self_test(tree, found, listed):
             ("a wrong default in USAGE.md", ("usage", USAGE, "bench --size default"))]),
         (src_page_findings, planted(tree, [("docs/src/core-planted.md", None, "# `src/core/planted.hpp` - nothing\n")]), [
             ("a page for a file that does not exist", ("src-page", "docs/src/core-planted.md", "src/core/planted.hpp"))]),
+        (comment_findings, walls, [("a comment of four sentences", ("comment", "src/core/utf8.hpp", "wall"))]),
         (test_name_findings, removed, [
             ("a removed CTest AGENTS.md's Tests opens a line with", ("test-name", "AGENTS.md", "sampler")),
             ("a removed CTest AGENTS.md names after CTest", ("test-name", "AGENTS.md", "kv-cache"))]),
@@ -862,6 +975,20 @@ def self_test(tree, found, listed):
             if wrong:
                 print("  self-test: a correct pinned line reference was reported: %s" % "; ".join(" | ".join(k) for k in wrong))
                 ok = False
+    key = ("comment", "src/core/utf8.hpp", "wall")
+    count += 3
+    if len(comment_findings(walls).get(key, [])) != len(comment_findings(tree).get(key, [])) + 3:
+        print("  self-test: blocks of four sentences, of three and with a line past the limit are walls and one of two with an abbreviation is not")
+        ok = False
+    old, new = Tree.__new__(Tree), Tree.__new__(Tree)
+    old.texts = {"src/planted.hpp": "\n// A. B. C.\n"}
+    new.texts = {"src/planted.hpp": "\n// D. E. F.\n"}
+    digests = {"src/planted.hpp": wall_digest(comment_walls("src/planted.hpp", old.texts["src/planted.hpp"]))}
+    changed = ("comment", "src/planted.hpp", "wall-changed")
+    if changed in comment_findings(old, digests) or changed not in comment_findings(new, digests):
+        print("  self-test: a wall replaced by another is not reported, or the wall the allowance lists is")
+        ok = False
+    count += 1
     stale = dict(listed)
     stale[("path", "docs/ARCHITECTURE.md", "src/planted/gone.hpp")] = (1, "a planted entry")
     if common.settle_findings(found, CHECKS, stale, say=lambda *a: None):
@@ -875,7 +1002,10 @@ def run():
     texts, paths = common.read_tree()
     tree = Tree(texts, paths)
     listed = common.load_known_findings()
-    found = all_findings(tree)
+    with open(COMMENT_ALLOWANCE, encoding="utf-8") as f:
+        allowance, digests = comment_allowance(f.read())
+    listed.update(allowance)
+    found = all_findings(tree, digests)
     planted_ok, count = self_test(tree, found, listed)
     ok = common.settle_findings(found, CHECKS, listed)
     counts = collections.Counter(k[0] for k in found)

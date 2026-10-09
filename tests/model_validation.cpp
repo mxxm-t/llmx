@@ -949,6 +949,27 @@ void hook_checks() {
         require(device->state->premature == 0, "a failed build freed storage before its backend drained");
         ++checks;
     }
+    // A member's shard is storage only the hook holds until it returns: a write that fails after one before it was queued must drain the backend before that storage goes.
+    // Written from the mapping, a second file run fails; streamed, a second zero run.
+    std::vector<uint8_t> bytes(64);
+    infer::ModelWeights shard;
+    shard.tensors.push_back({"a shard", {16}, quant::GGML_TYPE_F32, bytes.data(), bytes.size()});
+    for (const bool defer : {false, true}) {
+        LoadingBackend device;
+        device.fail_write = 2;
+        infer::WeightPlan plan;
+        const infer::AdoptWeight hook = infer::planning_adopt(shard, 1, plan, defer);
+        const std::vector<infer::shard::Run> runs = defer ? std::vector<infer::shard::Run>{{0, 16, 0, false}, {64, 16, 16, true}, {64, 16, 32, true}}
+                                                          : std::vector<infer::shard::Run>{{0, 16, 0, false}, {32, 16, 16, false}};
+        std::string caught;
+        try { hook(0, device, runs); }
+        catch (const std::runtime_error& e) { caught = e.what(); }
+        require(caught == "injected write failure" && plan.uploads.empty(), "a shard whose write failed lost its error, or was recorded");
+        require(device.state->premature == 0 && device.state->pending == 0,
+                defer ? "a streamed shard whose second zero run failed freed its storage before the first had drained" : "a mapped shard whose second run failed freed its storage before the first had drained");
+        device.sync();
+        ++checks;
+    }
 }
 
 // A tensor width a model's shards cannot take is refused naming the projection (model/shard.hpp, docs/TENSOR-SPLIT.md, section 4.2): heads, KV heads, K heads, vocabulary rows, a dense layer's columns off whole blocks.

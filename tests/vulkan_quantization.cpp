@@ -35,12 +35,14 @@ struct VulkanQuantizationTest {
         ~WithoutPreservation() { backend.dev_->fn.vkCreateShaderModule = create; }
     };
     static void run(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool words) {
-        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n / 4 + 255) / 256);
+        const uint32_t pc[] = {n, 0};
+        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, pc, sizeof(pc), (n / 4 + 255) / 256);
         else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256);
     }
     // The quantizers' builds that also write the 8-bit twin of --dtype int8 after the 16-bit one (xquant.glsl, TWIN8).
     static void run8(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool words) {
-        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n / 4 + 255) / 256, 1, 1);
+        const uint32_t pc[] = {n, 0};
+        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, pc, sizeof(pc), (n / 4 + 255) / 256, 1, 1);
         else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
     }
     static size_t x8_base_words(size_t n) { return VulkanBackend::x8_base_bytes(n) / 4; }
@@ -451,8 +453,7 @@ void check(backend::VulkanBackend& b) {
     std::cout << "vulkan-quantization: " << input.size() << " values per twin, " << sums << " packed sums, "
               << words16 << " identical lane/word words, " << failures << " failing blocks\n";
     require(failures == 0, "packed activation reconstruction or sums exceed their bounds");
-    // The 8-bit twin of the same inputs after the 16-bit one, from the lane-per-value and the word-wise writers: four signed bytes a word in position order, then each block's scale and scaled sum after n / 4 words.
-    // Both writers must give the same words, and the 16-bit twin before it the words of the builds that write it alone.
+    // Both writers must agree on the 8-bit twin and preserve the preceding 16-bit twin.
     const size_t base = backend::VulkanQuantizationTest::x8_base_words(n), words8 = base + n / 4 + n / 16;
     std::vector<uint32_t> twin8(words8 + 2 * guard, sentinel), lanes8(words8 + 2 * guard, sentinel), alone(n / 2 + n / 16 + 2 * guard, sentinel);
     const auto e = b.adopt(twin8.data(), twin8.size() * sizeof(uint32_t));

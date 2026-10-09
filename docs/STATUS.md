@@ -1,19 +1,34 @@
 # llmx - Development Status
 
-## Vulkan quantizer test push constants (2026-10-09, in progress)
+## Vulkan quantizer test push constants (2026-10-09, branch fix/vulkan-quantization-push, lands by fast-forward)
 
 - **Goal:** make the word-wise activation quantizer checks set every push
   constant read by the shader, including its layout width.
 - **Done:** rechecked the two test helpers against the shader and production
-  dispatch. The test sends only the count; the word shader also reads `major`.
+  dispatch. The old test sent only the count; the word shader also reads `major`.
   Added a regression that seeds a prior block-major layout before the existing
   plain-layout checks; its guard also contains that layout's extra table padding.
   A fresh MSVC/Vulkan build on the Radeon VII fails with
   `8-bit activation guard changed`; all 158076 16-bit lane/word words agree
   before that failure. Logs: `build-check/quantization-build.log` and
   `build-check/quantization-unfixed.log` in the isolated feature worktree.
-- **Left:** a regression with a defined prior layout, the helper correction,
-  Radeon VII and MI50 checks, the applicable test-only gates and hosted CI.
+  Both word-wise helpers now push the count and explicit plain layout. The
+  corrected Radeon VII check passes: 87820 identical int8 lane/word words,
+  50676 unchanged Q8 consumer outputs and all existing offset/range checks;
+  the simulated no-preservation backend retains its documented subnormal skips.
+  The compile log confirms the edited source rebuilt. Fixed logs are
+  `build-check/quantization-fixed-build.log` and `quantization-fixed.log` there.
+  The docs and dead-code components pass. The test's comments and its AGENTS
+  coverage description were reviewed; runtime source and shaders are unchanged.
+- **Gates:** all 48 native tests pass on the fresh Windows Release build,
+  including the five Vulkan tests, in 282.15 seconds. The MI50 also reproduces
+  the regression's guard failure and passes the correction at bf617912f; its
+  isolated container is removed. Linux logs, source and binary hashes are under
+  `/zpool1/llmx-xdev-validation/quantizer-push-20261009`.
+- **Landing:** two commits, the failing test then the correction, by fast-forward
+  after the exact-head hosted run succeeds. Runtime source and shaders are
+  unchanged, so model numerical and performance gates are not repeated.
+- **Left:** the separate int8 twin cache-key defect remains assigned work.
 - **Gotchas:** this fixes test setup, not runtime arithmetic. GPU checks are
   manual because the hosted runners have no device. Prior passing results with
   an undefined layout word do not prove the intended packing path ran.

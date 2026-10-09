@@ -1,5 +1,32 @@
 # llmx - Development Status
 
+## Matched mx attention exposes remaining compute gaps (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** the [attention follow-up](benchmarks/rocm-attention-20261010/README.md)
+  measures unchanged Vulkan, vector HIP and shipped mx HIP on identical logical
+  fixtures in one environment. HIP/mx latency is 0.98x at 512 fresh rows, 1.51x
+  at 2048, 1.83x at 4096 and 1.94x at 512 rows after 2048 history, in both
+  orders. Full numbers and retained errors accompany the result.
+- **Finding:** traces prove mx's GQA-sharing tile, combine, long-prompt mask
+  helper and graph replay. Its narrower arithmetic even makes a singleton
+  causal row inexact; the failed harness assumption and independent correction
+  are retained. No llmx numerical bound changes, and no speed gap is closed
+  merely by measuring the reference.
+- **Checks:** 108 smoke, 15 trace/control and 24 timing processes pass their
+  stated fixture contracts. All samples remain; timing has no activity flags,
+  complete coverage and restored starting VRAM. Ordinary finite fixtures are
+  not full-model, HF or range qualification. The immutable archive is mirrored
+  and verified on rig and workstation.
+- **Docs review:** all tracked Markdown inventoried and local links checked;
+  changed ROCM, STATUS and benchmark claims reconciled with raw measurements,
+  trace dispatch and pinned reference source. Other pages retain the preceding
+  review: runtime, CLI, build, precision, tests and ownership are unchanged.
+  Exact-tree docs/dead-code pass; this docs-only tier needs no hosted wait.
+- **Left:** isolate GQA reuse and tiling with current F32 arithmetic, then the
+  combined compute/collective admission and full backend release gates. Core
+  dtype remains complete; CPU emulation speed stays nonblocking. No production
+  ROCm implementation or new Windows executable is delivered here.
+
 ## ROCm attention measured and exact KV staging improved (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** the private full-attention probe, isolated QK/PV layouts, actual

@@ -196,10 +196,125 @@ Each has its raw run directories and frozen plan. The initial HIP build's spills
 were removed by declaring its actual 256-thread bound before any GPU run;
 that rejected build remains alongside the measured builds.
 
-The candidate is private. Remaining work is a matched mx attention control,
-the residual large-prompt gap, and the combined compute/collective admission
+At this initial checkpoint the candidate is private. Remaining work is a matched
+mx attention control (completed in the follow-up below), the residual large-prompt gap, and the combined compute/collective admission
 budget beside the [Q8 costs](../rocm-q8-compute-20261010/README.md) and
 [model budget](../rocm-model-budget-20261010/README.md). Production integration
 then needs the full independent HF, model, range, lifetime, split and matched
 mx gates; no new ROCm flag, runtime dependency or empty backend is shipped.
 gfx1151 compilation is not Strix Halo hardware validation.
+
+## Matched shipped mx control (2026-10-10 follow-up)
+
+The missing reference comparison is now measured. These are complete native
+attention operations on the same MI50, not equal-precision kernel comparisons.
+All arms receive the same two logical Q/K/V fixtures, causal mask, head width
+128 and 64 query heads over eight KV heads. Vulkan and the private HIP probe
+keep the paged cache; mx takes its contiguous F16 cache padded to 256 positions.
+Layout conversion, uploads, graph capture and readback are outside timing.
+Execution includes every kernel and synchronization needed for completion.
+
+The mx wrapper links the shipped library at
+`eefc4e7321c869496146697d63362f073941aed6`; `libggml-hip.so` and its loaded
+versioned library both have SHA256
+`cda090783159dfcff2f75fc30caa02b67ca305e10a7b37204f66aa9652ee4dfa`.
+All four loaded GGML libraries are checked against the pinned copies. Its
+default precision and graph policy are retained. The wrapper uses the public
+backend API, without copying or rebuilding mx's kernels.
+
+All arms run in the same profiler-capable image
+`sha256:8bf6f488e3d79cc1c672294e36627c484209a0fd41da4ac9b0c00b8b409ac38a`,
+on PCI `0000:89:00.0`, CPUs 4-7, default clocks, with the same vendor
+prerequisites and monitoring as the earlier probes. The Vulkan and vector-HIP
+binaries are unchanged from that evidence. The added image library is present
+in the traced and untraced arms alike.
+
+The matrix uses four operations per chain, three warmups and ten measured
+chains per process. The two numbers retain the forward and reverse arm orders;
+lower milliseconds per operation are better. No traced time enters this table.
+
+| Prompt / history | Vulkan ms/op | Vector HIP ms/op | mx HIP target ms/op | HIP / mx latency |
+| --- | --- | --- | --- | --- |
+| 512 / 0 | 1.842 / 1.843 | 1.634 / 1.630 | 1.659 / 1.657 | 0.98x / 0.98x |
+| 2048 / 0 | 14.603 / 14.588 | 17.459 / 17.474 | 11.581 / 11.592 | 1.51x / 1.51x |
+| 4096 / 0 | 53.488 / 53.749 | 65.623 / 65.632 | 35.865 / 35.867 | 1.83x / 1.83x |
+| 512 / 2048 | 9.708 / 9.640 | 9.856 / 9.834 | 5.075 / 5.076 | 1.94x / 1.94x |
+
+The short fresh prompt is slightly faster than mx in both blocks. The private
+HIP probe remains 51 percent slower at 2048 rows, 83 percent at 4096, and
+94 percent slower with the 2048-token history. Vulkan also retains a reference
+gap in those cells. These are standalone costs, not model tokens per second
+or evidence that the ROCm backend is ready.
+
+### Dispatch and precision witnessed
+
+Five before/trace/after groups cover 33/7 and all four large shapes. Each
+measured region launches one HIP graph and contains two attention calls,
+each reaching `flash_attn_tile<128,128,8,8,false>` and the combine kernel.
+At 2048/4096 rows each also reaches the mask-to-KV-maximum helper, which
+lets fully masked tiles be skipped. No copy, capture or graph instantiation
+occurs inside the measured region. Traced/untraced ratios are about 1.20 for
+the short case and 1.00-1.01 for the large cases; all controls are retained.
+
+The tile covers eight query rows across eight query heads, sharing K/V across
+the GQA group. Source inspection shows F16 query/probability storage and F16
+PV accumulation, with F32 QK sums and softmax denominators. llmx's probe
+retains F32 queries, probabilities and accumulation. Reuse, tiling and narrower
+arithmetic are candidate explanations to isolate, not a measured attribution
+of the full speed difference to any one of them.
+
+The original harness required a singleton causal row to equal its sole V.
+mx instead returned 0.513599157333 for the exact value 0.513671875. Its source
+adds `3.0f * 0.6931f` to the softmax maximum: the singleton probability rounds
+to 0.125 in the F16 numerator while the F32 denominator is about 0.1250177.
+An independent calculation predicts 0.513599136548. The corrected reference
+control checks that derived arithmetic within eight F32 epsilons; the initial
+failure and the diagnostic build remain in the archive. A separate earlier
+launch typo used an unsupported Vulkan wrapper mode and is retained too.
+
+No llmx bound is widened. Every reference call still reports its error against
+the original double oracle and the count beyond llmx's unchanged bound. A
+reference-only gross sanity envelope was fixed before its first run, alongside
+analytic zero-query/constant-value controls. It checks the harness, not a new
+llmx numerical policy. The complete smoke matrix's largest reference absolute
+error is 0.000924885; 2512172 of its 6365184 reference checks exceed llmx's
+bound, including repeated warmup/chain checks. Large-shape results are:
+
+| Prompt / history | mx maximum absolute error | Maximum fraction of llmx bound |
+| --- | --- | --- |
+| 512 / 0 | 0.000808607 | 12.91x |
+| 2048 / 0 | 0.000627659 | 10.44x |
+| 4096 / 0 | 0.000819639 | 13.48x |
+| 512 / 2048 | 0.000339345 | 5.65x |
+
+### Verification, artifacts and next work
+
+All 108 smoke processes pass their stated controls: 432 chains and 19095552
+independent oracle comparisons across the three arms, with input fixture
+hashes equal, finite outputs, unchanged inputs, preserved sentinels and
+repeatable complete output hashes. All 15 trace/control processes pass, with
+1695744 oracle comparisons. All 24 timing processes pass, retaining 240
+measured chains, 72 warmups and 11501568 oracle comparisons. These ordinary
+finite synthetic fixtures do not establish HF, full-model or extreme-range
+correctness for any backend.
+
+One smoke call has background CPU activity flagged; no measured smoke chain
+does. Timing and trace controls have no declared flags. The timing monitor's
+maximum unrelated CPU use is 0.620 cores, with 38 inaccessible process
+observations retained as unknown. All intervals are covered and no GPU counter
+is missing. Every planned sample remains; cleanup and exact starting VRAM
+restoration pass for all three completed stages.
+
+The follow-up archive is `attention-mx-evidence-20261010.tar.gz`,
+533 files, 536626 bytes, SHA256
+`711a4f0ac721997f643371aa4961f96a68153c046dcff469cffb5fe1aada1617`, verified on workstation and rig at the artifact
+root above. It contains frozen protocols, plans, wrapper/build sources,
+native output, traces, monitors, summaries and failed attempts. Full output
+tensors and executable binaries remain on the rig; library hashes identify
+the shipped reference. The original attention archive remains unchanged.
+
+Next are separate GQA-reuse and KV-tiling controls with llmx's current F32
+arithmetic, then combined compute/collective admission against the model
+budget. The full HF/model/range/lifetime/split and matched mx release gates
+remain open. No production backend, dependency, flag or Windows executable
+is added by this documentation checkpoint.

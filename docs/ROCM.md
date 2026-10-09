@@ -388,8 +388,13 @@ slower than Vulkan in those cells. The [full attention probe](benchmarks/rocm-at
 now passes its ordinary-finite oracle and whole-output controls. Phase timing
 selects wider KV staging, which reduces HIP latency by 18-25 percent without
 changing output bits. It beats Vulkan on the 512-row fresh prompt, but retains
-20-23 percent losses at 2048/4096 rows. Matched mx attention and the residual
-compute cost remain in the combined admission budget, not waived gates.
+20-23 percent losses at 2048/4096 rows. The matched shipped-mx follow-up now
+measures HIP/mx latency ratios of 0.98, 1.51, 1.83 and 1.94 for 512/0,
+2048/0, 4096/0 and 512/2048 rows/history, respectively, in both arm orders.
+The reference's GQA reuse, dispatch and narrower arithmetic are witnessed;
+its errors against llmx's unchanged bounds remain beside its speed. Next are
+separate reuse/tiling controls retaining F32 arithmetic. Residual compute cost
+stays in the combined admission budget, not a waived gate.
 
 ## Delivery checkpoints
 

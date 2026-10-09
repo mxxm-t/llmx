@@ -53,7 +53,7 @@ The CLI writes it once to stderr as the model is loaded; on the MI50 it reads, w
 
 A fallback adds `warning:` and names the dtype it replaced.
 `/v1/health` gives the same record as a `dtype` object: `requested`, `declared`, `effective` and `devices`, each with `device`, `how` and `paths`.
-Keep the implementation in the placement owner and existing backend dispatch owners. It needs a small plan/record, capabilities and one explicit connection to execution, not a second precision framework. The pre-approval `wip/dtype-auto` prototype only built a report. The current integration applies the resolved policy to execution and retains completed matrix-path witnesses; its remaining release gates are in STATUS.
+Keep the implementation in the placement owner and existing backend dispatch owners. It needs a small plan/record, capabilities and one explicit connection to execution, not a second precision framework. The pre-approval `wip/dtype-auto` prototype only built a report. The released implementation applies the resolved policy to execution and retains completed matrix-path witnesses; its qualification and separate open speed gaps are recorded in [STATUS](STATUS.md).
 
 ## 2. Capabilities and kernel classes
 

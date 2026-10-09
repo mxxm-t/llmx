@@ -1,5 +1,22 @@
 # llmx - Development Status
 
+## Dtype and split guidance correction (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** PRECISION now identifies the activation dtype implementation as
+  released, with qualification and separate speed gaps in this status record.
+  AGENTS describes the implemented tensor groups selected by `--tensor-width`
+  and distinguishes planned multi-node execution. The old sentences described
+  completed work as pending; no runtime behavior or gate is changed.
+- **Evidence:** the activation release `8af97e88`, Vulkan int8 `c8b2ac8d` and
+  its repair `f80709f20` are ancestors of the starting main `fb8240433`.
+  The split wording follows the current execution options and MULTI-DEVICE.
+- **Review:** all project Markdown is inventoried and its local links checked;
+  these two live claims are corrected against the current owners. Historical
+  qualification records remain unchanged. This is a focused semantic review,
+  not a new verification of every historical measurement.
+- **Checks:** documentation and dead-code on the tree that lands. No runtime,
+  test or build changes; no hosted wait applies to this documentation-only tier.
+
 ## ROCm direct reference and transport controls (2026-10-09, docs only, lands by fast-forward)
 
 - **Complete:** [matched control matrix](benchmarks/rocm-controls-20261009/README.md)

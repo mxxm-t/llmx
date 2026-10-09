@@ -1074,9 +1074,10 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
   `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
   on a runtime they share; today qwen3, qwen3moe, qwen35 and qwen35moe. A new one follows
   `docs/ADDING-AN-ARCHITECTURE.md`.
-- **Split mode** is a runtime flag: a `--device` list selects a layer split
-  (`docs/MULTI-DEVICE.md`); the tensor split and node count are planned. See
-  `docs/ROADMAP.md`.
+- **Split mode** is runtime configuration: a `--device` list selects the devices,
+  and `--tensor-width` groups them for tensor splitting; the default width of one
+  gives a layer split (`docs/MULTI-DEVICE.md`). Multi-node execution is planned
+  in `docs/ROADMAP.md`.
 
 ## Conventions
 

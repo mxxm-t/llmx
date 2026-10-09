@@ -1435,6 +1435,37 @@ def terminate(srv, seconds=60):
     return status
 
 
+def check_disk_identity(directory):
+    """The disk tier's identity covers every file of a sharded model (docs/DISK-TIER.md, The entry file): two models of three shards whose first shard, metadata alone, is the same bytes and whose tensors differ must not share an identity, or the entries one kept would be adopted for the other.
+    Each is served with a disk tier of its own, and the identity text its server writes beside its entries is read: the two differ, and each names the digest of every one of its files."""
+    import hashlib
+    texts, digests = [], []
+    for seed in (12345, 12346):
+        root = os.path.join(directory, "identity-%d" % seed)
+        os.makedirs(root)
+        model = f32.write_model(os.path.join(root, "model.gguf"), f32.tensors(False, seed), shards=3)
+        files = sorted(f for f in os.listdir(root) if f.endswith(".gguf"))
+        assert len(files) == 3 and os.path.join(root, files[0]) == model, (model, files)
+        digests.append([hashlib.sha256(open(os.path.join(root, f), "rb").read()).hexdigest() for f in files])
+        cache = os.path.join(root, "cache")
+        srv = Server(model, *disk_flags(cache))
+        try:
+            deadline = time.time() + 60
+            found = []
+            while not found and time.time() < deadline:
+                found = [os.path.join(cache, d, "identity") for d in (servers_in(cache) if os.path.isdir(cache) else [])
+                         if os.path.isfile(os.path.join(cache, d, "identity")) and os.path.getsize(os.path.join(cache, d, "identity"))]
+                time.sleep(0.05)
+            assert found, "the server wrote no identity beside its entries"
+            texts.append(open(found[0], encoding="utf-8").read())
+        finally:
+            srv.close()
+    assert digests[0][0] == digests[1][0] and digests[0][1:] != digests[1][1:], "the two models' first shards differ, or their tensors do not"
+    assert texts[0] != texts[1], "two models that share a first shard and differ in their tensors have one disk identity:\n" + texts[0]
+    for text, ds in zip(texts, digests):
+        assert all(d in text for d in ds), (text, ds)
+
+
 def check_disk_exit(model):
     """The disk tier's directory over a server's life (docs/DISK-TIER.md, Crash safety and cleanup) on the synthetic model: a server stopped by SIGTERM exits with status 0 and leaves no directory; one killed leaves its directory, which the next server's sweep removes; under --disk-cache-keep SIGTERM leaves the directory marked kept, which the next server under keep adopts and removes; a cap and floor past the free space and a disk tier without a host tier are refused as the server starts."""
     if sys.platform == "win32":
@@ -1658,6 +1689,8 @@ def run():
         print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "
               "each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows  [ok]" % cuts)
         check_mxfp4(directory)
+        check_disk_identity(directory)
+        print("server: two models of three shards that share their first shard and differ in their tensors have different disk identities, each naming every file's digest  [ok]")
         if check_disk_exit(model):
             print("server: synthetic F32 model, a disk tier's directory gone after SIGTERM, a killed server's swept by the next, a kept one adopted, and a tier past the free space or without a host tier refused  [ok]")
         else:

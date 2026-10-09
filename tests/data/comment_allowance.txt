@@ -29,7 +29,6 @@ src/backends/vulkan/shaders/sigmoid_mul.comp | 1 | 5dce59016a32 | docs/comment-s
 src/backends/vulkan/shaders/silu_mul.comp | 1 | afef872860d3 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/backends/vulkan/shaders/views.glsl | 1 | e3917ade2c9e | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/backends/vulkan/shaders/xquant.glsl | 3 | 20e7402623cf | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
-src/backends/vulkan/vulkan_backend.cpp | 25 | f10ecb7ac4f3 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/backends/vulkan/vulkan_backend.hpp | 3 | c72395bb4784 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/cli/main.cpp | 10 | 7f3891da214c | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/config.hpp | 1 | 761d25dd0460 | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
@@ -59,7 +58,6 @@ src/server/disk_store.hpp | 4 | 970fe262ddaf | owed by a branch in flight that t
 src/server/disk_tier.hpp | 4 | 0f630e964696 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/policy.hpp | 3 | bebda1c583b3 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/scheduler.hpp | 43 | 7d3344caf639 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/backend_vulkan.cpp | 30 | b1d63acf5511 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/cli.py | 1 | 8bfcd4435afb | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server.py | 8 | 03409e8b8f1f | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_harness.hpp | 3 | 27dc830d4d6d | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)

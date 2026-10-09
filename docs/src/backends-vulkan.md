@@ -167,6 +167,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   Under `--dtype int8` every row of a quantized type but MXFP4 takes the 8-bit build of the kernel f16 gives it (`LLMX_I8`, `WeightKernels::int8_row`, `int8_tile` and `int8_tall_tile`): the row kernels `matmul_row_q4_i8`, `matmul_row_k4_i8`, `matmul_row_k5_i8` and `matmul_row_k_i8`, the Q8_0 decode kernel `matmul_vec_q8_i8` (`is_vec_kernel`, which shares `kVecBuilds`), and the tiles `matmul_tile_qi8`, `matmul_tile_q6i8` and `matmul_tile_q8i8`, each with a preserving variant but the Q8_0 tile, in the same lanes, blocks and order as the 16-bit build, its quants as signed bytes through the four-wide 8-bit dot.
   They read the 8-bit twin (`reads_x8`), which lives after the 16-bit twin in the same scratch at `x8_base_bytes`; `row_twin` and `tile_twin` bind it there, quantizing the input themselves where the tag does not say a producer wrote it (`XqTag::has8`).
   Where the tile reads a producer's output next in a pass of 32 rows or more, the 8-bit twin lies block-major (`x8_major`, `XqTag::major`), which the tile reads through its `xpad` constant and `row_twin` has made again column after column.
+  `twin` reuses a block-major 8-bit copy only when its blocks per input row match the next reader's layout; changing the row width repacks it. A column-major copy remains reusable at any compatible row width, and a 16-bit reader does not depend on the 8-bit layout.
   The first such read sets `want_x8_`, after which every producer and quantizer is dispatched in its second build (`twin_variant`, specialization constant 7), which writes both twins; this changes which copies exist, never a result.
   MXFP4 and F32 weights keep their f16 kernels, and `native_dtypes` lists int8 where the profile prefers the integer dot.
   Dense BF16 caps the 32-value stages per K part at `ceil(stages / 4)`, retaining a finer occupancy split, so its F32 sums remain shorter. The float tile's partial buffer has a `kFloatPartBytes` target of 256 MiB: `matmul_group_impl` slices columns into aligned spans, keeping full 64-column tiles where the target holds them, and runs each span's reduction before reusing the buffer. A minimum aligned span can exceed the target. Each output keeps its K parts, order and tile height, and MXFP4 partials stay double. This is a bound on these float partials, not on every temporary buffer or total device memory.
@@ -226,6 +227,57 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `decode_columns()`: the narrower of the Q8_0 decode kernel's widest build (`DeviceProfile::q8_decode_cols`) and the other row kernels' (`row_decode_cols`, else the eight-column build), each reading a weight once for its columns.
 - `identity()`: the vendor and device ids and name, and the driver's name, information and version, which compiles the kernels.
 - `row_class(extent)`: a generated token is a class of its own; a longer extent's class is which of the profile's crossovers it has reached (the matmul tile of both type families at both row widths, the routed tile of every family and the attention tile) and, once it can take the tile, its split (`split_tiles_of`), so every extent from 449 on is one class.
+
+## Decode builds
+
+The Q8_0 row module describes each pipeline with `VecBuild`: columns per
+subgroup, rows, load steps, reduction forms and adjacent column groups.
+Variants 0, 1 and 2 are the wide, one-column and grouped builds; variants
+3 through 6 hold 2, 4, 16 and 32 columns respectively, the last using two
+groups of 16. Specialization constants 0, 9, 10, 11 and 13 carry these
+properties. Constant 12 selects half-block order, fixed by the device profile
+for every build; the transposed reduction is allowed only where the subgroup
+uses its expected reduction pairs. These choices preserve a column's bits
+across build widths.
+
+The Q4 and K-quant row families use constants 0 and 9 for columns per lane
+and rows per cluster. Their first three variants are the one-row wide,
+one-column and grouped builds, followed by two-row builds with 2, 4, 8 and
+16 columns. Constant 8 marks grouped execution. All pipelines receive the
+shared specialization entries; a module ignores those it does not declare.
+
+`for_each_column_chunk` fills the widest supported build while more columns remain
+than it holds, then chooses the narrowest build that holds the remainder.
+Successive Q8_0 capacities double, so a final chunk fills more than half its
+build. A single-group build checks columns beyond that first half; a
+two-group build checks each group's count. Two-row Q4 and K-quant builds
+compute every column they hold and use the same half-fill rule.
+
+## Instruction-count checks
+
+`tests/backend_vulkan.cpp` checks the driver disassembly when `--isa DIR`
+is requested. It counts ordinary multiplies, rounded multiply-adds, fused
+products, ordinary adds and shuffled adds. RADV's integer address division
+uses a reciprocal scaled by `0x4f7ffffe`; its recognized normalization and
+restore multiplies are excluded from matrix product counts. Planted
+instruction sequences hold this exclusion to the matching register chain.
+
+The Q8_0 expected counts follow each build's recorded shape. Products repeat
+for its load steps, the single-step tail after paired steps, partially filled
+column groups, and the half-block-order path for even block counts. Each
+copy retains the one-column build's ratio of fused to unfused products.
+Without transposed reduction, each row and column uses the baseline
+reduction and one residual add. With it, R rows and C columns use
+`R * C - 1` pairwise adds and one add for each reduction level above
+the base-two logarithm of `R * C`, plus one residual add per 64 values; the driver may express
+those reduction adds as shuffled or ordinary instructions.
+
+Other row builds must retain the baseline counts or whole additional copies
+of one column's products, depending on whether the compiler unrolls the
+column loop. Two-row builds keep whole copies and the baseline fusion ratio.
+These checks detect count changes, not every reassociation: the separate
+decode-column identity checks hold results across widths and tails, as
+described in AGENTS.md, Tests.
 
 ## Finite activation range repair
 

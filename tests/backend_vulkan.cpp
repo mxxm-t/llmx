@@ -1,6 +1,5 @@
-// Vulkan backend test (docs/VULKAN.md): storage and submission over a real device, then every kernel against the CPU backend on random inputs, and every decode column of every row kernel build against the same column alone.
-// Bit exact where the arithmetic is the same operation in the same order, a stated tolerance where a transcendental or a reduction order differs.
-// Exits 77, which CTest reports as skipped, when there is no loader or no device.
+// Vulkan storage, submission and kernel checks against CPU or independent references; coverage and bounds are in AGENTS.md, Tests.
+// Exits 77 when no supported device opens, which CTest reports as skipped.
 #include <algorithm>
 #include <cctype>
 #include <algorithm>
@@ -95,9 +94,8 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
     return a.size();
 }
 
-// The activations as the device's row kernel sees them: each block of 32 scaled so its largest magnitude is 32767, rounded half away from zero, and back to floats (shaders/quantize_x.comp).
-// The CPU reference of a quantized-row matmul on the row kernel takes these, so the comparison is about the dot and its reduction order and not about the quantization, which is the device's choice and the HF gate's business.
-// At 127 levels they are the 8-bit twin --dtype int8 reads (xquant8_block, xquant8_word).
+// Reconstruct each 32-value block at 32767 levels, or 127 for int8, with half-away-from-zero rounding.
+// Feeding these activations to the CPU separates matrix arithmetic from input quantization (AGENTS.md, Tests).
 std::vector<float> row_activations(const std::vector<float>& x, int levels = 32767) {
     std::vector<float> out(x.size());
     const float top = float(levels);
@@ -152,8 +150,8 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
     return bytes;
 }
 
-// Choose the nearer mathematical BF16 neighbour independently of either converter.
-// A non-BF16 weight checks that only inputs are rounded. A sum may turn -0 into +0, so zero sign is not checked here.
+// Choose the nearest BF16 neighbour independently; non-BF16 weights check that only inputs round.
+// Zero sign is excluded because accumulation may turn -0 into +0.
 size_t check_bf16_rounding(backend::Backend& vk) {
     auto value = [](uint32_t b) {
         const int exponent = int(b >> 7);
@@ -258,7 +256,7 @@ size_t check_matrix_witness(backend::Backend& vk) {
     return checked;
 }
 
-// Activations whose rounding to 8 bits per block of 32 is unambiguous: each block holds its peak and values at least 0.2 of a step from a tie, so the device's reciprocal of the peak, which may differ from the host's in its last bit, rounds them as the host does.
+// Each block has its peak and keeps other values at least 0.2 of a quantization step from a tie, so host and device reciprocals choose the same codes.
 std::vector<float> tie_free(size_t n, uint32_t seed) {
     std::mt19937 rng(seed);
     std::uniform_real_distribution<float> peak(0.5f, 1.5f), off(-0.3f, 0.3f);
@@ -272,8 +270,8 @@ std::vector<float> tie_free(size_t n, uint32_t seed) {
     return v;
 }
 
-// --dtype int8 (docs/PRECISION.md), where the device runs it: every row of every quantized type takes 8-bit inputs, generated tokens through the row kernels' 8-bit builds and prompts through the tile's, against the CPU fed the activations rounded to 8 bits per block of 32, and witnesses block-int8; a prompt's rows give the same bits as one call and as two slices.
-// MXFP4 and F32 weights, which have no 8-bit build, run as f16 does, bit for bit.
+// Check int8 matrix paths against CPU products of independently rounded inputs, with whole and sliced prompt identity (AGENTS.md, Tests).
+// MXFP4 and F32 weights must retain F16 results and report their wider paths.
 size_t check_int8(backend::Backend& vk) {
     const auto native = vk.native_dtypes();
     if (std::find(native.begin(), native.end(), backend::Dtype::int8) == native.end()) {
@@ -452,7 +450,7 @@ size_t check_kernels(backend::Backend& vk) {
         auto q = p.results(one);
         values += close(q.first, q.second, 1e-5, "rms_norm in place differs beyond 1e-5");
     }
-    // norm_rope_partial: positions per row out of order; the whole head rotated in place over contiguous heads, as Qwen3 calls it; q read between its gates at a padded stride with a quarter of each 256-wide head rotated, and k in place so, as qwen35 calls it.
+    // Partial RoPE at out-of-order positions, over contiguous full heads and padded gated queries with a quarter of each head rotated.
     {
         const size_t rows = 5, table = 12;
         const uint32_t pos[rows] = {5, 2, 9, 0, 11};
@@ -607,7 +605,7 @@ size_t check_kernels(backend::Backend& vk) {
         p.vk.read(*y2, 0, b.data(), b.size() * sizeof(float));
         values += exact(a, b, "an F32 matmul after a write into its weights read the old weights");
     }
-    // A loader's weight, allocated with alloc_weight and written in pieces that end inside a row, holds the bytes and gives the products of the same weight adopted, whose storage adopt allocates the same way; the float tile reads both through its padded copy.
+    // Weights written across row boundaries must retain their bytes and the products of adopted weights, including the float tile padded copy.
     {
         const size_t nin = 256, nout = 67, cols = 64;
         const auto w = uniform(nin * nout, 24), xx = uniform(nin * cols, 25);
@@ -628,7 +626,8 @@ size_t check_kernels(backend::Backend& vk) {
         require(std::memcmp(back.data(), w.data(), bytes) == 0, "a weight written in pieces into alloc_weight storage differs from its source");
         values += exact(a, b, "a weight written in pieces into alloc_weight storage gave other products than the same weight adopted");
     }
-    // Host pages the device imports, as a streamed load's read ring: a weight in them copied in pieces that end inside a row into alloc_weight storage holds the bytes and gives the products of the same weight adopted, and memory off the page or of a part of a page is not imported.
+    // Imported host pages must copy into weights across row boundaries without changing bytes or products.
+    // Unaligned addresses and partial pages must be refused.
     {
         const size_t nin = 256, nout = 67, cols = 64;
         const auto w = uniform(nin * nout, 26), xx = uniform(nin * cols, 27);
@@ -708,8 +707,7 @@ size_t check_kernels(backend::Backend& vk) {
                               size_t(100), size_t(247)}) {
             const auto x = uniform(nbatch * nin, 12 + (uint32_t)nbatch);
             Pair::In xi = p.in(x);
-            // Which kernel a batch takes is the backend's decision, and it differs by device, so ask rather than assume: below the threshold the row kernel reads quantized activations and the reference must be fed the same, at or above it the tile kernel reads floats.
-            // A device whose integer dot is native takes wide quantized batches through the integer-dot tile, which reads the 16-bit twin.
+            // Choose reference activations from the device profile: row kernels and integer-dot tiles read the 16-bit twin; float tiles read the original inputs.
             const bool idot = profile.prefer_integer_dot;
             const bool tile8 = nbatch >= tile_from_8bit, tile_other = nbatch >= tile_from_other;
             const auto xr8 = fed(x, quant::GGML_TYPE_Q8_0, idot, tile8);   // adopted, so they must outlive the calls
@@ -810,8 +808,8 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
-        // attention over a wide pass of 128-wide heads, and of 256-wide heads six to a KV head as qwen35's 27B has them, takes the tiled kernel: 32, 45 and 100 query rows (one full tile, then partial ones whose last rows mask part of a K/V tile) after histories of 0, 70 and 600 tokens, against the CPU at 1e-4.
-        // The queries are scaled so a row's scores spread over about ten, peaked as a trained model's are rather than the near-uniform softmax of unit random values, and the cache is taken both as f32 and as f16.
+        // Tiled attention covers full and partial query tiles, both head widths and cache types, and several histories against the CPU (AGENTS.md, Tests).
+        // Scaled queries produce peaked scores rather than nearly uniform softmax.
         for (int head_dim : {128, 256})
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
         for (size_t hist : {size_t(0), size_t(70), size_t(600)}) {
@@ -1078,9 +1076,8 @@ size_t check_kernels(backend::Backend& vk) {
                 throw;
             }
         }
-        // The twin that a norm, a SiLU and a wide attention write four values a lane when told the integer-dot tile reads their output next is the one the tile's own pass makes, bit for bit: each producer with runs into a buffer and a matmul with those runs from it, against the producer without them.
-        // A write from the host or a kernel between the producer and the matmul drops the twin, so the matmul reads what the buffer holds then.
-        // Under int8, where the device lists it, a producer told of the tile writes the 8-bit twin block-major and one not told column after column, so the same comparisons hold the tile's two readings of it to each other.
+        // Producer-written and separately quantized twins must give identical products, including both int8 layouts (AGENTS.md, Tests).
+        // Intervening host or kernel writes must invalidate the cached twin.
         if (nin == 1024) {
             backend::Dtype dtype = backend::Dtype::f16;
             const size_t n_in = 1024, n_out = 96, rows = 128;
@@ -1205,7 +1202,7 @@ size_t check_kernels(backend::Backend& vk) {
                 throw;
             }
         }
-        // The twin the per-row attention kernel, or its merge after a split history, writes beside its output for the row matmul that follows: attention then a matmul from its output on the device, against the CPU's attention, quantized, into the CPU's matmul.
+        // Check attention and split-history merge twins through a following row matmul, against CPU attention quantized for the same dot.
         for (size_t hist : {size_t(0), size_t(70)}) {
             for (size_t nq : {size_t(1), size_t(3)}) {
                 const int n_head = 4, n_head_kv = 2, head_dim = 128;
@@ -1421,8 +1418,8 @@ size_t check_kernels(backend::Backend& vk) {
                 }
             }
         }
-        // A mixed group whose batch reaches the 8-bit crossover but not the other types' takes the row kernel for every partition, its Q8_0 one included, though that partition alone would take the tile (matmul_group_impl).
-        // So the group's Q8_0 and Q4_0 outputs equal, bit for bit, each type alone with a row run of extent 1, which forces the row kernel; the batches are the first and the last between the two crossovers, and a device whose crossovers meet at this width has none.
+        // A mixed group keeps every partition on the whole group's row kernel, even when its Q8_0 partition alone would cross to a tile.
+        // Compare both edges of the gap against forced row calls (AGENTS.md, Tests).
         for (size_t nbatch : {tile_from_8bit, tile_from_other - 1}) {
             if (nbatch < tile_from_8bit || nbatch >= tile_from_other) continue;
             const auto x = uniform(nbatch * nin, 50 + (uint32_t)nbatch);
@@ -1448,9 +1445,8 @@ size_t check_kernels(backend::Backend& vk) {
             }
         }
     }
-    // The KV cache: the same token-major rows written through each backend's own storage and block size, then attention over each backend's own view.
-    // Histories straddle the device's 64-token blocks and the CPU's 128; two views in one call.
-    // The online softmax orders the arithmetic differently from the CPU's global softmax, so a tolerance.
+    // Attention reads each backend's own cache layout across block boundaries, including two views in one call.
+    // Its online softmax differs in reduction order from the CPU, so the comparison allows a tolerance.
     {
         const int n_head = 4, n_head_kv = 2, head_dim = 40;
         const size_t kvw = (size_t)n_head_kv * head_dim, qw = (size_t)n_head * head_dim, layers = 2;
@@ -1673,9 +1669,8 @@ size_t check_kernels(backend::Backend& vk) {
         std::cout << "backend-vulkan: Q8_0 matvec 4096x4096 " << ms << " ms, "
                   << (double)wq.size() / ms / 1e6 << " GB/s\n";
     }
-    // Mixture of experts: routing the same scores gives the same ids and weights, and the routed projections match the CPU over stacked experts of every type, gate and up in one call and the weighted down projection into a residual.
-    // Three shapes: a few rows on the row kernel, a prompt past moe_tile_from on the tile kernel over each expert's entries, and a batch mixing decode rows with a prompt, split by its row runs.
-    // The reference is fed, row by row, the activations the kernel that row takes reads.
+    // Routing and grouped gate/up/down products are checked against the CPU for every type, across row, tile and mixed passes (AGENTS.md, Tests).
+    // Each reference row uses the activations its selected kernel reads.
     {
         const size_t n_expert = 6, k = 2, nin = 256, nff = 67, nout = 45;
         const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
@@ -1778,15 +1773,11 @@ size_t check_kernels(backend::Backend& vk) {
     return values;
 }
 
-// Decode columns: a row kernel's builds differ only in how many columns and rows share a weight read, so every column of a call must be, bit for bit, that column computed alone, which takes the narrowest build (docs/VULKAN.md, batch invariance).
-// Every row is a generated token's, so every width stays on the row kernels: plain calls of 1 to 64 columns, the residual add and a group of three projections at widths that reach every build and chunk, and routed entries of 1 to 32 tokens against each token alone.
-// Each type the row kernels decode at rows 4096 and 1280 wide, the block types also at a row of an odd block count, Q8_0 also 2560 wide, and the output head of the types that keep a 16-bit twin for it.
-// At 4096 every lane of a 64-lane subgroup takes the same number of steps, and at 1280 some lanes take 3 and every lane of a 32-lane subgroup 5, so a build that takes steps in pairs also takes a single step after them.
-// At 2560 every lane of a Q8_0 build that takes steps in pairs takes two pairs and then a single step, and under the half-block order a lane takes 3 steps or 2.
-// 300 outputs leave the last workgroup rows past the end, and the grouped projections of 37 and 129 rows a subgroup that holds rows past the end.
+// Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
+// AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds.
 size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
     const size_t nout = 300, widest = 64;
-    // Each width's remainder past the widest Q8_0 decode build, 8, 16 or 32 columns, takes the 1-, 2-, 4-, 8-, 16- or 32-column build, and 18 and 29 a 32-column build's second group in part; past the widest two-row build, 16 columns, the 1-, 2-, 4-, 8- or 16-column build.
+    // Remainders reach every narrower build, and 18 and 29 columns leave the widest Q8_0 build's second group partially filled.
     const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
     const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
@@ -1870,9 +1861,8 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
         }
     }
 
-    // Routed: 8 experts, 2 a token, 1 to 32 tokens, so a pass's entries take the one-column path below two an expert and the grouped build from there.
-    // Gate and up in one call, and the down projection added into the residual through the combine, each token's against the same token alone.
-    // Rows are 4096 and 1280 wide, so a lane adds several blocks of every type and an order that differs shows, as do steps in pairs and a single step after them.
+    // Routed gate/up and residual down products must equal each token alone, on both sides of the grouped-build threshold.
+    // The two input widths cover paired steps and their single-step tails.
     const size_t n_expert = 8, k = 2, tokens = 32;
     const auto scores = uniform(tokens * n_expert, 310, -3.0f, 3.0f), base = uniform(tokens * nout, 313);
     const auto sb = vk.adopt(scores.data(), scores.size() * sizeof(float));
@@ -1918,8 +1908,8 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
     return columns;
 }
 
-// A kernel's float multiplies and adds, counted over the lines of its disassembly that start with an instruction: multiplies, multiply-adds that round the product first (v_mad_f32, v_mac_f32), fused ones (v_fma, v_fmac, and v_mad_mix_f32, which fuses on gfx906), adds, and adds over lanes shuffled in the same instruction (DPP).
-// A multiply by 0x4f7ffffe scales an integer division's reciprocal, which a grouped build divides by more often; neither it nor its recognized denormal normalization is counted.
+// Count the disassembly's float products and reductions, distinguishing fused operations and shuffled adds.
+// Exclude recognized integer-division reciprocal scaling (docs/src/backends-vulkan.md, Instruction-count checks).
 struct FloatOps {
     size_t mul = 0, mad = 0, fused = 0, add = 0, lane_add = 0;
     unsigned kinds() const {
@@ -1968,9 +1958,7 @@ FloatOps float_ops(const std::string& text) {
     return n;
 }
 
-// RADV's preserved reciprocal normalizes its operand before the reciprocal and restores it after.
-// These multiplies belong to integer address division, not the row's products.
-// A backend made to time its work gives in device_ms the time of every dispatch since its last reading, however many: the server's --timing reads each stage every 32 rounds, which on a large model is many times the 4096 dispatches one query pool holds, and a reading of only the first dispatches showed a busy stage as mostly idle.
+// Timing must cover every dispatch across multiple query pools, including the work after the first pool fills.
 size_t check_timing_coverage() {
     backend::BackendPtr tb = backend::make_vulkan_backend(0, true);
     const size_t n = 1024;
@@ -2033,10 +2021,8 @@ struct ContractionChecks {
     size_t same = 0, whole_columns = 0, two_rows = 0, decode = 0, kinds_only = 0, grouped = 0;
 };
 
-// A Q8_0 decode build's float operations as its shape and forms give them (matmul_vec_q8.comp), where its one-column build takes `levels` shuffled adds a reduction and `extra` multiplies other than its products'.
-// A product is a multiply and a multiply-add, or a fused one in the one-column build's proportion, once for each step in the code: STEPS steps and, past one, a single step after them, again for the columns of a group past the first half of a build of up to 8 columns, whose copy checks each column, and once more in the half-block order's step, which rows of an even block count take.
-// Without the transposed reduction each row and column is reduced as the one-column build reduces one, and takes one plain add, the residual add's.
-// With it the build's R rows and C columns take the six levels' pairs, R * C - 1 adds and one for each level past log2(R * C), which the driver may take as shuffled or plain adds, and one residual add for each 64 values.
+// Expected Q8_0 float operations for a build's columns, rows, steps and reduction forms.
+// The count derivation is in docs/src/backends-vulkan.md, Instruction-count checks.
 struct DecodeOps {
     size_t products = 0, mul = 0, lane_add = 0, add = 0, reduce = 0;
     bool tree = false;
@@ -2095,12 +2081,8 @@ DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
     return n;
 }
 
-// Every build of a row kernel holds its one-column build's float multiply and add counts, and a grouped build its wide build's: a screen on how the driver contracts and reduces a column's products and sums, which sees a change only where it changes the counts.
-// Reassociation that keeps the counts shows only in the decode-column check, which is what holds batch invariance (docs/VULKAN.md, batch invariance).
-// A build of `matmul_row.comp` holds the one-column build's counts exactly where the driver keeps the column loop rolled, and otherwise those counts and N - 1 copies of one column's, N its columns.
-// A kernel's two-row builds (the first line of each one's representation gives its columns and rows) differ from each other by whole copies of one row and column's products, since they compute every column they hold.
-// The Q8_0 decode kernel's builds differ in rows, steps, copies of their products and forms (as the first line of each one's representation gives them), so where its one-column build reduces over shuffled adds each build holds the counts its shape and forms give (decode_ops), the transposed reduction only where the one-column build's reduction takes six levels.
-// A kernel's builds are named after it: the wide build plain, then `_grouped` and `_<N>col`; a kernel whose driver gives no disassembly is not checked.
+// Compare each row-kernel build's operation counts with its one-column baseline and shape (docs/src/backends-vulkan.md, Instruction-count checks).
+// Counts detect contraction changes; decode-column identity also catches reassociation with unchanged counts.
 ContractionChecks check_contraction(const std::vector<std::pair<std::string, std::string>>& representations) {
     ContractionChecks n;
     std::vector<std::pair<std::string, FloatOps>> ops;
@@ -2194,7 +2176,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
             ++n.whole_columns;
         }
     }
-    // A kernel's two-row builds, which compute every column they hold, differ by whole copies of one row and column's products for each column more, the same in every pair of them, a column's no more than the one-column build holds and in its proportion of fused products.
+    // Two-row builds differ by whole copies of one column's products, retaining the one-column build's proportion of fused products.
     std::map<std::string, std::vector<size_t>> column_ops;
     for (size_t i = 0; i < two_row.size(); ++i)
         for (size_t j = 0; j < two_row.size(); ++j) {
@@ -2253,12 +2235,8 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
     return v;
 }
 
-// Each refusal below records and writes nothing, so the stream works after it as before.
-// Each is made twice, in a first pass whose operands no command-buffer slot holds and in a second into an output that must keep what it held.
-// alloc and adopt leave a new buffer held by the slot that fills or copies it, so the first pass submits until the slots let go of the operands before it makes the call.
-// It drops them when the call throws, so a command the call left naming one names freed memory and fails the next submission.
-// After each pass, a valid call must give what it gave before any refusal.
-// Names come from the expected kernels, not the private dispatch table; numeric and row-class checks run separately.
+// Witness independently named kernels and require each refusal to leave recording and output unchanged, with a valid call afterwards (AGENTS.md, Tests).
+// The first pass retires operand slots before refusal; the second retains a previously filled output.
 size_t check_weight_dispatch() {
     const auto owner = backend::make_vulkan_backend(0, true);
     backend::Backend& vk = *owner;
@@ -2616,7 +2594,7 @@ size_t close_slot(const StateShape& sh, const std::vector<float>& cpu, const std
     return values + cpu.size() - m;
 }
 
-// Sequences of every kind beside each other against the CPU: fresh ones on slots of NaN, histories of 1, 2 and 7 tokens whose carried rows before the sequence's start hold NaN, one-token entries and a verify reading one slot and writing another.
+// Compare fresh, short-history, one-token and verify sequences beside each other against the CPU, with NaN in unread state and history slots.
 size_t check_mix(backend::Backend& vk, backend::CpuBackend& cpu, const StateShape& sh, uint32_t seed) {
     const std::vector<Seq> seqs = {{0, 0, 0, 5}, {1, 1, 1, 3}, {2, 2, 2, 1}, {7, 3, 3, 6}, {0, 4, 4, 1}, {9, 5, 6, 4}, {3, 7, 7, 2}};
     size_t rows = 0;
@@ -2649,8 +2627,8 @@ size_t check_mix(backend::Backend& vk, backend::CpuBackend& cpu, const StateShap
     return values;
 }
 
-// On the device a sequence's rows and state are the same bits alone, beside others, in reverse view order and cut into passes of 1, 2 and 3 rows that carry the state in their slot (docs/QWEN35.md, Row classes).
-// The calls of all four take the delta rule's 16-token build, as the 40-row view asks for it, and a sequence alone the short build at 8 and 5 rows and in every pass, the 16-token one at 9 and 40, so a column computes the same in both builds, at both sides of the edge.
+// Sequence rows and state must be identical alone, reordered, batched and sliced (docs/QWEN35.md, Row classes).
+// The chosen lengths also compare both delta-rule builds across their threshold.
 size_t check_invariance(backend::Backend& vk, const StateShape& sh, uint32_t seed) {
     const std::vector<Seq> seqs = {{0, 0, 0, 9}, {4, 1, 1, 8}, {2, 2, 3, 5}, {6, 4, 4, 40}};
     size_t rows = 0;
@@ -2815,8 +2793,8 @@ size_t check_sigmoid_mul(Pair& p, size_t heads, size_t dim) {
     return values;
 }
 
-// Gated attention's tail as the layer runs it at head width 256: attention over a history, the output gated in place by sigmoid_mul, then the output projection added to a residual.
-// The attention writes its output's copy for a matmul, which the gate must replace with the gated output's; the projection runs on the row kernel for decode rows and on the tile for a prompt's, and the reference is fed the activations each kernel reads.
+// The gated-attention tail must replace attention's twin with the gated output before the residual projection.
+// Check both row and tile paths against a CPU reference fed their respective activations.
 size_t check_gated_attention(Pair& p, bool integer_dot) {
     const backend::DeviceProfile prof = backend::vulkan_device_profile(p.vk);
     const int n_head = 12, n_head_kv = 2, head_dim = 256;
@@ -2897,7 +2875,7 @@ size_t check_gated_attention(Pair& p, bool integer_dot) {
 }
 }  // namespace q35
 
-// The embedded drafter's ops (docs/SPECULATIVE.md, section 7) against the CPU, id for id and bit for bit: argmax_rows over rows of 37 and of 248320 logits, with a tie, an infinity, a NaN first and last, a row of -infinity and a row whose prior id is invalid beside plain rows, with and without prior ids; embed_ids of F32 and Q8_0 tables with valid ids and ids past the table, which write zero rows.
+// Embedded-drafter argmax and embedding ops must match the CPU, including ties, nonfinite logits, prior ids and out-of-range ids (AGENTS.md, Tests).
 size_t check_drafter_ops(Pair& p) {
     size_t values = 0;
     auto ids_on = [](backend::Backend& b, const std::vector<uint32_t>& ids) {
@@ -3002,10 +2980,8 @@ size_t check_qwen35(backend::Backend& vk) {
 }
 }
 
-// `--isa DIR` opens the backend for diagnostics and writes the driver's representation of every kernel it compiled, one file per kernel, after the checks, then checks each row kernel build's float multiplies and adds against its one-column build's (check_contraction).
-// The integer-dot tile and every quantized row kernel hold the precision of 16-bit activations: against a double product of the unquantized inputs, an output is within half a 16-bit step of each block's peak times that block's weights, where 8-bit activations miss by the 8-bit step (docs/STATUS-2026-09.md, MI50 prompt activations at 16 bits).
-// Each block of the inputs holds one value 30 times the others, as a residual stream's outliers do, so a block's step follows its peak.
-// Each type takes a wide tile case and a three-column row case. F32 and BF16 also take one and nine columns, permit only accumulation error on their respective inputs and hold each decode column to the same column alone.
+// Matrix precision checks use unquantized double products and the selected activation policy's bound (AGENTS.md, Tests).
+// Block outliers expose the quantization step, and F32/BF16 cases also hold decode-column identity.
 size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
     const size_t nin = 1024, nout = 48;
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
@@ -3197,7 +3173,8 @@ size_t check_float_workspace(backend::Backend& vk) {
     return checked;
 }
 
-// A tensor group's collective over devices 0 and 1 (docs/TENSOR-SPLIT.md, section 4.3), where a second device opens and the platform shares memory and semaphores between them: six sums in a row, so each parity of the inboxes is written three times, at 1, 7 and 64 rows, every member's residual at an offset gaining ((p0 + p1)) in member order, the bits a float sum gives on the host, and the refusals of a collective joined by a member not first, over a backend that is not Vulkan and over one device twice.
+// A tensor group's collective must add partials in member order on every device, with alternating inbox parities (docs/TENSOR-SPLIT.md, section 4.3).
+// AGENTS.md, Tests describes the widths, tails and refusals.
 size_t check_collective(const backend::BackendPtr& first) {
     backend::BackendPtr second;
     try {

@@ -1,17 +1,103 @@
 # llmx - Development Status
 
-## Vulkan int8 twin cache row width (2026-10-09, in progress)
+## Vulkan int8 twin cache row width (2026-10-09, branch fix/vulkan-int8-twin-width, lands by fast-forward)
 
 - **Goal:** reusing one activation buffer with a different matrix row width must
   give the same output as freshly packing that input for the new width.
 - **Done:** the public-call regression on main `a1b8211b4` fails on an MI50:
   `int8 twin reused across matrix widths changes output`. It witnesses the
   int8 tile; 1,239,200 existing int8 outputs pass before the new case.
-  A nonzero tile width currently accepts any cached block-major width,
+  The unfixed cache accepted any block-major width for a nonzero tile width,
   although addressing depends on it. The build and failed run are retained in
   `/zpool1/llmx-xdev-validation/quantizer-push-20261009/twin-width`.
-- **Left:** fix the existing cache owner,
-  sweep the touched files' comments, then run the device/host/CI merge gates.
+  The cache owner now requires a matching block-major width while preserving
+  reuse of column-major and 16-bit copies. The same MI50 test passes with
+  5,120 new output values exact, alongside the existing backend checks.
+  Both touched files' comments are swept: 55 blocks shortened with all
+  non-comment tokens retained, and the detailed decode/count notes moved to
+  the Vulkan source page. Integration with the comment checker removes
+  those two files' obsolete allowances and adds no exception.
+  A fresh MSVC Vulkan build after that sweep passes
+  `backend-vulkan` on the Radeon VII; the int8-specific case reports zero
+  there because its profile does not select int8. The compile log records
+  both edited files rebuilt. Qwen3-0.6B Q8_0 full-vocabulary logits agree byte
+  for byte against the unchanged main runtime on CPU and Radeon VII, under
+  both auto and int8 fallback (four comparisons). These quick comparisons
+  cover one prompt, not the complete model or performance gates.
+  Docs and dead-code checks pass; the docs check's initial misreading of a
+  mathematical expression as a C++ call was corrected in prose.
+  The complete fresh Windows build passes all 48 native tests in 564.37
+  seconds, including the five Vulkan checks; logs are `build-all.log` and
+  `ctest.log` in the branch worktree. Existing test-source shadowing and
+  `sscanf` warnings remain; no warning-free build is claimed.
+  A clean detached Linux build at f3dce7978 passes all 47 native tests on
+  an MI50 in 594.09 seconds. All six required GGUF fixtures match their
+  pinned sizes and SHA256 values; the full device suite with required tools
+  and baseline passes all 28 components, including the HF, int8, MXFP4,
+  qwen35, split, server and follow-up checks. These results are in
+  `/zpool1/llmx-xdev-validation/int8-twin-gate-20261009/evidence`.
+  All 72 model identity comparisons against the unchanged main runtime
+  pass: six pinned Qwen3 and Qwen3.5 files, CPU and MI50, auto and int8,
+  each with full-vocabulary prompt logits, eight fixed continuation tokens'
+  full-vocabulary logits, and up to 32 generated token IDs and their text.
+  The original generation comparator included timing lines and looked for
+  IDs on stderr, so its 24 failure verdicts are invalid. Its raw captures
+  are retained; `identity-verified.json` compares the actual IDs and text
+  on stdout and records the added continuation checks. This preserves the
+  existing arithmetic on these workloads; it is not a new depth gate.
+  The matched timing round runs both clean builds on one MI50 (GPU4,
+  PCI 0000:89:00.0), default clocks, two host threads pinned to logical
+  CPUs 0 and 1 with their siblings reserved. Each model/dtype runs
+  main/fixed/fixed/main, pp512/tg128, three repetitions per command,
+  ubatch512 and F16 K/V. All 48 calls are retained; the table gives the mean
+  of each arm's two calls in tok/s. This repair's comparison is against
+  main; the phase-level mx gaps remain open and mx was not remeasured here.
+
+  | Model | Dtype | Main pp | Fixed pp | Change | Main tg | Fixed tg | Change | mx |
+  | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+  | Qwen3-0.6B Q8_0 | auto | 8778.60 | 8785.51 | +0.08% | 402.10 | 401.00 | -0.27% | Not remeasured |
+  | Qwen3-0.6B Q8_0 | int8 | 13431.10 | 13491.74 | +0.45% | 394.33 | 394.77 | +0.11% | Not remeasured |
+  | Qwen3-0.6B Q4_0 | auto | 8272.35 | 8267.84 | -0.05% | 348.18 | 349.43 | +0.36% | Not remeasured |
+  | Qwen3-0.6B Q4_0 | int8 | 12277.63 | 12274.39 | -0.03% | 391.81 | 394.38 | +0.66% | Not remeasured |
+  | Qwen3-0.6B Q5_K_M | auto | 8060.59 | 8057.66 | -0.04% | 353.25 | 355.87 | +0.74% | Not remeasured |
+  | Qwen3-0.6B Q5_K_M | int8 | 11711.56 | 11702.06 | -0.08% | 366.14 | 366.88 | +0.20% | Not remeasured |
+  | Qwen3-0.6B Q4_K_M | auto | 8143.90 | 8138.42 | -0.07% | 361.49 | 360.01 | -0.41% | Not remeasured |
+  | Qwen3-0.6B Q4_K_M | int8 | 11883.54 | 11891.47 | +0.07% | 376.49 | 376.83 | +0.09% | Not remeasured |
+  | Qwen3.5-0.8B Q8_0 | auto | 7517.61 | 7520.21 | +0.03% | 346.50 | 349.51 | +0.87% | Not remeasured |
+  | Qwen3.5-0.8B Q8_0 | int8 | 11064.90 | 10840.67 | -2.03% | 347.46 | 346.56 | -0.26% | Not remeasured |
+  | Qwen3.5-0.8B Q4_K_M | auto | 7023.35 | 7016.27 | -0.10% | 313.70 | 313.61 | -0.03% | Not remeasured |
+  | Qwen3.5-0.8B Q4_K_M | int8 | 9894.28 | 9903.64 | +0.09% | 323.18 | 327.99 | +1.49% | Not remeasured |
+
+  The largest prefill loss comes from one Qwen3.5 Q8_0 int8 fixed call at
+  10608.97; the other is 11072.36 against main's 11077.40 and 11052.39.
+  Two further ABBA blocks, declared before running, retain that workload
+  and all flags. They give main/fixed 11088.86/11055.35 prefill (-0.30%)
+  and 346.06/343.90 decode (-0.62%). Retaining all six calls per arm,
+  including the initial slow one, gives -0.88% prefill and -0.50% decode.
+  The initial two-percent loss does not persist; its cause is unproven.
+  No causal speedup or layout effect is claimed. The small observed cost
+  is retained beside the cache correctness repair, not rejected or hidden.
+  Every initial monitor interval flags unrelated CPU work on other cores;
+  seven also flag disk activity. Process starts/exits and 68 inaccessible
+  process events limit coverage, and no unavailable counter is called idle.
+  The one-second monitor covers loading and execution together; the CLI
+  retains each command's mean and standard deviation, not each repetition.
+  Raw outputs, commands, binary hashes, versions, clocks and monitoring are
+  retained beside the identity evidence in `timing-1`, `timing-activity-1`,
+  `timing-confirm-1` and `timing-activity-confirm-1`. No run is discarded.
+- **Review:** the checkpoint inventory covers all 100 tracked Markdown files
+  and 496 local link targets, all present. The docs and dead-code checks
+  pass, and the precision, usage, architecture, test coverage and Vulkan
+  owner pages were checked against their code and the retained results.
+  Older live claims that tensor split and the Vulkan collective are planned,
+  and that the Vulkan output head always uses 16-bit inputs, were sent to
+  the owner of the separate documentation sweep. Historical measurements
+  retain their dates and scope; none is presented as a fresh reference run.
+- **Landing:** two commits, the failing test then the correction, by fast-forward
+  after integration onto current main, rebuilt native tests on both platforms
+  and the exact-head hosted gate. A code-conflict-free rebase retains the
+  model and timing evidence above; any code conflict requires a new assessment.
+- **Left:** the existing phase-level performance gaps against mx remain open.
 - **Gotchas:** the first regression narrows the input rows from 512 to 256 so
   the incorrect cache reads stay inside the larger existing packed allocation.
   It needs native int8 tile execution; the Radeon VII's default profile does
@@ -45,7 +131,7 @@
 - **Landing:** two commits, the failing test then the correction, by fast-forward
   after the exact-head hosted run succeeds. Runtime source and shaders are
   unchanged, so model numerical and performance gates are not repeated.
-- **Left:** the separate int8 twin cache-key defect remains assigned work.
+- **Left:** the separate int8 twin cache-key repair and its gates are recorded above.
 - **Gotchas:** this fixes test setup, not runtime arithmetic. GPU checks are
   manual because the hosted runners have no device. Prior passing results with
   an undefined layout word do not prove the intended packing path ran.

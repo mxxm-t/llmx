@@ -1,4 +1,5 @@
-// Vulkan backend (docs/VULKAN.md). Everything runs on one compute queue: ops record into an open command buffer, submit() ends it and signals a timeline semaphore with the ticket, wait() blocks on it, and a ring of command buffers is reused once their tickets retire.
+// Vulkan backend over one compute queue (docs/VULKAN.md).
+// Operations record into a command-buffer ring whose slots retire by timeline tickets.
 #include "backends/device_profile.hpp"
 #include "backends/kv_storage.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
@@ -683,14 +684,12 @@ const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 // A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
 const int kVariants = 7;
 
-// The Q8_0 decode kernel's forms (shaders/matmul_vec_q8.comp, specialization constants 11 and 12): the reduction through the subgroup reduction's own pairs for every row and column at once, and the half-block order.
-// A build asks for the first and takes it where its device's profile allows it (q8_decode_forms), since it gives the subgroup reduction's bits only where that reduction takes the same pairs.
-// The half-block order sums a column's products in another order than the quarter layout, so it is the kernel's order on a device rather than a build's form: where the profile allows it every build takes it, and a column computes the same bits in all of them.
+// The Q8_0 reduction forms are selected by the device profile so every build gives a column the same bits.
+// The subgroup tree depends on the device's reduction pairs; half-block order is fixed for all builds (docs/src/backends-vulkan.md, Decode builds).
 const uint32_t kQ8Tree = 1, kQ8Half = 2;
 
-// The Q8_0 decode kernel's builds by pipeline variant: the columns a subgroup keeps, the rows it takes, the steps whose weights a lane loads before using any, the forms it asks for, and how many column groups take the same rows on adjacent workgroups (specialization constants 0, 9 and 10, then 11 and 13).
-// Variants 0 to 2 are every row kernel's wide, one-column and grouped builds, and 3 to 6 this kernel's 2-, 4-, 16- and 32-column builds; a build holds its columns times its groups.
-// Every build gives a column the same bits, so the builds differ only in time (docs/VULKAN.md).
+// Q8_0 pipeline variants name columns, rows, load steps, reduction forms and adjacent column groups.
+// Their numbering and specialization constants are in docs/src/backends-vulkan.md, Decode builds.
 struct VecBuild {
     uint32_t cols, rows, steps, forms, span;
     uint32_t capacity() const { return cols * span; }
@@ -716,9 +715,8 @@ inline bool row_kernel_builds_two_rows(KernelId id) {
     }
 }
 
-// Those families' builds by pipeline variant: the columns a lane keeps and the rows a cluster takes (specialization constants 0 and 9).
-// Variants 0 to 2 are every row kernel's wide, one-column and grouped builds of one row; 3 to 6 the two-row builds of 2, 4, 8 and 16 columns, which compute every column they hold, so a chunk fills more than half of one.
-// Every build gives a column the same bits (docs/VULKAN.md).
+// Pipeline variants for the Q4 and K-quant row families: columns per lane and rows per cluster.
+// Every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds).
 struct RowBuild {
     uint32_t cols, rows;
 };
@@ -1727,8 +1725,8 @@ public:
         return ticket;
     }
 
-    // What a tensor group's exchange chains through (VulkanCollective): the next submission waits on `s`, and prepare, Submission::queue and queued are flush in three steps, signalling `signals` beside the timeline, so the collective can make the queue's call of each member on a thread of its own.
-    // A sum's submission is followed by no hold: the member's next work comes at once, and a hold there is a second submission at every sum; the stage's own submit() holds, as on a layer split, so a member waiting for another stage keeps its clock.
+    // The collective splits flush into prepare, queue and queued so members can submit concurrently, signalling peer semaphores beside their timelines.
+    // It adds no hold after a sum; the stage's own submission holds between stages.
     void wait_on(VkSemaphore s) { waits_.push_back(s); }
 
     // The open command buffer ended and its submission filled, with the ticket it will carry.
@@ -1796,18 +1794,20 @@ public:
     const std::shared_ptr<Device>& device() const { return dev_; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::string pci_root() const override { return dev_->pci_root; }
-    // The member's partial and scratch rows, its inbox for each peer in each of two parities and, where its own crossover lets a sum take two shots, its gather rows, a share from each peer in each parity, counted as two rows (VulkanCollective); a peer's import takes none of its own memory.
+    // Partial, scratch and per-peer inbox rows for both parities; two-shot sums also reserve each peer's gather share.
+    // Imports consume no memory on the importing device.
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
         if (!dev_->exchange || !members) return 0;
         const size_t rows = size_add(size_add(2, size_mul(2, members - 1)), two_shot_crossover(members) != SIZE_MAX ? 2 : 0);
         return size_mul(rows, size_mul(width, sizeof(float)));
     }
-    // The floats a sum of `members` members takes from which two shots, each member reducing its share and gathering the others', beat sending every member the whole partial, measured on this transport, dma-buf inboxes and sync files between MI50s (docs/STATUS.md, a group's large sums in two shots): never between two members, whose two shots move what broadcast moves behind a second round of waits, and from 1.25 MB among three and four, level with broadcast at half that.
+    // The measured crossover for two-shot sums on this transport (docs/STATUS.md, a group's large sums in two shots).
+    // Two members keep broadcast because two shots move the same bytes with another wait round.
     static size_t two_shot_crossover(size_t members) {
         return members < 3 ? SIZE_MAX : 327680;
     }
 
-    // Holding (Backend::hold_between_submissions), while any holder remains: after each submit() the queue waits on an event the host sets at the next submission, or after kHoldMs, so the device stays busy, and its clock up, while another device runs its stage.
+    // While held, each submission waits for the next submission or kHoldMs to keep the device busy between stages (Backend::hold_between_submissions).
     void hold_between_submissions(bool on) override {
         if (!on) {
             if (!hold_.holders || --hold_.holders) return;
@@ -2341,9 +2341,8 @@ public:
         return tile_from_for(dev_->profile, eight_bit_or_float, nin);
     }
 
-    // With row runs, a row's kernel follows its prompt's extent rather than the call's width, so a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
-    // Adjacent runs taking the same kernel are one call, and a call of mixed runs becomes one call per kernel over its rows.
-    // A tile row's inner-dimension split is the one a pass over its whole prompt would take, up to a microbatch of 512 rows; runs whose splits differ are separate calls.
+    // Row runs choose kernels and tile splits by prompt extent, preserving results across batching (docs/VULKAN.md, batch invariance).
+    // Adjacent runs share a call only when both choices match.
     static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + 63) / 64; }
     void matmul_runs(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch,
                      bool accumulate, RowRuns runs, Dtype dtype) {
@@ -2382,9 +2381,8 @@ public:
         if (floats_from(X) < size_mul(nbatch, nin)) throw std::runtime_error("vulkan: matmul operand outside its allocation");
     }
 
-    // Up to three projections of one X in one dispatch: the row kernel for narrow batches hands workgroups to projections in order; wide batches take the tile.
-    // `kernel_choice` forces the row kernel (0) or the tile (1), below zero the call's width chooses; `split_tiles` is the column tiles the tile's split is taken for, zero for the call's own.
-    // The operands are those check_group accepted for the whole call.
+    // Dispatch up to three validated projections: kernel_choice selects row (0), tile (1), or the batch crossover (negative).
+    // A nonzero split_tiles fixes the split to that many column tiles; zero uses the call's width.
     void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0) {
         // The kernels' limit; no caller passes more.
@@ -2539,9 +2537,8 @@ public:
             }
             return;
         }
-        // One cluster size and one module serve a dispatch, so every projection in it has the same type.
-        // A mixed group, such as the Q5_K q and k beside the Q6_K v of a Q5_K_M file, is partitioned by type and each partition is one dispatch: two for that group rather than three.
-        // The partitions keep the row kernel the whole group chose, since a partition's own types could move its crossover.
+        // A dispatch shares one type, module and cluster size, so mixed groups partition by type.
+        // Each partition retains the whole group's kernel choice to preserve the arithmetic at crossovers.
         for (size_t i = 1; i < live.size(); ++i)
             if (live[i]->type != live[0]->type) {
                 std::vector<Projection> same, rest;
@@ -2558,8 +2555,8 @@ public:
         });
     }
 
-    // The builds a row kernel's plain columns take on this device, narrowest first, as pipeline variants; returns their count.
-    // The Q8_0 decode kernel takes its builds up to the profile's q8_decode_cols, the Q4 and K-quant families their one-column build and their two-row builds up to the profile's row_decode_cols where it sets one, every other row kernel its one-column build where it has one and its wide build.
+    // Return the count of available decode builds, narrowest first, limited by the profile's Q8_0 or Q4/K-quant column limit.
+    // Other row kernels use their one-column and wide builds.
     size_t column_builds(KernelId id, int (&out)[kVariants]) const {
         size_t n = 0;
         if (is_vec_kernel(id)) {
@@ -2577,11 +2574,8 @@ public:
         return n;
     }
 
-    // Calls `each(col0, ncols, variant)` over a pass's columns: chunks of the widest build while more columns remain than it holds, then the rest in the narrowest build that holds them.
-    // Every build gives a column the same bits, so how a pass is chunked changes only its time.
-    // Each Q8_0 decode build holds twice the columns of the next narrower, so each of that kernel's chunks fills more than half its build.
-    // A build of one column group then checks the count only before the groups past its first half, and the second group of a two-group build, which gets 1 to all of its columns, before each group.
-    // So does each two-row build of the Q4 and K-quant families, which computes every column it holds.
+    // Call each(col0, ncols, variant), filling widest builds first and using the narrowest build for the remainder.
+    // Every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds).
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
         int builds[kVariants] = {};
@@ -2594,9 +2588,8 @@ public:
         each(col0, nbatch - col0, builds[i]);
     }
 
-    // The row kernel for a type at a width (matmul_row.comp): its module, whether rows take the wide layout, and how a subgroup's lanes split over rows.
-    // Q8_0 pairs go over four lanes and Q4_0 pairs over two when the block count is even, Q4_1 blocks over one, the K-quant blocks over eight, else one unit per block or value.
-    // The Q8_0 decode kernel reads no cluster, and its rows follow its build (sg_rows).
+    // Choose a row module, layout and lanes per row from the weight format and input width.
+    // The Q8_0 decode module instead takes its rows from the build (sg_rows).
     struct RowPlan {
         KernelId kernel;
         uint32_t type, wide, cluster;
@@ -2649,22 +2642,23 @@ public:
         return is_vec_kernel(plan.kernel) ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster * build_rows(plan.kernel, variant);
     }
 
-    // What a row kernel reads X through: the floats for F32 weights or policy, else the activations' twin (shaders/xquant.glsl), which the norm, SiLU and attention kernels write beside their output and tag, and for an 8-bit build the 8-bit twin after it.
-    // An input without one gets a quantize dispatch here; the scratch is reused stream-ordered.
+    // Bind original floats for F32 weights or policy, otherwise the packed activation twin (shaders/xquant.glsl).
+    // Missing twins are quantized here into stream-ordered scratch.
     VkDescriptorBufferInfo row_twin(CSlice X, const RowPlan& plan, size_t n, Dtype dtype) {
         if (weight_kernels(plan.type)->layout == RowLayout::values || dtype == Dtype::f32) return bind(X);
         return twin(X, n, reads_x8(plan.kernel), 0);
     }
 
-    // The twin of X's n values, bound where its reader takes it: the 16-bit one, or with x8 the 8-bit one after it; the one a producer wrote and tagged, or one made here.
-    // `tile_nin` is the row width for the integer-dot tile, which reads the 8-bit twin in either order and has it made four values a lane (shaders/quantize_xw.comp), and zero for a row kernel, which reads it column after column, so a block-major one is made again (shaders/quantize_x.comp).
+    // Bind a cached twin or pack it for the reader: tile_nin is the tile's input width, zero for a row kernel.
+    // Column-major int8 copies are reusable; block-major copies require the reader's row width.
     VkDescriptorBufferInfo twin(CSlice X, size_t n, bool x8, size_t tile_nin) {
         // The first matmul reading the 8-bit twin has it made here; producers after it write both.
         if (x8) want_x8_ = true;
         const VkDescriptorBufferInfo xf = bind(X);
         VkDescriptorBufferInfo xq = xq_for(n);
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset && (!x8 || (xq_tag_.has8 && (tile_nin || !xq_tag_.major))))) {
-            const uint32_t major = tile_nin ? x8_major(tile_nin, n / tile_nin) : 0;
+        const uint32_t major = tile_nin ? x8_major(tile_nin, n / tile_nin) : 0;
+        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset &&
+              (!x8 || (xq_tag_.has8 && (!xq_tag_.major || xq_tag_.major == major))))) {
             const uint32_t pc[2] = {u32(n), major};
             if (tile_nin) dispatch(K_QUANTIZE_XW, {xf, xq}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
             else dispatch(K_QUANTIZE_X, {xf, xq}, pc, sizeof(uint32_t), groups(n, 256), 1, twin_variant());
@@ -2674,8 +2668,8 @@ public:
         return xq;
     }
 
-    // One row kernel dispatch through the build `variant` over up to three projections of one type and columns col0 .. col0 + ncols of X, which has nbatch columns.
-    // A routed dispatch (`per` nonzero) instead runs one entry per workgroup row, `entries` of them, through the expert ids in `ids`.
+    // Dispatch a row build over the selected columns and projections.
+    // A routed call instead reads the expert ids and runs one workgroup row per entry.
     void row_dispatch(const RowPlan& plan, const std::vector<const Projection*>& live, CSlice X, VkDescriptorBufferInfo xqi,
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate, int variant,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
@@ -2719,9 +2713,8 @@ public:
             if (overlaps_twin(bind(pr->out), (routed ? routed : per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
     }
 
-    // Expert routing and the routed projections (backend.hpp).
-    // A row's entries take the row kernel, one workgroup row per entry, or with a prompt extent of at least the weight type's moe_tile_from the tile kernel over each expert's grouped entries.
-    // Either way an entry computes the same whatever else is routed beside it, since neither kernel's arithmetic for a column depends on the other columns and a routed tile is never split.
+    // Routed entries take row kernels or per-expert tiles according to prompt extent and the type's crossover.
+    // Routed tiles never split, keeping each entry's arithmetic independent of neighbouring entries.
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
         if (!k || k > n_expert || k > 256 || n_expert > 1024)
             throw std::runtime_error("vulkan: routing takes 1 to 256 of at most 1024 experts");
@@ -2993,10 +2986,8 @@ public:
         return std::min(kper, nblk);
     }
 
-    // Whether the matmul that reads an nbatch x nin batch next, with these runs, takes one integer-dot tile call over all of it whatever its weights' type, dense or routed.
-    // Then the batch's producer writes the twin four values a lane (shaders/xquant.glsl, xquant_word), and the call reads it as it is.
-    // That holds when every run's prompt reaches every type's tile threshold and all runs take one split, which is when matmul_runs and expert_runs make a single call; any other batch keeps the twin and the pass.
-    // The copy's values are the pass's bit for bit, so which of the two makes it changes no result.
+    // Whether all runs take one integer-dot tile call, independent of weight type.
+    // Such producers write the twin four values per lane; other batches retain the separate quantization pass (docs/src/backends-vulkan.md).
     bool tile_reads(size_t nin, size_t nbatch, RowRuns runs) const {
         const DeviceProfile& p = dev_->profile;
         if (!p.prefer_integer_dot || nin % 32 || !runs.n || runs.runs[runs.n - 1].end != nbatch) return false;
@@ -3091,8 +3082,8 @@ public:
             // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this dispatch and a head is whole blocks.
             const bool quant = wide.empty() && head_dim % 32 == 0;
             const VkDescriptorBufferInfo xq = quant ? xq_for(rows * qstride) : bind(out);
-            // A row's history is split in parts of the profile's chunk across workgroups, the part doubling until at most the profile's maximum cover it; the parts depend only on the row's length, so a row computes the same whatever else is in the dispatch.
-            // The dispatch has as many splits as its longest row can need; a row's extra splits are empty.
+            // Choose attention splits from each row's history length, doubling the chunk until the profile's split limit fits.
+            // A row computes identically beside longer rows, whose extra splits are empty for it.
             size_t longest = 0;
             for (const Placed& pv : narrow)
                 longest = std::max(longest, size_add(pv.view->length, pv.view->nq));
@@ -3104,8 +3095,8 @@ public:
             const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
             if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
                 grow(scratch_, scratch_floats * sizeof(float));
-            // The query heads a workgroup takes: once the longest row's history fills every split, up to four of those sharing a KV head, four, three or two as the group divides, so a token's key and value are loaded once for them (shaders/attention.comp).
-            // A shorter history leaves few workgroups, and taking heads together would leave the device idle; each head's arithmetic is the same either way.
+            // Group query heads sharing a KV head only once the history fills every split, avoiding too few workgroups on short histories.
+            // Each head's arithmetic is unchanged (shaders/attention.comp).
             const size_t group = (size_t)(n_head / n_head_kv);
             const bool long_history = longest >= chunk * split_max;
             const uint32_t hg = !long_history ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
@@ -3334,9 +3325,8 @@ private:
                                    id == K_MATMUL_TILE_QI8_TALL || id == K_MATMUL_TILE_Q8I8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
-            // Constant 8 a row kernel's grouped build, and constant 9 the rows a build takes, a cluster's in matmul_row.comp (build_rows) and a subgroup's in the Q8_0 decode kernel.
-            // Constants 10 to 13 are the Q8_0 decode kernel's steps, forms and column groups (kVecBuilds), whose constant 0 is its columns a subgroup rather than the build's.
-            // Every pipeline gets all seven entries, and a module that declares none ignores them.
+            // Specialization constants 8-13 describe grouped builds, rows, load steps, forms and column groups.
+            // Their mapping is in docs/src/backends-vulkan.md, Decode builds; modules ignore entries they do not declare.
             const VecBuild& vb = kVecBuilds[variant];
             const bool vec = is_vec_kernel(id);
             const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
@@ -3464,10 +3454,8 @@ private:
         return *staging_;
     }
 
-    // Host to device through the two halves of staging: the host fills one while the device copies from the other, so a long upload runs at the slower of the two rather than at their sum.
-    // Consecutive uploads carry on from the half the last one left, so a weight written in pieces overlaps as one long upload does.
-    // It returns once the source is consumed; the copies are in stream order, ahead of whatever reads the destination.
-    // `keep`, a buffer being adopted, is held by every slot that copies into it, so its caller may drop it before the copies retire.
+    // Alternate staging halves across calls so host fills overlap device copies, returning once the source is consumed.
+    // Every copying slot retains keep until its commands retire.
     void upload(VulkanBuffer& dst, size_t off, const void* src, size_t bytes, const std::shared_ptr<VulkanBuffer>& keep = nullptr) {
         if (!bytes) return;
         VulkanBuffer& st = staging();
@@ -3561,12 +3549,8 @@ private:
     Kernel kernels_[K_COUNT][kVariants];
 };
 
-// A tensor group's sum over Vulkan devices (docs/TENSOR-SPLIT.md, section 4.3), through dma-buf and sync files.
-// Each member owns an inbox for each peer in each of two parities, exported as a dma-buf and imported into that peer alone; a sum copies each member's partial rows into its inbox on every peer, submits each member's work signalling a binary semaphore a peer, and once every member has submitted imports each as a sync file into the peer, whose next submission waits on them, and adds the slots into every member's residual in member order, ((p0 + p1) + ...) + p(W-1), the CPU's order.
-// A parity is written again two sums later, behind the chain of waits that put the reads of the sum between them first.
-// An inbox has one importer: the kernel orders every submission of an importer behind the other importers' submissions that listed the same dma-buf, so a buffer two peers imported would run those peers in turn, as a group of three or more did (docs/STATUS.md, tensor groups serving).
-// A sum of two_shot_crossover floats or more takes two shots instead: member k's inboxes take only share k of each peer's partial, member k sums that share in member order and copies it into its own gather rows on every member, and every member adds the shares, so each float is the same sum in the same order either way.
-// The gather rows are their own buffers, one for each peer's share in each of two parities, each with one importer, sized once, so no sum's shares overwrite another's still being read.
+// A tensor group's ordered sum through per-peer dma-buf inboxes and sync files, alternating two parities (docs/TENSOR-SPLIT.md, section 4.3).
+// Each inbox and gather buffer has one importer to avoid serializing unrelated peers.
 class VulkanCollective final : public Collective {
 public:
     VulkanCollective(const std::vector<VulkanBackend*>& members, size_t rows, size_t width)
@@ -3678,9 +3662,8 @@ private:
                 if (k != m && len(k)) members_[m]->add(Slice{residual[m].buffer, residual[m].offset + lo(k)}, CSlice{gather_[p][m][k].get(), 0}, len(k));
     }
 
-    // Each member's open work submitted signalling a binary semaphore a peer, then, once every member has submitted, each imported as a sync file into the peer, whose next submission waits on it, so no member's work toward this round waits for another's.
-    // The recording thread ends every member's command buffer and takes its ticket, the members' queue calls and exports then run side by side, the first member's on the recording thread and each other's on a thread of the collective, and the recording thread takes every member back before it imports or throws.
-    // A member's thread calls its device's queue and its semaphores' exports and nothing else of the backend (Backend, the recording rule).
+    // Prepare every member on the recording thread, then queue and export concurrently before importing peer fences.
+    // Worker threads touch only their queue and semaphore exports; all are joined before return or throw.
     void exchange() {
         const size_t W = members_.size();
         struct Files {

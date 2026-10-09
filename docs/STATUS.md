@@ -887,6 +887,12 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## A context drops its views of the logits pages before the pages (2026-10-09, branch fix/logits-host-outlives, lands by fast-forward)
+
+- **Found by XDEV's review of main a1b8211b4:** on a tensor group the logits rows are host pages that each member of the head's group imports. `ExecContext` declared the first member's view (`logits_buf`) before the pages (`logits_host`), so at the context's end the pages were freed while that view still lived, and a device keeps imported memory for as long as its buffer does. No device failure was observed; the order broke the import's contract on every such context.
+- **Done:** the pages are declared before every buffer that wraps them, so the views go first. Where a grown context replaces them, the views were already replaced before the pages, and a context is assigned only over a fresh one (`reserve_passes`).
+- **The failing test first:** `placement`: a context holding pages and two buffers that look, as they go, whether the pages are still mapped; on main the first member's view finds them gone.
+- **Gates:** CTest on Windows 43 of 43; the rest named in the landing's devlog entry.
 ## A shard whose write fails drains its backend before its storage goes (2026-10-09, branch fix/shard-write-drain, lands by fast-forward)
 
 - **Found by XDEV's review of main a1b8211b4:** the loader's hook gives a tensor group's member its shard as storage of its own and writes the shard's zero runs, and in a mapped load its file runs, before it returns the buffer. A write that threw after an earlier one was queued unwound the hook's only reference, so the storage was freed with work pending on it; the model's own drain cannot cover it, since the model holds the buffer only once the hook has returned.

@@ -207,6 +207,9 @@ struct ExecContext {
         std::vector<backend::RowRun> entry_runs;   // the run list a part on this device may rebuild (Step::scratch): a device's own, since stages are recorded on a thread each
     };
     std::vector<Scratch> scratch;              // per device
+    // On a tensor split, the logits rows in host memory every member of the head's group imports (logits_buf the first member's view of them, member_rows each member's), into which each copies its vocabulary slice of each row.
+    // Declared before every buffer that wraps them, so the views go first: a device keeps imported memory for as long as its buffer lives.
+    core::HostPages logits_host;
     backend::BufferPtr logits_buf;
     size_t logit_rows = 0;
     std::vector<std::vector<backend::BufferPtr>> handoff;   // per device
@@ -222,9 +225,7 @@ struct ExecContext {
     // Per device of a group that runs routed experts, zero rows as many as its collective sums, which a member's partial rows are cleared from before a part that adds to them (clear_partial).
     std::vector<backend::BufferPtr> zeros;
     std::vector<backend::BufferPtr> member_logits;
-    // The logits rows in host memory every member of the head's group imports (logits_buf the first member's view of them, member_rows each member's), into which each copies its vocabulary slice of each row.
-    core::HostPages logits_host;
-    std::vector<backend::BufferPtr> member_rows;
+    std::vector<backend::BufferPtr> member_rows;   // each member's view of logits_host
 };
 
 // Prompt tokens a pass takes by default (Model::set_ubatch), and so the prompt rows a placement is fitted for.

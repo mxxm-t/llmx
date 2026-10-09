@@ -559,6 +559,7 @@ The pass API's refusals are checked one by one, each leaving nothing changed: a 
 A reservation whose allocations the backends refuse (`TightCpu`) fails with their error and leaves the context fresh, and a smaller reservation of the same context then succeeds and runs the passes that follow.
 A request's pass slots reach the fit, which holds a handoff buffer per slot, two at least, on each device but the last, which sends nothing: four slots over two devices hold four buffers, and over three devices eight.
 A request's histories grow the cache budget only where the context's blocks cannot hold them, each counted up to the context, and three histories that need three blocks run in one pass on one backend and over a split.
+A context whose logits rows are host pages its buffers wrap, as a tensor group's are, must drop every such buffer before the pages: buffers that look, as they go, whether the pages are still mapped stand for the members' views.
 Over two CPU stages, the synthetic Q8_0 model's 40-token prompt and its 199 greedy tokens recomputed by class, the prompt at its extent in slices of 16 and the tokens as entries of extent 1 of up to 64 rows, must give the logits one backend gives after the prompt and 199 single decode steps, bit for bit, whole and from a fork at the first block.
 
 Run the Python suite (synthetic fixtures are generated locally; real-model HF

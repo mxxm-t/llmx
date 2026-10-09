@@ -34,7 +34,7 @@ llmx serve model.gguf --device vulkan:0,vulkan:1 --disk-cache-bytes 107374182400
 docker stop -t 120 CONTAINER
 ```
 
-A server adopts entries only when the model file, the build's numerics, the devices, the precision, the cache types, the KV block sizes and the placement are all those of the server that wrote them, and only conversations used within `--disk-cache-max-age` (24 hours by default), with the older files they stand on.
+A server adopts entries only when the model, every file of it, the build's numerics, the devices, the precision, the cache types, the KV block sizes and the placement are all those of the server that wrote them, and only conversations used within `--disk-cache-max-age` (24 hours by default), with the older files they stand on.
 Change any of those flags between two servers and the second adopts nothing; its start line says which part differed (Troubleshooting, below).
 
 **Drafting.**

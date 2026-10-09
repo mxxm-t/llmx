@@ -39,7 +39,7 @@ One file per entry, written once and never changed in place.
   - the payload's length and the CRC32C of each 4 MiB chunk of it.
 - **Payload**: the runs, device by device, padded to the file system's direct-I/O granule.
 - **Identity** (what makes two servers' bytes interchangeable):
-  - the model file's SHA-256: from the hub manifest when the file was pulled, otherwise computed once on a background thread at startup and kept in a sidecar keyed by the file's path, size, modification time and inode, the tier reading and writing nothing until it is known;
+  - the model's SHA-256, of its one file or of every file of a set that holds tensors, with the first, in order (`model_files` in `src/server/disk_tier.hpp`), a first shard of metadata alone being the same bytes for models whose tensors differ: from the hub manifest when the file was pulled, otherwise computed once on a background thread at startup and kept in a sidecar keyed by the file's path, size, modification time and inode, the tier reading and writing nothing until it is known;
   - the placement: each device's kind and index and the layers it holds, the KV pools' block tokens, the state slots' shape;
   - each device's effective activation dtype and the K and V cache types;
   - what in the build can change a history's bits, and not the revision, so an update that changes none of it reads the entries of the server before (`disk_identity` in `src/server/disk_tier.hpp`):

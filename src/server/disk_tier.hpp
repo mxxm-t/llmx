@@ -19,6 +19,7 @@
 #include "config.hpp"
 #include "core/sha.hpp"
 #include "format/file_digest.hpp"
+#include "format/gguf.hpp"
 #include "model/runtime.hpp"
 #include "server/disk_index.hpp"
 #include "server/disk_store.hpp"
@@ -64,6 +65,15 @@ inline std::string disk_identity(const std::string& digest, const std::string& l
     return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nentries: " + std::to_string(DiskStore::kVersion) + "\nlayout: " + flat + "\n";
 }
 
+// Every file of the model at `path` whose bytes its weights are: the path, and each shard of a set the reader finds tensors in.
+// A first shard of metadata alone is the same bytes for models whose tensors differ, so the identity takes them all.
+inline std::vector<std::string> model_files(const std::string& path) {
+    std::vector<std::string> files{path};
+    for (const auto& segment : gguf::read_gguf(path).segments)
+        if (std::find(files.begin(), files.end(), segment.path) == files.end()) files.push_back(segment.path);
+    return files;
+}
+
 // The server's disk tier, from --disk-cache-bytes, --disk-cache-dir, --disk-cache-floor, --disk-cache-keep and --disk-cache-max-age; `bytes` 0 keeps none.
 // How long a server under --disk-cache-keep has had nothing to do before it writes ahead what a stop would have to, so a turn that follows at once meets no copy off the devices.
 constexpr std::chrono::seconds kDiskIdle{5};
@@ -74,7 +84,7 @@ struct DiskOptions {
     std::optional<uint64_t> floor;   // none takes the larger of 16 GiB and a twentieth of the file system (check_disk_cache)
     bool keep = false;               // at a clean exit flush memory to disk and leave the entries for the next server, which adopts them
     uint64_t max_age = 24 * 3600;    // seconds an entry may go unused before it is deleted, 0 for no limit
-    std::string model_path;          // the model file whose digest every entry's identity carries
+    std::string model_path;          // the model file, or the first shard of a set, whose files' digests every entry's identity carries (model_files)
     std::chrono::milliseconds pace{0};   // DiskStore::Options::pace, for tests
     std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
 };
@@ -107,14 +117,16 @@ public:
         uint64_t ticket = 0;   // a read's own number, since two reads may be on one file
     };
 
-    // Makes the store on a thread of its own, once the model file's digest is read, under the identity of the digest, the build and the model's host layout; nothing is written before that.
+    // Makes the store on a thread of its own, once the digest of each of the model's files is read, under the identity of those digests, the build and the model's host layout; nothing is written before that.
     // `wake` runs, under no lock of the tier's, when the store is made or refused and when a write finishes.
     DiskTier(const DiskOptions& options, const infer::Model& model, std::function<void()> wake) : options_(options), wake_(std::move(wake)) {
         const std::string layout = model.host_identity();
         starter_ = std::thread([this, layout] {
             std::unique_ptr<DiskStore> store;
             try {
-                const std::string digest = format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), options_.model_path);
+                std::string digest;
+                for (const std::string& file : model_files(options_.model_path))
+                    digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file);
                 const std::string text = disk_identity(digest, layout, build_facts());
                 core::Sha id(true);
                 id.update(text.data(), text.size());

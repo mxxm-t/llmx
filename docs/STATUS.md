@@ -1096,6 +1096,19 @@ The status table and the active blocks above give the present state; a record's 
 - **Left:** the job's time itself: CTest is nearly half of it, most of that the server tests.
 - **Reviewed:** by O5REV.
 
+## The disk tier's identity covers every shard of a model (2026-10-09, branch fix/disk-identity-shards, on fix/disk-age-ancestors, lands by fast-forward)
+
+- **Found by:** XDEV's review of main a1b8211b4, reproduced there with two three-shard models, and rechecked against the code before the fix: `DiskTier` took the digest of the one path the server was given, the first shard, and `Model::host_identity` names layouts, placements and types, no weights.
+- **The defect:** a sharded model whose first shard holds metadata alone has the same first shard as any model of that metadata. Two such models with different tensors had one identity, so under `--disk-cache-keep` the second adopted the first one's entries and a request matching their tokens would have continued the other model's history.
+- **Done:** the tier asks the reader for the model's files (`model_files`: the path given and every shard `read_gguf` finds tensors in) and the identity's model line is each one's digest in order. A shard of metadata alone after the first is not hashed: the reader refuses a set whose shards' metadata differ from the first's.
+- **Entries already kept are not dropped.** A one-file model's identity text is byte for byte what it was, and the change is in `src/server` alone, outside the numerics fingerprint: this pair changes no fingerprinted file, so the fingerprint is main's own at the landing head, whatever that is, and a server updated to it adopts what the one before it left if its fingerprint holds. A sharded model's entries are dropped by the model line, as they must be.
+- **A first form of this was withdrawn before review:** it had the reader record its files (`src/format/gguf.hpp`), which is among the fingerprinted sources, so it changed the fingerprint to `5cefa0dfd6241ca8` and would have dropped every kept entry for a change of no bit.
+- **Test:** the suite's `server`: two models of three shards, the same first shard and different tensors, each served with a disk tier, must write different identities, each naming every file's digest. On main the two texts are the same. `server-resume`'s disk root holds a GGUF of no tensors where it held a text file, since the tier now reads the model's headers.
+- **Comments:** the lines this touches in `disk_tier.hpp` are a sentence or two, the file having been swept by the fix below. `tests/server.py`, touched here, has its eight long blocks cut in the comment-only commit under the pair (token-identical), and `tests/server_resume.cpp` has none on main.
+- **Gates, at the pair's top head on the test machine (CPU, four cores, no card):** a Linux CPU build with no warning, CTest 42 of 42 and the whole CPU suite with every component passing but the skips for want of a model, numpy or a device; `docs` and `dead-code` on a Windows CPU build; the hosted runs of both gate branches are named in the landing's devlog entry.
+- **Reviewed:** by O5REV (the code at the heads it read on d99439620, the rebase by range-diff); found by XDEV's review of main a1b8211b4.
+- **Left:** the list of a model's files belongs to the reader and moves to `src/format/gguf.hpp` with the sweep of the fingerprinted files.
+
 ## The age limit at a restart follows a conversation, not a file (2026-10-09, branch fix/disk-age-ancestors, lands by fast-forward)
 
 - **Found by:** XDEV's review of main a1b8211b4, reproduced there on the store and the index, and rechecked against the code before the fix: `DiskStore::adopt_from` left out each file older than the limit by its own modification time, and a renewal touches only the file used (`DiskTier::renew`), the files below it kept young in the index's memory alone.

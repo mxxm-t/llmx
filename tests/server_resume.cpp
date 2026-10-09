@@ -1658,7 +1658,8 @@ struct DiskRoot {
         fs::remove_all(root);
         fs::create_directories(root);
         model = (root / "model.bin").u8string();
-        std::ofstream(root / "model.bin", std::ios::binary) << "a model file";
+        // A model file the tier can read the files of: a GGUF of no tensors.
+        gguf::write_gguf(gguf::GGUFModel{}, model);
     }
     ~DiskRoot() {
         std::error_code ec;

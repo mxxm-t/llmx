@@ -429,6 +429,41 @@ void footprints() {
             require(layer == hand, "a qwen35 member's linear layer bytes at width " + std::to_string(width));
         }
     }
+    {
+        // Covering blocks make a group's members uneven: experts 768 wide in Q4_K at width 4, where the outer members cover one block of 256 columns and the inner ones two.
+        // The footprint a group is fitted by, with no member named, is no member's smaller than its own, so a budget that holds only the smallest member's layer is refused.
+        Views v;
+        const infer::ModelWeights w = routed_model(quant::GGML_TYPE_Q4_K, v);
+        const infer::ModelPlan plan = infer::plan_model(w);
+        const auto layer = [](const infer::Footprint& fp) {
+            size_t n = 0;
+            for (const infer::Matrix& x : fp.layers[0]) n += x.bytes;
+            return n;
+        };
+        const infer::Footprint fitted = infer::footprint(w, plan, o, 4);
+        size_t least = SIZE_MAX, most = 0;
+        for (size_t m = 0; m < 4; ++m) {
+            const infer::Footprint fp = infer::footprint(w, plan, o, 4, m);
+            least = std::min(least, layer(fp));
+            most = std::max(most, layer(fp));
+            require(fitted.layers[0].size() == fp.layers[0].size(), "a group's footprint lists other tensors than a member's");
+            for (size_t i = 0; i < fp.layers[0].size(); ++i)
+                require(fitted.layers[0][i].bytes >= fp.layers[0][i].bytes && fitted.layers[0][i].rows >= fp.layers[0][i].rows, "the footprint a group is fitted by holds less of a tensor than member " + std::to_string(m) + " does");
+            require(fitted.cache[0] >= fp.cache[0] && fitted.output.bytes >= fp.output.bytes && fitted.head_slice_per_row >= fp.head_slice_per_row, "the footprint a group is fitted by holds less of a cache or the head than a member does");
+        }
+        require(least < most && layer(fitted) >= most, "the members' layers are not uneven here, or the footprint a group is fitted by is smaller than its largest member's");
+        infer::DeviceBudget device;
+        device.name = "a member";
+        const infer::LayerSplit::Stage roomy = infer::split_layers(fitted, {device}, 1).stages.at(0);
+        device.bytes = roomy.weights + roomy.cache + roomy.other - (most - least);
+        bool refused = false;
+        try {
+            infer::split_layers(fitted, {device}, 1);
+        } catch (const std::runtime_error&) {
+            refused = true;
+        }
+        require(refused, "a budget short of the largest member's layer by what the smallest saves was accepted");
+    }
 }
 
 } // namespace

@@ -351,6 +351,37 @@ size_t check_int8(backend::Backend& vk) {
     return values;
 }
 
+size_t check_int8_twin_width() {
+    const auto owner = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *owner;
+    const auto native = vk.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) == native.end()) return 0;
+    const auto profile = backend::vulkan_device_profile(vk);
+    const size_t rows = std::max({size_t(32), backend::tile_from_for(profile, true, 512),
+                                 backend::tile_from_for(profile, true, 256)});
+    constexpr size_t nout = 80;
+    Pair p(vk);
+    const auto input = tie_free(512 * rows, 1739);
+    const auto wide = matrix(quant::GGML_TYPE_Q8_0, 512, nout, 1741);
+    const auto narrow = matrix(quant::GGML_TYPE_Q8_0, 256, nout, 1743);
+    const auto x = p.in(input), w0 = p.in(wide.data(), wide.size()), w1 = p.in(narrow.data(), narrow.size());
+    const auto first = p.out(nout * rows), reused = p.out(nout * rows * 2), fresh = p.out(nout * rows * 2);
+    const backend::RowRun r0{rows, rows}, r1{rows * 2, rows * 2};
+    // Keep all allocations and writes before the two calls that must share the cached input.
+    vk.matmul(quant::GGML_TYPE_Q8_0, w0.vs(), x.vs(), first.vs(), 512, nout, rows, {&r0, 1}, backend::Dtype::int8);
+    vk.matmul(quant::GGML_TYPE_Q8_0, w1.vs(), x.vs(), reused.vs(), 256, nout, rows * 2, {&r1, 1}, backend::Dtype::int8);
+    vk.write(*x.v, 0, input.data(), input.size() * sizeof(float));
+    vk.matmul(quant::GGML_TYPE_Q8_0, w1.vs(), x.vs(), fresh.vs(), 256, nout, rows * 2, {&r1, 1}, backend::Dtype::int8);
+    std::vector<float> actual(reused.n), expected(fresh.n);
+    vk.read(*reused.v, 0, actual.data(), actual.size() * sizeof(float));
+    vk.read(*fresh.v, 0, expected.data(), expected.size() * sizeof(float));
+    const auto kernels = backend::vulkan_kernel_times(vk);
+    require(std::any_of(kernels.begin(), kernels.end(), [](const auto& k) {
+        return k.first.find("matmul_tile_q8i8") == 0;
+    }), "int8 twin width check did not execute an int8 tile");
+    return exact(expected, actual, "int8 twin reused across matrix widths changes output");
+}
+
 size_t check_kernels(backend::Backend& vk) {
     Pair p(vk);
     const bool integer_dot = backend::vulkan_device_profile(p.vk).prefer_integer_dot;
@@ -3392,6 +3423,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";
         const size_t int8_values = check_int8(*b);
         std::cout << "backend-vulkan: " << int8_values << " int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16\n";
+        std::cout << "backend-vulkan: " << check_int8_twin_width() << " int8 outputs unchanged when the input row width changes\n";
         const size_t values = check_kernels(*b) + check_qwen35(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";

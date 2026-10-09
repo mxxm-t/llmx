@@ -1,5 +1,22 @@
 # llmx - Development Status
 
+## Vulkan int8 twin cache row width (2026-10-09, in progress)
+
+- **Goal:** reusing one activation buffer with a different matrix row width must
+  give the same output as freshly packing that input for the new width.
+- **Done:** the public-call regression on main `a1b8211b4` fails on an MI50:
+  `int8 twin reused across matrix widths changes output`. It witnesses the
+  int8 tile; 1,239,200 existing int8 outputs pass before the new case.
+  A nonzero tile width currently accepts any cached block-major width,
+  although addressing depends on it. The build and failed run are retained in
+  `/zpool1/llmx-xdev-validation/quantizer-push-20261009/twin-width`.
+- **Left:** fix the existing cache owner,
+  sweep the touched files' comments, then run the device/host/CI merge gates.
+- **Gotchas:** the first regression narrows the input rows from 512 to 256 so
+  the incorrect cache reads stay inside the larger existing packed allocation.
+  It needs native int8 tile execution; the Radeon VII's default profile does
+  not advertise that policy, so the path is checked manually on an MI50.
+
 ## Vulkan quantizer test push constants (2026-10-09, branch fix/vulkan-quantization-push, lands by fast-forward)
 
 - **Goal:** make the word-wise activation quantizer checks set every push

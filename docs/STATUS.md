@@ -1,5 +1,20 @@
 # llmx - Development Status
 
+## Dtype test guidance refreshed (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** BUILD lists `int8` for the test runner and split tool and describes
+  the split tool's optional tensor width after dtype, matching their parsers.
+  PRECISION records the user's performance priority: GPU and native CPU
+  arithmetic; CPU emulation remains correctness-covered and its speed is
+  nonblocking. Core dtype stays complete; no runtime policy or bound changes.
+- **Review/checks:** all Markdown inventoried and local links checked; the
+  changed claims follow `tests/run_tests.py`, `tools/split_check.cpp`, current
+  precision reporting and the user's clarification. Historical measurements
+  retain their scope. Docs/dead-code run on the landing tree; no hosted wait
+  applies to this documentation-only tier.
+- **Left:** no work in this correction. Separate GPU performance, ROCm and
+  future native BF16 support retain their existing scope and gates.
+
 ## ROCm Q8 phases and row layout measured (2026-10-10, docs only, lands by fast-forward)
 
 - **Goal:** locate the remaining compute cost before the full backend's

@@ -199,7 +199,7 @@ cmake --build build --config Release --parallel
 This builds the CPU backend, the configuration CI builds and tests on its `macos-15-intel` runner.
 The Vulkan backend is not supported on macOS: it opens the Vulkan loader only as `vulkan-1.dll` or `libvulkan.so.1`.
 
-The test runner also accepts `--dtype auto|f32|f16|bf16` to send that request to every model command that does not explicitly select its own dtype. Tiny-HF consumers read completed matrix-path witnesses and use the frozen bound of the arithmetic that ran. This is test configuration; the runtime itself receives only CLI flags.
+The test runner also accepts `--dtype auto|f32|f16|bf16|int8` to send that request to every model command that does not explicitly select its own dtype. Tiny-HF consumers read completed matrix-path witnesses and use the frozen bound of the arithmetic that ran. This is test configuration; the runtime itself receives only CLI flags.
 
 ## Outputs and options
 
@@ -217,7 +217,7 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 | `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan build, the backend library it links |
 
 With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
-The split tool accepts an optional final dtype argument (`auto`, `f16`, `bf16` or `f32`) after its cache type, applying it to both placements and reporting their completed matrix paths.
+The split tool accepts an optional dtype (`auto`, `f16`, `bf16`, `f32` or `int8`) after its cache type and an optional tensor width after the dtype, applying the dtype to both placements and reporting their completed matrix paths.
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 
 - `llmx-vulkan`, the backend library the binary, tests and tools link, and `llmx-vulkan-shaders`, the step that compiles the shaders.

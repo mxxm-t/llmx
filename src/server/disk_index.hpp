@@ -10,8 +10,7 @@
 #include <vector>
 #include "core/sha.hpp"
 
-// What the disk tier holds, as a tree (docs/DISK-TIER.md, Entries written as what changed).
-// A history on disk is segments, each the blocks of a token range, and states, each the recurrent state at one position; this index says which files make a history, what of one is missing, and which file room, the cap or the age limit may take next.
+// What the disk tier holds, as a tree of segments and states: which files make a history, what of one is missing, and which file room, the cap or the age limit may take next (docs/DISK-TIER.md, Entries written as what changed).
 // It holds no model and no store: it is given tokens, row classes, sizes and times, and answers with keys and ranges.
 
 namespace server {
@@ -42,7 +41,7 @@ public:
         bool back = false;   // its conversation came back, which room spares longest
     };
 
-    // The digest of a history at each whole block: d[k] names its first k blocks of `block` tokens, their tokens and the classes that computed them, whatever files hold them, so two histories share a digest exactly where they share every row below it.
+    // The digest of a history at each whole block: d[k] names its first k blocks, their tokens and the classes that computed them, so two histories share a digest exactly where they share every row below it.
     static std::vector<std::string> digests(const uint32_t* tokens, size_t n, const std::vector<ClassRun>& classes, size_t block) {
         std::vector<std::string> d{root()};
         size_t run = 0;
@@ -238,9 +237,8 @@ public:
         return out;
     }
 
-    // The file room, the cap or the age limit takes next: only ever a leaf, a state or a segment nothing on disk stands on, so a path loses its end first and never its base.
-    // First a conversation's earlier states, the oldest first, never its first nor its newest; then whole conversations, those that did not come back before those that did, the least recently used first, each from its end down.
-    // With `before`, only a file with nothing beyond it used since (the age limit); never one of `pinned`, the files being read or written on; none where nothing may go.
+    // The file room, the cap or the age limit takes next, only ever one nothing on disk stands on, in the order of docs/DISK-TIER.md (Room, the cap and the age limit).
+    // With `before`, only a file with nothing beyond it used since; never one of `pinned`, the files being read or written on; none where nothing may go.
     struct Victim {
         uint64_t key = 0;
         bool back = false;   // its conversation came back
@@ -269,8 +267,8 @@ public:
 private:
     static constexpr size_t kNone = ~size_t(0);
 
-    // The tree's links, rebuilt after a file came or went: for each digest the files that stand at it, each file's parent (the segment holding the history under it, the one that ends there where there is a choice), the files that stand on each, and whether a state has states of its history both below and above it.
-    // What follows from the uses, rebuilt after a use too, which changes no link: for each file the newest use of anything beyond it and whether any of that came back.
+    // The tree's links, rebuilt after a file came or went: the files at each digest, each file's parent, the files standing on each, and whether a state has states of its history both below and above it.
+    // What follows from the uses, rebuilt after a use too: for each file the newest use of anything beyond it and whether any of that came back.
     void link() const {
         const size_t n = files_.size();
         if (!linked_) {

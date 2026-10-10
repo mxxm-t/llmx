@@ -1,5 +1,29 @@
 # llmx - Development Status
 
+## Dependent GPU compute and collective screen passes (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** the [combined probe](benchmarks/rocm-combined-20261010/README.md)
+  runs changing Q8 products into ordered sums on two/four MI50s, with current
+  Vulkan and local-compute controls. All one/four-product F16/int8 cells fit
+  the historical available-budget estimate in both orders. Four-card,
+  four-product HIP sum minus Vulkan local is -6.26/-5.11 us for F16 and
+  +2.70/+4.59 us for int8, against estimated 28.36/29.32 us budgets.
+- **Checks:** 48 smoke processes and 64 timing processes pass; 704 chains
+  check 8871936 final-state values against an independent recurrence, with
+  guard/weight checks and rank/replay identity. HIP epochs and Vulkan paths
+  are witnessed. Both HIP targets compile without spills; gfx1151 is not
+  hardware-qualified. All timing samples stay, none activity-flagged; one
+  flagged smoke remains. Hashes, monitoring, cleanup and VRAM checks pass.
+- **Docs review:** all tracked Markdown inventoried and local links checked;
+  ROCM/STATUS/benchmark claims checked against sources and retained results.
+  Unchanged runtime, CLI, build, precision and owner pages retain the prior
+  review. Exact-tree docs/dead-code pass; this docs-only tier has no hosted wait.
+- **Left:** actual model projection shapes and the full HF/model/range,
+  lifetime/split/mx gates. The structured square fixture and the historical
+  no-sum-derived budget do not prove model parity. Attention gaps remain.
+  Core dtype stays complete; CPU emulation speed remains nonblocking.
+  No production runtime or Windows executable is delivered here.
+
 ## Attention product controls complete without a new winner (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** the [product-control record](benchmarks/rocm-attention-20261010/README.md)

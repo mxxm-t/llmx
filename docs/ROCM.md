@@ -404,8 +404,13 @@ These are not hardware stall counters. The bounded product-loop controls now
 show neutral wider PV reads and slower forced QK ordering; relaxing the
 compiler dependency does not beat the selected executable. All losing arms,
 background activity and reference cells remain in the attention record.
-Next is the dependent compute/collective admission check. Residual compute
-cost stays in that budget, not a waived gate.
+The [dependent compute/collective screen](benchmarks/rocm-combined-20261010/README.md)
+now passes on two/four cards with changing Q8 products, F16/int8 and local
+controls. Its one/four-product square-matrix bracket fits the earlier estimated
+budget in both orders; all 64 timing processes pass, with no declared activity
+flags and all unknown observations retained. Next verify actual model projection
+shapes and preparation costs. The structured fixture and historical no-sum
+diagnostic do not prove full-model admission or waive its remaining gates.
 
 ## Delivery checkpoints
 

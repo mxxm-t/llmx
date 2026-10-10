@@ -221,7 +221,7 @@ def check_tokenize(srv, model, texts, replies, vocab, chat):
         assert status == 200 and turn["prompt_tokens"] == len(cli_tokenize(model, last["expected"])), turn
         status, plain = srv.post("/v1/generate", {"prompt": last["expected"], "max_tokens": 4, "temperature": 0})
         assert status == 200 and plain["ids"] == turn["ids"], (plain, turn)
-    # Refusals in the native error shape: a body that is not JSON or not an object, a text that is not a string, both text and messages or neither, messages that are not a non-empty array, tokens that are not an array, an id that is not a whole number or lies outside the vocabulary, 2^32 past a valid id included, and a body past the size limit.
+    # Refusals in the native error shape (AGENTS.md, Tests): a body that is not a JSON object, a mistyped or missing field, an id outside the vocabulary (2^32 past a valid id included), and a body past the size limit.
     refused = [("/v1/tokenize", b"{"), ("/v1/tokenize", b"[]"), ("/v1/tokenize", {}), ("/v1/tokenize", {"text": 5}),
                ("/v1/tokenize", {"text": "a", "messages": [{"role": "user", "content": "a"}]}),
                ("/v1/tokenize", {"messages": []}), ("/v1/tokenize", {"messages": "a"}),
@@ -493,7 +493,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
                                                   "max_tokens": 2, "temperature": 0})
             assert status == 200 and reply["tokens"] >= 1, reply
 
-        # The compatible routes: /v1/completions gives the native route's greedy text in the standard shape, whole and streamed with the finish chunk then the end marker; /v1/chat/completions renders the same template as /v1/chat, its first chunk carries the role and its usage counts add up; the standard refusals have the standard shape.
+        # The compatible routes: /v1/completions gives the native route's greedy text in the standard shape, whole and streamed, and /v1/chat/completions renders the same template as /v1/chat (AGENTS.md, Tests).
         # An absent max_tokens, or -1, means no cap, checked on the synthetic model only, since the real model's uncapped reply would run long.
         if not chat:
             limit = models["data"][0]["context_length"]
@@ -678,7 +678,7 @@ def check_reasoning(model):
         assert status == 200 and got["text"] == reply and got["prompt_tokens"] == counts[1], got
     finally:
         srv.close()
-    # A template that opens the reply inside <think>: the compatible chat route gives the text before </think> as reasoning_content and the rest as content, whole and streamed, while the native route keeps the text whole; the plain template above gave the text whole as content.
+    # A template that opens the reply inside <think>: the compatible chat route gives the text before </think> as reasoning_content and the rest as content, whole and streamed, while the native route keeps the text whole.
     f32.write_model(model, reasoning_tensors(), OPEN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
     srv = Server(model)
     try:
@@ -987,7 +987,7 @@ def check_logprobs(srv, prompts, n, chat):
     status, err = srv.post("/v1/chat/completions", {"messages": [{"role": "user", "content": "a"}], "max_tokens": 2, "top_logprobs": 2})
     assert status == 400 and "top_logprobs" in err["error"]["message"], (status, err)
 
-    # A seeded draw: the completions route's map holds the sampled token's text at every position, listed or not, with one token listed and with none, and every route gives the draw's values, the native shape with no top_logprobs when none are asked for.
+    # A seeded draw: the completions route's map holds the sampled token's text at every position, listed or not, and every route gives the draw's values, the native shape with no top_logprobs when none are asked for.
     drawn = {"prompt": prompts[0], "max_tokens": n, "temperature": 1.5, "penalty": 1.3, "seed": 11}
     status, native = srv.post("/v1/generate", dict(drawn, logprobs=True, top_logprobs=1))
     assert status == 200, native
@@ -1342,7 +1342,7 @@ def check_unrelated_donor(model):
         with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
             text = f.read()
         # Every prompt passes 449 tokens, so on a device each takes the tile split the others do and a fork may take its rows.
-        # The unrelated request keeps 495 tokens and the first turn 528, and the follow-up's prompt and max_tokens, about 805, of which it shares 512 with the first turn, fit beside one of them but not beside both: 11 blocks of 128 and 21 of 64 against 12 and 22.
+        # The unrelated request keeps 495 tokens and the first turn 528, and the follow-up's about 805 (512 shared with the first turn) fits beside one of them but not both: 11 blocks of 128 and 21 of 64 against 12 and 22.
         unrelated, first = text[4000:6000], text[:2000]
         replies = []
         for prompt in (unrelated, first):
@@ -1475,7 +1475,7 @@ def check_disk_keep(model):
         text = f.read()
     n = 16
     with tempfile.TemporaryDirectory(prefix="llmx_keep_") as root:
-        # Prompts read in passes of 16 rows measure no prompt rate, so a follow-up waits for its read however fast the device computes; read whole, a fast device computes 448 tokens before a file just adopted has been read, and the follow-up, rightly, reuses nothing.
+        # Prompts read in passes of 16 rows measure no prompt rate, so a follow-up waits for its read however fast the device computes; read whole, a fast device would compute 448 tokens before the adopted file is read and reuse nothing.
         flags = ("--ctx-size", "1024", "--max-seqs", "1", "--ubatch", "16") + disk_flags(root, "--disk-cache-keep", host=1 << 30, disk=4 << 30)
         srv = Server(model, *flags)
         first = []
@@ -1518,9 +1518,8 @@ def check_disk_keep(model):
             srv.close()
     return total
 
-# A client that leaves is noticed within seconds wherever its request is, though nothing written to it fails: a whole reply while it is generated, a streamed prompt while it is read, a request waiting for the one slot, and a whole reply whose client shuts only its sending side, which then gets no answer.
-# The server runs one slot and reads prompts one token a pass, so a second request queues and a long prompt stays in its prefill; the pool is POOL tokens.
-# Every request left behind would run for thousands of passes, a whole reply of LONG tokens or a prompt of about 6400, far past the seconds its departure has to be noticed in, so a server that notices nothing fails here on any device.
+# A client that leaves is noticed within seconds wherever its request is, though nothing written to it fails: a whole reply, a streamed prompt, a request waiting for the one slot, and a client that shuts only its sending side.
+# The server runs one slot and reads prompts one token a pass (the pool is POOL tokens), and every request left behind would run for thousands of passes, so a server that notices nothing fails here on any device.
 POOL = 8192
 LONG = POOL - 64
 
@@ -1642,8 +1641,7 @@ def run():
               "and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; "
               "/v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]")
         # The synthetic mixture of experts, each prompt's ids alone equal to its ids four at a time, where a pass routes one request's prompt rows beside another's decode rows.
-        # On a device its routed layers run on the host with prompts from extent 3 streamed, so a pass holds streamed prompt rows beside host decode rows; those flags need a device, so the CPU runs the model without them.
-        # Experts on the host are a placement of one device, so a list of several skips this.
+        # On a device its routed layers run on the host with prompts from extent 3 streamed, so a pass holds streamed prompt rows beside host decode rows; those flags need a device, so the CPU and a device list run the model without them.
         device = os.environ.get("LLMX_DEVICE", "cpu")
         if "," not in device:
             routed = os.path.join(directory, "tiny-moe.gguf")

@@ -47,5 +47,4 @@ src/quant/quant.hpp | 3 | 6805ab039bea | docs/comment-sweep-2: a file of the num
 src/server/disk_index.hpp | 4 | 01d947cdfd56 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_store.hpp | 4 | 970fe262ddaf | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 src/server/disk_tier.hpp | 4 | 0f630e964696 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server.py | 8 | 03409e8b8f1f | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
 tests/server_spec.cpp | 5 | d1018839a0e6 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)

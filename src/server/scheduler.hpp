@@ -32,14 +32,6 @@
 
 namespace server {
 
-// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): `max_seqs` conversations of at most one request's history, within half the host's free memory once the model is loaded (host_cache_default).
-// None where every cache sits on the CPU, and each copy still leaves the host the reserve the fit keeps (Model::save_host).
-inline size_t default_host_cache(const infer::Model& model, size_t max_seqs) {
-    if (!model.caches_on_devices()) return 0;
-    const size_t bt = model.kv_block_tokens(), limit = std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt;
-    return host_cache_default(model.host_bytes(limit), max_seqs, core::host_memory_available());
-}
-
 // A request's sampling settings, with the defaults and ranges of infer::Sampling, and what only a request has: several stop texts and no cap.
 struct SampleParams : infer::Sampling {
     std::vector<std::string> stop;
@@ -50,18 +42,6 @@ struct SampleParams : infer::Sampling {
     bool logprobs = false;
     size_t top_logprobs = 0;
 };
-
-// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent (infer::BatchEntry), whose class (Model::row_class) chooses the kernels and a streamed layer's path.
-// A request's prompt takes its whole length, a generated token extent 1, and a prefix forked at the first admission keeps the stretches its donor recorded.
-struct RowClass {
-    size_t end, extent;
-};
-
-// The marks a server of `max_seqs` requests needs for drafts on devices whose decode kernels hold `columns` (Backend::decode_columns), a request drafting taking a column for its last pick and one for each draft.
-// So at most half the columns' requests draft in one pass and a lone decoder drafts whatever its devices hold (docs/SPECULATIVE.md, section 3).
-inline size_t draft_marks(size_t max_seqs, size_t columns) {
-    return std::min(max_seqs, std::max<size_t>(1, columns / 2));
-}
 
 // One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
 class Request {
@@ -204,6 +184,10 @@ private:
     infer::RNG rng_;
     std::vector<float> logits_;    // with logprobs asked, the copy of the row its next token goes to the channel with
     uint64_t admission_ = 0;       // order of first admission, by which room goes; set once
+    uint64_t paused_as_ = 0;       // donor_ as its last pause set it, kept through the resume: the id of the copy that pause left in host memory
+    uint64_t line_ = 0;            // its place among the paused: its first admission, or a later number once it gave the pool's edge up
+    size_t edge_steps_ = 0;        // growth steps it took, its admission one of them, while an uncapped request was paused, and when it took the last
+    Clock::time_point stepped_{};
     uint64_t donor_ = 0;           // the donor its last pause left, which it takes back whole on resuming unless something evicted it
     uint64_t landed_ = 0;          // the formation order of the last pass it left flight from
     bool stalled_ = false;         // it could not grow before this pass and sits it out
@@ -396,6 +380,7 @@ public:
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
+        size_t yields = 0, kv_tokens = 0, kv_donor_tokens = 0;   // pauses that gave the pool's edge to a paused request (Growth::yields), and the pool's reserved blocks as tokens, each the largest over the pools: the running requests' part, and the donors'
         uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
         uint64_t host_limit = 0, disk_limit = 0;  // the host tier's and the disk tier's byte caps, 0 for a tier that is off
         uint64_t rode = 0;                        // and the passes in which generated rows rode a prompt's rows though passes go apart
@@ -407,6 +392,11 @@ public:
                 paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), reserved_,
                 std::vector<size_t>(reserved_.size(), 0), timed_, timing_};
         for (const Donor& d : donors_) add(s.donor_blocks, d.blocks);
+        for (size_t p = 0; p < s.reserved.size(); ++p) {
+            const size_t held = p < s.donor_blocks.size() ? s.donor_blocks[p] : 0;
+            s.kv_tokens = std::max(s.kv_tokens, (s.reserved[p] - held) * pools_.block_tokens[p]);
+            s.kv_donor_tokens = std::max(s.kv_donor_tokens, held * pools_.block_tokens[p]);
+        }
         s.reprefills = reprefills_;
         s.reprefill_rows = reprefill_rows_;
         s.reprefill_cancels = reprefill_cancels_;
@@ -437,6 +427,7 @@ public:
         s.prompt_tokens = prompt_total_.load();
         s.generated_tokens = generated_total_.load();
         s.draft_failures = draft_failures_.load();
+        s.yields = yields_.load();
         s.host_limit = host_cap_;
         s.disk_limit = disk_ ? disk_->cap() : 0;
         s.drafted = tally_.drafted();
@@ -615,6 +606,7 @@ public:
     };
     // Called on the scheduler thread with each pass that retires, before its rows are sampled; set before run.
     std::function<void(const Retired&)> on_retire;
+    size_t turn_steps = 0;   // for tests: the growth steps of a turn at the pool's edge, in place of the measured ones; set before run
 
 private:
     using Clock = std::chrono::steady_clock;
@@ -930,6 +922,12 @@ private:
     // A request cancelled in flight is not sampled: its history stays what the pass computed, which its donor keeps.
     void retire(std::vector<std::shared_ptr<Request>>& active, size_t k) {
         Slot& f = slots_[k];
+        if (turn_to_ && std::any_of(f.members.begin(), f.members.end(), [&](const std::shared_ptr<Request>& m) { return m->admission_ == turn_to_; })) {
+            const double ms = ms_since(turned_);
+            swap_ms_ = kGrowth.change(changed_ms_, ms);
+            changed_ms_ = ms;
+            turn_to_ = 0;
+        }
         try {
             if (on_retire) {
                 Retired t;
@@ -1413,21 +1411,6 @@ private:
     static const uint32_t* token_ptr(const Request& r, size_t at) {
         return at < r.prompt_.size() ? r.prompt_.data() + at : r.gen_.data() + (at - r.prompt_.size());
     }
-    // The stretch holding position `at`.
-    static const RowClass& class_at(const std::vector<RowClass>& rows, size_t at) {
-        size_t i = 0;
-        while (rows[i].end <= at) ++i;
-        return rows[i];
-    }
-    // The stretches of the first `n` positions.
-    static std::vector<RowClass> clip(const std::vector<RowClass>& rows, size_t n) {
-        std::vector<RowClass> out;
-        for (size_t i = 0; i < rows.size() && (out.empty() || out.back().end < n); ++i) {
-            out.push_back(rows[i]);
-            out.back().end = std::min(out.back().end, n);
-        }
-        return out;
-    }
     // How many of the first `n` positions two records computed alike, their extents of one class.
     size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) const {
         size_t at = 0;
@@ -1449,6 +1432,12 @@ private:
             if (r.seq_.in_flight()) continue;
             const std::vector<size_t> step = kGrowth.step(pools_, r.params_.until_limit, decoding(r), r.seq_.length(), r.need_);
             if (step.empty()) continue;
+            if (yields(r)) {
+                turn_to_ = waiting()->admission_;
+                turned_ = Clock::now();
+                pause(active, i--, true);
+                continue;
+            }
             const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
             if (!t.enough || t.wait) {
                 r.stalled_ = true;
@@ -1459,10 +1448,26 @@ private:
                 continue;
             }
             take(t, active);
+            r.edge_steps_ = waiting() ? r.edge_steps_ + 1 : 0;
+            r.stepped_ = Clock::now();
             std::lock_guard<std::mutex> lk(m_);
             add(reserved_, step);
             add(r.need_, step);
         }
+    }
+
+    // The uncapped request paused longest, which a turn at the pool's edge goes to.
+    const Request* waiting() const {
+        const auto p = std::find_if(paused_.begin(), paused_.end(), [](const std::shared_ptr<Request>& q) { return q->params_.until_limit && !q->cancel_.load(); });
+        return p == paused_.end() ? nullptr : p->get();
+    }
+// Whether `r`, whose growth step is due, gives the pool's edge up (Growth::yields): its turn is over, its history can be kept whole, and the one waiting fits once `r` holds nothing.
+// Kept whole means room in the host tier and, on a model that keeps a state, a free checkpoint slot.
+    bool yields(const Request& r) const {
+        const Request* w = waiting();
+        if (!w || !host_cap_) return false;
+        if (!kGrowth.yields(r.edge_steps_, turn_steps ? turn_steps : kGrowth.turn(swap_ms_, ms_since(r.stepped_)), true, model_.host_bytes(r.seq_.length()) <= host_cap_ && (!model_.keeps_state() || model_.checkpoints_free()))) return false;
+        return make_room(pools_.blocks, less(reserved_, r.need_), donor_blocks(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size()))).enough;
     }
 
     // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back whole, a fork of the donor best_donor found, or a fresh sequence.
@@ -1563,7 +1568,9 @@ private:
         add(reserved_, need);
         r->need_ = std::move(need);
         if (!r->admission_) r->admission_ = ++admissions_;
-        active.insert(std::upper_bound(active.begin(), active.end(), r, by_admission), r);
+        r->edge_steps_ = 1;
+        r->stepped_ = Clock::now();
+        active.insert(std::upper_bound(active.begin(), active.end(), r, [](const auto& a, const auto& b) { return a->admission_ < b->admission_; }), r);
         return true;
     }
 
@@ -1594,19 +1601,20 @@ private:
     }
 
     // A paused request's history goes to a donor, even short of a full block, which it takes back whole on resuming unless something evicted it, and the request to the paused requests in order of first admission; whether it left a donor.
-    bool pause(std::vector<std::shared_ptr<Request>>& active, size_t i) {
+    bool pause(std::vector<std::shared_ptr<Request>>& active, size_t i, bool yielded = false) {
         auto r = active[i];
-        r->donor_ = park(active, i, history(*r), 1);
+        r->paused_as_ = r->donor_ = park(active, i, history(*r), 1);
         ++r->pauses_;
         r->stalled_ = false;
-        paused_.insert(std::upper_bound(paused_.begin(), paused_.end(), r, by_admission), r);
+        r->line_ = yielded ? ++admissions_ : r->admission_;
+        yields_ += yielded;
+        paused_.insert(std::upper_bound(paused_.begin(), paused_.end(), r, [](const auto& a, const auto& b) { return a->line_ < b->line_; }), r);
         paused_count_.store(paused_.size());
         std::lock_guard<std::mutex> lk(m_);
         ++pauses_;
         return r->donor_ != 0;
     }
 
-    static bool by_admission(const std::shared_ptr<Request>& a, const std::shared_ptr<Request>& b) { return a->admission_ < b->admission_; }
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
     // The ledger as make_room reads it beside the pools: each donor's blocks, and each running request's.
     std::vector<std::vector<size_t>> donor_blocks() const {
@@ -2609,7 +2617,7 @@ private:
             }
             Donor d;
             d.id = id = ++donor_ids_;
-            d.back = (r->job_ ? r->of_.get() : r.get())->reused() > 0;
+            d.back = least || (r->job_ ? r->of_.get() : r.get())->reused() > 0;   // a paused request's own donor (`least`) is a conversation that comes back, so the host tier does not refuse it first
             d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
             d.classes = clip(r->classes_, held);
             d.seq = std::move(r->seq_);
@@ -2617,7 +2625,12 @@ private:
             sub(reserved_, r->need_);
             add(reserved_, d.blocks);
             r->need_.clear();
+            // The copy its last pause left in host memory (paused_as_) is superseded, the first to go, and so is a donor promoted from it and left on the devices, which would stand for it again when evicted.
+            // Where a finished request's donor ends at its prompt's checkpoint the copy is the longer one, its rows past the prompt decode rows no later prompt forks.
+            for (Donor& o : donors_) o.superseded = o.superseded || (r->paused_as_ && o.on_host == r->paused_as_);
             donors_.push_back(std::move(d));
+            for (HostDonor& h : host_) h.superseded = h.superseded || (r->paused_as_ && h.id == r->paused_as_);
+            std::stable_partition(host_.begin(), host_.end(), [](const HostDonor& h) { return h.superseded; });
         } else {
             release(*r);
         }
@@ -2807,14 +2820,6 @@ private:
         r.need_.clear();
     }
 
-    static void add(std::vector<size_t>& to, const std::vector<size_t>& b) {
-        if (to.size() < b.size()) to.resize(b.size(), 0);
-        for (size_t s = 0; s < b.size(); ++s) to[s] += b[s];
-    }
-    static void sub(std::vector<size_t>& from, const std::vector<size_t>& b) {
-        for (size_t s = 0; s < b.size(); ++s) from[s] -= b[s];
-    }
-
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
@@ -2875,6 +2880,12 @@ private:
     std::atomic<uint64_t> apart_formed_{0}, between_{0};                         // Stats::apart and Stats::between, the second counted by the stages' threads
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
+    // What a change of turn at the pool's edge takes (Growth::change over the last two timed, changed_ms_ the last), each from the yield (turned_) to the first pass retired that carries the request the turn went to.
+    // That request is held by its first admission's number (turn_to_), given once and to no later request: met, it is set to 0; never met, its client gone before its pass, it is left and overwritten by the next yield.
+    double swap_ms_ = 0, changed_ms_ = 0;
+    Clock::time_point turned_{};
+    uint64_t turn_to_ = 0;
+    std::atomic<size_t> yields_{0};   // pauses that gave the pool's edge to a paused request
     uint64_t pauses_ = 0;       // under the lock
     uint64_t donor_ids_ = 0;    // under the lock
     size_t stalls_ = 0;         // under the lock

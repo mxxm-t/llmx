@@ -795,17 +795,17 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 
 ```
 {"status": "ok",
- "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "devices": ["vulkan:0"]},
+ "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "kv_tokens": 40960, "devices": ["vulkan:0"]},
  "precision": {"requested": "auto", "declared": "bf16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "native", "paths": "...", "effective": "f16"}]},
- "requests": {"now": {"active": 3, "queued": 0, "paused": 0}, "limits": {"active": 16, "queued": 64},
+ "requests": {"now": {"active": 3, "queued": 0, "paused": 0, "kv_tokens": 9216}, "limits": {"active": 16, "queued": 64},
               "since_start": {"finished": 912, "prompt_tokens": 481203, "generated_tokens": 90112}},
  "reuse": {"since_start": {"forks": 311, "tokens": 205112},
-           "device": {"now": {"entries": 4, "state_checkpoints": 0}},
+           "device": {"now": {"entries": 4, "state_checkpoints": 0, "kv_tokens": 6144}},
            "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184}, "since_start": {"promotions": 40, "bytes_moved": 4093640704}},
            "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
                     "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412, "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
- "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
+ "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0}},
  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
  "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
  "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3, "since_start": {"apart": 0, "between_pieces": 0, "rode": 0}}}
@@ -816,6 +816,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `server.version`, `server.numerics` | text | fixed | The build, as `--version` prints it, and the first 16 characters of the fingerprint of the sources that decide a result's bits; the disk cache adopts entries only of its own fingerprint | two servers of one deployment differ |
 | `server.uptime_s` | seconds | now | Since the server started | it is small and you did not restart it |
 | `server.model`, `server.context_tokens`, `server.devices` | text, tokens, names | fixed | The model file's name, its context length, and the devices it runs on | |
+| `server.kv_tokens` | tokens | fixed | The KV pool every request and kept conversation shares (`--ctx-size`, or what the devices' memory gave) | |
 | `precision` | | fixed | The activation precision requested and the one each device runs, with `how` it runs (`native`, `emulated` or `fallback`) | a device shows `fallback` |
 | `requests.now.active` | requests | now | Requests running in passes | it sits at `requests.limits.active` |
 | `requests.now.queued` | requests | now | Requests waiting for a place | it stays above 0, or reaches `requests.limits.queued`, where new requests get a 503 |
@@ -825,7 +826,9 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `requests.since_start.prompt_tokens`, `.generated_tokens` | tokens | since start | Prompt tokens and generated tokens of those requests | |
 | `reuse.since_start.forks` | requests | since start | Requests that started from a shared history rather than from nothing | close to 0 for a client that sends conversations |
 | `reuse.since_start.tokens` | tokens | since start | Prompt tokens those requests did not have to read | |
+| `requests.now.kv_tokens` | tokens | now | The pool the running requests hold, their prompts, what they generated and the room reserved for them to grow | near `server.kv_tokens` with `pressure` rising: requests are pausing each other |
 | `reuse.device.now.entries` | histories | now | Finished or paused conversations kept in device memory, ready to share | |
+| `reuse.device.now.kv_tokens` | tokens | now | The pool those kept conversations hold; a request that needs it takes it, oldest first | |
 | `reuse.device.now.state_checkpoints` | states | now | Saved conversation states, on a model whose layers keep one | |
 | `reuse.host.now.entries` | histories | now | Copies of histories in host memory; message boundaries are counted apart, under `reuse.boundaries` | |
 | `reuse.host.now.bytes`, `.limit_bytes` | bytes | now | Host memory the tier holds, in whole slabs of 64 MiB: the copies, the message boundaries' states and histories read back from disk, so it can be above 0 with no entry; and the cap `--host-cache-bytes` set (0 where there is no host cache) | `bytes` at `limit_bytes` is normal; the tier makes room by dropping entries |
@@ -848,6 +851,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `pressure.since_start.waits` | passes | since start | Of those, the ones whose room waited on a request in flight | |
 | `pressure.since_start.recomputed_tokens` | tokens | since start | Rows resumes computed again | the cost of the pauses |
 | `pressure.since_start.resumes_taking_history_back` | resumes | since start | Resumes that took their own kept history back whole, computing nothing | |
+| `pressure.since_start.turns` | pauses | since start | Of the pauses, those of a request that gave the last room to one that had waited a turn, uncapped requests sharing a pool neither can hold alone | rising: uncapped requests are larger together than `--ctx-size`; each turn costs two copies through host memory |
 | `reread.since_start.jobs`, `.rows`, `.cancelled` | jobs, rows, jobs | since start | Background jobs that read a reply again so the next turn finds it kept, the rows they read, and the jobs that gave way to a request at a pass boundary | |
 | `drafting.since_start.drafted`, `.kept` | tokens | since start | Drafted tokens that verifies fed, and the ones they kept; `by_position` has the same by draft position, from 1 | `kept` far below `drafted` |
 | `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |

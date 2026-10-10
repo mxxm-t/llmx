@@ -23,6 +23,23 @@
 
 namespace server {
 
+// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): what `max_seqs` conversations take at the most one request may hold, within half of what is free.
+// Each copy still leaves the host the reserve the fit keeps (Model::save_host).
+inline size_t default_host_cache(const infer::Model& model, size_t max_seqs) {
+    if (!model.caches_on_devices()) return 0;
+    const size_t bt = model.kv_block_tokens(), limit = std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt;
+    return host_cache_default(model.host_bytes(limit), max_seqs, core::host_memory_available());
+}
+
+// Why uncapped requests that fill the pool will not take turns here though turns were possible or asked for, for the start line; empty where they will, and on the CPU with no host memory given.
+// The host memory is asked first: given enough, a server takes turns wherever its caches are (docs/SERVER.md, turns at the pool's edge).
+inline std::string no_turns(const infer::Model& model, size_t host_cap, bool given) {
+    const size_t bt = model.kv_block_tokens(), need = model.host_bytes(std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt);
+    if (!given && !model.caches_on_devices()) return "";
+    if (host_cap && host_cap >= need) return model.keeps_state() && !model.checkpoint_slots() ? "the model keeps a state and the server no checkpoint for it (--state-checkpoints)" : "";
+    return "host memory for evicted prefixes holds " + std::to_string(host_cap >> 20) + " MiB and the longest history a request may have takes " + std::to_string((need + ((size_t)1 << 20) - 1) >> 20) + " MiB (--host-cache-bytes)";
+}
+
 struct Config {
     std::string host = "127.0.0.1";
     uint16_t port = 8080;
@@ -175,13 +192,13 @@ private:
         c.respond(200, "application/json",
                   "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
                   ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
-                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"devices\":[" + devices + "]}" +
+                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" +
                   ",\"precision\":" + dtype_json(cfg_.dtype) +
-                  ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) +
+                  ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) + "}}" +
                   ",\"reuse\":{\"since_start\":{\"forks\":" + n(s.prefix_hits) + ",\"tokens\":" + n(s.prefix_tokens) +
-                  "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + "}}" +
+                  "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + ",\"kv_tokens\":" + n(s.kv_donor_tokens) + "}}" +
                   ",\"host\":{\"now\":{\"entries\":" + n(s.host_donors) + ",\"bytes\":" + n(s.host_bytes) + ",\"limit_bytes\":" + n(s.host_limit) +
                   "},\"since_start\":{\"promotions\":" + n(s.host_hits) + ",\"bytes_moved\":" + n(s.host_bytes_moved) + "}}" +
                   ",\"disk\":{\"now\":{\"entries\":" + n(s.disk_entries) + ",\"segments\":" + n(s.disk_entries - s.disk_states) + ",\"states\":" + n(s.disk_states) + ",\"bytes\":" + n(s.disk_bytes) + ",\"limit_bytes\":" + n(s.disk_limit) +
@@ -191,7 +208,7 @@ private:
                   ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"lost_before_written\":" + n(s.host_unwritten) + "}}" +
                   ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}}" +
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
-                  ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + "}}" +
+                  ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + "}}" +
                   ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + "}}" +
                   ",\"drafting\":{\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]}}" +
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + "}}" +

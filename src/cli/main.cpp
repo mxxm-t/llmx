@@ -1091,7 +1091,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
     // Read once the model and its caches are in memory, so the default takes what they leave.
-    if (!c.host_cache_bytes) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs);
+    const bool host_given = c.host_cache_bytes.has_value();
+    if (!host_given) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs);
     if (c.disk.bytes) {
         c.disk.model_path = model_path;
         if (c.disk.dir.empty()) c.disk.dir = (hub::default_cache("--disk-cache-dir") / "kv").u8string();
@@ -1108,6 +1109,8 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";
+    if (const std::string why = server::no_turns(model, *c.host_cache_bytes, host_given); !why.empty())
+        std::cerr << "server: uncapped requests that fill the pool together do not take turns, the one that waits waiting for the other's end: " << why << "\n";
     server::serve(model, tok, loaded->chat, c, listener);
     return 0;
 }

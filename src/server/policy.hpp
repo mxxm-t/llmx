@@ -23,6 +23,47 @@ struct Pools {
     }
 };
 
+// The marks a server of `max_seqs` requests needs for drafts on devices whose decode kernels hold `columns`: a request drafting takes a column for its last pick and one a draft.
+// So at most half the columns' requests draft in a pass, one at least (docs/SERVER.md, Drafts).
+inline size_t draft_marks(size_t max_seqs, size_t columns) {
+    return std::min(max_seqs, std::max<size_t>(1, columns / 2));
+}
+
+// The ledger's arithmetic over blocks per pool.
+inline void add(std::vector<size_t>& to, const std::vector<size_t>& b) {
+    if (to.size() < b.size()) to.resize(b.size(), 0);
+    for (size_t s = 0; s < b.size(); ++s) to[s] += b[s];
+}
+inline void sub(std::vector<size_t>& from, const std::vector<size_t>& b) {
+    for (size_t s = 0; s < b.size(); ++s) from[s] -= b[s];
+}
+inline std::vector<size_t> less(std::vector<size_t> from, const std::vector<size_t>& b) {
+    sub(from, b);
+    return from;
+}
+
+// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent, whose class chooses a device's kernels (Model::row_class).
+// A prompt takes its whole length, a generated token extent 1, and a forked prefix keeps the stretches its donor recorded.
+struct RowClass {
+    size_t end, extent;
+};
+
+// The stretch holding position `at`.
+inline const RowClass& class_at(const std::vector<RowClass>& rows, size_t at) {
+    size_t i = 0;
+    while (rows[i].end <= at) ++i;
+    return rows[i];
+}
+// The stretches of the first `n` positions.
+inline std::vector<RowClass> clip(const std::vector<RowClass>& rows, size_t n) {
+    std::vector<RowClass> out;
+    for (size_t i = 0; i < rows.size() && (out.empty() || out.back().end < n); ++i) {
+        out.push_back(rows[i]);
+        out.back().end = std::min(out.back().end, n);
+    }
+    return out;
+}
+
 // How a request reserves room: a capped one its history and what it may still generate, an uncapped one `tokens` past its history, and again `tokens` past its next position whenever that position would pass what it holds.
 // Admission and growth read the same `tokens`, so the first uncapped request a growth plan pauses always frees a whole step, and a plan never pauses more than one.
 struct Growth {
@@ -43,6 +84,18 @@ struct Growth {
         for (size_t s = 0; s < more.size(); ++s) more[s] = to[s] > has(s) ? to[s] - has(s) : 0;
         return more;
     }
+// Turns at the pool's edge (docs/SERVER.md, turns at the pool's edge): the growth steps a request holds the last room for, so many that a change of turn, `swap_ms`, costs kTurnShare of the turn.
+// A tenth is a constant from the measured turns (at histories of 14k tokens 5 percent doubles a turn and 20 percent shortens none); never under a step, and one where either time is not yet measured.
+    static constexpr double kTurnShare = 0.10;
+    static size_t turn(double swap_ms, double step_ms) {
+        if (!(swap_ms > 0) || !(step_ms > 0)) return 1;
+        return (size_t)std::max(1.0, std::ceil(std::min(swap_ms / (kTurnShare * step_ms), 1e6)));
+    }
+// The time of a change of turn that `turn` takes: the smaller of the one just timed and the one before it, and the one timed where none was before.
+// So one slow change does not lengthen the next turn and two in a row do.
+    static double change(double before, double timed) { return before > 0 ? std::min(before, timed) : timed; }
+    // Whether a request whose step falls due gives its room up instead: it has held the edge for `taken` steps while an uncapped request is paused (`waiting`) that would then fit, and its own history can be kept whole meanwhile (`kept`).
+    static bool yields(size_t taken, size_t turn, bool waiting, bool kept) { return waiting && kept && taken >= turn; }
 };
 
 // A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, those its history would keep as a donor once paused, per pool, and whether a pass in flight holds it.
@@ -285,8 +338,8 @@ inline void give_rows(LogitRows& rows, size_t base, size_t n) {
     while (!rows.runs.empty() && rows.runs.front().back) rows.runs.pop_front();
 }
 
-// The order waiting requests are admitted in: the paused ones oldest first, then, once none is left but those waiting for a disk read, the queue in arrival order, each while `seat` gives one, through `enter` until one does not fit.
-// A request whose client left goes where it waits (`gone`, which removes it and says so), and one whose history is being read from disk (`reading`) keeps its place while those behind it that fit pass it (docs/DISK-TIER.md, Restore).
+// The order waiting requests are admitted in: the paused ones in the scheduler's order, first admission but for one that gave the pool's edge up, then the queue once none is paused, until one does not fit.
+// A request whose client left goes where it waits (`gone`), and one being read from disk keeps its place while those behind it that fit pass it (docs/DISK-TIER.md, Restore).
 template <class Queue, class Seat, class Gone, class Reading, class Enter>
 void admit_waiting(Queue& paused, Queue& queue, Seat seat, Gone gone, Reading reading, Enter enter) {
     for (size_t i = 0; i < paused.size() && seat();) {

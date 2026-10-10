@@ -130,6 +130,7 @@ If `pressure.since_start.stalls` or `pauses` rise too, requests are also waiting
 
 **Memory or disk is filling.**
 The KV cache is fitted and backed whole at load, so a request does not grow it.
+Uncapped requests that together want more than the pool take turns at its edge only where host memory can hold the one that waits: `--host-cache-bytes` at least the size the start line names, the longest history one request may have (81 KiB a token on Qwen3.8-27B Q8_0, about 15 GiB at a 200k context), and on a model that keeps a state a checkpoint slot. Without it the server says so as it starts, and a request waiting at the edge waits for the one holding it to end.
 What grows is the kept histories, and each tier has a cap: host memory at `reuse.host.now.limit_bytes` (`--host-cache-bytes`) and the disk at `reuse.disk.now.limit_bytes` (`--disk-cache-bytes`).
 Compare `bytes` with `limit_bytes` in each; a tier at its cap makes room by dropping entries.
 On disk, entries unused for longer than `--disk-cache-max-age` are deleted, and the server keeps `--disk-cache-floor` bytes of the file system free after every write (the larger of 16 GiB and a twentieth of the disk by default).

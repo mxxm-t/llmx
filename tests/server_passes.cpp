@@ -28,6 +28,8 @@ constexpr size_t npos = (size_t)-1;
 struct Sim {
     struct Req {
         uint64_t id = 0, admission = 0, donor = 0;   // donor: the one its last pause left, which it takes back if it is still there
+        uint64_t line = 0;                           // its place among the paused: its first admission, or a later number once it gave the pool's edge up
+        size_t edge = 0;                             // growth steps it took, its admission one of them, while an uncapped request was paused
         bool uncapped = false, stalled = false, cancel = false;
         size_t prompt = 0, max_tokens = 0, gen = 0, len = 0;   // len: what its cache holds, a pass in flight's rows not counted
         size_t read_alone = 0;                                // prompt rows it read while alone (server::prompt_slice)
@@ -56,6 +58,9 @@ struct Sim {
     size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
     // A model whose layers keep a recurrent state and no checkpoint slots: each active request holds one of max_seqs state slots, and no request leaves a donor.
     bool stateful = false;
+    // Turns at the pool's edge (server::Growth::yields): whether a yielding request's history can be kept, as with a host tier that has room, and the steps of a turn.
+    bool tier = false;
+    size_t turn_steps = 1, yields = 0;
     server::Pools pools{{64, 32}, {64, 128}};
     server::Growth growth{16};
     std::vector<size_t> reserved{0, 0};
@@ -115,6 +120,8 @@ struct Sim {
         growth.tokens = b * (1 + rng() % 4);
         rows = server::logit_rows(P, max_seqs);
         stateful = rng() % 4 == 0;
+        tier = !stateful && rng() % 2;
+        turn_steps = 1 + rng() % 3;
         // Now and then one stage runs on the host, and now and then every one, as a split over CPUs.
         const size_t h = rng() % 8;
         if (h < 2) host[rng() % S] = 1;
@@ -337,6 +344,7 @@ struct Sim {
         r.need = need;
         r.donor = 0;
         r.stalled = false;
+        r.edge = 1;
         r.since = round_no;
         taken_back += take;
         for (size_t s = 0; s < need.size(); ++s)
@@ -361,11 +369,13 @@ struct Sim {
     }
 
     // Whether it left a donor.
-    bool pause(size_t i) {
+    bool pause(size_t i, bool yielded = false) {
         Req r = active[i];
         r.donor = park(i, 1);
         r.stalled = false;
-        paused.insert(std::upper_bound(paused.begin(), paused.end(), r, [](const Req& a, const Req& b) { return a.admission < b.admission; }), r);
+        r.line = yielded ? ++admissions : r.admission;
+        yields += yielded;
+        paused.insert(std::upper_bound(paused.begin(), paused.end(), r, [](const Req& a, const Req& b) { return a.line < b.line; }), r);
         ++pauses;
         return r.donor != 0;
     }
@@ -481,6 +491,19 @@ struct Sim {
             if (r.slot != npos) continue;
             const std::vector<size_t> step = growth.step(pools, r.uncapped, r.decoding(), r.len, r.need);
             if (step.empty()) continue;
+            // Its turn at the pool's edge over, it gives its room to the uncapped request paused longest, which must then fit: that one is ahead of it in the line, so it is admitted before the yielder is.
+            const Req* w = waiting();
+            if (w && growth.yields(r.edge, turn_steps, true, tier)) {
+                std::vector<size_t> held = reserved;
+                sub(held, r.need);
+                if (server::make_room(pools.blocks, held, donor_blocks(), npos, false, {}, 0, false, blocks_for(growth.entry(w->history(), true, 0, w->gen))).enough) {
+                    const uint64_t first = w->id, self = r.id;
+                    pause(i--, true);
+                    require(paused.back().id == self, at + ": a request that gave the edge up is not last in the line");
+                    require(waiting() && waiting()->id == first, at + ": the request a turn went to is no longer first among the uncapped paused");
+                    continue;
+                }
+            }
             const server::Taken t = server::make_room(pools.blocks, reserved, donor_blocks(), npos, false, holders(), r.admission, true, step);
             require(t.paused.size() <= 1, at + ": a growth plan paused " + std::to_string(t.paused.size()) + " requests, though one uncapped request's reservation holds a step");
             if (i == 0 && waiter == r.id) {
@@ -531,7 +554,14 @@ struct Sim {
                 if (pause(find(victims[v])) && t.paused[v].second) drop(donors.size() - 1);
             add(reserved, step);
             add(r.need, step);
+            r.edge = waiting() ? r.edge + 1 : 0;
         }
+    }
+    // The uncapped request paused longest.
+    const Req* waiting() const {
+        for (const Req& p : paused)
+            if (p.uncapped && !p.cancel) return &p;
+        return nullptr;
     }
 
     // Room, only while a slot is free: growth, then, while nothing is stalled, the paused requests oldest first and then the queue.
@@ -780,6 +810,11 @@ void growth_by_hand() {
     require(g.step(pools, false, true, 8, {2, 1}).empty() && g.step(pools, true, false, 8, {2, 1}).empty(), "a capped or prefilling request grew");
     require(g.step(pools, true, true, 8, {}) == std::vector<size_t>({4, 2}), "a request with nothing reserved did not take the whole step");
     require(g.step(pools, true, true, 36, {9, 5}) == std::vector<size_t>({1, 0}), "a step passed what a pool holds");
+    // A turn at the pool's edge: the steps that make its change kTurnShare of it, never under one, and one where a time is not measured; a request yields only once it has held the edge a turn, with one waiting and its own history kept.
+    require(g.turn(0, 100) == 1 && g.turn(5, 0) == 1 && g.turn(1, 100) == 1 && g.turn(10, 100) == 1 && g.turn(11, 100) == 2 && g.turn(95, 100) == 10, "a turn was not the steps its change is a tenth of, or under one");
+    require(g.change(0, 900) == 900 && g.change(900, 60) == 60 && g.change(60, 900) == 60 && g.change(900, 900) == 900 && g.turn(g.change(60, 900), 100) == 6 && g.turn(g.change(900, 900), 100) == 90,
+            "a change of turn was not timed as the smaller of the last two: one slow change between quick ones moved the turn, or two in a row did not");
+    require(g.yields(2, 2, true, true) && g.yields(3, 2, true, true) && !g.yields(1, 2, true, true) && !g.yields(2, 2, false, true) && !g.yields(2, 2, true, false), "a request gave the edge up before its turn, to nobody, or with nowhere to keep its history");
     const server::LogitRows one = server::logit_rows(1, 5), many = server::logit_rows(4, 5);
     require(one.size == 5 && many.size == 10 && one.runs.empty(), "the logits rows were not one pass's alone, or twice that once passes overlap");
     require(server::decode_share(0, 3, 3) == 0 && server::decode_share(7, 1, 1) == 7 && server::decode_share(7, 3, 2) == 3 && server::decode_share(6, 3, 3) == 2 && server::decode_share(1, 4, 2) == 1,
@@ -959,7 +994,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[13] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0;
+    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -987,9 +1022,9 @@ void random_schedules(size_t n) {
         } catch (const std::exception& e) {
             throw std::runtime_error("schedule " + std::to_string(seed) + " (" + std::to_string(S) + " stages, " + std::to_string(P) + " slots): " + e.what());
         }
-        const size_t counts[13] = {sim.ended, sim.pauses, sim.stalls, sim.taken_back, sim.waits, sim.resolved, sim.failures, sim.flying_cancels, sim.unrecorded_cancels,
-                                   sim.stateful ? sim.pauses : 0, sim.passed_reads, sim.reads_past_bound, sim.failed_reads};
-        for (size_t i = 0; i < 13; ++i) totals[i] += counts[i];
+        const size_t counts[14] = {sim.ended, sim.pauses, sim.stalls, sim.taken_back, sim.waits, sim.resolved, sim.failures, sim.flying_cancels, sim.unrecorded_cancels,
+                                   sim.stateful ? sim.pauses : 0, sim.passed_reads, sim.reads_past_bound, sim.failed_reads, sim.yields};
+        for (size_t i = 0; i < 14; ++i) totals[i] += counts[i];
         rounds += sim.round_no;
         recorded += sim.recorded;
         record_failures += sim.record_failures;
@@ -1003,9 +1038,9 @@ void random_schedules(size_t n) {
         require(recorded > 0 && record_failures > 0 && held_formations > 0, "the schedules met no stage recorded on a thread of its own, none that failed while it was recorded, or no formation held for the first stage's recorder");
     }
     if (n >= 1000)
-        for (size_t i = 1; i < 13; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound and reads that failed");
-    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads\n",
-                n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12]);
+        for (size_t i = 1; i < 14; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound, reads that failed and turns at the pool's edge");
+    std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads, %zu turns at the pool's edge\n",
+                n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12], totals[13]);
     std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder\n", recorded, record_failures, held_formations);
 }
 

@@ -1197,7 +1197,7 @@ void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     same(serve(*fresh, tok, 3, {{Req{again, 32}}})[0], follow_reply, what + ", the follow-up turn");
 }
 
-// Turns at the pool's edge (docs/SERVER.md, room by first admission): two uncapped requests on 16 blocks with a host tier each run to the pool's end, which only one can hold.
+// Turns at the pool's edge (docs/SERVER.md, turns at the pool's edge): two uncapped requests on 16 blocks with a host tier each run to the pool's end, which only one can hold.
 // Read from the retired passes, the newer one, once it has waited, must be in a pass again before the older one's last; each reply is its reply alone.
 void turns_at_edge(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     const size_t pool = 16 * kBlock, host = (size_t)1 << 30;
@@ -1255,9 +1255,129 @@ void turns_at_edge(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
         if (passes[i] & 1) last = i;
     }
     require(waits != n, what + ": the newer request never waited for the older one");
+    require(stats.yields >= 1, what + ": no turn at the pool's edge was given up");
     require(back < last, what + ": the newer request, waiting from pass " + std::to_string(waits) + ", decoded again at pass " + std::to_string(back) + " of " + std::to_string(n) +
                              ", after the older one's last pass " + std::to_string(last) + " (" + std::to_string(stats.pauses) + " pauses)");
     std::cout << "server-resume: " << what << ": the newer request waited from pass " << waits << ", decoded again at pass " << back << " and the older one ended at pass " << last << ", " << stats.pauses << " pauses\n";
+}
+
+// A kept conversation beside turns at the pool's edge: a conversation of two turns in a host tier of three slabs, then two uncapped requests changing turns a growth step each.
+// A request's copy supersedes the one its pause before left, so the conversation's third turn still forks its second, promoted from host memory.
+void turns_keep_others(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what, size_t older = 40, bool exact = false) {
+    const size_t pool = 16 * kBlock, host = 3 * ((size_t)64 << 20);
+    const auto follow = [&](const Req& first, const Reply& reply, uint32_t seed) {
+        Req f{first.prompt, 20};
+        for (uint32_t id : ids_of(reply)) f.prompt.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(seed, 30, vocab);
+        f.prompt.insert(f.prompt.end(), more.begin(), more.end());
+        return f;
+    };
+    std::vector<Req> turns = {{prompt_of(9, 300, vocab), 20}};
+    for (uint32_t k = 0; k < 2; ++k) {
+        auto model = make(pool, 0);
+        turns.push_back(follow(turns.back(), serve(*model, tok, 2, {{turns.back()}})[0], 60 + k));
+    }
+    const std::vector<Req> edge = {{prompt_of(1, older, vocab)}, {prompt_of(2, 60, vocab)}};
+    std::vector<Req> all = turns;
+    all.insert(all.end(), edge.begin(), edge.end());
+    std::vector<Reply> alone, got(all.size());
+    for (const Req& r : all) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 2, {{r}})[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler::Stats at_edge, after;
+    size_t reused = 0;
+    {
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, host);
+        sched.turn_steps = 1;
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (size_t k = 0; k < 2; ++k) got[k] = drain(*sched.submit(turns[k].prompt, params_of(turns[k])));
+            const auto a = sched.submit(edge[0].prompt, params_of(edge[0])), b = sched.submit(edge[1].prompt, params_of(edge[1]));
+            got[3] = drain(*a);
+            got[4] = drain(*b);
+            at_edge = sched.stats();
+            const auto h = sched.submit(turns[2].prompt, params_of(turns[2]));
+            got[2] = drain(*h);
+            reused = h->reused();
+            after = sched.stats();
+            ledger(after, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t i = 0; i < all.size(); ++i) same(alone[i], got[i], what + ", request " + std::to_string(i));
+    require(at_edge.yields >= 4, what + ": the two requests changed turns " + std::to_string(at_edge.yields) + " times, against four at least, so the case did not fill the tier");
+    // A request paused for the other's growth inside a block leaves a copy of its whole blocks, and computes the rest of that block again once; a turn given up ends on a whole block and computes nothing again.
+    require(exact ? at_edge.recomputed == 0 : at_edge.recomputed < kBlock, what + ": " + std::to_string(at_edge.recomputed) + " tokens recomputed at the changes of turn, against " + (exact ? "none" : "less than a block"));
+    require(reused >= 2 * kBlock && after.host_hits > at_edge.host_hits,
+            what + ": the conversation's third turn reused " + std::to_string(reused) + " tokens after " + std::to_string(at_edge.yields) + " changes of turn, " + std::to_string(at_edge.host_donors) +
+                " copies then in host memory, against the two blocks of its second turn promoted from there");
+    std::cout << "server-resume: " << what << ": " << at_edge.yields << " changes of turn left " << at_edge.host_donors << " copies in host memory, and the conversation's third turn reused " << reused << " tokens\n";
+}
+
+// A request waiting for a turn whose client leaves is cancelled from the scheduler's thread while paused: the turn goes to nobody, and a later pair still takes turns.
+// No case reaches a receiver that leaves between a yield and its first pass, a round having no point between them to act at; its number is then overwritten by the next yield.
+void turn_receiver_leaves(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a request waiting for a turn whose client leaves";
+    const size_t pool = 16 * kBlock, host = (size_t)1 << 30;
+    const std::vector<Req> reqs = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 60, vocab)}, {prompt_of(3, 50, vocab)}, {prompt_of(4, 70, vocab)}};
+    std::vector<Reply> alone;
+    for (const Req& r : reqs) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 2, {{r}}, nullptr, 0, host)[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler::Stats first, second;
+    std::vector<Reply> got(reqs.size());
+    std::string left;
+    std::atomic<bool> cancelled{false};
+    {
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, host);
+        sched.turn_steps = 1;
+        std::shared_ptr<server::Request> a, b;
+        std::mutex m;
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            std::lock_guard<std::mutex> lk(m);
+            if (cancelled.load() || !b || !sched.stats().pauses) return;
+            b->cancel();
+            cancelled.store(true);
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            {
+                std::lock_guard<std::mutex> lk(m);
+                a = sched.submit(reqs[0].prompt, params_of(reqs[0]));
+                b = sched.submit(reqs[1].prompt, params_of(reqs[1]));
+            }
+            got[0] = drain(*a);
+            server::Request::Token t;
+            while (b->next(t, server::Request::Clock::now() + std::chrono::seconds(60)) == server::Request::Next::id) {}
+            left = b->finish();
+            first = sched.stats();
+            const auto c = sched.submit(reqs[2].prompt, params_of(reqs[2])), d = sched.submit(reqs[3].prompt, params_of(reqs[3]));
+            got[2] = drain(*c);
+            got[3] = drain(*d);
+            second = sched.stats();
+            ledger(second, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(cancelled.load() && left == "cancel", what + ": the paused request ended with \"" + left + "\", against a cancel while it was paused");
+    require(first.pauses == 1 && first.yields == 0, what + ": " + std::to_string(first.pauses) + " pauses and " + std::to_string(first.yields) + " turns given up beside it, against one and none");
+    require(second.yields >= 1, what + ": the later pair gave no turn up");
+    for (const size_t i : {(size_t)0, (size_t)2, (size_t)3}) same(alone[i], got[i], what + ", request " + std::to_string(i));
+    std::cout << "server-resume: " << what << ": passed over, the older request ran on with no turn given up, and a later pair changed turns " << second.yields << " times\n";
 }
 
 // Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, so each turn's admission evicts the other conversation's donor.
@@ -3025,6 +3145,9 @@ int main(int argc, char** argv) {
             cancelled_while_paused(one, tok, vocab);
             take_back(one, tok, vocab);
             turns_at_edge(one, tok, vocab, "turns at the pool's edge");
+            turns_keep_others(one, tok, vocab, "a kept conversation beside turns at the pool's edge", 40, true);
+            turns_keep_others(one, tok, vocab, "a kept conversation beside turns of a long and a short request", 500);
+            turn_receiver_leaves(one, tok, vocab);
             take_back_follow_up(one, tok, vocab);
             partial_eviction(one, tok, vocab);
             fork_within_class(one, tok, vocab);
@@ -3039,6 +3162,7 @@ int main(int argc, char** argv) {
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             turns_at_edge(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "turns at the pool's edge on a hybrid model");
+            turns_keep_others(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a kept conversation beside turns at the pool's edge on a hybrid model");
             for (size_t devices = 1; devices <= 2; ++devices)
                 message_boundaries(on(mixed, [devices] { return cpus(devices); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab,
                                    "message boundaries on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

@@ -560,6 +560,8 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert b["text"] == cli_greedy_text(model, second, n, flags), (b["text"],)
             health = srv.get("/v1/health")
             assert health["reuse"]["since_start"]["forks"] >= 1 and health["reuse"]["device"]["now"]["entries"] >= 1, health
+            # The pool's fill: nothing runs, so the running requests hold none of it, and the kept conversations hold some and no more than there is.
+            assert health["requests"]["now"]["kv_tokens"] == 0 and 0 < health["reuse"]["device"]["now"]["kv_tokens"] <= health["server"]["kv_tokens"], health
         return len(prompts)
     finally:
         srv.close()
@@ -843,6 +845,25 @@ def check_context_overflow_real(model, excerpt):
     finally:
         srv.close()
     return cuts
+
+
+def check_no_turns_line(model):
+    """A server that cannot let uncapped requests take turns at the pool's edge says so as it starts (docs/SERVER.md, turns at the pool's edge): given no host memory for evicted prefixes the line names the flag and both sizes; given a tier that holds a history, or on the CPU at its default, where there is nothing to size, it says nothing."""
+    def lines(*flags):
+        srv = Server(model, *flags)
+        try:
+            srv.log.seek(0)
+            return [line for line in srv.log.read().splitlines() if "do not take turns" in line]
+        finally:
+            srv.close()
+
+    none = lines("--host-cache-bytes", "0")
+    assert len(none) == 1 and "--host-cache-bytes" in none[0] and "holds 0 MiB" in none[0], none
+    # Given a tier that holds a history, the server takes turns and says nothing, wherever its caches are.
+    assert lines("--host-cache-bytes", str(1 << 30)) == []
+    # At its default a server with its caches on the CPU keeps no host memory and has nothing to size, so it says nothing; one on a device says something only if its default tier is too small.
+    if os.environ.get("LLMX_DEVICE") in (None, "", "cpu"):
+        assert lines() == []
 
 
 def volatile(text):
@@ -1685,6 +1706,8 @@ def run():
             if host:
                 check_stream_reuse(directory)
                 print("server: synthetic MoE model, experts on the host and long prompts streamed, a prompt forking a finished prompt's block giving its values alone  [ok]")
+        check_no_turns_line(model)
+        print("server: a server without host memory for evicted prefixes says at its start that uncapped requests filling the pool do not take turns, with the flag and both sizes, and one given a tier that holds a history, or on the CPU at its default, says nothing  [ok]")
         cuts = check_context_overflow(os.path.join(directory, "overflow.gguf"))
         print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "
               "each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows  [ok]" % cuts)

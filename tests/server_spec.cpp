@@ -105,7 +105,7 @@ std::vector<Req> requests(const Make& plain, const bpe::Tokenizer& tok, uint32_t
 }
 
 // A request resumed by a fork of its whole history drafts nothing until a pass has fed it, and nobody ends with an error (docs/SPECULATIVE.md, section 3).
-// Both replies are the requests' replies alone, the paused one's history promoted from host memory and not recomputed.
+// Two uncapped requests on a pool of 4096 tokens with a host tier take turns, each resume a fork of a copy promoted from host memory; both replies are the replies alone, nothing recomputed.
 void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     const Req a{prompt_of(1, 2306, vocab)}, b{prompt_of(2, 641, vocab)};
     std::vector<Reply> alone;
@@ -143,8 +143,8 @@ void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer
     require(end_a == "length " && end_b == "length ", what + ": the requests ended with \"" + end_a + "\" and \"" + end_b + "\", against the pool's end for both");
     same(alone[0], got_a, what + ", the request that ran to the pool's end");
     same(alone[1], got_b, what + ", the request paused beside it");
-    require(stats.pauses == 1 && stats.host_hits == 1 && stats.recomputed == 0,
-            what + ": " + std::to_string(stats.pauses) + " pauses, " + std::to_string(stats.host_hits) + " promotions from host memory and " + std::to_string(stats.recomputed) + " tokens recomputed, against one, one and none");
+    require(stats.pauses >= 1 && stats.host_hits >= 1 && stats.recomputed == 0,
+            what + ": " + std::to_string(stats.pauses) + " pauses, " + std::to_string(stats.host_hits) + " promotions from host memory and " + std::to_string(stats.recomputed) + " tokens recomputed, against one at least of each and none");
     std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted) << " drafts kept" << std::endl;
 }
 

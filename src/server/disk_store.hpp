@@ -20,8 +20,8 @@
 #include <vector>
 #include "backends/backend.hpp"
 #include "core/crc32c.hpp"
-#include "core/sha.hpp"
 #include "core/host_memory.hpp"
+#include "core/sha.hpp"
 #include "format/file_reader.hpp"
 #include "format/file_writer.hpp"
 #if !defined(_WIN32)
@@ -50,10 +50,10 @@ public:
         uint64_t floor = 0;          // free space the file system keeps after every write (--disk-cache-floor)
         bool keep = false;           // at a clean exit leave the entries for the next server, and at start adopt those other servers left (--disk-cache-keep)
         std::string identity;        // the text the identity is the digest of, a `name: value` line a component, left in the directory so a server that adopts nothing can say which differs; none leaves no file
+        bool proved = false;         // adopt, unproved, the entries of a build other than this one whose model, layout and entry version are this store's (--disk-cache-adopt proved)
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
         std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
-        bool proved = false;         // adopt, unproved, the entries of another build (--disk-cache-adopt proved); not yet honoured
-        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so, for tests; not yet asked
+        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), for tests
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -64,22 +64,9 @@ public:
         std::vector<size_t> run_bytes;
         uint64_t bytes = 0;
         std::filesystem::file_time_type used;
-        bool unproved = false;   // written by another build and not yet proved this store's
+        bool unproved = false;   // written by another build: read as its bytes, and this store's only once claimed
         uint64_t from = 0;       // which build, one number an identity, 0 for this one
     };
-    // The 32 bytes an entry's header carries for the identity text `text`: its SHA-256.
-    static std::array<uint8_t, 32> identity_of(const std::string& text) {
-        core::Sha id(true);
-        id.update(text.data(), text.size());
-        const std::string hex = id.hex();
-        std::array<uint8_t, 32> bytes{};
-        for (size_t k = 0; k < bytes.size(); ++k) bytes[k] = (uint8_t)std::stoul(hex.substr(2 * k, 2), nullptr, 16);
-        return bytes;
-    }
-    // Makes an unproved entry this store's own; no entry is unproved yet, so none is claimed.
-    void claim(uint64_t, Done done) {
-        if (done) done(false, "no entry is unproved");
-    }
 
     // The entries' alignment on disk, which every direct-I/O granule up to it divides, and the unit a checksum covers.
     static constexpr size_t kAlign = size_t(1) << 20, kChunk = size_t(4) << 20;
@@ -166,6 +153,28 @@ public:
         cv_.notify_all();
     }
 
+    // The 32 bytes an entry's header carries for the identity text `text`: its SHA-256.
+    static std::array<uint8_t, 32> identity_of(const std::string& text) {
+        core::Sha id(true);
+        id.update(text.data(), text.size());
+        const std::string hex = id.hex();
+        std::array<uint8_t, 32> bytes{};
+        for (size_t k = 0; k < bytes.size(); ++k) bytes[k] = (uint8_t)std::stoul(hex.substr(2 * k, 2), nullptr, 16);
+        return bytes;
+    }
+
+    // Makes an unproved entry this store's own, its header rewritten under this identity, once its bytes are proved to be what this build computes (docs/DISK-TIER.md, Adopting another build's entries).
+    // Queued like a read; a claim that did not reach the disk keeps the entry and says so in `done`'s error, and only a header left whole under neither build fails it, the entry deleted.
+    void claim(uint64_t key, Done done) {
+        auto j = std::make_shared<Job>();
+        j->key = key;
+        j->claim = true;
+        j->done = std::move(done);
+        std::lock_guard<std::mutex> lk(m_);
+        jobs_.push_back(j);
+        cv_.notify_all();
+    }
+
     // Stops a queued or running write of `key`, whose `done` then reports the cancel; false when there is none.
     bool cancel(uint64_t key) {
         std::lock_guard<std::mutex> lk(m_);
@@ -189,6 +198,8 @@ public:
         if (!sizes_.erase(key)) return;
         std::error_code ec;
         std::filesystem::remove(path(key, ".kv"), ec);
+        std::filesystem::remove(path(key, ".from"), ec);
+        foreign_.erase(key);
     }
 
     // Records entry `key`'s last use, which a restart's adoption and the age limit read.
@@ -225,8 +236,10 @@ public:
             Lock held = lock(other);
             if (!held.held()) continue;
             const bool kept = std::filesystem::exists(other / "kept", ec);
-            if (adopt && options_.keep) adopt_from(other);
-            else if (kept && !expired(other / "kept")) continue;
+            // A directory an adoption could not finish with keeps what a later start can still recover, until its age limit.
+            if (adopt && options_.keep) {
+                if (adopt_from(other) && kept && !expired(other / "kept")) continue;
+            } else if (kept && !expired(other / "kept")) continue;
             held = Lock{};
             std::filesystem::remove_all(other, ec);
         }
@@ -245,7 +258,7 @@ private:
     }
 
     struct Job {
-        bool put = false;
+        bool put = false, claim = false;
         uint64_t key = 0;
         std::string blob;
         std::vector<size_t> layout;
@@ -359,14 +372,14 @@ private:
         return ec || std::filesystem::file_time_type::clock::now() - t > std::chrono::seconds(options_.max_age);
     }
 
-    // The header of an entry file, checked: magic, version, identity and its own checksum; nothing when any fails.
+    // The header of an entry file, checked: magic, version, `identity` and its own checksum; nothing when any fails.
     struct Header {
         std::string blob;
         std::vector<size_t> run_bytes;
         std::vector<uint32_t> crcs;
         uint64_t size = 0;   // the header's bytes on disk
     };
-    std::optional<Header> read_header(format::FileReader& r) const {
+    std::optional<Header> read_header(format::FileReader& r, const std::array<uint8_t, 32>& identity) const {
         core::HostPages first(kAlign);
         if (r.read(0, first.data(), kAlign) != kAlign) return std::nullopt;
         const uint8_t* p = first.data();
@@ -374,7 +387,7 @@ private:
         uint32_t version, runs;
         uint64_t blob, chunk_count;
         std::memcpy(&version, p + 16, 4);
-        if (version != kVersion || std::memcmp(p + 20, identity_.data(), 32) != 0) return std::nullopt;
+        if (version != kVersion || std::memcmp(p + 20, identity.data(), 32) != 0) return std::nullopt;
         std::memcpy(&blob, p + 52, 8);
         std::memcpy(&runs, p + 60, 4);
         if (runs > 4096) return std::nullopt;
@@ -405,53 +418,118 @@ private:
         return h;
     }
 
-    // At start under keep: every entry of directory `other` with this store's identity, younger than the age limit, moved into this store's directory under a key of its own.
-    void adopt_from(const std::filesystem::path& other) {
+    // At start under keep: directory `other`'s entries that are this store's moved into its own under new keys, their last use kept, another build's unproved where `Options::proved` asks (docs/DISK-TIER.md, Adopting another build's entries).
+    // True where an entry could not be settled or moved now, a failed read or write and not a bad entry, so the directory is left for a later start.
+    bool adopt_from(const std::filesystem::path& other) {
         std::error_code ec;
-        // A directory of another identity gives nothing below, its entries' headers carrying that identity; what differs is kept for the server's start line.
-        std::ifstream in(other / "identity", std::ios::binary);
-        const std::string theirs((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-        if (!options_.identity.empty() && theirs.empty()) {
+        const auto text_of = [](const std::filesystem::path& f) {
+            std::ifstream in(f, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const auto parts = [](const std::string& text) {
+            std::map<std::string, std::string> m;
+            for (size_t at = 0; at < text.size();) {
+                const size_t end = std::min(text.find('\n', at), text.size()), colon = text.find(": ", at);
+                if (colon < end) m[text.substr(at, colon - at)] = text.substr(colon + 2, end - colon - 2);
+                at = end + 1;
+            }
+            return m;
+        };
+        // The components of `text` that differ from this store's, and whether they are the build's alone.
+        const auto differing = [&](const std::string& text, bool& build_only) {
+            static const char* const kBuild[] = {"numerics", "compiler", "flags", "shaders", "libm"};
+            const auto mine = parts(options_.identity), theirs = parts(text);
+            std::string names;
+            build_only = mine.size() == theirs.size();
+            for (const auto& part : mine) {
+                const auto it = theirs.find(part.first);
+                if (it != theirs.end() && it->second == part.second) continue;
+                names += (names.empty() ? "" : ", ") + part.first;
+                build_only = build_only && std::find_if(std::begin(kBuild), std::end(kBuild), [&](const char* n) { return part.first == n; }) != std::end(kBuild);
+            }
+            return names;
+        };
+        const std::string theirs = text_of(other / "identity");
+        bool build_only = false, retain = false;
+        size_t unproved = 0;
+        if (!options_.identity.empty() && theirs.empty())
             for (const auto& e : std::filesystem::directory_iterator(other, ec))
                 if (e.path().extension() == ".kv") {
                     refused_.push_back("written by a build that kept no identity beside its entries");
                     break;
                 }
-        } else if (!options_.identity.empty() && theirs != options_.identity) {
-            const auto parts = [](const std::string& text) {
-                std::map<std::string, std::string> m;
-                for (size_t at = 0; at < text.size();) {
-                    const size_t end = std::min(text.find('\n', at), text.size()), colon = text.find(": ", at);
-                    if (colon < end) m[text.substr(at, colon - at)] = text.substr(colon + 2, end - colon - 2);
-                    at = end + 1;
-                }
-                return m;
-            };
-            const auto mine = parts(options_.identity), other_parts = parts(theirs);
-            std::string names;
-            for (const auto& part : mine) {
-                const auto it = other_parts.find(part.first);
-                if (it == other_parts.end() || it->second != part.second) names += (names.empty() ? "" : ", ") + part.first;
-            }
-            refused_.push_back("its " + names + " differing from this server's");
-        }
         for (const auto& e : std::filesystem::directory_iterator(other, ec)) {
             // A file's own age decides nothing here: a file stands below those used since, which only the index of what the files hold can see (DiskTier::adopt).
             if (e.path().extension() != ".kv") continue;
+            // The identity the file was written under: its directory's, or the one kept beside it since an earlier adoption left it unproved.
+            std::filesystem::path beside = e.path();
+            beside.replace_extension(".from");
+            const bool marked = std::filesystem::exists(beside, ec);
+            std::string from = theirs;
+            if (marked) {
+                // A claim may have been cut short: the checksum says whether the header is whole under the identity kept beside it or under its directory's, the claimant's, which then wrote it.
+                const std::string kept = text_of(beside);
+                const Owner owner = settle(e.path(), identity_of(kept), identity_of(theirs));
+                if (owner == Owner::failed) retain = true;
+                if (owner == Owner::failed || owner == Owner::none) continue;
+                if (owner == Owner::first) from = kept;
+            }
+            // Then this store's policy for the build that wrote it: its own, another's taken unproved where asked, or not taken.
+            const bool foreign_now = !options_.identity.empty() && !from.empty() && from != options_.identity;
+            if (foreign_now) {
+                differing(from, build_only);
+                if (!options_.proved || !build_only) continue;
+            }
+            const std::array<uint8_t, 32> written = foreign_now ? identity_of(from) : identity_;
             std::optional<Header> h;
             try {
                 format::FileReader r(e.path().u8string());
-                h = read_header(r);
+                h = read_header(r, written);
             } catch (const std::exception&) {}
             if (!h) continue;
             const uint64_t key = ++keys_;
             const auto used = std::filesystem::last_write_time(e.path(), ec);
+            // The identity an unproved entry was written under is on the disk here before the entry moves, so no failure leaves the entry without it.
+            if (foreign_now && !keep_from(key, from)) {
+                retain = true;
+                continue;
+            }
             std::filesystem::rename(e.path(), path(key, ".kv"), ec);
-            if (ec) continue;
+            if (ec) {
+                std::filesystem::remove(path(key, ".from"), ec);
+                retain = true;
+                continue;
+            }
+            if (foreign_now) {
+                foreign_[key] = written;
+                ++unproved;
+            }
+            if (marked) std::filesystem::remove(beside, ec);
             const uint64_t bytes = std::filesystem::file_size(path(key, ".kv"), ec);
             sizes_[key] = bytes;
-            adopted_.push_back(Adopted{key, std::move(h->blob), std::move(h->run_bytes), bytes, used});
+            uint64_t tag = 0;
+            if (foreign_now) std::memcpy(&tag, written.data(), sizeof tag);
+            adopted_.push_back(Adopted{key, std::move(h->blob), std::move(h->run_bytes), bytes, used, foreign_now, tag | (foreign_now ? 1 : 0)});
         }
+        // A directory of another identity that gave nothing: what differs, for the server's start line.
+        if (!options_.identity.empty() && !unproved && !theirs.empty() && theirs != options_.identity)
+            refused_.push_back("its " + differing(theirs, build_only) + " differing from this server's");
+        return retain;
+    }
+    // The identity entry `key` was written under, in a file beside where the entry will be, written and on the disk; false where that failed, nothing left.
+    bool keep_from(uint64_t key, const std::string& from) const {
+        const std::filesystem::path file = path(key, ".from");
+        bool ok = !(options_.fault && options_.fault("provenance"));
+        if (ok) {
+            std::ofstream out(file, std::ios::binary);
+            out << from;
+            out.flush();
+            ok = out.good();
+        }
+        ok = ok && sync_file(file);
+        std::error_code ec;
+        if (!ok) std::filesystem::remove(file, ec);
+        return ok;
     }
 
     // Direct writes where the file system takes them and a short probe finds them no slower than writes through the file cache, which on some file systems write several times faster.
@@ -656,8 +734,9 @@ private:
                     if (kAlign % r->granule()) r.reset();
                 } catch (const format::DirectUnavailable&) {}
                 if (!r) r = std::make_unique<format::FileReader>(file.u8string(), false);
-                const std::optional<Header> h = read_header(*r);
+                const std::optional<Header> h = read_header(*r, written_as(j.key));
                 if (!h) return "an entry whose header is not this server's or fails its checksum";
+                if (j.claim) return "";
                 uint64_t payload = 0;
                 if (h->run_bytes != j.layout) return "an entry of another layout";
                 for (size_t b : h->run_bytes) payload += b;
@@ -676,13 +755,127 @@ private:
                 return std::string("an entry not read: ") + e.what();
             }
         }();
-        if (why.empty()) return true;
+        std::string failed = why;
+        const std::array<uint8_t, 32> theirs = written_as(j.key);
+        if (failed.empty() && j.claim && !rewrite(file, j.key)) {
+            // A proof held and a write did not: the entry stays under whichever identity its header is whole, the one beside it kept for the next start, and goes only where it is whole under neither.
+            const Owner owner = settle(file, theirs, identity_);
+            if (owner == Owner::none) failed = "an entry a claim left whole under neither build";
+            else {
+                std::lock_guard<std::mutex> lk(m_);
+                if (owner == Owner::second) foreign_.erase(j.key);
+                error = "a claim that did not reach the disk; the entry is kept and proved again after a restart";
+                return true;
+            }
+        }
+        if (failed.empty()) return true;
         std::lock_guard<std::mutex> lk(m_);
         sizes_.erase(j.key);
+        foreign_.erase(j.key);
         std::error_code ec;
         std::filesystem::remove(file, ec);
-        error = why;
+        std::filesystem::remove(path(j.key, ".from"), ec);
+        error = failed;
         return false;
+    }
+
+    // The identity entry `key`'s header carries: this store's, or for an unproved entry the one it was written under.
+    std::array<uint8_t, 32> written_as(uint64_t key) const {
+        std::lock_guard<std::mutex> lk(m_);
+        const auto it = foreign_.find(key);
+        return it == foreign_.end() ? identity_ : it->second;
+    }
+
+    // The bytes of an entry file's header up to its checksum, and where the checksum lies; empty where the file is too short to hold one.
+    static std::vector<uint8_t> header_of(std::fstream& f, size_t& end) {
+        std::vector<uint8_t> head(72);
+        f.seekg(0);
+        if (!f.read((char*)head.data(), 72) || std::memcmp(head.data(), kMagic, 16) != 0) return {};
+        uint64_t blob, chunk_count;
+        uint32_t runs;
+        std::memcpy(&blob, head.data() + 52, 8);
+        std::memcpy(&runs, head.data() + 60, 4);
+        if (runs > 4096 || blob > (uint64_t(1) << 32)) return {};
+        head.resize(72 + 8 * (size_t)runs);
+        f.seekg(0);
+        if (!f.read((char*)head.data(), (std::streamsize)head.size())) return {};
+        std::memcpy(&chunk_count, head.data() + 64 + 8 * (size_t)runs, 8);
+        if (chunk_count > (uint64_t(1) << 32)) return {};
+        end = 16 + 4 + 32 + 8 + 4 + 8 * (size_t)runs + 8 + 4 * (size_t)chunk_count + (size_t)blob;
+        head.resize(end + 4);
+        f.seekg(0);
+        if (!f.read((char*)head.data(), (std::streamsize)head.size())) return {};
+        return head;
+    }
+
+    // Which of two identities an entry's header is whole under, whatever a claim cut short left in its identity field; `failed` where the file could not be read or put right now, which says nothing of the entry.
+    // A claim changes the field and the checksum alone, so the checksum on disk settles which header it belongs to, and the field is written to match it.
+    enum class Owner { none, first, second, failed };
+    Owner settle(const std::filesystem::path& file, const std::array<uint8_t, 32>& first, const std::array<uint8_t, 32>& second) const {
+        std::fstream f(file, std::ios::in | std::ios::out | std::ios::binary);
+        if (!f) return Owner::failed;
+        size_t end = 0;
+        std::vector<uint8_t> head = header_of(f, end);
+        if (head.empty()) return f.bad() ? Owner::failed : Owner::none;
+        uint32_t crc;
+        std::memcpy(&crc, head.data() + end, 4);
+        for (const Owner which : {Owner::first, Owner::second}) {
+            const std::array<uint8_t, 32>& id = which == Owner::first ? first : second;
+            const bool as_written = std::memcmp(head.data() + 20, id.data(), 32) == 0;
+            std::vector<uint8_t> tried = head;
+            std::memcpy(tried.data() + 20, id.data(), 32);
+            if (core::crc32c(0, tried.data(), end) != crc) continue;
+            if (as_written) return which;
+            if (options_.fault && options_.fault("repair")) return Owner::failed;
+            f.clear();
+            f.seekp(20);
+            if (!f.write((const char*)id.data(), 32) || !f.flush()) return Owner::failed;
+            f.close();
+            return sync_file(file) ? which : Owner::failed;
+        }
+        return Owner::none;
+    }
+
+    // An unproved entry's header rewritten under this store's identity, with its checksum, and on the disk before the identity kept beside it goes; the payload is untouched.
+    // The write is in place and through no layer of src/format, which holds no in-place write and is among the fingerprinted sources.
+    bool rewrite(const std::filesystem::path& file, uint64_t key) {
+        const std::array<uint8_t, 32> theirs = written_as(key);
+        if (theirs == identity_) return true;
+        {
+            std::fstream f(file, std::ios::in | std::ios::out | std::ios::binary);
+            size_t end = 0;
+            std::vector<uint8_t> head = header_of(f, end);
+            if (head.empty() || std::memcmp(head.data() + 20, theirs.data(), 32) != 0) return false;
+            std::memcpy(head.data() + 20, identity_.data(), 32);
+            const uint32_t crc = core::crc32c(0, head.data(), end);
+            std::memcpy(head.data() + end, &crc, 4);
+            f.seekp(0);
+            if (!f.write((const char*)head.data(), (std::streamsize)head.size()) || !f.flush()) return false;
+        }
+        if ((options_.fault && options_.fault("claim-sync")) || !sync_file(file)) return false;
+        std::error_code ec;
+        std::filesystem::remove(path(key, ".from"), ec);
+        sync_directory();
+        std::lock_guard<std::mutex> lk(m_);
+        foreign_.erase(key);
+        return true;
+    }
+
+    // A file's bytes on the disk, not only with the operating system.
+    static bool sync_file(const std::filesystem::path& file) {
+#if defined(_WIN32)
+        const HANDLE h = CreateFileW(file.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE) return false;
+        const bool ok = FlushFileBuffers(h) != 0;
+        CloseHandle(h);
+        return ok;
+#else
+        const int fd = ::open(file.c_str(), O_WRONLY | O_CLOEXEC);
+        if (fd < 0) return false;
+        const bool ok = fsync(fd) == 0;
+        ::close(fd);
+        return ok;
+#endif
     }
 
     // A rename reaches the disk with its directory.
@@ -705,6 +898,7 @@ private:
     core::HostPages staging_;              // the I/O thread's page-aligned buffer, one chunk
     std::vector<std::string> refused_;
     std::vector<Adopted> adopted_;
+    std::map<uint64_t, std::array<uint8_t, 32>> foreign_;   // under m_, the unproved entries and the identity each was written under
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<std::shared_ptr<Job>> jobs_;  // under m_

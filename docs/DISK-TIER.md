@@ -30,7 +30,7 @@ The same histories, as what changed (Entries written as what changed, below): a 
 
 ## The entry file
 
-One file per entry, written once and never changed in place.
+One file per entry, written once; its payload is never changed, and its header only by the claim of an entry another build wrote, which rewrites the identity and the header's checksum in place (Adopting another build's entries, below).
 - **Header**, fixed layout, its own CRC32C:
   - magic and format version (`DiskStore::kVersion`, 2 since a file is a segment or a state);
   - identity (below), whose every field must equal the running server's for the entry to be read;
@@ -96,8 +96,8 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 - **Startup sweep.** Every server, before it writes, tries the lock of every instance directory under the root: a directory whose lock it gets belonged to a server that is gone, and is removed with everything in it, temporary files included; a directory whose lock is held is another live server's and is never touched. Its own directory starts empty.
   The sweep runs again every ten minutes, so a crashed server's leftovers on a disk shared with servers that keep running do not wait for the next start.
 - **Clean exit.** The server removes its own directory before it exits, so nothing it wrote remains.
-- **Keeping entries for a restart**, `--disk-cache-keep`: on a clean exit the server first flushes what it holds in memory (Keeping entries across a restart, below), then unlocks and leaves its directory; the next server under the same root whose identity matches adopts it, and with a mismatched identity, a new build or another model, the next sweep removes it. A crashed server's directory is adopted the same way when the flag is given, its temporary files removed and every entry's header checked.
-- **Killed mid-write.** A `.tmp` file is never read and is removed by the sweep; a `.kv` file exists only after its rename, so a crash can leave a complete entry or nothing, never a torn one; a torn payload from a failing disk fails its chunk CRC on read.
+- **Keeping entries for a restart**, `--disk-cache-keep`: on a clean exit the server first flushes what it holds in memory (Keeping entries across a restart, below), then unlocks and leaves its directory; the next server under the same root whose identity matches adopts it, and with a mismatched identity, a new build or another model, the next sweep removes it, unless the server was asked to take another build's entries unproved (Adopting another build's entries, below). A crashed server's directory is adopted the same way when the flag is given, its temporary files removed and every entry's header checked.
+- **Killed mid-write.** A `.tmp` file is never read and is removed by the sweep; a `.kv` file exists only after its rename, so a crash during a write can leave a complete entry or nothing, never a torn one; a torn payload from a failing disk fails its chunk CRC on read, and a header torn by a claim cut short is settled by its checksum at the next start (Adopting another build's entries, below).
 - **Several servers on one disk.** Each has its own directory and cap; the free-space floor is shared physical space; a sweep removes only unlocked directories; two servers never read each other's live entries.
 - **Never filled by leftovers.** Leftovers exist only in unlocked directories, which every start and every periodic sweep removes; every write checks the cap and the floor; and with `--disk-cache-bytes 0`, the default, nothing is written at all.
 
@@ -129,7 +129,7 @@ A request that arrives meanwhile waits for the copy off the devices in progress,
 
 **A console closed on Windows.** Windows ends a process a few seconds after its console window is closed, whatever its handler does, so a flush that closing the console starts may not finish and keeps only the entries written by then; Ctrl-C and Ctrl-Break give the flush its whole bound, as SIGTERM and SIGINT do elsewhere.
 
-**SIGTERM against a crash.** SIGTERM and SIGINT take the clean exit and the flush. SIGKILL, a crash, an out-of-memory kill or a power loss keep only what is already on disk: every renamed `.kv` file is complete and every `.tmp` file is removed by the next sweep; the kernel releases the lock, so the directory is adoptable with `--disk-cache-keep` and removed without it.
+**SIGTERM against a crash.** SIGTERM and SIGINT take the clean exit and the flush. SIGKILL, a crash, an out-of-memory kill or a power loss keep only what is already on disk: every renamed `.kv` file is complete, but for the header of one whose claim was cut short, which the next start settles, and every `.tmp` file is removed by the next sweep; the kernel releases the lock, so the directory is adoptable with `--disk-cache-keep` and removed without it.
 
 **What a restart adopts.** A server started with `--disk-cache-keep` adopts, from unlocked directories under its root, the entries whose identity matches:
 - it reads every entry's header, after a clean exit and after a crash alike, which holds the file's kind, whether its conversation came back, its range and its digests, and takes its last use from its file's modification time, which every write and renewal sets to the entry's last use; no separate index file is written, the headers being one;
@@ -137,6 +137,50 @@ A request that arrives meanwhile waits for the copy off the devices in progress,
 - the rest are taken within its own cap, the files over it going by the room's order (Disk eviction and room, above);
 - the index is rebuilt in memory from what it took, so the first request of a returning conversation matches it as it would have before the restart, and the server's line gives the entries it took and, where it dropped any, how many by each rule: a description that did not read, files no whole path reaches, the cap (`DiskTier::adopt`).
 Two servers starting together under one root each adopt only directories whose lock they get; a directory one adopts is moved into its own and is gone for the other.
+
+## Adopting another build's entries
+
+A new build whose numerics fingerprint differs adopts nothing by default, so an upgrade empties the cache although most upgrades change no bit of what a history holds.
+`--disk-cache-adopt proved` lets a server take such entries over and prove them, a conversation at a time, as each comes back; `exact`, the default, takes only its own build's.
+Entries are adopted only under `--disk-cache-keep`, so `proved` without it is refused.
+
+**What may be adopted.** Entries whose identity differs from the server's only in the lines the build decides: `numerics`, `compiler`, `flags`, `shaders` and `libm`.
+A difference in `model`, `entries` or `layout` is a different cache, refused under either value, with the line that names it.
+An adopted file keeps its header, and a file `entry-N.from` beside it holds the identity it was written under, which its header's checksum is checked against (`DiskStore::written_as`); it is unproved, on disk and across restarts, until a proof claims it.
+
+**Unproved files are no part of this build's cache.** The index marks them (`DiskIndex::File::unproved`), and a path, a missing range and a state are found among this build's files alone unless a proof asks, so nothing reads, forks, renews or counts an unproved file as written.
+They take room within the cap and leave by the room's order and the age limit as any file does.
+
+**The proof.** The first request of a conversation whose path holds unproved files beyond what this build has for it proves that path (`DiskTier::plan`, `DiskTier::prove`, `Scheduler::prove`), waiting for its files to be read as for any read from disk:
+1. Its first block. Where the path's first file is unproved, the request computes its own first block as prompt rows, or has it from a history of this build it forked, and the tier compares it with the file's, byte for byte.
+2. Its last stretch. The request's cache is restored from the files at the fork point, the highest position below the path's end at which a sequence of this model may be forked: the block below the end, or, on a model that keeps a state, the highest state on the path below the end. It computes the rows from there to the path's end, and the tier compares them with the files', every block of the stretch that the path's last file holds, which is read whole for it, and on a model that keeps a state the state at the end; where the stretch begins in an earlier file, the comparison begins at the last file's first block.
+3. Equal: the files the path uses whole are this build's from then on (one it uses in part, its rows past the path's end another kind than the request's, stays unproved), their headers rewritten under its identity (`DiskStore::claim`), and the request goes on from the path's end, having reused the path below the fork; the copy of the path the proof read stays in host memory as a history read from disk does, where the host tier has the room, so the job that reads the reply again and the next turn fork it.
+4. Unequal, at either comparison: the path's files and every other unproved file of the builds that wrote them are deleted, and a request that had restored rows from them computes its history from the start.
+The tier decides which positions are compared, whether they are equal and what becomes of the files (`DiskTier::compare`); the scheduler computes the rows, copies the block to host memory and hands it over.
+One proof runs on a file at a time, and a second request whose path holds it waits for that proof as for a read, then looks again.
+A request that leaves or is paused, or whose files are not read within its wait's bound, gives its proof up: the files stay unproved and the rows it had restored go with it.
+
+**What a proof does not prove.** The rows between the first block and the last stretch are not compared, nor is a row class neither stretch holds, nor a depth or a width the compared rows did not reach: a build whose change shows only there passes the proof, and its entries are served as this build's.
+What a proof says is this much: this build computes the first block as the files have it, and computes the last stretch as the files have it from the files' own rows below it.
+The rows below the fork are restored from the files, so the last stretch is computed over the other build's bytes, as the old build computed it: the two agree whenever both builds compute that stretch alike from the same inputs, whether or not this build would have computed those inputs itself.
+It is evidence at the first use, not the identity that `exact` holds.
+
+**A path with no fork point.** On a model that keeps a state, a conversation of one turn has no state below its end, so nothing of it can be restored and compared: it is left unproved and its request reads the prompt again.
+A server of one checkpoint slot starts no proof on such a model, since the restore and the state at the path's end each take a slot.
+Unproved files go once this build has written its own file over the same rows, a segment whose blocks its segment holds and a state on those rows (`DiskIndex::covered`).
+
+**A claim cut short.** A claim rewrites the header in place under this build's identity with the checksum over it, has the file reach the disk, and removes the `.from` file last.
+A start that finds a `.from` file beside an entry settles which build's header is whole by the checksum on disk, between the identity the `.from` file keeps and that of the directory the entry lies in, the claimant's, and writes the identity field to match (`DiskStore::settle`); a checksum that holds for neither is a bad entry, which goes.
+The start then applies its own policy to that build: its own entry, another build's taken unproved where asked, or not taken, so a third build never has an entry as proved because a second proved it.
+A claim whose header was written but did not reach the disk keeps the entry and its `.from` file and reports the failure; the entry is served for the life of that server and settled at the next start.
+
+**A failed step is not a bad entry.** An adoption writes the `.from` file, and has it reach the disk, before it moves the entry, and an entry whose `.from` file could not be written, whose header could not be read or put right, or which could not be moved stays in its directory, which the start then leaves for a later one instead of removing it, until the directory is past the age limit.
+Reads and writes of entries keep the tier's ordinary rule, a failed one dropping the entry (Disk eviction and room, above).
+
+**What it costs.** A proved conversation reads its files once and computes two stretches, its first block and the rows from its fork point to its end, so a conversation of two turns and more comes back in about the time of its last turn.
+Measured on Qwen3.8-27B Q8_0 over a tensor group of two MI50s with the embedded drafter, a chat of 29465 tokens in its fourth turn after a restart: 4.0 to 4.8 s to the first token read back by the build that wrote it, 5.4 to 5.6 s proved by another build, 31 of its 32 files claimed, and 93.9 s read again by that build without the flag (`docs/STATUS.md`, Another build's entries adopted and proved).
+A build whose numerics did change costs each first conversation about twice a recompute, once: the proof's rows, then the history from the start; the deletion of that build's other files spares the rest.
+`reuse.disk.now.unproved` in `/v1/health` counts the unproved files, and `reuse.disk.since_start.proved` and `disproved` the files proofs claimed and deleted.
 
 ## Age
 
@@ -244,7 +288,7 @@ Two facts decide the shape. The KV rows of a history are append-only: a later tu
 
 ### The shape on disk
 
-Two kinds of file, both immutable, both written as the store writes any entry (a temporary name, flushed, renamed, the directory flushed):
+Two kinds of file, their payloads immutable, both written as the store writes any entry (a temporary name, flushed, renamed, the directory flushed):
 
 - **A segment**: the blocks of a token range `[a, b)` of one history, every device, layer by layer, K then V. A segment never crosses a multiple of 1024 tokens (`DiskIndex::kSegmentTokens`): it bounds what a fork copies at 68 MiB on this model and leaves 75 files for 76k tokens.
 - **A state**: the recurrent state at one position. A model that keeps no state writes none.
@@ -280,7 +324,7 @@ Every file carries the identity, its own header CRC and a CRC32C for each 4 MiB 
 
 ### Crash safety, case by case
 
-Every file is whole or absent, so the cases are about which files exist together:
+Every file is whole or absent, so the cases are about which files exist together; the one header a claim rewrites in place has its own case (Adopting another build's entries, above):
 
 - **A crash during a write**: a temporary file, removed by the next sweep.
 - **Blocks without their state** (the segments of a turn landed, the state did not): the path is usable up to its newest state at or below the blocks, and the extra blocks are kept, the conversation's next state making them useful.

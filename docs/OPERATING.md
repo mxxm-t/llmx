@@ -25,7 +25,7 @@ llmx serve model.gguf --device vulkan:0,vulkan:1
 
 **The disk cache, kept across restarts.**
 Conversations the devices drop go to host memory, and what host memory drops goes to disk.
-With `--disk-cache-keep` the server writes what memory holds before it exits and the next server of the same model file and build adopts it, so a conversation continues after a restart without reading its prompt again.
+With `--disk-cache-keep` the server writes what memory holds before it exits and the next server of the same model file and build adopts it (another build's too under `--disk-cache-adopt proved`, below), so a conversation continues after a restart without reading its prompt again.
 The final write takes at least 20 seconds and longer for a large cache: the server prints its bound as the write starts, and a stop that allows less loses what is not yet written.
 A cache of tens of gigabytes needs more than the 10 seconds `docker stop` waits by default, so set the time well above the bound.
 
@@ -36,6 +36,11 @@ docker stop -t 120 CONTAINER
 
 A server adopts entries only when the model, every file of it, the build's numerics, the devices, the precision, the cache types, the KV block sizes and the placement are all those of the server that wrote them, and only conversations used within `--disk-cache-max-age` (24 hours by default), with the older files they stand on.
 Change any of those flags between two servers and the second adopts nothing; its start line says which part differed (Troubleshooting, below).
+An upgrade usually changes the build's numerics, so by default the first server of a new build starts with an empty cache.
+`--disk-cache-adopt proved` keeps the conversations across an upgrade: the new build takes the old build's entries of the same model and placement and proves each conversation as it comes back, by computing its first block and its last stretch and comparing them with the files.
+Conversations of two turns and more come back in about the time of their last turn, and one-turn conversations on a model with recurrent layers are read again.
+Where the new build does compute other bits, the first conversation to come back pays about twice its prompt, once, and the old build's entries are deleted.
+The comparison does not cover the rows between the two stretches, as `--disk-cache-adopt` in [USAGE](USAGE.md) spells out; leave the default, `exact`, where every served bit must be the running build's own.
 
 **Drafting.**
 The server proposes several tokens and checks them in one pass, which gives the same reply and can be faster where the passes have room.
@@ -117,6 +122,7 @@ A server that answers `/v1/live` and not `/v1/health` within a long timeout has 
    Send one request twice and read `reused_tokens` in the reply (`timings.cache_n` on the compatible routes); it is 0 when nothing was shared, and `reuse.since_start.forks` rises by one when something was.
 4. After a restart, did the server adopt what the old one kept?
    The start line `disk cache in DIR, ..., N entries adopted` says how many; a line `a kept directory was not adopted, its X differing from this server's` names what differed, among `model`, `numerics`, `compiler`, `flags`, `shaders`, `libm` and `layout`.
+   With `--disk-cache-adopt proved` a difference in `numerics`, `compiler`, `flags`, `shaders` or `libm` alone does not stop adoption: the start line then says how many of the entries are another build's, and `reuse.disk.now.unproved` counts them down as conversations come back.
    `layout` covers the devices, precision, cache types, KV block sizes and placement, so a different `--device`, `--dtype`, `--layer-shares`, `--cache-type-k` or `--cache-type-v` stops adoption.
    A different `--ctx-size` changes it only when the new budget crosses a point where the server's row classes change, so raising a budget usually keeps the cache.
    Other reasons for adopting nothing: the previous server did not run with `--disk-cache-keep`, it was killed before it finished writing, or its entries were older than `--disk-cache-max-age`.

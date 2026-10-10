@@ -202,10 +202,10 @@ private:
                   ",\"host\":{\"now\":{\"entries\":" + n(s.host_donors) + ",\"bytes\":" + n(s.host_bytes) + ",\"limit_bytes\":" + n(s.host_limit) +
                   "},\"since_start\":{\"promotions\":" + n(s.host_hits) + ",\"bytes_moved\":" + n(s.host_bytes_moved) + "}}" +
                   ",\"disk\":{\"now\":{\"entries\":" + n(s.disk_entries) + ",\"segments\":" + n(s.disk_entries - s.disk_states) + ",\"states\":" + n(s.disk_states) + ",\"bytes\":" + n(s.disk_bytes) + ",\"limit_bytes\":" + n(s.disk_limit) +
-                  ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) +
+                  ",\"unproved\":" + n(s.disk_unproved) + ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) +
                   "},\"since_start\":{\"hits\":" + n(s.disk_hits) + ",\"bytes_read\":" + n(s.disk_bytes_read) + ",\"bytes_written\":" + n(s.disk_bytes_written) +
                   ",\"waits\":" + n(s.disk_waits) + ",\"wait_ms\":" + n((uint64_t)s.disk_wait_ms) + ",\"errors\":" + n(s.disk_errors) +
-                  ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"lost_before_written\":" + n(s.host_unwritten) + "}}" +
+                  ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.host_unwritten) + "}}" +
                   ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}}" +
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + "}}" +

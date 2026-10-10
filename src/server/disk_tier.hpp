@@ -87,7 +87,7 @@ struct DiskOptions {
     std::string model_path;          // the model file, or the first shard of a set, whose files' digests every entry's identity carries (model_files)
     std::chrono::milliseconds pace{0};   // DiskStore::Options::pace, for tests
     std::optional<BuildFacts> build;     // the build's facts in place of build_facts(), for tests
-    bool adopt_proved = false;           // adopt another build's entries unproved and prove each at its first use (--disk-cache-adopt proved); not yet honoured
+    bool adopt_proved = false;           // adopt another build's entries unproved and prove each at its first use (--disk-cache-adopt proved)
     std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
 };
 
@@ -130,17 +130,14 @@ public:
                 for (const std::string& file : model_files(options_.model_path))
                     digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file);
                 const std::string text = disk_identity(digest, layout, options_.build ? *options_.build : build_facts());
-                core::Sha id(true);
-                id.update(text.data(), text.size());
-                const std::string hex = id.hex();
-                std::array<uint8_t, 32> identity{};
-                for (size_t i = 0; i < identity.size(); ++i) identity[i] = (uint8_t)std::stoul(hex.substr(2 * i, 2), nullptr, 16);
+                const std::array<uint8_t, 32> identity = DiskStore::identity_of(text);
                 DiskStore::Options o;
                 o.root = options_.dir;
                 o.floor = options_.floor.value_or(0);
                 o.keep = options_.keep;
                 o.max_age = options_.max_age;
                 o.pace = options_.pace;
+                o.proved = options_.adopt_proved;
                 o.identity = text;
                 store = std::make_unique<DiskStore>(o, identity);
                 std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache, numerics %.16s, %zu entries adopted\n", store->directory().u8string().c_str(),
@@ -271,8 +268,9 @@ public:
     struct Figures {
         size_t files = 0, states = 0, capped = 0;
         uint64_t bytes = 0, written = 0;
+        size_t unproved = 0, proved = 0, disproved = 0;   // another build's files not proved yet, and since the start those proofs made this build's and those deleted with a build that failed one
     };
-    Figures figures() const { return {index_.files().size(), index_.states(), capped_, index_.bytes(), written_}; }
+    Figures figures() const { return {index_.files().size(), index_.states(), capped_, index_.bytes(), written_, unproved(), proved_, disproved_}; }
     // Once an idle server's writes have ended: one line of what went to disk since the last such line.
     void say_written() {
         if (written_ == said_) return;
@@ -284,6 +282,7 @@ public:
     size_t held() const {
         size_t n = staging_.held;
         for (const Reading& r : reads_) n += r.scratch.held;
+        for (const Proof& p : proofs_) n += p.base.held + p.head.held + p.tail.held + p.state.held;
         return n;
     }
 
@@ -329,6 +328,19 @@ public:
                     if (--r.left) break;
                     out.reads.push_back({r.id, r.ok});
                     model.release_host(r.scratch);
+                    // A proof's files are read: it goes on, or ends where a file failed, it was given up meanwhile or a build of its files failed another proof.
+                    const auto proof = std::find_if(proofs_.begin(), proofs_.end(), [&](const Proof& p) { return p.id == r.id; });
+                    if (proof != proofs_.end()) {
+                        const bool doomed = std::any_of(proof->keys.begin(), proof->keys.end(), [&](uint64_t key) {
+                            const DiskIndex::File* f = index_.find(key);
+                            return !f || std::find(condemned_.begin(), condemned_.end(), f->unproved) != condemned_.end();
+                        });
+                        proof->read = true;
+                        if (!r.ok || proof->dead || doomed) {
+                            give_back(model, *proof);
+                            proofs_.erase(proof);
+                        }
+                    }
                     reads_.erase(reads_.begin() + (std::ptrdiff_t)i);
                     break;
                 }
@@ -342,6 +354,10 @@ public:
                 changed_ = true;
                 touch(f.key, pending_.used);
                 written_ += pending_.bytes;
+                // This build's own file makes the unproved ones it covers needless, but for one a proof is reading.
+                const std::vector<uint64_t> held = pinned();
+                for (uint64_t key : index_.covered(pending_))
+                    if (std::find(held.begin(), held.end(), key) == held.end()) forget(key);
                 index_.add(std::move(pending_));
                 out.changed = true;
             }
@@ -352,6 +368,13 @@ public:
             model.release_host(staging_);
             out.wrote = true;
         }
+        std::vector<uint64_t> unclaimed;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            unclaimed.swap(unclaimed_);
+        }
+        for (uint64_t key : unclaimed) forget(key);
+        if (sweep() || !unclaimed.empty()) out.changed = true;
         if (out.changed) prune(false);
         return out;
     }
@@ -372,6 +395,7 @@ public:
             f.key = a.key;
             f.bytes = a.bytes;
             f.used = a.used;
+            f.unproved = a.unproved ? a.from : 0;
             index_.add(std::move(f));
         }
         const size_t alone = prune(true);
@@ -386,6 +410,7 @@ public:
             ++over;
         }
         std::fprintf(stderr, "server: %zu entries on disk from the server before", index_.files().size());
+        if (const size_t n = unproved()) std::fprintf(stderr, ", %zu of them another build's, each proved at its first use", n);
         if (unread + alone + old + over) std::fprintf(stderr, "; dropped: %zu whose description did not read, %zu that no whole path reaches, %zu past the age limit, %zu over the cap", unread, alone, old, over);
         std::fprintf(stderr, "\n");
         return true;
@@ -513,39 +538,272 @@ public:
     uint64_t read(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only) {
         Reading r;
         r.id = ++read_ids_;
-        struct Call {
-            uint64_t key;
-            std::vector<StoreRun> runs;
-            std::vector<size_t> layout;
-        };
         std::vector<Call> calls;
         try {
-            for (const DiskIndex::Piece& piece : state_only ? std::vector<DiskIndex::Piece>{} : p.pieces) {
-                std::vector<infer::HostRange> ranges = model.host_ranges(target, piece.first, piece.use);
-                std::vector<StoreRun> runs = runs_of(target, ranges);
-                if (piece.use < piece.end) {
-                    model.alloc_host(piece.end, r.scratch, std::numeric_limits<size_t>::max(), true, piece.use, false);
-                    const std::vector<infer::HostRange> rest = model.host_ranges(r.scratch, piece.use, piece.end);
-                    const std::vector<StoreRun> more = runs_of(r.scratch, rest);
-                    std::vector<StoreRun> both;
-                    for (size_t i = 0; i < runs.size(); ++i) {
-                        both.push_back(runs[i]);
-                        both.push_back(more[i]);
-                    }
-                    runs.swap(both);
-                    ranges.insert(ranges.end(), rest.begin(), rest.end());
-                }
-                calls.push_back(Call{piece.key, std::move(runs), layout_of(ranges, target.slabs.size())});
-            }
-            if (p.state) {
-                const std::vector<infer::HostRange> ranges = model.host_state_ranges(target);
-                calls.push_back(Call{*p.state, runs_of(target, ranges), layout_of(ranges, target.slabs.size())});
-            }
+            calls_of(model, p, target, state_only, r.scratch, calls);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "server: a history of %zu tokens was not read from disk (%s)\n", p.length, e.what());
             model.release_host(r.scratch);
             return 0;
         }
+        return send(std::move(r), calls);
+    }
+
+    // ---- Another build's entries, adopted unproved and proved at their first use (docs/DISK-TIER.md, Adopting another build's entries). ----
+
+    // What a history has in unproved files beyond the `held` tokens its request can have without them: its path through them to `end`, and the path to `fork`, where its request starts the rows it computes to compare.
+    // `first` says its first block is another build's too and is compared before anything of the path is used, and `busy` names the proof already on one of its files.
+    struct Plan {
+        DiskIndex::Path path, base;
+        size_t fork = 0, end = 0;
+        bool first = false;
+        uint64_t busy = 0;
+        std::vector<uint64_t> keys, claim;   // its unproved files, and those of them the path uses whole, which an equal proof makes this build's
+    };
+    // The plan for the history whose digests are `d`, of `n` tokens, or none: nothing unproved beyond `held`, or a model that keeps a state (`state`) with no state on the path below its end to start from.
+    std::optional<Plan> plan(const std::vector<std::string>& d, size_t block, size_t n, bool state, size_t held) const {
+        if (!unproved()) return std::nullopt;
+        Plan p;
+        p.path = index_.path(d, block, n, state, true);
+        p.end = p.path.length;
+        if (p.end <= held || p.path.pieces.empty()) return std::nullopt;
+        const auto note = [&](uint64_t key, bool whole) {
+            const DiskIndex::File* f = index_.find(key);
+            if (!f || !f->unproved) return;
+            p.keys.push_back(key);
+            if (whole) p.claim.push_back(key);
+        };
+        // The fork point: the highest position below the path's end at which a sequence of this model may be forked.
+        p.base = state ? index_.path(d, block, p.end - 1, true, true) : index_.path(d, block, p.end - block, false, true);
+        p.fork = p.base.length;
+        if (state && !p.fork) return std::nullopt;
+        for (const DiskIndex::Piece& piece : p.path.pieces) note(piece.key, piece.use == piece.end);
+        if (p.path.state) note(*p.path.state, true);
+        if (p.base.state) note(*p.base.state, true);
+        if (p.keys.empty()) return std::nullopt;
+        for (uint64_t key : p.keys)
+            if (std::find(condemned_.begin(), condemned_.end(), index_.find(key)->unproved) != condemned_.end()) return std::nullopt;
+        p.first = index_.find(p.path.pieces.front().key)->unproved != 0;
+        if (p.fork <= held) p.base = DiskIndex::Path{};
+        for (const Proof& proof : proofs_)
+            for (uint64_t key : p.keys)
+                if (std::find(proof.keys.begin(), proof.keys.end(), key) != proof.keys.end()) p.busy = proof.id;
+        return p;
+    }
+
+    // Starts a plan's proof: the path to its fork read for its request to restore, and the files holding its first block, its last block and the state at its end read whole to compare with. The proof's id, which settle reports as a read, or 0.
+    uint64_t prove(infer::Model& model, const Plan& plan) {
+        Proof p;
+        Reading r;
+        r.id = p.id = ++read_ids_;
+        p.keys = plan.keys;
+        p.claim = plan.claim;
+        p.fork = plan.fork;
+        p.end = plan.end;
+        p.first = plan.first;
+        // The last comparison takes every block of the stretch the request computes that the file read whole for the path's end holds.
+        p.from = std::max(plan.fork, plan.path.pieces.back().first);
+        std::vector<Call> calls;
+        const size_t most = std::numeric_limits<size_t>::max();
+        const auto whole = [&](const DiskIndex::Piece& piece, infer::HostHistory& h) {
+            model.alloc_host(piece.end, h, most, true, piece.first, false);
+            const std::vector<infer::HostRange> ranges = model.host_ranges(h, piece.first, piece.end);
+            calls.push_back(Call{piece.key, runs_of(h, ranges), layout_of(ranges, h.slabs.size())});
+        };
+        try {
+            if (plan.base.length) {
+                model.alloc_host(plan.base.length, p.base, most, true);
+                calls_of(model, plan.base, p.base, false, r.scratch, calls);
+            }
+            const DiskIndex::Piece& root = plan.path.pieces.front();
+            const DiskIndex::Piece& last = plan.path.pieces.back();
+            if (plan.first) whole(root, p.head);
+            if (!plan.first || last.key != root.key) whole(last, p.tail);
+            if (plan.path.state) {
+                model.alloc_host(plan.end, p.state, most, false);
+                const std::vector<infer::HostRange> ranges = model.host_state_ranges(p.state);
+                calls.push_back(Call{*plan.path.state, runs_of(p.state, ranges), layout_of(ranges, p.state.slabs.size())});
+            }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "server: another build's history of %zu tokens was not read from disk to prove it (%s)\n", plan.end, e.what());
+            model.release_host(r.scratch);
+            give_back(model, p);
+            return 0;
+        }
+        proofs_.push_back(std::move(p));
+        return send(std::move(r), calls);
+    }
+
+    // Where proof `id` stands, or none once it has ended or been given up: whether its files are read, the block still to compare first (0 once it is), its fork and end, and the history to restore at the fork where the request holds less.
+    struct Proving {
+        bool read = false;
+        size_t first = 0, fork = 0, end = 0;
+        infer::HostHistory* base = nullptr;
+        size_t from = 0;   // where the blocks of the last comparison begin
+    };
+    std::optional<Proving> proving(uint64_t id, size_t block) {
+        for (Proof& p : proofs_)
+            if (p.id == id && !p.dead) return Proving{p.read, p.first ? block : 0, p.fork, p.end, p.base.owner ? &p.base : nullptr, p.from};
+        return std::nullopt;
+    }
+
+    // The next comparison of proof `id`, byte for byte against what the files hold: its request's first block, then its last with the state at the path's end; whether it was equal.
+    // An equal last one makes the files this build's and gives the path the proof read to `proved`; an unequal one deletes them with their builds' other unproved files (docs/DISK-TIER.md, Adopting another build's entries).
+    bool compare(uint64_t id, infer::Model& model, const infer::HostHistory& blocks, const infer::HostHistory& state, infer::HostHistory& proved) {
+        const auto it = std::find_if(proofs_.begin(), proofs_.end(), [&](const Proof& p) { return p.id == id; });
+        if (it == proofs_.end() || !it->read || it->dead) return false;
+        Proof& p = *it;
+        const size_t block = model.kv_block_tokens();
+        model.wait_host(blocks);
+        if (state.owner) model.wait_host(state);
+        const infer::HostHistory& tail = p.tail.owner ? p.tail : p.head;
+        bool equal;
+        if (p.first) {
+            equal = same(blocks, model.host_ranges(blocks, 0, block), p.head, model.host_ranges(p.head, 0, block));
+            p.first = false;
+            if (equal && p.end > block) return true;
+        } else {
+            equal = same(blocks, model.host_ranges(blocks, p.from, p.end), tail, model.host_ranges(tail, p.from, p.end));
+            if (equal && p.state.owner) equal = state.owner && same(state, model.host_state_ranges(state), p.state, model.host_state_ranges(p.state));
+        }
+        if (equal) {
+            for (uint64_t key : p.claim) {
+                index_.prove(key);
+                std::lock_guard<std::mutex> lk(m_);
+                store_->claim(key, [this, key](bool ok, const std::string& error) {
+                    if (!error.empty()) std::fprintf(stderr, "server: a proved entry was not made this build's on disk (%s)\n", error.c_str());
+                    if (ok) return;
+                    {
+                        std::lock_guard<std::mutex> l(m_);
+                        unclaimed_.push_back(key);
+                    }
+                    if (wake_) wake_();
+                });
+            }
+            proved_ += p.claim.size();
+            std::fprintf(stderr, "server: another build's history of %zu tokens proved this build's, %zu files\n", p.end, p.claim.size());
+            proved = std::move(p.base);
+            p.base = infer::HostHistory{};
+        } else {
+            for (uint64_t key : p.keys)
+                if (const DiskIndex::File* f = index_.find(key)) condemned_.push_back(f->unproved);
+            std::fprintf(stderr, "server: another build's history of %zu tokens is not what this build computes; its files and that build's other unproved files are deleted\n", p.end);
+        }
+        changed_ = true;
+        give_back(model, p);
+        proofs_.erase(it);
+        sweep();
+        return equal;
+    }
+
+    // Proof `id` given up, its request gone or computing without it; its files stay unproved.
+    void abandon(uint64_t id, infer::Model& model) {
+        const auto it = std::find_if(proofs_.begin(), proofs_.end(), [&](const Proof& p) { return p.id == id; });
+        if (it == proofs_.end()) return;
+        it->dead = true;
+        if (!it->read) return;   // its slabs are still read into, and go when the read ends (settle)
+        give_back(model, *it);
+        proofs_.erase(it);
+    }
+
+    // The unproved files on disk.
+    size_t unproved() const { return (size_t)std::count_if(index_.files().begin(), index_.files().end(), [](const DiskIndex::File& f) { return f.unproved != 0; }); }
+
+    // At the stop: the slabs the tier's own calls hold given back, once the store is gone.
+    void release(infer::Model& model) {
+        model.release_host(staging_);
+        for (Reading& r : reads_) model.release_host(r.scratch);
+        reads_.clear();
+        for (Proof& p : proofs_) give_back(model, p);
+        proofs_.clear();
+        key_ = source_ = 0;
+    }
+
+private:
+    // A read in flight: the files it reads, the store's calls still out, and the slabs for the blocks of a file it wants only part of.
+    struct Reading {
+        uint64_t id = 0;
+        std::vector<uint64_t> keys, tickets;
+        size_t left = 0;
+        bool ok = true;
+        infer::HostHistory scratch;
+    };
+
+    // A proof in flight: the unproved files of its path and those an equal proof claims, its fork and end, whether its first block is still to compare, whether its read has ended, and whether it was given up before that.
+    // `base` is the path to the fork, and `head`, `tail` and `state` the files holding the first block, the last block and the state at the end, read whole; one file holding both blocks is read once, as `head`.
+    struct Proof {
+        uint64_t id = 0;
+        std::vector<uint64_t> keys, claim;
+        size_t fork = 0, end = 0, from = 0;
+        bool first = false, read = false, dead = false;
+        infer::HostHistory base, head, tail, state;
+    };
+    void give_back(infer::Model& model, Proof& p) {
+        for (infer::HostHistory* h : {&p.base, &p.head, &p.tail, &p.state}) model.release_host(*h);
+    }
+    // Whether two host histories hold the same bytes over ranges of the same sizes.
+    static bool same(const infer::HostHistory& a, const std::vector<infer::HostRange>& ra, const infer::HostHistory& b, const std::vector<infer::HostRange>& rb) {
+        if (ra.size() != rb.size()) return false;
+        const size_t slab = infer::Model::host_slab_bytes();
+        for (size_t i = 0; i < ra.size(); ++i) {
+            if (ra[i].device != rb[i].device || ra[i].bytes != rb[i].bytes) return false;
+            for (size_t at = 0; at < ra[i].bytes;) {
+                const size_t oa = ra[i].offset + at, ob = rb[i].offset + at;
+                const size_t n = std::min({ra[i].bytes - at, slab - oa % slab, slab - ob % slab});
+                const auto* pa = (const uint8_t*)a.slabs[ra[i].device][oa / slab]->host_ptr() + oa % slab;
+                const auto* pb = (const uint8_t*)b.slabs[rb[i].device][ob / slab]->host_ptr() + ob % slab;
+                if (std::memcmp(pa, pb, n) != 0) return false;
+                at += n;
+            }
+        }
+        return true;
+    }
+    // The unproved files of a build one of whose entries failed its proof deleted, but for those a read is on, which go once it ends; whether any went.
+    bool sweep() {
+        if (condemned_.empty()) return false;
+        const std::vector<uint64_t> held = pinned();
+        std::vector<uint64_t> gone;
+        for (const DiskIndex::File& f : index_.files())
+            if (f.unproved && std::find(condemned_.begin(), condemned_.end(), f.unproved) != condemned_.end() && std::find(held.begin(), held.end(), f.key) == held.end())
+                gone.push_back(f.key);
+        for (uint64_t key : gone) forget(key);
+        disproved_ += gone.size();
+        if (!gone.empty()) prune(false);
+        return !gone.empty();
+    }
+
+    // One file's read: its key, where its bytes go and the layout it must have.
+    struct Call {
+        uint64_t key;
+        std::vector<StoreRun> runs;
+        std::vector<size_t> layout;
+    };
+    // The reads of path `p` into `target`, a file the path uses part of taking `scratch` for the rest, appended to `calls`.
+    void calls_of(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only, infer::HostHistory& scratch, std::vector<Call>& calls) {
+        for (const DiskIndex::Piece& piece : state_only ? std::vector<DiskIndex::Piece>{} : p.pieces) {
+            std::vector<infer::HostRange> ranges = model.host_ranges(target, piece.first, piece.use);
+            std::vector<StoreRun> runs = runs_of(target, ranges);
+            if (piece.use < piece.end) {
+                model.alloc_host(piece.end, scratch, std::numeric_limits<size_t>::max(), true, piece.use, false);
+                const std::vector<infer::HostRange> rest = model.host_ranges(scratch, piece.use, piece.end);
+                const std::vector<StoreRun> more = runs_of(scratch, rest);
+                std::vector<StoreRun> both;
+                for (size_t i = 0; i < runs.size(); ++i) {
+                    both.push_back(runs[i]);
+                    both.push_back(more[i]);
+                }
+                runs.swap(both);
+                ranges.insert(ranges.end(), rest.begin(), rest.end());
+            }
+            calls.push_back(Call{piece.key, std::move(runs), layout_of(ranges, target.slabs.size())});
+        }
+        if (p.state) {
+            const std::vector<infer::HostRange> ranges = model.host_state_ranges(target);
+            calls.push_back(Call{*p.state, runs_of(target, ranges), layout_of(ranges, target.slabs.size())});
+        }
+    }
+    // Read `r`'s calls handed to the store; its id.
+    uint64_t send(Reading r, std::vector<Call>& calls) {
         const uint64_t id = r.id;
         r.left = calls.size();
         std::lock_guard<std::mutex> lk(m_);
@@ -564,24 +822,6 @@ public:
         reads_.push_back(std::move(r));
         return id;
     }
-
-    // At the stop: the slabs the tier's own calls hold given back, once the store is gone.
-    void release(infer::Model& model) {
-        model.release_host(staging_);
-        for (Reading& r : reads_) model.release_host(r.scratch);
-        reads_.clear();
-        key_ = source_ = 0;
-    }
-
-private:
-    // A read in flight: the files it reads, the store's calls still out, and the slabs for the blocks of a file it wants only part of.
-    struct Reading {
-        uint64_t id = 0;
-        std::vector<uint64_t> keys, tickets;
-        size_t left = 0;
-        bool ok = true;
-        infer::HostHistory scratch;
-    };
 
     // The runs of ranges of a host history, as the store takes them, and the layout a file of them records: the bytes a device.
     static std::vector<StoreRun> runs_of(const infer::HostHistory& h, const std::vector<infer::HostRange>& ranges) {
@@ -657,6 +897,10 @@ private:
     infer::HostHistory staging_;
     std::vector<uint64_t> pins_;
     std::vector<Reading> reads_;
+    std::vector<Proof> proofs_;
+    std::vector<uint64_t> condemned_;    // the builds one of whose entries failed its proof
+    std::vector<uint64_t> unclaimed_;    // under m_, the proved files the store could not make this build's
+    size_t proved_ = 0, disproved_ = 0;
     uint64_t read_ids_ = 0, written_ = 0, said_ = 0;
     size_t capped_ = 0;
     bool measured_ = false;

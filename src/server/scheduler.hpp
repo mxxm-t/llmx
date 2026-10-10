@@ -207,6 +207,11 @@ private:
     uint64_t disk_wait_ = 0;
     std::chrono::steady_clock::time_point disk_since_, disk_until_;
     bool disk_checked_ = false;
+    // The proof of another build's files on its history's path (Scheduler::prove): its id, where the slice that reaches it ends for the next comparison and whether that one takes the state there.
+    // `unproved_` says its cache holds rows restored from those files, which leave with a proof that does not end equal.
+    uint64_t proof_ = 0;
+    size_t prove_at_ = 0;
+    bool prove_state_ = false, unproved_ = false;
     // A job (docs/SPECULATIVE.md, section 2, Idle re-prefill): an internal request whose prompt is what the conversation's next turn begins with after request `of_`'s reply, read as prompt rows of one class and kept as a donor.
     // `whole_` is set once those ids follow the whole reply rather than the part written so far.
     bool job_ = false, whole_ = false;
@@ -416,6 +421,9 @@ public:
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.host_unwritten = host_unwritten_;
         s.disk_capped = disk_now_.capped;
+        s.disk_unproved = disk_now_.unproved;
+        s.disk_proved = disk_now_.proved;
+        s.disk_disproved = disk_now_.disproved;
         s.disk_writing = disk_ && disk_->writing();
         s.disk_hits = disk_hits_;
         s.disk_waits = disk_waits_;
@@ -526,6 +534,8 @@ public:
                     active_count_.store(requests(active));
                     paused_count_.store(paused_.size());
                 }
+                for (size_t i = 0; disk_ && i < active.size(); ++i)
+                    if (active[i]->proof_ && !active[i]->seq_.in_flight()) prove(*active[i]);
                 follow_up(active);
                 complete_jobs(active);
                 try {
@@ -746,6 +756,8 @@ private:
             // A slice that would pass the request's checkpoint or its message boundary ends there, so its state can be kept there.
             if (r->keep_at_ > at && r->keep_at_ < at + n) n = r->keep_at_ - at;
             if (r->boundary_at_ > at && r->boundary_at_ < at + n) n = r->boundary_at_ - at;
+            // And at the next position its proof compares at (prove).
+            if (r->prove_at_ > at && r->prove_at_ < at + n) n = r->prove_at_ - at;
             if (c.extent == 1 && at < r->reached_) {
                 // Rows of extent 1 a resume computes again, generated tokens or a forked reply's: a pass takes at most kReplayRows of them, each costing ubatch / kReplayRows of the budget, so a request gets one while the budget is untouched.
                 // A one-token prompt read for the first time costs its row as any prompt does.
@@ -773,6 +785,11 @@ private:
                 }
                 r->boundary_at_ = 0;
                 r->boundary_kept_ = e.keep;
+            }
+            // The slice that ends a proof's path keeps its state there, which the proof compares.
+            if (r->prove_state_ && r->prove_at_ == at + n && !e.keep) {
+                e.keep = checkpoint_room(keeps, r->source_);
+                keeps += e.keep;
             }
             add_entry(r, e);
         };
@@ -998,9 +1015,10 @@ private:
             r.landed_ = f.formed;
             if (r.job_) job_rows += f.rows[e];
             if (r.boundary_kept_) {
-                r.boundary_kept_ = false;
+                // A state computed over rows restored from unproved files is kept by no one: prove keeps the one at its path's end once the proof has ended equal.
+                r.boundary_kept_ = r.unproved_ && to == r.prove_at_;
                 std::lock_guard<std::mutex> lk(m_);
-                if (!r.cancel_.load()) keep_boundary(r.seq_, r.prompt_, r.classes_);
+                if (!r.cancel_.load() && !r.unproved_) keep_boundary(r.seq_, r.prompt_, r.classes_);
             }
         }
         if (again || job_rows) {
@@ -1669,6 +1687,8 @@ private:
     std::deque<std::shared_ptr<Request>>::iterator leave(std::deque<std::shared_ptr<Request>>& waiting, std::deque<std::shared_ptr<Request>>::iterator it) {
         const size_t d = own_donor(**it);
         if (d < donors_.size() && donors_[d].tokens.size() < model_.kv_block_tokens()) drop_donor(d);
+        if ((*it)->proof_) end_proof((*it)->proof_);
+        (*it)->proof_ = 0;
         (*it)->end("cancel");
         return waiting.erase(it);
     }
@@ -2225,7 +2245,8 @@ private:
     void finish_read(uint64_t id, bool ok) {
         size_t i = 0;
         while (i < disk_reads_.size() && disk_reads_[i].id != id) ++i;
-        if (i == disk_reads_.size()) return;
+        // A proof's files, read by the tier: its request goes on to compare them (prove).
+        if (i == disk_reads_.size()) return wake_readers(id);
         DiskRead rd = std::move(disk_reads_[i]);
         disk_reads_.erase(disk_reads_.begin() + (std::ptrdiff_t)i);
         if (ok) {
@@ -2260,9 +2281,107 @@ private:
             if (!rd.through) host_held_ -= rd.history.held;
             model_.release_host(rd.history);
         }
+        wake_readers(id);
+    }
+    // The requests waiting for read or proof `id` wait no longer.
+    void wake_readers(uint64_t id) {
         for (auto* q : {&queue_, &paused_})
             for (auto& r : *q)
                 if (r->disk_wait_ == id) end_wait(*r);
+    }
+    // Proof `id` given up at the tier, and those waiting for it look again.
+    // Under the lock.
+    void end_proof(uint64_t id) {
+        disk_->abandon(id, model_);
+        wake_readers(id);
+        sync_disk();
+    }
+
+    // Proves another build's files on r's path in the tier's order: r's first block compared, the path restored at its fork, its last block and state at the end compared (docs/DISK-TIER.md, Adopting another build's entries).
+    // The tier decides each comparison and the files' fate; r computes the rows and copies the block, and a proof that does not end equal leaves it computing its history from the start (unprove).
+    void prove(Request& r) {
+        const size_t bt = model_.kv_block_tokens(), most = std::numeric_limits<size_t>::max();
+        for (;;) {
+            std::optional<DiskTier::Proving> p;
+            bool room = true;
+            {
+                std::lock_guard<std::mutex> lk(m_);
+                p = disk_->proving(r.proof_, bt);
+                if (p && p->read && !p->first && p->base && r.seq_.length() < p->fork && model_.keeps_state()) room = checkpoint_room_held(0);
+            }
+            if (!p || !p->read || !room) return unprove(r);
+            const size_t at = r.seq_.length(), stop = p->first ? p->first : p->end;
+            if (!p->first && p->base && at < p->fork) {
+                try { model_.reset(r.seq_); } catch (const std::exception&) {}
+                try {
+                    r.seq_ = quieted()->restore_host(*p->base);
+                } catch (const std::exception& e) {
+                    std::fprintf(stderr, "server: another build's history of %zu tokens was not restored to prove it (%s)\n", p->fork, e.what());
+                    return unprove(r);
+                }
+                r.unproved_ = true;
+                continue;
+            }
+            r.prove_at_ = stop;
+            r.prove_state_ = !p->first && model_.keeps_state();
+            if (at < stop) return;
+            if (at > stop && !p->first) return unprove(r);
+            infer::HostHistory blocks, state, proved;
+            bool equal = false, compared = false;
+            try {
+                quieted()->save_host_blocks(r.seq_, p->first ? 0 : p->from, stop, blocks, most);
+                if (r.prove_state_) quieted()->save_host(r.seq_, stop, state, most, false);
+                model_.wait_host(blocks);
+                if (state.owner) model_.wait_host(state);
+                std::lock_guard<std::mutex> lk(m_);
+                equal = disk_->compare(r.proof_, model_, blocks, state, proved);
+                compared = true;
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "server: a block of %zu tokens was not copied to prove another build's history (%s)\n", stop, e.what());
+            }
+            model_.release_host(blocks);
+            model_.release_host(state);
+            if (!compared || !equal) return unprove(r);
+            std::lock_guard<std::mutex> lk(m_);
+            if (disk_->proving(r.proof_, bt)) continue;
+            // Proved: what r restored is its own from here, a prefix it reused.
+            if (r.unproved_) {
+                r.reused_.store(p->fork);
+                ++prefix_hits_;
+                prefix_tokens_ += p->fork;
+            }
+            if (r.boundary_kept_) keep_boundary(r.seq_, r.prompt_, r.classes_);
+            // The path the proof read is a history read from disk from here, a host entry where the tier has the room.
+            release_written(proved.held);
+            if (proved.owner && host_held_ + proved.held <= host_cap_) {
+                host_.emplace_back();
+                HostDonor& d = host_.back();
+                d.id = ++donor_ids_;
+                d.tokens.assign(r.prompt_.begin(), r.prompt_.begin() + (std::ptrdiff_t)proved.length);
+                d.classes = clip(r.classes_, proved.length);
+                d.back = true;
+                host_held_ += proved.held;
+                d.history = std::move(proved);
+                refresh_disk();
+                if (d.disk) disk_->renew(d.disk, true);
+            }
+            model_.release_host(proved);
+            wake_readers(r.proof_);
+            sync_disk();
+            r.proof_ = r.prove_at_ = 0;
+            r.prove_state_ = r.unproved_ = r.boundary_kept_ = false;
+            return;
+        }
+    }
+    // r's proof given up or ended unequal: the rows r restored from the unproved files go, so it computes its history from the start, and the tier lets the proof go.
+    void unprove(Request& r) {
+        if (r.unproved_) try { model_.reset(r.seq_); } catch (const std::exception&) {}
+        const uint64_t id = r.proof_;
+        r.proof_ = r.prove_at_ = 0;
+        r.boundary_kept_ = r.boundary_kept_ && !r.unproved_;
+        r.prove_state_ = r.unproved_ = false;
+        std::lock_guard<std::mutex> lk(m_);
+        end_proof(id);
     }
 
     // Reads for waiting requests whose history the disk holds more whole blocks of than any history on the devices or in host memory, each request looked for once, at most kDiskReads in flight and max_seqs requests waiting.
@@ -2297,6 +2416,24 @@ private:
                 shared = std::max(shared, more);
                 best_bound(*r, more);
                 shared = std::max(shared, more);
+                // Another build's files beyond what this build holds for it: the request proves them at its first admission (prove), waiting for their read, or for the proof already on them, as for any read.
+                // On a model that keeps a state the restore and the state at the path's end each take a checkpoint slot, so a server of one proves nothing.
+                const bool proves = r->classes_.empty() && (!model_.keeps_state() || model_.checkpoint_slots() > 1);
+                const std::optional<DiskTier::Plan> plan = proves ? disk_->plan(d, bt, limit, model_.keeps_state(), shared) : std::nullopt;
+                if (plan && plan->end > path.length) {
+                    const uint64_t id = plan->busy ? plan->busy : disk_->prove(*quieted(), *plan);
+                    r->disk_checked_ = !plan->busy;
+                    if (!id) continue;
+                    if (!plan->busy) r->proof_ = id;
+                    const auto now = std::chrono::steady_clock::now();
+                    r->disk_wait_ = id;
+                    r->disk_since_ = now;
+                    r->disk_until_ = prompt_ms_row_ > 0 ? now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double, std::milli>((double)plan->end * prompt_ms_row_))
+                                                        : std::chrono::steady_clock::time_point::max();
+                    ++disk_waits_;
+                    ++waiting;
+                    continue;
+                }
                 if (path.length <= shared) {
                     r->disk_checked_ = true;
                     continue;
@@ -2605,6 +2742,7 @@ private:
     uint64_t park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h, size_t least = 0) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
+        if (r->proof_) unprove(*r);
         size_t held = r->seq_.length();
         if (model_.keeps_state() && held && !(least && quieted()->keep(r->seq_))) {
             const std::optional<size_t> kept = model_.checkpoint(r->seq_);

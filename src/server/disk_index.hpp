@@ -39,6 +39,7 @@ public:
         uint64_t bytes = 0;
         Time used{};
         bool back = false;   // its conversation came back, which room spares longest
+        uint64_t unproved = 0;   // the build that wrote it where that is another and its bytes are not proved this build's (DiskTier), kept in memory only
     };
 
     // The digest of a history at each whole block: d[k] names its first k blocks, their tokens and the classes that computed them, so two histories share a digest exactly where they share every row below it.
@@ -140,7 +141,7 @@ public:
 
     // The path of the history whose digests are `d`, up to `n` tokens: from the root, the segment that continues it, as far as its blocks are the history's.
     // With `state`, as a model that keeps one needs, it ends at the highest state on it, or is empty where there is none.
-    Path path(const std::vector<std::string>& d, size_t block, size_t n, bool state) const {
+    Path path(const std::vector<std::string>& d, size_t block, size_t n, bool state, bool unproved = false) const {
         link();
         Path p;
         const size_t blocks = std::min(n / block, d.size() - 1);
@@ -150,10 +151,10 @@ public:
             const auto starts = starts_.find(d[at]);
             for (size_t i : starts == starts_.end() ? std::vector<size_t>{} : starts->second) {
                 const File& f = files_[i];
-                if (f.state || f.first != at * block) continue;
+                if (f.state || f.first != at * block || (f.unproved && !unproved)) continue;
                 size_t k = 0;
                 while (k < f.ends.size() && at + k < blocks && f.ends[k] == d[at + k + 1]) ++k;
-                if (k > shared) {
+                if (k > shared || (k && k == shared && best->unproved && !f.unproved)) {
                     shared = k;
                     best = &f;
                 }
@@ -169,7 +170,7 @@ public:
         for (size_t at = p.length / block + 1; at-- > 0 && !p.state;) {
             const auto starts = starts_.find(d[at]);
             for (size_t i : starts == starts_.end() ? std::vector<size_t>{} : starts->second)
-                if (files_[i].state && files_[i].end == at * block) p.state = files_[i].key;
+                if (files_[i].state && files_[i].end == at * block && (unproved || !files_[i].unproved) && (!p.state || !files_[i].unproved)) p.state = files_[i].key;
             if (p.state) p.length = at * block;
         }
         if (!p.state) p.length = 0;
@@ -199,7 +200,7 @@ public:
         if (at / block >= d.size()) return false;
         const auto starts = starts_.find(d[at / block]);
         for (size_t i : starts == starts_.end() ? std::vector<size_t>{} : starts->second)
-            if (files_[i].state && files_[i].end == at) return true;
+            if (files_[i].state && files_[i].end == at && !files_[i].unproved) return true;
         return false;
     }
 
@@ -209,9 +210,30 @@ public:
         for (size_t at = std::min(n / block, d.size() - 1) + 1; at-- > 1;) {
             const auto starts = starts_.find(d[at]);
             for (size_t i : starts == starts_.end() ? std::vector<size_t>{} : starts->second)
-                if (files_[i].state && files_[i].end == at * block) return std::make_pair(at * block, files_[i].key);
+                if (files_[i].state && files_[i].end == at * block && !files_[i].unproved) return std::make_pair(at * block, files_[i].key);
         }
         return std::nullopt;
+    }
+
+    // The unproved files that file `f` of this build's makes needless: a segment whose every block is among f's, a state where f is that state, and a state on the rows a segment f holds.
+    std::vector<uint64_t> covered(const File& f) const {
+        std::vector<uint64_t> out;
+        const auto held = [&](const std::string& digest) { return std::find(f.ends.begin(), f.ends.end(), digest) != f.ends.end(); };
+        for (const File& u : files_) {
+            if (!u.unproved) continue;
+            const bool state = u.state && (f.state ? u.below == f.below && u.end == f.end : held(u.below));
+            if (state || (!u.state && !f.state && std::all_of(u.ends.begin(), u.ends.end(), held))) out.push_back(u.key);
+        }
+        return out;
+    }
+    const File* find(uint64_t key) const {
+        const auto it = std::find_if(files_.begin(), files_.end(), [&](const File& f) { return f.key == key; });
+        return it == files_.end() ? nullptr : &*it;
+    }
+    // File `key` is this build's own from now on.
+    void prove(uint64_t key) {
+        for (File& f : files_)
+            if (f.key == key) f.unproved = 0;
     }
 
     // The files no path from the root reaches: segments whose parent is not there, and, with `states`, states whose path is not whole, which only a history still in memory could use.

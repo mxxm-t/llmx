@@ -1246,6 +1246,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          for the next server; the exit takes " << server::kDiskFlush.count() << " s or more, and prints its bound\n"
             << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number\n"
             << "                          followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
+            << "  --disk-cache-adopt WHICH  Which kept entries a server takes over: exact, those of its own build\n"
+            << "                          (the default), or proved, also another build's of the same model and\n"
+            << "                          placement, each compared at its first use with what this build computes and\n"
+            << "                          deleted where it differs; the comparison covers a conversation's first\n"
+            << "                          block and its last stretch, not the rows between\n"
             << "  --context-overflow HOW  What a prompt that does not fit the context gets: refuse, a 413 with its numbers\n"
             << "                          (the default), or shift, which drops the oldest turns to half the context;\n"
             << "                          use shift for chat front ends that do not manage their own context\n"
@@ -1578,6 +1583,11 @@ int main(int argc, char** argv) {
                 else if (f == "--disk-cache-floor") cfg.disk.floor = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--disk-cache-keep") cfg.disk.keep = true;
                 else if (f == "--disk-cache-max-age") cfg.disk.max_age = seconds_arg(argc, argv, i, a);
+                else if (f == "--disk-cache-adopt") {
+                    const std::string v = nonempty_value(argc, argv, i, a, "exact or proved");
+                    if (v != "exact" && v != "proved") throw UsageError("--disk-cache-adopt takes exact or proved, not " + v);
+                    cfg.disk.adopt_proved = v == "proved";
+                }
                 else if (f == "--timing") cfg.timing = true;
                 else if (f == "--context-overflow") {
                     const std::string v = nonempty_value(argc, argv, i, a, "refuse or shift");
@@ -1591,6 +1601,7 @@ int main(int argc, char** argv) {
                 given.take(a, i > at);
             }
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
+            if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
             return cmd_serve(argv[2], cfg, exec, drafts);
         }
         if (cmd == "bench") {

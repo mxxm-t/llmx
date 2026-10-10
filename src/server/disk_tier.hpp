@@ -86,6 +86,8 @@ struct DiskOptions {
     uint64_t max_age = 24 * 3600;    // seconds an entry may go unused before it is deleted, 0 for no limit
     std::string model_path;          // the model file, or the first shard of a set, whose files' digests every entry's identity carries (model_files)
     std::chrono::milliseconds pace{0};   // DiskStore::Options::pace, for tests
+    std::optional<BuildFacts> build;     // the build's facts in place of build_facts(), for tests
+    bool adopt_proved = false;           // adopt another build's entries unproved and prove each at its first use (--disk-cache-adopt proved); not yet honoured
     std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
 };
 
@@ -127,7 +129,7 @@ public:
                 std::string digest;
                 for (const std::string& file : model_files(options_.model_path))
                     digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file);
-                const std::string text = disk_identity(digest, layout, build_facts());
+                const std::string text = disk_identity(digest, layout, options_.build ? *options_.build : build_facts());
                 core::Sha id(true);
                 id.update(text.data(), text.size());
                 const std::string hex = id.hex();

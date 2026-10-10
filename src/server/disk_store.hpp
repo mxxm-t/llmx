@@ -20,6 +20,7 @@
 #include <vector>
 #include "backends/backend.hpp"
 #include "core/crc32c.hpp"
+#include "core/sha.hpp"
 #include "core/host_memory.hpp"
 #include "format/file_reader.hpp"
 #include "format/file_writer.hpp"
@@ -51,6 +52,8 @@ public:
         std::string identity;        // the text the identity is the digest of, a `name: value` line a component, left in the directory so a server that adopts nothing can say which differs; none leaves no file
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
         std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
+        bool proved = false;         // adopt, unproved, the entries of another build (--disk-cache-adopt proved); not yet honoured
+        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so, for tests; not yet asked
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -61,7 +64,22 @@ public:
         std::vector<size_t> run_bytes;
         uint64_t bytes = 0;
         std::filesystem::file_time_type used;
+        bool unproved = false;   // written by another build and not yet proved this store's
+        uint64_t from = 0;       // which build, one number an identity, 0 for this one
     };
+    // The 32 bytes an entry's header carries for the identity text `text`: its SHA-256.
+    static std::array<uint8_t, 32> identity_of(const std::string& text) {
+        core::Sha id(true);
+        id.update(text.data(), text.size());
+        const std::string hex = id.hex();
+        std::array<uint8_t, 32> bytes{};
+        for (size_t k = 0; k < bytes.size(); ++k) bytes[k] = (uint8_t)std::stoul(hex.substr(2 * k, 2), nullptr, 16);
+        return bytes;
+    }
+    // Makes an unproved entry this store's own; no entry is unproved yet, so none is claimed.
+    void claim(uint64_t, Done done) {
+        if (done) done(false, "no entry is unproved");
+    }
 
     // The entries' alignment on disk, which every direct-I/O granule up to it divides, and the unit a checksum covers.
     static constexpr size_t kAlign = size_t(1) << 20, kChunk = size_t(4) << 20;

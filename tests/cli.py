@@ -207,11 +207,14 @@ def check_usage_errors():
                        (["serve", model, "--max-seqs", "0"], "serve"), (["serve", model, "--max-queue", "0"], "serve"),
                        (["serve", model, "--passes", "0"], "serve"),
                        (["serve", model, "--generating-share", "1"], "serve"), (["serve", model, "--generating-share", "-0.1"], "serve"),
+                       (["serve", model, "--disk-cache-adopt", "always"], "serve"), (["serve", model, "--disk-cache-adopt", "Proved"], "serve"),
                        (["serve", model, "-c", "0"], "serve"), (["logits", model, "a", "--top", "0"], "logits"),
                        (["logits", model, "a", "--last", "0"], "logits"), (["perplexity", model, "a", "--chunks", "-1"], "perplexity"),
                        (["bench", "--size", "48"], "bench"), (["bench", "--p", "0"], "bench"), (["bench", "--depth", "-1"], "bench"),
                        (["bench", "--load-mode", "auto"], "bench")):
         usage_error(args, page)
+    # A flag is honoured or refused: entries are adopted only under keep, so the proved policy without it is refused by name.
+    usage_error(["serve", model, "--disk-cache-adopt", "proved"], "serve", "--disk-cache-adopt proved adopts")
 
 
 def help_page(command, directory):
@@ -244,7 +247,7 @@ def listed_flags(page):
 
 
 # What each placeholder stands for in a line that takes the flag, a value every command listing that flag accepts.
-PLACEHOLDERS = {"N": "1", "F": "1", "X": "0.5", "D": "cpu", "T": "f16", "TIME": "24h", "M": "auto", "HOW": "refuse", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
+PLACEHOLDERS = {"N": "1", "F": "1", "X": "0.5", "D": "cpu", "T": "f16", "TIME": "24h", "M": "auto", "HOW": "refuse", "WHICH": "exact", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1"}
 
 # The last line a taken line prints: a missing input file's error, which a command may prefix with its name, or pull's on its empty quant.
 UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pull: quant is required$")

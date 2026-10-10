@@ -9,7 +9,9 @@
 #include <mutex>
 #include <set>
 
+#include "core/crc32c.hpp"
 #include "server/disk_index.hpp"
+#include "server/disk_store.hpp"
 #include "server_harness.hpp"
 
 namespace {
@@ -3227,6 +3229,197 @@ void disk_idle_past(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
     std::cout << "server-resume: " << what << ": the entry written with nothing to wake the loop, which then ran " << after - before << " rounds in a fifth of a second\n";
 }
 
+// One byte of an entry file's payload changed, the last or the first, with the checksums a file holding that byte would carry, so only a comparison of its bytes finds it.
+void plant_byte(const fs::path& file, bool last) {
+    std::vector<uint8_t> all;
+    {
+        std::ifstream in(file, std::ios::binary);
+        all.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    const size_t mib = size_t(1) << 20, chunk = server::DiskStore::kChunk;
+    uint32_t runs;
+    uint64_t blob, chunks, payload = 0;
+    std::memcpy(&blob, all.data() + 52, 8);
+    std::memcpy(&runs, all.data() + 60, 4);
+    std::memcpy(&chunks, all.data() + 64 + 8 * (size_t)runs, 8);
+    for (uint32_t i = 0; i < runs; ++i) {
+        uint64_t b;
+        std::memcpy(&b, all.data() + 64 + 8 * i, 8);
+        payload += b;
+    }
+    const size_t end = 72 + 8 * (size_t)runs + 4 * (size_t)chunks + (size_t)blob, head = (end + 4 + mib - 1) / mib * mib;
+    const size_t at = last ? (size_t)payload - 1 : 0, c = at / chunk, n = (size_t)std::min<uint64_t>(chunk, payload - c * chunk);
+    all[head + at] ^= 0x40;
+    const uint32_t crc = core::crc32c(0, all.data() + head + c * chunk, n);
+    std::memcpy(all.data() + 72 + 8 * (size_t)runs + 4 * c, &crc, 4);
+    const uint32_t whole = core::crc32c(0, all.data(), end);
+    std::memcpy(all.data() + end, &whole, 4);
+    std::ofstream out(file, std::ios::binary | std::ios::trunc);
+    out.write((const char*)all.data(), (std::streamsize)all.size());
+}
+// What an entry file holds, as its description says.
+server::DiskIndex::File described(const fs::path& file) {
+    std::ifstream in(file, std::ios::binary);
+    std::vector<char> head(size_t(1) << 20);
+    in.read(head.data(), (std::streamsize)head.size());
+    uint32_t runs;
+    uint64_t blob, chunks;
+    std::memcpy(&blob, head.data() + 52, 8);
+    std::memcpy(&runs, head.data() + 60, 4);
+    std::memcpy(&chunks, head.data() + 64 + 8 * (size_t)runs, 8);
+    server::DiskIndex::File f;
+    server::DiskIndex::parse(std::string(head.data() + 72 + 8 * (size_t)runs + 4 * (size_t)chunks, (size_t)blob), f);
+    return f;
+}
+
+// Another build's entries, adopted and proved (docs/DISK-TIER.md, Adopting another build's entries): `turns` turns kept under one build's fingerprint, the next served by a scheduler of another that is asked to adopt them.
+// The request proves its path and reuses it below the fork; a byte planted in the first block, the last block or the state fails the proof, and that build's files go.
+enum class Plant { none, first, last, state, cancel };
+void disk_adopt_proved(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t turns, Plant plant, const std::string& what, size_t first = 600, size_t more = 200, size_t path_end = 0, const Make* proving = nullptr) {
+    DiskRoot disk("adopt");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::seconds(1);   // the idle writes start a second after a turn, to keep the case short
+    const auto built = [](char numerics) {
+        server::BuildFacts f = server::build_facts();
+        f.numerics = std::string(64, numerics);
+        return f;
+    };
+    options.build = built('a');
+    const size_t host = 4 * ((size_t)64 << 20);
+    Req next{prompt_of(31, first, vocab), 20};
+    bool state = false;
+    size_t bt = kBlock;
+    {
+        auto model = make(2048, 16);
+        state = model->keeps_state();
+        bt = model->kv_block_tokens();
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, host, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (size_t t = 0; t < turns; ++t) {
+                const size_t before = disk.files(".kv").size();
+                const Reply reply = drain(*sched.submit(next.prompt, params_of(next)));
+                within_a_minute([&] { return disk.files(".kv").size() > before && !sched.stats().disk_in_flight; }, what + ": a turn's files written");
+                for (uint32_t id : ids_of(reply)) next.prompt.push_back(id);
+                const std::vector<uint32_t> added = prompt_of(32 + (uint32_t)t, more, vocab);
+                next.prompt.insert(next.prompt.end(), added.begin(), added.end());
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const std::vector<fs::path> files = disk.files(".kv");
+    require(!files.empty(), what + ": no entry file kept by the first build");
+    // The path's end and its fork as the files give them: the highest state and the one below it on a model that keeps one, the last block and the block below it otherwise.
+    size_t end = 0, fork = 0;
+    const fs::path* root = nullptr;
+    const fs::path* tail = nullptr;
+    const fs::path* top = nullptr;
+    std::vector<size_t> states;
+    for (const fs::path& f : files) {
+        const server::DiskIndex::File d = described(f);
+        if (d.state) {
+            states.push_back(d.end);
+            if (d.end >= end) top = &f;
+        } else {
+            if (!d.first) root = &f;
+            if (!tail || d.end > described(*tail).end) tail = &f;
+        }
+        if (d.state == state) end = std::max(end, d.end);
+    }
+    std::sort(states.begin(), states.end());
+    // A path the next turn shares only part of the last file of, as where a device computes a reply's rows another way: it ends at `path_end`, and that file is used in part and not claimed.
+    if (path_end) end = path_end;
+    fork = !state ? end - bt : states.size() > 1 ? states[states.size() - 2] : 0;
+    require(root && tail && end >= 2 * bt, what + ": the first build kept no path of two blocks");
+    if (plant == Plant::first) plant_byte(*root, false);
+    if (plant == Plant::last) plant_byte(*tail, true);
+    if (plant == Plant::state) plant_byte(*top, true);
+    options.build = built('b');
+    options.adopt_proved = true;
+    size_t reused = 0, later_reused = 0, reread = 0;
+    Reply got, later_got;
+    Req later;
+    server::Scheduler::Stats adopted, after;
+    {
+        auto model = (proving ? *proving : make)(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, host, nullptr, 0, false, options);
+        // A client that leaves between the two comparisons: as the pass that computed its first block retires.
+        std::atomic<server::Request*> leaving{nullptr};
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            for (size_t e = 0; e < t.requests.size(); ++e)
+                if (t.requests[e] == leaving.load() && t.from[e] + t.rows[e] == bt) leaving.load()->cancel();
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_unproved == files.size(); }, what + ": the other build's files adopted unproved");
+            adopted = sched.stats();
+            if (plant == Plant::cancel) {
+                const auto gone = sched.submit(next.prompt, params_of(next));
+                leaving.store(gone.get());
+                collect(*gone);
+                leaving.store(nullptr);
+                require(gone->finish() == "cancel", what + ": the client that left ended with " + gone->finish());
+                const server::Scheduler::Stats s = sched.stats();
+                require(s.disk_unproved == files.size() && !s.disk_proved && !s.disk_disproved && !s.active,
+                        what + ": after the client left, " + std::to_string(s.disk_unproved) + " unproved, " + std::to_string(s.disk_proved) + " proved and " + std::to_string(s.disk_disproved) +
+                            " deleted, against all " + std::to_string(files.size()) + " still unproved");
+            }
+            const auto h = sched.submit(next.prompt, params_of(next));
+            got = drain(*h);
+            reused = h->reused();
+            within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": the claims ended");
+            after = sched.stats();
+            // The turn after a proved one finds what that one left, as after any turn, and so does the job that reads its reply again.
+            if (plant == Plant::none && (!state || fork) && !proving) {
+                later = next;
+                for (uint32_t id : ids_of(got)) later.prompt.push_back(id);
+                const std::vector<uint32_t> added = prompt_of(30, more, vocab);
+                later.prompt.insert(later.prompt.end(), added.begin(), added.end());
+                sched.follow(h, later.prompt, true);
+                within_a_minute([&] { return sched.stats().reprefills > 0; }, what + ": the reply read again");
+                reread = sched.stats().reprefill_rows;
+                const auto l = sched.submit(later.prompt, params_of(later));
+                later_got = drain(*l);
+                later_reused = l->reused();
+            }
+            // A path left unproved goes once this build's own entry for it is written.
+            if (state && (!fork || proving)) within_a_minute([&] { return !sched.stats().disk_unproved; }, what + ": the unproved files dropped for this build's own");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    auto fresh = (proving ? *proving : make)(2048, 16);
+    same(serve(*fresh, tok, 1, {{next}})[0], got, what + ", the next turn");
+    if (!later.prompt.empty()) {
+        same(serve(*fresh, tok, 1, {{later}})[0], later_got, what + ", the turn after");
+        require(later_reused >= end, what + ": the turn after the proved one reused " + std::to_string(later_reused) + " tokens, against the " + std::to_string(end) + " of the proved path at least");
+        require(reread && reread < end, what + ": the job after the proved turn read " + std::to_string(reread) + " rows, against fewer than the " + std::to_string(end) + " of the proved path");
+    }
+    // A server of one checkpoint slot (`proving`) starts no proof on a model that keeps a state.
+    const bool provable = (!state || fork) && !proving;
+    const bool equal = plant == Plant::none || plant == Plant::cancel;
+    const std::string seen = "reused " + std::to_string(reused) + " tokens, " + std::to_string(after.disk_proved) + " files proved, " + std::to_string(after.disk_disproved) + " deleted, " +
+                             std::to_string(after.disk_unproved) + " left unproved, " + std::to_string(after.recomputed) + " rows computed again";
+    if (!provable)
+        require(!reused && !after.disk_proved && !after.disk_disproved && !after.recomputed, what + ": " + seen + ", against a path that cannot be proved left alone");
+    else if (equal)
+        require(reused == fork && (after.disk_proved != 0) == !path_end && !after.disk_disproved && !after.recomputed, what + ": " + seen + ", against " + std::to_string(fork) + " reused below the path's end at " + std::to_string(end));
+    else
+        require(!reused && !after.disk_proved && after.disk_disproved == files.size() && !after.disk_unproved && (after.recomputed != 0) == (plant != Plant::first),
+                what + ": " + seen + ", against nothing reused and all " + std::to_string(files.size()) + " files deleted");
+    std::cout << "server-resume: " << what << ": a path to " << end << " forked at " << fork << ", " << seen << "\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3310,6 +3503,15 @@ int main(int argc, char** argv) {
             disk_age(one, tok, vocab);
             disk_age_restart(one, tok, vocab);
             disk_idle_past(one, tok, vocab);
+            for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})
+                disk_adopt_proved(one, tok, vocab, 1, plant, std::string("another build's entries adopted and proved") + (plant == Plant::first ? ", a byte planted in the first block" : plant == Plant::last ? ", a byte planted in the last block" : plant == Plant::cancel ? ", the client leaving between the comparisons" : ""));
+            for (const Plant plant : {Plant::none, Plant::last, Plant::state})
+                disk_adopt_proved(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 2, plant, std::string("another build's entries adopted and proved, a model keeping a state") + (plant == Plant::last ? ", a byte planted in the last block" : plant == Plant::state ? ", a byte planted in the state" : ""));
+            disk_adopt_proved(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 1, Plant::none, "another build's entries of one turn, a model keeping a state");
+            {
+                const Make one_slot = on(mixed, [] { return cpus(1); }, 3, 1);
+                disk_adopt_proved(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 2, Plant::none, "another build's entries adopted and proved by a server of one checkpoint slot", 600, 200, 0, &one_slot);
+            }
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
@@ -3382,6 +3584,9 @@ int main(int argc, char** argv) {
                 // 500 and 630 tokens take the same tile split, so the follow-up forks the first prompt's seven whole blocks of 64.
                 follow_up_as_cli(on_device, tok, (uint32_t)kDevice.vocab, 500, 448, "on a device, a follow-up turn against its prompt on a fresh model");
                 other_split_as_cli(on_device, tok, (uint32_t)kDevice.vocab);
+                // 500 and 630 tokens take the same tile split, so the next turn's path is the kept turn's, and the copies the proof compares are a device's, done only once waited for.
+                for (const Plant plant : {Plant::none, Plant::first})
+                    disk_adopt_proved(on_device, tok, (uint32_t)kDevice.vocab, 1, plant, std::string("on a device, another build's entries adopted and proved") + (plant == Plant::first ? ", a byte planted in the first block" : ""), 500, 110, 448);
                 std::printf("server-resume: device cases pass\n");
             } else {
                 std::printf("server-resume: no Vulkan device, device cases skipped\n");

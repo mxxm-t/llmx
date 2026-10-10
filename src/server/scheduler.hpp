@@ -372,6 +372,8 @@ public:
         size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed
         size_t disk_states = 0;                   // those of them that are states, the rest being segments
         size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read
+        size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
+        size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
         size_t host_unwritten = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads

@@ -353,6 +353,175 @@ int main(int argc, char** argv) {
                 require((fs::file_time_type::clock::now() - a.used > std::chrono::hours(24)) == (a.blob == "old"), "an adopted entry's last use is not its file's");
         }
 
+        // Another build's entries (docs/DISK-TIER.md, Adopting another build's entries): adopted unproved only where asked and only where the build alone differs.
+        // An unproved entry reads as the bytes written, stays unproved across a restart, and once claimed is this build's own.
+        fs::remove_all(root);
+        {
+            const auto text = [](const std::string& numerics, const std::string& model) {
+                server::BuildFacts f;
+                f.numerics = numerics;
+                f.compiler = "c";
+                f.flags = "f";
+                f.shaders = "s";
+                f.libm = "l";
+                return server::disk_identity(model, "layout", f);
+            };
+            const auto open = [&](const std::string& t, bool proved) {
+                server::DiskStore::Options o;
+                o.root = root.u8string();
+                o.keep = true;
+                o.identity = t;
+                o.proved = proved;
+                return std::make_unique<server::DiskStore>(o, server::DiskStore::identity_of(t));
+            };
+            const std::string before = text("aaaa", "m"), after = text("bbbb", "m"), later = text("cccc", "m"), other = text("bbbb", "n");
+            const auto left = runs_of(cpu, {kSlab + 99}, 21);
+            const std::vector<uint8_t> left_bytes = bytes_of(left);
+            const auto leave = [&] {
+                fs::remove_all(root);
+                uint64_t k = 0;
+                auto s = open(before, false);
+                require(wait_put(*s, k, "kept", left).ok, "an entry for another build to find was not written");
+            };
+            leave();
+            {
+                auto s = open(after, false);
+                require(s->adopted().empty() && s->refused().size() == 1 && s->refused()[0].find("numerics") != std::string::npos, "a build that did not ask adopted another build's entry, or did not say what differs");
+            }
+            leave();
+            require(open(other, true)->adopted().empty(), "another model's entry was adopted unproved");
+            leave();
+            {
+                auto s = open(after, true);
+                require(s->adopted().size() == 1 && s->adopted()[0].unproved && s->adopted()[0].blob == "kept" && s->refused().empty(), "another build's entry was not adopted unproved where asked");
+                auto back = runs_of(cpu, {kSlab + 99}, 22);
+                require(wait_get(*s, s->adopted()[0].key, back).ok && bytes_of(back) == left_bytes, "an unproved entry did not read as the bytes written");
+            }
+            {
+                // Left unclaimed, it is unproved again at the next start, by the identity kept beside it; claimed, its header is this build's.
+                auto s = open(after, true);
+                require(s->adopted().size() == 1 && s->adopted()[0].unproved, "an entry left unproved was lost or taken as proved at the next start");
+                Call claimed;
+                s->claim(s->adopted()[0].key, claimed.done());
+                require(claimed.wait().ok, "an unproved entry was not claimed");
+                auto back = runs_of(cpu, {kSlab + 99}, 23);
+                require(wait_get(*s, s->adopted()[0].key, back).ok && bytes_of(back) == left_bytes, "a claimed entry did not read as the bytes written");
+            }
+            {
+                auto s = open(after, false);
+                require(s->adopted().size() == 1 && !s->adopted()[0].unproved, "a claimed entry is not this build's own at the next start");
+            }
+            {
+                // A third build finds it written under the second, and it is unproved for that one again: each build proves for itself.
+                auto s = open(later, true);
+                require(s->adopted().size() == 1 && s->adopted()[0].unproved, "a build took an entry another build had proved as proved for itself");
+            }
+            // A claim cut short: the first build's entry, adopted unproved by the second, is left in the second's directory in each state a claim can leave its header in.
+            // The checksum says which build's header is whole, and each of three builds starting next applies its own policy to that build's entry.
+            const auto ids = [&](const std::string& t) { return server::DiskStore::identity_of(t); };
+            const auto tag = [&](const std::string& t) {
+                uint64_t n = 0;
+                const auto id = ids(t);
+                std::memcpy(&n, id.data(), sizeof n);
+                return n | 1;
+            };
+            enum class State { unclaimed, identity_only, checksum_only, claimed, neither };
+            const auto leave_as = [&](State state) {
+                leave();
+                { auto s = open(after, true); }
+                fs::path file;
+                for (const fs::path& d : servers(root))
+                    for (const auto& e : fs::directory_iterator(d))
+                        if (e.path().extension() == ".kv") file = e.path();
+                require(!file.empty(), "no unproved entry was left to tear");
+                std::fstream f(file, std::ios::in | std::ios::out | std::ios::binary);
+                std::vector<uint8_t> head(72);
+                f.read((char*)head.data(), 72);
+                uint64_t blob, chunk_count;
+                uint32_t runs;
+                std::memcpy(&blob, head.data() + 52, 8);
+                std::memcpy(&runs, head.data() + 60, 4);
+                head.resize(72 + 8 * (size_t)runs);
+                f.seekg(0);
+                f.read((char*)head.data(), (std::streamsize)head.size());
+                std::memcpy(&chunk_count, head.data() + 64 + 8 * (size_t)runs, 8);
+                const size_t end = 72 + 8 * (size_t)runs + 4 * (size_t)chunk_count + (size_t)blob;
+                head.resize(end + 4);
+                f.seekg(0);
+                f.read((char*)head.data(), (std::streamsize)head.size());
+                const auto mine = ids(after);
+                std::vector<uint8_t> claimed = head;
+                std::memcpy(claimed.data() + 20, mine.data(), 32);
+                uint32_t crc = core::crc32c(0, claimed.data(), end);
+                if (state == State::neither) crc ^= 0x5a5a5a5au;
+                if (state == State::identity_only || state == State::claimed || state == State::neither) {
+                    f.seekp(20);
+                    f.write((const char*)mine.data(), 32);
+                }
+                if (state == State::checksum_only || state == State::claimed || state == State::neither) {
+                    f.seekp((std::streamoff)end);
+                    f.write((const char*)&crc, 4);
+                }
+            };
+            struct Row {
+                State state;
+                int owner;   // the build whose header is whole: 0 the first, 1 the second, -1 neither
+            };
+            for (const Row& row : {Row{State::unclaimed, 0}, Row{State::identity_only, 0}, Row{State::checksum_only, 1}, Row{State::claimed, 1}, Row{State::neither, -1}}) {
+                // The first build and the second start as they do by default, the third asks for other builds' entries.
+                for (int start = 0; start < 3; ++start) {
+                    leave_as(row.state);
+                    auto s = open(start == 0 ? before : start == 1 ? after : later, start == 2);
+                    const std::string at = ", header state " + std::to_string((int)row.state) + " met by build " + std::to_string(start);
+                    if (row.owner < 0 || (start < 2 && start != row.owner)) {
+                        require(s->adopted().empty(), "an entry of no build or of another was adopted by a build that did not ask" + at);
+                        continue;
+                    }
+                    require(s->adopted().size() == 1 && s->adopted()[0].unproved == (start == 2) && (start < 2 || s->adopted()[0].from == tag(row.owner ? after : before)),
+                            "an entry was not adopted as its own build's by that build, or unproved as that build's by a third" + at);
+                    auto back = runs_of(cpu, {kSlab + 99}, 24);
+                    require(wait_get(*s, s->adopted()[0].key, back).ok && bytes_of(back) == left_bytes, "an entry settled after a claim cut short did not read as the bytes written" + at);
+                }
+            }
+            // A step that fails is not a bad entry: the entry stays where it was for a later start, and a claim whose header did not reach the disk leaves the entry read as before.
+            const auto failing = [&](const std::string& t, const char* step) {
+                server::DiskStore::Options o;
+                o.root = root.u8string();
+                o.keep = true;
+                o.identity = t;
+                o.proved = true;
+                o.fault = [step](const char* s) { return std::string(s) == step; };
+                return std::make_unique<server::DiskStore>(o, server::DiskStore::identity_of(t));
+            };
+            {
+                leave();
+                require(failing(after, "provenance")->adopted().empty(), "an entry was adopted unproved with no identity kept beside it");
+                auto s = open(after, true);
+                require(s->adopted().size() == 1 && s->adopted()[0].unproved, "an entry whose identity could not be kept beside it was lost");
+            }
+            {
+                leave_as(State::identity_only);
+                require(failing(later, "repair")->adopted().empty(), "an entry whose header could not be put right was adopted");
+                auto s = open(later, true);
+                require(s->adopted().size() == 1 && s->adopted()[0].unproved && s->adopted()[0].from == tag(before), "an entry whose header could not be put right at one start was lost for the next");
+            }
+            {
+                leave();
+                {
+                    auto s = failing(after, "claim-sync");
+                    require(s->adopted().size() == 1, "no unproved entry to claim");
+                    Call claimed;
+                    s->claim(s->adopted()[0].key, claimed.done());
+                    const Outcome o = claimed.wait();
+                    require(o.ok && !o.error.empty(), "a claim that did not reach the disk deleted its entry or reported nothing");
+                    auto back = runs_of(cpu, {kSlab + 99}, 26);
+                    require(wait_get(*s, s->adopted()[0].key, back).ok && bytes_of(back) == left_bytes, "an entry whose claim did not reach the disk did not read as the bytes written");
+                }
+                auto s = open(after, false);
+                require(s->adopted().size() == 1 && !s->adopted()[0].unproved, "an entry whose claim's header was written was lost at the next start");
+            }
+        }
+
         // A live server's directory is never touched: a child holds its lock while a store starts beside it.
         fs::remove_all(root);
         fs::create_directories(root);

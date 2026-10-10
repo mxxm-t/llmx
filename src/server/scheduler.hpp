@@ -453,13 +453,18 @@ public:
                     idle_at_.reset();
                     idle_tried_.clear();   // each idle period tries every donor again, one whose copy was refused or dropped before its file landed too
                 }
-                else if (!idle_at_) idle_at_ = std::chrono::steady_clock::now() + disk_->idle();
+                else if (!idle_at_) {
+                    idle_at_ = std::chrono::steady_clock::now() + disk_->idle();
+                    idled_ = false;
+                }
                 const auto bound = next_disk_bound();
                 if (bound) cv_.wait_until(lk, *bound, due);
                 else cv_.wait(lk, due);
                 if (stopping_) break;
                 seen_ = arrivals_;
-                disk_round(idle_at_ && std::chrono::steady_clock::now() >= *idle_at_);
+                const bool idle = idle_at_ && std::chrono::steady_clock::now() >= *idle_at_;
+                idled_ = idled_ || idle;
+                disk_round(idle);
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
                 for (auto* waiting : {&queue_, &paused_})
                     for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
@@ -2195,7 +2200,8 @@ private:
         for (const auto* q : {&queue_, &paused_})
             for (const auto& r : *q)
                 if (r->disk_wait_ && r->disk_until_ != std::chrono::steady_clock::time_point::max() && (!t || r->disk_until_ < *t)) t = r->disk_until_;
-        if (idle_at_ && *idle_at_ > std::chrono::steady_clock::now() && (!t || *idle_at_ < *t)) t = idle_at_;
+        // The idle moment bounds the wait until a round has been idle, also once it is past, which a round begun before it and ended after it leaves it; after that round it bounds nothing, so the loop does not spin.
+        if (idle_at_ && !idled_ && (!t || *idle_at_ < *t)) t = idle_at_;
         return t;
     }
 
@@ -2904,6 +2910,7 @@ private:
     // Reads from disk in flight, each into slabs counted in host_held_, and what they gave.
     std::vector<uint64_t> idle_tried_;   // the donors an idle server has copied towards disk (flush_one), under m_
     std::optional<std::chrono::steady_clock::time_point> idle_at_;   // when a server with nothing to do since may write ahead under keep (run), under m_
+    bool idled_ = false;   // a round has run idle since idle_at_ was set, under m_
     struct DiskRead {
         uint64_t id = 0;
         infer::HostHistory history;

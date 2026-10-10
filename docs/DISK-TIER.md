@@ -121,6 +121,7 @@ The server prints the bytes and the bound as the flush starts (`server: writing 
 A container or service manager must give the server at least the bound before it kills it, and the bound is not a flag: `docker stop` waits 10 seconds by default, so a server under keep runs with a stop timeout of 30 seconds or more, and more where the first line names more; a kill before the flush ends behaves as a crash.
 
 **Written ahead while idle.** A stop should find little to write, so under `--disk-cache-keep` a server with no request active, queued or paused for five seconds (`kDiskIdle`) writes what the flush would, one file at a time (`Scheduler::disk_round`, `flush_one`), in the flush's order; a history whole on disk is not written again.
+The idle moment bounds the loop's wait until a round has run idle, also once it has passed, so a round that begins before it and ends after it does not leave the server waiting for a request to start its writes.
 The slabs a device donor's segment is copied into are the tier's own, beyond the host tier's bytes and at most a segment's (`DiskTier::held`), given back as its file lands, so a long conversation is written whatever tier the host was given.
 A request that arrives meanwhile waits for the copy off the devices in progress, as it waits for an eviction's, and its room takes the write in flight last (Demotion, above).
 

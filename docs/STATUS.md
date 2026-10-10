@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## An idle server's writes start once its idle moment has passed (2026-10-10, branch fix/idle-write-start, lands by fast-forward)
+
+- **The defect, on main since the idle writes:** `Scheduler::run` took the idle moment as its wait's bound only while it lay ahead (`next_disk_bound`), and told `disk_round` a round was idle only if the round began at or after it. A wake shortly before the moment, the store becoming ready or a write ending, gave a round that was not idle, and by the next wait the moment was past, so the wait had no bound and no idle round ran until something else woke the loop: within a minute where files and an age limit gave the age check, and not before the next request or the stop's flush where the disk was still empty. No wrong byte and no loss at a clean stop; a crash in that window lost the turn.
+- **Found:** in a new case of the kept-conversations work that used an idle time of 50 ms, where it struck in three of about twelve runs on Windows; O5REV confirmed it against the code.
+- **Fix:** the moment bounds the wait until a round has run idle since it was set (`idled_`), whether it lies ahead or behind; after that round it bounds nothing, so a past moment cannot make the loop spin.
+- **Test:** `server-resume`, with an idle time of nothing, so the moment is past as it is set and the fault is certain and not a race: a turn's entry must be written with nothing else to wake the loop (the failing commit: never within the minute the case waits), and the timed scheduler must then run fewer than a hundred rounds in a fifth of a second, which a bound that kept holding fails with 268751.
+- **Gates, at the code of this record's commit:** on the test machine a CPU build without warnings, CTest 42 of 42, the CPU suite, and Qwen3-0.6B Q8_0 the same ids and logits as main b9debf760 on the CPU; on Windows CTest 43 of 43 and the suite's `docs` and `dead-code`; the hosted run.
+- **Reviewed:** by O5REV, the gating reader; found by the kept-conversations developer.
+
 ## Dependent GPU compute and collective screen passes (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** the [combined probe](benchmarks/rocm-combined-20261010/README.md)

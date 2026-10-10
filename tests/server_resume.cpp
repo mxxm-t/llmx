@@ -3192,6 +3192,41 @@ void disk_age_restart(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     std::cout << "server-resume: " << what << ": " << adopted << " files adopted, " << aged << " of them two days old, and the third turn reused " << reused << " tokens\n";
 }
 
+// An idle server's writes start although the idle moment has passed by the time the loop waits (docs/DISK-TIER.md, Keeping entries across a restart): with an idle time of nothing the moment is past as it is set.
+// The turn's entry must be written with nothing else to wake the loop, and the loop must not spin once it is.
+void disk_idle_past(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "an idle write whose moment has passed";
+    DiskRoot disk("idle-past");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.max_age = 0;
+    options.idle = std::chrono::milliseconds(0);
+    auto model = make(2048, 16);
+    server::Scheduler sched(*model, tok, 1, 64, 0, true, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+    std::thread runner([&] { sched.run(); });
+    uint64_t before = 0, after = 0;
+    try {
+        // The tier is made first, so its own wake is behind the turn and not after it.
+        within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+        const Req turn{prompt_of(21, 300, vocab), 20};
+        drain(*sched.submit(turn.prompt, params_of(turn)));
+        within_a_minute([&] { return sched.stats().disk_entries > 0 && !sched.stats().disk_in_flight; }, what + ": the turn's entry written by the idle server");
+        // A loop that spins on the past moment runs hundreds of thousands of rounds in a fifth of a second, and a write's end reported late is one honest round, so fewer than a hundred pass.
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        before = sched.stats().timing.rounds;
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        after = sched.stats().timing.rounds;
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(after - before < 100, what + ": the idle loop ran " + std::to_string(after - before) + " rounds in a fifth of a second with nothing to do, against fewer than a hundred");
+    std::cout << "server-resume: " << what << ": the entry written with nothing to wake the loop, which then ran " << after - before << " rounds in a fifth of a second\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3274,6 +3309,7 @@ int main(int argc, char** argv) {
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);
             disk_age(one, tok, vocab);
             disk_age_restart(one, tok, vocab);
+            disk_idle_past(one, tok, vocab);
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));

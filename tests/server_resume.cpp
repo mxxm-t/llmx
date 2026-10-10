@@ -1380,6 +1380,78 @@ void turn_receiver_leaves(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     std::cout << "server-resume: " << what << ": passed over, the older request ran on with no turn given up, and a later pair changed turns " << second.yields << " times\n";
 }
 
+// A request that arrives while two take turns (docs/SERVER.md, turns at the pool's edge) is submitted from the scheduler's thread once they have changed turns twice.
+// It stands in the one line of what waits, so it is in a pass within two changes of turn and before either of the two has ended.
+void arrives_during_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a request arriving while two take turns";
+    const size_t pool = 16 * kBlock, host = (size_t)1 << 30;
+    const std::vector<Req> reqs = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 60, vocab)}, {prompt_of(3, 20, vocab), 40}};
+    std::vector<Reply> alone, got(reqs.size());
+    for (const Req& r : reqs) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}}, nullptr, 0, host)[0]);
+    }
+    auto model = make(pool, 0);
+    std::mutex m;
+    std::vector<int> passes;        // a retired pass: 1 with the older uncapped request in it, 2 with the newer, 4 with the one that arrives
+    std::vector<size_t> turns;      // the turns given up when that pass retired
+    size_t sent = 0, turns_sent = 0;
+    std::shared_ptr<server::Request> a, b, c;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, host);
+        sched.turn_steps = 1;
+        sched.on_retire = [&](const server::Scheduler::Retired& p) {
+            std::lock_guard<std::mutex> lk(m);
+            int in = 0;
+            for (const server::Request* r : p.requests) in |= r == a.get() ? 1 : r == b.get() ? 2 : c && r == c.get() ? 4 : 0;
+            passes.push_back(in);
+            turns.push_back(sched.stats().yields);
+            if (!c && a && turns.back() >= 2) {
+                sent = passes.size();
+                turns_sent = turns.back();
+                c = sched.submit(reqs[2].prompt, params_of(reqs[2]));
+            }
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            {
+                std::lock_guard<std::mutex> lk(m);
+                a = sched.submit(reqs[0].prompt, params_of(reqs[0]));
+                b = sched.submit(reqs[1].prompt, params_of(reqs[1]));
+            }
+            got[0] = drain(*a);
+            got[1] = drain(*b);
+            std::shared_ptr<server::Request> third;
+            {
+                std::lock_guard<std::mutex> lk(m);
+                third = c;
+            }
+            require(third != nullptr, what + ": the two requests never changed turns twice, so nothing arrived");
+            got[2] = drain(*third);
+            ledger(sched.stats(), *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], got[i], what + ", request " + std::to_string(i));
+    const size_t n = passes.size();
+    size_t first = n, last_a = 0, last_b = 0;
+    for (size_t i = 0; i < n; ++i) {
+        if (first == n && (passes[i] & 4)) first = i;
+        if (passes[i] & 1) last_a = i;
+        if (passes[i] & 2) last_b = i;
+    }
+    require(first != n, what + ": it was in no pass");
+    require(first < std::min(last_a, last_b) && turns[first] - turns_sent <= 2,
+            what + ": submitted at pass " + std::to_string(sent) + " after " + std::to_string(turns_sent) + " changes of turn, it was first in a pass at " + std::to_string(first) + " after " +
+                std::to_string(turns[first]) + ", the two ending at passes " + std::to_string(last_a) + " and " + std::to_string(last_b) + ", against within two changes of turn and before either ends");
+    std::cout << "server-resume: " << what << ": submitted at pass " << sent << ", in a pass at " << first << " after " << turns[first] - turns_sent << " changes of turn, the two ending at passes " << last_a << " and " << last_b << "\n";
+}
+
 // Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, so each turn's admission evicts the other conversation's donor.
 // With a host tier each follow-up promotes its conversation's donor back and forks its 256 tokens, without one it reuses nothing, and with `fail` a failing copy to or from host memory loses only the copy; every reply is its reply alone.
 enum class HostFault { none, write_back, promotion };
@@ -3148,6 +3220,7 @@ int main(int argc, char** argv) {
             turns_keep_others(one, tok, vocab, "a kept conversation beside turns at the pool's edge", 40, true);
             turns_keep_others(one, tok, vocab, "a kept conversation beside turns of a long and a short request", 500);
             turn_receiver_leaves(one, tok, vocab);
+            arrives_during_turns(one, tok, vocab);
             take_back_follow_up(one, tok, vocab);
             partial_eviction(one, tok, vocab);
             fork_within_class(one, tok, vocab);

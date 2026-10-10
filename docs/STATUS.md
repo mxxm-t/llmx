@@ -1,5 +1,28 @@
 # llmx - Development Status
 
+## Attention product controls complete without a new winner (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** the [product-control record](benchmarks/rocm-attention-20261010/README.md)
+  retains six exact-arithmetic QK/PV configurations and a bounded scheduling
+  follow-up, each beside prior/rebuilt controls, Vulkan and shipped mx. Wider
+  PV reads are neutral; forced QK ordering loses. Relaxing its dependency
+  grouping recovers most of that loss but does not beat the prior executable.
+  The selected 8/8/64 kernel stays; the mx gaps remain open.
+- **Checks:** 36 smoke processes and 60 complete-output bit identities pass;
+  all 64 timing processes and 192 measured chains remain. No build spills.
+  Background compilation affects the follow-up; every flag and unknown
+  observation is preserved. Monitoring, hashes, cleanup and VRAM checks pass.
+  These fixtures are not the independent HF or full-backend gate.
+- **Docs review:** all tracked Markdown inventoried and local links checked;
+  affected ROCM/STATUS/benchmark claims reconciled with source, assembly and
+  raw measurements. Unchanged code, CLI, build, precision and owner pages
+  retain the preceding review. Exact-tree docs/dead-code pass; docs-only
+  publication requires no hosted wait.
+- **Left:** the dependent compute/collective admission check, including the
+  remaining compute cost, before expanding production ROCm scope. Core dtype
+  is complete; CPU emulation speed nonblocking, correctness required. No new
+  production runtime or Windows executable is delivered here.
+
 ## Selected attention phase profile complete (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** the [phase follow-up](benchmarks/rocm-attention-20261010/README.md)

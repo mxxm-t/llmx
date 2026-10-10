@@ -528,3 +528,115 @@ Production ROCm, combined compute/collective admission, independent HF,
 full-model, extreme-range, lifetime and split gates remain open. Core dtype
 is complete; CPU emulation correctness remains required and its speed is
 nonblocking. No production code or Windows executable changes here.
+
+## Product scheduling and shared-memory controls (2026-10-10 follow-up)
+
+The selected-path profile at `fd7407324` directs this bounded experiment to
+QK/PV. Six fixed configurations retain eight rows/eight heads, 64 KV positions
+staged, 16-token softmax steps and the original F32 FMA order per accumulator.
+QK order 0 is the prior source form, 1 swaps its independent loops, and 2
+binds eight partials with an empty compiler dependency and memory clobber
+after each dimension. PV layout 1 transposes each 32-value shared-memory
+block so a lane reads four adjacent values; layout 0 stays unchanged.
+The new layout's scattered staging-store cost is included in full timing.
+
+The short smoke passes 21 processes, 5677056 independent oracle comparisons
+and 36 complete-output bit identities. All six builds have zero scratch and
+compiler occupancy 2. QK orders 0 and 1 produce identical assembly after
+normalizing only the generated CUID symbol, for either PV layout. This is a
+measured null control, not evidence of two different kernel implementations.
+
+| QK order / PV layout | VGPRs | SGPRs | LDS read2 / read2-stride64 / read128 instructions | Wait instructions |
+| --- | --- | --- | --- | --- |
+| 0 / 0 | 84 | 31 | 256 / 0 / 0 | 215 |
+| 1 / 0 | 84 | 31 | 256 / 0 / 0 | 215 |
+| 2 / 0 | 89 | 31 | 142 / 114 / 0 | 288 |
+| 0 / 1 | 86 | 32 | 128 / 0 / 64 | 155 |
+| 1 / 1 | 86 | 32 | 128 / 0 / 64 | 155 |
+| 2 / 1 | 91 | 32 | 14 / 114 / 64 | 230 |
+
+These are static whole-kernel instruction counts, not executed hardware
+counts. The PV layout emits its intended four-wide reads, but that alone
+does not establish lower memory latency or a faster complete operation.
+
+All 36 planned screen processes pass, with 108 measured chains, 108 warmups
+and 4423680 actual oracle comparisons. Both block medians follow; lower is
+better. `q0p0` is the rebuilt control. Every arm and sample is retained.
+
+| Arm | 2048 / 0 ms/op | 512 / 2048 ms/op |
+| --- | --- | --- |
+| vulkan | 14.658 / 14.574 | 9.613 / 9.604 |
+| prior | 16.118 / 16.141 | 9.363 / 9.358 |
+| q0p0 | 16.386 / 16.341 | 9.500 / 9.511 |
+| q1p0 | 16.377 / 16.372 | 9.500 / 9.504 |
+| q2p0 | 16.978 / 16.982 | 9.859 / 9.889 |
+| q0p1 | 16.346 / 16.388 | 9.511 / 9.498 |
+| q1p1 | 16.336 / 16.343 | 9.497 / 9.523 |
+| q2p1 | 17.081 / 17.081 | 9.918 / 9.930 |
+| mx | 11.595 / 11.574 | 5.077 / 5.067 |
+
+The wider PV reads give no consistent whole-kernel gain. Forced QK ordering
+loses. The rebuilt control is also slower than the prior executable despite
+the same intended arithmetic; keep both controls and do not attribute that
+shift to a candidate. No new arm advances from this first screen.
+
+### Separating the compiler memory restriction
+
+One follow-up removes the memory clobber, keeping empty dependencies after
+every one (`q3`), two (`q4`) or four (`q5`) dimensions. PV stays unchanged;
+`q0` is the rebuilt control. Each partial retains its original FMA sequence.
+This isolates the scheduling restriction without changing precision.
+
+The 15-process smoke passes 4055040 oracle comparisons and 24 whole-output
+bit identities. All four builds have zero scratch, 65536 LDS bytes and
+compiler occupancy 2; VGPR counts are 84/89/92/90 for q0/q3/q4/q5.
+All 28 timing processes pass with 84 measured chains, 84 warmups and 3538944
+actual oracle comparisons, in both orders:
+
+| Arm | 2048 / 0 ms/op | 512 / 2048 ms/op |
+| --- | --- | --- |
+| vulkan | 14.761 / 14.826 | 10.062 / 10.099 |
+| prior | 16.108 / 16.128 | 9.387 / 9.353 |
+| q0 | 16.384 / 16.350 | 9.499 / 9.509 |
+| q3 | 16.985 / 16.959 | 9.880 / 9.858 |
+| q4 | 16.300 / 16.303 | 9.502 / 9.484 |
+| q5 | 16.198 / 16.214 | 9.420 / 9.435 |
+| mx | 11.578 / 11.555 | 5.064 / 5.068 |
+
+Grouping four dimensions recovers most of the forced-order loss, but does
+not beat the previously selected executable. The earlier 8/8/64 candidate
+therefore stays selected. Background activity further limits small-difference
+claims; no large-prompt or history gap to mx is closed. mx retains its shipped
+narrower arithmetic and contiguous cache, and llmx's bounds stay unchanged.
+
+### Activity, artifacts and next action
+
+| Stage | Processes | Flagged calls / measured chains | Maximum unrelated CPU cores | Inaccessible observations |
+| --- | --- | --- | --- | --- |
+| products smoke | 21 | 21 / 21 | 1.629 | 1 |
+| products timing | 36 | 4 / 11 | 5.827 | 22 |
+| schedule smoke | 15 | 15 / 15 | 14.406 | 11 |
+| schedule timing | 28 | 28 / 80 | 14.797 | 95 |
+
+All flags are unrelated CPU activity. The raw monitor records Docker/runtime
+work and decompression in the first screen, and substantial clang/cc1plus
+compilation in the scheduling follow-up. No owned build overlaps timing.
+Every planned matched block remains; none is discarded or replaced because
+of that activity. There are no coverage gaps or missing GPU counters.
+Inaccessible process activity stays unknown. Source/binary hash checks,
+native completion, owned-container removal and exact starting VRAM pass.
+
+The immutable `attention-products-evidence-20261010.tar.gz` contains 379 files,
+438065 bytes, SHA256
+`4a8c55d59072c2e99979b97d52af44be7e2690df1fd1a40d97ab0fd3a4ac0401`, verified on the rig and workstation.
+It preserves both protocols, sources, assembly, every arm and native sample,
+complete-output comparisons, monitors and analysis scripts. Full tensors and
+executables remain on the rig. Earlier evidence archives are unchanged.
+
+This completes the bounded product-loop investigation. Next is the dependent
+compute/collective admission experiment in [ROCM](../../ROCM.md), including
+the remaining compute cost rather than adding independent microkernel gains
+as though they were a model speedup. Production ROCm, full HF/model/range,
+lifetime/split and reference performance gates remain open. Core dtype is
+complete; CPU emulation speed remains nonblocking and correctness required.
+No production kernel, dependency, runtime flag or Windows executable ships.

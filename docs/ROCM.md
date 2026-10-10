@@ -400,9 +400,12 @@ the losing controls retained. Its HIP/mx ratios are now about 0.83, 1.39,
 1.72-1.73 and 1.84-1.85 in that same shape order. The large-prompt/history gaps
 remain. The selected-path phase profile now puts QK/PV at about 75-76 percent of
 sampled workgroup cycles, with 3.45-4.26 percent instrumentation overhead.
-These are not hardware stall counters. Isolating product-loop shared-memory
-access and FMA scheduling with exact controls is next. Residual compute cost
-stays in the combined admission budget, not a waived gate.
+These are not hardware stall counters. The bounded product-loop controls now
+show neutral wider PV reads and slower forced QK ordering; relaxing the
+compiler dependency does not beat the selected executable. All losing arms,
+background activity and reference cells remain in the attention record.
+Next is the dependent compute/collective admission check. Residual compute
+cost stays in that budget, not a waived gate.
 
 ## Delivery checkpoints
 

@@ -294,7 +294,8 @@ independent oracle comparisons across the three arms, with input fixture
 hashes equal, finite outputs, unchanged inputs, preserved sentinels and
 repeatable complete output hashes. All 15 trace/control processes pass, with
 1695744 oracle comparisons. All 24 timing processes pass, retaining 240
-measured chains, 72 warmups and 11501568 oracle comparisons. These ordinary
+measured chains, 72 warmups and 7667712 actual oracle comparisons (counting
+correction explained in the reuse follow-up below). These ordinary
 finite synthetic fixtures do not establish HF, full-model or extreme-range
 correctness for any backend.
 
@@ -318,3 +319,127 @@ arithmetic, then combined compute/collective admission against the model
 budget. The full HF/model/range/lifetime/split and matched mx release gates
 remain open. No production backend, dependency, flag or Windows executable
 is added by this documentation checkpoint.
+
+## GQA reuse and larger exact loads (2026-10-10 follow-up)
+
+The next screen separates three changes: regrouping the same 32 query/head
+pairs, doubling the pairs sharing a KV load, and staging more KV positions
+while retaining the existing 16-token softmax steps. Query scaling, QK
+reductions, softmax and PV sums stay F32. It follows the public checkpoint at
+`753182723afab0abb1903b8f209e8c2237fef383`; all kernels remain standalone.
+
+An arm named `q8h8k64` processes eight query rows across eight query heads
+and stages 64 KV positions. The earlier vector HIP is `prior`; `q32h1k16`
+is its rebuilt control in the new source. Vulkan and shipped mx are the same
+reference binaries used above. mx retains its narrower arithmetic and
+contiguous cache; its error report and all llmx bounds remain unchanged.
+
+The short smoke passes 27 processes, 7299072 actual oracle comparisons and
+48 bit-identical whole-output comparisons. All eight gfx906 builds have zero
+scratch spills. The screen then runs all 44 planned processes in both orders,
+with three warmups and three measured chains of four operations per process.
+Both block medians remain below; lower latency is better.
+
+| Arm | 2048 / 0 ms/op | 512 / 2048 ms/op |
+| --- | --- | --- |
+| vulkan | 14.605 / 14.606 | 9.619 / 9.606 |
+| prior | 17.491 / 17.469 | 9.810 / 9.822 |
+| q32h1k16 | 17.120 / 17.082 | 9.616 / 9.620 |
+| q16h2k16 | 16.585 / 16.537 | 9.522 / 9.544 |
+| q64h1k16 | 18.644 / 18.650 | 10.133 / 10.108 |
+| q32h2k16 | 17.726 / 17.751 | 10.080 / 10.066 |
+| q16h4k16 | 17.097 / 17.086 | 9.933 / 9.896 |
+| q8h8k16 | 16.808 / 16.838 | 9.806 / 9.832 |
+| q8h8k32 | 16.356 / 16.339 | 9.495 / 9.500 |
+| q8h8k64 | 16.116 / 16.134 | 9.375 / 9.384 |
+| mx | 11.590 / 11.588 | 5.061 / 5.065 |
+
+Grouping heads without increasing the pairs per block gives a modest gain.
+Doubling rows alone loses, as does 32 rows across two heads in these cells.
+The 8/8/64 arm is the best of the tested configurations in both screened
+shapes and orders, but remains well behind mx. The rebuilt control is about
+two percent faster than the previous binary despite the same intended
+arithmetic, so the candidate is compared with both rather than assigning
+that control difference to reuse. No losing arm or slow sample is removed.
+
+| Query rows / heads / load positions | VGPRs | SGPRs | LDS bytes | Scratch bytes |
+| --- | --- | --- | --- | --- |
+| 16 / 2 / 16 | 94 | 34 | 16384 | 0 |
+| 16 / 4 / 16 | 83 | 35 | 16384 | 0 |
+| 32 / 1 / 16 | 92 | 35 | 16384 | 0 |
+| 32 / 2 / 16 | 83 | 35 | 16384 | 0 |
+| 64 / 1 / 16 | 92 | 36 | 16384 | 0 |
+| 8 / 8 / 16 | 83 | 35 | 16384 | 0 |
+| 8 / 8 / 32 | 75 | 36 | 32768 | 0 |
+| 8 / 8 / 64 | 84 | 31 | 65536 | 0 |
+
+The selected source also compiles for gfx1151. This is compile coverage only,
+without Strix Halo hardware or performance claims. The fixed prototype
+requires a GQA ratio divisible by eight; it implements no generic fallback.
+
+### Selected configuration checked more broadly
+
+The prior binary, rebuilt control and candidate pass 66 processes over rows
+1/19/32/33/65, histories 0/7/67, a second GQA shape with two groups sharing
+each KV head, all four large shapes and the zero-query/constant-value
+controls. All 88 complete-output comparisons are bit-identical; 13596672
+actual independent oracle comparisons pass. Inputs and sentinels are checked,
+and candidate outputs repeat across warmup and graph replays.
+
+The larger timing matrix keeps all five arms, both orders, three warmups and
+ten measured chains per process, four operations per chain. All 40 processes
+pass with 11501568 actual oracle comparisons.
+
+| Arm | 512 / 0 ms/op | 2048 / 0 ms/op | 4096 / 0 ms/op | 512 / 2048 ms/op |
+| --- | --- | --- | --- | --- |
+| vulkan | 1.844 / 1.838 | 14.570 / 14.565 | 53.612 / 53.738 | 9.665 / 9.662 |
+| prior | 1.636 / 1.634 | 17.438 / 17.471 | 65.661 / 65.653 | 9.832 / 9.827 |
+| q32h1k16 | 1.595 / 1.597 | 17.106 / 17.096 | 64.197 / 64.167 | 9.596 / 9.608 |
+| q8h8k64 | 1.369 / 1.369 | 16.130 / 16.134 | 61.984 / 61.974 | 9.348 / 9.376 |
+| mx | 1.657 / 1.658 | 11.586 / 11.577 | 35.946 / 35.873 | 5.069 / 5.076 |
+
+Candidate/mx latency ratios in row/history order 512/0, 2048/0, 4096/0 and
+512/2048 are 0.83x / 0.83x, 1.39x / 1.39x, 1.72x / 1.73x, 1.84x / 1.85x. The probe's improvements do not
+close the large-prompt or history gaps, and no standalone result is promoted
+to a model-level speed claim.
+
+### Activity, counting correction and artifacts
+
+Every stage uses the same fixed image, MI50, CPU affinity, default clocks and
+one-second monitor as the matched mx run. All planned samples remain.
+
+| Stage | Processes | Flagged calls / measured chains | Inaccessible process observations |
+| --- | --- | --- | --- |
+| Screen | 44 | 0 / 0 | 20 |
+| Wider smoke | 66 | 0 / 0 | 11 |
+| Full timing | 40 | 1 / 1 | 54 |
+
+The one CPU-flagged measured chain is the rebuilt control at 4096 rows in
+the reverse block: 64.267 ms/op, retained beside that block's 64.167 ms/op
+median and every other sample. No arm or block is replaced.
+
+All intervals are covered, no GPU counter is missing, and exact starting
+VRAM and container cleanup checks pass. Inaccessible activity remains unknown.
+The full timing matrix's maximum observed unrelated CPU use is 3.619 cores.
+
+The preceding matched-mx timing count is corrected from 11501568 to 7667712.
+HIP and Vulkan overwrite the same two bank outputs during a four-operation
+chain and verify only those final outputs; mx verifies all four distinct
+outputs. The old report incorrectly counted four for every arm. No outputs,
+timings, arithmetic bounds or pass/fail result change. The original archive
+and native metadata remain, with the explicit corrected checker/summary in
+this follow-up archive. New counts follow actual comparisons by arm.
+
+The immutable `attention-reuse-evidence-20261010.tar.gz` contains 523 files,
+552417 bytes, SHA256
+`ea5998c026cf030a75aa1351754e7f5925bf62eca778cb8b3c2dc2136f25de19`, verified at the same workstation and rig artifact roots.
+It retains sources, build/assembly reports, frozen protocols/plans, every
+process output, exact-output comparison, monitor and summary. Full tensors
+and executables remain on the rig. Earlier archives are unchanged.
+
+Next is profiling the remaining QK/PV and synchronization cost of the selected
+F32 path, followed by the combined compute/collective admission against the
+model budget. These fixtures do not establish extreme-range, independent HF,
+full-model, lifetime or multi-device correctness. Production ROCm and the full
+release gates remain open; no runtime flag, dependency or executable is added
+by this documentation checkpoint.

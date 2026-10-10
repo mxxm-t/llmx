@@ -1,5 +1,33 @@
 # llmx - Development Status
 
+## Attention reuse and load tiling measured (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** the [attention follow-up](benchmarks/rocm-attention-20261010/README.md)
+  keeps all eight fixed configurations, the earlier/rebuilt HIP controls,
+  Vulkan and mx. The selected eight-row/eight-head/64-position load shares
+  KV more broadly while retaining F32 arithmetic and 16-token softmax steps.
+  It improves the screened shapes; full four-shape numbers and retained losses
+  are recorded beside the mx target. Large-prompt and history gaps stay open.
+- **Checks:** 27 short-smoke and 44 screen processes pass, followed by 66
+  wider-smoke and 40 timing processes. All 88 wider whole-output comparisons
+  are bit-identical. No gfx906 configuration spills; the selected source also
+  compiles for gfx1151, without hardware qualification. Every planned sample,
+  activity flag, unknown observation and the checked cleanup remains.
+- **Correction:** the prior matched-mx timing report counted overwritten bank
+  outputs twice; its actual oracle comparison count is 7667712, not 11501568.
+  Original metadata/archive are retained, the corrected count is explained,
+  and no measurement, output or pass/fail result changes.
+- **Docs review:** all tracked Markdown inventoried and local links checked;
+  changed claims reconciled with plans, compiler metadata, exact-output checks
+  and raw timing/monitor records. Unchanged runtime, CLI, build, precision and
+  owner pages retain the prior review. Exact-tree docs/dead-code pass; no
+  hosted wait applies to this documentation-only tier.
+- **Left:** profile the selected path's remaining QK/PV and synchronization
+  cost, then combined compute/collective admission and the full backend gates.
+  Core dtype is complete and CPU emulation speed is nonblocking. The prototype
+  is private, requires a GQA ratio divisible by eight and has no general
+  fallback; no production ROCm backend or Windows binary is delivered.
+
 ## Matched mx attention exposes remaining compute gaps (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** the [attention follow-up](benchmarks/rocm-attention-20261010/README.md)

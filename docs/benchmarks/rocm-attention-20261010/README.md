@@ -443,3 +443,88 @@ model budget. These fixtures do not establish extreme-range, independent HF,
 full-model, lifetime or multi-device correctness. Production ROCm and the full
 release gates remain open; no runtime flag, dependency or executable is added
 by this documentation checkpoint.
+
+## Selected kernel phase profile (2026-10-10 follow-up)
+
+The selected eight-row/eight-head/64-position-load kernel is measured with
+phase clocks, following main `70b43fa8c`. The prior executable and rebuilt
+clocks-off control stay in every block. All arithmetic, input fixtures,
+existing barriers and frozen oracle bounds remain the same. Instrumentation
+samples thread zero of every workgroup; compiler dependencies retain phase
+outputs across the clock boundaries. It adds no synchronization barrier.
+
+The gfx906 build changes from 84 VGPRs/31 SGPRs to 99/38 with clocks enabled.
+Both have zero scratch, 65536 LDS bytes and compiler-reported occupancy 2.
+Disassembly has no clock instruction in the control and six static clock
+sites in the measured kernel. This is diagnostic instrumentation, not a
+production kernel or a new dtype policy.
+
+The smoke passes 21 processes, 28 bit-identical complete-output comparisons
+and 3317760 independent oracle comparisons. It covers rows 1/33/65 with
+history 67/7/0 and the four large shapes below. Timing passes all 24 processes,
+72 measured chains and 72 warmups, with 2654208 actual oracle comparisons.
+The final phase records from both banks cover every workgroup and pin its
+16-token iterations and 64-token loads. No planned sample is removed.
+
+### Instrumentation cost
+
+Both order medians follow, milliseconds per operation, lower is better.
+mx was not rerun for this profiling experiment; the labeled target is from
+the preceding matched qualification, whose full matrix remains above.
+Do not use that historical row to attribute small changes in this run.
+
+| Arm | 512 / 0 | 2048 / 0 | 4096 / 0 | 512 / 2048 |
+| --- | --- | --- | --- | --- |
+| prior | 1.369 / 1.369 | 16.161 / 16.184 | 61.969 / 61.989 | 9.371 / 9.372 |
+| off | 1.371 / 1.369 | 16.160 / 16.144 | 61.984 / 62.001 | 9.341 / 9.379 |
+| clock | 1.421 / 1.420 | 16.718 / 16.777 | 64.253 / 64.296 | 9.739 / 9.710 |
+| mx target, previous matched run | 1.657 / 1.658 | 11.586 / 11.577 | 35.946 / 35.873 | 5.069 / 5.076 |
+
+The rebuilt control stays within 0.32 percent of the prior binary.
+Instrumentation adds 3.45-4.26 percent latency. It has no spills or change in
+the compiler's occupancy report, but its extra instructions still perturb
+execution, so the following shares are directional evidence only.
+
+### Sampled cycle attribution
+
+These are percentages of summed thread-zero workgroup cycles, not GPU
+wall-time shares or hardware stall counters. Workgroups execute concurrently.
+Load includes the existing entry barrier; the end barrier is separate.
+QK and PV include their shared-memory reads and arithmetic. Their shares do
+not distinguish memory stalls from instruction throughput.
+
+| Rows / history | Load % | QK % | Softmax/rescale % | PV % | End barrier % |
+| --- | --- | --- | --- | --- | --- |
+| 512 / 0 | 7.50 / 7.48 | 35.54 / 35.53 | 6.34 / 6.33 | 39.26 / 39.26 | 11.36 / 11.40 |
+| 2048 / 0 | 5.66 / 5.66 | 36.10 / 36.10 | 6.48 / 6.48 | 40.09 / 40.09 | 11.67 / 11.68 |
+| 4096 / 0 | 5.47 / 5.47 | 36.14 / 36.15 | 6.49 / 6.49 | 40.20 / 40.19 | 11.69 / 11.70 |
+| 512 / 2048 | 5.95 / 5.97 | 35.95 / 35.94 | 6.45 / 6.45 | 39.97 / 39.96 | 11.68 / 11.68 |
+
+QK and PV together account for about 75-76 percent in this instrumented
+kernel. The next controlled experiment therefore isolates product-loop
+shared-memory access and FMA scheduling, keeping exact-output controls,
+before claiming an arithmetic-throughput or memory-stall bottleneck.
+The earlier scalar-load profile has a different kernel and instrumentation;
+its percentages do not form a matched speedup comparison with this one.
+
+### Activity and retained evidence
+
+The smoke has no declared activity flags. Timing has one CPU-flagged call,
+the forward 2048-row clocked arm, covering two warmups and one measured chain
+(16.718103 ms/op). All remain. Maximum observed unrelated CPU use is 3.199
+cores. Smoke/timing have 9/15 inaccessible process observations, left unknown,
+with no coverage gaps or missing GPU counters. Binary/source hashes,
+completion, owned-container removal and exact starting VRAM are checked.
+
+The immutable `attention-reuse-clocks-evidence-20261010.tar.gz` holds 174 files,
+2323439 bytes, SHA256
+`2cc391563f4796fb1542547b185bc073f259d7a73689fee4a4f201eec3b532d1`, mirrored at the artifact roots above.
+Sources, assembly, frozen protocol/plan, native outputs, activity records,
+comparisons and analysis scripts are retained. Full tensors and executables
+remain on the rig; earlier archives stay unchanged. The prior candidate and
+comparison tool are pinned by the preceding archives and hash manifests.
+
+Production ROCm, combined compute/collective admission, independent HF,
+full-model, extreme-range, lifetime and split gates remain open. Core dtype
+is complete; CPU emulation correctness remains required and its speed is
+nonblocking. No production code or Windows executable changes here.

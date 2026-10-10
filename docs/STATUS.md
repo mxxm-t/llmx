@@ -1,5 +1,27 @@
 # llmx - Development Status
 
+## Selected attention phase profile complete (2026-10-10, docs only, lands by fast-forward)
+
+- **Done:** the [phase follow-up](benchmarks/rocm-attention-20261010/README.md)
+  measures prior, rebuilt clocks-off and clocks-on controls in both orders.
+  QK/PV account for about 75-76 percent of sampled workgroup cycles; load
+  takes 5.5-7.5 percent and the end barrier 11.4-11.7 percent. These are
+  instrumented cycle shares, not wall-time shares or hardware stall counters.
+- **Checks:** 21 smoke processes and 28 exact whole-output comparisons pass;
+  all 24 timing processes, 72 measured chains and 72 warmups remain. Clock
+  overhead is 3.45-4.26 percent, with no spills and unchanged compiler
+  occupancy. The one CPU-flagged call and all inaccessible observations are
+  retained; monitor coverage and starting-VRAM restoration pass.
+- **Docs review:** every tracked Markdown file inventoried and local links
+  checked; affected ROCM/STATUS/benchmark claims reconciled with source,
+  assembly, output checks and raw timing/activity records. Unchanged runtime,
+  CLI, build, precision and owner pages retain the preceding review. Exact-tree
+  docs/dead-code pass; the docs-only tier requires no hosted wait.
+- **Left:** isolate QK/PV shared-memory access and FMA scheduling with exact
+  controls, then combined compute/collective admission and full backend gates.
+  Core dtype remains complete, CPU emulation speed nonblocking. No production
+  ROCm backend or new Windows executable is delivered by this checkpoint.
+
 ## Attention reuse and load tiling measured (2026-10-10, docs only, lands by fast-forward)
 
 - **Done:** the [attention follow-up](benchmarks/rocm-attention-20261010/README.md)

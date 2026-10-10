@@ -28,7 +28,7 @@ constexpr size_t npos = (size_t)-1;
 struct Sim {
     struct Req {
         uint64_t id = 0, admission = 0, donor = 0;   // donor: the one its last pause left, which it takes back if it is still there
-        uint64_t line = 0;                           // its place among the paused: its first admission, or a later number once it gave the pool's edge up
+        uint64_t line = 0;                           // its place in the line of what waits: its submission's number, 0 once paused for another's growth, a new number once it gave the pool's edge up
         size_t edge = 0;                             // growth steps it took, its admission one of them, while an uncapped request was paused
         bool uncapped = false, stalled = false, cancel = false;
         size_t prompt = 0, max_tokens = 0, gen = 0, len = 0;   // len: what its cache holds, a pass in flight's rows not counted
@@ -294,6 +294,7 @@ struct Sim {
             r.read_end = round_no + rng() % 6;
             r.bound = round_no + rng() % 6;
         }
+        r.line = ++admissions;
         queue.push_back(r);
     }
 
@@ -349,6 +350,12 @@ struct Sim {
         taken_back += take;
         for (size_t s = 0; s < need.size(); ++s)
             require(blocks_for(r.len)[s] <= need[s], at + ": a request took back more than it reserved");
+// One line of what waits: a queued request is admitted behind every paused one that began to wait before it, those paused for another's growth always.
+// A request that gave the edge up is admitted behind every queued one submitted before its yield; requests waiting for a read are passed.
+        if (!r.admission)
+            for (const Req& w : paused) require(reading(w) || (w.line && w.line > r.line), at + ": a queued request admitted before a paused one that waited before it");
+        else if (r.line)
+            for (const Req& w : queue) require(reading(w) || w.line > r.line, at + ": a request that gave the edge up admitted before a queued one submitted before its yield");
         if (!r.admission) {
             // First-come, but for requests still waiting for their reads, which those behind them pass.
             for (const auto* waiting : {&queue, &paused})
@@ -373,9 +380,9 @@ struct Sim {
         Req r = active[i];
         r.donor = park(i, 1);
         r.stalled = false;
-        r.line = yielded ? ++admissions : r.admission;
+        r.line = yielded ? ++admissions : 0;
         yields += yielded;
-        paused.insert(std::upper_bound(paused.begin(), paused.end(), r, [](const Req& a, const Req& b) { return a.line < b.line; }), r);
+        paused.insert(std::upper_bound(paused.begin(), paused.end(), r, [](const Req& a, const Req& b) { return std::make_pair(a.line, a.admission) < std::make_pair(b.line, b.admission); }), r);
         ++pauses;
         return r.donor != 0;
     }
@@ -564,7 +571,7 @@ struct Sim {
         return nullptr;
     }
 
-    // Room, only while a slot is free: growth, then, while nothing is stalled, the paused requests oldest first and then the queue.
+    // Room, only while a slot is free: growth, then, while nothing is stalled, what waits in its one line: the paused for another's growth, then yielders and the queue by number.
     void room() {
         at = "growth";
         grow_all();
@@ -573,7 +580,7 @@ struct Sim {
         at = "admission";
         if (!stalled)
             server::admit_waiting(paused, queue, [&] { return active.size() < max_seqs; }, [](std::vector<Req>&, size_t) { return false; },
-                                  [&](const Req& r) { return reading(r); }, [&](Req& r) { return enter(r); });
+                                  [&](const Req& r) { return reading(r); }, [&](Req& r) { return enter(r); }, [](const Req& r) { return r.line; });
         check(true);
     }
 

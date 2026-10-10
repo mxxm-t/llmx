@@ -895,6 +895,28 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## One line of what waits: a request arriving while two take turns (2026-10-10, branch feat/waiting-line, the second of a stack of two on feat/pool-edge, lands by fast-forward directly after it)
+
+- **Why:** nothing left the queue while a request was paused. With turns at the pool's edge one of the two edge requests is always paused, so a request that arrived meanwhile, however small, waited for the older one's end, which turns make later: on the reproduction its first token came after 42.6 and 43.7 s on main and after 115.2 and 115.3 s on feat/pool-edge alone.
+- **Done:** everything that waits stands in one line (`admit_waiting`, `Request::line_`). The requests paused for another's growth come first, oldest first, as before; then those that gave the pool's edge up and the queued ones, merged by the number each took when it began to wait, a yielder at its yield and a queued request at its submission. Admission walks the line and stops at the first that does not fit. Without turns the order is what it was.
+- **The bound on both sides:** a queued request is behind only what waited before it, so it is admitted at the next change of turn if it fits beside the request that takes the edge; a request that arrives after a paused one began to wait stands behind it, and admission stopping at the first that does not fit keeps it there, so no stream of arrivals passes a paused request.
+- **Measured, the reproduction (Qwen3.8-27B Q8_0, a tensor group of two MI50s, pool 16384), each cell run twice, a 64-token request sent 100 s after the second uncapped one:**
+
+  | | main a1b8211b4 | feat/pool-edge alone | the stack before its rebase | the stack at 4fd5eebaf, one run |
+  |---|---|---|---|---|
+  | the arriving request's first token after | 42.6, 43.7 s | 115.2, 115.3 s | 3.2, 4.7 s | 6.0 s |
+  | the newer edge request's longest wait | 87.0, 88.1 s | 11.7, 14.4 s | 14.4, 15.1 s | 13.7 s |
+  | the older edge request's longest wait | 2.1, 2.1 s | 9.5, 9.4 s | 9.0, 10.6 s | 10.7 s |
+  | tokens recomputed | 0 | 0 | 0 | 0 |
+  | the kept conversation's third turn, host tier 7262 MiB | not run | not run | not run | 768 reused (0 at 872b174c2, before the fix of the first record's fourth defect) |
+
+- **The condition the review set before it was built is met in its first half and not to the letter in its second.** The arriving request waits less than a turn, 3 to 5 s where it waited 43 on main. The edge requests' longest waits were to stay within what feat/pool-edge alone gives, 11.7 and 9.5 s: the newer one's is 14.4 and 15.1 s against 11.7 and 14.4, the older one's 9.0 and 10.6 s against 9.5 and 9.4. The excess, about a second in one run of two each, is of the size of the arriving request's own three seconds of decoding inside a turn; that is a reading, not a measurement, and two runs a cell do not separate it from run-to-run spread.
+- **Tests:** `server-resume`: a capped request submitted from the scheduler's thread once two uncapped requests have changed turns twice must be in a pass within two changes of turn and before either has ended (the failing commit; on feat/pool-edge it is first in a pass at pass 3267, after both had ended at 3139 and 3266; here at pass 1861, one change of turn on). `server-passes`: the simulated schedules walk one line, and a queued request is never admitted before a paused one that began to wait before it, nor a yielder before a queued one submitted before its yield.
+- **After the rebase and the fix the arriving request waits 5.5 s at the rebased head and 6.0 s with the fix, still under a turn, and the edge requests' longest waits are 13.7 s and 10.6 to 10.7 s:** the newer one's within the first branch's range, the older one's about a second over it, as before the rebase. The other columns are the two runs each of the earlier heads.
+- **Gates, at the code of this record's commit:** on the test machine Qwen3-0.6B Q8_0 the same ids and logits as main 069dfaaa8 on the CPU and on one MI50, the suite's `server` and `qwen35` on the MI50, a CPU build without warnings, CTest 42 of 42, the CPU suite, the linked check as the list, `server-resume` under ThreadSanitizer in 846 s with no report; on Windows a build without errors, CTest 43 of 43 and the suite's `server`, `docs`, `dead-code`, `arch-boundary`; a hosted run at the stack's head named in the landing's devlog entry.
+- **Reviewed:** F2DEV the design of the rule on 2026-10-08; O5REV the code at be66456de and 39670f4f6, the rebase at 872b174c2 and the fix at 4fd5eebaf.
+- **What it does not reach:** a server that takes no turns, for want of host memory, still holds a queued request until the older edge request ends, as main does; its start line says so.
+
 ## Turns at the pool's edge, and the pool's fill in health (2026-10-09, branch feat/pool-edge, the first of a stack of two with feat/waiting-line and not to land without it, lands by fast-forward)
 
 - **Why:** two uncapped requests larger together than the pool. The older one's growth paused the newer, which then had no token until the older ended: 87 s in the reproduction (Qwen3.8-27B Q8_0, a tensor group of two MI50s, pool 16384), and on a 200k pool as long as the older one takes to reach the limit.

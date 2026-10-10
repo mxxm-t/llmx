@@ -185,7 +185,7 @@ private:
     std::vector<float> logits_;    // with logprobs asked, the copy of the row its next token goes to the channel with
     uint64_t admission_ = 0;       // order of first admission, by which room goes; set once
     uint64_t paused_as_ = 0;       // donor_ as its last pause set it, kept through the resume: the id of the copy that pause left in host memory
-    uint64_t line_ = 0;            // its place among the paused: its first admission, or a later number once it gave the pool's edge up
+    uint64_t line_ = 0;            // its place in the line of what waits (admit_waiting): the number it took at its submission, 0 once paused for another's growth, and a new number when it gives the pool's edge up; under the lock
     size_t edge_steps_ = 0;        // growth steps it took, its admission one of them, while an uncapped request was paused, and when it took the last
     Clock::time_point stepped_{};
     uint64_t donor_ = 0;           // the donor its last pause left, which it takes back whole on resuming unless something evicted it
@@ -312,6 +312,7 @@ public:
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
                 throw QueueFull("server: the queue holds " + std::to_string(max_queue_) + " requests; try again later");
+            r->line_ = ++lines_;
             queue_.push_back(r);
             ++arrivals_;
         }
@@ -514,7 +515,7 @@ public:
                                           return true;
                                       },
                                       [&](const std::shared_ptr<Request>& r) { return reading(*r); },
-                                      [&](const std::shared_ptr<Request>& r) { return enter(r, active); });
+                                      [&](const std::shared_ptr<Request>& r) { return enter(r, active); }, [](const std::shared_ptr<Request>& r) { return r->line_; });
                     active_count_.store(requests(active));
                     paused_count_.store(paused_.size());
                 }
@@ -1606,12 +1607,12 @@ private:
         r->paused_as_ = r->donor_ = park(active, i, history(*r), 1);
         ++r->pauses_;
         r->stalled_ = false;
-        r->line_ = yielded ? ++admissions_ : r->admission_;
         yields_ += yielded;
-        paused_.insert(std::upper_bound(paused_.begin(), paused_.end(), r, [](const auto& a, const auto& b) { return a->line_ < b->line_; }), r);
-        paused_count_.store(paused_.size());
         std::lock_guard<std::mutex> lk(m_);
         ++pauses_;
+        r->line_ = yielded ? ++lines_ : 0;
+        paused_.insert(std::upper_bound(paused_.begin(), paused_.end(), r, [](const auto& a, const auto& b) { return std::make_pair(a->line_, a->admission_) < std::make_pair(b->line_, b->admission_); }), r);
+        paused_count_.store(paused_.size());
         return r->donor_ != 0;
     }
 
@@ -2880,6 +2881,7 @@ private:
     std::atomic<uint64_t> apart_formed_{0}, between_{0};                         // Stats::apart and Stats::between, the second counted by the stages' threads
     size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
+    uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock
     // What a change of turn at the pool's edge takes (Growth::change over the last two timed, changed_ms_ the last), each from the yield (turned_) to the first pass retired that carries the request the turn went to.
     // That request is held by its first admission's number (turn_to_), given once and to no later request: met, it is set to 0; never met, its client gone before its pass, it is left and overwritten by the next yield.
     double swap_ms_ = 0, changed_ms_ = 0;

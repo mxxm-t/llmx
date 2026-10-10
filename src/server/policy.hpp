@@ -338,23 +338,18 @@ inline void give_rows(LogitRows& rows, size_t base, size_t n) {
     while (!rows.runs.empty() && rows.runs.front().back) rows.runs.pop_front();
 }
 
-// The order waiting requests are admitted in: the paused ones in the scheduler's order, first admission but for one that gave the pool's edge up, then the queue once none is paused, until one does not fit.
-// A request whose client left goes where it waits (`gone`), and one being read from disk keeps its place while those behind it that fit pass it (docs/DISK-TIER.md, Restore).
-template <class Queue, class Seat, class Gone, class Reading, class Enter>
-void admit_waiting(Queue& paused, Queue& queue, Seat seat, Gone gone, Reading reading, Enter enter) {
-    for (size_t i = 0; i < paused.size() && seat();) {
-        if (gone(paused, i)) continue;
-        if (reading(paused[i])) { ++i; continue; }
-        if (!enter(paused[i])) return;
-        paused.erase(paused.begin() + (std::ptrdiff_t)i);
-    }
-    for (const auto& r : paused)
-        if (!reading(r)) return;
-    for (size_t i = 0; i < queue.size() && seat();) {
-        if (gone(queue, i)) continue;
-        if (reading(queue[i])) { ++i; continue; }
-        if (!enter(queue[i])) return;
-        queue.erase(queue.begin() + (std::ptrdiff_t)i);
+// The order waiting requests are admitted in, one line: those paused for another's growth first (`line` 0), then yielders and queued requests merged by `line`, until one does not fit.
+// A request whose client left goes where it waits (`gone`), and one being read from disk keeps its place while those behind it that fit pass it (docs/SERVER.md, turns at the pool's edge).
+template <class Queue, class Seat, class Gone, class Reading, class Enter, class Line>
+void admit_waiting(Queue& paused, Queue& queue, Seat seat, Gone gone, Reading reading, Enter enter, Line line) {
+    for (size_t p = 0, q = 0; seat() && (p < paused.size() || q < queue.size());) {
+        const bool first = p < paused.size() && (q == queue.size() || line(paused[p]) < line(queue[q]));
+        Queue& from = first ? paused : queue;
+        size_t& i = first ? p : q;
+        if (gone(from, i)) continue;
+        if (reading(from[i])) { ++i; continue; }
+        if (!enter(from[i])) return;
+        from.erase(from.begin() + (std::ptrdiff_t)i);
     }
 }
 

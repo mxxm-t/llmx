@@ -1,5 +1,5 @@
 // Drafting in the scheduler (docs/SPECULATIVE.md, section 3): requests that verify drafts beside each other give, token for token, the ids and log-probabilities they give alone without drafts.
-// Over the synthetic Q8_0 model with lookup, and the hybrid model with an MTP block with its embedded drafter and with lookup, on one CPU and over a two-CPU split, greedy, sampled, capped, uncapped and ended by a stop string; and a pool too small for every request, where they pause and resume.
+// The models, placements and request kinds it runs over are listed under `server-spec` in AGENTS.md, Tests.
 #include <iostream>
 #include <numeric>
 
@@ -57,7 +57,8 @@ struct WideHooked : Hooked {
     size_t decode_columns() const override { return 16; }
 };
 
-// A request cancelled while its pass is in flight, at each of several submissions so some cancels find a verify, ends cancelled with its history back at its last pick; a request after it gives its reply on a fresh model without drafts, and every block comes back.
+// A request cancelled while its pass is in flight, at each of several submissions so some cancels find a verify, ends cancelled with its history back at its last pick.
+// A request after it gives its reply on a fresh model without drafts, and every block comes back.
 void cancelled_in_flight(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, const MakeProposer& proposer, bool drafter,
                          size_t states, const std::string& what) {
     const Req v{prompt_of(1, 40, vocab), 300}, after{prompt_of(2, 30, vocab), 40};
@@ -104,10 +105,7 @@ std::vector<Req> requests(const Make& plain, const bpe::Tokenizer& tok, uint32_t
 }
 
 // A request resumed by a fork of its whole history drafts nothing until a pass has fed it, and nobody ends with an error (docs/SPECULATIVE.md, section 3).
-// On a pool of 4096 tokens with a host tier, an uncapped request A of 2306 prompt tokens generates toward the pool's end; an uncapped B of 641 arrives once A has 50 tokens, runs until its reservation ends on a whole block and sits passes out there, is paused for A's growth, and its parked history goes to host memory as A grows on.
-// When A ends at the pool's end B resumes by a fork of the copy promoted from host memory: its sequence holds its whole history, so it decodes at once, on a sequence no pass has fed since the fork, which on a model that keeps a state has no live state for the drafter to read.
-// Both replies are the requests' replies alone, B's promoted and not recomputed.
-// This case passes without the rule too, B's acceptance resting when it resumes here, so it holds the promoted resume's replies with drafts and is not the test that fails; that one is the suite's qwen35 component.
+// Both replies are the requests' replies alone, the paused one's history promoted from host memory and not recomputed.
 void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     const Req a{prompt_of(1, 2306, vocab)}, b{prompt_of(2, 641, vocab)};
     std::vector<Reply> alone;
@@ -151,9 +149,7 @@ void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer
 }
 
 // A request drafts while another waits for room, and not while one waits for a seat (docs/SPECULATIVE.md, section 3).
-// Room: on two seats and a pool of 8 blocks, a request whose prompt ends as it began, so lookup has drafts for it, runs beside a queued request of 900 prompt tokens the pool cannot hold with it; the drafts fed are those the two feed each alone, the first one's among them.
-// A seat: the same first request and a second like it on one seat; the first feeds no draft while the second is queued for the seat, so the drafts fed are the second one's alone.
-// Every reply is the request's reply alone.
+// Queued for room, the drafts fed are those the two feed each alone; queued for the one seat, the first feeds none; every reply is the request's reply alone.
 void drafts_while_one_waits(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     std::vector<Req> reqs;
     for (uint32_t r = 0; r < 2; ++r) {
@@ -207,7 +203,8 @@ int main() {
             against_alone(plain, drafting, lookup, q8_tok, 1024, 3, stages, {{prompt_of(1, 40, q8_vocab)}, {prompt_of(2, 9, q8_vocab)}, {prompt_of(3, 23, q8_vocab)}},
                           "Q8_0 with lookup on " + where + ", paused", true);
         }
-        // Three requests, each a lone decoder in a pass of its own over three CPU stages at three passes, each verifying the 63 drafts lookup finds in a prompt that ends as it began: the draft rows in flight stay within the 64 the logits rows hold, and every reply is its reply alone.
+        // Three requests, each a lone decoder in a pass of its own over three CPU stages at three passes, each verify the 63 drafts lookup finds in a prompt that ends as it began.
+        // The draft rows in flight stay within the 64 the logits rows hold, and every reply is its reply alone.
         {
             const Make plain = on(q8, [] { return cpus(3); });
             const Make deep = on(q8, [] { return wide(3); }, 8, 0, 4, infer::spec::kMaxDrafts + 1);

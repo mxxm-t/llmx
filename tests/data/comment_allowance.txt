@@ -45,4 +45,3 @@ src/model/weights.hpp | 1 | 12c288409982 | docs/comment-sweep-2: a file of the n
 src/quant/k_quants.hpp | 1 | c80766bfa8fd | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/quant/quant.hpp | 3 | 6805ab039bea | docs/comment-sweep-2: a file of the numerics fingerprint (cmake/numerics-sources.txt), swept when a changed fingerprint is acceptable
 src/server/disk_index.hpp | 4 | 01d947cdfd56 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)
-tests/server_spec.cpp | 5 | d1018839a0e6 | owed by a branch in flight that touches this file, which sweeps it before it merges (AGENTS.md, Conventions)

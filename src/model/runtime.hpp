@@ -80,7 +80,7 @@ struct ModelOptions {
     std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
     bool kv_backed = false;
-    // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure; not yet read.
+    // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure.
     std::function<std::optional<size_t>()> host_memory;
 };
 
@@ -271,6 +271,8 @@ public:
           Placement placement, ModelOptions options = ModelOptions{}, const AdoptWeight& adopt = {})
         : place_(std::move(placement)), options_(options), arch_(weights.arch), plan_(std::move(plan)) {
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
+        // The reserve the host pool leaves the host is fixed here, from what the host has before this model takes its buffers, as the fit's is, and does not shrink as memory falls.
+        host_reserve_ = backend::CpuBackend::host_reserve(host_available().value_or(0));
         for (const auto& b : backends)
             if (!b) throw std::runtime_error("inference: missing backend");
         if (!options_.device_dtypes.empty() && options_.device_dtypes.size() != backends.size())
@@ -665,10 +667,9 @@ public:
     Sequence restore_host(HostHistory& h);
     void release_host(HostHistory& h) noexcept;
     void trim_host(size_t limit) noexcept;
-    // The pool's admission rule and its answer to a host short of memory; not yet built, so everything is admitted and nothing given back.
-    bool host_admits(size_t, bool = false) const { return true; }
-    bool host_short() const { return false; }
-    size_t host_yield() { return 0; }
+    bool host_admits(size_t bytes, bool optional = false) const;
+    bool host_short() const;
+    size_t host_yield();
     void wait_host(const HostHistory& h) const noexcept;
     // The bytes of each slab of a host history (HostHistory::slabs).
     static constexpr size_t host_slab_bytes() { return kHostSlab; }
@@ -886,6 +887,10 @@ private:
     // Host-visible memory for copies of histories (Model::save_host), in slabs a released copy leaves per device for the next, since allocating and pinning host memory costs far more than copying into it.
     static constexpr size_t kHostSlab = size_t(64) << 20;
     std::vector<size_t> host_copy_bytes(size_t length, bool blocks, size_t first, bool state) const;
+    std::optional<size_t> host_available() const { return options_.host_memory ? options_.host_memory() : core::host_memory_available(); }
+    size_t host_reserve_ = 0;                                   // host memory the pool's fresh slabs leave free, fixed as the model is made
+    // Growth nothing waits for keeps twice the reserve, so slabs given back at the reserve are not taken again while the host stays that short.
+    static constexpr size_t kHostOptional = 2;
     std::vector<std::vector<backend::BufferPtr>> host_slabs_;   // per device, the idle slabs, each vector's capacity reserved for every slab of its device so a release does not allocate
     std::vector<size_t> host_allocated_;                        // per device, its slabs alive, idle or in a copy
     SlotPool slots_;

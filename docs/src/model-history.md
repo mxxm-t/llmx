@@ -49,8 +49,11 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   `limit` (`trim_host` frees idle ones down to a limit after a copy allocated beyond it), a copy freeing idle slabs of other devices before it allocates
   (`detail::slabs_to_free`) and being refused where they cannot make room,
   or where the slabs it allocates would leave the host less free memory
-  than the reserve the fit keeps on it (`detail::host_room`, over
-  `CpuBackend::host_reserve`). `caches_on_devices` says whether some KV or
+  than the pool's reserve.
+  That reserve is `CpuBackend::host_reserve` of what the host had as the model was made, fixed then, so it does not shrink as memory falls; `host_admits(bytes, optional)` is the one rule every fresh slab passes, a copy's, a read's and an idle step's (`alloc_host`), with twice the reserve for growth nothing waits for, and it reads the host's memory at each call, so it is a sampled guard and no guarantee against another process.
+  `host_short()` says the host is below the reserve while idle slabs exist, and `host_yield()` then frees idle slabs, as many as cover what the host is short by, and no slab a copy holds.
+  `ModelOptions::host_memory` gives the host's free memory in tests.
+  `caches_on_devices` says whether some KV or
   state storage sits off the CPU, without which a copy gains nothing.
   A copy that fails part way retires every device's stream before its slabs
   go back, and the pools reserve room for every slab of their device, so a

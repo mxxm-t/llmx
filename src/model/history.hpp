@@ -175,11 +175,7 @@ inline std::optional<std::vector<size_t>> slabs_to_free(const std::vector<size_t
     return drop;
 }
 
-// Whether `bytes` more of host memory leave the host the reserve the fit keeps on it (CpuBackend::host_reserve) out of `free`, what it has free now; an unknown figure refuses nothing.
-inline bool host_room(std::optional<size_t> free, size_t bytes) {
-    return !free || (bytes <= *free && *free - bytes >= backend::CpuBackend::host_reserve(*free));
-}
-// The same against a reserve given.
+// Whether `bytes` more of host memory leave the host `reserve` out of `free`, what it has free now; an unknown figure refuses nothing.
 inline bool host_room(std::optional<size_t> free, size_t bytes, size_t reserve) {
     return !free || (bytes <= *free && *free - bytes >= reserve);
 }
@@ -248,7 +244,7 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
         fresh += need[i] > host_slabs_[i].size() ? need[i] - host_slabs_[i].size() : 0;
     }
     // The slabs it allocates must leave the host the reserve the fit kept on it, read once the idle slabs above are freed.
-    if (fresh && !detail::host_room(core::host_memory_available(), fresh * kHostSlab))
+    if (fresh && !host_admits(fresh * kHostSlab))
         throw std::runtime_error("inference: no host memory for the copy beside the reserve the host keeps");
     HostHistory h;
     h.owner = this;
@@ -509,6 +505,31 @@ inline void Model::release_host(HostHistory& h) noexcept {
             for (auto& b : h.slabs[i]) host_slabs_[i].push_back(std::move(b));
         }
     h = HostHistory{};
+}
+
+// The pool's one admission rule: whether `bytes` of fresh slabs leave the host the pool's reserve, read now; twice the reserve for `optional` growth, which nothing waits for.
+// Every fresh slab passes it, a copy's, a read's and an idle step's alike (alloc_host), and it is a sampled guard: another process may take the memory between the reading and the slab.
+inline bool Model::host_admits(size_t bytes, bool optional) const {
+    return detail::host_room(host_available(), bytes, host_reserve_ * (optional ? kHostOptional : 1));
+}
+
+// Whether the host is below the pool's reserve while the pool holds idle slabs it could give back.
+inline bool Model::host_short() const {
+    const std::optional<size_t> free = host_available();
+    if (!free || *free >= host_reserve_) return false;
+    return std::any_of(host_slabs_.begin(), host_slabs_.end(), [](const std::vector<backend::BufferPtr>& idle) { return !idle.empty(); });
+}
+
+// Idle slabs given back to a host below the pool's reserve, as many as cover what it is short by; the bytes freed.
+// Slabs a copy holds are not idle and stay, so every history in host memory and every read or write on one is as it was.
+inline size_t Model::host_yield() {
+    const std::optional<size_t> free = host_available();
+    if (!free || *free >= host_reserve_) return 0;
+    size_t idle = 0;
+    for (const auto& slabs : host_slabs_) idle += slabs.size();
+    const size_t give = std::min(idle, backend::blocks_for(host_reserve_ - *free, kHostSlab)) * kHostSlab;
+    trim_host(host_allocated() - give);
+    return give;
 }
 
 // Idle slabs freed until the slabs alive are within `limit`: what a copy allocated beyond its caller's own limit gives back once it is released.

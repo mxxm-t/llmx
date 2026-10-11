@@ -372,7 +372,7 @@ public:
         size_t reprefill_cancels = 0;  // jobs that gave way to a request at a pass boundary
         size_t host_donors = 0, host_bytes = 0;   // donors held in host memory now, and their bytes
         size_t host_hits = 0;                     // donors promoted from host memory for a request
-        size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory; not yet counted
+        size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
         size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed
@@ -412,6 +412,8 @@ public:
         s.host_donors = host_.size();
         s.host_bytes = host_held_;
         s.host_hits = host_hits_;
+        s.host_allocated = host_alive_;
+        s.host_yielded = host_yielded_;
         s.host_bytes_moved = host_moved_;
         s.boundaries = bounds_.size();
         s.boundary_hits = bound_hits_;
@@ -475,6 +477,7 @@ public:
                 else cv_.wait(lk, due);
                 if (stopping_) break;
                 seen_ = arrivals_;
+                host_pressure();
                 const bool idle = idle_at_ && std::chrono::steady_clock::now() >= *idle_at_;
                 idled_ = idled_ || idle;
                 disk_round(idle);
@@ -1630,10 +1633,14 @@ private:
         const size_t bt = model_.kv_block_tokens(), limit = std::min((size_t)model_.context_length(), model_.kv_tokens_total());
         std::vector<infer::HostHistory> probes;
         try {
-            for (size_t room = host_cap_ - in_use, fresh = kHostGrow; room && fresh;) {
+            // The round's fresh slabs are those the pool admits as growth nothing waits for, and each copy is asked for by the slabs it would itself take anew, the shortest copy's included.
+            size_t fresh = kHostGrow;
+            while (fresh && !model_.host_admits(fresh * slab, true)) --fresh;
+            for (size_t room = host_cap_ - in_use; room && (fresh || probes.empty());) {
                 const size_t n = grow_tokens(room, fresh, bt, limit, probes.empty(), [&](size_t t) { return model_.host_bytes(t); }, [&](size_t t) { return model_.host_fresh(t); });
-                if (!n) break;
-                fresh -= std::min(fresh, model_.host_fresh(n));
+                const size_t anew = n ? model_.host_fresh(n) : 0;
+                if (!n || (anew && !model_.host_admits(anew * slab, true))) break;
+                fresh -= std::min(fresh, anew);
                 probes.emplace_back();
                 quieted()->alloc_host(n, probes.back(), host_cap_ + parked_held());
                 room -= std::min(room, probes.back().held);
@@ -1641,6 +1648,19 @@ private:
         } catch (const std::exception&) {}
         for (infer::HostHistory& h : probes) model_.release_host(h);
         return model_.host_allocated() > alive;
+    }
+
+    // Once every kHostCheck: idle slabs go back to a host below the pool's reserve (Model::host_yield), and the idle growth is tried again where none had to, which the pool refuses while the host is short.
+    // Under the lock.
+    void host_pressure() {
+        const Clock::time_point now = Clock::now();
+        if (!host_cap_ || now < host_check_) return;
+        host_check_ = now + kHostCheck;
+        const size_t freed = model_.host_short() ? quieted()->host_yield() : 0;
+        host_yielded_ += freed;
+        host_growing_ = !freed;
+        host_alive_ = model_.host_allocated();
+        if (freed) std::fprintf(stderr, "server: %.0f MiB of idle host memory given back, the host being short of memory\n", (double)freed / (1 << 20));
     }
 
     // A request's history, its prompt then what it generated, which a donor keeps as tokens.
@@ -2249,6 +2269,8 @@ private:
                 if (r->disk_wait_ && r->disk_until_ != std::chrono::steady_clock::time_point::max() && (!t || r->disk_until_ < *t)) t = r->disk_until_;
         // The idle moment bounds the wait until a round has been idle, also once it is past, which a round begun before it and ended after it leaves it; after that round it bounds nothing, so the loop does not spin.
         if (idle_at_ && !idled_ && (!t || *idle_at_ < *t)) t = idle_at_;
+        // And the next look at the host's memory, while there is a host tier to give slabs back from.
+        if (host_cap_ && (!t || host_check_ < *t)) t = host_check_;
         return t;
     }
 
@@ -3020,6 +3042,10 @@ private:
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
     bool host_growing_ = true;            // its slabs are not all taken yet (grow_host), under the lock
+    // How often the host's memory is looked at (host_pressure): pressure builds over seconds and the look is one small file read, so idle slabs outstay it by a second at most.
+    static constexpr std::chrono::seconds kHostCheck{1};
+    Clock::time_point host_check_{};      // the next look, under the lock
+    size_t host_alive_ = 0, host_yielded_ = 0;   // the pool's slabs alive at the last look and the bytes given back since the start, under the lock
     static constexpr size_t kHostGrow = 4;   // the fresh slabs an idle round takes, more only where the shortest copy needs more; a slab took about 21 ms on an MI50 host (docs/STATUS.md)
     const double share_;                  // of each device's time, what generating requests keep while prompts are read; 0 for none
     infer::spec::Proposer* const proposer_;   // none drafts nothing

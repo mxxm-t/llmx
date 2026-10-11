@@ -373,7 +373,7 @@ A model whose layers keep a recurrent state, a `qwen35` file, has a state only a
 A finished request's donor is its history back to that checkpoint, which a follow-up turn forks, reading the state in place; a paused request keeps its whole history as its checkpoint where a slot is free, taking it back on resuming, and its prompt's checkpoint otherwise.
 A checkpoint takes a free slot, else the oldest donor holding one goes (`make_room`), else it is left out; nothing is paused for one.
 `--state-checkpoints N` sets the slots, by default the fewer of `--max-seqs` and the most that take at most a quarter of the KV budget's room, and 0 keeps no checkpoint, so a follow-up turn recomputes its history and a paused request resumes from its start; each admitted request also holds one of the `--max-seqs` state slots the load reserves.
-A donor the devices evict, to admit a request, to make a growth step's room or for a checkpoint slot, is first copied to host memory, its whole blocks up to its checkpoint on a model that keeps one ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier), within `--host-cache-bytes`, by default what `--max-seqs` histories take at the most one request may hold, within half of the host's free memory once the model is loaded, and none where every cache is on the CPU, and leaving the host the reserve the fit keeps on it, the room going by the ranking stated once in [DISK-TIER](DISK-TIER.md) (What the host tier does now).
+A donor the devices evict, to admit a request, to make a growth step's room or for a checkpoint slot, is first copied to host memory, its whole blocks up to its checkpoint on a model that keeps one ([SPECULATIVE](SPECULATIVE.md), section 2, Host tier), within `--host-cache-bytes`, by default what `--max-seqs` histories take at the most one request may hold, within half of the host's free memory once the model is loaded, and none where every cache is on the CPU, and leaving the host a reserve fixed at the start, a twentieth of what it then had free, below which idle slabs are given back, the room going by the ranking stated once in [DISK-TIER](DISK-TIER.md) (What the host tier does now).
 A donor whose conversation did not come back, its request having forked nothing the tiers kept, takes only the room that ranking gives it: users taking turns over more conversations than the tier holds would otherwise evict, each time, the one needed next.
 A paused request's own donor counts as one whose conversation came back, whatever its request forked: the request resumes, and a copy the tier refused would be recomputed at that resume.
 A request matching a copy in host memory better than any donor on the devices promotes it, taking its blocks and checkpoint slot as a first admission takes room and writing it back before its first pass, then forks it, so more conversations than the devices hold resume rather than recompute; the copies keep the bytes the storages held, so the reply is the one a fresh server gives.
@@ -481,8 +481,8 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
   "reuse": {
     "since_start": {"forks": 311, "tokens": 205112},
     "device": {"now": {"entries": 4, "state_checkpoints": 0}},
-    "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184},
-             "since_start": {"promotions": 40, "bytes_moved": 4093640704}},
+    "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184, "allocated_bytes": 17179869184},
+             "since_start": {"promotions": 40, "yielded_bytes": 0, "bytes_moved": 4093640704}},
     "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
              "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412,
                              "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
@@ -511,6 +511,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 | `checkpoints` | `reuse.device.now.state_checkpoints` | `Stats::checkpoints` |
 | `prefix_hits`, `prefix_tokens` | `reuse.since_start.forks`, `.tokens` | `Stats`; every admission that forked a shared history, whatever tier it came from, so they sit above the tiers |
 | `host_donors`, `host_bytes` | `reuse.host.now.entries`, `.bytes` | `Stats` |
+| `host_allocated`, `host_yielded` | `reuse.host.now.allocated_bytes`, `.since_start.yielded_bytes` | `Stats` |
 | `host_hits`, `host_bytes_moved` | `reuse.host.since_start.promotions`, `.bytes_moved` | `Stats` |
 | `boundaries`, `boundary_hits` | `reuse.boundaries.now.entries`, `.since_start.hits` | `Stats` |
 | `disk_entries`, `disk_bytes` | `reuse.disk.now.entries`, `.bytes` | `Stats` |

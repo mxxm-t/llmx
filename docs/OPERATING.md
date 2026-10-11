@@ -53,7 +53,7 @@ llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4
 
 **A generating request beside a long prompt.**
 By default a prompt goes first: a request that is already writing its reply gets a token each time a batch of the prompt has run, which beside a long prompt is one or two seconds a token.
-`--generating-share X` keeps the fraction X of the device's time for the requests that are writing while a prompt is read, on one GPU or on one tensor group; a layer split refuses the flag.
+`--generating-share X` aims the requests that are writing at the fraction X of the device's time while a prompt is read, on one GPU or on one tensor group; a layer split refuses the flag.
 The trade is direct, and you choose it:
 
 - the prompt's reading takes about 1 / (1 - X) of the time it takes alone, so twice as long at 0.5 and a third longer at 0.25, and only while a request is writing;

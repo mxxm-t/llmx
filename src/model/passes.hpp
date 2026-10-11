@@ -95,8 +95,21 @@ inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s, Pa
         ~Paths() { swap(); }
     } paths{devices_, st.touches, width_};
     paths.swap();
-    if (width_ > 1) group_record(ctx, p, s, pace);
-    else single_record(ctx, p, s, pace);
+    // A pass recorded at a boundary is told once it has retired, by the piece after it; after the last piece, or a failure, none follows, so it is settled here.
+    const auto settle = [&] {
+        if (!pace || !pace->within) return;
+        devices_[st.device]->b->wait(pace->within);
+        pace->within = 0;
+        pace->passed();
+    };
+    try {
+        if (width_ > 1) group_record(ctx, p, s, pace);
+        else single_record(ctx, p, s, pace);
+    } catch (...) {
+        settle();
+        throw;
+    }
+    settle();
 }
 
 // The same for a pass begun apart, from a Pace's `between`, on the thread and inside the recording of another pass's stage s: the stage's devices are that recording's already.

@@ -866,6 +866,21 @@ def check_no_turns_line(model):
         assert lines() == []
 
 
+def check_no_turns_whole_block(model):
+    """On a model whose 512-token context and 128-token pool hold one whole block, a tier of 1 MiB holds no copy of it (a copy is whole 64 MiB slabs), so the line says turns are off and names both sizes; one of 64 MiB holds it and says nothing."""
+    def lines(size):
+        srv = Server(model, "--ctx-size", "128", "--host-cache-bytes", str(size))
+        try:
+            srv.log.seek(0)
+            return [line for line in srv.log.read().splitlines() if "take turns" in line]
+        finally:
+            srv.close()
+
+    small = lines(1 << 20)
+    assert len(small) == 1 and "do not take turns" in small[0] and "holds 1 MiB" in small[0] and "takes 64 MiB" in small[0], small
+    assert lines(64 << 20) == []
+
+
 def volatile(text):
     """A reply with its id and timings blanked, the only bytes in which two runs of one compatible request may differ."""
     text = re.sub(r'"id":"(chat)?cmpl-[0-9]+"', '"id":""', text)
@@ -1709,6 +1724,7 @@ def run():
         check_no_turns_line(model)
         print("server: a server without host memory for evicted prefixes says at its start that uncapped requests filling the pool do not take turns, with the flag and both sizes, and one given a tier that holds a history, or on the CPU at its default, says nothing  [ok]")
         cuts = check_context_overflow(os.path.join(directory, "overflow.gguf"))
+        check_no_turns_whole_block(os.path.join(directory, "overflow.gguf"))
         print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "
               "each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows  [ok]" % cuts)
         check_mxfp4(directory)

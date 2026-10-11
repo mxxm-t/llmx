@@ -1487,8 +1487,8 @@ private:
         const auto p = std::find_if(paused_.begin(), paused_.end(), [](const std::shared_ptr<Request>& q) { return q->params_.until_limit && !q->cancel_.load(); });
         return p == paused_.end() ? nullptr : p->get();
     }
-// Whether `r`, whose growth step is due, gives the pool's edge up (Growth::yields): its turn is over, its history can be kept whole, and the one waiting fits once `r` holds nothing.
-// Kept whole means room in the host tier and, on a model that keeps a state, a free checkpoint slot.
+    // Whether `r`, whose growth step is due, gives the pool's edge up (Growth::yields): its turn is over, its history can be kept whole, and the one waiting fits once `r` holds nothing.
+    // Kept whole means room in the host tier for that history alone, whatever the longest a request may have, and on a model that keeps a state a free checkpoint slot.
     bool yields(const Request& r) const {
         const Request* w = waiting();
         if (!w || !host_cap_) return false;

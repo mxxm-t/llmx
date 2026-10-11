@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <deque>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 #include "backends/backend.hpp"
@@ -170,6 +171,36 @@ inline size_t host_cache_default(size_t history, size_t seqs, std::optional<size
     if (!free) return 0;
     const size_t cap = *free / 2;
     return history && seqs > cap / history ? cap : std::min(cap, history * seqs);
+}
+
+// The most tokens a history may have for a request to yield the pool's edge (Scheduler::yields keeps a history whole only where `bytes_of(its length)` is within the host tier's `cap`): whole blocks of `bt` up to `limit`, 0 where not one fits.
+template <class Bytes>
+size_t turn_tokens(size_t cap, size_t bt, size_t limit, Bytes bytes_of) {
+    size_t lo = 0, hi = bt ? limit / bt : 0;
+    while (lo < hi) {
+        const size_t mid = lo + (hi - lo + 1) / 2;
+        if (bytes_of(mid * bt) <= cap) lo = mid;
+        else hi = mid - 1;
+    }
+    return lo * bt;
+}
+
+// The start line for a host tier of `cap` bytes that does not hold the longest history, which takes `need` bytes; `tokens` is what turn_tokens gives.
+inline std::string short_tier_line(size_t cap, size_t need, size_t tokens) {
+    (void)tokens;
+    return "uncapped requests that fill the pool together do not take turns, the one that waits waiting for the other's end: host memory for evicted prefixes holds " + std::to_string(cap >> 20) +
+           " MiB and the longest history a request may have takes " + std::to_string((need + ((size_t)1 << 20) - 1) >> 20) + " MiB (--host-cache-bytes)";
+}
+
+// The start line for a model that keeps a state and a server with no checkpoint slot for it: Scheduler::yields refuses every turn then, whatever the host tier holds.
+inline std::string no_checkpoint_line() {
+    return "uncapped requests that fill the pool together do not take turns, the one that waits waiting for the other's end: the model keeps a state and the server no checkpoint for it (--state-checkpoints)";
+}
+
+// What the start line says for a tier of `cap` bytes, `need` the longest history's and `tokens` what turn_tokens gives, on a model that keeps a state or not with `slots` checkpoint slots; empty where every request takes turns.
+inline std::string turns_line(size_t cap, size_t need, size_t tokens, bool keeps_state, size_t slots) {
+    if (cap && cap >= need) return keeps_state && !slots ? no_checkpoint_line() : "";
+    return short_tier_line(cap, need, tokens);
 }
 
 // A pass slot as the round sees it: whether a pass is in flight in it, that pass's place in formation order, the stages recorded, and whether its next stage is being recorded now, on a thread of that stage's (the scheduler's recorders).

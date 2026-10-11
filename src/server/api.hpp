@@ -31,13 +31,13 @@ inline size_t default_host_cache(const infer::Model& model, size_t max_seqs) {
     return host_cache_default(model.host_bytes(limit), max_seqs, core::host_memory_available());
 }
 
-// Why uncapped requests that fill the pool will not take turns here though turns were possible or asked for, for the start line; empty where they will, and on the CPU with no host memory given.
+// The start line for uncapped requests that fill the pool and will not take turns here, or not all of them, though turns were possible or asked for; empty where they will, and on the CPU with no host memory given.
 // The host memory is asked first: given enough, a server takes turns wherever its caches are (docs/SERVER.md, turns at the pool's edge).
 inline std::string no_turns(const infer::Model& model, size_t host_cap, bool given) {
     const size_t bt = model.kv_block_tokens(), need = model.host_bytes(std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt);
     if (!given && !model.caches_on_devices()) return "";
-    if (host_cap && host_cap >= need) return model.keeps_state() && !model.checkpoint_slots() ? "the model keeps a state and the server no checkpoint for it (--state-checkpoints)" : "";
-    return "host memory for evicted prefixes holds " + std::to_string(host_cap >> 20) + " MiB and the longest history a request may have takes " + std::to_string((need + ((size_t)1 << 20) - 1) >> 20) + " MiB (--host-cache-bytes)";
+    const size_t tokens = host_cap ? turn_tokens(host_cap, bt, std::min((size_t)model.context_length(), model.kv_tokens_total()), [&](size_t n) { return model.host_bytes(n); }) : 0;
+    return turns_line(host_cap, need, tokens, model.keeps_state(), model.checkpoint_slots());
 }
 
 struct Config {

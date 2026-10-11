@@ -1110,7 +1110,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";
     if (const std::string why = server::no_turns(model, *c.host_cache_bytes, host_given); !why.empty())
-        std::cerr << "server: uncapped requests that fill the pool together do not take turns, the one that waits waiting for the other's end: " << why << "\n";
+        std::cerr << "server: " << why << "\n";
     server::serve(model, tok, loaded->chat, c, listener);
     return 0;
 }

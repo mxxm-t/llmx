@@ -805,6 +805,27 @@ void host_cache_by_hand() {
     require(server::host_cache_default(0, 8, 1000) == 0, "histories of no bytes did not take none");
 }
 
+// The start line for a host tier that holds some histories: turn_tokens finds the longest in whole blocks (0 where not one fits), the line names it, and turns_line selects among the sentences.
+void turns_line_by_hand() {
+    const auto slabs = [](size_t tokens) { return (tokens / 128 + 1) * (size_t(1) << 20); };
+    require(server::turn_tokens(10 << 20, 128, 4096, slabs) == 9 * 128, "a tier of ten blocks less one for the state did not hold nine");
+    require(server::turn_tokens(1 << 20, 128, 4096, slabs) == 0, "a tier of one block's bytes held a history with its state");
+    require(server::turn_tokens(size_t(1) << 40, 128, 4096, slabs) == 4096, "a tier past the longest history did not hold it");
+    require(server::turn_tokens(10 << 20, 0, 4096, slabs) == 0, "a model with no block tokens held a history");
+    const std::string line = server::short_tier_line(size_t(10) << 20, size_t(33) << 20, 1152);
+    require(line == "uncapped requests that fill the pool together take turns only while a request's history is within 1152 tokens, a longer one keeping the edge until it ends: host memory for evicted prefixes holds 10 MiB and the longest history a request may have takes 33 MiB (--host-cache-bytes)", "the line for a tier holding part was: " + line);
+    require(server::short_tier_line(0, size_t(33) << 20, 0).find("do not take turns") != std::string::npos, "the line for a tier of none did not say turns are off");
+    require(server::short_tier_line(size_t(1) << 20, size_t(33) << 20, 0).find("do not take turns") != std::string::npos, "the line for a tier that holds no history did not say turns are off");
+    // The selection: a model that keeps a state with no checkpoint slot refuses every turn (Scheduler::yields), so the line says that first, whatever the tier holds.
+    const size_t part = size_t(10) << 20, whole = size_t(40) << 20, need = size_t(33) << 20;
+    require(server::turns_line(part, need, 1152, true, 0) == server::no_checkpoint_line(), "a tier holding part, on a model that keeps a state with no checkpoint slot, did not say so first: " + server::turns_line(part, need, 1152, true, 0));
+    require(server::turns_line(0, need, 0, true, 0) == server::no_checkpoint_line(), "a tier of none, on a model that keeps a state with no checkpoint slot, did not say so first");
+    require(server::turns_line(whole, need, 4096, true, 0) == server::no_checkpoint_line(), "a tier holding a history, on a model that keeps a state with no checkpoint slot, did not say so");
+    require(server::turns_line(whole, need, 4096, true, 3).empty() && server::turns_line(whole, need, 4096, false, 0).empty(), "a tier holding a history, with a checkpoint slot or no state, did not take turns silently");
+    require(server::turns_line(part, need, 1152, true, 3) == server::short_tier_line(part, need, 1152) && server::turns_line(part, need, 1152, false, 0) == server::short_tier_line(part, need, 1152), "a tier holding part, with a checkpoint slot or no state, did not give the length line");
+    require(server::turns_line(0, need, 0, false, 0) == server::short_tier_line(0, need, 0), "a tier of none, on a model with no state, did not give the old sentence");
+}
+
 // The growth rule by hand: admission reserves a capped request's history and what it may still generate, an uncapped one's history and a step, and a step falls due only for an uncapped decoding request whose next position passes its blocks.
 // Then the logits rows a context reserves, one pass's alone and twice that once passes overlap, and the decode share.
 void growth_by_hand() {
@@ -1058,6 +1079,7 @@ int main(int argc, char** argv) {
         const size_t schedules = argc > 1 ? (size_t)std::stoul(argv[1]) : 2000;
         rooms_by_hand();
         host_cache_by_hand();
+        turns_line_by_hand();
         growth_by_hand();
         rounds_by_hand();
         rows_by_hand();

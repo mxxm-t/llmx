@@ -3420,6 +3420,77 @@ void disk_adopt_proved(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     std::cout << "server-resume: " << what << ": a path to " << end << " forked at " << fork << ", " << seen << "\n";
 }
 
+// A job whose ids a donor already holds whole reads nothing and leaves nothing: a turn's next-turn ids are given twice, as after a restart the history read from disk is the one its job would write.
+// The second job must fork the first's donor at its end and read no row, with the donors, the checkpoint slots, the reserved blocks and, once the server has stopped under keep, the files on disk those of one job.
+void job_holds_its_ids(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    struct Seen {
+        size_t rows = 0, donors = 0, checkpoints = 0, files = 0, states_at_ids = 0;
+        std::vector<size_t> reserved;
+    };
+    size_t held = 0;
+    bool model_keeps_state = false;
+    // The state after a job for each of `longer`, the ids with that many tokens more, and the entry files the stopped server leaves.
+    const auto after = [&](const std::vector<size_t>& longer) {
+        DiskRoot disk("job-ids");
+        server::DiskOptions options = disk.options(uint64_t(1) << 30);
+        options.keep = true;
+        Seen seen;
+        {
+            auto model = make(2048, 16);
+            model_keeps_state = model->keeps_state();
+            server::Scheduler sched(*model, tok, 2, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+            std::thread runner([&] { sched.run(); });
+            try {
+                const Req turn{prompt_of(21, 300, vocab), 20};
+                const auto h = sched.submit(turn.prompt, params_of(turn));
+                std::vector<uint32_t> next = turn.prompt;
+                for (uint32_t id : ids_of(drain(*h))) next.push_back(id);
+                const std::vector<uint32_t> more = prompt_of(22, 200, vocab);
+                next.insert(next.end(), more.begin(), more.end());
+                held = next.size() / kBlock * kBlock;
+                for (size_t k = 1; k <= longer.size(); ++k) {
+                    std::vector<uint32_t> ids = next;
+                    const std::vector<uint32_t> tail = prompt_of(23, longer[k - 1] + 1, vocab);
+                    ids.insert(ids.end(), tail.begin() + 1, tail.end());
+                    sched.follow(h, ids, true);
+                    within_a_minute([&] { return sched.stats().reprefills == k; }, what + ": the ids read, job " + std::to_string(k));
+                }
+                const server::Scheduler::Stats s = sched.stats();
+                seen.rows = s.reprefill_rows;
+                seen.donors = s.donors;
+                seen.checkpoints = s.checkpoints;
+                seen.reserved = s.reserved;
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        for (const fs::path& f : disk.files(".kv")) {
+            const server::DiskIndex::File d = described(f);
+            seen.states_at_ids += d.state && d.end == held;
+            ++seen.files;
+        }
+        return seen;
+    };
+    const Seen one = after({0}), two = after({0, 0});
+    const auto said = [](const Seen& s) {
+        size_t blocks = 0;
+        for (size_t b : s.reserved) blocks += b;
+        return std::to_string(s.rows) + " rows read, " + std::to_string(s.donors) + " donors, " + std::to_string(s.checkpoints) + " checkpoints, " + std::to_string(blocks) + " blocks reserved, " +
+               std::to_string(s.files) + " files kept";
+    };
+    require(one.rows && one.files && two.rows == one.rows && two.donors == one.donors && two.checkpoints == one.checkpoints && two.reserved == one.reserved && two.files == one.files,
+            what + ": after a second job of the same " + std::to_string(held) + " ids " + said(two) + ", against the first job's " + said(one));
+    // The ids given again after a job of a block more, whose donor superseded the first's: the third job forks every id from that donor and reads nothing, and the state at the ids is kept at the stop.
+    const Seen grown = after({0, kBlock}), back = after({0, kBlock, 0});
+    require(back.rows == grown.rows && (!model_keeps_state || back.states_at_ids == 1),
+            what + ": after a job of the ids, one of a block more and one of the ids again, " + said(back) + " and " + std::to_string(back.states_at_ids) + " states at the ids, against the two jobs' " + said(grown) + " and one state");
+    std::cout << "server-resume: " << what << ": a second job of the same " << held << " ids left the first's " << said(one) << "\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3503,6 +3574,8 @@ int main(int argc, char** argv) {
             disk_age(one, tok, vocab);
             disk_age_restart(one, tok, vocab);
             disk_idle_past(one, tok, vocab);
+            job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
+            job_holds_its_ids(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a job given ids a donor holds whole, a model keeping a state");
             for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})
                 disk_adopt_proved(one, tok, vocab, 1, plant, std::string("another build's entries adopted and proved") + (plant == Plant::first ? ", a byte planted in the first block" : plant == Plant::last ? ", a byte planted in the last block" : plant == Plant::cancel ? ", the client leaving between the comparisons" : ""));
             for (const Plant plant : {Plant::none, Plant::last, Plant::state})

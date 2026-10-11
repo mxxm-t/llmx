@@ -468,7 +468,9 @@ public:
                     idled_ = false;
                 }
                 const auto bound = next_disk_bound();
-                if (bound) cv_.wait_until(lk, *bound, due);
+                // With nothing to do the host tier's slabs are taken ahead, a step a round with no sleep between, so a copy made later allocates none (grow_host).
+                if (host_growing_ && !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && jobs_.empty() && follows_.empty()) host_growing_ = grow_host();
+                else if (bound) cv_.wait_until(lk, *bound, due);
                 else cv_.wait(lk, due);
                 if (stopping_) break;
                 seen_ = arrivals_;
@@ -1617,6 +1619,27 @@ private:
                 drop_donor(donors_.size() - 1, true);
             }
         }
+    }
+
+    // Takes fresh slabs of the host tier while the server has nothing to do, kHostGrow a round or the shortest copy's where that needs more, and gives them back at once to stand idle in the model's pool; whether more are to come.
+    // A fresh slab is zero-filled as it is taken, which a read from disk otherwise spends on this thread before it starts (docs/STATUS.md); the model counts the fresh ones device by device (Model::host_fresh), and this runs under the lock.
+    bool grow_host() {
+        const size_t slab = infer::Model::host_slab_bytes(), alive = model_.host_allocated(), in_use = host_held_ + parked_held();
+        if (alive + slab > host_cap_ || in_use > alive) return false;
+        const size_t bt = model_.kv_block_tokens(), limit = std::min((size_t)model_.context_length(), model_.kv_tokens_total());
+        std::vector<infer::HostHistory> probes;
+        try {
+            for (size_t room = host_cap_ - in_use, fresh = kHostGrow; room && fresh;) {
+                const size_t n = grow_tokens(room, fresh, bt, limit, probes.empty(), [&](size_t t) { return model_.host_bytes(t); }, [&](size_t t) { return model_.host_fresh(t); });
+                if (!n) break;
+                fresh -= std::min(fresh, model_.host_fresh(n));
+                probes.emplace_back();
+                quieted()->alloc_host(n, probes.back(), host_cap_ + parked_held());
+                room -= std::min(room, probes.back().held);
+            }
+        } catch (const std::exception&) {}
+        for (infer::HostHistory& h : probes) model_.release_host(h);
+        return model_.host_allocated() > alive;
     }
 
     // A request's history, its prompt then what it generated, which a donor keeps as tokens.
@@ -2995,6 +3018,8 @@ private:
     size_t max_seqs_, ubatch_, max_queue_;
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
+    bool host_growing_ = true;            // its slabs are not all taken yet (grow_host), under the lock
+    static constexpr size_t kHostGrow = 4;   // the fresh slabs an idle round takes, more only where the shortest copy needs more; a slab took about 21 ms on an MI50 host (docs/STATUS.md)
     const double share_;                  // of each device's time, what generating requests keep while prompts are read; 0 for none
     infer::spec::Proposer* const proposer_;   // none drafts nothing
     const size_t draft_max_;

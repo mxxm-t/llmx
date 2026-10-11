@@ -195,6 +195,30 @@ inline size_t Model::host_allocated() const {
     return n * kHostSlab;
 }
 
+// The bytes a copy of `length` tokens takes on each device: its blocks from `first` on where `blocks`, and with `state` its state and the drafter's carried row.
+inline std::vector<size_t> Model::host_copy_bytes(size_t length, bool blocks, size_t first, bool state) const {
+    std::vector<size_t> bytes(devices_.size(), 0);
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        const Device& d = *devices_[i];
+        if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr)
+            bytes[i] = (length - first) / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+        if (state && d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
+        if (state && d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
+    }
+    return bytes;
+}
+
+// The slabs a whole copy of `length` tokens would allocate anew now: each device's need past the idle slabs it holds, which another device's idle slabs do not serve.
+inline size_t Model::host_fresh(size_t length) const {
+    const std::vector<size_t> bytes = host_copy_bytes(length, true, 0, true);
+    size_t fresh = 0;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        const size_t need = backend::blocks_for(bytes[i], kHostSlab), idle = i < host_slabs_.size() ? host_slabs_[i].size() : 0;
+        fresh += need > idle ? need - idle : 0;
+    }
+    return fresh;
+}
+
 // Slabs for a copy of `length` tokens of this model's layout (HostHistory), as save_host takes them, holding nothing yet: within `limit` and the host reserve, idle slabs reused and those of other devices freed first.
 // From `first` on and without `state` they are for the blocks of a range alone (save_host_blocks), and `out` is whole or, on a throw, released.
 inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks, size_t first, bool state) {
@@ -202,13 +226,9 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
     // Each sized on its own, so one that fails to grow leaves the other's check to grow it next time.
     if (host_allocated_.size() != devices_.size()) host_allocated_.resize(devices_.size(), 0);
     if (host_slabs_.size() != devices_.size()) host_slabs_.resize(devices_.size());
-    std::vector<size_t> bytes(devices_.size(), 0), need(devices_.size(), 0), idle(devices_.size(), 0);
+    const std::vector<size_t> bytes = host_copy_bytes(length, blocks, first, state);
+    std::vector<size_t> need(devices_.size(), 0), idle(devices_.size(), 0);
     for (size_t i = 0; i < devices_.size(); ++i) {
-        const Device& d = *devices_[i];
-        if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr)
-            bytes[i] = (length - first) / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
-        if (state && d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
-        if (state && d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
         need[i] = backend::blocks_for(bytes[i], kHostSlab);
         idle[i] = host_slabs_[i].size();
     }

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -183,6 +184,14 @@ size_t turn_tokens(size_t cap, size_t bt, size_t limit, Bytes bytes_of) {
         else hi = mid - 1;
     }
     return lo * bt;
+}
+
+// The longest history an idle step takes slabs for (Scheduler::grow_host): whole blocks of `bt` up to `limit`, its copy within `room` bytes and allocating at most `fresh` slabs anew, which `fresh_of` counts device by device.
+// Where none is, the shortest history if `least`, the step having taken nothing yet, so a model whose shortest copy needs more slabs than a step takes still grows.
+template <class Bytes, class Fresh>
+size_t grow_tokens(size_t room, size_t fresh, size_t bt, size_t limit, bool least, Bytes bytes_of, Fresh fresh_of) {
+    const size_t n = turn_tokens(room, bt, limit, [&](size_t t) { return fresh_of(t) > fresh ? std::numeric_limits<size_t>::max() : bytes_of(t); });
+    return n || !least || !bt || bt > limit || bytes_of(bt) > room ? n : bt;
 }
 
 // The start line for a host tier of `cap` bytes that does not hold the longest history, which takes `need` bytes; `tokens` is what turn_tokens gives, 0 where no history fits and so none takes turns.

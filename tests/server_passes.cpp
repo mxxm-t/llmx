@@ -805,6 +805,21 @@ void host_cache_by_hand() {
     require(server::host_cache_default(0, 8, 1000) == 0, "histories of no bytes did not take none");
 }
 
+// An idle step's history (grow_tokens): the longest whose copy fits the room and allocates no more fresh slabs than the step takes, counted a device, so idle slabs on one device do not pay for another's.
+void grow_step_by_hand() {
+    // Two devices: the first takes a slab for any copy, the second a slab for every 128 tokens; four slabs stand idle on the first and none on the second.
+    const size_t slab = size_t(64) << 20;
+    const auto bytes = [&](size_t tokens) { return (1 + tokens / 128) * slab; };
+    const auto fresh = [&](size_t tokens) { return tokens / 128; };
+    require(server::grow_tokens(8 * slab, 4, 128, 4096, true, bytes, fresh) == 4 * 128, "a step of four fresh slabs took a history that allocates more, its bytes fitting the room through another device's idle slabs");
+    require(server::grow_tokens(3 * slab, 4, 128, 4096, true, bytes, fresh) == 2 * 128, "a step took a history past its room");
+    require(server::grow_tokens(64 * slab, 64, 128, 4096, true, bytes, fresh) == 4096, "a step with room and slabs for the longest history did not take it");
+    // A shortest copy that needs more fresh slabs than a step takes is taken by a step that has taken nothing, and by no other.
+    const auto wide = [](size_t) { return size_t(6); };
+    require(server::grow_tokens(8 * slab, 4, 128, 4096, true, bytes, wide) == 128 && server::grow_tokens(8 * slab, 4, 128, 4096, false, bytes, wide) == 0, "a model whose shortest copy passes a step's slabs did not grow by that copy alone");
+    require(server::grow_tokens(slab, 4, 128, 4096, true, bytes, wide) == 0 && server::grow_tokens(8 * slab, 4, 0, 4096, true, bytes, wide) == 0, "a step took a history with no room or no block for it");
+}
+
 // The start line for a host tier that holds some histories: turn_tokens finds the longest in whole blocks (0 where not one fits), the line names it, and turns_line selects among the sentences.
 void turns_line_by_hand() {
     const auto slabs = [](size_t tokens) { return (tokens / 128 + 1) * (size_t(1) << 20); };
@@ -1080,6 +1095,7 @@ int main(int argc, char** argv) {
         rooms_by_hand();
         host_cache_by_hand();
         turns_line_by_hand();
+        grow_step_by_hand();
         growth_by_hand();
         rounds_by_hand();
         rows_by_hand();

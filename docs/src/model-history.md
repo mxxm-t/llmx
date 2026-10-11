@@ -63,6 +63,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   `alloc_host(length, out, limit)` takes the slabs a copy of `length`
   tokens takes, holding nothing yet, as `save_host` takes them before its
   copies, so the server's disk tier reads an entry back into them.
+  `host_fresh(length)` counts the slabs such a copy would allocate anew now, each device's need past its own idle slabs, which is what the server bounds an idle step's allocations by.
   `wait_host(host)` waits for the copies into and out of a copy's slabs, so
   the host can read its bytes, as the server's disk tier does before it
   writes them to a file.

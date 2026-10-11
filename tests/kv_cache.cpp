@@ -773,7 +773,10 @@ void host_round_trip() {
     // A second copy takes the slabs the first left, allocating none.
     model.save_host(r, 2 * bt, h, slabs);
     require(model.host_allocated() == slabs, "a second copy to host memory allocated past the slabs the first left");
+    // The slabs a copy would allocate anew (Model::host_fresh): all it needs while another copy holds the pool's, none once they stand idle.
+    require(model.host_fresh(2 * bt) == slabs / infer::Model::host_slab_bytes(), "a copy beside one holding every slab counted idle slabs for itself");
     model.release_host(h);
+    require(model.host_fresh(2 * bt) == 0 && model.host_allocated() == slabs, "a copy the idle slabs cover counted a fresh one");
     model.reset(r);
     model.reset(other);
     // The blocks of a range alone (Model::save_host_blocks) are the bytes the whole copy holds at that range (Model::host_ranges), in the same order, and a whole history put together from two ranges restores as the copy does.

@@ -653,6 +653,7 @@ public:
     size_t host_bytes(size_t length, bool blocks = true, size_t first = 0, bool state = true) const;
     std::string host_identity() const;
     void alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks = true, size_t first = 0, bool state = true);
+    size_t host_fresh(size_t length) const;
     void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks = true);
     void save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit);
     std::vector<HostRange> host_ranges(const HostHistory& h, size_t first, size_t length) const;
@@ -878,6 +879,7 @@ private:
     size_t state_layers_ = 0;                    // and those that keep a state
     // Host-visible memory for copies of histories (Model::save_host), in slabs a released copy leaves per device for the next, since allocating and pinning host memory costs far more than copying into it.
     static constexpr size_t kHostSlab = size_t(64) << 20;
+    std::vector<size_t> host_copy_bytes(size_t length, bool blocks, size_t first, bool state) const;
     std::vector<std::vector<backend::BufferPtr>> host_slabs_;   // per device, the idle slabs, each vector's capacity reserved for every slab of its device so a release does not allocate
     std::vector<size_t> host_allocated_;                        // per device, its slabs alive, idle or in a copy
     SlotPool slots_;

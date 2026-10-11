@@ -3545,6 +3545,75 @@ void job_holds_its_ids(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     std::cout << "server-resume: " << what << ": a second job of the same " << held << " ids left the first's " << said(one) << "\n";
 }
 
+// A CPU backend that counts the host-visible allocations of a megabyte or more, which are the host tier's slabs.
+struct CountingSlabs : backend::CpuBackend {
+    std::atomic<size_t>* slabs = nullptr;
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        if (where == backend::Memory::host_visible && bytes >= ((size_t)1 << 20)) ++*slabs;
+        return CpuBackend::alloc(bytes, where);
+    }
+};
+
+// The host tier's slabs are taken while the server is idle (Scheduler::grow_host): a scheduler over two CPUs with a host tier of six slabs and nothing to do takes all six, three a device, and stops there.
+// Two conversations then take turns, each follow-up evicting the other's donor to host memory and promoting its own: no slab is allocated after the six, every reply is its reply alone, and trimming the pool to the tier frees nothing.
+void host_growth(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "the host tier's slabs taken while idle";
+    std::atomic<size_t> slabs{0};
+    const Make make = on(weights, [&] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 2; ++d) {
+            auto c = std::make_shared<CountingSlabs>();
+            c->set_threads(1);
+            c->slabs = &slabs;
+            b.push_back(c);
+        }
+        return b;
+    }, 3);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    const auto follow = [&](const Req& first, uint32_t seed) {
+        auto model = make(512, 0);
+        std::vector<uint32_t> again = first.prompt;
+        for (uint32_t id : ids_of(serve(*model, tok, 3, {{first}})[0])) again.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(seed, 30, vocab);
+        again.insert(again.end(), more.begin(), more.end());
+        return Req{again, 32};
+    };
+    const std::vector<Req> turns{a, b, follow(a, 6), follow(b, 8)};
+    std::vector<Reply> alone;
+    for (const Req& r : turns) {
+        auto model = make(512, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    const size_t slab = infer::Model::host_slab_bytes(), cap = 6 * slab;
+    auto model = make(512, 0);
+    slabs = 0;
+    server::Scheduler sched(*model, tok, 3, 64, 0, false, cap);
+    std::thread runner([&] { sched.run(); });
+    server::Scheduler::Stats stats;
+    try {
+        within_a_minute([&] { return slabs.load() == 6; }, what + ": " + std::to_string(slabs.load()) + " slabs taken by an idle scheduler, against the tier's six");
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        require(slabs.load() == 6, what + ": the growth went past the tier, to " + std::to_string(slabs.load()) + " slabs");
+        for (size_t i = 0; i < turns.size(); ++i) {
+            const auto h = sched.submit(turns[i].prompt, params_of(turns[i]));
+            same(alone[i], drain(*h), what + ", request " + std::to_string(i));
+            require(slabs.load() == 6, what + ": request " + std::to_string(i) + " had a slab allocated, " + std::to_string(slabs.load()) + " in all against the six taken while idle");
+        }
+        stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(stats.host_hits == 2 && stats.host_donors > 0, what + ": " + std::to_string(stats.host_hits) + " promotions from host memory and " + std::to_string(stats.host_donors) + " donors held there, against two and some");
+    require(model->host_allocated() == cap, what + ": " + std::to_string(model->host_allocated() / slab) + " slabs are alive after the turns, against six");
+    model->trim_host(cap);
+    require(model->host_allocated() == cap, what + ": trimming the pool to the tier freed a slab");
+    std::cout << "server-resume: " << what << ": six slabs taken by an idle scheduler, none allocated over four turns that evict and promote\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3628,6 +3697,7 @@ int main(int argc, char** argv) {
             disk_age(one, tok, vocab);
             disk_age_restart(one, tok, vocab);
             disk_idle_past(one, tok, vocab);
+            host_growth(weights, tok, vocab);
             job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
             job_holds_its_ids(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a job given ids a donor holds whole, a model keeping a state");
             for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})

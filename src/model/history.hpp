@@ -179,6 +179,10 @@ inline std::optional<std::vector<size_t>> slabs_to_free(const std::vector<size_t
 inline bool host_room(std::optional<size_t> free, size_t bytes) {
     return !free || (bytes <= *free && *free - bytes >= backend::CpuBackend::host_reserve(*free));
 }
+// The same against a reserve given.
+inline bool host_room(std::optional<size_t> free, size_t bytes, size_t reserve) {
+    return !free || (bytes <= *free && *free - bytes >= reserve);
+}
 } // namespace detail
 
 // Whether some KV or state storage sits on a device other than the CPU, so a copy to host memory frees memory a copy on the host would not.

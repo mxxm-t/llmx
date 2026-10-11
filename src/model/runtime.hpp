@@ -80,6 +80,8 @@ struct ModelOptions {
     std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
     bool kv_backed = false;
+    // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure; not yet read.
+    std::function<std::optional<size_t>()> host_memory;
 };
 
 // One request's history in a model's cache, made by Model::make_sequence: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it (docs/EXECUTION.md).
@@ -663,6 +665,10 @@ public:
     Sequence restore_host(HostHistory& h);
     void release_host(HostHistory& h) noexcept;
     void trim_host(size_t limit) noexcept;
+    // The pool's admission rule and its answer to a host short of memory; not yet built, so everything is admitted and nothing given back.
+    bool host_admits(size_t, bool = false) const { return true; }
+    bool host_short() const { return false; }
+    size_t host_yield() { return 0; }
     void wait_host(const HostHistory& h) const noexcept;
     // The bytes of each slab of a host history (HostHistory::slabs).
     static constexpr size_t host_slab_bytes() { return kHostSlab; }

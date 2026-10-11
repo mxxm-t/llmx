@@ -372,6 +372,7 @@ public:
         size_t reprefill_cancels = 0;  // jobs that gave way to a request at a pass boundary
         size_t host_donors = 0, host_bytes = 0;   // donors held in host memory now, and their bytes
         size_t host_hits = 0;                     // donors promoted from host memory for a request
+        size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory; not yet counted
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
         size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed

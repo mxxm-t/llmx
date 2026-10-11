@@ -3614,6 +3614,195 @@ void host_growth(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint
     std::cout << "server-resume: " << what << ": six slabs taken by an idle scheduler, none allocated over four turns that evict and promote\n";
 }
 
+// The host pool under memory pressure, through the scheduler, the host's free memory given by the test as a base less the pool's own slabs (docs/src/server.md).
+// The idle growth stops where a step would leave less than twice the reserve, a host below the reserve gets an idle slab back once and nothing is taken again, and the histories held in host memory still serve.
+void host_pool_pressure(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "the host pool under memory pressure";
+    const size_t slab = infer::Model::host_slab_bytes(), reserve = 4 * slab;
+    std::atomic<size_t> slabs{0}, base{20 * reserve};
+    std::atomic<infer::Model*> pool{nullptr};
+    const auto free = [&]() -> std::optional<size_t> {
+        infer::Model* m = pool.load();
+        const size_t taken = m ? m->host_allocated() : 0, b = base.load();
+        return b > taken ? b - taken : 0;
+    };
+    const Make make = on(weights, [&] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 2; ++d) {
+            auto c = std::make_shared<CountingSlabs>();
+            c->set_threads(1);
+            c->slabs = &slabs;
+            b.push_back(c);
+        }
+        return b;
+    }, 3, 0, 0, 0, false, 1, free);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    const auto follow = [&](const Req& first, uint32_t seed) {
+        auto model = make(512, 0);
+        std::vector<uint32_t> again = first.prompt;
+        for (uint32_t id : ids_of(serve(*model, tok, 3, {{first}})[0])) again.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(seed, 30, vocab);
+        again.insert(again.end(), more.begin(), more.end());
+        return Req{again, 32};
+    };
+    const std::vector<Req> turns{a, b, follow(a, 6), follow(b, 8)};
+    std::vector<Reply> alone;
+    for (const Req& r : turns) {
+        auto model = make(512, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}})[0]);
+    }
+    // Rounds enough for three more looks at the host's memory, each look a round or two of an idle scheduler.
+    const auto looks = [&](server::Scheduler& sched, const std::string& why) {
+        const uint64_t from = sched.stats().timing.rounds;
+        within_a_minute([&] { return sched.stats().timing.rounds >= from + 6; }, what + ": " + why);
+    };
+    size_t given = 0, taken = 0;
+    {
+        auto model = make(512, 0);
+        slabs = 0;
+        // Room for ten slabs beside twice the reserve in a tier of twelve: two steps of four and a last one of the two that are left, admitted by what it takes and not by a whole step.
+        base = 2 * reserve + 10 * slab;
+        pool = model.get();
+        server::Scheduler sched(*model, tok, 3, 64, 0, true, 12 * slab);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return slabs.load() == 10; }, what + ": the idle growth standing at the ten slabs the host has room for");
+            looks(sched, "the scheduler looking at the host's memory");
+            require(slabs.load() == 10, what + ": the idle growth took " + std::to_string(slabs.load()) + " slabs of the tier's twelve within twice the reserve, against ten");
+            for (size_t i = 0; i < turns.size(); ++i) same(alone[i], drain(*sched.submit(turns[i].prompt, params_of(turns[i]))), what + ", request " + std::to_string(i));
+            server::Scheduler::Stats s = sched.stats();
+            taken = slabs.load();
+            require(s.host_bytes > 0 && s.host_bytes < taken * slab && !s.host_yielded,
+                    what + ": " + std::to_string(s.host_bytes / slab) + " of " + std::to_string(taken) + " slabs held by histories after the turns, against some and not all");
+            // The host falls a byte below the reserve: one idle slab goes back, which leaves it short of twice the reserve, so nothing is taken again.
+            base = reserve - 1 + taken * slab;
+            within_a_minute([&] { return sched.stats().host_yielded == slab; }, what + ": an idle slab given back to a host a byte below the reserve");
+            looks(sched, "the scheduler looking again after the slab went back");
+            s = sched.stats();
+            given = s.host_yielded;
+            require(given == slab && slabs.load() == taken, what + ": " + std::to_string(given / slab) + " slabs given back and " + std::to_string(slabs.load() - taken) + " taken again under the same pressure, against one and none");
+            // The histories held through it still serve: the first follow-up again forks what its conversation left.
+            const auto h = sched.submit(turns[2].prompt, params_of(turns[2]));
+            same(alone[2], drain(*h), what + ", a follow-up after the pressure");
+            require(h->reused() > 0, what + ": the follow-up after the pressure reused nothing");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            pool = nullptr;
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        pool = nullptr;
+    }
+    // A read from disk whose slabs would leave the host less than the reserve is refused whole: the request computes its prompt and no slab is taken.
+    DiskRoot disk("pool-pressure");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::seconds(1);
+    {
+        auto model = make(512, 0);
+        base = 20 * reserve;
+        pool = model.get();
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 6 * slab, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(a.prompt, params_of(a)));
+            within_a_minute([&] { return sched.stats().disk_entries > 0 && !sched.stats().disk_in_flight; }, what + ": the turn's files written");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            pool = nullptr;
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        pool = nullptr;
+    }
+    size_t reused = 0, hits = 0;
+    {
+        auto model = make(512, 0);
+        slabs = 0;
+        base = reserve + slab - 1;
+        pool = model.get();
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 6 * slab, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_entries > 0; }, what + ": the kept files adopted");
+            const auto h = sched.submit(turns[2].prompt, params_of(turns[2]));
+            same(alone[2], drain(*h), what + ", a follow-up whose read was refused");
+            reused = h->reused();
+            hits = sched.stats().disk_hits;
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            pool = nullptr;
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        pool = nullptr;
+    }
+    require(!reused && !hits && !slabs.load(), what + ": a read the host had no room for reused " + std::to_string(reused) + " tokens with " + std::to_string(hits) + " entries read and " + std::to_string(slabs.load()) +
+                                                    " slabs taken, against none of each");
+    std::cout << "server-resume: " << what << ": ten slabs of a tier of twelve taken beside twice the reserve, one given back a byte below it, none taken again, the held histories serving, a read with no room refused\n";
+}
+
+// The idle growth's shortest copy is admitted by its own size (Scheduler::grow_host): six layers over six CPUs, so the shortest copy takes six slabs, two more than a step's four, beside a reserve of four.
+// With twelve slabs free it needs fourteen and none is taken, where a test of a step's four would pass it; with fourteen free the six are taken, and no more after them.
+void host_pool_shortest_copy() {
+    const std::string what = "the idle growth's shortest copy admitted by its own size";
+    Shape six = kCpu;
+    six.layers = 6;
+    const gguf::GGUFModel weights = served(six);
+    const bpe::Tokenizer tok(weights);
+    const size_t slab = infer::Model::host_slab_bytes(), reserve = 4 * slab;
+    std::atomic<size_t> slabs{0}, base{20 * reserve};
+    std::atomic<infer::Model*> pool{nullptr};
+    const auto free = [&]() -> std::optional<size_t> {
+        infer::Model* m = pool.load();
+        const size_t taken = m ? m->host_allocated() : 0, b = base.load();
+        return b > taken ? b - taken : 0;
+    };
+    const Make make = on(weights, [&] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 6; ++d) {
+            auto c = std::make_shared<CountingSlabs>();
+            c->set_threads(1);
+            c->slabs = &slabs;
+            b.push_back(c);
+        }
+        return b;
+    }, 3, 0, 0, 0, false, 1, free);
+    auto model = make(512, 0);
+    slabs = 0;
+    base = 12 * slab;
+    pool = model.get();
+    server::Scheduler sched(*model, tok, 3, 64, 0, true, 12 * slab);
+    std::thread runner([&] { sched.run(); });
+    const auto looks = [&](const std::string& why) {
+        const uint64_t from = sched.stats().timing.rounds;
+        within_a_minute([&] { return sched.stats().timing.rounds >= from + 6; }, what + ": " + why);
+    };
+    size_t refused = 0, taken = 0;
+    try {
+        looks("the scheduler looking at a host with twelve slabs free");
+        refused = slabs.load();
+        base = 14 * slab;
+        within_a_minute([&] { return slabs.load() >= 6; }, what + ": the six slabs taken once the host has fourteen free");
+        looks("the scheduler looking again after the six");
+        taken = slabs.load();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(!refused && taken == 6, what + ": " + std::to_string(refused) + " slabs taken with twelve free and " + std::to_string(taken) + " with fourteen, against none and six");
+    std::cout << "server-resume: " << what << ": none of its six slabs taken with twelve free, six with fourteen and no more\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3698,6 +3887,8 @@ int main(int argc, char** argv) {
             disk_age_restart(one, tok, vocab);
             disk_idle_past(one, tok, vocab);
             host_growth(weights, tok, vocab);
+            host_pool_pressure(weights, tok, vocab);
+            host_pool_shortest_copy();
             job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
             job_holds_its_ids(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a job given ids a donor holds whole, a model keeping a state");
             for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})

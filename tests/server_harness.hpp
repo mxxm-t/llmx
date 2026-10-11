@@ -350,14 +350,15 @@ using Make = std::function<std::unique_ptr<infer::Model>(size_t pool, int ubatch
 // A hybrid model holds `state_slots` recurrent states, bounding the requests a scheduler runs at once, and `checkpoints` states kept for prefix reuse; the others hold none.
 // With `marks` it marks that many sequences at once for verifies of up to `mark_rows` rows, with `drafter` it loads the embedded drafter, and with a `width` above 1 the backends form tensor groups (docs/TENSOR-SPLIT.md).
 inline Make on(const gguf::GGUFModel& weights, std::function<std::vector<backend::BackendPtr>()> backends, size_t state_slots = 8, size_t checkpoints = 0,
-               size_t marks = 0, size_t mark_rows = 0, bool drafter = false, size_t width = 1) {
-    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter, width](size_t pool, int ubatch) {
+               size_t marks = 0, size_t mark_rows = 0, bool drafter = false, size_t width = 1, std::function<std::optional<size_t>()> host_memory = {}) {
+    return [&weights, backends, state_slots, checkpoints, marks, mark_rows, drafter, width, host_memory](size_t pool, int ubatch) {
         infer::ModelOptions options;
         options.kv_tokens = pool;
         options.state_slots = state_slots;
         options.checkpoint_slots = checkpoints;
         options.mark_slots = marks;
         options.mark_rows = mark_rows;
+        options.host_memory = host_memory;
         std::vector<backend::BackendPtr> b = backends();
         infer::PlacementRequest request;
         request.drafter = drafter;

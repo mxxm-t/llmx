@@ -879,6 +879,62 @@ void host_identity() {
     model.reset(a);
 }
 
+// The host pool under memory pressure (Model::host_admits, host_yield), the host's free memory given by the test: the reserve is fixed as the model is made and does not shrink as memory falls.
+// A copy that would leave less is refused with nothing taken, growth nothing waits for keeps twice the reserve, and a host below the reserve gets idle slabs back while a copy still held keeps its bytes.
+void host_pool_pressure() {
+    const auto weights = tiny_qwen(2, 512, true);
+    const infer::ModelWeights w = infer::gguf_weights(weights);
+    auto cpu = std::make_shared<backend::CpuBackend>();
+    cpu->set_threads(1);
+    const size_t slab = infer::Model::host_slab_bytes(), reserve = 4 * slab, any = std::numeric_limits<size_t>::max();
+    size_t free = 20 * reserve;
+    infer::ModelOptions options;
+    options.host_memory = [&] { return std::optional<size_t>(free); };
+    infer::Model model(w, cpu, options);
+    infer::Sequence a = model.make_sequence();
+    std::vector<uint32_t> ids(300);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)(1 + i % 15);
+    infer::ExecContext ctx;
+    const infer::BatchEntry e{&a, ids.data(), ids.size(), false};
+    model.forward(ctx, &e, 1);
+    infer::HostHistory h, kept;
+    model.save_host(a, 256, h, any);
+    const size_t need = h.held;
+    model.release_host(h);
+    model.trim_host(0);
+    require(need >= slab && model.host_allocated() == 0, "a copy's slabs were not freed by a trim to nothing");
+    // The host has fallen to a byte less than the reserve and the copy: a reserve of a twentieth of what is free now would let it through.
+    free = reserve + need - 1;
+    rejects([&] { model.save_host(a, 256, h, any); }, "a copy that leaves the host less than the reserve fixed as the model was made");
+    require(model.host_allocated() == 0, "a refused copy to host memory kept a slab");
+    free = reserve + need;
+    model.save_host(a, 256, kept, any);
+    require(model.host_allocated() == need, "a copy that leaves the host its reserve was not taken");
+    free = 2 * reserve + slab - 1;
+    require(model.host_admits(slab) && !model.host_admits(slab, true), "growth nothing waits for was admitted within twice the reserve");
+    free = 2 * reserve + slab;
+    require(model.host_admits(slab, true), "growth nothing waits for was refused beside twice the reserve");
+    // A second copy, released, leaves its slabs idle beside the one still held.
+    free = 20 * reserve;
+    model.save_host(a, 256, h, any);
+    model.release_host(h);
+    model.wait_host(kept);
+    const std::vector<uint8_t> before((const uint8_t*)kept.slabs[0][0]->host_ptr(), (const uint8_t*)kept.slabs[0][0]->host_ptr() + std::min(kept.device_bytes[0], slab));
+    require(model.host_allocated() == 2 * need && !model.host_short() && model.host_yield() == 0, "a host with memory to spare was given slabs back");
+    // Short by a byte, the host gets one idle slab; with nothing free at all, the idle ones that are left and no slab of the copy held.
+    free = reserve - 1;
+    require(model.host_short() && model.host_yield() == slab && model.host_allocated() == 2 * need - slab, "a host a byte below the reserve did not get one idle slab back");
+    free = 0;
+    require(model.host_yield() == need - slab && model.host_allocated() == need && !model.host_short() && model.host_yield() == 0, "a host with nothing free did not get the idle slabs alone");
+    const std::vector<uint8_t> after((const uint8_t*)kept.slabs[0][0]->host_ptr(), (const uint8_t*)kept.slabs[0][0]->host_ptr() + std::min(kept.device_bytes[0], slab));
+    require(before == after, "a copy held through the pressure lost its bytes");
+    model.reset(a);
+    infer::Sequence r = model.restore_host(kept);
+    require(r.length() == 256, "a copy held through the pressure did not restore");
+    model.reset(r);
+    model.release_host(kept);
+}
+
 // Which idle slabs a copy to host memory frees before it allocates (infer::detail::slabs_to_free), so the slabs alive stay within the limit across devices.
 // A copy needing three slabs on the first device and one on the second, two idle on each under a limit of four, frees the second's spare one first; a copy the spare slabs cannot cover is refused.
 void host_slab_limit() {
@@ -890,10 +946,10 @@ void host_slab_limit() {
     require(drop({3, 1}, {2, 2}, 4, 5) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 0}), "a slab was freed within the limit");
     require(drop({4, 1}, {0, 3}, 5, 7) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 2}), "the second device's spare slabs were not freed");
     require(!drop({3, 1}, {0, 0}, 2, 4), "a copy past the limit was not refused");
-    // New slabs leave the host the reserve the fit keeps, a twentieth of what it has free: 1900 bytes of 2000 do, one more does not, and an unknown figure refuses nothing.
-    require(infer::detail::host_room(2000, 1900) && !infer::detail::host_room(2000, 1901) && !infer::detail::host_room(2000, 2001),
+    // New slabs leave the host a reserve given, not one taken from what is free now: 1900 bytes of 2000 leave 100, one more does not, and an unknown figure refuses nothing.
+    require(infer::detail::host_room(2000, 1900, 100) && !infer::detail::host_room(2000, 1901, 100) && !infer::detail::host_room(2000, 2001, 100) && !infer::detail::host_room(160, 64, 100),
             "the host's reserve was not kept at its edge");
-    require(infer::detail::host_room(std::nullopt, (size_t)1 << 40), "an unknown free figure refused a copy");
+    require(infer::detail::host_room(std::nullopt, (size_t)1 << 40, 100), "an unknown free figure refused a copy");
 }
 
 // What a paused request's resume relies on (docs/SERVER.md, pausing): a history recomputed in the classes that first computed it gives the logits it gave, bit for bit.
@@ -1070,6 +1126,7 @@ int main() {
         host_round_trip();
         host_identity();
         host_slab_limit();
+        host_pool_pressure();
         replay_by_class();
         std::cout << "KV cache: pool, sequence, ownership, on-demand storage, growth steps and peak, growth hooks, "
                      "reset, paged attention, failed-step transactions, retire-before-release and replay by class pass\n";

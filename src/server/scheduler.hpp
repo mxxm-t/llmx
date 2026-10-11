@@ -1743,7 +1743,8 @@ private:
         const std::vector<RowClass> first{RowClass{r.prompt_.size(), r.prompt_.size()}};
         const std::vector<RowClass>& own = r.classes_.empty() ? first : r.classes_;
         size_t n = 0;
-        const size_t limit = std::min({t.size(), h - 1, held});
+        // A request leaves its last token for the pass that gives its logits; a job wants none and shares every id a history holds.
+        const size_t limit = std::min({t.size(), r.job_ ? h : h - 1, held});
         while (n < limit && t[n] == *token_ptr(r, n)) ++n;
         n = alike(own, classes, n);
         n = n / bt * bt;
@@ -2916,6 +2917,28 @@ private:
                 quieted()->keep(j->seq_);
             if (!j->job_ || !j->whole_ || j->seq_.in_flight() || len < j->prompt_.size()) {
                 ++i;
+                continue;
+            }
+            // A job that forked every one of its ids from a donor still there read nothing: that donor holds them, so the job leaves no second one and takes no slot, and the donor stands for the job's.
+            bool held;
+            {
+                std::lock_guard<std::mutex> lk(m_);
+                held = j->source_ && j->reused() == j->prompt_.size() && std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return d.id == j->source_; });
+            }
+            if (held) {
+                active.erase(active.begin() + (std::ptrdiff_t)i);
+                release(*j);
+                j->seq_ = infer::Sequence{};
+                j->finished_ = true;
+                std::lock_guard<std::mutex> lk(m_);
+                ++reprefills_;
+                // It is the conversation's newest holder now, whatever an earlier job's longer ids made of it.
+                for (Donor& d : donors_)
+                    if (d.id == j->source_) {
+                        d.superseded = false;
+                        keep_boundary(d);
+                    }
+                supersede(*j, j->source_);
                 continue;
             }
             // On a model that keeps a state its live state becomes its checkpoint, in a slot an older donor gives up or, where none can, the donor it forked.

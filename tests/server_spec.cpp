@@ -105,7 +105,7 @@ std::vector<Req> requests(const Make& plain, const bpe::Tokenizer& tok, uint32_t
 }
 
 // A request resumed by a fork of its whole history drafts nothing until a pass has fed it, and nobody ends with an error (docs/SPECULATIVE.md, section 3).
-// Two uncapped requests on a pool of 4096 tokens with a host tier take turns, each resume a fork of a copy promoted from host memory; both replies are the replies alone, nothing recomputed.
+// Two uncapped requests on 4096 tokens with a host tier take turns, each resume a fork of a copy promoted from host memory, the second submitted from the scheduler's thread at the first's 50th sampled pass; nothing is recomputed.
 void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
     const Req a{prompt_of(1, 2306, vocab)}, b{prompt_of(2, 641, vocab)};
     std::vector<Reply> alone;
@@ -116,19 +116,28 @@ void resumed_by_fork(const Make& plain, const Make& drafting, const MakeProposer
     auto model = drafting(4096, 0);
     auto p = proposer(*model);
     server::Scheduler sched(*model, tok, 4, 64, 0, false, size_t(1) << 28, p.get(), kDraftMax, false);
+    std::mutex m;
+    std::shared_ptr<server::Request> ha, hb;
+    size_t sampled = 0;
+    sched.on_retire = [&](const server::Scheduler::Retired& t) {
+        std::lock_guard<std::mutex> lock(m);
+        for (size_t i = 0; i < t.requests.size(); ++i)
+            if (t.requests[i] == ha.get() && t.want[i] && ++sampled == 50) hb = sched.submit(b.prompt, params_of(b));
+    };
+    {
+        std::lock_guard<std::mutex> lock(m);
+        ha = sched.submit(a.prompt, params_of(a));
+    }
     std::thread runner([&] { sched.run(); });
     Reply got_a, got_b;
     std::string end_a, end_b;
     server::Scheduler::Stats stats;
     try {
-        const auto ha = sched.submit(a.prompt, params_of(a));
-        server::Request::Token t;
-        while (got_a.size() < 50) {
-            require(ha->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, what + ": the first request ended or gave nothing before its 50th token");
-            got_a.push_back(t);
+        got_a = collect(*ha);
+        {
+            std::lock_guard<std::mutex> lock(m);
+            require(hb != nullptr, what + ": the first request ended before its 50th sampled pass");
         }
-        const auto hb = sched.submit(b.prompt, params_of(b));
-        for (const Reply& more : {collect(*ha)}) got_a.insert(got_a.end(), more.begin(), more.end());
         got_b = collect(*hb);
         end_a = ha->finish() + " " + ha->error();
         end_b = hb->finish() + " " + hb->error();

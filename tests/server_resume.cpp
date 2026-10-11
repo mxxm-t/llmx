@@ -211,7 +211,7 @@ void fork_within_class(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 384");
 }
 
-// B paused as in take_back, its donor intact, and cancelled before it resumes, which C's longer reply (720 tokens in all, on 16 blocks) leaves time for: it ends where it waits, taking nothing back, and A and C finish as they do alone.
+// B paused as in take_back, its donor intact, and cancelled from the scheduler's thread at the first pass retired after the pause: it ends where it waits, taking nothing back, and A and C finish as they do alone.
 void cancel_while_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 16 * kBlock;
     const Req a{prompt_of(1, 40, vocab)}, b{prompt_of(2, 60, vocab)}, c{prompt_of(3, 20, vocab), 700};
@@ -223,16 +223,21 @@ void cancel_while_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint
     auto model = make(pool, 0);
     {
         server::Scheduler sched(*model, tok, 3, 64);
+        std::vector<std::shared_ptr<server::Request>> h;
+        for (const Req& r : {a, b, c}) h.push_back(sched.submit(r.prompt, params_of(r)));
+        std::atomic<bool> cancelled{false};
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            if (cancelled.load() || !sched.stats().pauses) return;
+            h[1]->cancel();
+            cancelled.store(true);
+        };
         std::thread runner([&] { sched.run(); });
         try {
-            std::vector<std::shared_ptr<server::Request>> h;
-            for (const Req& r : {a, b, c}) h.push_back(sched.submit(r.prompt, params_of(r)));
             const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-            while (sched.stats().pauses == 0) {
+            while (!cancelled.load()) {
                 require(std::chrono::steady_clock::now() < until, "a paused request cancelled: nothing paused in 60 seconds");
                 std::this_thread::yield();
             }
-            h[1]->cancel();
             same(alone[0], drain(*h[0]), "beside a paused request cancelled, the uncapped request");
             same(alone[1], drain(*h[2]), "beside a paused request cancelled, the capped request");
             server::Request::Token t;
@@ -364,7 +369,7 @@ void resumed_short_of_room(const Make& make, const bpe::Tokenizer& tok, uint32_t
 }
 
 // A request that cannot grow sits out passes for longer than a block while a capped request holds the room it needs, and nothing is admitted meanwhile.
-// On 10 blocks uncapped A and capped E (128 tokens and 300) start together and capped D (138 and 600) takes the room E leaves, so A's step at 384 tokens waits for D's end, and capped F, submitted meanwhile, starts only after it.
+// On 10 blocks A, E (128 tokens and 300) and D (138 and 600) start as in the case above, so A's step at 384 tokens waits for D's end, and capped F, submitted from the scheduler's thread at the first stall, starts only after it.
 void stall_holds_room(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 10 * kBlock;
     const Req a{prompt_of(1, 40, vocab)}, e{prompt_of(3, 128, vocab), 300}, d{prompt_of(4, 138, vocab), 600}, f{prompt_of(5, 10, vocab), 20};
@@ -377,14 +382,19 @@ void stall_holds_room(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     server::Scheduler sched(*model, tok, 3, 64);
     std::vector<std::shared_ptr<server::Request>> h;
     for (const Req& r : {a, e, d}) h.push_back(sched.submit(r.prompt, params_of(r)));
+    std::atomic<bool> submitted{false};
+    sched.on_retire = [&](const server::Scheduler::Retired&) {
+        if (submitted.load() || !sched.stats().stalls) return;
+        h.push_back(sched.submit(f.prompt, params_of(f)));
+        submitted.store(true);
+    };
     std::thread runner([&] { sched.run(); });
     try {
         const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-        while (sched.stats().stalls == 0) {
+        while (!submitted.load()) {
             require(std::chrono::steady_clock::now() < until, "a request short of room: nothing sat out a pass in 60 seconds");
             std::this_thread::yield();
         }
-        h.push_back(sched.submit(f.prompt, params_of(f)));
         server::Request::Token t;
         require(h[3]->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a request submitted during a stall gave nothing");
         require(h[2]->finish() == "length", "a request submitted while another sat out passes started before the capped request holding its room ended");
@@ -558,24 +568,30 @@ void paused_outside_queue(const gguf::GGUFModel& weights, const bpe::Tokenizer& 
 }
 
 // A paused request whose client leaves ends where it waits, and once the scheduler stops every pool is empty again.
+// The three requests are cancelled from the scheduler's thread at the first pass retired after a pause, none having ended, so each must end cancelled.
 void cancelled_while_paused(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     auto model = make(1024, 0);
     {
         server::Scheduler sched(*model, tok, 3, 64);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (uint32_t first : {1u, 2u, 3u}) handles.push_back(sched.submit(prompt_of(first, 9 + first, vocab), params_of(Req{})));
+        std::atomic<bool> cancelled{false};
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            if (cancelled.load() || !sched.stats().pauses) return;
+            for (auto& h : handles) h->cancel();
+            cancelled.store(true);
+        };
         std::thread runner([&] { sched.run(); });
         try {
-            std::vector<std::shared_ptr<server::Request>> handles;
-            for (uint32_t first : {1u, 2u, 3u}) handles.push_back(sched.submit(prompt_of(first, 9 + first, vocab), params_of(Req{})));
             const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-            while (sched.stats().pauses == 0) {
+            while (!cancelled.load()) {
                 require(std::chrono::steady_clock::now() < until, "a cancelled request: nothing paused in 60 seconds");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
-            for (auto& h : handles) h->cancel();
             for (auto& h : handles) {
                 server::Request::Token t;
                 while (h->next(t, server::Request::Clock::now() + std::chrono::seconds(60)) == server::Request::Next::id) {}
-                require(h->finish() == "cancel" || h->finish() == "length", "a cancelled request ended with " + h->finish());
+                require(h->finish() == "cancel", "a cancelled request ended with " + h->finish());
             }
             const auto s = sched.stats();
             require(s.active == 0 && s.queued == 0, "cancelled requests left active or queued");
@@ -1839,21 +1855,29 @@ void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t 
     s = alone_then_together(on(weights, [] { return cpus(2); }, 3), tok, 1024, 0, 3, {}, three, "a hybrid model on a two-CPU split");
     no_donors(s, "a hybrid model on a two-CPU split");
     require(s.passes == 2, "a hybrid model on a two-CPU split kept " + std::to_string(s.passes) + " passes in flight, against 2");
-    // Paused requests cancelled, then the slots and blocks they held taken by as many requests at once.
+    // Paused requests cancelled from the scheduler's thread at the first pass retired after a pause, then the slots and blocks they held taken by as many requests at once.
     model = one(1024, 0);
     {
         server::Scheduler sched(*model, tok, 3, 64);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (const Req& r : three) handles.push_back(sched.submit(r.prompt, params_of(r)));
+        std::atomic<bool> cancelled{false};
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            if (cancelled.load() || !sched.stats().pauses) return;
+            for (auto& h : handles) h->cancel();
+            cancelled.store(true);
+        };
         std::thread runner([&] { sched.run(); });
         try {
-            std::vector<std::shared_ptr<server::Request>> handles;
-            for (const Req& r : three) handles.push_back(sched.submit(r.prompt, params_of(r)));
             const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-            while (sched.stats().pauses == 0) {
+            while (!cancelled.load()) {
                 require(std::chrono::steady_clock::now() < until, "a hybrid model's cancelled requests: nothing paused in 60 seconds");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
-            for (auto& h : handles) h->cancel();
-            for (auto& h : handles) collect(*h);
+            for (auto& h : handles) {
+                collect(*h);
+                require(h->finish() == "cancel", "a hybrid model's cancelled request ended with " + h->finish());
+            }
             ledger(sched.stats(), *model, "a hybrid model's paused requests cancelled");
         } catch (...) {
             sched.stop();
@@ -2469,7 +2493,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
     std::cout << "server-resume: " << what << ": a donor's copy to host memory, a promotion from it, a conversation read back from disk and one read back through host memory beyond the tier, which allocates it, each waited for a parked recording\n";
 }
 
-// A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, a follow-up on disk waits while a later unrelated request runs to its end, then forks the copy read back.
+// A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, a follow-up on disk has had no pass when a later unrelated request ends, then forks the copy read back.
 // A follow-up whose read fails its checksum, a byte flipped, computes its history, the entry gone and the failure counted; every reply is its reply alone.
 void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const bool corrupt : {false, true}) {
@@ -2480,11 +2504,22 @@ void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
         const Req other{prompt_of(55, 300, vocab), 20};
         Reply got, other_got;
         size_t reused = 0;
-        double other_ms = 0, follow_ms = 0;
+        double follow_ms = 0;
         server::Scheduler::Stats stats;
         {
             server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false,
                                     disk.options(uint64_t(1) << 30, corrupt ? std::chrono::milliseconds(0) : std::chrono::milliseconds(2000)));
+            std::mutex m;
+            std::shared_ptr<server::Request> h, o;
+            size_t follow_passes = 0, other_sampled = 0;
+            long follow_at_other_end = -1;
+            sched.on_retire = [&](const server::Scheduler::Retired& t) {
+                std::lock_guard<std::mutex> lock(m);
+                for (size_t i = 0; i < t.requests.size(); ++i) {
+                    if (t.requests[i] == h.get()) ++follow_passes;
+                    if (t.requests[i] == o.get() && t.want[i] && ++other_sampled == (size_t)other.cap) follow_at_other_end = (long)follow_passes;
+                }
+            };
             std::thread runner([&] { sched.run(); });
             try {
                 d = demote(sched, vocab, what);
@@ -2501,14 +2536,20 @@ void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
                     f.put((char)(byte ^ 0x5a));
                 }
                 const auto start = std::chrono::steady_clock::now();
-                const auto h = sched.submit(d.follow.prompt, params_of(d.follow));
-                const auto o = sched.submit(other.prompt, params_of(other));
+                {
+                    std::lock_guard<std::mutex> lock(m);
+                    h = sched.submit(d.follow.prompt, params_of(d.follow));
+                    o = sched.submit(other.prompt, params_of(other));
+                }
                 other_got = drain(*o);
-                other_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
                 got = drain(*h);
                 follow_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
                 reused = h->reused();
                 stats = sched.stats();
+                if (!corrupt) {
+                    std::lock_guard<std::mutex> lock(m);
+                    require(follow_at_other_end == 0, what + ": the follow-up had been in " + std::to_string(follow_at_other_end) + " passes when the later request's last token was sampled, against none while its read was held");
+                }
                 ledger(stats, *model, what);
             } catch (...) {
                 sched.stop();
@@ -2523,7 +2564,7 @@ void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
                     what + ": the follow-up reused " + std::to_string(reused) + " tokens, " + std::to_string(stats.disk_hits) + " entries read, " +
                         std::to_string(stats.disk_errors) + " errors");
         } else {
-            require(other_ms < 1500 && follow_ms >= 1900, what + ": the later request ended after " + std::to_string(other_ms) + " ms and the follow-up after " + std::to_string(follow_ms));
+            require(follow_ms >= 1900, what + ": the follow-up ended after " + std::to_string(follow_ms) + " ms, against a read held two seconds");
             require(reused == 2 * kBlock && stats.disk_hits == 1 && stats.disk_waits == 1 && stats.disk_wait_ms >= 1900,
                     what + ": the follow-up reused " + std::to_string(reused) + " tokens after " + std::to_string(stats.disk_wait_ms) + " ms waiting");
         }
@@ -2535,7 +2576,7 @@ void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
 }
 
 // A read past its bound (docs/DISK-TIER.md, Restore): prompts read in passes of the default size measure the prompt rate, by which recomputing the follow-up's 256 tokens takes far less than a read held two seconds a chunk.
-// So the follow-up is admitted without the read, computes its history and ends before the read could, with its reply alone.
+// So the follow-up is admitted without the read, computes its history and ends before the read could, with its reply alone; the read is seen still in flight at the follow-up's last sampled pass, from the scheduler's thread.
 void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a read past its bound";
     DiskRoot disk("bound");
@@ -2543,17 +2584,29 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     Demoted d;
     Reply got;
     size_t reused = 0;
-    double ms = 0;
-    server::Scheduler::Stats stats;
+    server::Scheduler::Stats stats, at_end;
+    bool ended = false;
     {
         server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30, std::chrono::milliseconds(2000)));
+        std::mutex m;
+        std::shared_ptr<server::Request> h;
+        size_t sampled = 0;
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            std::lock_guard<std::mutex> lock(m);
+            for (size_t i = 0; i < t.requests.size(); ++i)
+                if (t.requests[i] == h.get() && t.want[i] && ++sampled == (size_t)d.follow.cap) {
+                    at_end = sched.stats();
+                    ended = true;
+                }
+        };
         std::thread runner([&] { sched.run(); });
         try {
             d = demote(sched, vocab, what);
-            const auto start = std::chrono::steady_clock::now();
-            const auto h = sched.submit(d.follow.prompt, params_of(d.follow));
+            {
+                std::lock_guard<std::mutex> lock(m);
+                h = sched.submit(d.follow.prompt, params_of(d.follow));
+            }
             got = drain(*h);
-            ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
             reused = h->reused();
             stats = sched.stats();
             ledger(stats, *model, what);
@@ -2565,8 +2618,9 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
         sched.stop();
         runner.join();
     }
-    require(reused == 0 && ms < 1900 && stats.disk_waits == 1,
-            what + ": the follow-up reused " + std::to_string(reused) + " tokens in " + std::to_string(ms) + " ms after " + std::to_string(stats.disk_waits) + " waits");
+    require(reused == 0 && ended && at_end.disk_hits == 0 && at_end.disk_in_flight > 0 && stats.disk_waits == 1,
+            what + ": the follow-up reused " + std::to_string(reused) + " tokens, with " + std::to_string(at_end.disk_hits) + " entries read and " + std::to_string(at_end.disk_in_flight) +
+                " reads in flight at its last token, after " + std::to_string(stats.disk_waits) + " waits");
     auto fresh = make(2048, 0);
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }

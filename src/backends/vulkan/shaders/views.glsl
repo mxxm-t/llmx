@@ -1,4 +1,4 @@
-// The view table a batched cache kernel reads (vulkan_backend.cpp, view_table): tab[0] is the view count, then six words per view (batch row, dispatch-local row, row count, history length, block-table offset and length), then every view's block ids.
+// The view table a batched cache kernel reads (vulkan_backend.cpp, view_table): tab[0] is the view count, then six words per view (batch row, local row, row count, history length, block-table offset and length), then every view's block ids.
 // A workgroup finds its view by walking the entries, which are few.
 #ifndef LLMX_VIEWS_GLSL
 #define LLMX_VIEWS_GLSL

@@ -17,3 +17,7 @@ vendor name.
 - `profile_for(caps)`: the defaults, tuned by the first row whose device and driver both match; a row that prefers the integer dot applies only where the device has it.
 - `tile_from_for`, `tile_rows_for`: the batch rows from which a matmul of the selected family and width takes the tile, and a tile's height from the call's shape and the device's compute units.
   Storage-type selection belongs to the Vulkan weight descriptor; it also selects which routed crossover field of `DeviceProfile` applies. The profile holds the measured numbers without a second storage-type dispatch.
+
+A number a shader's layout fixes, such as the lanes that share a quant block, is a constant beside the kernels and not a profile number, since another value would break the kernel rather than tune it.
+
+Bringing up a device: fill `DeviceCaps`, check whether a capability calls for a kernel that does not exist yet, measure, and give `tuned_devices` a row that assigns the numbers measured there.

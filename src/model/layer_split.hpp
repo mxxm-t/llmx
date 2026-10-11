@@ -16,7 +16,7 @@
 
 namespace infer {
 
-// One weight matrix as a device would adopt it: its quant type, its row width and row count, its bytes in the file, and whether a matrix product reads it as its weights (a projection or the head) rather than a gather, a norm or a routed expert stack.
+// One weight matrix as a device would adopt it: its quant type, row width and row count, its bytes in the file, and whether a matrix product reads it as its weights (a projection or the head) and not a gather, norm or routed stack.
 struct Matrix {
     uint32_t type = 0;
     size_t nin = 0, rows = 0, bytes = 0;
@@ -36,16 +36,16 @@ struct Footprint {
     size_t logits_per_row = 0;                 // one row of logits where the head runs
     size_t head_slice_per_row = 0;             // on a tensor group, a member's slice of a logits row, which each member of the head's group keeps beside its layers
     size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, in each of the handoff buffers every used device but the last keeps
-    // An embedded drafter, which runs where the head does (docs/SPECULATIVE.md, section 7): its own weights, the embedding table it reads there, kept only where neither the embedding nor a tied head already holds it, and its KV, carried rows and the rows a mark saves.
+    // An embedded drafter, which runs where the head does (docs/SPECULATIVE.md, section 7): its own weights, the embedding table it reads there (kept only where nothing else holds it), and its KV, carried rows and the rows a mark saves.
     std::vector<Matrix> drafter;
     Matrix drafter_embedding;
     size_t drafter_cache = 0;
 };
 
-// The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the chunk before it waits in the other, and one where crossings run only inside a stage.
+// The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the one before waits in the other; otherwise one.
 inline size_t handoff_buffers(size_t slots, bool pipelined) { return pipelined ? std::max<size_t>(2, slots) : 1; }
 
-// What a device offers a split: the bytes it reports free, or nothing when it cannot tell and is not checked; whether weights placed on it read the mapped file in place, as the CPU's do, rather than being copied into its memory; and what adopting a matrix keeps resident there, its bytes when empty.
+// What a device offers a split: the bytes it reports free, or nothing when it cannot tell; whether weights placed on it read the mapped file in place, as the CPU's do; and what adopting a matrix keeps resident there, its bytes when empty.
 // `host_side` is host memory the device's backend holds for itself, such as upload staging, which counts against the host.
 struct DeviceBudget {
     std::string name;
@@ -104,8 +104,7 @@ struct LayerSplit {
 };
 
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
-// `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets.
-// `logit_rows`, when given, is the rows of logits the caller keeps where the head runs, in place of one for each of a pass's `rows`.
+// `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets, and `logit_rows` the logits rows kept where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
                                std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
@@ -192,7 +191,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         std::stable_sort(fraction.begin(), fraction.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
         for (size_t i = 0; given < L; ++i, ++given) ++count[fraction[i].second];
     } else {
-        // A plan is better with fewer layers on devices that read in place, then fewer layers on its busiest device, whose stage sets a pipeline's pace, taking the layer count as a stage's time, which holds while the layers are alike (a routed and a dense layer are not), then fewer bytes there.
+        // A plan is better with fewer layers on devices that read in place, then fewer on its busiest device, whose stage sets a pipeline's pace (a layer count standing for time while the layers are alike), then fewer bytes there.
         // A device's load is (layers, bytes), compared in that order; the busiest is the largest, a single maximum the program keeps exact.
         using Load = std::pair<size_t, size_t>;
         using Score = std::pair<size_t, Load>;

@@ -1,8 +1,6 @@
 #version 450
 // Causal GQA over every view of a batch: one workgroup per (batch row, block of heads, split), a split being a range of the row's history and a block up to four query heads that read one KV head.
-// The workgroup loads each token's key and value once for its block, since a long history's cache outweighs the weights a decode step reads.
-// Each head's arithmetic is what it would be alone: the split's tokens go round robin to the subgroups with an online softmax per head, and the subgroups merge through shared memory one head at a time; with several splits each state goes to scratch for attention_merge.
-// Row b of a view attends through its hist + b.
+// Each head's arithmetic is what it would be alone, so a row computes the same whatever else is in the dispatch; row b of a view attends through its hist + b, and with several splits each state goes to scratch for attention_merge.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 #extension GL_KHR_shader_subgroup_shuffle : require

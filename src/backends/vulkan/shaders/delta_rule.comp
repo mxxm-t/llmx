@@ -1,10 +1,6 @@
 #version 450
-// The gated delta rule (backend.hpp, gated_delta_rule; docs/QWEN35.md, Linear attention): the L2 norms of q and k, the gates, and the per-token recurrence.
-// One workgroup per (view, V head j, block of 32 V columns): eight consecutive lanes hold one column, each of them rows part, part + 8, ... of the head's k_dim x v_dim matrix in registers, read from slot src (zero at length 0) and written to slot dst.
-// The view's tokens go in blocks of TB: the whole workgroup reads a block's q and k rows of K head j mod k_heads, norms them, and makes each token's beta and decay and stages its v values into shared memory, then every column runs the block's tokens.
-// Per token, in HF's order: the matrix decayed, m from the decayed matrix, d = beta (v - m), the rank-1 write, then o from the updated matrix; o of a token and m of the next are both sums over the matrix after the token, so their butterflies run together, each the sum it would be alone.
-// Every sum is a lane's fused multiply-adds in row order, then one butterfly over eight lanes, the same arithmetic for every row whatever else is in the call, so a sequence gives the same bits alone, batched or cut into passes; the decay is 0 below 2^-126, so no driver's denormal handling decides it.
-// The view table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot.
+// The gated delta rule (backend.hpp, gated_delta_rule; docs/QWEN35.md, Linear attention): the L2 norms of q and k, the gates and the per-token recurrence, every sum a lane's fused multiply-adds then one butterfly over eight lanes.
+// One workgroup per (view, V head j, block of 32 V columns), eight lanes a column, so a sequence gives the same bits alone, batched or cut into passes; the decay is 0 below 2^-126, whatever the driver's denormals.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_control_flow_attributes : require

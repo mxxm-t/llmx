@@ -9,12 +9,8 @@
 
 namespace infer {
 
-// Logical KV bookkeeping, identical on every backend (docs/KV-CACHE.md).
-// Physical blocks live in a backend::KVStorage; this layer only hands out ids and counts references.
-// Ids are dense from zero, so storage can grow toward the budget on demand instead of allocating it up front.
-//
-// Every vector is reserved to the budget when configured, so alloc, release, abort and reset publish their state without an allocation that could throw half way.
-// Sequences hold the pool's address, so a pool stays where it was constructed: it is neither copyable nor movable, and it can be configured only while nothing is allocated from it.
+// Logical KV bookkeeping, identical on every backend (docs/KV-CACHE.md): physical blocks live in a backend::KVStorage, and this layer hands out ids, dense from zero so storage can grow on demand, and counts references.
+// Every vector is reserved to the budget when configured, so alloc, release, abort and reset cannot throw half way; sequences hold the pool's address, so it is neither copyable nor movable and is configured only while nothing is allocated.
 class BlockPool {
 public:
     BlockPool() = default;
@@ -70,8 +66,7 @@ private:
     std::vector<uint32_t> refs_;
 };
 
-// One sequence's block table and committed length.
-// Blocks for a step are taken before the write and committed after the whole step succeeds, so a step that fails leaves the previous history valid and returns the blocks it took.
+// One sequence's block table and committed length: blocks for a step are taken before the write and committed after the whole step succeeds, so a step that fails leaves the previous history valid and returns the blocks it took.
 // A sequence owns its blocks: it cannot be copied, moving it transfers them, and destroying it or moving another sequence into it returns them to the pool.
 class KVSequence {
 public:
@@ -137,8 +132,8 @@ public:
     // Blocks return to the pool; the backend keeps the physical storage they occupied, so a reused sequence does not reallocate.
     void reset() noexcept { truncate(0); }
 
-    // A second history holding our first `length` committed tokens, a whole number of blocks: every block below `length` is shared, read-only from now on, with no new physical blocks or copies of their contents; the logical block table is allocated.
-    // A failure part way leaves nothing retained, since the fork releases what it holds as it unwinds.
+    // A second history holding our first `length` committed tokens, a whole number of blocks: every block below `length` is shared, read-only from now on, with no new physical blocks or copies; the logical block table is allocated.
+    // A failure part way leaves nothing retained.
     KVSequence fork(size_t length) const {
         if (!pool_) throw std::logic_error("KV cache: sequence is not bound to a pool");
         if (pending_) throw std::logic_error("KV cache: fork during a step");
@@ -182,10 +177,8 @@ private:
     std::vector<int32_t> blocks_;
 };
 
-// The slots of a model's recurrent state, each the same slot in every state storage: `live` of them for the sequences that hold a state at once, `checkpoints` more for states kept at a position, and `marks` more for states kept while a verify runs past them (docs/SPECULATIVE.md, section 1).
-// The sides share the slots and are counted apart, so a live slot is always there for a sequence the live side admits, whatever the checkpoints and marks hold.
-// A slot holds nothing a sequence must clear: a history of length 0 reads a zero state whatever its slot holds.
-// Sequences hold the pool's address, so it is neither copied nor moved.
+// The slots of a model's recurrent state, the same in every state storage: `live` for sequences holding a state, `checkpoints` for states kept at a position, `marks` for states kept while a verify runs past them (docs/SPECULATIVE.md, 1).
+// The sides share the slots and are counted apart, so a live slot is always there for a sequence the live side admits; a slot holds nothing a sequence must clear, since a history of length 0 reads a zero state.
 class SlotPool {
 public:
     SlotPool() = default;

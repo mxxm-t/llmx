@@ -52,8 +52,7 @@ inline float f16_to_f32(uint16_t h) {
         if (m == 0) {
             u = sign;                      // zero
         } else {
-            // Subnormal half: value is m * 2^-24, with no implicit leading 1.
-            // Shift left until bit 10 becomes that implicit 1; after k shifts the value is (1+frac) * 2^(-14-k), so the f32 exponent field is 113 - k.
+            // Subnormal half: value is m * 2^-24, with no implicit leading 1, so shift left until bit 10 becomes that 1; after k shifts the value is (1+frac) * 2^(-14-k), so the f32 exponent field is 113 - k.
             // Incrementing instead of decrementing here made every subnormal 2^(2k) too large -- 16x for the k=2 case that Q6_K super-block scales land in.
             uint32_t k = 0;
             while ((m & 0x400u) == 0) { m <<= 1; k++; }

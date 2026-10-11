@@ -28,9 +28,8 @@ struct TensorView {
     size_t bytes = 0;
 };
 
-// What a model is built from, whatever file it came from: the architecture that reads it and one view per tensor in the file's order, so tensor i is the file's tensor i, each under a unique name.
+// What a model is built from, whatever file it came from: the architecture that reads it and one view per tensor in the file's order, each under a unique name; two models built from one set share the architecture and nothing else.
 // The model reads the views only while it is built; a streamed load reads the bytes again afterwards to fill what a copying backend took, and the bytes a backend adopted in place are read for as long as its buffer lives.
-// Two models built from one set of weights share the architecture and nothing else.
 struct ModelWeights {
     std::shared_ptr<const Architecture> arch;
     std::vector<TensorView> tensors;

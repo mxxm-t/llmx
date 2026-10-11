@@ -18,10 +18,7 @@
 #include "model/arch/blocks.hpp"
 
 // Qwen3's architecture, from scratch: dense Qwen3 and its mixture-of-experts form, qwen3moe, which the registry (model/arch/registry.hpp) reaches through open_dense and open_routed.
-// Dense matrices use supported block quants or F32; normalization weights are F32.
-// Tensor ne[0] is the input dimension, with each output row contiguous.
-// Attention projection width is n_head*head_dim and need not equal n_embd.
-// An absent output.weight ties the output projection to token_embd.weight.
+// Dense matrices use supported block quants or F32 with F32 norms, ne[0] is the input dimension, each output row contiguous, an absent output.weight ties the head to token_embd.weight, and the attention width need not equal n_embd.
 
 namespace infer::qwen3 {
 
@@ -110,8 +107,7 @@ enum Role : uint16_t {
 enum Kind : uint8_t { dense, routed };
 
 // The floats one row of a pass takes in each slot of an activation arena (ExecContext::Scratch), which the plan gives the arena and the fit.
-// Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights.
-// The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
+// Slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights; the feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows per token, whichever is wider.
 inline std::vector<size_t> slot_widths(const Config& cfg, bool dense) {
     const size_t q = (size_t)cfg.n_head * cfg.head_dim, kv = (size_t)cfg.n_head_kv * cfg.head_dim;
     const size_t ff = std::max(dense ? (size_t)cfg.n_ff : 0, (size_t)cfg.n_expert_used * (size_t)cfg.n_ff_exp);
@@ -126,7 +122,6 @@ public:
 
     // The embedding gives the vocabulary, and a layer with a router is routed, which a dense architecture refuses, as a dense layer is refused without the dense width.
     // A layer's roles are its attention's, its feed-forward norm, then its router and expert stacks or its three dense matrices; a routed layer copies its norm and router beside its mixer and writes its stacks into a window.
-    // The arena's feed-forward slots are as wide as a dense layer's when some layer is dense, and the two rope tables cover the context at half a head each.
     ModelPlan plan(const TensorIndex& tensors) const override {
         const Config& cfg = cfg_;
         const TensorView& embedding = tensors.view(tensors.at("token_embd.weight"));

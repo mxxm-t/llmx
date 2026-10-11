@@ -1,13 +1,6 @@
 #version 450
 // Causal GQA for a wide pass over every view of a batch: one workgroup per (tile of 32 query rows of one view, head), the head's K and V streamed through shared memory in tiles of TK tokens.
-// Row b of a view attends through its hist + b; tokens past that are masked and later tiles are not read.
-// The head width is fixed at 128, or at 256 in the LLMX_D256 build, whose K and V tiles hold 8 tokens so both fit 16 KiB of shared memory; other widths take the per-row kernel.
-// Workgroups are laid out view by view, so a tile never straddles two views.
-//
-// Eight lanes share a query row, lane l owning dimensions 32k + 4l .. 32k + 4l + 3, so a row reads a staged token as contiguous 128-byte runs.
-// A staged token is DIM / 4 words and lane l's word of run k is 8k + l; with the lane taken by a mask the driver folds each word's address into its read.
-// TK sets where the online softmax rescales, so it is a constant of the head width, never of the batch.
-// Per K tile: partial dots eight tokens at a time, a butterfly that finishes the sums and deals one to each lane, then one online-softmax step per tile, and the probabilities through shared memory for the weighted sum of V.
+// Row b of a view attends through its hist + b; the head width is fixed at 128 (256 in the LLMX_D256 build, whose 8-token tiles fit 16 KiB of shared memory), and TK, where the online softmax rescales, is a constant of it, never of the batch.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;

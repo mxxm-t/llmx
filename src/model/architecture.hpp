@@ -26,15 +26,14 @@ enum class RoleKind : uint8_t {
     table,    // F32, [in, out], trailing axes of one, read whole by an op rather than by a matrix product
 };
 
-// What a routed layer run beside its mixer for a long prompt (Placement::stream_from) does with a feed-forward role: nothing, a copy adopted on the mixer's device at load, or a copy written into that device's window in each pass that needs it.
+// What a routed layer run beside its mixer for a long prompt (Placement::stream_from) does with a feed-forward role: nothing, a copy adopted on the mixer's device at load, or a copy written into its window in each pass that needs it.
 enum class Stream : uint8_t { none, copy, window };
 
-// The axis a role splits along over a tensor group's members (docs/TENSOR-SPLIT.md, section 4.2): none, its whole tensor on every member; its output rows, each member's product complete for its rows; or its input columns, each member's product a partial the group sums, a vector's elements being its columns.
+// The axis a role splits along over a tensor group's members (docs/TENSOR-SPLIT.md, section 4.2): none, its whole tensor on every member; its output rows, each product complete; or its input columns, each product a partial the group sums.
 enum class Axis : uint8_t { none, rows, columns };
 
-// A run of the axis: `tiles` tiles of `units` units of `unit` rows or columns each, a member taking the same share of the units in every tile, so one tile is a contiguous split.
-// `what` names a tile's units in a refusal, and `replicate` lets a width that is a multiple of the units give each unit to width / units members, as KV heads are.
-// With `align` above 1 a member holds, in every tile, the whole runs of `align` rows or columns that cover its share: on the column axis the tensor's own bytes there, and on the row axis zero rows where a covered row is another member's (model/shard.hpp), which an expert's hidden rows take where its down stack's quant blocks do not fall on the members' shares.
+// A run of the axis: `tiles` tiles of `units` units of `unit` rows or columns, a member taking the same share of the units in every tile, and `replicate` lets a multiple of the units give each unit to width / units members, as KV heads are.
+// With `align` above 1 a member holds in every tile the whole runs of `align` that cover its share: its own bytes on the column axis, zero rows where another member's on the row axis (model/shard.hpp).
 struct ShardSection {
     uint64_t units = 0, unit = 1, tiles = 1;
     const char* what = "rows";
@@ -48,7 +47,7 @@ struct Shard {
     std::vector<ShardSection> sections;
 };
 
-// A tensor the model reads: the id its resolved weight is indexed by, the part it runs with, how it is checked, its name and the name taken when that is absent (a tied head reads the embedding), its expected shape and what streaming does with it.
+// A tensor the model reads: the id its resolved weight is indexed by, the part it runs with, how it is checked, its name and the fallback name (a tied head reads the embedding), its shape and what streaming does with it.
 // plan_model sets `tensor` and `aliased`; `shard` is set by the architecture after the role is listed, and a role that keeps the default is whole on every member.
 struct Role {
     uint16_t id;
@@ -77,7 +76,8 @@ struct Saved {
     size_t slot, width, plane = 0;
 };
 
-// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call for the layer, whether its feed-forward part holds routed experts, what its mixer keeps between passes, its roles in the order they are adopted, the ops of its parts that some backends lack, and for a layer that keeps a state the inputs its state's update reads (Architecture::recur).
+// A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call, whether its feed-forward part holds routed experts, what its mixer keeps between passes, and its roles in the order they are adopted.
+// It also lists the ops of its parts that some backends lack and, for a layer that keeps a state, the inputs its state's update reads (Architecture::recur).
 struct LayerPlan {
     uint8_t kind = 0;
     bool routed = false;
@@ -92,7 +92,7 @@ struct LayerPlan {
     int recur_phases = 1;
 };
 
-// What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass (the embedding's and the head's) and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.
+// What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.
 // Every role id is below role_ids, and slot 0 is as wide as the residual, which plan_model holds every plan to.
 struct ModelPlan {
     size_t role_ids = 0;
@@ -125,7 +125,8 @@ inline size_t recur_floats(const ModelPlan& plan, const LayerPlan& layer) {
     return n;
 }
 
-// One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, the layer's kind and cache views, the rows' positions, the position tables on that device, a run list the part may rebuild, which holds a run for every entry of the pass without allocating, and a state layer's views.
+// One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, and the layer's kind and cache views.
+// It also holds the rows' positions, the position tables on that device, a run list the part may rebuild without allocating, which holds a run for every entry of the pass, and a state layer's views.
 struct Step {
     backend::Backend& b;
     backend::Buffer* arena;
@@ -146,13 +147,14 @@ struct Step {
     backend::Dtype dtype = backend::Dtype::f16;
     // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
     int phase = -1;
-    // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's, and where a part's last projection writes its partial rows, which the group then sums into every member's residual, in place of adding them to the residual itself (blocks::join); a part with routed experts is handed them cleared and adds to them.
+    // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's.
+    // Where a part's last projection writes its partial rows, which the group sums into every member's residual in place of adding them to the residual itself (blocks::join); a part with routed experts is handed them cleared and adds to them.
     size_t width = 1;
     backend::Slice partial{};
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 
-// The KV heads a member of a tensor group of `width` keeps of `kv_heads`: its share, or one where the width is a multiple of them and each is replicated; none of none, which only a plan without KV layers has, a file's count being positive as it is read.
+// The KV heads a member of a tensor group of `width` keeps of `kv_heads`: its share, or one where the width is a multiple of them and each is replicated; none of none, which only a plan without KV layers has.
 inline size_t kv_share(size_t kv_heads, size_t width) { return kv_heads >= width ? kv_heads / width : (kv_heads ? 1 : 0); }
 
 // The head's call: the rows that want logits, their runs, and where their logits go.
@@ -163,15 +165,15 @@ struct HeadStep : Step {
     backend::Slice logits;
 };
 
-// An embedded drafter's call over every row of a pass, after its last stage (Architecture::draft_rows): the rows' token ids, and per entry the row its first row reads as the target's row before it, the sequence's carried row or a zero row; the cache views are the drafter's KV layer's.
+// An embedded drafter's call over every row of a pass, after its last stage (Architecture::draft_rows): the rows' token ids, and per entry the row its first row reads as the target's row before it, the sequence's carried row or a zero row.
+// The cache views are the drafter's KV layer's.
 struct DraftRowsStep : Step {
     const uint32_t* ids;
     const backend::CSlice* carry;
 };
 
-// One step of an embedded drafter's chains (Architecture::draft), a draft row for each of `rows` sequences, one cache view each: each token's row read from `id` on the device, the target's row before it at `prev`, row i of it or, with `prev_rows`, the row prev_rows[i] names, the drafted ids written to `next`, the drafter's output rows after its final norm left at `out`, the next step's `prev`, and the head's logits at `logits`.
-// On a tensor group a step is three calls (Step::phase): 0 through the block's mixer, 1 its feed-forward block, 2 the final norm, the head and the argmax, the group summing the members' partial rows into the residual after each of the first two; -1 runs all of it, as one device does.
-// Each member reads the head whole there, so every member finds the same id from the same rows with no exchange.
+// One step of an embedded drafter's chains (Architecture::draft), a draft row for each of `rows` sequences, one cache view each, reading each token's row from `id` and the target's row before it at `prev` (row prev_rows[i] with `prev_rows`).
+// It writes the drafted ids to `next`, the output rows after the final norm to `out` as the next step's `prev`, and the head's logits to `logits`, in three calls on a tensor group (Step::phase 0 to 2, -1 for all of it).
 struct DraftStep : Step {
     backend::CSlice id, prev;
     const uint32_t* prev_rows = nullptr;
@@ -189,8 +191,7 @@ public:
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
     virtual void mixer(const Step& s) const = 0;
     // The ops of a state layer's mixer that update its state, from the rows LayerPlan::saved names in their slots: the mixer runs them, and a retract inside a mark runs them again over the rows it keeps (docs/SPECULATIVE.md, section 1).
-    // A layer that keeps no state has none.
-    // A rerun reads the saved rows in place, where a plane holds the rows the mark has room for, which it gives as Step::rows, the views giving the rows it runs.
+    // A layer that keeps no state has none, and a rerun reads the saved rows in place, where a plane holds the rows the mark has room for, given as Step::rows, the views giving the rows it runs.
     virtual void recur(const Step&) const {}
     virtual void ffn(const Step& s) const = 0;
     virtual void head(const HeadStep& s) const = 0;

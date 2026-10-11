@@ -1,8 +1,6 @@
 #version 450
 // dst[i] = x[i] * sigmoid(g), sigmoid(g) = 1 / (1 + exp(-g)), g being element d of head h of row r's gate at r * gate_stride + h * gate_head_stride + d, where i = (r * heads + h) * dim + d.
-// With `quant` 1, a row is a multiple of 32 wide and the output's 16-bit twin is written beside it (xquant.glsl).
-// With `quant` 2 the integer-dot tile reads dst next, and a lane takes four values and writes the same twin a word at a time (xquant_word).
-// dst may be x: each element is read and written by one lane.
+// With `quant` 1 or 2 the output's 16-bit twin is written beside it (xquant.glsl, xquant_word), and dst may be x.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;

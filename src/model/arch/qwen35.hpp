@@ -15,7 +15,7 @@
 #include "model/arch/metadata.hpp"
 #include "model/arch/blocks.hpp"
 
-// Qwen 3.5, 3.6 and 3.8, the qwen35 and qwen35moe architectures (docs/QWEN35.md), which the registry (model/arch/registry.hpp) reaches through open_dense and open_routed: linear-attention layers, a gated delta net carrying a recurrent state, with a gated full-attention layer at every interval, each followed by Qwen3's dense feed-forward block, or on qwen35moe by routed experts beside a gated shared expert.
+// Qwen 3.5, 3.6 and 3.8 (docs/QWEN35.md): linear-attention layers alternate with a gated full-attention layer at every interval, each followed by a dense feed-forward block or, on qwen35moe, routed experts and a gated shared expert.
 // Weights are read as the converter stores them (docs/QWEN35.md, GGUF conventions): the norms but ssm_norm hold 1 + w, ssm_a holds -exp(A_log), attn_q holds each head's q and gate side by side, and V head j reads K head j mod Hk.
 
 namespace infer::qwen35 {
@@ -133,9 +133,8 @@ enum Role : uint16_t {
 };
 enum Kind : uint8_t { linear, full };
 
-// The floats one row of a pass takes in each arena slot, the widest use either layer kind makes of it, since a layer uses only its own.
-// Slots: 0 x, 1 h, 2 attn_q's rows or the raw qkv rows, 3 k or the conv's output, 4 v or z, 5 the normed and rotated q or alpha then beta, 6 the attention's or the recurrence's output, gated, 7 gate, 8 up, 9 ffn; on qwen35moe also 10 router scores, 11 expert ids, 12 expert weights, 13 the shared expert's gate.
-// On qwen35moe the feed-forward slots hold a token's k routed expert rows or the shared expert's row, whichever is wider.
+// The floats one row of a pass takes in each arena slot, the widest use either layer kind makes of it; on qwen35moe the feed-forward slots hold a token's k routed expert rows or the shared expert's row, whichever is wider.
+// Slots 0 to 9 are x, h, the mixer's working rows, the gates and the dense feed-forward rows, and on qwen35moe 10 to 13 hold router scores, expert ids, expert weights and the shared expert's gate (docs/src/model-arch-qwen35.md, Arena slots).
 inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t e = (size_t)c.n_embd, d = (size_t)c.head_dim;
     const size_t q = (size_t)c.n_head * d, kv = (size_t)c.n_head_kv * d;
@@ -150,9 +149,8 @@ class Qwen35 final : public Architecture {
 public:
     explicit Qwen35(const Config& cfg) : cfg_(cfg) {}
 
-    // The embedding gives the vocabulary. A layer's roles are its norm, then its mixer's by its kind, then the feed-forward norm and the dense block, or on qwen35moe the router, the expert stacks and the shared expert with its gate; a full-attention layer keeps KV and a linear-attention layer a state.
-    // A layer holding the other kind's tensors, or a router in a dense architecture, is refused, and blocks past the decoder layers are not read.
-    // A routed layer run beside its mixer copies its norm, router and shared expert there and writes its stacks into a window.
+    // A layer's roles are its norm, then its mixer's by its kind, then the feed-forward norm and the dense block or, on qwen35moe, the router, expert stacks and shared expert with its gate.
+    // A full-attention layer keeps KV and a linear-attention layer a state; a layer holding the other kind's tensors, or a router in a dense architecture, is refused, and blocks past the decoder layers are not read.
     ModelPlan plan(const TensorIndex& tensors) const override {
         const Config& c = cfg_;
         const TensorView& embedding = tensors.view(tensors.at("token_embd.weight"));
@@ -260,7 +258,7 @@ public:
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
 
-    // The MTP block after the decoder layers (docs/SPECULATIVE.md, section 7): the target's embedding, final norm and head, the block's input norms and eh_proj, and a full-attention layer with its feed-forward block, every role on the head's device.
+    // The MTP block after the decoder layers (docs/SPECULATIVE.md, section 7): the target's embedding, final norm and head, the block's input norms and eh_proj, and a full-attention layer with its feed-forward block, all on the head's device.
     // Its cache is KV, and four more arena slots hold the target's normed rows (draft_h), the block's input rows, their interleave, and eh_proj's output, which is the block's residual.
     void plan_drafter(const TensorIndex& tensors, ModelPlan& p) const override {
         const Config& c = cfg_;
@@ -291,9 +289,8 @@ public:
         p.drafter = std::move(d);
     }
 
-    // Every row of the pass in the MTP layer's cache: the final norm over every row into draft_h, the row before each (an entry's carried row for its first row, the normed row before it for the others), the block's input (blocks::nextn_input), then attn_norm, K and V, the k norm and the partial rope, written to the cache.
-    // q, attention, the feed-forward block and the head are not run for these rows, since only their K and V are ever read.
-    // On a tensor group each member writes the K and V of its own KV heads from the same rows, with no sum.
+    // Every row of the pass in the MTP layer's cache: the final norm over every row into draft_h, the row before each, the block's input (blocks::nextn_input), then attn_norm, K and V, the k norm and the partial rope, written to the cache.
+    // q, attention, the feed-forward block and the head are not run for these rows, since only their K and V are ever read; on a tensor group each member writes the K and V of its own KV heads from the same rows, with no sum.
     void draft_rows(const DraftRowsStep& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
@@ -317,7 +314,7 @@ public:
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
     }
 
-    // A draft row a sequence: each token's row read from its id on the device and the row before it as the block's input, then the block's full-attention layer and feed-forward block on its residual, shared_head_norm into `out`, the target's head into `logits` and its argmax into the next id.
+    // A draft row a sequence: each token's row read from its id and the row before it as the block's input, then the block's layers, shared_head_norm into `out`, the target's head into `logits` and its argmax into the next id.
     void draft(const DraftStep& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
@@ -343,7 +340,7 @@ public:
         }
     }
 
-    // A linear-attention layer's state update: the causal conv over the raw rows (slot 2) into the conv's output (slot 3), and the recurrence over it with alpha and beta (slot 5) into the recurrence's output (slot 6), each reading the views' src slots and writing their dst slots; phase 0 is the conv and phase 1 the recurrence.
+    // A linear-attention layer's state update: phase 0 the causal conv over the raw rows (slot 2) into slot 3, phase 1 the recurrence over it with alpha and beta (slot 5) into slot 6, each reading the views' src slots and writing their dst slots.
     void recur(const Step& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
@@ -378,7 +375,8 @@ private:
         blocks::shard(layer.roles, attn_output, Axis::columns, {{(uint64_t)cfg_.n_head, D, 1, "heads"}});
     }
 
-    // A tensor group splits a linear-attention layer by K heads, each member taking its K heads' q and k rows and, from every tile of K-head-many V heads, the V heads that read them (V head j reads K head j mod Hk): attn_qkv's sections and the conv's channels with them, z, alpha, beta, the decay and the time step by V head, and ssm_out's columns the same way.
+    // A tensor group splits a linear-attention layer by K heads: each member takes its K heads' q and k rows and the V heads that read them (V head j reads K head j mod Hk).
+    // attn_qkv's sections and the conv's channels follow, as do z, alpha, beta, the decay, the time step and ssm_out's columns by V head.
     void shard_linear(LayerPlan& layer) const {
         const uint64_t Hk = (uint64_t)cfg_.k_heads, tiles = (uint64_t)(cfg_.v_heads / cfg_.k_heads), Kd = (uint64_t)cfg_.k_dim, Vd = (uint64_t)cfg_.v_dim;
         const ShardSection k{Hk, Kd, 1, "K heads"}, v{Hk, Vd, tiles, "V heads of each tile"}, one{Hk, 1, tiles, "V heads of each tile"};
@@ -392,7 +390,8 @@ private:
         blocks::shard(layer.roles, ssm_out, Axis::columns, {v});
     }
 
-    // A layer's feed-forward roles under `pre`, run with `part`: Qwen3's dense block, or on qwen35moe the router, the expert stacks and the shared expert with its gate, of which a routed layer run beside its mixer copies the norm, router and shared expert and writes its stacks into a window.
+    // A layer's feed-forward roles under `pre`, run with `part`: Qwen3's dense block, or on qwen35moe the router, the expert stacks and the shared expert with its gate.
+    // A routed layer run beside its mixer copies the norm, router and shared expert and writes its stacks into a window.
     void ffn_roles(LayerPlan& layer, const TensorIndex& tensors, const std::string& pre, Part part) const {
         const Config& c = cfg_;
         const uint64_t E = (uint64_t)c.n_embd, F = (uint64_t)c.n_ff;
@@ -426,7 +425,7 @@ private:
     // The first of the drafter's four arena slots (plan_drafter), after those of slot_widths.
     size_t draft_slot() const { return slot_widths(cfg_).size(); }
 
-    // Gated attention (docs/QWEN35.md): attn_q gives each head's q and gate side by side; q and k are normed per head and their leading rope_dim dims rotated, the KV cache takes k and v, and the attention's output is gated by sigmoid(gate) before the output projection joins the residual.
+    // Gated attention (docs/QWEN35.md): attn_q gives each head's q and gate side by side; q and k are normed per head and rotated over rope_dim, and the output is gated by sigmoid(gate) before the projection joins the residual.
     void full_attention(const Step& s, backend::Slice h) const {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
@@ -445,7 +444,7 @@ private:
         blocks::join(s, w[attn_output], o);
     }
 
-    // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the state's update (recur), the causal conv over the raw rows and the state's carried ones and the recurrence from the sequence's state; the gated norm by z; and the output projection joining the residual.
+    // The gated delta net (docs/QWEN35.md, Linear attention): the raw q, k and v rows, z, alpha and beta; the state's update (recur), then the gated norm by z and the output projection joining the residual.
     void linear_attention(const Step& s, backend::Slice h) const {
         backend::Backend& b = s.b;
         const Weight* w = s.w;

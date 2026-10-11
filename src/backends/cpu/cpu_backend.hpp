@@ -177,8 +177,7 @@ public:
     }
 
     // Run fn(0..threads_-1) across the pool: worker 0 is the calling thread, so a single-threaded backend never touches the pool at all.
-    // The first dispatch at a count starts the pool; a failed start fails this dispatch before any participant runs, and the next dispatch tries again.
-    // Blocks until every participant has returned, which is what lets the job be referenced rather than copied.
+    // The first dispatch at a count starts the pool (a failed start fails this dispatch before any participant runs, and the next tries again), and it blocks until every participant has returned, so the job is referenced, not copied.
     template <class F>
     void run_parallel(F&& fn) {
         if (threads_ <= 1) { fn(0); return; }
@@ -362,7 +361,7 @@ public:
 
     static constexpr size_t kPromptDotsFrom = 4096;   // the narrowest K-quant row a prompt meets through the prompt dots (matmul_raw)
 
-    // A prompt's columns of X against a quantized matrix through the prompt dots (q8_dots.hpp dot_block): every column quantized once, stretches of 16 rows handed to workers as they free up, each against every column, so a row's weights are unpacked once for all of them.
+    // A prompt's columns of X against a quantized matrix through the prompt dots (q8_dots.hpp dot_block): every column quantized once, 16-row stretches handed to workers as they free up, so a row's weights are unpacked once for all columns.
     void matmul_q8_prompt(uint32_t type, const uint8_t* data, const float* X, float* Y, size_t nin, size_t nout, size_t ncols) {
         xq8_.reset(X, ncols, nin);
         prepare_x();
@@ -1394,8 +1393,7 @@ private:
     }
 
     // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
-    // Decode entries share one pool dispatch; prompt entries share unpacked expert rows, with one float matmul per expert when prompt dots are unavailable.
-    // Each entry keeps its arithmetic regardless of the entries routed beside it.
+    // Decode entries share one pool dispatch and prompt entries share unpacked expert rows (one float matmul per expert without prompt dots), and each entry keeps its arithmetic regardless of the entries routed beside it.
     void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode, Dtype dtype) {
         const size_t row_bytes = quant::row_bytes(type, nin), stride = size_mul(nout, row_bytes);

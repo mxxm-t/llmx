@@ -38,9 +38,8 @@ inline void shard(std::vector<Role>& roles, uint16_t id, Axis axis, std::vector<
     throw std::logic_error("inference: no role to split with id " + std::to_string(id));
 }
 
-// A routed layer's split: each expert's hidden rows, the gate and up stacks by the `ff` rows of each of their `experts` matrices and the down stack by as many columns; the router stays whole on every member, so every member routes alike.
-// A shared expert is split the same way, as one expert.
-// The down stack splits on whole blocks of its storage type, so a member holds the blocks that cover its even share of the columns, and its gate and up stacks a row for each covered column, zero where the column is another member's: that row's SiLU product is 0, so each column counts once, by its owner (ShardSection::align).
+// A routed layer's split: each expert's hidden rows, the gate and up stacks by the `ff` rows of each of their `experts` matrices and the down stack by as many columns, the shared expert likewise as one expert; the router stays whole.
+// The down stack splits on whole blocks of its type, so a member holds the blocks covering its share and its gate and up stacks a row for each covered column, zero where another member owns it (ShardSection::align).
 inline void shard_experts(std::vector<Role>& roles, const TensorIndex& tensors, uint16_t gate, uint16_t up, uint16_t down, uint64_t ff, uint64_t experts) {
     uint64_t block = 1;
     for (const Role& role : roles)
@@ -86,9 +85,8 @@ inline void swiglu(const Step& s, const Weight& gate, const Weight& up, const We
     join(s, down, act, row_gate != nullptr);
 }
 
-// Routed experts over the normed rows `h`: the router's scores, a softmax's top k renormalized when `norm`, each token's k experts' SwiGLU through the slots `g`, `u` and `act`, each k expert rows a token wide, and the weighted sum of their down projections added to the residual.
-// `scores` holds a row's n_expert scores, and `ids` and `weights` its k choices.
-// On a tensor group each member holds its share of every expert's hidden rows and adds its weighted sum to its partial rows, which the runtime hands this part cleared (Step::partial).
+// Routed experts over the normed rows `h`: the router's scores, a softmax's top k renormalized when `norm`, each token's k experts' SwiGLU through the slots `g`, `u` and `act`, and their weighted down projections added to the residual.
+// `scores` holds a row's n_expert scores and `ids` and `weights` its k choices; on a tensor group each member holds its share of every expert's hidden rows and adds its weighted sum to its partial rows, handed cleared (Step::partial).
 inline void routed_experts(const Step& s, const Weight& router, const Weight& gate, const Weight& up, const Weight& down, size_t k, bool norm,
                            backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act,
                            backend::Slice scores, backend::Slice ids, backend::Slice weights) {
@@ -106,7 +104,7 @@ inline void routed_experts(const Step& s, const Weight& router, const Weight& ga
     b.matmul_experts_add(down.type, down.slice(), act, s.width > 1 ? s.partial : s.x, ff, E, s.rows, routing, s.runs, s.dtype);
 }
 
-// An MTP block's input (docs/SPECULATIVE.md, section 7): `pair` holds 2 * rows rows of E, the tokens' rows then the target's rows before them, which are normed in place by `enorm` and `hnorm`, put side by side a row each, token first, through `side` (a single row is already so), and projected by `eh_proj` into `out`.
+// An MTP block's input (docs/SPECULATIVE.md, section 7): `pair` holds 2 * rows rows of E, the tokens' rows then the target's before them, normed in place by `enorm` and `hnorm`, joined token first through `side` and projected by `eh_proj`.
 inline void nextn_input(const Step& s, const Weight& enorm, const Weight& hnorm, const Weight& eh_proj, backend::Slice pair, backend::Slice side,
                         backend::Slice out, float eps) {
     const size_t E = enorm.nin, n = s.rows;

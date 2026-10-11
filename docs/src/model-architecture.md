@@ -100,3 +100,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     by default; its rows of the drafter's cache for every row of a pass,
     after the last stage; and one draft row through the whole drafter and
     the head into the next drafted id. None by default.
+
+On a tensor group each member of an embedded drafter's step reads the head whole, so every member finds the same id from the same rows with no exchange.
+
+A step of an embedded drafter on a tensor group is three calls (`Step::phase`): 0 runs the block's mixer, 1 its feed-forward block and 2 the final norm, the head and the argmax, the group summing the members' partial rows into the residual after the first two; -1 runs all of it, as one device does.

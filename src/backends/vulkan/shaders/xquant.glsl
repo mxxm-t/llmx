@@ -1,7 +1,5 @@
-// The 16-bit twin of a float activation row for the row kernels (matmul_row.comp) and the integer-dot tile (matmul_tile_q.comp): blocks of 32 scaled so the largest magnitude is 32767, as position pairs (4m, 4m + 2) and (4m + 1, 4m + 3), then per block the scale and scaled sum.
-// A subgroup writes it: every lane calls with its value at flat position i, and positions i..i+31 aligned to 32 must lie in 32 consecutive lanes.
-// With specialization constant 7 a producer also writes the 8-bit twin, which --dtype int8's kernels read, after the 16-bit one (xquant8_base).
-// The caller declares `xq` as a writable uint buffer.
+// The 16-bit twin of a float activation row for the row kernels and the integer-dot tile: blocks of 32 scaled so the largest magnitude is 32767, as position pairs (4m, 4m + 2) and (4m + 1, 4m + 3), then per block the scale and scaled sum.
+// A subgroup writes it, every lane calling with its value at flat position i, the positions i..i+31 aligned to 32 in 32 consecutive lanes, and with specialization constant 7 it also writes the 8-bit twin that --dtype int8's kernels read.
 #ifndef LLMX_XQUANT_GLSL
 #define LLMX_XQUANT_GLSL
 
@@ -93,7 +91,7 @@ void xquant16_block(uint i, float v, uint n) {
     }
 }
 
-// The 16-bit twin as above, a lane per four consecutive values: a block is eight consecutive lanes aligned to eight, lane w of them holding values 4w .. 4w + 3 of block blk.
+// The 16-bit twin as above, a lane per four consecutive values: a block is eight consecutive lanes aligned to eight, lane w of them holding values 4w to 4w + 3 of block blk.
 // Every lane calls, those of a block with nothing to write with `live` false; a maximum and an integer sum do not depend on their order, so the twin is the one the lanes above write, bit for bit.
 void xquant16_word(vec4 v, bool live, uint w, uint blk, uint n) {
     uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
@@ -162,8 +160,7 @@ void xquant8_block(uint i, float v, uint n, uint base) {
 uint xquant8_columns(uint cols) { return (((cols + 3u) >> 2u) | 1u) << 2u; }
 
 // The 8-bit twin as xquant16_word writes the 16-bit one, a lane per four consecutive values; the same bits as xquant8_block.
-// With `major` zero the blocks lie as xquant8_block lays them, column after column.
-// Otherwise `major` is the blocks of a column and the twin is block-major, as the integer-dot tile reads a block of every column together: block k of column c at k * xquant8_columns(columns) + c, the table after the padded blocks in the same order.
+// With `major` zero the blocks lie as xquant8_block lays them, column after column; otherwise `major` is the blocks of a column and the twin is block-major, block k of column c at k * xquant8_columns(columns) + c.
 void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n, uint base, uint major) {
     uvec4 a = floatBitsToUint(v) & 0x7FFFFFFFu;
     uint amax = max(max(a.x, a.y), max(a.z, a.w));

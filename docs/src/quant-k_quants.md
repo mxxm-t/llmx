@@ -9,3 +9,5 @@ weight bits. Q6_K reconstructs signed 6-bit values with per-group signed scales.
 block sizes. The CPU backend uses integer dots for decode, the prompt dots for batched
 rows at least 4096 wide, and the dequantized-row path for narrower ones
 (`docs/src/backends-cpu.md`). No K-quant writer exists.
+
+Q4_K and Q5_K pack the sub-scales and sub-mins of their eight groups in twelve bytes: groups 0 to 3 are the low six bits of bytes 0 to 3 (scales) and 4 to 7 (mins), and groups 4 to 7 the nibbles of bytes 8 to 11 with the top two bits of the earlier bytes above them.

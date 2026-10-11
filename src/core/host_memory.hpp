@@ -97,7 +97,7 @@ inline std::optional<uint64_t> stat_value(std::string_view stat, std::string_vie
     return value;
 }
 
-// A cgroup's limit less its working set, 0 past the limit: its usage less the inactive file pages its memory.stat gives under `key`, which the kernel reclaims before it would kill the process, or the usage whole when the stat does not give them.
+// A cgroup's limit less its working set, 0 past the limit: its usage less the inactive file pages its memory.stat gives under `key`, which the kernel reclaims before it would kill the process, else the usage whole.
 inline std::optional<size_t> cgroup_room(std::optional<uint64_t> limit, std::optional<uint64_t> usage, std::string_view stat, std::string_view key) {
     if (!limit || !usage) return std::nullopt;
     const auto inactive = stat_value(stat, key);
@@ -106,12 +106,12 @@ inline std::optional<size_t> cgroup_room(std::optional<uint64_t> limit, std::opt
 
 }  // namespace detail
 
-// Bytes a cgroup v2 memory.max text leaves over its memory.current and memory.stat texts, the limit less the working set (the usage less the stat's inactive_file, 0 below it), and 0 past the limit; the usage whole when the stat, empty for none, does not give inactive_file; nothing for "max", no limit, or a limit or usage it cannot read.
+// Bytes a cgroup v2 memory.max text leaves over its memory.current and memory.stat texts: the limit less the working set, 0 past the limit; nothing for "max" or a text it cannot read.
 inline std::optional<size_t> cgroup_v2_memory_room(std::string_view memory_max, std::string_view memory_current, std::string_view memory_stat) {
     return detail::cgroup_room(detail::file_number(memory_max), detail::file_number(memory_current), memory_stat, "inactive_file");
 }
 
-// Bytes a cgroup v1 memory.limit_in_bytes text leaves over its memory.usage_in_bytes and memory.stat texts the same way, with the stat's total_inactive_file, which covers the cgroups under it as the usage does; nothing for a limit of 2^62 bytes or more, which is how v1 writes no limit.
+// Bytes a cgroup v1 memory.limit_in_bytes text leaves over its memory.usage_in_bytes and memory.stat texts the same way, with total_inactive_file, which covers the cgroups under it; nothing for a limit of 2^62 bytes or more, v1's no limit.
 inline std::optional<size_t> cgroup_v1_memory_room(std::string_view limit_in_bytes, std::string_view usage_in_bytes, std::string_view memory_stat) {
     const auto limit = detail::file_number(limit_in_bytes);
     if (limit && *limit >= (uint64_t(1) << 62)) return std::nullopt;
@@ -155,7 +155,7 @@ inline constexpr uint32_t job_limit_process_memory = 0x100, job_limit_job_memory
 static_assert(job_limit_process_memory == JOB_OBJECT_LIMIT_PROCESS_MEMORY && job_limit_job_memory == JOB_OBJECT_LIMIT_JOB_MEMORY);
 #endif
 
-// Bytes a job object's memory limits leave a process: with the process memory limit flag, `process_limit` less the process's committed `process_commit`, with the job memory limit flag, `job_limit` less the job's committed `job_commit`, the fewer when both, 0 past a limit; nothing without either flag.
+// Bytes a job object's memory limits leave a process: `process_limit` less `process_commit` with the process memory limit flag, `job_limit` less `job_commit` with the job's, the fewer when both, 0 past a limit; nothing without either flag.
 inline std::optional<size_t> job_memory_room(uint32_t limit_flags, uint64_t process_limit, uint64_t process_commit, uint64_t job_limit, uint64_t job_commit) {
     std::optional<size_t> fewest;
     const auto take = [&](size_t n) { if (!fewest || n < *fewest) fewest = n; };

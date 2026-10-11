@@ -141,3 +141,12 @@ qwen35moe; the suite's
 `qwen35` component holds the tiny HF fixtures to their goldens, and
 `tests/baseline_qwen35.py` and `tests/baseline_layered.py` the real files
 to theirs.
+
+## Arena slots
+
+The arena holds, per row of a pass, the widest use either layer kind makes of each slot: 0 x, 1 h, 2 attn_q's rows or the raw qkv rows, 3 k or the conv's output, 4 v or z, 5 the normed and rotated q or alpha then beta, 6 the attention's or the recurrence's output, gated, 7 gate, 8 up, 9 ffn.
+On qwen35moe slots 10 to 13 hold the router scores, the expert ids, the expert weights and the shared expert's gate.
+
+## The MTP layer's cache rows
+
+For every row of a pass the block's cache takes the final norm over the row into `draft_h`, the row before it (an entry's carried row for its first row, the normed row before it for the others), the block's input, then attn_norm, K and V, the k norm and the partial rope.

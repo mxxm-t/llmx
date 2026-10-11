@@ -6,9 +6,8 @@
 #include <vector>
 #include "backends/backend.hpp"
 
-// The Vulkan backend (docs/VULKAN.md), built only with LLMX_HAS_BACKEND_VULKAN.
+// The Vulkan backend (docs/VULKAN.md), built only with LLMX_HAS_BACKEND_VULKAN, in vulkan_backend.cpp, the one translation unit outside the header-only runtime.
 // The SDK supplies the headers and shader compiler at build time; the loader (vulkan-1.dll or libvulkan.so.1) is loaded at run time, so the same binary runs without Vulkan.
-// The implementation lives in vulkan_backend.cpp, the one translation unit outside the header-only runtime.
 
 namespace backend {
 
@@ -18,8 +17,7 @@ struct VulkanUnavailable : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-// The backend over physical device `device`, counted as the loader lists them.
-// Throws VulkanUnavailable when there is nothing usable to open.
+// The backend over physical device `device`, counted as the loader lists them; it throws VulkanUnavailable when there is nothing usable to open.
 // With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`, and on a queue that timestamps the dispatches are timed for `vulkan_kernel_times`.
 BackendPtr make_vulkan_backend(int device, bool diagnostics = false);
 
@@ -34,9 +32,8 @@ DeviceProfile vulkan_device_profile(const Backend& backend);
 // Empty when the device does not report them.
 std::string vulkan_kernel_statistics(const Backend& backend);
 
-// The driver's internal representations (the ISA on AMD) of every kernel a diagnostics backend has compiled, as (kernel name, text).
-// A build of the Q8_0 decode kernel starts with a line of its shape and forms as the backend made it on its device (docs/VULKAN.md): `; q8_decode_build cols=C rows=R steps=S tree=T half=H`, each form 0 or 1; a two-row build of the Q4 and K-quant row kernels with `; row_build cols=C rows=R`.
-// Empty for a backend opened without diagnostics or a device that does not serve them.
+// The driver's internal representations (the ISA on AMD) of every kernel a diagnostics backend has compiled, as (kernel name, text), empty for a backend opened without diagnostics or a device that does not serve them.
+// A build of the Q8_0 decode kernel starts with a line of its shape and forms, `; q8_decode_build cols=C rows=R steps=S tree=T half=H`, and a two-row row-kernel build with `; row_build cols=C rows=R` (docs/VULKAN.md).
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
 
 // Device time per kernel in milliseconds since the last call, for a diagnostics backend on a queue that timestamps.

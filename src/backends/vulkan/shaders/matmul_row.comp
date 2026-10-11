@@ -1,18 +1,6 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X in one dispatch (a layer's q, k and v, or gate and up).
-// Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
-// A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
-//
-// Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. F32 rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
-// The 8-bit builds (LLMX_I8, with LLMX_DOT), --dtype int8 of docs/PRECISION.md, read the 8-bit twin instead (xquant8_block) through the four-wide 8-bit dot, Q6_K's -32 taken into each weight byte; blocks, lanes, terms and reduction are the 16-bit builds'.
-//
-// One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
-//
-// Wide Q8_0: four lanes share a 68-byte block pair, lane t loading words t, t + 4, t + 8, t + 12 and lane 0 word 16; block 0's quants start two bytes into its words, so each lane shifts them by a half word with the next lane's word.
-// Q4_0 with an even block count: two lanes share a 36-byte pair.
-// Q4_1: one lane per 20-byte block.
-// Q6_K: 210-byte blocks, eight lanes a block, every other block two bytes off word alignment.
-// Measurements behind these layouts are in docs/VULKAN.md.
+// Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X per dispatch; a subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row, reducing with xor shuffles.
+// Quantized rows meet the activations as a signed 16-bit twin (xquant.glsl), or the 8-bit twin with LLMX_I8 (docs/PRECISION.md); block layouts and the module per type family are in docs/src/backends-vulkan.md, Shader notes.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #ifdef LLMX_MXFP4
@@ -56,9 +44,8 @@ layout(set = 0, binding = 3) readonly buffer WF { float wf[]; } wfs[3];
 layout(set = 0, binding = 4) readonly buffer X { float x[]; };
 // The weights as 16-byte vectors, for the K-quant blocks whose sizes are multiples of 16.
 layout(set = 0, binding = 5) readonly buffer W128 { uvec4 w128[]; } w128s[3];
-// The quantized activations (xquant.glsl), one buffer bound four ways: four values, eight, a table entry or a pair of entries per load.
+// The quantized activations (xquant.glsl), one buffer bound four ways: four values, eight, a table entry or a pair of entries per load, four being one xq2 element and eight one xq4 element in both twins.
 // The 16-bit twin: per column nin / 2 words of pairs, then per block the scale and scaled sum; the 8-bit twin: per column nin / 4 words of four bytes in position order, then the same per block.
-// Four values are one xq2 element and eight one xq4 element in both, so indices are the same; XA and XB take an xq4 element's first and second four values.
 #ifdef LLMX_I8
 layout(set = 0, binding = 6) readonly buffer XQ2 { uint xq2[]; };
 layout(set = 0, binding = 7) readonly buffer XQ4 { uvec2 xq4[]; };
@@ -78,12 +65,12 @@ layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
-// A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+// A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert.
 // As a specialization it costs the plain and routed pipelines nothing.
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
-// Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
-// A row's lanes, blocks, products and reduction are those of the one-row builds, and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
+// Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both.
+// A row's lanes, blocks, products and reduction are the one-row builds', and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 layout(constant_id = 9) const uint ROWS = 1;
 
 uint pi = 0u;
@@ -205,7 +192,7 @@ float half_word_at(uint byte_off) {
     uint w = w32s[pi].w32[byte_off >> 2u];
     return (byte_off & 3u) == 0u ? unpackHalf2x16(w).x : unpackHalf2x16(w).y;
 }
-// The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve packed bytes in three words (quant/k_quants.hpp): groups 0..3 are the low six bits of bytes 0..3 (scales) and 4..7 (mins), groups 4..7 the nibbles of bytes 8..11 with the earlier bytes' top two bits above.
+// The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve packed bytes in three words (layout in quant/k_quants.hpp).
 // Branch-free, since the lanes of a block hold different c.
 void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float mnl, out float sch, out float mnh) {
     uint sh = 16u * (c & 1u);   // the two groups' bytes within their words
@@ -821,7 +808,7 @@ void main() {
 #endif
 #if defined(LLMX_K4) || defined(LLMX_K5)
         {
-            // Q4_K and Q5_K: eight lanes per block, lane t taking 16 nibble bytes h * 16.. of 64-value chunk c (c = t / 2, h = t mod 2): low nibbles are group 2c at c * 64 + h * 16 + i, high nibbles group 2c + 1 at c * 64 + 32 + h * 16 + i.
+            // Q4_K and Q5_K: eight lanes per block, lane t taking the 16 nibble bytes from h * 16 of 64-value chunk c (c = t / 2, h = t mod 2): low nibbles are group 2c at c * 64 + h * 16 + i, high nibbles group 2c + 1 at c * 64 + 32 + h * 16 + i.
             // Q5_K's fifth bits are bits 2c and 2c + 1 of each byte of the matching high-bit word.
 #ifdef LLMX_K5
             const uint q5 = 1u;
@@ -862,9 +849,8 @@ void main() {
 #endif
 #ifdef LLMX_KQUANT
         {
-            // Q6_K: eight lanes per block, lane t taking positions l0..l0+7 of half n.
-            // Position l0 + i has one value per 32-group: low nibble of ql[l0 + i] with qh bits 0..1, low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles with bits 4..5 and 6..7.
-            // Each group has its own sub-scale, index l0 / 16 for all eight; values are packed as unsigned bytes 0..63 and centered by pair_dot before multiplication.
+            // Q6_K: eight lanes per block, lane t taking positions l0..l0+7 of half n, each with its own sub-scale, index l0 / 16 for all eight.
+            // Position l0 + i has one value per 32-group: low nibble of ql[l0 + i] with qh bits 0..1, low nibble of ql[l0 + 32 + i] with bits 2..3, the high nibbles with bits 4..5 and 6..7, packed as unsigned bytes 0..63 and centered by pair_dot.
             uint nblocks = p.nin / Q6_K_BLOCK;
             uint bbase = wrow * nblocks * Q6_K_BYTES;   // bytes
             uint group = l / 8u, t = l - group * 8u;

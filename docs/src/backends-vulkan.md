@@ -293,3 +293,236 @@ Native tests pass on Windows and Linux, and identity against main holds on the C
 The F16 implementation is held to binary16's finite input range, including subnormal and normal boundaries and the largest finite input, following PRECISION section 9. Its row and tile kernels carry no branches, extra integer sums or scale-order choices solely for preserving original F32 input range. Q4_0's scaled dot and offset subtraction use an explicit rounding order so zero weights cancel and decode batch widths agree. Q6_K still centers integer weights before its dot. The 16-bit twin holds two bytes per activation and eight bytes per block of 32 for its scale and whole scaled sum, 2.25 bytes per activation in total.
 
 Explicit F32 retains the original extreme-input checks on both rows and prompts, independent unit-weight and zero-row fixtures, all six matrix calls, negative scales and cancelling minima, three half weight scales and dispatch witnesses. The optional float-preservation modules remain selected through the existing owner; unsupported devices take their ordinary modules. Tests of the activation representation itself still cover its wider input range. These unit checks complement the independent HF comparisons and matched performance gates described in [PRECISION](../PRECISION.md).
+
+## Shader notes
+
+The design notes the shaders' own comments held before they were cut to a sentence or two, kept as the kernels' authors wrote them; each shader's comment names the part that matters at the code and points here.
+The kernels' measurements are in `docs/VULKAN.md`.
+
+### `src/backends/vulkan/shaders/attention.comp`
+
+From the comment at line 2:
+
+- Causal GQA over every view of a batch: one workgroup per (batch row, block of heads, split), a split being a range of the row's history and a block up to four query heads that read one KV head.
+- The workgroup loads each token's key and value once for its block, since a long history's cache outweighs the weights a decode step reads.
+- Each head's arithmetic is what it would be alone: the split's tokens go round robin to the subgroups with an online softmax per head, and the subgroups merge through shared memory one head at a time; with several splits each state goes to scratch for attention_merge.
+- Row b of a view attends through its hist + b.
+
+### `src/backends/vulkan/shaders/attention_merge.comp`
+
+From the comment at line 2:
+
+- Merge the split attention states of one (row, head): the maximum and sum across splits, then the accumulation rescaled to them; a split with no tokens carries -inf and zero.
+- Each split's maximum and sum are read once into shared memory and its weight formed once, so a lane's column sum reads only independent loads; the sums run in split order, as one lane reading every split would take them.
+- The row is found through the view table, since a dispatch's rows need not be a prefix of the batch.
+- With `quant` set the output's 16-bit twin is written beside it.
+
+### `src/backends/vulkan/shaders/attention_tile.comp`
+
+From the comment at line 2:
+
+- Causal GQA for a wide pass over every view of a batch: one workgroup per (tile of 32 query rows of one view, head), the head's K and V streamed through shared memory in tiles of TK tokens.
+- Row b of a view attends through its hist + b; tokens past that are masked and later tiles are not read.
+- The head width is fixed at 128, or at 256 in the LLMX_D256 build, whose K and V tiles hold 8 tokens so both fit 16 KiB of shared memory; other widths take the per-row kernel.
+- Workgroups are laid out view by view, so a tile never straddles two views.
+- Eight lanes share a query row, lane l owning dimensions 32k + 4l .. 32k + 4l + 3, so a row reads a staged token as contiguous 128-byte runs.
+- A staged token is DIM / 4 words and lane l's word of run k is 8k + l; with the lane taken by a mask the driver folds each word's address into its read.
+- TK sets where the online softmax rescales, so it is a constant of the head width, never of the batch.
+- Per K tile: partial dots eight tokens at a time, a butterfly that finishes the sums and deals one to each lane, then one online-softmax step per tile, and the probabilities through shared memory for the weighted sum of V.
+
+### `src/backends/vulkan/shaders/attention_vec.comp`
+
+From the comment at line 2:
+
+- Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide, or 256 wide in the LLMX_D256 build.
+- One workgroup per (batch row, block of heads, split), a block being up to four query heads that read one KV head (LLMX_G4) or one head.
+- A token's key and value are read by 16 lanes, or 32 at width 256, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
+- The parts a row's history splits into follow from its length alone, as in attention.comp, so a row computes the same whatever else is in the dispatch.
+
+### `src/backends/vulkan/shaders/causal_conv_silu.comp`
+
+From the comment at line 2:
+
+- The linear attention's causal conv of four taps, then SiLU, over every view of a batch (backend.hpp, causal_conv_silu), in one dispatch.
+- An invocation takes one channel of a chunk of up to `chunk` rows of one view, the workgroups' second index naming the chunk, and walks the rows through a window of the last three raw values: out[row][c] = silu(sum over tap j of w[c][j] raw[t - 3 + j][c]).
+- A view's first chunk reads the rows before it from slot src's carried rows, rows before the sequence's start being zero, and leaves the view's last three raw rows in slot dst once it has read them, so no other invocation touches a view's carried rows.
+- The sum is one fused multiply-add chain in tap order, the CPU's, so a row computes the same however its view is cut into chunks and whatever else is in the call.
+- The table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot, then per chunk its view and first row within it.
+
+### `src/backends/vulkan/shaders/delta_rule.comp`
+
+From the comment at line 2:
+
+- The gated delta rule (backend.hpp, gated_delta_rule; docs/QWEN35.md, Linear attention): the L2 norms of q and k, the gates, and the per-token recurrence.
+- One workgroup per (view, V head j, block of 32 V columns): eight consecutive lanes hold one column, each of them rows part, part + 8, ... of the head's k_dim x v_dim matrix in registers, read from slot src (zero at length 0) and written to slot dst.
+- The view's tokens go in blocks of TB: the whole workgroup reads a block's q and k rows of K head j mod k_heads, norms them, and makes each token's beta and decay and stages its v values into shared memory, then every column runs the block's tokens.
+- Per token, in HF's order: the matrix decayed, m from the decayed matrix, d = beta (v - m), the rank-1 write, then o from the updated matrix; o of a token and m of the next are both sums over the matrix after the token, so their butterflies run together, each the sum it would be alone.
+- Every sum is a lane's fused multiply-adds in row order, then one butterfly over eight lanes, the same arithmetic for every row whatever else is in the call, so a sequence gives the same bits alone, batched or cut into passes; the decay is 0 below 2^-126, so no driver's denormal handling decides it.
+- The view table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot.
+
+### `src/backends/vulkan/shaders/gated_rms_norm.comp`
+
+From the comment at line 2:
+
+- One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * silu(z) over the head's dim values, silu(z) = z / (1 + exp(-z)), w shared by every head.
+- The sum of squares is a lane's fused multiply-adds, then a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
+- With `quant` 1, dim is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
+- dst may be x: every value is read for the sum before the barrier, and after it each lane reads and writes only its own values.
+
+### `src/backends/vulkan/shaders/matmul_row.comp`
+
+From the comment at line 2:
+
+- Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X in one dispatch (a layer's q, k and v, or gate and up).
+- Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
+- A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
+- Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. F32 rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
+- The 8-bit builds (LLMX_I8, with LLMX_DOT), --dtype int8 of docs/PRECISION.md, read the 8-bit twin instead (xquant8_block) through the four-wide 8-bit dot, Q6_K's -32 taken into each weight byte; blocks, lanes, terms and reduction are the 16-bit builds'.
+- One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
+- Wide Q8_0: four lanes share a 68-byte block pair, lane t loading words t, t + 4, t + 8, t + 12 and lane 0 word 16; block 0's quants start two bytes into its words, so each lane shifts them by a half word with the next lane's word.
+- Q4_0 with an even block count: two lanes share a 36-byte pair.
+- Q4_1: one lane per 20-byte block.
+- Q6_K: 210-byte blocks, eight lanes a block, every other block two bytes off word alignment.
+- Measurements behind these layouts are in docs/VULKAN.md.
+
+From the comment at line 81:
+
+- A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+- As a specialization it costs the plain and routed pipelines nothing.
+
+From the comment at line 85:
+
+- Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
+- A row's lanes, blocks, products and reduction are those of the one-row builds, and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
+
+From the comment at line 208:
+
+- The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve packed bytes in three words (quant/k_quants.hpp): groups 0..3 are the low six bits of bytes 0..3 (scales) and 4..7 (mins), groups 4..7 the nibbles of bytes 8..11 with the earlier bytes' top two bits above.
+- Branch-free, since the lanes of a block hold different c.
+
+### `src/backends/vulkan/shaders/matmul_tile.comp`
+
+From the comment at line 2:
+
+- Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x TILE_COLS output tile, walking the inner dimension one stage at a time.
+- Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a MROWS x 4 micro-tile in registers.
+- TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
+- Rows past nout and columns past nbatch read as zero and are not stored.
+- A call of few workgroups splits the inner dimension: workgroup row y is part y / ctiles of column tile y % ctiles, summing `kper` values from the part's start into its own slice of Y, which matmul_reduce.comp then adds in part order.
+
+From the comment at line 32:
+
+- A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to TILE_COLS entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
+- A routed call is never split.
+
+### `src/backends/vulkan/shaders/matmul_tile_q.comp`
+
+From the comment at line 2:
+
+- Y[b*nout + o] = dot(row o, X column b) for wide batches through the two-wide 16-bit integer dot, on devices where the integer dot is native, against the activations' 16-bit twin (xquant.glsl), which the row kernels read too.
+- A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or over one part when the call is split; matmul_reduce.comp adds the parts in order.
+- Each step stages, per row, the block's quants widened to the twin's signed 16-bit pairs with its scale and minimum, and per column the twin's 16 words of the block with its scale and scaled sum.
+- A thread forms (TILE_ROWS / 16) x 4 dots of 32 products, as two of 16 since Q6_K scales the halves apart.
+- Types: Q4_0, Q4_1, Q4_K and Q5_K, Q6_K in its own build (LLMX_Q6) and Q8_0 in its own build (LLMX_Q8).
+- The 8-bit builds (LLMX_I8), --dtype int8 of docs/PRECISION.md, read the activations' 8-bit twin (xquant8_word) instead, its words four signed bytes in position order, against the quants as signed bytes through the four-wide 8-bit dot; the Q8_0 8-bit build stages four blocks a step in the shared memory the 16-bit build's two take.
+- The Q8_0 build stages one float scale per row and per column, since Q8_0 has one scale per block and no minimum, and takes no type branch.
+- Rows past nout and columns past nbatch read as zero and are not stored.
+
+From the comment at line 43:
+
+- Up to three projections of one X and one type per dispatch; workgroups start0, start1 and start2 on begin each projection's row tiles. kper is the quant blocks a workgroup sums, a multiple of two when the call is split; blocks of a step past its part read as zero.
+- When the call is split, projection q's part z goes to y at parts * nbatch * (rows of the projections before q) + z * nbatch * nout_q, all projections sharing one scratch buffer.
+- xcols is the columns of X the twin holds, which a routed call's entries read by entry / per; the scale table follows their pairs.
+
+From the comment at line 60:
+
+- A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to 64 entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
+- A routed call is never split.
+
+From the comment at line 364:
+
+- Q4_0, 18-byte blocks: a half scale, then 16 bytes whose low nibbles are values 0 to 15 and high nibbles 16 to 31; the offset of 8 goes into each byte, and the words are funnelled when they straddle.
+- Q4_1, 20-byte blocks, always word aligned: a half scale and a half minimum, then Q4_0's nibbles without the offset; the minimum is stored negated since it is added.
+- Staged words w and w + 4 are the low and high nibbles of one source word, so a thread staging two or more takes source words whole and stages both halves.
+- A Q4_0 word that does not straddle loads itself twice, so no load leaves the matrix.
+
+### `src/backends/vulkan/shaders/matmul_vec_q8.comp`
+
+From the comment at line 2:
+
+- Y[b*nout + o] = dot(row o, X column b) for Q8_0 rows through two-wide 16-bit integer dots over 16-bit activations, a weight word widened once for every column: the Q8_0 decode kernel on integer-dot devices, with the row kernel's bindings and push constants (matmul_row.comp).
+- A subgroup takes ROWS rows; lane l covers quarter l % 4 of blocks l / 4, l / 4 + S / 4 and on, so a step reads S / 4 consecutive blocks of a row, or with HALF half l % 2 of blocks l / 2, l / 2 + 32 and on.
+- A lane keeps MAX_COLS columns and loads each column's eight 16-bit activation values, sixteen with HALF, once for all the subgroup's rows.
+- Every other block's quants start two bytes into a word, so a lane loads the words its bytes touch and shifts.
+- The lanes' sums meet in one subgroup reduction per row and column, or with TREE in the same reduction's pairs taken for every row and column at once.
+- A build changes only how many columns and rows share a weight read and how the same operations are scheduled: a column's lanes, their block order, its products and sums and its reduction's pairs are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
+- The 8-bit builds (LLMX_I8), --dtype int8 of docs/PRECISION.md, read the 8-bit twin (xquant8_block) against the raw weight words through the four-wide 8-bit dot, in the same lanes, blocks and order.
+
+From the comment at line 51:
+
+- A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
+- As a specialization it costs the plain and routed pipelines nothing.
+
+From the comment at line 67:
+
+- Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
+- A plain pass gives a build more than half the columns it holds (for_each_column_chunk), so in a build of one column group only a group past the first half can be past the count; the second group of a two-group build gets 1 to MAX_COLS columns and a grouped build any count, so those check before every group.
+- No other group ends a block before its loads.
+
+From the comment at line 143:
+
+- Each row's first word, a multiple of 17 words since the row's first block is even; per lane its four quant words, a fifth where the bytes straddle (the fourth again where they do not), its scale word and its activation offsets, which a step moves by 272 words, 64 runs of 16 bytes and 32 blocks.
+
+### `src/backends/vulkan/shaders/moe_route.comp`
+
+From the comment at line 2:
+
+- Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`.
+- 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one; the reductions are subgroup operations, joined through shared memory when there are two.
+
+### `src/backends/vulkan/shaders/norm_rope_kv.comp`
+
+From the comment at line 2:
+
+- A layer's attention inputs in one dispatch for every view of a batch: one workgroup per (batch row, head) over the q, then k, then v heads. q is normed and rotated in place, k normed and rotated into its KV block at position hist + b, v copied into its block; the arithmetic per head is norm_rope_partial's at the full width exactly.
+
+### `src/backends/vulkan/shaders/rms_norm_rows.comp`
+
+From the comment at line 2:
+
+- dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i], per row, over `chunks` workgroups a row.
+- The sum of squares is a tree, through shared memory down to one subgroup's width and then through that subgroup's shuffles in the same order; a subgroup reduction adds in another order and moved an HF gate result (docs/STATUS-2026-09.md, Vulkan backend, sub-step 1), so the tree stays.
+- With `quant` set the rows are dense and a multiple of 32 wide and the output's twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
+- With one chunk dst and src may be the same buffer: every element is read before the barrier and written after it by its own lane.
+
+### `src/backends/vulkan/shaders/sigmoid_mul.comp`
+
+From the comment at line 2:
+
+- dst[i] = x[i] * sigmoid(g), sigmoid(g) = 1 / (1 + exp(-g)), g being element d of head h of row r's gate at r * gate_stride + h * gate_head_stride + d, where i = (r * heads + h) * dim + d.
+- With `quant` 1, a row is a multiple of 32 wide and the output's 16-bit twin is written beside it (xquant.glsl).
+- With `quant` 2 the integer-dot tile reads dst next, and a lane takes four values and writes the same twin a word at a time (xquant_word).
+- dst may be x: each element is read and written by one lane.
+
+### `src/backends/vulkan/shaders/views.glsl`
+
+From the comment at line 1:
+
+- The view table a batched cache kernel reads (vulkan_backend.cpp, view_table): tab[0] is the view count, then six words per view (batch row, dispatch-local row, row count, history length, block-table offset and length), then every view's block ids.
+- A workgroup finds its view by walking the entries, which are few.
+
+### `src/backends/vulkan/shaders/xquant.glsl`
+
+From the comment at line 1:
+
+- The 16-bit twin of a float activation row for the row kernels (matmul_row.comp) and the integer-dot tile (matmul_tile_q.comp): blocks of 32 scaled so the largest magnitude is 32767, as position pairs (4m, 4m + 2) and (4m + 1, 4m + 3), then per block the scale and scaled sum.
+- A subgroup writes it: every lane calls with its value at flat position i, and positions i..i+31 aligned to 32 must lie in 32 consecutive lanes.
+- With specialization constant 7 a producer also writes the 8-bit twin, which --dtype int8's kernels read, after the 16-bit one (xquant8_base).
+- The caller declares `xq` as a writable uint buffer.
+
+From the comment at line 164:
+
+- The 8-bit twin as xquant16_word writes the 16-bit one, a lane per four consecutive values; the same bits as xquant8_block.
+- With `major` zero the blocks lie as xquant8_block lays them, column after column.
+- Otherwise `major` is the blocks of a column and the twin is block-major, as the integer-dot tile reads a block of every column together: block k of column c at k * xquant8_columns(columns) + c, the table after the padded blocks in the same order.
+

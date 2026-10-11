@@ -1,7 +1,6 @@
 #version 450
-// One workgroup per (row, head): the head's RMS norm over head_dim values, then the rotation of its first 2 * half values at the row's own position, the rest passing normed.
-// Source head h of row r starts at r * src_stride + h * src_head_stride and the heads are written contiguously, head_dim values each; element i of the first half pairs with i + half.
-// dst may be src with contiguous heads: every value is read for the sum before the barrier, and after it each lane reads and writes only its own pairs and values.
+// One workgroup per (row, head): the head's RMS norm over head_dim values, then the rotation of its first 2 * half values at the row's own position (element i pairs with i + half), the rest passing normed.
+// Source head h of row r starts at r * src_stride + h * src_head_stride and heads are written contiguously, and dst may be src with contiguous heads, since every value is read before the barrier and each lane then writes only its own.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint src_stride; uint src_head_stride; uint heads; uint head_dim; uint half_dim; float eps; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };

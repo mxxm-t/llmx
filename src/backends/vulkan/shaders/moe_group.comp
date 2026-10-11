@@ -1,7 +1,6 @@
 #version 450
-// A routed call's entries grouped by expert, a workgroup per expert: for the tile kernels (matmul_tile.comp, matmul_tile_q.comp) in chunks of 64, for the row kernels' grouped calls (matmul_row.comp) in chunks of their column count.
+// A routed call's entries grouped by expert, a workgroup per expert and stable, so the grouping of a set of ids is always the same: chunks of 64 for the tile kernels, of their column count for the row kernels' grouped calls.
 // tab holds max_tiles chunks as (expert, first, count, 0), each at most `chunk` entries of one expert and unused ones with count 0, then from word 4 * max_tiles the entries in expert order, entry order within an expert.
-// The order is stable, so the grouping of a set of ids is always the same.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint entries; uint n_expert; uint max_tiles; uint chunk; } p;
 layout(set = 0, binding = 0) readonly buffer I { uint ids[]; };

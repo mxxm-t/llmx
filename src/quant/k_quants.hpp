@@ -5,10 +5,8 @@
 #include "core/fp16.hpp"
 #include "quant/types.hpp"
 
-// K-quant block formats.
-// These differ from the simple block types in quant.hpp in two ways: the block is a 256-value SUPER-block, and its sub-blocks carry their own quantized scales: Q4_K and Q5_K per-32-value 6-bit sub-scales and sub-mins against a pair of f16 super-block scales, Q6_K per-16-value signed 8-bit scales against one f16 scale.
-//
-// Read-only: llmx loads these because the Hub hosts them, but produces none.
+// K-quant block formats, read-only (llmx loads these because the Hub hosts them, but produces none), unlike the simple block types in quant.hpp in being 256-value super-blocks whose sub-blocks carry their own quantized scales.
+// Q4_K and Q5_K have per-32-value 6-bit sub-scales and sub-mins against a pair of f16 super-block scales, Q6_K per-16-value signed 8-bit scales against one f16 scale.
 
 namespace quant {
 

@@ -13,7 +13,8 @@
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
 
-// How a model splits over a tensor group (docs/TENSOR-SPLIT.md, section 4.2): each member's spans of a role's rows or columns from the role's declaration (Role::shard), the checks a width must pass, the bytes a member holds of a tensor and the heads it keeps; the one owner of these, whatever the backend.
+// How a model splits over a tensor group (docs/TENSOR-SPLIT.md, section 4.2): each member's spans of a role's rows or columns from its declaration (Role::shard), the checks a width must pass, the bytes a member holds and its heads.
+// It is the one owner of these, whatever the backend.
 
 namespace infer::shard {
 
@@ -82,7 +83,8 @@ inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
     return out;
 }
 
-// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units and on the column axis every span of every member on whole blocks of its storage type, refused by name otherwise, as is a state layer's saved row the width does not divide, an embedded drafter's block as a layer's.
+// Whether a model of `plan` over `views` splits at `width`: each role's tensor by its declaration, every section by its units, and on the column axis every member's span on whole blocks of its storage type, refused by name otherwise.
+// A state layer's saved row the width does not divide, and an embedded drafter's block as a layer's, are refused likewise.
 inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& views, size_t width) {
     if (!width) throw std::logic_error("shard: a group of no members");
     if (width == 1) return;
@@ -110,8 +112,7 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
 }
 
 // The bytes of `role`'s tensor `t` member `member` of `width` holds, as runs of the tensor's bytes in the order they are packed: whole rows of each span on the row axis, and each row's spans on the column axis.
-// At width 1 or for a role whose axis is none, one run of the whole tensor.
-// On the row axis a covered row that is another member's is a zero row, zero bytes, which every storage type decodes as zeros; on the column axis a member holds the tensor's own bytes of every column it covers.
+// At width 1 or for an axis of none it is one run of the whole tensor; on the row axis a row another member covers is zero bytes, which every storage type decodes as zeros.
 inline std::vector<Run> runs(const Role& role, const TensorView& t, size_t width, size_t member) {
     if (role.shard.axis == Axis::none || width == 1) return {Run{0, t.bytes, 0}};
     const size_t nin = t.shape.empty() ? 0 : size_t(t.shape[0]);

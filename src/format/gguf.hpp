@@ -22,8 +22,7 @@
 #include "core/host_memory.hpp"
 #include "quant/types.hpp"
 
-// GGUF file format reader/writer, implemented from scratch.
-// Implements GGUF v3 over the storage layouts described by quant/types.hpp, independently of execution support.
+// GGUF v3 reader/writer, implemented from scratch over the storage layouts of quant/types.hpp, independently of execution support.
 // File layout:
 //   header: magic(u32) version(u32) tensor_count(u64) metadata_kv_count(u64)
 //   metadata KVs: key(string) type(u32) value
@@ -86,8 +85,7 @@ struct TensorInfo {
         for (auto d : ne) n = checked_multiply(n, d);
         return n;
     }
-    // The tensor's bytes: rows of ne[0] values, or one value for rank zero, sized by the quant layer.
-    // A tensor of no values holds no bytes however wide its rows, but its storage type must still be known and its rows whole blocks.
+    // The tensor's bytes: rows of ne[0] values, or one value for rank zero, sized by the quant layer; a tensor of no values holds no bytes however wide its rows, but its storage type must still be known and its rows whole blocks.
     // The type and the row are checked, as zero rows, before the elements are counted, so a file refused for either is refused for it even when its dimensions also overflow.
     uint64_t data_size() const {
         if (!quant::storage_type(type))
@@ -116,7 +114,8 @@ struct GGUFModel {
     std::vector<Segment> segments;
     std::vector<size_t> offsets;
 
-    // Drop the tensor bytes, keeping the metadata and the tensor table. For a caller whose model no longer reads them in place, which is any model whose every weight a copying backend took. tensor_data is invalid afterwards.
+    // Drop the tensor bytes, keeping the metadata and the tensor table, for a caller whose model no longer reads them in place, which is any model whose every weight a copying backend took.
+    // tensor_data is invalid afterwards.
     void release_payload() {
         std::vector<uint8_t>().swap(blob);
         segments.clear();
@@ -605,8 +604,7 @@ inline size_t bytes_of(const GGUFModel& m, const std::vector<size_t>& tensors) {
 }
 
 // Warm `tensors` in order by touching bytes at page-sized intervals within steps of up to 8 MiB; an unaligned tensor can leave its final page untouched.
-// `progress` gets their bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once.
-// Their files must be mapped (map_payload); a tensor that is not is refused before any progress.
+// `progress` gets their bytes: 0 first when there are any, then after every step, and their total last, so tensors holding no bytes report (0, 0) once, and a tensor whose file is not mapped (map_payload) is refused before any progress.
 inline void warm(const GGUFModel& m, const std::vector<size_t>& tensors, const format::LoadProgress& progress = {}) {
     for (size_t i : tensors)
         if (!m.tensor_data(i) && m.tensor_bytes(i)) throw std::logic_error("GGUF tensor is not mapped: " + m.tensors[i].name);

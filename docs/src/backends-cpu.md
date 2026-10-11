@@ -188,3 +188,5 @@ a scope are rejected. Same-count configuration remains a no-op; the guard is
 for synchronous reentrancy and does not make concurrent calls safe.
 
 Under F16 execution, MXFP4 decode reuses this activation owner with 16-bit packed inputs. Its nibble lookup widens weights directly into integer products; exceptional scale products or nonfinite fast sums use decoded F32 weights and double products over those same activations. The format interpretation and boundary coverage live in [quant-mxfp4](quant-mxfp4.md).
+
+The prompt dots (`q8_dots.hpp`, `dot_block`) sum the products of a group of 32 values exactly in integers, and eight groups' sums then meet their eight scales in one vector multiply-add.

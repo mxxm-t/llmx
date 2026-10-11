@@ -1,8 +1,6 @@
 #version 450
 // Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide, or 256 wide in the LLMX_D256 build.
-// One workgroup per (batch row, block of heads, split), a block being up to four query heads that read one KV head (LLMX_G4) or one head.
-// A token's key and value are read by 16 lanes, or 32 at width 256, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
-// The parts a row's history splits into follow from its length alone, as in attention.comp, so a row computes the same whatever else is in the dispatch.
+// One workgroup per (batch row, block of heads, split), a block being up to four query heads (LLMX_G4) or one head that read one KV head; the history splits by the row's length alone, so a row computes the same beside any others.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_shader_16bit_storage : require

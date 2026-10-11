@@ -84,8 +84,8 @@ struct Growth {
         for (size_t s = 0; s < more.size(); ++s) more[s] = to[s] > has(s) ? to[s] - has(s) : 0;
         return more;
     }
-// Turns at the pool's edge (docs/SERVER.md, turns at the pool's edge): the growth steps a request holds the last room for, so many that a change of turn, `swap_ms`, costs kTurnShare of the turn.
-// A tenth is a constant from the measured turns (at histories of 14k tokens 5 percent doubles a turn and 20 percent shortens none); never under a step, and one where either time is not yet measured.
+    // Turns at the pool's edge (docs/SERVER.md, turns at the pool's edge): the growth steps a request holds the last room for, so many that a change of turn, `swap_ms`, costs kTurnShare of the turn.
+    // A tenth is a constant from the measured turns (at histories of 14k tokens 5 percent doubles a turn and 20 percent shortens none); never under a step, and one where either time is not yet measured.
     static constexpr double kTurnShare = 0.10;
     static size_t turn(double swap_ms, double step_ms) {
         if (!(swap_ms > 0) || !(step_ms > 0)) return 1;

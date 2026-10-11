@@ -42,7 +42,7 @@ public:
     const BufferPtr& k_buffer(size_t layer) const { return k_[layer]; }
     const BufferPtr& v_buffer(size_t layer) const { return v_[layer]; }
 
-    // Backs blocks through `id` by the growth rule. The new buffers of every layer are allocated and hold the history before any is published, so a growth that throws leaves the storage and its accounting as they were, and a retry starts over.
+    // Backs blocks through `id` by the growth rule: the new buffers of every layer are allocated and hold the history before any is published, so a growth that throws leaves the storage and its accounting as they were, and a retry starts over.
     // alloc is zero-filled, which is what leaves a newly backed block reading as zeros.
     void ensure(size_t id) {
         if (id < backed_) return;
@@ -79,8 +79,7 @@ public:
     }
 
     // Checks a view for an op on `layer`: the layer exists and the view's table covers its length plus its rows.
-    // A writing op then backs the blocks its rows land in, in position order; a reading op requires every block the view reaches to be backed, which growth may have done before any write reached it, so which positions hold data is the caller's to know.
-    // Returns the blocks the view reaches.
+    // A writing op then backs the blocks its rows land in, in position order, and a reading op requires every block the view reaches to be backed, so which positions hold data is the caller's to know; it returns the blocks the view reaches.
     size_t check_view(const KVView& view, size_t layer, bool writing) {
         const size_t sequence = size_add(view.length, view.nq);
         const size_t used = blocks_for(sequence, bt_);
@@ -97,7 +96,7 @@ public:
     }
 
 protected:
-    // Nothing is backed yet. The whole budget, `max_tokens` rounded up to whole blocks of every layer's K and V at their types, is checked here in bytes, so every size the storage computes later is in range and every kv_alloc refuses a budget that overflows.
+    // Nothing is backed yet: the whole budget, `max_tokens` rounded up to whole blocks of every layer's K and V, is checked here in bytes, so every size computed later is in range and kv_alloc refuses a budget that overflows.
     // `prefix` starts every error the storage throws, the backend's own.
     BlockKVStorage(Backend& owner, const char* prefix, size_t block_tokens, size_t layers, size_t heads, size_t dim,
                    size_t max_tokens, KVType kt, KVType vt)

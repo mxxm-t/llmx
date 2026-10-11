@@ -1,8 +1,6 @@
 #version 450
 // Merge the split attention states of one (row, head): the maximum and sum across splits, then the accumulation rescaled to them; a split with no tokens carries -inf and zero.
-// Each split's maximum and sum are read once into shared memory and its weight formed once, so a lane's column sum reads only independent loads; the sums run in split order, as one lane reading every split would take them.
-// The row is found through the view table, since a dispatch's rows need not be a prefix of the batch.
-// With `quant` set the output's 16-bit twin is written beside it.
+// The sums run in split order, as one lane reading every split would take them, and the row is found through the view table; with `quant` set the output's 16-bit twin is written beside it.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_control_flow_attributes : require

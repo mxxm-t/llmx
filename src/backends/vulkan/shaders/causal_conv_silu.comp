@@ -1,9 +1,6 @@
 #version 450
-// The linear attention's causal conv of four taps, then SiLU, over every view of a batch (backend.hpp, causal_conv_silu), in one dispatch.
-// An invocation takes one channel of a chunk of up to `chunk` rows of one view, the workgroups' second index naming the chunk, and walks the rows through a window of the last three raw values: out[row][c] = silu(sum over tap j of w[c][j] raw[t - 3 + j][c]).
-// A view's first chunk reads the rows before it from slot src's carried rows, rows before the sequence's start being zero, and leaves the view's last three raw rows in slot dst once it has read them, so no other invocation touches a view's carried rows.
-// The sum is one fused multiply-add chain in tap order, the CPU's, so a row computes the same however its view is cut into chunks and whatever else is in the call.
-// The table (vulkan_backend.cpp, state_table) holds the view count, then per view its first batch row, rows, history length, source slot and destination slot, then per chunk its view and first row within it.
+// The linear attention's causal conv of four taps, then SiLU, over every view of a batch in one dispatch (backend.hpp, causal_conv_silu), as the CPU's fused multiply-add chain in tap order, so a row is the same however its view is cut.
+// An invocation takes one channel of a chunk of up to `chunk` rows of one view through a window of the last three raw values, reading the rows before a view from slot src's carried rows and leaving its last three in slot dst.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint C; uint slot; uint carried; uint chunk; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float o[]; };

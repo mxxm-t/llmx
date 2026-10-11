@@ -1,9 +1,6 @@
 #version 450
-// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x TILE_COLS output tile, walking the inner dimension one stage at a time.
-// Each step stages the dequantized W tile and the X tile in shared memory, and every thread accumulates a MROWS x 4 micro-tile in registers.
-// TILE_ROWS is a specialization constant: a taller tile reads less shared memory per product but yields fewer workgroups, so the backend picks it per call.
-// Rows past nout and columns past nbatch read as zero and are not stored.
-// A call of few workgroups splits the inner dimension: workgroup row y is part y / ctiles of column tile y % ctiles, summing `kper` values from the part's start into its own slice of Y, which matmul_reduce.comp then adds in part order.
+// Y[b*nout + o] = dot(row o, X column b) for wide batches: a workgroup computes a TILE_ROWS x TILE_COLS output tile, walking the inner dimension one stage at a time through shared memory.
+// TILE_ROWS is a specialization constant picked per call (a taller tile reads less shared memory per product but yields fewer workgroups), and a call of few workgroups splits the inner dimension into parts matmul_reduce.comp adds in order.
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
@@ -29,7 +26,7 @@ layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
 layout(set = 0, binding = 3) readonly buffer X { float x[]; };
 // The weights as words, since this driver issues one load per byte: a K-quant run is 2 or 4 aligned words, and scattered bytes are extracted from the word holding them.
 layout(set = 0, binding = 4) readonly buffer W32 { uint w32[]; };
-// A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to TILE_COLS entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
+// A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to TILE_COLS entries of one expert, column c being entry tab[order0 + first + c].
 // A routed call is never split.
 layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
@@ -64,8 +61,7 @@ shared float xs[STAGE_K][TILE_COLS];
 shared uint wrange[TILE_ROWS];
 shared uint xrange[XPR][TILE_COLS];
 // A weight of scale byte e and an input of exponent field f multiply to at least 2^(e + f - 255) and less than 2^(e + f - 250) in magnitude.
-// Where e + f < 129 the product can fall below the smallest normal float before the sum, and where e + f > 378 it can overflow.
-// A row whose scale lies outside [65, 188] is summed wide whatever its inputs.
+// Where e + f < 129 the product can fall below the smallest normal float before the sum and where e + f > 378 it can overflow, so a row whose scale lies outside [65, 188] is summed wide whatever its inputs.
 bool wide_row(uint e) {
     return e < 65u || e > 188u;
 }

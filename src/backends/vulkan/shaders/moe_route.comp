@@ -1,6 +1,6 @@
 #version 450
-// Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`.
-// 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one; the reductions are subgroup operations, joined through shared memory when there are two.
+// Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, divided by their sum when `normalize`.
+// 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one, the reductions joined through shared memory when there are two.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 layout(local_size_x = 64) in;

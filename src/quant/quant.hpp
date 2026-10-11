@@ -11,8 +11,7 @@
 #include "quant/types.hpp"
 
 // Block quantization: the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing implemented types with their storage metadata (types.hpp) and kernels (the K-quants' are in k_quants.hpp).
-// A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block).
-// The kernels serve the quantize command (float -> block) and the dequantize command and CPU inference path (block -> float).
+// A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block); the kernels serve the quantize command and the dequantize command and CPU inference path.
 
 namespace quant {
 
@@ -52,11 +51,8 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-// Q4_0 block quantization.
-// A block holds 32 floats compressed into a 2-byte f16 scale + 16 bytes of nibbles (Q4_0_TYPESIZE = 18 bytes per block).
-// The scale is d = amax/7, so ordinary scaling maps [-amax, amax] onto codes -7 to 7; rounding a tiny scale in F32 can reach the clamp at -8 too.
-// Each byte holds two values: the low nibble is element j, the high nibble element j+16; the stored nibble is unsigned 0..15 where the true value = nibble - 8.
-// Decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale; the product is exact in f32, since |nibble - 8| is at most 8.
+// Q4_0 block quantization: 32 floats in a 2-byte f16 scale and 16 bytes of nibbles (Q4_0_TYPESIZE = 18), the low nibble element j and the high element j+16, stored unsigned 0..15 where the true value is nibble - 8.
+// The scale is d = amax/7, so codes run -7 to 7 (-8 too for a tiny scale rounded in F32), and decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale, exactly in f32.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; b++) {
         const float* x = src + b * Q4_0_BLOCK;
@@ -145,7 +141,7 @@ private:
           { *storage_type(GGML_TYPE_Q8_0), quantize_row_q8_0, dequantize_row_q8_0 } },
         { GGML_TYPE_Q4_0,
           { *storage_type(GGML_TYPE_Q4_0), quantize_row_q4_0, dequantize_row_q4_0 } },
-        // Q4_1 and the K-quants are read-only: llmx loads files that carry them, including a few Q6_K tensors inside an otherwise Q4_0 file, but produces none, so a quantizer would be unused code; the tests pack Q4_1 with their own (tests/quantizers.hpp).
+        // Q4_1 and the K-quants are read-only: llmx loads files that carry them, a few Q6_K tensors in an otherwise Q4_0 file included, but produces none, so a quantizer would be unused code; the tests pack Q4_1 themselves (tests/quantizers.hpp).
         { GGML_TYPE_Q4_1,
           { *storage_type(GGML_TYPE_Q4_1), nullptr, dequantize_row_q4_1 } },
         { GGML_TYPE_Q4_K,

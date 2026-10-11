@@ -1,11 +1,6 @@
 #pragma once
-// What a device backend needs to know about its device to shape its kernels, apart from any one vendor's API.
-// `DeviceCaps` holds what the hardware reports (subgroup width, compute units, names, the integer dot), filled by each backend from its own API.
-// `DeviceProfile` holds numbers found by measuring the kernels (lanes per row, tile crossovers, splits), shared across backends because the reasoning is the same.
-// A number a shader's layout fixes, such as the lanes that share a quant block, is a constant beside the kernels rather than a profile number, since another value would break the kernel rather than tune it.
-// A capability decides which kernel to launch; a profile number shapes the same kernel.
-// Bringing up a device: fill `DeviceCaps`, check whether a capability calls for a kernel that does not exist yet, measure, and give `tuned_devices` a row that assigns the numbers measured there.
-// Branch on what a device reports, never on its vendor name.
+// What a device backend needs to know about its device to shape its kernels, apart from any one vendor's API: `DeviceCaps` holds what the hardware reports, `DeviceProfile` numbers found by measuring the kernels.
+// A capability decides which kernel to launch and a profile number shapes the same kernel; branch on what a device reports, never on its vendor name.
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -14,9 +9,7 @@
 
 namespace backend {
 
-// What the device reports about itself.
-//
-// The sizes shape a kernel; the flags choose one.
+// What the device reports about itself: the sizes shape a kernel and the flags choose one.
 // A flag is here only when a different implementation would be written for it, not merely because the API reports it.
 struct DeviceCaps {
     uint32_t subgroup_size = 0;      // lanes that execute in lockstep
@@ -35,12 +28,12 @@ struct DeviceCaps {
 struct DeviceProfile {
     // Lanes a Q4_K or Q5_K row takes at most in the integer-dot row kernels; a short row spread over a whole subgroup leaves each lane a few bytes to read.
     uint32_t k45_row_lanes = 32;
-    // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens: its columns a subgroup times the column groups that take the same rows, and a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
+    // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens; a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
     uint32_t q8_decode_cols = 8;
     // Columns the widest two-row decode build of the Q4 and K-quant row kernels holds (2 to 16), or 0 for the eight-column build of one row a cluster: those builds give a lane two rows and compute every column they hold (docs/VULKAN.md).
     // A driver may compile their code apart from the one-row builds' and sum a column's products in another order, so they are set only where their columns were checked bit for bit against the one-column build.
     uint32_t row_decode_cols = 0;
-    // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree and kQ8Half): the first gives the subgroup reduction's bits only where that reduction takes the pairs it writes out, so it is set only where the pairs were read in the disassembly (docs/VULKAN.md).
+    // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree and kQ8Half): the first is set only where the disassembly showed the reduction takes the pairs it writes out (docs/VULKAN.md).
     // The second is the half-block order, which every build takes where it is set; it sums a column's products in another order than the quarter layout, so setting it changes the device's decode results once.
     uint32_t q8_decode_forms = 0;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
@@ -51,7 +44,7 @@ struct DeviceProfile {
     size_t tile_narrow_nin = 4096;
     // Prompt extent from which a routed projection takes the tile kernel over each expert's rows rather than the row kernel per entry, by weight family (the Vulkan weight descriptor): F32, Q8_0 and Q6_K, then Q4_0 and Q4_1, Q4_K and Q5_K.
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
-    // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for heads 256 wide (docs/STATUS.md), each at most 256, the lanes of attention_merge's workgroup.
+    // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for 256 wide (docs/STATUS.md), each at most 256.
     size_t attention_split_chunk = 32, attention_split_max = 64, attention_split_max_wide = 64;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.
     uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 8;

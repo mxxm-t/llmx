@@ -1,7 +1,6 @@
 #version 450
 // dst[i] = silu(gate[i]) * up[i], in the form the CPU uses: g / (1 + exp(-g)).
-// With `quant` 1, n is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl).
-// With `quant` 2 the integer-dot tile reads dst next, and a lane takes four values and writes the same twin a word at a time (xquant_word).
+// With `quant` 1, n is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl), and with `quant` 2 the integer-dot tile reads dst next and a lane writes the same twin four values a word at a time (xquant_word).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;

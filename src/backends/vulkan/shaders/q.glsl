@@ -1,4 +1,4 @@
-// Quantized block decoding shared by the kernels. A table is bound twice, as floats for F32 rows and as bytes for block formats. Types are GGUF ids.
+// Quantized block decoding shared by the kernels, types being GGUF ids: a table is bound twice, as floats for F32 rows and as bytes for block formats.
 #ifndef LLMX_Q_GLSL
 #define LLMX_Q_GLSL
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require

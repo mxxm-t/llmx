@@ -1,6 +1,6 @@
 #pragma once
 // CPU dots over activations quantized per block of 32; weights remain packed and integer sums are scaled once per block (docs/src/backends-cpu.md).
-// Every packed dot uses 16-bit activations. Q8_0 keeps original F32 inputs in the float dots.
+// Every packed dot uses 16-bit activations, and Q8_0 keeps original F32 inputs in the float dots.
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -188,7 +188,7 @@ inline float dot_q4_1(const uint8_t* row, const Rows16& x, size_t r) {
     }
     return hsum(acc) + mins;
 }
-// The eight groups' vectors f(0) .. f(7), eight 32-bit lanes each, to their eight sums, one lane each; exact, so the order is free.
+// The eight groups' vectors f(0) to f(7), eight 32-bit lanes each, to their eight sums, one lane each; exact, so the order is free.
 // Built as a tree from the calls, so the vectors stay in registers.
 template <class F>
 inline __m256i sum8(const F& f) {
@@ -271,9 +271,7 @@ inline float dot_q6_K(const uint8_t* row, const Rows16& x, size_t r) {
     }
     return hsum(acc);
 }
-// The prompt dots take a block of consecutive weight rows against n activation rows r[0..n).
-// They walk the inner dimension 256 values at a time: each weight row's 256 are unpacked once into a buffer, then met by every column's 256, which stay in the first-level cache across the block's rows.
-// Within a group of 32 values the products are summed exactly in integers; eight groups' sums then meet their eight scales in one vector multiply-add.
+// The prompt dots take a block of consecutive weight rows against n activation rows r[0..n), walking the inner dimension 256 values at a time: each weight row's 256 are unpacked once and met by every column's 256 in the first-level cache.
 // Every (row, column) accumulates in the same order whatever the block and the other columns are, so a row computes the same alone or beside others.
 constexpr size_t kCols = 32, kRows = 8;   // the columns and rows whose accumulators are held at once
 

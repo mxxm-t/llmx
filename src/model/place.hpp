@@ -201,6 +201,7 @@ struct PlacementRequest {
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
+    size_t draft_rows = 0;            // draft rows a pass may carry beside a prompt's and the generated tokens': a server's verifies
     size_t apart_rows = 0;            // rows of a second arena on every device, for a pass of generated rows recorded between the pieces of a prompt's (Model::reserve_passes), which the fit counts
     size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
     size_t logit_rows = 0;            // rows of logits the caller keeps (Model::reserve_passes), which a split's fit counts; 0 for one per row of a pass
@@ -314,6 +315,11 @@ inline size_t apart_rows(const std::vector<backend::BackendPtr>& backends, const
     return unpaced(backends, request).empty() ? request.apart_rows : 0;
 }
 
+// The rows of a pass the fit counts: a ubatch of prompt rows, the generated tokens', a verify's drafts, and the second arena's where a stage is fed in pieces.
+inline size_t fitted_rows(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
+    return (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.draft_rows + apart_rows(backends, request);
+}
+
 // The logits rows the fit counts where the request names them: the request's and, where a stage is fed in pieces, the rows of the passes apart, which keep a ring of their own (server::Scheduler).
 inline std::optional<size_t> fitted_logit_rows(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
     return request.logit_rows ? std::optional<size_t>(request.logit_rows + apart_rows(backends, request)) : std::nullopt;
@@ -387,7 +393,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(plan_model(weights)) : held;
     const ModelPlan* fitting = &bare_plan;
     std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
-    const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + apart_rows(backends, request);
+    const size_t rows = fitted_rows(backends, request);
     const std::optional<size_t> logits = fitted_logit_rows(backends, request);
     std::string why;
     size_t kept = options.checkpoint_slots;
@@ -549,7 +555,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
-        const size_t rows = (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + apart_rows(backends, request);
+        const size_t rows = fitted_rows(backends, request);
         const Footprint fp = footprint(weights, plan, options, request.width);
         std::optional<LayerSplit> split;
         std::exception_ptr refused;

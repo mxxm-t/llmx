@@ -250,14 +250,14 @@ public:
         if (p > 1 && !model_.pipelined())
             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
         // A pass carries at most kDraftRows draft rows beside a row a decoding request and a ubatch of prompt rows, each draft row wanting its logits.
-        const size_t drafts = proposer_ ? kDraftRows : 0;
+        const size_t drafts = draft_rows(proposer_ != nullptr);
         // A pass apart at each stage, with logits rows of their own, since they retire past the prompt passes.
         if (share_ < 0 || share_ >= 1) throw std::runtime_error("server: the share of generating requests is at least 0 and below 1");
         if (auto_ && !(model_.paces() && model_.stage_count() == 1)) throw std::logic_error("server: automatic pacing needs one stage fed in pieces");
         const size_t a = (share_ > 0 || auto_) && model_.paces() ? model_.stage_count() : 0;
-        apart_rows_ = logit_rows(a, max_seqs_ + drafts);
+        apart_rows_ = logit_rows(a, logits_a_pass(max_seqs_, proposer_ != nullptr));
         for (;; --p) {
-            logit_rows_ = logit_rows(p, max_seqs_ + drafts);
+            logit_rows_ = logit_rows(p, logits_a_pass(max_seqs_, proposer_ != nullptr));
             try {
                 model_.reserve_passes(ctx_, p + a, ubatch_ + max_seqs_ + drafts, logit_rows_.size + apart_rows_.size, a ? apart_rows(max_seqs_, proposer_ != nullptr) : 0);
                 break;
@@ -658,8 +658,12 @@ public:
         in_flight_.store(0);
     }
 
-    // The rows of a pass apart at most: a row a request, and a verify's drafts where requests draft.
-    static size_t apart_rows(size_t max_seqs, bool drafting) { return max_seqs + (drafting ? kDraftRows : 0); }
+    // The draft rows a pass carries at most where requests draft, and the rows of a pass that want logits: a row a request and those drafts.
+    // A caller asks the fit for both, so what the scheduler reserves is what was fitted.
+    static size_t draft_rows(bool drafting) { return drafting ? kDraftRows : 0; }
+    static size_t logits_a_pass(size_t max_seqs, bool drafting) { return max_seqs + draft_rows(drafting); }
+    // The rows of a pass apart at most: every row of it wants its logits.
+    static size_t apart_rows(size_t max_seqs, bool drafting) { return logits_a_pass(max_seqs, drafting); }
 
     void stop() {
         {

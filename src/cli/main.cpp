@@ -510,8 +510,11 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.decode_rows = decode_rows;
     request.apart_rows = apart_rows;
     request.slots = slots;
-    // A server keeps logits rows for its passes in flight by its own rule, not one for every row of a pass.
-    if (slots) request.logit_rows = server::logit_rows(slots, decode_rows).size;
+    // A server's passes carry a verify's draft rows where it drafts, and it keeps logits rows for its passes in flight by its own rule, a row a request and those drafts, not one for every row of a pass.
+    if (slots) {
+        request.draft_rows = server::Scheduler::draft_rows(mark_rows > 0);
+        request.logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(decode_rows, mark_rows > 0)).size;
+    }
     request.fit_kv = slots > 0;
     if (history_tokens) {
         request.histories = decode_rows;

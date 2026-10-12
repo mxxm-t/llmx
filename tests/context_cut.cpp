@@ -42,9 +42,12 @@ int main() {
         longer.insert(longer.end(), 5, 2);
         c = server::cut_rows(server::cut_points(longer.data(), longer.size(), ends), longer.size(), 119, 60);
         require(c.lead == 10 && c.from == 70 && c.at_marker, "a prompt a few rows longer was cut somewhere else");
-        // Room for 40 rows only: one step leaves 65 and a second would pass the prompt's end, by markers and by rows alike, so nothing fits and the cut says so.
+        // Room for 40 rows only: one step leaves 65 and a second would pass the prompt's end, so no step serves, and the first turn end after the lead that fits is taken, 100, which leaves 10 + 25.
         c = server::cut_rows(points, ids.size(), 40, 60);
-        require(!c.at_marker && c.from >= ids.size(), "a prompt whose last step does not fit was reported as cut to fit");
+        require(c.at_marker && c.lead == 10 && c.from == 100, "a prompt whose one step leaves too much was not cut at its first turn end that fits");
+        // Room for 14: the last turn end leaves 10 + 5, so nothing fits, by markers and by rows alike, and the cut says so.
+        c = server::cut_rows(points, ids.size(), 14, 60);
+        require(!c.at_marker && c.from >= ids.size(), "a prompt whose newest rows alone do not fit was reported as cut to fit");
         // Room for 66 with steps of 50 and no cut point a step past the lead that is not the end: by rows, the first 25 and a step dropped.
         c = server::cut_rows({10, 20}, 125, 80, 50);
         require(!c.at_marker && c.lead == 25 && c.from == 75 && c.lead + (125 - c.from) == 75, "a cut no marker allows was not made by a whole step of rows after the fixed lead");
@@ -66,6 +69,48 @@ int main() {
         require(server::first_kept(at, starts, 1, 215, 150, 60) == 5, "a conversation ten rows longer was cut at another message");
         require(server::first_kept(at, starts, 1, 205, 34, 60) == at.size(), "a window past the room was taken");
         require(server::first_kept(at, starts, 0, 205, 150, 60) == 5, "a conversation without a system message kept its first message as one");
+
+        // A reply's room: at a limit of 4096 an uncapped prompt may take 3584 rows, and a cut drops in steps of 2048.
+        {
+            const size_t limit = 4096, room = limit - limit / 8, step = limit / server::kCutTo;
+            // A system message of 100 rows and user and assistant turns of 100 rows each after it.
+            const auto chat = [](size_t head, size_t n) {
+                std::pair<std::vector<size_t>, std::vector<char>> c{{head}, {0}};
+                for (size_t at = head + 100, k = 1; at <= n; at += 100, ++k) {
+                    c.first.push_back(at);
+                    c.second.push_back(k % 2);
+                }
+                return c;
+            };
+            const auto small = chat(100, 3700);
+            // The first user start a step or more past the head: its predecessor ends at 2300, so the window is 1400 rows and the head.
+            const size_t k = server::first_kept(small.first, small.second, 1, 3700, room, step);
+            require(k < small.first.size() && small.second[k] && small.first[k - 1] == 2300, "a prompt past its room was not cut at the first user start a step past the head");
+            // A head within a step of the prompt's end leaves no whole step: the cut is the first user start after it that leaves at most the room, not a refusal.
+            const auto large = chat(1600, 3700);
+            const size_t j = server::first_kept(large.first, large.second, 1, 3700, room, step);
+            require(j < large.first.size() && large.second[j] && 1600 + (3700 - large.first[j - 1]) <= room && large.first[j - 1] == 1800,
+                    "a system message within a step of the prompt's end was refused, or cut later than its first user start that fits");
+            // A step with a user start whose window does not fit, and the next step past the prompt's end: the first user start after it that fits is taken, not a refusal.
+            const auto late = chat(2048, 5848);
+            const size_t l = server::first_kept(late.first, late.second, 1, 5848, room, step);
+            require(l == 25 && 2048 + (5848 - late.first[24]) == 3448, "a prompt whose one step leaves too much was refused, or cut elsewhere than its first user start that fits: " + std::to_string(l));
+            // A tool call and its result between two user starts: the first message that would fit is the tool result, and the window starts at the user message after it.
+            {
+                const std::vector<size_t> at{1600, 1700, 1800, 1900, 2000, 2100, 3700};
+                const std::vector<char> turn{0, 1, 0, 0, 0, 1, 0};
+                // From the tool result at index 3 the window would be 1600 + 1900 = 3500 rows, which fits, but it is no turn start; index 5 is.
+                require(1600 + (3700 - at[2]) <= room && server::first_kept(at, turn, 1, 3700, room, step) == 5, "a window was started inside a tool call's messages");
+            }
+            // A head that leaves the newest turn no room is still refused.
+            const auto full = chat(3600, 3900);
+            require(server::first_kept(full.first, full.second, 1, 3900, room, step) == full.first.size(), "a system message past the room was cut");
+            // The text route: a leading block of 1600 rows, cut points every 100 after it; the rows after it go up to the first cut point that leaves at most the room, at a marker.
+            std::vector<size_t> points;
+            for (size_t at = 1600; at < 3700; at += 100) points.push_back(at);
+            const RowCut c = server::cut_rows(points, 3700, room, step);
+            require(c.at_marker && c.lead == 1600 && c.from == 1800, "a text prompt whose leading block is within a step of its end lost that block");
+        }
         std::cout << "context-cut: " << checks << " checks passed\n";
         return 0;
     } catch (const std::exception& e) {

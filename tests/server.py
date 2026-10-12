@@ -416,7 +416,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         info = health["server"]
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
-        assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens"}, health["requests"]
+        assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "shifts", "shifted_tokens"}, health["requests"]
         assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries"}, health["reuse"]
         assert srv.get("/v1/live") == {"status": "ok"}
         for device in dtype["devices"]:
@@ -766,6 +766,49 @@ def check_context_overflow(model):
             message = err["error"]["message"] if isinstance(err.get("error"), dict) else err.get("error", "")
             count = 150 if "prompt" in body else len(reasoning_render(conversation(3)))
             assert status == 413 and "%d tokens" % count in message and "128" in message and "--context-overflow shift" in message, (path, status, err)
+    finally:
+        srv.close()
+    # A reply without a cap is given room for an eighth of what a request may hold, 16 of 128: a chat of 119 rows fits and leaves 9, fewer than the reply's 12 tokens.
+    # Its first turn ends a step of 64 rows past the system message, so a cut keeps the system message and the last user message.
+    def near_edge(rows):
+        messages = [system, {"role": "user", "content": "abcde"}, {"role": "assistant", "content": reply}, {"role": "user", "content": "e"}]
+        pad = rows - len(reasoning_render(messages))
+        assert pad >= 0 and pad % 3 == 0, pad
+        messages[-1]["content"] += "e" * (pad // 3)
+        assert len(reasoning_render(messages)) == rows
+        return messages
+
+    edge = near_edge(119)
+    srv = Server(model, "--ctx-size", "128")
+    try:
+        # Without the flag it is refused with its numbers and the way out, where it was answered with a clipped reply; a cap that fits is served as before.
+        status, err = srv.post("/v1/chat/completions", {"messages": edge, "temperature": 0})
+        message = err["error"]["message"] if isinstance(err.get("error"), dict) else ""
+        assert status == 413 and "119 tokens" in message and "leaves 9 for its reply" in message and "the 16 a request without max_tokens is given" in message and "max_tokens" in message, (status, err)
+        health = srv.get("/v1/health")["requests"]
+        assert health["now"]["active"] == 0 and health["since_start"]["shifts"] == 0, health
+        status, got = srv.post("/v1/chat/completions", {"messages": edge, "max_tokens": 8, "temperature": 0})
+        assert status == 200 and got["usage"]["prompt_tokens"] == 119 and "dropped_tokens" not in got["context"], (status, got)
+        status, got = srv.post("/v1/chat/completions", {"messages": near_edge(110), "temperature": 0})
+        assert status == 200 and got["choices"][0]["finish_reason"] == "stop" and "dropped_tokens" not in got["context"], (status, got)
+    finally:
+        srv.close()
+    srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")
+    try:
+        # With the flag it is cut now, at a message, and the reply runs whole, past the 9 rows that were left; health counts the shift, and a stream reports the same context.
+        status, got = srv.post("/v1/chat/completions", {"messages": edge, "temperature": 0})
+        context = got["context"]
+        assert status == 200 and got["choices"][0]["finish_reason"] == "stop" and got["usage"]["completion_tokens"] > 9, (status, got)
+        assert context["dropped_messages"] == 2 and context["dropped_tokens"] > 0 and context["at_marker"] is True and got["usage"]["prompt_tokens"] == len(reasoning_render([system, edge[-1]])), (got,)
+        health = srv.get("/v1/health")["requests"]["since_start"]
+        assert health["shifts"] == 1 and health["shifted_tokens"] == context["dropped_tokens"], health
+        events = srv.stream("/v1/chat/completions", {"messages": edge, "temperature": 0, "stream": True, "stream_options": {"include_usage": True}})
+        assert events[-1] is None and events[-2]["context"] == context, (events[-2], context)
+        health = srv.get("/v1/health")["requests"]["since_start"]
+        assert health["shifts"] == 2 and health["shifted_tokens"] == 2 * context["dropped_tokens"], health
+        # A cap that fits beside the prompt keeps every message, as before.
+        status, got = srv.post("/v1/chat/completions", {"messages": edge, "max_tokens": 8, "temperature": 0})
+        assert status == 200 and "dropped_tokens" not in got["context"], (status, got)
     finally:
         srv.close()
     srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")

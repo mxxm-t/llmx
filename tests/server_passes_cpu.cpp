@@ -1063,12 +1063,38 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 
 } // namespace
 
+// The room rule at its owner: the scheduler refuses, without a route before it, a prompt that leaves its reply less than the room, and admits one at the edge.
+void reply_room(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    auto model = on(weights, [] { return cpus(1); })(8 * kBlock, kUbatch);
+    server::Scheduler sched(*model, tok, kSeqs, 64);
+    const size_t limit = sched.token_limit(), room = limit - limit / server::Scheduler::kReplyRoom;
+    server::SampleParams open, capped;
+    open.until_limit = true;
+    capped.max_tokens = 100;
+    require(sched.prompt_room(open) == room && sched.prompt_room(capped) == limit - 100, "the rows a prompt may take beside its reply: " + std::to_string(sched.prompt_room(open)) + " of " + std::to_string(limit));
+    const auto refused = [&](size_t n, const server::SampleParams& p) {
+        try {
+            sched.submit(prompt_of(71, n, vocab), p);
+        } catch (const server::TooLong& e) {
+            return std::string(e.what());
+        }
+        return std::string();
+    };
+    const std::string why = refused(room + 1, open);
+    require(!why.empty() && why.find(std::to_string(room + 1) + " tokens") != std::string::npos && why.find("leaves " + std::to_string(limit - room - 1) + " for its reply") != std::string::npos &&
+                why.find(std::to_string(limit - room)) != std::string::npos,
+            "an uncapped prompt a row past its room was admitted, or refused without its numbers: " + why);
+    require(refused(room, open).empty() && refused(limit - 100, capped).empty() && !refused(limit - 99, capped).empty(), "the room's edge, uncapped and capped, was not held at submit");
+}
+
 int main(int argc, char** argv) {
     try {
         // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a verify's draft rows, in each logits ring.
         require(server::Scheduler::logits_a_pass(16, false) == 16 && server::Scheduler::logits_a_pass(16, true) == 16 + server::Scheduler::draft_rows(true) &&
                     server::Scheduler::draft_rows(false) == 0 && server::Scheduler::draft_rows(true) == 64 && server::Scheduler::apart_rows(16, true) == server::Scheduler::logits_a_pass(16, true),
                 "the logits rows of a pass with and without drafts");
+        reply_room(served(kSplit), (uint32_t)kSplit.vocab);
         // `automatic-group` runs the automatic rule's cases on the tensor group alone.
         if (argc > 1 && std::string(argv[1]) == "automatic-group") {
             automatic(served(kSplit), (uint32_t)kSplit.vocab, 2);

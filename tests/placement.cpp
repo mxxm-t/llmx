@@ -1378,6 +1378,17 @@ void apart_rows_fitted() {
     require(infer::unpaced(devices(2, false), request).empty() && infer::fitted_logit_rows(devices(2, false), request) == std::optional<size_t>(36), "one tensor group is not fitted with the passes apart's logits ring");
     request.logit_rows = 0;
     require(!infer::fitted_logit_rows(devices(2, false), request), "a request that names no logits rows was given some");
+    // The rows of a pass the fit counts hold a verify's draft rows beside a ubatch and the decode rows, and the second arena's where a stage is fed in pieces.
+    infer::PlacementRequest drafting;
+    drafting.ubatch = 512;
+    drafting.decode_rows = 16;
+    drafting.draft_rows = 64;
+    drafting.apart_rows = 80;
+    require(infer::fitted_rows(devices(1, true), drafting) == 512 + 16 + 64 && infer::fitted_rows(devices(1, false), drafting) == 512 + 16 + 64 + 80,
+            "the fit's rows of a pass do not hold a verify's draft rows");
+    drafting.draft_rows = 0;
+    drafting.ubatch = 0;
+    require(infer::fitted_rows(devices(1, true), drafting) == (size_t)infer::kDefaultUbatch + 16, "the fit's rows of a pass without drafts are not a ubatch and the decode rows");
     ++checked;
 }
 

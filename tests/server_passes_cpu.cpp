@@ -850,6 +850,59 @@ void made_and_destroyed(const gguf::GGUFModel& weights) {
     ++checks;
 }
 
+// A device that reports `room` bytes free and counts what is allocated on it.
+struct Metered : NoCpu {
+    size_t room = 0;
+    std::atomic<size_t> taken{0};
+    using NoCpu::NoCpu;
+    std::optional<size_t> memory_available() const override { return room; }
+    size_t decode_columns() const override { return 16; }
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        taken += bytes;
+        return NoCpu::alloc(bytes, where);
+    }
+};
+
+// A model fitted to a device's free memory as the command line asks for a server (`open_model`), then a scheduler made over it: the bytes both allocated on the device, and the bytes of one KV block.
+// Without `arena` the request leaves the draft rows out of a pass's rows, and without `logits` out of its logits rows, each as before the fix.
+std::pair<size_t, size_t> fitted_server(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, size_t room, bool drafting, bool arena = true, bool logits = true) {
+    Submitters seen;
+    auto device = std::make_shared<Metered>(&seen);
+    device->room = room;
+    const size_t seqs = 16, slots = 1;
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.fit_kv = true;
+    request.slots = slots;
+    request.decode_rows = seqs;
+    request.draft_rows = arena ? server::Scheduler::draft_rows(drafting) : 0;
+    request.logit_rows = server::logit_rows(slots, logits ? server::Scheduler::logits_a_pass(seqs, drafting) : seqs).size;
+    request.apart_rows = server::Scheduler::apart_rows(seqs, drafting);
+    infer::ModelOptions options;
+    options.kv_tokens = size_t(1) << 20;
+    options.mark_slots = drafting ? 4 : 0;
+    options.mark_rows = drafting ? 4 : 0;
+    auto model = infer::place_model(infer::gguf_weights(weights), {device}, request, options).model;
+    infer::spec::Lookup lookup;
+    server::Scheduler sched(*model, tok, seqs, 64, 0, false, 0, drafting ? &lookup : nullptr, drafting ? 3 : 0, false, {}, server::Pacing::automatic());
+    return {device->taken.load(), model->kv_allocated_bytes() / (model->kv_tokens_total() / kBlock)};
+}
+// A drafter's rows come out of the fitted KV budget and not on top of it: fitted to the same free memory, a drafting server allocates within the room and no more than one without a drafter.
+// Fitted without the draft rows in a pass's rows, in its logits rows, or in both as before the fix, it allocates more, so each half of the fix is seen alone.
+void fitted_reservation(const gguf::GGUFModel& weights) {
+    const bpe::Tokenizer tok(weights);
+    // A room just below a KV block's edge: the logits rows alone are a quarter of a block on this model, and are seen only where the room leaves less than that.
+    const size_t room = (size_t(24) << 20) + (size_t(36) << 10);
+    const auto plain = fitted_server(weights, tok, room, false), drafting = fitted_server(weights, tok, room, true), before = fitted_server(weights, tok, room, true, false, false);
+    const auto no_arena = fitted_server(weights, tok, room, true, false, true), no_logits = fitted_server(weights, tok, room, true, true, false);
+    const std::string what = "a server fitted to " + std::to_string(room) + " bytes: " + std::to_string(plain.first) + " allocated without a drafter, " + std::to_string(drafting.first) +
+                             " with one, " + std::to_string(before.first) + " with the draft rows left out of the fit, " + std::to_string(no_arena.first) + " out of a pass's rows alone, " +
+                             std::to_string(no_logits.first) + " out of its logits rows alone, a KV block " + std::to_string(plain.second);
+    // The drafts' rows, whole blocks together on this model, leave the fitted server at the bytes of one without a drafter.
+    require(plain.first <= room && drafting.first <= room && drafting.first <= plain.first, what);
+    require(before.first > plain.first + plain.second && no_arena.first > plain.first + plain.second && no_logits.first > plain.first, what + "; the comparison does not tell the fits apart");
+}
+
 // A CPU backend whose decode kernels hold 16 columns, so a pass of several decoding requests has columns to spare for their drafts.
 // It counts its submissions in a plain member, as a device keeps its open command buffer, so a submission beside a recording is a data race the thread sanitizer reports.
 struct Wide : backend::CpuBackend {
@@ -1012,6 +1065,10 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 
 int main(int argc, char** argv) {
     try {
+        // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a verify's draft rows, in each logits ring.
+        require(server::Scheduler::logits_a_pass(16, false) == 16 && server::Scheduler::logits_a_pass(16, true) == 16 + server::Scheduler::draft_rows(true) &&
+                    server::Scheduler::draft_rows(false) == 0 && server::Scheduler::draft_rows(true) == 64 && server::Scheduler::apart_rows(16, true) == server::Scheduler::logits_a_pass(16, true),
+                "the logits rows of a pass with and without drafts");
         // `automatic-group` runs the automatic rule's cases on the tensor group alone.
         if (argc > 1 && std::string(argv[1]) == "automatic-group") {
             automatic(served(kSplit), (uint32_t)kSplit.vocab, 2);
@@ -1028,6 +1085,7 @@ int main(int argc, char** argv) {
         made_and_destroyed(served(kSplit));
         automatic(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
+        fitted_reservation(served(kSplit));
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

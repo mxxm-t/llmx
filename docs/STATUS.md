@@ -1020,6 +1020,12 @@ telemetry honestly. GitHub receives main and the `gate/<name>` branches whose ho
 Each dated block below is the record of a change as it landed or was measured, newest first: what was found, what was done, what the gates measured and what it left open.
 The status table and the active blocks above give the present state; a record's open items may have shipped since.
 
+## The hosted undefined-behaviour job's limit is 40 minutes (2026-10-12, branch ci/ubsan-limit, the workflow and its page only, lands by fast-forward)
+
+- **Why:** the job ran 18.0 to 24.0 minutes of its 25 on runs of 2026-10-12 at 4c7736793 and 7edbf78c1, six minutes apart between runners on nearly the same tree, and was ended at 25 on a branch under review with every step before the last passing, so a landing could be cancelled by the runner it drew.
+- **Done:** `timeout-minutes` 40 for that job in `.github/workflows/ci.yml`, with the figures in docs/CI.md. No test or check changes. What grew the job is the scheduler tests' wall time, which no one has cut; that is left.
+- **Gates:** the suite's `docs` and `dead-code` components on the tree that lands; the hosted run of this commit shows the job under its new limit.
+
 ## A generating request is paced beside a prompt by default (2026-10-12, branch feat/auto-pacing, lands by fast-forward)
 
 - **Goal:** the owner's decision of 2026-10-11: serving a request that is already generating while a prompt is read becomes an automatic, best-effort policy, on by default where pacing is possible, with an off switch and no number for a user to choose.

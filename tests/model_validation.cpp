@@ -697,6 +697,9 @@ void placement_checks() {
     rejects("a stream point without experts on the CPU", [&] { infer::place_model(routed, {cpu()}, request, options); });
     request = {}; request.histories = 2; request.history_tokens = 4;
     rejects("histories over a null backend", [&] { infer::place_model(weights, {nullptr}, request, options); });
+    // The question whether a stage is fed in pieces is asked before the fit, and must leave a missing backend to the fit's refusal.
+    request = {}; request.cpu_moe = 1; request.fit_kv = true;
+    rejects("a fitted budget with experts on the CPU over a null backend", [&] { infer::place_model(routed, {nullptr}, request, options); });
     request = {}; request.cpu_moe = 1; request.names = {"a", "b"};
     rejects("experts on the CPU beside two devices", [&] { infer::place_model(routed, {cpu(), cpu()}, request, options); });
     request = {}; request.cpu_moe = -1; request.shares = {1}; request.names = {"a"};

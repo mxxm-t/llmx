@@ -1076,17 +1076,17 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts) {
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
-    // With a share for generating requests each device holds a second arena for their rows.
-    const size_t apart = cfg.generating_share > 0 ? server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() > 0) : 0;
+    // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
+    const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() > 0);
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
                                    drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);
-    server::check_share(model, cfg.generating_share);
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
+    server::resolve_pacing(c, loaded->unpaced);
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
@@ -1231,9 +1231,12 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-queue N           Requests waiting for a place, paused ones not counted; more get a 503 (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Batches the devices work on at once; above 1 needs the model\n"
             << "                          split over several devices (default: one per device of a layer split, else 1)\n"
-            << "  --generating-share X    While prompts are read, the share of each device's time that requests\n"
-            << "                          already generating keep, 0 up to 0.9; 0 lets prompts go first\n"
-            << "                          (default: " << cfg.generating_share << ")\n"
+            << "  --no-pacing             Serve requests already generating only with the prompts' batches; by default,\n"
+            << "                          on one device or one tensor group, they are served between the parts of a\n"
+            << "                          prompt's batch, about every " << (int)server::kServiceGapMs << " ms\n"
+            << "  --generating-share X    Instead of that rule, a fixed share of each device's time for requests\n"
+            << "                          already generating while prompts are read, above 0 up to 0.9; 0 keeps\n"
+            << "                          the rule (default: " << cfg.generating_share << ")\n"
             << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt):\n"
             << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none\n"
             << "                          (default: room for --max-seqs full histories, within half the free\n"
@@ -1576,6 +1579,7 @@ int main(int argc, char** argv) {
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--generating-share") cfg.generating_share = float_arg(argc, argv, i, a, 0.0f, 0.9f);
+                else if (f == "--no-pacing") cfg.no_pacing = true;
                 else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
                 else if (f == "--host-cache-bytes") host_bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--disk-cache-bytes") cfg.disk.bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
@@ -1601,6 +1605,7 @@ int main(int argc, char** argv) {
                 given.take(a, i > at);
             }
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
+            if (cfg.no_pacing && cfg.generating_share > 0) throw UsageError("--no-pacing serves no generating request apart; not with --generating-share");
             if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
             return cmd_serve(argv[2], cfg, exec, drafts);
         }

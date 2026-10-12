@@ -60,6 +60,7 @@ struct LoadedModel {
     std::string plan;                // what each device of a split was given (LayerSplit::describe), empty otherwise
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0; // the KV tokens a server's fitted checkpoint slots took from its budget (PlacedModel)
+    std::string unpaced;             // why no stage of the placement is fed in pieces, empty where one is (PlacedModel)
     std::optional<spec::DrafterKind> drafter;   // what the drafter file beside the model is (spec::pair), when one was given
     std::vector<backend::BackendPtr> backends;  // the backends the caller gave, which a draft model beside the model shares
     LoadTimes times;
@@ -455,6 +456,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     loaded->plan = std::move(placed.plan);
     loaded->dtype = std::move(placed.dtype);
     loaded->checkpoint_kv_tokens = placed.checkpoint_kv_tokens;
+    loaded->unpaced = std::move(placed.unpaced);
     loaded->model = std::move(placed.model);
     if (mode != LoadMode::mapped) {
         // Every weight has storage now, so a model that cannot be placed has failed before any weight is uploaded.

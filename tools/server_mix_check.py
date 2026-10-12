@@ -15,6 +15,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
 --generating-share X serves with that share for generating requests, whose rows then go in passes of their own between a prompt pass's pieces.
+--no-pacing serves with pacing off, and --host-cache-bytes N with that much host memory for evicted prefixes; without them the server's own defaults run.
 --tensor-width W groups the devices in tensor groups of W, the server and the CLI alike.
 --drafter lookup|embedded|PATH serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
@@ -223,6 +224,8 @@ def main():
     p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
     p.add_argument("--generating-share", type=float, help="the share of each device's time generating requests keep while prompts are read, the server's own when not given")
+    p.add_argument("--no-pacing", action="store_true", help="serve with pacing off, the server's own mode when not given")
+    p.add_argument("--host-cache-bytes", type=int, help="host memory for evicted prefixes, the server's own when not given")
     p.add_argument("--drafter", default="off",
                    help="the server's drafter: off, lookup, embedded or a file of MTP blocks beside the model; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
     p.add_argument("--fresh-phases", action="store_true", help="fresh server for each capped phase; fail on prefix reuse or pauses")
@@ -246,6 +249,10 @@ def main():
     server_flags = flags + (["--passes", str(args.passes)] if args.passes else []) + (["--drafter", args.drafter] if args.drafter != "off" else [])
     if args.generating_share is not None:
         server_flags += ["--generating-share", str(args.generating_share)]
+    if args.no_pacing:
+        server_flags += ["--no-pacing"]
+    if args.host_cache_bytes is not None:
+        server_flags += ["--host-cache-bytes", str(args.host_cache_bytes)]
     if args.uncapped:
         return uncapped(args, text, server_flags)
     rng = random.Random(1 if args.seed is None else args.seed)

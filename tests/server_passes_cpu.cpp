@@ -77,14 +77,14 @@ uint64_t paused(const Make& one, const std::function<Make(size_t)>& split, const
         if (share > 0 && run.passes != run.stages) continue;
         auto model = split(run.stages)(8 * kBlock, kUbatch);
         server::Scheduler::Stats s;
-        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, run.passes, 0, nullptr, 0, false, share);
+        const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, run.passes, 0, nullptr, 0, false, server::Pacing::fixed(share));
         require(s.passes == run.passes, name(run) + ": the scheduler kept " + std::to_string(s.passes) + " passes in flight");
         require(s.pauses > 0, "the paused load on " + name(run) + ": nothing paused");
         require((s.apart > 0) == (share > 0), "the paused load on " + name(run) + ": " + std::to_string(s.apart) + " passes formed apart");
         between += s.between;
         for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], "the paused load on " + name(run) + ", request " + std::to_string(i));
         model = split(run.stages)(9 * kBlock, kUbatch);
-        const std::vector<Reply> kept = serve(*model, tok, kSeqs, {held}, &s, run.passes, 0, nullptr, 0, false, share);
+        const std::vector<Reply> kept = serve(*model, tok, kSeqs, {held}, &s, run.passes, 0, nullptr, 0, false, server::Pacing::fixed(share));
         require(s.pauses == 1 && (share > 0 || run.passes != run.stages || run.stages == 1 || s.waits > 0),
                 "the held load on " + name(run) + ": " + std::to_string(s.pauses) + " pauses and " + std::to_string(s.waits) +
                 " plans waiting on a request in flight, against 1 and some at P = S");
@@ -285,7 +285,7 @@ Ended hooked_run(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, cons
     model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(pool, kUbatch);
     Ended out;
     {
-        server::Scheduler sched(*model, tok, kSeqs, 64, run.passes, false, 0, nullptr, 0, true, {}, share);
+        server::Scheduler sched(*model, tok, kSeqs, 64, run.passes, false, 0, nullptr, 0, true, {}, server::Pacing::fixed(share));
         std::vector<std::shared_ptr<server::Request>> h;
         for (const Req& r : reqs) h.push_back(sched.submit(r.prompt, params_of(r)));
         size_t submits = 0;
@@ -383,7 +383,7 @@ void stopped(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t
         const std::vector<std::shared_ptr<Hooked>> devices = hooked(run.stages, share > 0);
         auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(pool, kUbatch);
         {
-            server::Scheduler sched(*model, tok, kSeqs, 64, run.passes, false, 0, nullptr, 0, true, {}, share);
+            server::Scheduler sched(*model, tok, kSeqs, 64, run.passes, false, 0, nullptr, 0, true, {}, server::Pacing::fixed(share));
             std::vector<std::shared_ptr<server::Request>> h;
             for (const Req& r : four(vocab)) h.push_back(sched.submit(r.prompt, params_of(r)));
             size_t submits = 0;
@@ -539,6 +539,304 @@ void recorded_stages(const gguf::GGUFModel& weights, uint32_t vocab) {
         const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, nullptr, run.passes);
         require(seen.count() > 1, what + ": no stage of several requests' passes was recorded on a thread of its own");
         for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], what + ", request " + std::to_string(i));
+    }
+}
+
+// A collective that counts the waits of a stage fed in pieces: for everything its last sum submitted, or with one sum left ahead.
+// A sum takes `nap`, as a device's work up to it does, so a group's pass and its pieces have a time whether fed whole or in pieces.
+struct WatchedSum : backend::Collective {
+    std::unique_ptr<backend::Collective> sum;
+    std::atomic<size_t>&idle, &ahead;
+    std::chrono::milliseconds nap;
+    WatchedSum(std::unique_ptr<backend::Collective> s, std::atomic<size_t>& i, std::atomic<size_t>& a, std::chrono::milliseconds n) : sum(std::move(s)), idle(i), ahead(a), nap(n) {}
+    backend::Slice partial(size_t member) override { return sum->partial(member); }
+    void sum_into(const std::vector<backend::Slice>& residual, size_t rows, size_t width) override {
+        std::this_thread::sleep_for(nap);
+        sum->sum_into(residual, rows, width);
+    }
+    void wait(size_t back) noexcept override {
+        ++(back ? ahead : idle);
+        sum->wait(back);
+    }
+};
+
+// A backend that is no CPU's and takes `nap` a submission: with a nap above the automatic rule's target gap every prompt's pass outlasts the gap, so generated rows never ride one.
+// It counts the submissions a thread other than its first submitter's, the scheduler's, made without having waited for its own last one: a stage's thread that holds no piece ahead makes one only after a pass of generated rows.
+struct Slow : NoCpu {
+    std::function<void()> piece;   // run in every submission but the first submitter's, so on a stage's thread
+    static inline std::atomic<size_t> idle_sums{0}, ahead_sums{0};
+    std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
+        // In a group the time is the sums', and the members' submissions take none; every collective joined keeps the delay, the model's probe included.
+        for (backend::Backend* m : members) static_cast<Slow*>(m)->grouped = true;
+        return std::make_unique<WatchedSum>(NoCpu::join(members, rows, width), idle_sums, ahead_sums, nap);
+    }
+    std::chrono::milliseconds nap{0};
+    bool grouped = false;
+    std::mutex wm;
+    std::map<std::thread::id, std::pair<backend::Ticket, bool>> last;   // per thread, its last ticket and whether it waited for it
+    std::thread::id first;
+    size_t behind = 0, threaded = 0;
+    Slow(Submitters* s, int ms) : NoCpu(s), nap(ms) {}
+    bool on_stage() {
+        std::lock_guard<std::mutex> lk(wm);
+        return !last.empty() && std::this_thread::get_id() != first;
+    }
+    backend::Ticket submit() override {
+        if (!grouped) std::this_thread::sleep_for(nap);
+        if (piece && on_stage()) piece();
+        const backend::Ticket t = NoCpu::submit();
+        std::lock_guard<std::mutex> lk(wm);
+        const std::thread::id me = std::this_thread::get_id();
+        if (last.empty()) first = me;
+        const auto it = last.find(me);
+        if (me != first) ++threaded;
+        if (me != first && it != last.end() && !it->second.second) ++behind;
+        last[me] = {t, false};
+        return t;
+    }
+    void wait(backend::Ticket t) noexcept override {
+        {
+            std::lock_guard<std::mutex> lk(wm);
+            const auto it = last.find(std::this_thread::get_id());
+            if (it != last.end() && it->second.first == t) it->second.second = true;
+        }
+        NoCpu::wait(t);
+    }
+};
+
+// The automatic rule (server::Pacing::automatic) on one device and on one tensor group of two, each no CPU's.
+// Where replies and prompts never wait together the scheduler's thread submits every stage, as without pacing; where they do, passes of generated rows are recorded between a slow prompt pass's pieces.
+void automatic(const gguf::GGUFModel& weights, uint32_t vocab, size_t only = 0) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 16 * kBlock;
+    Submitters seen;
+    for (const size_t width : {size_t(1), size_t(2)}) {
+        if (only && width != only) continue;
+        const std::string where = width == 1 ? "one device" : "a tensor group of two";
+        // Each request alone on CPUs of the same width, whose sums a group's replies follow.
+        const Make one = on(weights, [width] { return cpus(width); }, 8, 0, 0, 0, false, width);
+        std::shared_ptr<Slow> device;
+        const auto made = [&](int nap) {
+            return on(weights, [&seen, &device, width, nap] {
+                std::vector<backend::BackendPtr> v;
+                for (size_t i = 0; i < width; ++i) v.push_back(std::make_shared<Slow>(&seen, nap));
+                device = std::static_pointer_cast<Slow>(v[0]);
+                return v;
+            }, 8, 0, 0, 0, false, width);
+        };
+        // Requests one after another, each ended before the next is submitted: no reply ever waits beside a prompt.
+        const std::vector<Req> together{{prompt_of(31, 5, vocab), 20}, {prompt_of(32, 4, vocab), 24, {}, 0.8f, 7}, {prompt_of(33, 6, vocab), 16}};
+        std::vector<std::vector<Req>> in_turn;
+        for (const Req& r : together) in_turn.push_back({r});
+        const std::vector<Reply> ref = alone(one, tok, pool, together);
+        for (const bool pacing : {true, false}) {
+            const std::string what = std::string(pacing ? "the automatic rule" : "no pacing") + " on " + where + ", nothing overlapping";
+            auto model = made(0)(pool, kUbatch);
+            seen.clear();
+            server::Scheduler::Stats s;
+            const std::vector<Reply> got = serve(*model, tok, kSeqs, in_turn, &s, 0, 0, nullptr, 0, false, pacing ? server::Pacing::automatic() : server::Pacing{});
+            for (size_t i = 0; i < together.size(); ++i) same(ref[i], got[i], what + ", request " + std::to_string(i));
+            require(s.overlaps == 0, what + ": " + std::to_string(s.overlaps) + " overlaps were counted");
+            require(seen.count() == 1, what + ": " + std::to_string(seen.count()) + " threads submitted the stages, against the scheduler's alone");
+            require(s.automatic == pacing && s.apart == 0 && s.between == 0 && s.gaps == 0,
+                    what + ": " + std::to_string(s.apart) + " passes apart, " + std::to_string(s.between) + " between pieces, " + std::to_string(s.gaps) + " gaps counted");
+        }
+        // A reply beside a prompt of six passes, each submission taking longer than the target gap: the reply's rows go apart and are taken between the prompt pass's pieces.
+        const std::vector<Req> beside{{prompt_of(41, 4, vocab), 8}, {prompt_of(42, 96, vocab), 3}};
+        const std::vector<Reply> own = alone(one, tok, pool, beside);
+        for (const bool pacing : {true, false}) {
+            const std::string what = std::string(pacing ? "the automatic rule" : "no pacing") + " on " + where + ", a reply beside a prompt";
+            auto model = made((int)server::kServiceGapMs + 20)(pool, kUbatch);
+            Slow::idle_sums = Slow::ahead_sums = 0;
+            server::Scheduler::Stats s;
+            const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &s, 0, 0, nullptr, 0, false, pacing ? server::Pacing::automatic() : server::Pacing{});
+            for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], what + ", request " + std::to_string(i));
+            if (!pacing) {
+                require(s.apart == 0 && s.between == 0 && s.gaps == 0, what + ": a pass went apart or a gap was counted");
+                continue;
+            }
+            require(s.between > 0, what + ": no pass of generated rows was recorded between the prompt pass's pieces");
+            // One reply beside one prompt is one overlap, whose end no pass in flight and no round without a ready pass may fake.
+            require(s.overlaps == 1, what + ": " + std::to_string(s.overlaps) + " overlaps were counted for one reply beside one prompt");
+            require(s.gaps > 0 && s.gaps_late <= s.gaps && s.longest_piece_ms > 0,
+                    what + ": " + std::to_string(s.gaps) + " gaps, " + std::to_string(s.gaps_late) + " above the target, longest piece " + std::to_string(s.longest_piece_ms) + " ms");
+            // On one device a piece ends at a submission: the stage's thread waits for each piece before the boundary, so a pass taken there finds the device idle.
+            if (width == 1) std::cout << "server-passes-cpu: the stage's thread made " << device->threaded << " submissions, " << device->behind << " behind one it had not waited for" << std::endl;
+            // On a group a piece ends at a sum: every wait there is for the whole sum, none with a sum left ahead.
+            require(width == 1 || (Slow::idle_sums > 0 && Slow::ahead_sums == 0), what + ": " + std::to_string(Slow::ahead_sums.load()) + " waits left a sum ahead, " +
+                                                                                  std::to_string(Slow::idle_sums.load()) + " waited for the whole sum");
+            require(width > 1 || 2 * device->behind < device->threaded, what + ": the stage's thread made " + std::to_string(device->behind) + " of its " + std::to_string(device->threaded) +
+                                                                            " submissions behind one it had not waited for");
+            std::cout << "server-passes-cpu: the automatic rule on " << where << " recorded " << s.between << " passes between pieces, " << s.gaps << " gaps, "
+                      << s.gaps_late << " above the target, " << s.floor_deferred << " deferred by the floor\n";
+        }
+    }
+    // A prompt read one token a pass, whose passes never give a row's time: fast passes are ridden throughout, past the fixed share's ninth-pass probe.
+    // Passes longer than the gap, once one fed whole has shown it, are fed in pieces with the reply's rows between them.
+    if (!only)
+        for (const int nap : {0, (int)server::kServiceGapMs + 20}) {
+            const std::string what = std::string("the automatic rule, a prompt read one token a pass, ") + (nap ? "slow passes" : "fast passes");
+            const Make cpu = on(weights, [] { return cpus(1); });
+            const std::vector<Req> reqs{{prompt_of(61, 4, vocab), 30}, {prompt_of(62, nap ? 6 : 40, vocab), 3}};
+            std::vector<Reply> ref;
+            for (const Req& r : reqs) {
+                auto single = cpu(pool, 1);
+                ref.push_back(serve(*single, tok, kSeqs, {{r}}, nullptr, 1)[0]);
+            }
+            auto model = on(weights, [&seen, nap] { return std::vector<backend::BackendPtr>{std::make_shared<Slow>(&seen, nap)}; })(pool, 1);
+            server::Scheduler::Stats s;
+            const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, &s, 0, 0, nullptr, 0, false, server::Pacing::automatic());
+            for (size_t i = 0; i < reqs.size(); ++i) same(ref[i], got[i], what + ", request " + std::to_string(i));
+            if (nap) require(s.rode <= 2 && s.between > 0, what + ": " + std::to_string(s.rode) + " passes ridden and " + std::to_string(s.between) + " passes between pieces");
+            else require(s.rode > server::RideRun::kProbe + 1 && s.apart == 0, what + ": " + std::to_string(s.rode) + " passes ridden and " + std::to_string(s.apart) + " apart");
+        }
+    // Requests paused after their replies began and resumed beside other replies, reading their histories again as prompt rows: each reply its reply alone.
+    if (!only) {
+        const Make cpu = on(weights, [] { return cpus(1); });
+        const Make device = on(weights, [&seen] { return std::vector<backend::BackendPtr>{std::make_shared<NoCpu>(&seen)}; });
+        const std::vector<Req> load = paused_load(vocab);
+        const std::vector<Reply> ref = alone(cpu, tok, 8 * kBlock, load);
+        auto model = device(8 * kBlock, kUbatch);
+        server::Scheduler::Stats s;
+        const std::vector<Reply> got = serve(*model, tok, kSeqs, {load}, &s, 0, 0, nullptr, 0, false, server::Pacing::automatic());
+        for (size_t i = 0; i < load.size(); ++i) same(ref[i], got[i], "the automatic rule, requests paused and resumed, request " + std::to_string(i));
+        require(s.pauses > 0 && s.recomputed > 0, "the paused load under the automatic rule: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.recomputed) + " rows recomputed");
+    }
+    // Where no stage is fed in pieces the rule is refused as the scheduler is made: on the CPU and over a layer split.
+    for (const size_t stages : {size_t(1), size_t(2)}) {
+        auto model = stages == 1 ? on(weights, [] { return cpus(1); })(pool, kUbatch) : on(weights, [&seen] {
+            return std::vector<backend::BackendPtr>{std::make_shared<NoCpu>(&seen), std::make_shared<NoCpu>(&seen)};
+        })(pool, kUbatch);
+        bool refused = false;
+        try {
+            server::Scheduler sched(*model, tok, kSeqs, 64, 0, false, 0, nullptr, 0, true, {}, server::Pacing::automatic());
+        } catch (const std::logic_error&) {
+            refused = true;
+        }
+        require(refused, std::string("the automatic rule was taken ") + (stages == 1 ? "on the CPU" : "over a layer split"));
+    }
+}
+
+// A slow device whose decode kernels hold 16 columns, so a reply's pass has columns for its drafts.
+struct SlowWide : Slow {
+    using Slow::Slow;
+    size_t decode_columns() const override { return 16; }
+};
+
+// A proposer that drafts a known reply's own next tokens, so every draft is kept, or with `wrong` a token that is not the reply's at every third chain, which a verify refuses and a retract undoes.
+// Its chain takes `work` and runs a hook as it begins.
+struct Known : infer::spec::Proposer {
+    std::vector<uint32_t> prompt, reply;
+    std::function<void()> hook;
+    std::chrono::milliseconds work{0};
+    bool wrong = false;
+    size_t calls = 0;
+    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+        out.clear();
+        if (h.size() < prompt.size() || !std::equal(prompt.begin(), prompt.end(), h.begin())) return;
+        for (size_t at = h.size() - prompt.size(); at < reply.size() && out.size() < k; ++at) out.push_back(reply[at]);
+        if (wrong && calls % 3 == 0 && !out.empty()) out.back() = out.back() ? out.back() - 1 : 1;
+    }
+    void draft_all(Ask* asks, size_t n) override {
+        ++calls;
+        if (hook) hook();
+        std::this_thread::sleep_for(work);
+        Proposer::draft_all(asks, n);
+    }
+};
+
+// A service of generated rows in an overlap is its drafts' chain and its pass, admitted once by the stage at a piece boundary with nothing owed (docs/SERVER.md, A generating request beside a prompt).
+// A chain of 300 ms and a pass of 120 ms owe the floor more than a piece repays, so the next service is always wanted while something is owed: no chain may begin then, nor before the service before it was charged and repaid.
+void drafted_service(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 16 * kBlock;
+    const int nap = (int)server::kServiceGapMs + 20, work = 300;
+    Submitters seen;
+    const Make one = on(weights, [] { return cpus(1); });
+    const std::vector<Req> reqs{{prompt_of(51, 4, vocab), 40}, {prompt_of(52, 128, vocab), 3}};
+    const std::vector<Reply> ref = alone(one, tok, pool, reqs);
+    // Besides: nothing; every third chain drafting a wrong token, whose retract is a hold outside any grant; a draft that throws at the fourth chain.
+    // And the reply's client leaving there, or while a service is wanted and not yet granted.
+    enum class At { none, wrong, fail, cancel, unused };
+    for (const At at : {At::none, At::wrong, At::fail, At::cancel, At::unused}) {
+        const std::string what = std::string("a drafted service under the automatic rule") +
+                                 (at == At::wrong ? ", drafts refused" : at == At::fail ? ", a draft failing" : at == At::cancel ? ", the reply cancelled" : at == At::unused ? ", a grant left unused" : "");
+        std::shared_ptr<SlowWide> device;
+        auto model = on(weights, [&] {
+            device = std::make_shared<SlowWide>(&seen, nap);
+            return std::vector<backend::BackendPtr>{device};
+        }, 8, 0, 4, 4)(pool, kUbatch);
+        Known known;
+        known.prompt = reqs[0].prompt;
+        for (const auto& t : ref[0]) known.reply.push_back(t.id);
+        known.work = std::chrono::milliseconds(work);
+        known.wrong = at == At::wrong;
+        server::Scheduler sched(*model, tok, kSeqs, 64, 0, false, 0, &known, 3, false, {}, server::Pacing::automatic());
+        std::vector<std::shared_ptr<server::Request>> h;
+        std::atomic<size_t> chains{0}, ungranted{0}, owing{0}, early{0}, left{0};
+        std::atomic<bool> hooked{false};
+        std::chrono::steady_clock::time_point last{};
+        known.hook = [&] {
+            const server::Scheduler::Stats s = sched.stats();
+            if (!s.overlap) return;
+            const size_t n = ++chains;
+            if (!s.service_granted) ++ungranted;
+            if (s.owed_ms > 0) ++owing;
+            // The service before took its chain and its pass, and half of that was owed and repaid by pieces at half their time: two services' time at least between two chains.
+            const auto now = std::chrono::steady_clock::now();
+            // The chain that threw did no work, so the one after it is not held to that time.
+            if (n > 1 && !(at == At::fail && n == 5) && now - last < std::chrono::milliseconds(2 * (work + nap) * 9 / 10)) ++early;
+            last = now;
+            if (n == 4 && at == At::cancel) {
+                h[0]->cancel();
+                hooked = true;
+            }
+            if (n == 4 && at == At::fail) {
+                hooked = true;
+                throw std::runtime_error("injected draft failure");
+            }
+        };
+        // The client leaves from the stage's thread, during the piece that repays what is owed, with a service wanted after the second chain.
+        // The grant at that piece's end then finds nothing to form, unless the prompt's pass ended there and the wish was withdrawn first.
+        device->piece = [&] {
+            if (at != At::unused || hooked || chains < 2) return;
+            const server::Scheduler::Stats s = sched.stats();
+            if (!s.service_wanted || s.service_granted || s.owed_ms > (1 - server::kPromptFloor) * nap) return;
+            h[0]->cancel();
+            left = chains.load();
+            hooked = true;
+        };
+        for (const Req& r : reqs) h.push_back(sched.submit(r.prompt, params_of(r)));
+        std::thread runner([&] { sched.run(); });
+        const bool leaves = at == At::cancel || at == At::unused;
+        std::vector<Reply> got;
+        for (auto& r : h) got.push_back(leaves && r == h[0] ? collect(*r) : drain(*r));
+        const server::Scheduler::Stats s = sched.stats();
+        sched.stop();
+        runner.join();
+        device->piece = nullptr;
+        same(ref[0], got[0], what + ", the reply", leaves);
+        same(ref[1], got[1], what + ", the prompt's request");
+        require(chains > 1 && ungranted == 0 && owing == 0 && early == 0, what + ": of " + std::to_string(chains.load()) + " chains in the overlap " + std::to_string(ungranted.load()) +
+                                                                            " began without the stage's grant, " + std::to_string(owing.load()) + " with something owed and " +
+                                                                            std::to_string(early.load()) + " before the service before it was repaid");
+        // Each granted pass and its chain were charged whole, the pass before every grant among them, and a wish was deferred while they were owed.
+        require(s.services > 0 && s.services <= s.grants && s.uncharged_at_grant == 0 && s.charged_ms >= (double)s.services * (work + nap) * 0.9 && s.floor_deferred > 0,
+                what + ": " + std::to_string(s.services) + " granted passes of " + std::to_string(s.grants) + " grants, " + std::to_string(s.charged_ms) + " ms charged, " +
+                    std::to_string(s.uncharged_at_grant) + " grants before a charge, " + std::to_string(s.floor_deferred) + " wishes deferred");
+        size_t kept = 0;
+        for (const size_t k : s.kept) kept += k;
+        require(kept > 0, what + ": no draft was kept");
+        require(at == At::none || at == At::wrong || hooked, what + ": the hook never fired");
+        require(!leaves || h[0]->finish() == "cancel", what + ": the reply ended with " + h[0]->finish());
+        require(at != At::fail || s.draft_failures == 1, what + ": " + std::to_string(s.draft_failures) + " draft failures counted");
+        // A grant given for a request that left forms nothing: at most one more grant than passes, and no chain after the client left.
+        if (at == At::unused) std::cout << "server-passes-cpu: the client left with a service wanted: " << s.grants - s.services << " grant left unused" << std::endl;
+        require(at != At::unused || (s.grants <= s.services + 1 && chains == left), what + ": " + std::to_string(s.grants) + " grants for " + std::to_string(s.services) + " passes, " +
+                                                                                    std::to_string(chains.load()) + " chains against " + std::to_string(left.load()) + " as the client left");
+        if (at == At::none)
+            std::cout << "server-passes-cpu: a drafted service: " << chains << " chains in the overlap, each on a grant with nothing owed, " << kept << " drafts kept, " << s.services << " of " << s.grants
+                      << " grants recorded, " << s.floor_deferred << " wishes deferred" << std::endl;
     }
 }
 
@@ -702,8 +1000,13 @@ void timed_cpu(const gguf::GGUFModel& weights, uint32_t vocab) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        // `automatic-group` runs the automatic rule's cases on the tensor group alone.
+        if (argc > 1 && std::string(argv[1]) == "automatic-group") {
+            automatic(served(kSplit), (uint32_t)kSplit.vocab, 2);
+            return 0;
+        }
         grouped(served(kSplit), (uint32_t)kSplit.vocab);
         routed_groups(served_routed(kSplit), (uint32_t)kSplit.vocab);
         grouped(served_hybrid(kHybridEven), (uint32_t)kHybridEven.vocab);
@@ -712,6 +1015,8 @@ int main() {
         timed_groups(served(kSplit), (uint32_t)kSplit.vocab);
         timed_cpu(served(kSplit), (uint32_t)kSplit.vocab);
         recorded_stages(served(kSplit), (uint32_t)kSplit.vocab);
+        automatic(served(kSplit), (uint32_t)kSplit.vocab);
+        drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.
         cases(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);

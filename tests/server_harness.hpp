@@ -298,8 +298,8 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
 // With a `proposer` it drafts up to `draft_max` a verify, `priced` by measured pass cost or by decode columns; a wave is fully queued before any pass retires, and the replies come in submission order with the counters in `stats`.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
-                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, double share = 0) {
-    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {}, share);
+                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, server::Pacing pacing = {}) {
+    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {}, pacing);
     std::mutex submitting;
     // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
     sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };

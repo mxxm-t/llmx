@@ -632,7 +632,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -671,7 +671,8 @@ The flags, in the groups of the help page (`llmx serve --help`); the paragraphs 
 | Limits | `--max-seqs N` | `16` | Requests served at once |
 | Limits | `--max-queue N` | `64` | Requests waiting for a place; more get a 503 |
 | Limits | `--passes N` | one per device of a layer split, else 1 | Batches the devices work on at once |
-| Limits | `--generating-share X` | `0` | While prompts are read, the share of each device's time that requests already generating keep |
+| Limits | `--no-pacing` | off | Serve requests already generating only with the prompts' batches |
+| Limits | `--generating-share X` | `0` | Instead of the automatic rule, a fixed share of each device's time for requests already generating while prompts are read |
 | Prefix cache | `--host-cache-bytes N` | `--max-seqs` full histories within half the free host memory | Host memory for prefixes the devices evict |
 | Prefix cache | `--disk-cache-bytes N` | `0` | Disk for what the host cache drops |
 | Prefix cache | `--disk-cache-dir PATH` | `<home>/.cache/llmx/kv` | Where the disk cache lives |
@@ -688,11 +689,17 @@ The flags, in the groups of the help page (`llmx serve --help`); the paragraphs 
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes` and `--ctx-size` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
-`--generating-share` is 0 up to 0.9. At 0 a prompt goes first: a request already generating gets its next token when the prompt pass its row rides has run on every device, which beside a long prompt is seconds a token.
-Above 0, on one device or one tensor group, a prompt is fed to the device a piece at a time, a layer's attention or its feed-forward block and on a group the work up to a sum, and the generating requests' rows go in passes of their own that run between the pieces, so a generating request no longer waits for a prompt pass.
-While a prompt is read the scheduler aims the generating requests at that share of the device's time, by an account of bounded credit and charge and not as a guarantee over every stretch: a pass of theirs is due once the pieces since their last one have earned it, so two of their passes are about (1 - X) / X of one pass apart, and the prompt takes about 1 / (1 - X) of the time it takes alone.
-With nothing generating, a prompt is read as at 0, and at 0 nothing changes.
-A share above 0 holds a second, small arena on every device for the generating requests' passes, which the fit counts.
+Pacing is how a request already generating is served while a prompt is read.
+Without it a prompt goes first: the request gets its next token when the prompt pass its row rides has run on every device, which beside a long prompt is seconds a token.
+On one device or one tensor group, with the whole model on it, pacing is on by default: a prompt is fed to the device a piece at a time, a layer's attention or its feed-forward block and on a group the work up to a sum, and the generating requests' rows go in passes of their own that run between the pieces.
+The automatic rule aims at serving them about every 100 ms, ten tokens a second a reply, as far as the device's steps allow, and keeps prompts moving when many replies make each service slow; it has no setting, and `pacing` in `/v1/health` says how often the 100 ms were missed.
+It acts only while a reply and a prompt overlap; a prompt alone or replies alone run as without pacing.
+On the CPU, with experts on the CPU beside a device, and on a layer split nothing is fed in pieces, so pacing is off there, and the server's start line `server: pacing: ...` says which mode runs and why.
+`--no-pacing` turns it off, which also gives back the small second arena it reserves on each device.
+`--generating-share` is 0 up to 0.9; above 0 it replaces the automatic rule by a fixed share, and is refused where pacing cannot run and with `--no-pacing`.
+While a prompt is read the scheduler then aims the generating requests at that share of the device's time, by an account of bounded credit and charge and not as a guarantee over every stretch: a pass of theirs is due once the pieces since their last one have earned it, so two of their passes are about (1 - X) / X of one pass apart, and the prompt takes about 1 / (1 - X) of the time it takes alone.
+With nothing generating, a prompt is read as without pacing; 0 leaves the automatic rule in place, and `--no-pacing` is what turns pacing off.
+Pacing, by the automatic rule or by a share, holds a second, small arena on every device for the generating requests' passes, which the fit counts and `--no-pacing` gives back.
 A layer split, a placement with a stage on the CPU, and one whose experts, embedding or head run on another device than their stage refuse a share above 0 as the server starts, by the flag's name and with the cause: a prompt fed in pieces over a split's stages would be read by one stage at a time beside a generating request (docs/MULTI-DEVICE.md, Prefill beside decode), and the CPU computes as it is recorded.
 How to choose a share, with measured cells, is in docs/OPERATING.md (A generating request beside a long prompt).
 `--timing` times the rounds and each device's work for `/v1/health`, its dispatches between timestamps, which slows serving: throughput is read from a server without it.
@@ -737,7 +744,7 @@ The server draws a pass's tokens on its scheduler thread and up to four sampling
 | `POST /v1/chat` | `{"messages": [{"role": "user", "content": "...", "reasoning_content": "..."}], ...}` (the same sampling fields; `reasoning_content` is optional) | as above; the prompt is the model's chat template over the messages |
 | `POST /v1/tokenize` | `{"text": "..."}`, or `{"messages": [...]}` in place of the text | `{"tokens": [ids], "count": n}` |
 | `POST /v1/detokenize` | `{"tokens": [ids]}` | `{"text": "..."}` |
-| `GET /v1/health` | | `{"status": "ok", "server", "precision", "requests", "reuse", "pressure", "reread", "drafting", "passes"}`, each group's numbers split into `now` and `since_start`, and `"timing"` with `--timing`; every field is in the table below |
+| `GET /v1/health` | | `{"status": "ok", "server", "precision", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing"}`, each group's numbers split into `now` and `since_start`, and `"timing"` with `--timing`; every field is in the table below |
 | `GET /v1/live` | | `{"status": "ok"}`, answered without the scheduler |
 | `GET /v1/models` | | `{"object": "list", "data": [{"id", "object": "model", "created", "owned_by", "context_length", "vocab"}]}` |
 | `POST /v1/chat/completions` | `{"messages": [...], "max_tokens" or "max_completion_tokens", "temperature", "top_p", "seed", "stop", "stream", "stream_options": {"include_usage"}, "logprobs", "top_logprobs"}`, plus `top_k`, `penalty` or `repetition_penalty`, and `ignore_eos` | `{"id", "object": "chat.completion", "created", "model", "choices": [{"index": 0, "message": {"role", "reasoning_content", "content"}, "logprobs", "finish_reason"}], "usage": {"prompt_tokens", "completion_tokens", "total_tokens"}}`, `reasoning_content` only for a reply that reasons, `logprobs` only when asked |
@@ -871,7 +878,10 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |
 | `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |
 | `passes.sampling_threads` | threads | fixed | Threads that sample beside the scheduler's | |
-| `passes.since_start.apart`, `.between_pieces`, `.rode` | passes | since start | With `--generating-share` above 0: the passes of generated rows formed apart from a prompt's, those of them recorded between two pieces of a prompt's pass, and the prompt passes generated rows rode because that cost them no more than their share | all 0 at a share above 0 while prompts and replies overlap |
+| `pacing.mode`, `.target_gap_ms` | text, milliseconds | fixed | `automatic`, `fixed` or `off`, and the gap the automatic rule aims at between two services of the generating requests | |
+| `pacing.since_start.gaps`, `.gaps_above_target` | gaps | since start | Under the automatic rule: the gaps between two such services while replies and prompts overlapped, and those longer than the target | most gaps above the target: the device's steps or the replies' own batches are longer than the target, see `longest_piece_ms` and `deferred_by_floor` |
+| `pacing.since_start.deferred_by_floor`, `.longest_piece_ms` | passes, milliseconds | since start | The batches of generated rows that were due and waited so that prompts kept moving, and the longest piece of a prompt's batch | |
+| `passes.since_start.apart`, `.between_pieces`, `.rode` | passes | since start | With pacing on: the passes of generated rows formed apart from a prompt's, those of them recorded between two pieces of a prompt's pass, and the prompt passes generated rows rode: under the automatic rule because that pass took no longer than the target gap, under a fixed share because it cost them no more than their share | all 0 with pacing on while prompts and replies overlap |
 | `timing` | milliseconds | since start | With `--timing` only: the means of the rounds' parts, `stage_idle_share` (a fraction of the span for each stage) and `device_bound_rows_per_s` | |
 
 The flat field names this reply had before (`prefix_hits`, `host_donors`, `disk_ready`, `drafted` and the rest) are gone, and `docs/SERVER.md` (The grouped `/v1/health`) maps each to its place.

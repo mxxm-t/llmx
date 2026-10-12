@@ -52,15 +52,18 @@ llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4
 ```
 
 **A generating request beside a long prompt.**
-By default a prompt goes first: a request that is already writing its reply gets a token each time a batch of the prompt has run, which beside a long prompt is one or two seconds a token.
-`--generating-share X` aims the requests that are writing at the fraction X of the device's time while a prompt is read, on one GPU or on one tensor group; a layer split refuses the flag.
-The trade is direct, and you choose it:
+On one GPU or one tensor group a request that is already writing its reply keeps writing while a long prompt is read: the server serves it between the steps of the prompt's batch, about every 100 ms where the device's steps allow, and the prompt's reading takes longer for it.
+The start line `server: pacing: automatic` says so, and `pacing` in `/v1/health` counts the gaps and how many were longer than the 100 ms ; the `pacing` rows of the health table in docs/USAGE.md say what each counter means.
+On the CPU, with experts on the CPU, and on a layer split a prompt goes first instead: the writing request gets a token each time a batch of the prompt has run, which beside a long prompt is one or two seconds a token, and the start line says `pacing: off` with the reason.
+`--no-pacing` chooses that everywhere.
+`--generating-share X` replaces the automatic rule by an account that aims the requests that are writing at the fraction X of the device's time, with bounded credit and charge and no guarantee over every stretch; a layer split refuses the flag.
+Its trade, as typical costs and not as bounds:
 
 - the prompt's reading takes about 1 / (1 - X) of the time it takes alone, so twice as long at 0.5 and a third longer at 0.25, and only while a request is writing;
 - the writing requests keep about X of the speed they have alone, and their longest pause is about (1 - X) / X of one of their own steps, where at 0 it is a whole prompt batch.
 
 Choose the smallest share that makes a reply readable while a prompt arrives: 0.25 to 0.33 where long prompts are common and a wait for the first token matters, 0.5 where people read replies as they are written and long prompts are rare.
-With nothing writing, a prompt is read at full speed at any share, and the flag costs a small second arena on every device.
+With nothing writing, a prompt is read at full speed in every mode; pacing, automatic or by a share, holds a small second arena on every device, which `--no-pacing` gives back.
 With many users the share also lowers total output, most where prompts are long, because a batch of prompt rows uses a device better than a batch of a few generated rows.
 
 One measured case, to read the trade from (a 27B model on a tensor group of two GPUs with `--drafter embedded`, one request writing while a 50000-token prompt is read; the record with its conditions and the many-user tables is in [STATUS](STATUS.md), A generating request keeps a share of a device beside a prompt):

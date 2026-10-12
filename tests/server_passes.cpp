@@ -1,6 +1,7 @@
 // The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages, the decode share and the logits rows by hand, then the scheduler's round under a simulated executor in random schedules (AGENTS.md, Tests).
 // `llmx-server-passes-test N` runs N schedules, 2000 by default.
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
@@ -990,6 +991,146 @@ void rounds_by_hand() {
 }
 
 // The logits rows by hand: runs follow the newest and wrap to row 0, come back oldest first, and a run given back early waits for the ones before it.
+// The automatic rule's account and clock (server::PromptFloor, server::ServiceClock), by hand.
+void automatic_by_hand() {
+    const double F = server::kPromptFloor, G = server::kServiceGapMs;
+    {
+        // A cold start: nothing owed and a service due at once, with no price asked for.
+        const server::PromptFloor floor;
+        const server::ServiceClock clock;
+        require(floor.clear() && clock.due(0, 0), "a first service of generated rows was not due at a cold start");
+    }
+    {
+        // A service is charged the floor's part of its whole time, whatever it took before: eight of 1 ms, then one of 100 ms at the same width.
+        server::PromptFloor floor;
+        for (int i = 0; i < 8; ++i) {
+            floor.service(1);
+            require(!floor.clear(), "a service of 1 ms left nothing owed");
+            floor.piece(1);
+            require(floor.clear(), "a piece as long as the service before it did not pay it off");
+        }
+        floor.service(100);
+        require(floor.owed_ms == F * 100, "a service of 100 ms after eight of 1 ms was not charged whole");
+        // Pieces pay it off with the rest of their own time, and no stage without a service resets it while replies and prompts go on waiting.
+        size_t pieces = 0;
+        while (!floor.clear()) {
+            floor.piece(10);
+            ++pieces;
+        }
+        require(pieces == (size_t)std::ceil(F * 100 / ((1 - F) * 10)), "what a slow service owed was paid off in " + std::to_string(pieces) + " pieces of 10 ms");
+        floor.service(100);
+        floor.piece(10);
+        require(!floor.clear(), "what the generated rows owed was dropped while replies and prompts both waited");
+        // Only the end of the overlap drops it.
+        floor.demand_ended();
+        require(floor.clear(), "the end of the overlap left the generated rows owing");
+        // A zero-time service owes nothing.
+        floor.service(0);
+        require(floor.clear(), "a service of no time left something owed");
+    }
+    // The bound: with services taken only when nothing is owed, their time is at most (1 - F) / F of the pieces' and one service more, for fast, slow and changing services.
+    for (const int kind : {0, 1, 2, 3}) {
+        server::PromptFloor floor;
+        double services = 0, pieces = 0, last = 0;
+        size_t taken = 0, read = 0;
+        uint64_t x = 88172645463325252ull + (uint64_t)kind;
+        const auto next = [&x] { x ^= x << 13; x ^= x >> 7; x ^= x << 17; return x; };
+        for (int step = 0; step < 4000; ++step) {
+            if (floor.clear()) {
+                // 1 ms, 500 ms against the target of 100, a width that changes, and a jump after eight fast ones.
+                last = kind == 0 ? 1 : kind == 1 ? 500 : kind == 2 ? 1 + (double)(next() % 300) : (taken % 9 == 8 ? 100 : 1);
+                floor.service(last);
+                services += last;
+                ++taken;
+            }
+            const double piece = 1 + (double)(next() % 90);
+            floor.piece(piece);
+            pieces += piece;
+            ++read;
+            require(services <= (1 - F) / F * pieces + last + 1e-6, "the services took " + std::to_string(services) + " ms beside " + std::to_string(pieces) + " ms of pieces");
+        }
+        // Neither side stands still, an impossible target included: every service is followed by pieces and every wait by a service.
+        require(taken > 10 && read == 4000, "kind " + std::to_string(kind) + ": " + std::to_string(taken) + " services in 4000 pieces");
+    }
+    {
+        // The clock: a service is due where one more piece would pass the target, and a gap counts only while replies and prompts both wait.
+        server::ServiceClock clock;
+        clock.began(1000);
+        require(clock.intervals == 0, "a gap was counted with no prompt waiting");
+        // Due at the boundary nearest the target: with pieces of 80 ms not 30 ms after the last service, and 110 ms after it.
+        require(!clock.due(1030, 80) && clock.due(1110, 80) && !clock.due(1000 + G - 6, 10) && clock.due(1000 + G - 5, 10) && clock.due(1000 + G, 0),
+                "a service was not due at the piece boundary nearest the target");
+        // A service that began 100 ms after its grant was offered is due by its own start: 30 ms later it is not, though by the grant's time it would be.
+        {
+            server::ServiceClock offered, taken;
+            offered.began(0);
+            taken.began(100);
+            require(offered.due(130, 20) && !taken.due(130, 20), "a service's start at its grant and at its taking up were not told apart");
+        }
+        // From idle to overlap: the wait for the overlap's first service is no gap, whenever the service before it was.
+        require(!clock.demand(true, 50000), "the start of an overlap was read as its end");
+        clock.began(50020);
+        require(clock.intervals == 0, "the wait for an overlap's first service was counted as a gap");
+        // A pass that carries generated rows counts whatever kind it is, so one that misses the target shows.
+        clock.began(50020 + G);
+        clock.began(50020 + 2 * G + 1);
+        clock.began(50020 + 3 * G);
+        require(clock.intervals == 3 && clock.late == 1, std::to_string(clock.late) + " of " + std::to_string(clock.intervals) + " gaps above the target, against 1 of 3");
+        // A pass that was due and waited for the floor is counted once, however many boundaries it waited at.
+        bool counted = false;
+        for (int i = 0; i < 5; ++i) clock.defer(counted);
+        require(clock.deferred == 1, "a deferred pass was counted " + std::to_string(clock.deferred) + " times");
+        // A round with no pass ready ends no overlap; only the requests do, and then no gap is counted.
+        require(!clock.demand(true, 60000) && clock.demand(false, 61000) && !clock.demand(false, 62000) && clock.overlaps == 1, "the overlap's end was not told once, or its start counted twice");
+        clock.began(70000);
+        require(clock.intervals == 3, "a gap was counted after the overlap ended");
+    }
+    {
+        // Holds that follow each other while the stage's thread stands parked: only the time of those taken for the generated rows is charged, in either order.
+        server::HeldTime held;
+        held.parked(0);
+        held.begin(false, 0);
+        held.end(10);
+        held.begin(true, 10);
+        held.end(30);
+        require(held.take() == 20 && held.take() == 0, "a hold for other work before one for the generated rows changed what was charged");
+        held.begin(true, 0);
+        held.end(20);
+        held.begin(false, 20);
+        held.end(30);
+        require(held.take() == 20, "a hold for other work after one for the generated rows was charged to them, or erased their charge");
+        // Nested holds are the outermost's.
+        held.begin(true, 0);
+        held.begin(false, 5);
+        held.end(8);
+        held.end(10);
+        held.begin(false, 10);
+        held.begin(true, 12);
+        held.end(14);
+        held.end(20);
+        require(held.take() == 10, "nested holds were charged wrongly");
+        // A hold asked for while a piece still runs: the wait for the piece's boundary is the prompt's time, and only what follows the parking is charged.
+        held.resumed();
+        held.begin(true, 100);
+        held.parked(140);
+        held.end(160);
+        require(held.take() == 20, "the wait for a prompt's piece boundary was charged to the generated rows");
+        // A hold while no prompt's pass stands parked is nobody's.
+        held.resumed();
+        held.begin(true, 200);
+        held.end(250);
+        require(held.take() == 0, "a hold with no pass parked was charged");
+    }
+    // A request is a prompt's before its first token and while its cache lacks more than its last token, as a resumed one's does; a reply's rows in a pass in flight, its cache one short or whole, keep it a reply.
+    require(server::reads_prompt(0, 0, 40) && server::reads_prompt(0, 40, 40) && server::reads_prompt(30, 0, 70) && server::reads_prompt(30, 68, 70) && !server::reads_prompt(30, 69, 70) &&
+                !server::reads_prompt(30, 70, 70),
+            "a request was read as a prompt's or a reply's wrongly");
+    // Generated rows ride a prompt's pass that takes no longer than the target, and go apart before one is measured.
+    require(!server::rides_within_gap(0) && server::rides_within_gap(G) && !server::rides_within_gap(G + 0.5), "the ride did not follow the target gap");
+    require(server::Pacing::fixed(0).mode == server::Pacing::Mode::off && server::Pacing::fixed(0.5).mode == server::Pacing::Mode::fixed && server::Pacing::automatic().mode == server::Pacing::Mode::automatic && server::Pacing{}.mode == server::Pacing::Mode::off,
+            "a pacing mode was read wrongly");
+}
+
 void rows_by_hand() {
     server::LogitRows rows;
     rows.size = 8;
@@ -1099,6 +1240,7 @@ int main(int argc, char** argv) {
         growth_by_hand();
         rounds_by_hand();
         rows_by_hand();
+        automatic_by_hand();
         due_step_first();
         random_schedules(schedules);
         std::cout << "server-passes: " << checks << " checks pass\n";

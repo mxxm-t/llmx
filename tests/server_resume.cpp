@@ -2399,7 +2399,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         if (width == 1) s.pair = Req{prompt_of(10 + seed, 20, vocab), 60};
     };
     {
-        server::Scheduler sched(*model, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, 2 * 2 * width * ((size_t)64 << 20), nullptr, 0, false, options, share);
+        server::Scheduler sched(*model, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, 2 * 2 * width * ((size_t)64 << 20), nullptr, 0, false, options, server::Pacing::fixed(share));
         sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
         std::thread runner([&] {
             {
@@ -2445,7 +2445,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
             std::lock_guard<std::mutex> lk(rule.m);
             rule.slabs.clear();
         }
-        server::Scheduler sched(*again, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, (size_t)1 << 16, nullptr, 0, false, options, share);
+        server::Scheduler sched(*again, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, (size_t)1 << 16, nullptr, 0, false, options, server::Pacing::fixed(share));
         sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
         std::thread runner([&] {
             {

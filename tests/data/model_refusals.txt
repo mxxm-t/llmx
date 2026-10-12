@@ -376,6 +376,7 @@ cache blocks that do not nest: inference: cache blocks of 129 and 128 tokens in 
 place_model without a device: placement: no device
 a stream point without experts on the CPU: --moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe
 histories over a null backend: inference: missing backend
+a fitted budget with experts on the CPU over a null backend: inference: missing backend
 experts on the CPU beside two devices: --n-cpu-moe: not with several devices; list the CPU as a device to give it layers
 experts on the CPU with layer shares: --cpu-moe: not with several devices; list the CPU as a device to give it layers
 experts on the CPU of a model without routed layers: --n-cpu-moe: the model has no expert layers

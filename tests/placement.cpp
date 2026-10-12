@@ -1359,6 +1359,28 @@ struct PacedDevice : backend::CpuBackend {
     void wait(backend::Ticket t) noexcept override { waited.push_back(t); }
 };
 
+// The fit counts the second arena's rows and a logits ring for the passes apart only where a stage is fed in pieces: on one device and one group that are no CPU's, not on a CPU or over a layer split.
+void apart_rows_fitted() {
+    const auto devices = [](size_t n, bool cpu) {
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < n; ++i) v.push_back(cpu ? std::static_pointer_cast<backend::Backend>(std::make_shared<backend::CpuBackend>()) : std::make_shared<PacedDevice>());
+        return v;
+    };
+    infer::PlacementRequest request;
+    request.apart_rows = 20;
+    request.logit_rows = 16;
+    require(infer::unpaced(devices(1, false), request).empty() && infer::apart_rows(devices(1, false), request) == 20 && infer::fitted_logit_rows(devices(1, false), request) == std::optional<size_t>(36),
+            "one device that is fed in pieces is not fitted with the second arena's rows and their logits ring");
+    require(!infer::unpaced(devices(1, true), request).empty() && infer::apart_rows(devices(1, true), request) == 0 && infer::fitted_logit_rows(devices(1, true), request) == std::optional<size_t>(16),
+            "a CPU is fitted with rows for passes apart");
+    require(!infer::unpaced(devices(2, false), request).empty() && infer::fitted_logit_rows(devices(2, false), request) == std::optional<size_t>(16), "a layer split is fitted with rows for passes apart");
+    request.width = 2;
+    require(infer::unpaced(devices(2, false), request).empty() && infer::fitted_logit_rows(devices(2, false), request) == std::optional<size_t>(36), "one tensor group is not fitted with the passes apart's logits ring");
+    request.logit_rows = 0;
+    require(!infer::fitted_logit_rows(devices(2, false), request), "a request that names no logits rows was given some");
+    ++checked;
+}
+
 // A pass recorded within another's stage at a piece boundary is observed once, after its ticket was waited for, whichever boundary took it, the stage's last among them, after which no piece follows.
 // Where the stage then fails it is still observed once and the error escapes, and a stage that fails with no pass taken observes none; on one device and a group of two, with and without logits.
 void final_piece_observed() {
@@ -1492,6 +1514,7 @@ int main() {
         tensor_groups();
         group_fits();
         context_keeps_logits_pages();
+        apart_rows_fitted();
         final_piece_observed();
         host_scratch_fits();
         split_matches_single();

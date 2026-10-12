@@ -315,6 +315,105 @@ struct StageShare {
     bool due() const { return share > 0 && owed_ms >= 0; }
 };
 
+// How generated rows are served while prompts are read: with the prompts' passes alone (off), by a fixed share of each stage's time (StageShare), or by the automatic rule (ServiceClock, PromptFloor).
+struct Pacing {
+    enum class Mode { off, fixed, automatic };
+    Mode mode = Mode::off;
+    double share = 0;   // the fixed share
+    static Pacing fixed(double share) { return share > 0 ? Pacing{Mode::fixed, share} : Pacing{}; }
+    static Pacing automatic() { return {Mode::automatic, 0}; }
+};
+
+// The gap the automatic rule aims at between two services of generated rows at a stage while a prompt is read: ten tokens a second a reply, faster than a reader reads, so a stream reads as continuous on any hardware.
+// It is a goal, not a bound: a piece and a service are each indivisible, and the counters say how often the gap was missed (docs/SERVER.md, A generating request beside a prompt).
+inline constexpr double kServiceGapMs = 100;
+// The part of a stage's accounted time prompts keep however long a service of generated rows takes: half, so neither side waits on the other for longer than its own time.
+inline constexpr double kPromptFloor = 0.5;
+
+// What generated rows owe prompts of a stage's time under the automatic rule: a service of theirs adds the floor's part of its whole time, a prompt piece pays off the rest of its own, and they take the stage only with nothing owed.
+// So the services taken that way use at most (1 - floor) / floor of the pieces' accounted time and one service more; work charged without that gate (HeldTime) adds its own time.
+struct PromptFloor {
+    double owed_ms = 0;
+    void service(double ms) { owed_ms += kPromptFloor * ms; }
+    void piece(double ms) { owed_ms = std::max(0.0, owed_ms - (1 - kPromptFloor) * ms); }
+    // Replies and prompts no longer wait together: what was owed is owed to nobody.
+    void demand_ended() { owed_ms = 0; }
+    bool clear() const { return owed_ms <= 0; }
+};
+
+// When a stage last began a pass serving generated rows, by a clock in milliseconds, and how the gaps between such passes met the target while replies and prompts both waited (`overlap`).
+struct ServiceClock {
+    double last_ms = -1e300;   // never
+    double from_ms = 0;        // since when both wait
+    bool overlap = false;
+    uint64_t intervals = 0, late = 0;   // the gaps between two services that both began in one overlap, and those of them above the target
+    uint64_t deferred = 0;              // passes that were due and waited for the floor, each once
+    uint64_t overlaps = 0;              // the overlaps begun
+    double longest_piece_ms = 0;
+    // Whether a service is due at a piece boundary: at the boundary nearest the target, so where half of one more piece of `piece_ms` would pass it.
+    // The gaps then centre on the target and are not all above it, at the price of a service up to half a piece early.
+    bool due(double now_ms, double piece_ms) const { return now_ms - last_ms + piece_ms / 2 >= kServiceGapMs; }
+    // A pass serving generated rows begins: ridden, apart or alone; the wait for an overlap's first service is no gap.
+    void began(double now_ms) {
+        if (overlap && last_ms >= from_ms) {
+            ++intervals;
+            if (now_ms - last_ms > kServiceGapMs) ++late;
+        }
+        last_ms = now_ms;
+    }
+    // A pass that was due waits for the floor: counted once, `counted` being the pass's own mark.
+    void defer(bool& counted) {
+        if (!counted) ++deferred;
+        counted = true;
+    }
+    // Whether replies and prompts both wait changed; it gives whether the overlap ended.
+    bool demand(bool both, double now_ms) {
+        const bool ended = overlap && !both;
+        if (both && !overlap) {
+            from_ms = now_ms;
+            ++overlaps;
+        }
+        overlap = both;
+        return ended;
+    }
+};
+
+// Whether a request counts as a prompt for the overlap: before its first token, and while its cache lacks more than its last token, as after a pause.
+// Otherwise it is a reply, whether its rows are in a pass in flight or not.
+inline bool reads_prompt(size_t generated, size_t cached, size_t history) { return !generated || cached + 1 < history; }
+
+// The scheduler's holds of a stage, which may nest and follow each other while its thread stands still.
+// It keeps the time of each outermost hold taken for the generated rows' own work, from where a prompt's pass stood parked for it, for the floor to charge; the wait for that boundary is the prompt's piece.
+struct HeldTime {
+    size_t depth = 0;
+    bool generated = false, standing = false;
+    double from_ms = 0, parked_ms = 0;
+    double charge_ms = 0;   // not yet taken
+    void begin(bool for_generated, double now_ms) {
+        if (!depth++) {
+            generated = for_generated;
+            from_ms = now_ms;
+        }
+    }
+    // The stage's thread stands still at a piece boundary, and goes on.
+    void parked(double now_ms) {
+        standing = true;
+        parked_ms = now_ms;
+    }
+    void resumed() { standing = false; }
+    void end(double now_ms) {
+        if (!--depth && generated && standing) charge_ms += now_ms - std::max(from_ms, parked_ms);
+    }
+    double take() {
+        const double ms = charge_ms;
+        charge_ms = 0;
+        return ms;
+    }
+};
+
+// Whether generated rows ride the pass that reads prompt rows under the automatic rule: where that pass, of a measured `prompt_ms`, takes no longer than the target gap.
+inline bool rides_within_gap(double prompt_ms) { return prompt_ms > 0 && prompt_ms <= kServiceGapMs; }
+
 // The most rows of a request's next prompt slice, and whether that slice closes its pass to other prompts' rows.
 struct PromptSlice {
     size_t most;

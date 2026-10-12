@@ -233,12 +233,35 @@ The host also spends the recording of each pass, 0.7 milliseconds at one sequenc
 
 #### A generating request beside a prompt (`--generating-share`)
 
-At share 0, the default, a generating request's row rides the pass that reads a prompt's rows and waits for that pass on every device, so beside a long prompt its tokens come a prompt pass apart.
-With a share above 0, on one device or one tensor group (`Model::paces` with one stage; `check_share` refuses the flag by name elsewhere), the round forms two kinds of pass.
+Without pacing a generating request's row rides the pass that reads a prompt's rows and waits for that pass on every device, so beside a long prompt its tokens come a prompt pass apart.
+Pacing serves it between the parts of that pass instead, and has three modes (`Pacing` in `server/policy.hpp`, resolved by `resolve_pacing` and named on the start line `server: pacing: ...`).
+The automatic rule is the default wherever a stage is fed in pieces: on one device or one tensor group with every part of the model on it and nothing on the CPU (`infer::unpaced` in `model/place.hpp`, the one owner of that question, which the fit, the CLI and the start line read).
+Elsewhere pacing is off and the start line says why; `--no-pacing` turns it off by hand, and `--generating-share` above 0 replaces the rule by a fixed share, refused by the flag's name where no stage is fed in pieces.
+With pacing on, the round forms two kinds of pass.
 A pass apart holds generated rows only, in a second arena on every device (`ExecContext::apart`, reserved by `reserve_passes` and counted by the fit as `PlacementRequest::apart_rows`), with its own slots and its own logits rows, and `round_steps` keeps the kinds apart: a stage holds one pass of each kind at most, each kind in its formation order.
 The prompt's pass is fed to its stage in pieces by the stage's thread (`record_pass_stage` with a `Pace`): a piece ends at each part on a single device, a layer's attention or its feed-forward block, and at each sum on a tensor group (`Collective::wait`).
-Between two pieces that thread records a waiting pass apart on the same devices (`record_pass_within`) when its rows have arrived (`stage_ready`, which asks a ticket without waiting, `Backend::done`) and the stage's share says it is due.
+Between two pieces that thread records a waiting pass apart on the same devices (`record_pass_within`) when its rows have arrived (`stage_ready`, which asks a ticket without waiting, `Backend::done`) and the mode's rule says it is due.
 
+The automatic rule is best effort and has no setting.
+It aims at a service of generated rows every `kServiceGapMs`, 100 ms, a time and not a rate of any device: ten tokens a second a reply, faster than a reader reads.
+A pass apart that waits is due at the piece boundary nearest that gap since the stage's last service began (`ServiceClock::due`), a service being any pass that carries generated rows, ridden, apart or alone, stamped as its recording starts.
+The gap is a goal and not a bound: a piece and a service are each indivisible, a pass taken must have its rows, and the floor below can hold it back.
+The floor keeps prompts moving when services are slow, as with many replies (`PromptFloor`): a service adds half its whole measured time (`kPromptFloor`) to what the generated rows owe, a prompt piece pays off half of its own, and a pass is taken only with nothing owed.
+So over the time the stage's thread accounts, the services taken that way use at most the pieces' time and one service more; that is host-observed time on that thread, not a share of the device promised over every stretch.
+A service is charged whole, with no price and no cap, so one far longer than those before it is paid for in full.
+A service of generated rows is whole: the drafts' chain, the marks and the pass that verifies them.
+While a prompt's pass is fed in pieces the round does not form that pass itself; it asks the stage (`serve_generated`, `Recorder::want`), and the stage's thread admits the service once, at a piece boundary where the gap is due and nothing is owed, every earlier charge already in, then stands parked there while the round runs the chain and forms the pass, and records the pass at that boundary with no second test (`Recorder::granted`).
+So no chain runs before its service is admitted, the debt a chain adds cannot defer its own verify, and the next service waits until pieces have repaid both; a wish or a grant is withdrawn when the request ends, the overlap ends, forming fails or the passes are abandoned, and a grant that forms nothing stamps no service, while one that is used began its service as the round took it up, chain included, not as the stage offered it.
+The hold drain, its charge and the grant are one critical section on the stage's record, so a hold that arrives late is charged before the service is decided and is told when the thread parks.
+The chain and the marks are charged once, by the holds they run under, each timed from where the prompt's pass stood parked (`HeldTime`); a retract of drafts a verify refused is charged the same way without a gate, so it adds its own time to that bound; the scheduler's other work there stops the account for both sides, and both stay in what a client waits.
+What is owed is dropped when the overlap ends, when replies and prompts no longer both wait (`Scheduler::demand` by `reads_prompt`: a request is a prompt's before its first token and while its cache lacks more than its last token, as after a pause, and a reply's otherwise, wherever its rows are), and never because a stage took no service or a pass was in flight.
+Only while both wait is a prompt's pass fed in pieces or a pass formed apart, and no piece is then held ahead on the device, so a pass taken at a boundary runs alone and is timed whole.
+With no overlap every pass is formed and recorded exactly as without pacing, on the scheduler's thread where that is where it was; a reply that begins while a whole prompt pass is already in its stage waits for that pass.
+Generated rows ride a prompt's pass that takes no longer than the gap (`rides_within_gap`), by the measured time a prompt row, and slices too small to give one ride until a pass of theirs fed whole has taken longer than the gap; a ridden pass is fed whole and recorded as without pacing; the fixed share's probe after eight ridden passes (`RideRun`) is not taken, there being no price to measure again.
+`/v1/health` gives the mode and what the rule delivered since start (`pacing`): the gaps between two services that both began in one overlap, those above the target, the passes that were due and waited for the floor, each counted once, and the longest piece.
+The reservation, a second arena on every device, is taken whenever pacing is on and counted by the fit; its measured cost and the measured gaps are in docs/STATUS.md.
+
+With `--generating-share` above 0 a fixed share replaces the rule, kept as the control the rule is measured against.
 The share is kept by each stage's thread as time owed (`StageShare` in `server/policy.hpp`): a piece earns the generated rows their share of its time, a pass of theirs spends the rest of its own, and they are due while nothing is owed back.
 It is a policy of bounded credit and bounded charge aimed at the share, not a fraction of the stage's time held over every stretch: a pass is charged at most twice the price and held time at most two passes, so a pass far longer than the recent ones is under-charged, and the measured cells in docs/STATUS.md are what it delivered.
 A pass is priced as the least of the last eight a stage measured (`StageShare::price`): what the rows are owed stops at one pass at that price, so rows that arrive after a quiet stretch take two passes in a row at most, and no pass spends more than two, so one pass held up on the host costs them a bounded wait.
@@ -253,9 +276,9 @@ So the short last slice of a prompt, or a short prompt, takes them along, and `/
 A pass's cost is counted from the last pass of its own kind, since passes apart retire past the others.
 
 The scheduler thread's own work on a stage's devices, a mark, a retract, the drafter's chain, a history copied to or from host memory, waits for the stage's thread at a piece boundary and holds it there (`hold`, `Held`), not for the whole stage.
-A request cancelled, a pass failed and a stop inside a piece end as they do without a share: the pass in the stage is abandoned once its thread has returned, and a pass apart recorded within it fails alone.
+A request cancelled, a pass failed and a stop inside a piece end as they do without pacing: the pass in the stage is abandoned once its thread has returned, and a pass apart recorded within it fails alone.
 
-A layer split refuses a share: a pass fed in pieces stays in flight for its stage's device time and a sequence is in one pass at a time, so the prompt's next slice could not enter the first stage while its last is in the second, and the prompt would lose the overlap of the stages (docs/MULTI-DEVICE.md, Prefill beside decode).
+A layer split is not paced, and refuses a share: a pass fed in pieces stays in flight for its stage's device time and a sequence is in one pass at a time, so the prompt's next slice could not enter the first stage while its last is in the second, and the prompt would lose the overlap of the stages (docs/MULTI-DEVICE.md, Prefill beside decode).
 
 `serve --timing` times the rounds for `/v1/health` over devices made to time their work, each dispatch between two timestamps (Protocol below): the round's period and the thread's time in it, recording, relaying (the uploads that carry a residual into its next stage), sampling and forming passes, apart from where it was held, on the source's ticket in `receive`, on staging, on a free command slot and on the logits; each stage's idle share; and the device-bound rate, the rows the passes carried over the busiest stage's device time.
 A stage on a device is timed by its timestamps, read every 32 rounds, which waits for the device's queue, and a stage on the host by the thread's own time in it.

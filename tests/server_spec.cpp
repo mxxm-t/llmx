@@ -51,6 +51,33 @@ void against_alone(const Make& plain, const Make& drafting, const MakeProposer& 
     std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted) << " drafts kept, " << stats.pauses << " pauses" << std::endl;
 }
 
+// A timed scheduler (serve --timing) counts the thread's time in the drafters' chains and in the verifies' retracts apart from forming passes, and the reply is its reply without drafts.
+void timed_phases(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    const Req r{prompt_of(1, 40, vocab), 160};
+    auto fresh = plain(1024, 0);
+    const Reply want = serve(*fresh, tok, 3, {{r}}).back();
+    auto model = drafting(1024, 0);
+    auto p = proposer(*model);
+    server::Scheduler sched(*model, tok, 3, 64, 0, true, 0, p.get(), kDraftMax, false);
+    std::thread runner([&] { sched.run(); });
+    server::Scheduler::Stats stats;
+    try {
+        same(want, drain(*sched.submit(r.prompt, params_of(r))), what);
+        stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    const server::Scheduler::Timing& t = stats.timing;
+    require(stats.timed && total(stats.drafted) > 0, what + ": " + std::to_string(total(stats.drafted)) + " drafts fed under a timed scheduler");
+    require(t.drafting_ms > 0 && t.settling_ms > 0 && t.assembly_ms >= 0,
+            what + ": chains " + std::to_string(t.drafting_ms) + " ms, retracts " + std::to_string(t.settling_ms) + " ms, forming " + std::to_string(t.assembly_ms) + " ms");
+    std::cout << "server-spec: " << what << ": chains " << t.drafting_ms << " ms, retracts " << t.settling_ms << " ms over " << t.rounds << " rounds" << std::endl;
+}
+
 // A wide CPU backend that runs `hook` as the model submits its work (Hooked), so a case acts while a pass is in flight.
 struct WideHooked : Hooked {
     WideHooked() { set_threads(1); }
@@ -243,6 +270,8 @@ int main() {
         resumed_by_fork(on(hybrid, [] { return cpus(1); }, 4, 3), on(hybrid, [] { return wide(1); }, 4, 3, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab,
                         "a request resumed by a fork of its whole history, the hybrid model with its embedded drafter");
         drafts_while_one_waits(on(q8, [] { return cpus(1); }), on(q8, [] { return wide(1); }, 8, 0, 4, kDraftMax + 1), lookup, q8_tok, q8_vocab, "drafts while a request waits, Q8_0 with lookup");
+        timed_phases(on(hybrid, [] { return cpus(1); }, 4), on(hybrid, [] { return wide(1); }, 4, 0, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab,
+                     "a timed scheduler, the hybrid model with its embedded drafter");
         cancelled_in_flight(q8, q8_tok, q8_vocab, lookup, false, 8, "Q8_0 with lookup");
         cancelled_in_flight(hybrid, hybrid_tok, hybrid_vocab, embedded, true, 4, "the hybrid model with its embedded drafter");
         std::cout << "server-spec: " << checks << " checks pass\n";

@@ -72,7 +72,8 @@ def check_sidecar(directory, tool):
         assert probed(tool, joined, directory, fixture) == want, "the MTP block embedded back drafts otherwise, after %r" % prompt
     common.check_drafts("drafters sidecar", split, drafter=side)
     rc, out = cli(["bench", "--model", split, "--p", "4", "--n", "8", "--r", "1", "--drafter", side])
-    assert rc == 0 and re.search(r"^bench: tg8 ", out, re.M) and re.search(r"^bench: rollback keeping 3 of 4 rows", out, re.M), \
+    assert rc == 0 and re.search(r"^bench: tg8 ", out, re.M) and re.search(r"^bench: rollback keeping 3 of 4 rows", out, re.M) and \
+        re.search(r"^bench: draft 3  chain ", out, re.M), \
         "bench --drafter with the MTP block beside the model failed: " + out
     return embedded, split, side
 

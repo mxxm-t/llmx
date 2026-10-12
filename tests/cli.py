@@ -151,7 +151,7 @@ def check_usage_errors():
                        (["bench", "--threads", "2", "--r", "2"], "bench"), (["bench", "--cpu-moe"], "bench"),
                        (["bench", "--model", model, "--size", "64"], "bench"), (["bench", "--model", model, "--iters", "2"], "bench"),
                        (["bench", "--model", model, "--profile", "--device", "cpu"], "bench"),
-                       (["bench", "--model", model, "--profile", "--device", "vulkan:0,vulkan:1"], "bench"),
+                       (["bench", "--model", model, "--profile", "--device", "vulkan:0,cpu"], "bench"),
                        (["bench", "--model", model, "--depth", "4", "--seqs", "2", "--device", "cpu"], "bench"),
                        (["logits", model, "a", "--moe-stream-from", "4"], "logits"),
                        (["serve", model, "--moe-stream-from", "1", "--n-cpu-moe", "0"], "serve")):

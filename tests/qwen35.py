@@ -455,6 +455,15 @@ def check_drafter(model, plain, require):
         assert rc == 0 and re.search(r"^bench: tg8 ", out, re.M), "bench --drafter embedded at a prompt of %d failed: %s" % (p, out)
         ran, skipped = re.search(r"^bench: rollback keeping 3 of 4 rows", out, re.M), re.search(r"^bench: rollback skipped: .* past the context of 16$", out, re.M)
         assert (ran and not skipped) if runs else (skipped and not ran), "bench's rollback at a prompt of %d %s: %s" % (p, "did not run" if runs else "was not skipped", out)
+        # The draft timing reaches the prompt and a verify's 4 rows, so a prompt of 12 still runs it.
+        timed, skipped = re.search(r"^bench: draft 3  chain \S+ ms, verify \S+ ms, \S+ ms over a step$", out, re.M), re.search(r"^bench: draft skipped: .* past the context of 16$", out, re.M)
+        assert (timed and not skipped) if p < 16 else (skipped and not timed), "bench's draft timing at a prompt of %d: %s" % (p, out)
+    for most in (1, 4):
+        rc, out = cli(["bench", "--model", model, "--p", "4", "--n", "8", "--r", "1", "--drafter", "embedded", "--draft-max", str(most)])
+        counts = re.findall(r"^bench: draft (\d+)  ", out, re.M)
+        fed = re.search(r"^bench: draft 0  a step \S+ ms  \(1 runs\), the verifies fed the ids((?: \d+)+)$", out, re.M)
+        assert fed and len(fed[1].split()) == most + 1, "bench --draft-max %d did not print the %d ids its verifies fed: %s" % (most, most + 1, out)
+        assert rc == 0 and counts == [str(k) for k in range(most + 1)], "bench --draft-max %d timed the draft counts %s: %s" % (most, counts, out)
     tool = decode_probe.tool_path()
     if not os.path.exists(tool):
         assert not require, "qwen35: llmx-decode-probe is not beside the executable, and --require-tools asks for it"

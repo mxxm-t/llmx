@@ -150,7 +150,7 @@ A server without `--disk-cache-keep` removes its directory when it exits and the
 - 503: the queue is full.
   `requests.now.queued` equals `requests.limits.queued`.
   Raise `--max-queue`, raise `--max-seqs` if the devices have the room, or send fewer requests.
-- 413: the prompt plus `max_tokens` is more than the smaller of the model's context (`server.context_tokens`) and the KV budget (`--ctx-size`); the message gives the prompt's tokens and the limit. For a chat front end that sends the whole conversation every turn and does not trim it, start the server with `--context-overflow shift`: it drops the oldest turns in steps of half the limit and says so in each reply's `context` object, and the turn that drops them waits for the kept window to be read again.
+- 413: the prompt plus `max_tokens` is more than the smaller of the model's context (`server.context_tokens`) and the KV budget (`--ctx-size`), or a prompt sent without `max_tokens` leaves its reply less than an eighth of that; the message gives the prompt's tokens and the limit. For a chat front end that sends the whole conversation every turn and does not trim it, start the server with `--context-overflow shift`: it drops the oldest turns in steps of half the limit, before a reply would run out of room and not only when the prompt overflows, says so in each reply's `context` object and counts it in health (`requests.since_start.shifts`), and the turn that drops them waits for the kept window to be read again.
   Shorten the prompt, lower `max_tokens`, or raise `--ctx-size`.
 - 400: the body is not valid; the reply's `error` names the problem.
 - No answer at all: `GET /v1/live`.

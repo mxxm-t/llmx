@@ -307,18 +307,31 @@ public:
         return std::min((size_t)model_.context_length(), model_.kv_tokens_total());
     }
 
+    // The part of what a request may hold that a reply without a cap is given room for: an eighth.
+    // With cuts of half the limit (kCutTo) a conversation then runs from about three eighths of the limit to seven between two cuts, so a cut reads three eighths again to buy half; a fraction, so it is the same at any context.
+    static constexpr size_t kReplyRoom = 8;
+    // The rows a prompt may take beside its reply: what a request may hold less the tokens it asks for, or less a reply's room where it names none.
+    // The one rule of what fits: a route cuts a prompt to it (Api::fit) and submit refuses a prompt past it.
+    size_t prompt_room(const SampleParams& params) const {
+        const size_t limit = token_limit(), reply = params.until_limit ? std::max<size_t>(1, limit / kReplyRoom) : (size_t)std::max(params.max_tokens, 0);
+        return limit > reply ? limit - reply : 0;
+    }
+    // Why a prompt of `n` tokens does not fit beside its reply, with its numbers.
+    std::string too_long(size_t n, const SampleParams& params) const {
+        const size_t limit = token_limit();
+        if (!params.until_limit)
+            return "the prompt is " + std::to_string(n) + " tokens and asks for " + std::to_string(params.max_tokens) + " more, and a request may hold " + std::to_string(limit);
+        return "the prompt is " + std::to_string(n) + " tokens and leaves " + std::to_string(limit > n ? limit - n : 0) + " for its reply, fewer than the " + std::to_string(limit - prompt_room(params)) +
+               " a request without max_tokens is given, of the " + std::to_string(limit) + " a request may hold";
+    }
+
     // Queue a request; the handle's channel delivers its tokens.
-    // A prompt the limit cannot hold is refused here, before it waits, and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
+    // A prompt that leaves its reply no room is refused here, before it waits (prompt_room), and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
-        if (params.until_limit) {
-            if (prompt.size() >= token_limit())
-                throw TooLong("the prompt fills the " + std::to_string(token_limit()) + " tokens a request may hold");
-            params.max_tokens = (int)(token_limit() - prompt.size());
-        }
-        if (params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
-        if (prompt.size() + (size_t)params.max_tokens > token_limit())
-            throw TooLong("prompt plus max_tokens exceeds the " + std::to_string(token_limit()) + " tokens a request may hold");
+        if (!params.until_limit && params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
+        if (prompt.size() > prompt_room(params)) throw TooLong(too_long(prompt.size(), params));
+        if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
         auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message);
         {
             std::lock_guard<std::mutex> lk(m_);

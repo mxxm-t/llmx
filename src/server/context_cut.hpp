@@ -49,6 +49,10 @@ inline RowCut cut_rows(const std::vector<size_t>& points, size_t n, size_t fit, 
             }
         }
     }
+    // No whole step serves, none having a cut point or none leaving a window that fits: the rows after the leading block go up to the first cut point that leaves at most the room.
+    if (!points.empty() && points.front() < n)
+        for (size_t i = 1; i < points.size() && points[i] < n; ++i)
+            if (points.front() + (n - points[i]) <= fit) return {points.front(), points[i], true};
     c.lead = std::min(kCutLead, step / 2);
     size_t j = 1;
     while (c.lead + j * step < n && c.lead + (n - (c.lead + j * step)) > fit) ++j;
@@ -66,6 +70,9 @@ inline size_t first_kept(const std::vector<size_t>& ends, const std::vector<char
         if (k == ends.size()) break;
         if (head + (n - ends[k - 1]) <= fit) return k;
     }
+    // No whole step serves, none having a turn start or none leaving a window that fits: the first turn start after the leading messages that leaves at most the room is kept from.
+    for (size_t k = lead + 1; k < ends.size(); ++k)
+        if (starts[k] && head + (n - ends[k - 1]) <= fit) return k;
     return ends.size();
 }
 

@@ -199,7 +199,8 @@ private:
                   ",\"precision\":" + dtype_json(cfg_.dtype) +
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
-                  "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) + "}}" +
+                  "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
+                  ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) + "}}" +
                   ",\"reuse\":{\"since_start\":{\"forks\":" + n(s.prefix_hits) + ",\"tokens\":" + n(s.prefix_tokens) +
                   "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + ",\"kv_tokens\":" + n(s.kv_donor_tokens) + "}}" +
                   ",\"host\":{\"now\":{\"entries\":" + n(s.host_donors) + ",\"bytes\":" + n(s.host_bytes) + ",\"limit_bytes\":" + n(s.host_limit) + ",\"allocated_bytes\":" + n(s.host_allocated) +
@@ -636,16 +637,13 @@ private:
     // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
     // A chat route drops its oldest messages after the system message and a text route rows after its leading block (cut_rows), and `body`, `prompt` and `ids` are the cut request's afterwards.
     Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids) {
-        const size_t limit = sched_.token_limit(), n = ids.size();
-        const auto fits = [&](size_t rows) { return params.until_limit ? rows < limit : rows + (size_t)params.max_tokens <= limit; };
+        // The rows the prompt may take beside its reply, the scheduler's rule, and the step a cut drops in.
+        const size_t limit = sched_.token_limit(), n = ids.size(), room = sched_.prompt_room(params), step = limit / kCutTo;
+        const auto fits = [&](size_t rows) { return rows <= room; };
         if (fits(n)) return {};
-        const auto refuse = [&](const std::string& why) {
-            throw BadRequest(413, "the prompt is " + std::to_string(n) + " tokens" + (params.until_limit ? "" : " and asks for " + std::to_string(params.max_tokens) + " more") + ", and a request may hold " +
-                                      std::to_string(limit) + "; " + why);
-        };
-        if (!cfg_.context_shift) refuse("shorten it, or start the server with --context-overflow shift, which drops the oldest turns");
-        // The rows the prompt may take beside what it asks to generate, and the step a cut drops in.
-        const size_t room = params.until_limit ? limit - 1 : limit - std::min(limit, (size_t)params.max_tokens), step = limit / kCutTo;
+        const auto refuse = [&](const std::string& why) { throw BadRequest(413, sched_.too_long(n, params) + "; " + why); };
+        if (!cfg_.context_shift)
+            refuse(std::string(params.until_limit ? "shorten it, send max_tokens" : "shorten it") + ", or start the server with --context-overflow shift, which drops the oldest turns");
         Fitted f;
         f.cut = true;
         if (route == Route::chat || route == Route::chat_completions) {
@@ -669,6 +667,8 @@ private:
         }
         f.tokens = n - ids.size();
         if (!fits(ids.size())) refuse("cut to " + std::to_string(ids.size()) + " it still does not fit with what it asks for");
+        ++shifts_;
+        shifted_tokens_ += f.tokens;
         std::fprintf(stderr, "server: a prompt of %zu tokens cut to %zu to fit %zu, %zu tokens dropped%s%s\n", n, ids.size(), limit, f.tokens,
                      f.messages ? (", " + std::to_string(f.messages) + " messages").c_str() : "", f.at_marker ? "" : ", not at a turn's end");
         return f;
@@ -849,6 +849,7 @@ private:
     Scheduler& sched_;
     Config cfg_;
     const int64_t started_;
+    std::atomic<uint64_t> shifts_{0}, shifted_tokens_{0};   // since start, the requests whose prompt a shift cut, and the tokens those cuts dropped
     std::atomic<uint64_t> next_id_{1};
 };
 

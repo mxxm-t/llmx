@@ -820,7 +820,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
            "device": {"now": {"entries": 4, "state_checkpoints": 0, "kv_tokens": 6144}},
            "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184, "allocated_bytes": 17179869184}, "since_start": {"promotions": 40, "yielded_bytes": 0, "bytes_moved": 4093640704}},
            "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
-                    "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412, "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
+                    "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412, "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0}},
  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
@@ -865,7 +865,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reuse.disk.since_start.dropped_for_cap` | entries | since start | Entries deleted to stay under the disk cap | rising: the cap is small for the load |
 | `reuse.disk.now.unproved` | entries | now | Another build's entries not yet proved this build's (`--disk-cache-adopt proved`) | |
 | `reuse.disk.since_start.proved`, `.disproved` | entries | since start | Such entries a proof made this build's, and those deleted with a build one of whose entries failed its proof | `disproved` above 0: that build's numerics differ |
-| `reuse.disk.since_start.lost_before_written` | copies | since start | Copies host memory gave up room for before any file held them | rising: the disk is too slow or small for the rate conversations end |
+| `reuse.disk.since_start.refused` | reads | since start | Histories on disk not read back for want of host room or memory, each request reading its prompt instead | above 0: the host tier or the host's memory is short for the conversations kept |
+| `reuse.disk.since_start.lost_before_written` | copies | since start | Copies host memory gave up room for before any file held them, and histories larger than the host tier that left the devices before their files were whole | rising: the disk is too slow or small for the rate conversations end |
 | `reuse.boundaries.now.entries`, `.since_start.hits` | states, requests | now, since start | Message boundaries' states held in host memory, and requests that forked one | |
 | `pressure.since_start.pauses` | pauses | since start | Times a request was paused to give blocks to another | rising: the pool is small for the load (`--ctx-size`, `--max-seqs`) |
 | `pressure.since_start.stalls` | passes | since start | Passes a request sat out, unable to grow | rising with pauses |

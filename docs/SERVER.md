@@ -508,7 +508,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
              "since_start": {"promotions": 40, "yielded_bytes": 0, "bytes_moved": 4093640704}},
     "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
              "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412,
-                             "errors": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
+                             "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
     "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}
   },
   "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
@@ -545,6 +545,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 | `disk_unproved` | `reuse.disk.now.unproved` | `Stats` |
 | `disk_proved`, `disk_disproved` | `reuse.disk.since_start.proved`, `.disproved` | `Stats` |
 | `host_unwritten` | `reuse.disk.since_start.lost_before_written` | `Stats` |
+| `disk_refused` | `reuse.disk.since_start.refused` | `Stats` |
 | `pauses`, `stalls`, `waits`, `recomputed`, `taken_back` | `pressure.since_start.pauses`, `.stalls`, `.waits`, `.recomputed_tokens`, `.resumes_taking_history_back` | `Stats` |
 | `reprefills`, `reprefill_rows`, `reprefill_cancels` | `reread.since_start.jobs`, `.rows`, `.cancelled` | `Stats` |
 | `drafted`, `kept` | `drafting.since_start.by_position[]` and their sums | `Stats` |

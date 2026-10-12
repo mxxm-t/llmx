@@ -385,7 +385,7 @@ public:
         size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
-        size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory; not yet counted
+        size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory, the request reading its prompt
         size_t host_unwritten = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
@@ -438,6 +438,7 @@ public:
         s.disk_bytes_written = disk_now_.written;
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.host_unwritten = host_unwritten_;
+        s.disk_refused = disk_refused_;
         s.disk_capped = disk_now_.capped;
         s.disk_unproved = disk_now_.unproved;
         s.disk_proved = disk_now_.proved;
@@ -2225,7 +2226,14 @@ private:
             }
         }
         const size_t bytes = model_.host_bytes(n);
-        if (bytes > host_cap_) return;
+        if (bytes > host_cap_) {
+            // Too large for the host tier: it is kept only where its files are already whole on disk, and otherwise lost, which is counted and said.
+            if (disk_ && !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state())) ++host_unwritten_;
+            if (!disk_ || !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state()))
+                std::fprintf(stderr, "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)bytes / (1 << 20),
+                             disk_ ? " and its files were not yet whole on disk" : "");
+            return;
+        }
         // Superseded copies go first, then entries whose files are on disk, which lose nothing, then message boundaries, which live in the room the other copies leave.
         while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
         release_written(bytes);
@@ -2699,8 +2707,9 @@ private:
                 best_donor(*r, shared);
                 best_host(*r, more);
                 shared = std::max(shared, more);
+                // A boundary is a state alone and serves only with a history in memory that holds its rows; without one it does not stand for what the disk holds.
                 best_bound(*r, more);
-                shared = std::max(shared, more);
+                if (more > shared && rows_held(tokens, own, more)) shared = more;
                 // Another build's files beyond what this build holds for it: the request proves them at its first admission (prove), waiting for their read, or for the proof already on them, as for any read.
                 // On a model that keeps a state the restore and the state at the path's end each take a checkpoint slot, so a server of one proves nothing.
                 const bool proves = r->classes_.empty() && (!model_.keeps_state() || model_.checkpoint_slots() > 1);
@@ -2764,25 +2773,31 @@ private:
         DiskRead rd;
         rd.through = blocks && bytes > host_cap_;
         rd.state_only = state_only;
+        // A read that is not started says why and is counted: its request reads its prompt instead.
+        const auto refused = [&](const char* why) {
+            ++disk_refused_;
+            std::fprintf(stderr, "server: a history of %zu tokens on disk was not read back (%s); its request reads its prompt\n", length, why);
+            return uint64_t(0);
+        };
         if (!rd.through) {
-            if (bytes > host_cap_) return 0;
+            if (bytes > host_cap_) return refused("its state is larger than the host tier");
             while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
             release_written(bytes);
             while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
             while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
-            if (host_held_ + bytes > host_cap_) return 0;
+            if (host_held_ + bytes > host_cap_) return refused("the host tier has no room it may give");
         }
         try {
             quieted()->alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
         } catch (const std::exception& x) {
-            std::fprintf(stderr, "server: a history of %zu tokens was not read from disk (%s)\n", length, x.what());
-            return 0;
+            return refused(x.what());
         }
         rd.id = disk_->read(*quieted(), path, rd.history, state_only);
         if (!rd.id) {
             model_.release_host(rd.history);
-            return 0;
+            return refused("host memory for a part of a file was not to be had");
         }
+        if (rd.through) std::fprintf(stderr, "server: reading a history of %zu tokens from disk through %.1f MiB of host memory beyond the host tier\n", length, (double)rd.history.held / (1 << 20));
         if (!rd.through) host_held_ += rd.history.held;
         rd.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)length);
         rd.classes = clip(classes, length);
@@ -3378,6 +3393,7 @@ private:
     };
     std::deque<DiskRead> disk_reads_;
     size_t host_unwritten_ = 0;   // Stats::host_unwritten, under the lock
+    size_t disk_refused_ = 0;   // Stats::disk_refused, under the lock
     size_t disk_hits_ = 0, disk_waits_ = 0;
     uint64_t disk_read_bytes_ = 0;
     double disk_wait_ms_ = 0;

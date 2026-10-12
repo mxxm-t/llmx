@@ -1026,6 +1026,16 @@ The status table and the active blocks above give the present state; a record's 
 - **Done:** `timeout-minutes` 40 for that job in `.github/workflows/ci.yml`, with the figures in docs/CI.md. No test or check changes. What grew the job is the scheduler tests' wall time, which no one has cut; that is left.
 - **Gates:** the suite's `docs` and `dead-code` components on the tree that lands; the hosted run of this commit shows the job under its new limit.
 
+## A stage's thread is given its record (2026-10-12, branch fix/stage-thread-start, lands by fast-forward)
+
+- **Found by a hosted macOS run:** `server-passes-cpu` segfaulted once on the macOS job of a branch under review, in a new case that makes a scheduler and destroys it at once. `Scheduler` started each stage's thread with the place its record is kept in, a slot of `recorders_`, which the thread reads when it first runs. A scheduler destroyed before that is destroying the slot: the C++ library of the macOS build empties a `unique_ptr` before it deletes what it held, so the late thread read null; the libraries of the Linux and Windows builds delete first, and deleting joins the thread, so there the read still found the record and neither repeated runs nor the thread sanitizer showed anything.
+- **Proof of cause, by a prediction posted before the runs:** two measurement-only branches that start a stage's thread 200 ms late, so the destructor always wins. On the unfixed source the macOS job segfaulted in `server-passes-cpu` (hosted run 38288449145) while Linux passed, plain and under the thread sanitizer; with the thread given its record the macOS job passed (hosted run 38288446625).
+- **Done:** the thread is given its record (`Recorder*`), not its slot.
+- **Reach:** on main since stages have threads. A serving process makes one scheduler and runs it, so it does not meet this. Met by tests, and by a start that fails after the scheduler is made and before it runs, or inside its constructor after the threads are started; the change covers those too, since in each the thread now holds its record until the record's destructor joins it.
+- **The failing test first:** `server-passes-cpu` makes and destroys a scheduler with a stage thread 400 times. It asserts nothing: the fault is a crash, and on Linux and Windows the library's order hides it, so the case fails first only in the hosted macOS job, and there by chance of scheduling; the two probe runs above are what shows the cause.
+- **Gates:** run and read by the gate runner at the landing head, with its hosted run.
+- **Reviewed:** by the stand-in gating reviewer; its verdict at the landing head is a condition of landing.
+
 ## A generating request is paced beside a prompt by default (2026-10-12, branch feat/auto-pacing, lands by fast-forward)
 
 - **Goal:** the owner's decision of 2026-10-11: serving a request that is already generating while a prompt is read becomes an automatic, best-effort policy, on by default where pacing is possible, with an off switch and no number for a user to choose.

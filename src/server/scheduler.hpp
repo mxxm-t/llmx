@@ -281,7 +281,9 @@ public:
             if (plain_[s] || a) {
                 recorders_[s] = std::make_unique<Recorder>();
                 recorders_[s]->share.share = share_;
-                recorders_[s]->thread = std::thread([this, s] { record(*recorders_[s], s); });
+                // The thread is given its record, not the place it is kept: a scheduler destroyed before the thread first runs is emptying that place.
+                Recorder* rec = recorders_[s].get();
+                rec->thread = std::thread([this, rec, s] { record(*rec, s); });
             }
         }
         // A job reads the next turn's ids at one extent for every extent that turn's prompt can have, so only where rows are one class from there up to the limit.

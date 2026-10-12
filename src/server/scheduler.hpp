@@ -375,7 +375,7 @@ public:
         size_t reprefills = 0;         // jobs that kept a reply's next turn as a donor
         size_t reprefill_rows = 0;     // rows jobs read
         size_t reprefill_cancels = 0;  // jobs that gave way to a request at a pass boundary
-        size_t reprefill_handed = 0;   // jobs whose rows a waiting request took over; not yet counted
+        size_t reprefill_handed = 0;   // jobs whose rows a waiting request took over, the job's history made a donor for it
         size_t host_donors = 0, host_bytes = 0;   // donors held in host memory now, and their bytes
         size_t host_hits = 0;                     // donors promoted from host memory for a request
         size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory
@@ -425,6 +425,7 @@ public:
         s.reprefills = reprefills_;
         s.reprefill_rows = reprefill_rows_;
         s.reprefill_cancels = reprefill_cancels_;
+        s.reprefill_handed = reprefill_handed_;
         s.host_donors = host_.size();
         s.host_bytes = host_held_;
         s.host_hits = host_hits_;
@@ -552,7 +553,10 @@ public:
                     std::lock_guard<std::mutex> lk(m_);
                     waits = (!paused_.empty() && !fits_free(*paused_.front(), active.size())) || (!queue_.empty() && !fits_free(*queue_.front(), active.size()));
                 }
-                if (waits) yield_jobs(active);
+                if (waits) {
+                    hand_jobs(active);
+                    yield_jobs(active);
+                }
                 // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
                 grow(active);
                 if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; })) yield_jobs(active);
@@ -3112,6 +3116,39 @@ private:
         return true;
     }
 
+    // Where a job would give way, a waiting request that can fork more of its rows than of any history kept takes them over: the job's history becomes a donor with its blocks (park), which admission forks and consumes by the donor rules.
+    // The job ends where the request's prompt holds all its ids, the request being the turn it read ahead for, and otherwise waits to start again from that donor; a job in a pass is passed by, as it is by yield_jobs, until its pass has retired.
+    void hand_jobs(std::vector<std::shared_ptr<Request>>& active) {
+        for (size_t i = 0; i < active.size();) {
+            auto j = active[i];
+            bool wanted = false, covered = false;
+            if (j->job_ && !j->seq_.in_flight() && !j->classes_.empty()) {
+                std::lock_guard<std::mutex> lk(m_);
+                // Queued requests alone: a paused one has its own history and takes its own donor back.
+                for (const auto& r : queue_) {
+                    if (wanted || r->cancel_.load() || !r->classes_.empty()) continue;
+                    size_t kept = 0, more = 0;
+                    best_donor(*r, kept);
+                    best_host(*r, more);
+                    if (shareable(*r, j->prompt_, j->classes_, j->seq_) <= std::max(kept, more)) continue;
+                    wanted = true;
+                    covered = r->prompt_.size() >= j->prompt_.size() && std::equal(j->prompt_.begin(), j->prompt_.end(), r->prompt_.begin());
+                }
+            }
+            if (!wanted) {
+                ++i;
+                continue;
+            }
+            park(active, i, j->prompt_);
+            j->classes_.clear();
+            j->source_ = 0;
+            std::lock_guard<std::mutex> lk(m_);
+            ++reprefill_handed_;
+            if (covered) j->finished_ = true;
+            else jobs_.push_front(j);
+        }
+    }
+
     // Each job not in flight gives way: it frees what it held and waits to start again from its source once nothing else waits.
     void yield_jobs(std::vector<std::shared_ptr<Request>>& active) {
         for (size_t i = 0; i < active.size();) {
@@ -3352,7 +3389,7 @@ private:
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::deque<std::shared_ptr<Request>> jobs_;   // under the lock, jobs waiting for a seat, oldest first
     size_t steady_from_ = 0;                      // the least extent from which rows are one class up to the limit
-    size_t reprefills_ = 0, reprefill_rows_ = 0, reprefill_cancels_ = 0;   // under the lock
+    size_t reprefills_ = 0, reprefill_rows_ = 0, reprefill_cancels_ = 0, reprefill_handed_ = 0;   // under the lock
     std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0}, checkpoints_{0};
     std::atomic<uint64_t> finished_{0}, prompt_total_{0}, generated_total_{0};   // what Stats gives as the totals since start
     std::atomic<uint64_t> rode_{0};   // Stats::rode

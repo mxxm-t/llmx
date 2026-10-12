@@ -512,7 +512,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
     "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}
   },
   "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
-  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
+  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},
   "drafting": {"since_start": {"drafted": 4096, "kept": 2780,
                "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
   "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}
@@ -548,6 +548,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 | `disk_refused` | `reuse.disk.since_start.refused` | `Stats` |
 | `pauses`, `stalls`, `waits`, `recomputed`, `taken_back` | `pressure.since_start.pauses`, `.stalls`, `.waits`, `.recomputed_tokens`, `.resumes_taking_history_back` | `Stats` |
 | `reprefills`, `reprefill_rows`, `reprefill_cancels` | `reread.since_start.jobs`, `.rows`, `.cancelled` | `Stats` |
+| `reprefill_handed` | `reread.since_start.handed` | `Stats` |
 | `drafted`, `kept` | `drafting.since_start.by_position[]` and their sums | `Stats` |
 | `passes`, `in_flight` | `passes.limit`, `passes.in_flight` | `Stats` |
 | `timing` | `timing` | `Stats::timing` |

@@ -823,7 +823,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
                     "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412, "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0}},
- "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3}},
+ "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},
  "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
  "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3, "since_start": {"apart": 0, "between_pieces": 0, "rode": 0}}}
 ```
@@ -875,6 +875,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `pressure.since_start.resumes_taking_history_back` | resumes | since start | Resumes that took their own kept history back whole, computing nothing | |
 | `pressure.since_start.turns` | pauses | since start | Of the pauses, those of a request that gave the last room to one that had waited a turn, uncapped requests sharing a pool neither can hold alone | rising: uncapped requests are larger together than `--ctx-size`; each turn costs two copies through host memory |
 | `reread.since_start.jobs`, `.rows`, `.cancelled` | jobs, rows, jobs | since start | Background jobs that read a reply again so the next turn finds it kept, the rows they read, and the jobs that gave way to a request at a pass boundary | |
+| `reread.since_start.handed` | jobs | since start | Jobs whose rows a request of the same conversation took over when it arrived while the job was reading | |
 | `drafting.since_start.drafted`, `.kept` | tokens | since start | Drafted tokens that verifies fed, and the ones they kept; `by_position` has the same by draft position, from 1 | `kept` far below `drafted` |
 | `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |
 | `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |

@@ -212,7 +212,7 @@ private:
                   ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}}" +
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + "}}" +
-                  ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + "}}" +
+                  ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + "}}" +
                   ",\"drafting\":{\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]}}" +
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + "}}" +
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +

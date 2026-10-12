@@ -840,6 +840,16 @@ void drafted_service(const gguf::GGUFModel& weights, uint32_t vocab) {
     }
 }
 
+// A scheduler whose stages have threads, made and destroyed at once, many times: a stage's thread that first runs as the scheduler is destroyed must still find its own record.
+// It needs no assertion: the fault it guards is a crash, which the C++ library of the macOS build shows and those of the Linux and Windows builds hide (docs/STATUS.md, a stage's thread is given its record).
+void made_and_destroyed(const gguf::GGUFModel& weights) {
+    const bpe::Tokenizer tok(weights);
+    Submitters seen;
+    auto model = on(weights, [&seen] { return std::vector<backend::BackendPtr>{std::make_shared<NoCpu>(&seen)}; })(16 * kBlock, kUbatch);
+    for (size_t i = 0; i < 400; ++i) server::Scheduler sched(*model, tok, kSeqs, 64, 0, false, 0, nullptr, 0, true, {}, server::Pacing::automatic());
+    ++checks;
+}
+
 // A CPU backend whose decode kernels hold 16 columns, so a pass of several decoding requests has columns to spare for their drafts.
 // It counts its submissions in a plain member, as a device keeps its open command buffer, so a submission beside a recording is a data race the thread sanitizer reports.
 struct Wide : backend::CpuBackend {
@@ -1015,6 +1025,7 @@ int main(int argc, char** argv) {
         timed_groups(served(kSplit), (uint32_t)kSplit.vocab);
         timed_cpu(served(kSplit), (uint32_t)kSplit.vocab);
         recorded_stages(served(kSplit), (uint32_t)kSplit.vocab);
+        made_and_destroyed(served(kSplit));
         automatic(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         cases(served(kSplit), (uint32_t)kSplit.vocab);

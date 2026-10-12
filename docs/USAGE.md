@@ -373,7 +373,7 @@ device may be listed once. Expert offload (`--n-cpu-moe`, `--cpu-moe`)
 is a placement of one device and is refused with a list; list the CPU
 as a device to give it layers. `bench` without `--model` measures the
 first device listed.
-`--profile` takes one Vulkan device and is refused with a list or layer shares.
+`--profile` takes Vulkan devices, one or a list, and is refused where a listed device is the CPU.
 Every command that takes `--device` takes a list.
 
 ### Tensor split (`--tensor-width N`)
@@ -945,7 +945,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile] [--drafter D]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile] [--drafter D] [--draft-max N]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an
@@ -970,13 +970,17 @@ With `--moe-stream-from N` the depth counts toward a prompt's length, so `pp` at
 
 `--drafter embedded`, or a file of MTP blocks beside the model, loads the MTP block as `generate` does and runs its cache rows in every pass, drafting nothing, so the figures show what carrying the block costs prompt and decode; `off`, the default, loads no drafter.
 It then times a round's rollback, after a mark and a verify of 3 drafts, the history kept at each of the verify's 4 rows: the retract and the decode step after it as completed work up to the step's logits, each repeat taking every position in turn, and gives the median over the repeats of each position less keeping all 4 in the same repeat, whose retract runs nothing, with the middle half of those differences and the median time of the retract call itself on the host, as `bench: rollback keeping K of 4 rows`, beside the step after keeping all and the mark itself, over `--r` runs after one more that is not counted; it needs `--n` of 5 or more and one sequence, and where the depth, the prompt, the verify's 4 rows and the step after them reach past the model's context it prints `bench: rollback skipped` with that reach instead.
+Last it times a draft's two phases at each draft count from 1 to `--draft-max` (3 by default), each as completed work: the chain of that many drafts after the prompt, then, on a mark, the verify of the last pick and that many tokens up to its logits, which are fixed ids and not the chain's drafts, since a row costs the same whatever token it holds.
+A count of 0 is the plain step, each repeat takes every count in turn after the same history, and the medians over `--r` repeats after one more that is not counted are printed as `bench: draft 0  a step`, with the ids the verifies fed, and `bench: draft K  chain X ms, verify Y ms`, with the verify's time over the step; it needs `--n` above `--draft-max` and one sequence, and where the depth, the prompt and the verify's rows reach past the model's context it prints `bench: draft skipped` with that reach instead.
+The mark holds the longer of the rollback's 4 rows and `--draft-max` + 1, so the rollback's figures are those of a mark of that size.
 
 `--profile`, on a device backend, runs one more prompt run and one more
 decode run after the timed runs, each reported on its own as the device
 time each kernel spent (`profile pp`, then `profile tg` or
-`profile batched tg`, which starts after its sequences' prompts); the
-first 4096 dispatches of each are timed.
-It takes one Vulkan device and is refused on the CPU, with a device list or with layer shares.
+`profile batched tg`, which starts after its sequences' prompts).
+The output head's products are timed apart from the layers', under their kernel's name with ` head` after it.
+With `--drafter` it first runs one more round of the draft timing and gives each count's chain and verify the same way (`profile draft chain K`, `profile verify K`), so a draft row's read of the head and a verify's cost by kernel are measured rather than inferred.
+It takes Vulkan devices and is refused where a listed device is the CPU; with several, a layer split or a tensor group, each section is printed for each device (`profile tg, device vulkan:1`).
 
 `--size` and `--iters` belong to the synthetic bench and are refused with `--model`, as the flags only a model run reads are refused without it.
 

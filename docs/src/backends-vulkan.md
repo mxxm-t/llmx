@@ -52,6 +52,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   `vulkan_timed_dispatches` how many dispatches that reading covered, every
   one since the reading before, in as many query pools as the interval needs
   (`bench --profile`, `serve --timing`).
+  `matmul_logits` is `matmul`; on a backend that times its dispatches it names that call's apart, under the kernel's name with ` head` after it, so a profile shows the output head's read on its own, and without timestamps it calls `matmul` and keeps nothing.
   `wait(t)` of a returned ticket may come from another thread while the
   owning one records: the last ticket is atomic and the wait times it
   adds are under a lock, and nothing else of the backend is shared.

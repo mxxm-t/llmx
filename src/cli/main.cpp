@@ -488,7 +488,7 @@ std::string load_timing(const infer::LoadTimes& t) {
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass.
 // The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
-                                               bool show_plan = false, backend::Backend** profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
+                                               bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
                                                const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
@@ -498,7 +498,8 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
     // Beside the placement a command prints, so a quiet command stays quiet.
     if (exec.tensor_width > 1 && (progress || show_plan)) report_groups(specs, backends, (size_t)exec.tensor_width);
-    if (profiled) *profiled = backends.front().get();
+    if (profiled)
+        for (const auto& b : backends) profiled->push_back(b.get());
     infer::PlacementRequest request;
     request.names = specs;
     request.dtype = exec.dtype;
@@ -907,15 +908,16 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
 }
 
 // Time model execution over fixed IDs after warm-up, with history setup and sampling outside the timer; multi-sequence decode follows each sequence's prompt, while single-sequence runs may use the requested depth (docs/USAGE.md).
-// What bench's `--drafter` value asks for: the file's embedded drafter, the MTP blocks of a file beside it, or neither for off; it drafts nothing either way.
+// What bench's `--drafter` value asks for, the file's embedded drafter, the MTP blocks of a file beside it or neither for off, with the most drafts its draft timing takes (`--draft-max`); its prompt and decode runs draft nothing.
 struct BenchDrafter {
     bool embedded = false;
     std::string file;
+    size_t draft_max = 3;
     explicit operator bool() const { return embedded || !file.empty(); }
 };
-BenchDrafter bench_drafter(const std::string& d) {
+BenchDrafter bench_drafter(const std::string& d, size_t draft_max) {
     if (d == "lookup") throw UsageError("bench --model takes --drafter off, embedded or a drafter file, not 'lookup'");
-    return {d == "embedded", d == "embedded" || d == "off" ? std::string() : d};
+    return {d == "embedded", d == "embedded" || d == "off" ? std::string() : d, draft_max};
 }
 
 // With `drafts` the file's embedded drafter, or the MTP blocks its file holds, is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
@@ -923,11 +925,13 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     const bool drafter = bool(drafts);
     // The drafter's rollback is timed after a verify of kRollbackDrafts drafts, which its mark holds, and a step after it: the prompt after the depth and those rows and one more.
     const size_t kRollbackDrafts = 3, rollback_reach = (size_t)D + (size_t)P + kRollbackDrafts + 2;
-    // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests, or the rollback's reach.
-    const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : std::max((size_t)D + (size_t)std::max(P, G), drafter ? rollback_reach : 0);
-    backend::Backend* b = nullptr;   // the device --profile times
-    const auto loaded = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile ? &b : nullptr, reach, 0, false, 0,
-                                   drafter ? kRollbackDrafts + 1 : 0, drafts.embedded, drafts.file);
+    // Its draft timing verifies up to `--draft-max` drafts after the last pick, which the mark holds too.
+    const size_t draft_reach = (size_t)D + (size_t)P + drafts.draft_max + 1, mark_rows = std::max(kRollbackDrafts, drafts.draft_max) + 1;
+    // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests, or the drafter's reach.
+    const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : std::max((size_t)D + (size_t)std::max(P, G), drafter ? std::max(rollback_reach, draft_reach) : 0);
+    std::vector<backend::Backend*> devices;   // the devices --profile times
+    const auto loaded = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile ? &devices : nullptr, reach, 0, false, 0,
+                                   drafter ? mark_rows : 0, drafts.embedded, drafts.file);
     if (loaded->drafter == infer::spec::DrafterKind::model)
         throw std::runtime_error("bench --model times a drafter's rows in the model's own passes, and " + drafts.file + " is a draft model");
     infer::Model& model = *loaded->model;
@@ -948,12 +952,15 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     auto ms_since = [](clock::time_point t0) {
         return std::chrono::duration<double, std::milli>(clock::now() - t0).count();
     };
-    auto pp = [&] {
+    // `start` runs once the history is set up, where a profile's interval begins.
+    auto pp_from = [&](const std::function<void()>& start) {
         fresh();
+        if (start) start();
         const auto t0 = clock::now();
         model.prefill(prompt);
         return (double)P / (ms_since(t0) / 1e3);
     };
+    auto pp = [&] { return pp_from({}); };
     infer::ExecContext ctx;
     // `start` runs once the decode is set up and before its first pass, so a profile of it leaves out the sequences' prompts.
     // Batched decode clears the one sequence too, so the last prompt's blocks are back in the pool before its sequences take theirs.
@@ -994,6 +1001,12 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
         const std::string at = D > 0 ? " @ d" + std::to_string(D) : "";
         printf("bench: %s%d%s  %8.2f +- %.2f tok/s  (%zu runs)\n", what, n, at.c_str(), mean, sd, v.size());
     };
+    auto quantile = [](std::vector<double> v, double q) {
+        std::sort(v.begin(), v.end());
+        const double pos = q * (double)(v.size() - 1);
+        const size_t i = (size_t)pos;
+        return i + 1 < v.size() ? v[i] + (pos - (double)i) * (v[i + 1] - v[i]) : v[i];
+    };
     pp();
     tg({});
     std::vector<double> ppv, tgv;
@@ -1028,12 +1041,6 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
                 recorded[kept].push_back(record_ms);
                 marking.push_back(mark_ms);
             }
-        auto quantile = [](std::vector<double> v, double q) {
-            std::sort(v.begin(), v.end());
-            const double pos = q * (double)(v.size() - 1);
-            const size_t i = (size_t)pos;
-            return i + 1 < v.size() ? v[i] + (pos - (double)i) * (v[i + 1] - v[i]) : v[i];
-        };
         const double all = quantile(after[rows], 0.5);
         const std::string at = D > 0 ? " @ d" + std::to_string(D) : "";
         printf("bench: rollback%s, a step after keeping all %zu rows %.3f ms, the mark %.3f ms  (%d runs)\n", at.c_str(), rows, all, quantile(marking, 0.5), R);
@@ -1045,30 +1052,88 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
                    at.c_str(), ms, 100.0 * ms / all, quantile(extra, 0.25), quantile(extra, 0.75), quantile(recorded[kept], 0.5));
         }
     }
-    if (profile) {
 #if LLMX_HAS_BACKEND_VULKAN
-        // Device time per kernel over one more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
-        // A run calls its argument where its interval starts: a batched decode's after its sequences' prompts.
-        auto section = [&](const char* what, const std::function<double(const std::function<void()>&)>& run) {
-            run([&] { backend::vulkan_kernel_times(*b); });
-            auto times = backend::vulkan_kernel_times(*b);
-            std::sort(times.begin(), times.end(),
-                      [](const auto& x, const auto& y) { return x.second > y.second; });
+    // Device time per kernel since the last reading, each device's on its own under `what`, the output head's products on lines of their own.
+    // A reading waits for its device's queue and follows completed work, the timed call having returned, so it never waits on another device's unfinished work.
+    const std::vector<std::string> names = backend::device_specs(exec.device);
+    auto clear_times = [&] {
+        for (backend::Backend* b : devices) backend::vulkan_kernel_times(*b);
+    };
+    auto print_times = [&](const std::string& what) {
+        for (size_t i = 0; i < devices.size(); ++i) {
+            auto times = backend::vulkan_kernel_times(*devices[i]);
+            std::sort(times.begin(), times.end(), [](const auto& x, const auto& y) { return x.second > y.second; });
             double total = 0.0;
             for (const auto& t : times) total += t.second;
-            std::cout << "profile " << what << ": " << total << " ms of device time over "
-                      << backend::vulkan_timed_dispatches(*b) << " dispatches sampled\n";
+            std::cout << "profile " << what << (devices.size() > 1 ? ", device " + names[i] : std::string()) << ": " << total << " ms of device time over "
+                      << backend::vulkan_timed_dispatches(*devices[i]) << " dispatches sampled\n";
             for (const auto& t : times)
-                std::cout << "profile:   " << t.first << " " << t.second << " ms ("
-                          << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
-        };
-        section("pp", [&](const std::function<void()>& start) { start(); return pp(); });
-        section(seqs > 1 ? "batched tg" : "tg", tg);
-        // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
-        std::istringstream stats(backend::vulkan_kernel_statistics(*b));
-        for (std::string line; std::getline(stats, line);) std::cout << "profile: kernel " << line << "\n";
+                std::cout << "profile:   " << t.first << " " << t.second << " ms (" << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
+        }
+    };
 #else
-        (void)b;   // main refuses --profile unless the device is a Vulkan one, which this build cannot open
+    // main refuses --profile unless every device is a Vulkan one, which this build cannot open.
+    auto clear_times = [] {};
+    auto print_times = [](const std::string&) {};
+#endif
+    // With the drafter, a draft's two phases at each draft count up to `--draft-max` (docs/SPECULATIVE.md, section 7), as completed work: the chain of that many drafts, then the verify of the last pick and that many tokens to its logits.
+    // Each repeat takes every count in turn after the same history, a count of 0 being the plain step, and the medians are over the repeats after one uncounted round; a profile reads each phase's kernels in one more round.
+    if (drafter && seqs <= 1 && draft_reach > (size_t)model.context_length())
+        printf("bench: draft skipped: the depth, the prompt and a verify of %zu rows reach %zu tokens, past the context of %d\n", drafts.draft_max + 1, draft_reach,
+               model.context_length());
+    else if (drafter && seqs <= 1 && (size_t)G > drafts.draft_max) {
+        const size_t L = (size_t)D + (size_t)P, K = drafts.draft_max;
+        std::vector<std::vector<double>> chain(K + 1), verify(K + 1);
+        // The chain is asked of the proposer over the history, as generate asks it, and the verify feeds fixed ids, since a row costs the same whatever token it holds.
+        infer::spec::Embedded proposer(model);
+        std::vector<uint32_t> drafted, before = history;
+        before.insert(before.end(), prompt.begin(), prompt.end());
+        before.push_back(gen[0]);
+        for (int r = 0; r <= R + (profile ? 1 : 0); r++)
+            for (size_t k = 0; k <= K; ++k) {
+                const bool profiled = r > R;
+                fresh();
+                model.prefill(prompt);
+                if (profiled) clear_times();
+                auto t0 = clock::now();
+                if (k) proposer.draft(nullptr, before, k, drafted);
+                const double chain_ms = ms_since(t0);
+                if (profiled && k) print_times("draft chain " + std::to_string(k));
+                if (k && !model.mark()) throw std::runtime_error("bench: no mark for the verify");
+                if (profiled) clear_times();
+                t0 = clock::now();
+                model.step(gen.data(), k + 1);
+                const double verify_ms = ms_since(t0);
+                if (profiled) print_times("verify " + std::to_string(k));
+                if (k) model.retract(L + 1);
+                if (!r || profiled) continue;
+                chain[k].push_back(chain_ms);
+                verify[k].push_back(verify_ms);
+            }
+        const double step = quantile(verify[0], 0.5);
+        const std::string at = D > 0 ? " @ d" + std::to_string(D) : "";
+        printf("bench: draft 0%s  a step %.3f ms  (%d runs), the verifies fed the ids", at.c_str(), step, R);
+        for (size_t i = 0; i <= K; ++i) printf(" %u", gen[i]);
+        printf("\n");
+        for (size_t k = 1; k <= K; ++k) {
+            const double v = quantile(verify[k], 0.5);
+            printf("bench: draft %zu%s  chain %.3f ms, verify %.3f ms, %+.3f ms over a step\n", k, at.c_str(), quantile(chain[k], 0.5), v, v - step);
+        }
+    }
+    if (profile) {
+        // One more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
+        // A run calls its argument where its interval starts: a batched decode's after its sequences' prompts.
+        pp_from(clear_times);
+        print_times("pp");
+        tg(clear_times);
+        print_times(seqs > 1 ? "batched tg" : "tg");
+#if LLMX_HAS_BACKEND_VULKAN
+        // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
+        for (size_t i = 0; i < devices.size(); ++i) {
+            std::istringstream stats(backend::vulkan_kernel_statistics(*devices[i]));
+            for (std::string line; std::getline(stats, line);)
+                std::cout << "profile: kernel " << (devices.size() > 1 ? names[i] + " " : std::string()) << line << "\n";
+        }
 #endif
     }
     matrix_record(*loaded);
@@ -1330,11 +1395,13 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --seqs N                Sequences decoding together, a pass one token of each (default: " << bench.seqs << ")\n"
             << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: " << bench.depth << ")\n"
             << "                          It counts toward --moe-stream-from's prompt length.\n"
-            << "  --profile               Real-model kernel timing and statistics on one Vulkan device\n"
+            << "  --profile               Real-model kernel timing and statistics on Vulkan devices\n"
             << "  --drafter D             off, embedded (the MTP block the file carries) or a file\n"
             << "                          of MTP blocks beside it: load it, run its rows in every\n"
             << "                          pass, drafting nothing, then time a round's rollback at\n"
-            << "                          each kept row (default: off)\n";
+            << "                          each kept row and a draft's chain and verify at each\n"
+            << "                          draft count (default: off)\n"
+            << "  --draft-max N           Most drafts the draft timing takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << BenchDrafter{}.draft_max << ")\n";
         model_options(false);
         out << "\nExecution options other than --device and --threads apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
@@ -1615,7 +1682,8 @@ int main(int argc, char** argv) {
         if (cmd == "bench") {
             BenchNumbers n;
             bool profile = false;
-            BenchDrafter drafter;
+            std::string drafter = "off";
+            size_t draft_max = BenchDrafter{}.draft_max;
             std::string model_path, model_only, synthetic_only;   // the first flag given that only a model run reads, and the first only the synthetic bench reads
             ExecOptions exec;
             GivenFlags given;
@@ -1633,7 +1701,8 @@ int main(int argc, char** argv) {
                 else if (f == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
                 else if (f == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (f == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
-                else if (f == "--drafter") { drafter = bench_drafter(flag_value(argc, argv, i, a)); if (model_only.empty()) model_only = a; }
+                else if (f == "--drafter") { drafter = flag_value(argc, argv, i, a); if (model_only.empty()) model_only = a; }
+                else if (f == "--draft-max") { draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts); if (model_only.empty()) model_only = a; }
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
@@ -1645,10 +1714,11 @@ int main(int argc, char** argv) {
             if (n.depth > 0 && n.seqs > 1) throw UsageError("--depth takes one sequence");
             if (profile) {
                 const auto specs = backend::device_specs(exec.device);
-                if (specs.size() != 1 || specs[0].rfind("vulkan:", 0) != 0 || !exec.layer_shares.empty())
-                    throw UsageError("--profile times the kernels of one Vulkan device");
+                if (!std::all_of(specs.begin(), specs.end(), [](const std::string& spec) { return spec.rfind("vulkan:", 0) == 0; }))
+                    throw UsageError("--profile times the kernels of Vulkan devices");
             }
-            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafter);
+            const BenchDrafter drafts = bench_drafter(drafter, draft_max);
+            if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafts);
             return cmd_bench(n.size, n.iters, exec.threads, n.prompt, n.decode, exec.device);
         }
         std::cerr << "unknown command: " << cmd << "\n";

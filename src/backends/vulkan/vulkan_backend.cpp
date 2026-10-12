@@ -1971,9 +1971,9 @@ public:
                 ++kernel_calls_[k];
             }
         }
-        for (int i = 0; i < K_COUNT * kVariants; ++i)
+        for (int i = 0; i < 2 * kTimedKernels; ++i)
             if (kernel_calls_[i])
-                out.emplace_back(kernel_variant_name(i / kVariants, i % kVariants), kernel_ns_[i] / 1e6);
+                out.emplace_back(kernel_variant_name(i % kTimedKernels / kVariants, i % kVariants) + (i < kTimedKernels ? "" : " head"), kernel_ns_[i] / 1e6);
         // Since the last call: the next reading starts from an empty pool, which the next dispatch resets.
         last_timed_ = query_kernel_.size();
         std::fill(std::begin(kernel_ns_), std::end(kernel_ns_), 0.0);
@@ -2329,6 +2329,17 @@ public:
                 size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
         const Projection one{type, w, Y, nout};
         matmul_runs({one}, X, nin, nbatch, false, runs, dtype);
+    }
+    // The output head is matmul, as the interface's own default has it; a backend that times its dispatches names this call's apart (kernel_times), and no other backend keeps any state for it.
+    void matmul_logits(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {},
+                       Dtype dtype = Dtype::f16) override {
+        if (!dev_->timestamps) return matmul(type, w, X, Y, nin, nout, nbatch, runs, dtype);
+        struct Head {
+            bool& on;
+            ~Head() { on = false; }
+        } head{head_};
+        head_ = true;
+        matmul(type, w, X, Y, nin, nout, nbatch, runs, dtype);
     }
     // The residual add folded into the kernels' store: Y += W X.
     void matmul_add(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
@@ -3422,7 +3433,7 @@ private:
             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_[pool], q);
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
             dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_[pool], q + 1);
-            query_kernel_.push_back(id * kVariants + variant);
+            query_kernel_.push_back(id * kVariants + variant + (head_ ? kTimedKernels : 0));
             query_next_ += 2;
         } else {
             dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
@@ -3537,9 +3548,11 @@ private:
     size_t query_next_ = 0;        // the next query of the reading interval, across its pools
     size_t pools_reset_ = 0;       // the pools this interval has reset; a reading empties them all
     size_t last_timed_ = 0;        // dispatches the last reading covered
-    std::vector<int> query_kernel_;   // id * kVariants + variant
-    double kernel_ns_[K_COUNT * kVariants] = {0};
-    size_t kernel_calls_[K_COUNT * kVariants] = {0};
+    static constexpr int kTimedKernels = K_COUNT * kVariants;
+    bool head_ = false;               // on a backend that times its dispatches, those being recorded are the output head's (matmul_logits)
+    std::vector<int> query_kernel_;   // id * kVariants + variant, past kTimedKernels for the output head's
+    double kernel_ns_[2 * kTimedKernels] = {0};
+    size_t kernel_calls_[2 * kTimedKernels] = {0};
     std::shared_ptr<VulkanBuffer> mx_copy_; // copies of one call, reused in queue order
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise

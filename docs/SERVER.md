@@ -280,7 +280,7 @@ A request cancelled, a pass failed and a stop inside a piece end as they do with
 
 A layer split is not paced, and refuses a share: a pass fed in pieces stays in flight for its stage's device time and a sequence is in one pass at a time, so the prompt's next slice could not enter the first stage while its last is in the second, and the prompt would lose the overlap of the stages (docs/MULTI-DEVICE.md, Prefill beside decode).
 
-`serve --timing` times the rounds for `/v1/health` over devices made to time their work, each dispatch between two timestamps (Protocol below): the round's period and the thread's time in it, recording, relaying (the uploads that carry a residual into its next stage), sampling and forming passes, apart from where it was held, on the source's ticket in `receive`, on staging, on a free command slot and on the logits; each stage's idle share; and the device-bound rate, the rows the passes carried over the busiest stage's device time.
+`serve --timing` times the rounds for `/v1/health` over devices made to time their work, each dispatch between two timestamps (Protocol below): the round's period and the thread's time in it, recording, relaying (the uploads that carry a residual into its next stage), sampling, forming passes, the drafters' chains as completed work (`drafting_ms`) and the verifies' retracts (`settling_ms`), apart from where it was held, on the source's ticket in `receive`, on staging, on a free command slot and on the logits; each stage's idle share; and the device-bound rate, the rows the passes carried over the busiest stage's device time.
 A stage on a device is timed by its timestamps, read every 32 rounds, which waits for the device's queue, and a stage on the host by the thread's own time in it.
 The timestamps and those readings slow serving, so throughput is read from a server without `--timing`, and the timed figures from one with it on the same load.
 
@@ -370,7 +370,8 @@ GET  /v1/health      {"status": "ok", "server": {...}, "precision": {...},
                       "since_start" (counters), units in the names;
                       with --timing also "timing": {"rounds", "round_ms",
                       "recording_ms", "relaying_ms", "sampling_ms",
-                      "assembly_ms", "receive_wait_ms", "staging_wait_ms",
+                      "assembly_ms", "drafting_ms", "settling_ms",
+                      "receive_wait_ms", "staging_wait_ms",
                       "open_wait_ms", "logits_wait_ms", "stage_idle_share": [..],
                       "device_bound_rows_per_s"}, each time a mean a round
 GET  /v1/live        {"status": "ok"}, answered without the scheduler

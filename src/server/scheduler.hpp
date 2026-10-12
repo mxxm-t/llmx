@@ -368,6 +368,7 @@ public:
     struct Timing {
         uint64_t rounds = 0;
         double round_ms = 0, recording_ms = 0, relaying_ms = 0, sampling_ms = 0, assembly_ms = 0;
+        double drafting_ms = 0, settling_ms = 0;   // the drafters' chains as completed work, which the thread waits for, and the verifies' retracts as it records them
         double receive_wait_ms = 0, staging_wait_ms = 0, open_wait_ms = 0, logits_wait_ms = 0;
         std::vector<double> stage_ms;
         double span_ms = 0;
@@ -562,6 +563,7 @@ public:
             if (free_slot() < slots_.size() || free_apart() < slots_.size()) {
                 const Clock::time_point room_start = timed_ ? Clock::now() : Clock::time_point{};
                 formed_stages_ms_ = 0;
+                formed_chains_ms_ = 0;
                 // A job gives way at this pass boundary to a waiting request that needs its seat or room, and after growth to one that could not grow; it runs again once nothing waits.
                 bool waits;
                 {
@@ -618,7 +620,7 @@ public:
                     host.clear();
                 }
                 checkpoints_.store(model_.checkpoint_slots() - model_.checkpoints_free());
-                if (timed_) round_.assembly_ms += ms_since(room_start) - formed_stages_ms_;
+                if (timed_) round_.assembly_ms += ms_since(room_start) - formed_stages_ms_ - formed_chains_ms_;
             }
             for (const auto& a : host)
                 if (slots_[a.first].live && slots_[a.first].ran == a.second) advance(active, a.first, a.second);
@@ -1269,6 +1271,8 @@ private:
         }
         const double chain = ms_since(start);
         times_.chain(steps, n, chain);
+        round_.drafting_ms += chain;
+        formed_chains_ms_ += chain;
         for (Retirement& kind : retirement_) kind.chain_ms += chain;
         for (size_t i = 0; i < n; ++i) {
             Request& r = *askers_[i];
@@ -1294,6 +1298,7 @@ private:
     // A request cancelled in flight keeps its last pick alone, and a retract whose rerun fails ends the request with the error.
     void settle_verifies(size_t k) {
         Slot& f = slots_[k];
+        const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
         for (size_t e = 0; e < f.members.size(); ++e) {
             Request& r = *f.members[e];
             if (r.verify_.empty()) continue;
@@ -1312,6 +1317,7 @@ private:
             std::lock_guard<std::mutex> lk(m_);
             tally_.verified(keep - f.from[e] - 1, k_drafts);
         }
+        if (timed_) round_.settling_ms += ms_since(start);
     }
 
     // A stage's thread: it records the pass the round hands it (advance) and decides nothing, and the round takes what it did (collect); a failure is the scheduler's thread's to undo.
@@ -3384,6 +3390,7 @@ private:
     Clock::time_point span_start_;
     size_t span_rows_ = 0;                // rows the passes retired since the last reading carried
     double formed_stages_ms_ = 0;         // the round's first stages of new passes, which forming them does not count
+    double formed_chains_ms_ = 0;         // and its drafters' chains, counted as drafting
     infer::ExecContext ctx_;
     std::vector<Slot> slots_;
     LogitRows logit_rows_;

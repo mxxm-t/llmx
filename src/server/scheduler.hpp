@@ -375,6 +375,7 @@ public:
         size_t reprefills = 0;         // jobs that kept a reply's next turn as a donor
         size_t reprefill_rows = 0;     // rows jobs read
         size_t reprefill_cancels = 0;  // jobs that gave way to a request at a pass boundary
+        size_t reprefill_handed = 0;   // jobs whose rows a waiting request took over; not yet counted
         size_t host_donors = 0, host_bytes = 0;   // donors held in host memory now, and their bytes
         size_t host_hits = 0;                     // donors promoted from host memory for a request
         size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory

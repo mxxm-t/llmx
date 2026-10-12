@@ -3880,6 +3880,96 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
+// A request arriving while a job reads its conversation takes the job's rows over (Scheduler::hand_jobs): a 300-token turn, its job reading 768 ids in passes of 16, and a request sent as the job's pass reaches `at` rows.
+// The pool or the one seat is full of the job, so the request cannot be admitted beside it; it must fork what the job has read to its last kept block, where giving way discards it.
+enum class Take { follow, one_seat, in_flight, first_leaves, edited, unrelated, one_slot };
+void request_takes_job(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, Take arm, const std::string& on_what) {
+    const std::string what = std::string("a request arriving while a job reads its conversation") +
+                             (arm == Take::one_seat ? ", the job in the one seat" : arm == Take::in_flight ? ", sent from another thread" : arm == Take::first_leaves ? ", a first follower leaving" :
+                              arm == Take::edited ? ", its prompt parting from the job's ids before the job's kept block" : arm == Take::unrelated ? ", another conversation's" : arm == Take::one_slot ? ", one checkpoint slot" : "") + on_what;
+    const size_t pool = arm == Take::one_seat ? 2048 : 1024, seats = arm == Take::one_seat ? 1 : 3, at = 528;
+    const Req t1{prompt_of(5, 300, vocab), 20};
+    Req next, other{prompt_of(9, 500, vocab), 20};
+    std::vector<uint32_t> ids;
+    size_t reused = 0;
+    Reply got;
+    server::Scheduler::Stats after;
+    bool state = false;
+    {
+        auto model = make(pool, 16);
+        state = model->keeps_state();
+        server::Scheduler sched(*model, tok, seats, 64, 0, false, 0);
+        std::shared_ptr<server::Request> h1, first, h2;
+        std::mutex handles;
+        std::atomic<bool> reached{false};
+        // The job is the one request of a pass that no handle of the test's names.
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            for (size_t e = 0; e < t.requests.size(); ++e) {
+                if (reached.load() || t.requests[e] == h1.get() || t.from[e] + t.rows[e] != at) continue;
+                if (arm != Take::in_flight) {
+                    std::lock_guard<std::mutex> lk(handles);
+                    if (arm == Take::first_leaves) {
+                        first = sched.submit(next.prompt, params_of(next));
+                        first->cancel();
+                    }
+                    h2 = sched.submit(arm == Take::unrelated ? other.prompt : next.prompt, params_of(arm == Take::unrelated ? other : next));
+                }
+                reached = true;
+            }
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            h1 = sched.submit(t1.prompt, params_of(t1));
+            ids = t1.prompt;
+            for (uint32_t id : ids_of(drain(*h1))) ids.push_back(id);
+            const std::vector<uint32_t> more = prompt_of(6, 448, vocab);
+            ids.insert(ids.end(), more.begin(), more.end());
+            next.prompt = ids;
+            // An edit of the last message: the prompt parts from the job's ids at 400, below the block the job last kept.
+            if (arm == Take::edited) next.prompt.resize(400);
+            const std::vector<uint32_t> tail = prompt_of(arm == Take::edited ? 8 : 7, 30, vocab);
+            next.prompt.insert(next.prompt.end(), tail.begin(), tail.end());
+            next.cap = 20;
+            sched.follow(h1, ids, true);
+            within_a_minute([&] { return reached.load(); }, what + ": the job's pass reaching " + std::to_string(at) + " rows");
+            std::shared_ptr<server::Request> mine;
+            {
+                std::lock_guard<std::mutex> lk(handles);
+                if (arm == Take::in_flight) h2 = sched.submit(next.prompt, params_of(next));
+                mine = h2;
+            }
+            got = drain(*mine);
+            reused = mine->reused();
+            if (first) collect(*first);
+            // Another conversation's request leaves the job to start again and finish.
+            if (arm == Take::unrelated) within_a_minute([&] { return sched.stats().reprefills == 1; }, what + ": the job finishing after it gave way");
+            after = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    auto fresh = make(pool, 16);
+    same(serve(*fresh, tok, seats, {{arm == Take::unrelated ? other : next}})[0], got, what + ", the request's reply");
+    const std::string seen = "reused " + std::to_string(reused) + " tokens, " + std::to_string(after.reprefill_handed) + " jobs handed over, " + std::to_string(after.reprefill_cancels) + " given way";
+    // The job's last kept block below `at` is 512; a request sent from another thread meets it at some later block.
+    if (arm == Take::follow || arm == Take::one_seat || arm == Take::first_leaves)
+        require(reused == 512 && after.reprefill_handed == 1 && !after.reprefill_cancels, what + ": " + seen + ", against 512 reused from one job handed over and none given way");
+    else if (arm == Take::in_flight)
+        require(reused >= 512 && reused % kBlock == 0 && !after.reprefill_cancels, what + ": " + seen + ", against whole blocks from 512 on, the job handed over or finished, and none given way");
+    else if (arm == Take::one_slot)
+        // With one slot the turn's donor holds it and the job keeps no state of its own, so there is nothing of the job's to hand over: the request forks the turn's 256, as before.
+        require(reused == 256 && !after.reprefill_handed, what + ": " + seen + ", against the turn's own 256 and no job handed over");
+    else if (arm == Take::edited)
+        require(reused == (state ? 256 : 384) && after.reprefill_handed == (state ? 0 : 1), what + ": " + seen + ", against " + (state ? "the turn's own 256 and no job handed over, its state being kept past the edit" : "the 384 the job's rows share with it"));
+    else
+        require(!reused && !after.reprefill_handed && after.reprefill_cancels >= 1 && after.reprefills == 1, what + ": " + seen + ", against nothing reused, the job giving way and finishing after");
+    std::cout << "server-resume: " << what << ": " << seen << "\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3967,6 +4057,11 @@ int main(int argc, char** argv) {
             host_pool_pressure(weights, tok, vocab);
             host_pool_shortest_copy();
             for (const Behind arm : {Behind::read, Behind::refused, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
+            for (const Take arm : {Take::follow, Take::one_seat, Take::in_flight, Take::first_leaves, Take::edited, Take::unrelated}) {
+                request_takes_job(one, tok, vocab, arm, "");
+                request_takes_job(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, arm, ", a model keeping a state");
+            }
+            request_takes_job(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, Take::one_slot, ", a model keeping a state");
             job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
             job_holds_its_ids(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a job given ids a donor holds whole, a model keeping a state");
             for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})

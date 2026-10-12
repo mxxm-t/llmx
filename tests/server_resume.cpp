@@ -3803,6 +3803,83 @@ void host_pool_shortest_copy() {
     std::cout << "server-resume: " << what << ": none of its six slabs taken with twelve free, six with fourteen and no more\n";
 }
 
+// A conversation larger than the host tier, on disk, behind its message boundary in host memory (docs/DISK-TIER.md, Restore): a turn and its job on the hybrid model over four CPUs, then another conversation's request that takes its room.
+// The follow-up turn must read the history back from disk, the boundary being a state alone; where the host has no memory for that read it is refused and counted, and a history taken before any file held it is counted lost.
+enum class Behind { read, refused, at_once };
+void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
+    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::refused ? ", no memory for its read" : arm == Behind::at_once ? ", taken before it was written" : "");
+    const uint32_t v = (uint32_t)kHybrid.vocab;
+    const bpe::Tokenizer tok(mixed);
+    const size_t slab = infer::Model::host_slab_bytes(), cap = 3 * slab;
+    std::atomic<size_t> base{80 * slab};
+    std::atomic<infer::Model*> pool{nullptr};
+    const auto free = [&]() -> std::optional<size_t> {
+        infer::Model* m = pool.load();
+        const size_t taken = m ? m->host_allocated() : 0, b = base.load();
+        return b > taken ? b - taken : 0;
+    };
+    const Make make = on(mixed, [] { return cpus(4); }, 3, 3, 0, 0, false, 1, free);
+    DiskRoot disk("behind-boundary");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::seconds(1);
+    const Req t1{prompt_of(5, 700, v), 20}, small{prompt_of(9, 500, v), 20};
+    Req t2;
+    size_t reused = 0;
+    Reply got;
+    server::Scheduler::Stats written, taken, after;
+    {
+        auto model = make(1024, 16);
+        require(model->host_bytes(768) > cap && model->host_bytes(768, false) <= cap, what + ": the fixture's history is not larger than the tier with a state that fits it");
+        pool = model.get();
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, cap, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            const auto h1 = sched.submit(t1.prompt, params_of(t1));
+            t2.prompt = t1.prompt;
+            for (uint32_t id : ids_of(drain(*h1))) t2.prompt.push_back(id);
+            const std::vector<uint32_t> more = prompt_of(6, 48, v);
+            t2.prompt.insert(t2.prompt.end(), more.begin(), more.end());
+            if (arm != Behind::at_once) {
+                // The job reads the reply again and keeps the boundary, and the idle server writes the history, its state last.
+                sched.follow(h1, t2.prompt, true);
+                within_a_minute([&] { return sched.stats().reprefills == 1 && sched.stats().boundaries == 1; }, what + ": the reply read again and its boundary kept");
+                within_a_minute([&] { return sched.stats().disk_states >= 1 && !sched.stats().disk_in_flight; }, what + ": the history written while idle");
+            }
+            written = sched.stats();
+            drain(*sched.submit(small.prompt, params_of(small)));
+            taken = sched.stats();
+            const std::vector<uint32_t> tail = prompt_of(7, 30, v);
+            t2.prompt.insert(t2.prompt.end(), tail.begin(), tail.end());
+            t2.cap = 20;
+            if (arm == Behind::refused) base = 0;
+            const auto h2 = sched.submit(t2.prompt, params_of(t2));
+            got = drain(*h2);
+            reused = h2->reused();
+            after = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            pool = nullptr;
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        pool = nullptr;
+    }
+    auto fresh = make(1024, 16);
+    same(serve(*fresh, tok, 2, {{t2}})[0], got, what + ", the follow-up turn");
+    const std::string seen = "reused " + std::to_string(reused) + " tokens, " + std::to_string(after.disk_hits) + " histories read from disk, " + std::to_string(after.disk_refused) + " reads refused, " +
+                             std::to_string(taken.host_unwritten) + " histories lost before any file held them";
+    if (arm == Behind::read)
+        require(reused == 768 && after.disk_hits == 1 && !after.disk_refused && !taken.host_unwritten && written.boundaries == 1, what + ": " + seen + ", against 768 reused from one history read and nothing refused or lost");
+    else if (arm == Behind::refused)
+        require(!reused && !after.disk_hits && after.disk_refused == 1, what + ": " + seen + ", against nothing reused or read and one read refused");
+    else
+        require(!reused && !after.disk_hits && taken.host_unwritten >= 1 && !written.disk_entries, what + ": " + seen + ", against nothing reused and a history counted lost");
+    std::cout << "server-resume: " << what << ": " << seen << "\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -3889,6 +3966,7 @@ int main(int argc, char** argv) {
             host_growth(weights, tok, vocab);
             host_pool_pressure(weights, tok, vocab);
             host_pool_shortest_copy();
+            for (const Behind arm : {Behind::read, Behind::refused, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
             job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
             job_holds_its_ids(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a job given ids a donor holds whole, a model keeping a state");
             for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})

@@ -385,6 +385,7 @@ public:
         size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
+        size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory; not yet counted
         size_t host_unwritten = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads

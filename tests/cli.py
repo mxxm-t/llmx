@@ -215,6 +215,8 @@ def check_usage_errors():
         usage_error(args, page)
     # A flag is honoured or refused: entries are adopted only under keep, so the proved policy without it is refused by name.
     usage_error(["serve", model, "--disk-cache-adopt", "proved"], "serve", "--disk-cache-adopt proved adopts")
+    # Pacing is off or a fixed share, never both.
+    usage_error(["serve", model, "--no-pacing", "--generating-share", "0.5"], "serve", "--no-pacing serves no generating request apart")
 
 
 def help_page(command, directory):

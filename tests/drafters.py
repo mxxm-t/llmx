@@ -71,6 +71,7 @@ def check_sidecar(directory, tool):
             pack("embed", split, side, joined)
         assert probed(tool, joined, directory, fixture) == want, "the MTP block embedded back drafts otherwise, after %r" % prompt
     common.check_drafts("drafters sidecar", split, drafter=side)
+    common.check_drafts("drafters sidecar behind lookup", split, drafter="lookup," + side)
     rc, out = cli(["bench", "--model", split, "--p", "4", "--n", "8", "--r", "1", "--drafter", side])
     assert rc == 0 and re.search(r"^bench: tg8 ", out, re.M) and re.search(r"^bench: rollback keeping 3 of 4 rows", out, re.M) and \
         re.search(r"^bench: draft 3  chain ", out, re.M), \
@@ -151,6 +152,7 @@ def check_draft_models(directory):
     plain = write_model(os.path.join(directory, "draft-qwen3.gguf"), qwen3_tensors(False), eos_id=qwen35.EOS, config=dict(QWEN3_CONFIG, context_length=1024))
     for name, drafter in (("a qwen35 draft model", hybrid), ("a qwen3 draft model", plain)):
         common.check_drafts("drafters " + name, target, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter=drafter)
+        common.check_drafts("drafters " + name + " behind lookup", target, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter="lookup," + drafter)
     no_eos = write_model(os.path.join(directory, "draft-no-eos.gguf"), qwen3_tensors(False))
     refused(target, no_eos, "tokenizer.ggml.eos_token_id is none where the model has %d" % qwen35.EOS, "a draft model without the target's end of text")
     rc, out = cli(["bench", "--model", target, "--p", "4", "--n", "2", "--r", "1", "--drafter", plain])

@@ -281,6 +281,7 @@ def check_wide_drafter(directory, require):
     tokens = build_byte_vocab() + ["<|endoftext|>"] + ["<wide %d>" % i for i in range(WIDE_VOCAB - VOCAB)]
     model = write_fixture(directory, spec, tokens)
     common.check_drafts("qwen35 wide vocabulary", model, drafter="embedded")
+    common.check_drafts("qwen35 wide vocabulary", model, drafter="lookup,embedded")
     tool = decode_probe.tool_path()
     if not os.path.exists(tool):
         assert not require, "qwen35: llmx-decode-probe is not beside the executable, and --require-tools asks for it"
@@ -316,6 +317,7 @@ def check_kept_drafts(directory):
                         config=dict(gguf_config(spec), context_length=1024), arch="qwen35")
     prompt = "abcabcabcabcabcabc xyz abcabcabcabc"
     common.check_drafts("qwen35 as its own draft model", model, prompt, 60, drafter=model)
+    common.check_drafts("qwen35 as its own draft model behind lookup", model, prompt, 60, drafter="lookup," + model)
     for k in ("1", "4", "8", "16"):
         run = common.run_process(["generate", model, prompt, "-n", "60", "--ignore-eos", "--verbose", "--temp", "0", "--drafter", model, "--draft-max", k])
         assert run.returncode == 0, "generate with the model as its own draft model failed: " + run.stderr.decode("utf-8", "replace")
@@ -358,7 +360,9 @@ def check_serve(directory):
         # Drafts verified through a hybrid model's mark and its rerun, over a context that holds a longer reply and a chat; the MTP block's file drafts with it too.
         common.check_drafts(served, served, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True)
         if served == model:
-            common.check_drafts(drafting, drafting, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter="embedded")
+            for form in ("embedded", "lookup,embedded"):
+                common.check_drafts(drafting, drafting, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter=form)
+            check_pure_embedded(drafting)
         # A host tier, which the CPU takes only when given one, holds the message boundary.
         srv = server.Server(served, "--max-seqs", "4", "--host-cache-bytes", str(1 << 28))
         try:
@@ -383,10 +387,11 @@ def check_serve(directory):
     # Drafts in the scheduler (docs/SPECULATIVE.md, section 3): with the MTP block's drafter and with lookup, each reply alone and with the others at once is its reply without drafts, greedy and seeded, and drafts were fed.
     texts = ["abcabcabcabcabcabc xyz abcabc", "hello hello hello hello", "the quick brown fox", "0123456789"]
     bodies = [{"prompt": text, "temperature": temp, "seed": 5, "max_tokens": 40, "ignore_eos": True} for text in texts for temp in (0, 0.8)]
-    for served, drafter in ((drafting, "embedded"), (model, "lookup")):
+    for served, drafter in ((drafting, "embedded"), (drafting, "lookup,embedded"), (model, "lookup")):
         plain = server.Server(served, "--max-seqs", "4")
         try:
             want = [server.post_ok(plain, "/v1/generate", body)["ids"] for body in bodies]
+            assert plain.get("/v1/health")["drafting"]["sources"] == [], plain.get("/v1/health")["drafting"]
         finally:
             plain.close()
         srv = server.Server(served, "--max-seqs", "4", "--drafter", drafter)
@@ -395,8 +400,9 @@ def check_serve(directory):
             for body, ids in zip(bodies, want):
                 assert server.post_ok(srv, "/v1/generate", body)["ids"] == ids, (drafter, body)
             health = srv.get("/v1/health")
-            drafting = health["drafting"]["since_start"]
-            assert drafting["drafted"] > 0 and all(p["kept"] <= p["drafted"] for p in drafting["by_position"]), (drafter, health)
+            assert health["drafting"]["sources"] == drafter.split(","), (drafter, health)
+            counts = health["drafting"]["since_start"]
+            assert counts["drafted"] > 0 and all(p["kept"] <= p["drafted"] for p in counts["by_position"]), (drafter, health)
         finally:
             srv.close()
     # Uncapped, each request runs to the context the pool holds, so four together pause and resume with the text each gives alone, with checkpoints and without, where each recomputes its history from its start.
@@ -418,6 +424,39 @@ def check_serve(directory):
     check_resume_drafts(directory, drafting_spec)
 
 
+def check_pure_embedded(model):
+    """The list's order is the drafting's (docs/USAGE.md, generate).
+    On a prompt that repeats itself `lookup,embedded` takes drafts from the reply's own history ahead of the MTP block and prints them as `own drafts kept:`, and `embedded` alone takes none.
+    Served, health names the sources in the flag's order and counts the own-history drafts."""
+    import server
+    # The fixture's greedy pick after this prompt is 'F', so the last 8 tokens of the history, the prompt's last 7 and that pick, occur at its start and the history's own draft is the 7 that followed.
+    # 'F' leads the runner-up by 0.130 logits on the CPU, and the component holds the fixture's device logits to common.F32_HF_LOGIT_BOUND (2e-5), so no device that meets it flips the pick.
+    prompt = "xyzxyzxFxyzxyzx"
+    base = ["generate", model, prompt, "-n", "60", "--ignore-eos", "--verbose", "--temp", "0"]
+    out = {}
+    for form in ("off", "embedded", "lookup,embedded"):
+        run = common.run_process(base + ["--drafter", form], cache="f32")
+        assert run.returncode == 0, "generate --drafter %s failed: %s" % (form, run.stderr.decode("utf-8", "replace"))
+        out[form] = common.cli_stdout(run.stdout)
+    assert re.search(rb"^own drafts kept: \d+/\d+", out["lookup,embedded"], re.M), "lookup,embedded took no draft from the reply's own history: %r" % out["lookup,embedded"]
+    assert not re.search(rb"^own drafts kept:", out["embedded"], re.M), "embedded alone took drafts from the reply's own history: %r" % out["embedded"]
+    assert re.search(rb"^drafts kept: \d+/\d+", out["embedded"], re.M), "embedded alone fed no draft of its own: %r" % out["embedded"]
+    ids = {form: re.search(rb"^ids:.*$", text, re.M)[0] for form, text in out.items()}
+    assert len(set(ids.values())) == 1, ids
+    body = {"prompt": prompt, "temperature": 0, "max_tokens": 60, "ignore_eos": True}
+    for form, own in (("embedded", False), ("lookup,embedded", True)):
+        srv = server.Server(model, "--max-seqs", "2", "--drafter", form)
+        try:
+            server.post_ok(srv, "/v1/generate", body)
+            health = srv.get("/v1/health")["drafting"]
+            assert health["sources"] == form.split(",") and (health["since_start"]["own_history"]["drafted"] > 0) == own, (form, health)
+            srv.log.seek(0)
+            log = srv.log.read()
+            assert ("drafting " + form) in log, (form, log)
+        finally:
+            srv.close()
+
+
 def check_resume_drafts(directory, spec):
     """A request resumed by a fork of its whole history, with the embedded drafter and a host tier (docs/SPECULATIVE.md, section 3): on a pool of 8192 tokens an uncapped request of 5762 prompt tokens runs toward the pool's end, its reservation of 49 blocks leaving it 511 tokens before its first growth step; an uncapped one of 1281 arrives once the first is admitted, while it still reads its prompt, whose 13 blocks end 384 tokens on, stalls there on a whole block, is paused for the first one's growth and has its parked history evicted to host memory.
     When the first ends the second resumes by a fork of the copy promoted from host memory and decodes at once, on a sequence no pass has fed: it must draft nothing in that pass, and both must end by length with the text each gives alone, nobody with an error.
@@ -427,7 +466,7 @@ def check_resume_drafts(directory, spec):
     import server
     model = write_model(os.path.join(directory, "tiny-qwen35-resume-mtp.gguf"), gguf_tensors(spec, raw_weights(spec)), eos_id=EOS,
                         config=dict(gguf_config(spec), context_length=8192), arch="qwen35")
-    flags = ("--max-seqs", "4", "--ctx-size", "8192", "--drafter", "embedded", "--host-cache-bytes", str(1 << 28))
+    flags = ("--max-seqs", "4", "--ctx-size", "8192", "--drafter", "lookup,embedded", "--host-cache-bytes", str(1 << 28))
     prompts = ["".join(chr(97 + (i * 7) % 26) for i in range(5762)), "".join(chr(97 + (i * 5) % 26) for i in range(1281))]
     bodies = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
     srv = server.Server(model, *flags)
@@ -578,6 +617,7 @@ def run(require=False):
             common.check_drafts(name, model)
             if spec["mtp"]:
                 common.check_drafts(name, model, drafter="embedded")
+                common.check_drafts(name, model, drafter="lookup,embedded")
                 worst = max(worst, check_drafter(model, models[fixture["base"]], require))
             if "base" in fixture:
                 for text in TEXTS:

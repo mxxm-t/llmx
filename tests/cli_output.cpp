@@ -24,6 +24,38 @@ bool device_lists() {
            refused("vulkan:x") && refused("gpu:0") && layer_shares("3,1") == std::vector<int>{3, 1} && refused("");
 }
 
+// A --drafter list is a list of sources in the order they are tried: each rule of it is decided by the words, every refusal is a usage error naming the flag, and a second --drafter replaces everything the first set.
+bool drafter_lists() {
+    auto read = [](const std::string& value, Drafts& drafts) {
+        std::string flag = "--drafter", v = value;
+        char* argv[] = {flag.data(), v.data()};
+        int i = 0;
+        return drafts_flag(2, argv, i, flag, "--drafter", drafts) && i == 1;
+    };
+    auto refused = [&](const std::string& value, const std::string& why) {
+        Drafts drafts;
+        try { read(value, drafts); } catch (const UsageError& e) { return std::string(e.what()).find(why) != std::string::npos; }
+        return false;
+    };
+    const size_t plain = Drafts{}.draft_max + 1;
+    Drafts a, b, c, d, e, f;
+    const bool read_all = read("embedded", a) && read("lookup,embedded", b) && read("lookup,x.gguf", c) && read("x.gguf", d) && read("lookup", e) && read("off", f);
+    if (!read_all) return false;
+    Drafts again;
+    read("lookup,embedded", again);
+    read("off", again);
+    return a.embedded && !a.lookup_first && !a.proposer && a.mark_rows() == plain && b.embedded && b.lookup_first && b.mark_rows() == plain &&
+           c.file == "x.gguf" && c.lookup_first && c.mark_rows() == plain && d.file == "x.gguf" && !d.lookup_first && d.mark_rows() == plain &&
+           e.proposer && !e.lookup_first && e.mark_rows() == plain && !f.proposer && !f.embedded && f.file.empty() && f.mark_rows() == 0 &&
+           !again.embedded && !again.lookup_first && !again.proposer && again.file.empty() &&
+           drafter_sources("lookup,embedded") == std::vector<std::string>{"lookup", "embedded"} &&
+           refused("lookup,", "an empty entry in 'lookup,'") && refused(",embedded", "an empty entry") && refused("lookup,lookup", "lookup is listed twice") &&
+           refused("x.gguf,x.gguf", "x.gguf is listed twice") && refused("off,off", "off is listed twice") && refused("off,lookup", "off stands alone") &&
+           refused("embedded,off", "off stands alone") && refused("embedded,x.gguf", "embedded and x.gguf both run a model") &&
+           refused("x.gguf,y.gguf", "x.gguf and y.gguf both run a model") && refused("embedded,lookup", "give lookup first, as lookup,embedded") &&
+           refused("x.gguf,lookup", "give lookup first, as lookup,x.gguf") && refused("", "an empty entry");
+}
+
 // A cache type is kept in its one spelling, and an empty or unknown name is a usage error as the flag is read, before any model file is.
 bool cache_types() {
     auto read = [](std::string flag, std::string value, ExecOptions& exec) {
@@ -219,6 +251,10 @@ int main() {
     }
     if (!device_lists()) {
         std::cerr << "CLI device lists not read canonically\n";
+        return 1;
+    }
+    if (!drafter_lists()) {
+        std::cerr << "CLI --drafter list not read in order, its state not replaced by a second value, or a malformed list not refused as the flag is read\n";
         return 1;
     }
     if (!cache_types()) {

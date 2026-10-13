@@ -215,6 +215,21 @@ def check_usage_errors():
         usage_error(args, page)
     # A flag is honoured or refused: entries are adopted only under keep, so the proved policy without it is refused by name.
     usage_error(["serve", model, "--disk-cache-adopt", "proved"], "serve", "--disk-cache-adopt proved adopts")
+    # --drafter is a list of sources tried in order, and every rule of the list is decided by its words, so each refusal comes while the line is read, on every command that takes the flag.
+    rules = [("lookup,", "--drafter: an empty entry in 'lookup,'"), (",embedded", "--drafter: an empty entry in ',embedded'"),
+             ("lookup,lookup", "--drafter: lookup is listed twice"), ("embedded,embedded", "--drafter: embedded is listed twice"),
+             ("off,lookup", "--drafter: off stands alone"), ("lookup,off", "--drafter: off stands alone"), ("off,embedded", "--drafter: off stands alone"),
+             ("embedded,x.gguf", "--drafter: embedded and x.gguf both run a model"), ("x.gguf,y.gguf", "--drafter: x.gguf and y.gguf both run a model"),
+             ("lookup,x.gguf,embedded", "--drafter: x.gguf and embedded both run a model"),
+             ("embedded,lookup", "--drafter: lookup comes before a drafter that runs a model; give lookup first, as lookup,embedded"),
+             ("x.gguf,lookup", "--drafter: lookup comes before a drafter that runs a model; give lookup first, as lookup,x.gguf")]
+    for value, reason in rules:
+        for command in (["generate", model, "a"], ["chat", model], ["serve", model]):
+            usage_error(command + ["--drafter", value], command[0], reason)
+    # bench times a model drafter's rows and drafts from no history, so lookup is refused beside it as alone.
+    for value in ("lookup", "lookup,embedded", "lookup,x.gguf"):
+        usage_error(["bench", "--model", model, "--drafter", value], "bench", "--drafter: bench --model takes off, embedded or a drafter file, not lookup")
+    usage_error(["bench", "--model", model, "--drafter", "off,off"], "bench", "--drafter: off is listed twice")
     # Pacing is off or a fixed share, never both.
     usage_error(["serve", model, "--no-pacing", "--generating-share", "0.5"], "serve", "--no-pacing serves no generating request apart")
 

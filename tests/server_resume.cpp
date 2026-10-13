@@ -4090,6 +4090,59 @@ void shorter_boundary_with_rows(const gguf::GGUFModel& mixed) {
     std::cout << "server-resume: " << what << ": reused " << reused << " tokens from the boundary at 256\n";
 }
 
+// A state read alone from disk keeps the host copy whose rows it is for (Scheduler::start_read), on the hybrid model: a 720-token conversation in a host tier of exactly its size, whole on disk, with an older state at 256.
+// A request agreeing with it for 384 tokens can use only that state; with no room for it beside the copy the first 256 tokens are read whole, and with room the boundary stays in memory and nothing is read.
+void state_read_keeps_its_rows(const gguf::GGUFModel& mixed, bool spare) {
+    const std::string what = std::string("a state read alone from disk, the host tier ") + (spare ? "with room for it beside the copy holding its rows" : "full of the copy holding its rows");
+    const uint32_t v = (uint32_t)kHybrid.vocab;
+    const bpe::Tokenizer tok(mixed);
+    const Make make = on(mixed, [] { return cpus(1); }, 3, 6);
+    DiskRoot disk(spare ? "state-read-spare" : "state-read-full");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::seconds(1);
+    const Req t1{prompt_of(5, 700, v), 20}, small{prompt_of(9, 500, v), 20};
+    Req next{std::vector<uint32_t>(t1.prompt.begin(), t1.prompt.begin() + 384), 20};
+    const std::vector<uint32_t> tail = prompt_of(12, 40, v);
+    next.prompt.insert(next.prompt.end(), tail.begin(), tail.end());
+    size_t reused = 0;
+    Reply got;
+    server::Scheduler::Stats written, taken, after;
+    {
+        auto model = make(1024, 16);
+        // The conversation's donor keeps its state at 640, so its host copy is 640 rows and a state.
+        const size_t cap = model->host_bytes(640) + (spare ? model->host_bytes(256, false) : 0);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, cap, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(t1.prompt, params_of(t1), std::numeric_limits<size_t>::max(), 256));
+            within_a_minute([&] { return sched.stats().disk_states >= 2 && !sched.stats().disk_in_flight; }, what + ": the conversation and its boundary written while idle");
+            written = sched.stats();
+            // Another conversation takes the devices, so the first leaves for host memory, where its boundary, on disk, makes room for it unless there is room for both.
+            drain(*sched.submit(small.prompt, params_of(small)));
+            taken = sched.stats();
+            const auto h = sched.submit(next.prompt, params_of(next));
+            got = drain(*h);
+            reused = h->reused();
+            after = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    auto fresh = make(1024, 16);
+    same(serve(*fresh, tok, 2, {{next}})[0], got, what + ", the request's reply");
+    const std::string seen = "reused " + std::to_string(reused) + " tokens, " + std::to_string(after.disk_hits) + " read from disk, " + std::to_string(after.boundary_hits) + " boundaries and " + std::to_string(after.host_hits) +
+                             " host copies used, " + std::to_string(after.disk_refused) + " reads refused; before the request " + std::to_string(taken.host_donors) + " host copies and " + std::to_string(taken.boundaries) + " boundaries";
+    require(written.boundaries == 1 && taken.host_donors == 1 && taken.boundaries == (spare ? 1u : 0u), what + ": " + seen + ", against one host copy and " + (spare ? "its boundary kept" : "no boundary") + " before the request");
+    require(reused == 256 && after.disk_hits == (spare ? 0u : 1u) && !after.disk_refused && after.boundary_hits == (spare ? 1u : 0u) && after.host_hits == 1,
+            what + ": " + seen + ", against 256 reused from " + (spare ? "the boundary in memory over the copy's rows" : "the 256 tokens read whole from disk"));
+    std::cout << "server-resume: " << what << ": " << seen << "\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -4178,6 +4231,7 @@ int main(int argc, char** argv) {
             host_pool_shortest_copy();
             for (const Behind arm : {Behind::read, Behind::refused, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
             shorter_boundary_with_rows(mixed);
+            for (const bool spare : {true, false}) state_read_keeps_its_rows(mixed, spare);
             for (const Take arm : {Take::follow, Take::one_seat, Take::in_flight, Take::first_leaves, Take::edited, Take::unrelated}) {
                 request_takes_job(one, tok, vocab, arm, "");
                 request_takes_job(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, arm, ", a model keeping a state");

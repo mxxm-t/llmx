@@ -569,11 +569,39 @@ std::string chat_prompt(const chat::ChatFormat& format, const std::string& text)
     return format.render({ { "user", text, std::nullopt } }, true);
 }
 
+// The sources a `--drafter` value lists, in the order they are tried: lookup, embedded or a drafter file, or off alone.
+// Each rule is decided by the words: no empty entry, a source once, off alone, one source that runs a model, and lookup only ahead of it.
+std::vector<std::string> drafter_sources(const std::string& value) {
+    std::vector<std::string> sources;
+    for (const auto& entry : core::comma_list(value)) {
+        if (entry.empty()) throw UsageError("--drafter: an empty entry in '" + value + "'");
+        if (std::find(sources.begin(), sources.end(), entry) != sources.end()) throw UsageError("--drafter: " + entry + " is listed twice");
+        sources.push_back(entry);
+    }
+    const auto runs_model = [](const std::string& s) { return s != "lookup" && s != "off"; };
+    if (sources.size() > 1 && std::find(sources.begin(), sources.end(), "off") != sources.end()) throw UsageError("--drafter: off stands alone");
+    const auto model = std::find_if(sources.begin(), sources.end(), runs_model);
+    if (model == sources.end()) return sources;
+    const auto second = std::find_if(model + 1, sources.end(), runs_model);
+    if (second != sources.end()) throw UsageError("--drafter: " + *model + " and " + *second + " both run a model; give one");
+    if (model + 1 != sources.end()) throw UsageError("--drafter: lookup comes before a drafter that runs a model; give lookup first, as lookup," + *model);
+    return sources;
+}
+
+// The sources in the flag's own spelling, which it reads back.
+std::string join_sources(const std::vector<std::string>& sources) {
+    std::string joined;
+    for (const auto& source : sources) joined += (joined.empty() ? "" : ",") + source;
+    return joined;
+}
+
 // What `--drafter` and `--draft-max` ask of generate, chat and serve: the proposer, none for off, whether it is the file's embedded drafter, which the model is loaded with, and the most drafts a verify feeds after the last pick.
 struct Drafts {
     std::unique_ptr<infer::spec::Proposer> proposer;
     bool embedded = false;
     std::string file;   // a drafter file beside the model, `--drafter PATH`
+    bool lookup_first = false;   // lookup stands ahead of the model drafter, which drafts where the reply's own history does not
+    std::vector<std::string> sources;   // the list as given, off as none
     size_t draft_max = 3;
     std::unique_ptr<infer::LoadedModel> beside;   // a draft model the file was, loaded as a model of its own
     // The rows of a verify a mark must save, none without a proposer.
@@ -595,12 +623,21 @@ struct Drafts {
 // --drafter and --draft-max, which generate, chat and serve take; true when `f` is one of them.
 bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::string_view f, Drafts& drafts) {
     if (f == "--drafter") {
-        const std::string d = flag_value(argc, argv, i, a);
+        const auto sources = drafter_sources(flag_value(argc, argv, i, a));
+        drafts.embedded = false;
         drafts.proposer.reset();
-        drafts.embedded = d == "embedded";
         drafts.file.clear();
-        if (d == "lookup") drafts.proposer = std::make_unique<infer::spec::Lookup>();
-        else if (d != "off" && d != "embedded") drafts.file = d;
+        drafts.lookup_first = false;
+        drafts.sources.clear();
+        drafts.lookup_first = sources.size() == 2;
+        for (const auto& source : sources) {
+            if (source == "off") continue;
+            drafts.sources.push_back(source);
+            if (source == "lookup") {
+                if (!drafts.lookup_first) drafts.proposer = std::make_unique<infer::spec::Lookup>();
+            } else if (source == "embedded") drafts.embedded = true;
+            else drafts.file = source;
+        }
         return true;
     }
     if (f == "--draft-max") {
@@ -613,7 +650,7 @@ bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::strin
 void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server) {
     if (loaded.drafter == infer::spec::DrafterKind::mtp) embedded = true;
     if (embedded) {
-        proposer = std::make_unique<infer::spec::Embedded>(*loaded.model, true);
+        proposer = std::make_unique<infer::spec::Embedded>(*loaded.model, lookup_first);
         return;
     }
     if (loaded.drafter != infer::spec::DrafterKind::model) return;
@@ -621,7 +658,7 @@ void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, b
         throw std::runtime_error("serve: " + file + " is a draft model, which drafts in generate and chat; the server drafts with lookup, embedded, or MTP blocks in a file beside the model");
     // A draft model that keeps a recurrent state keeps one where its drafts begin, so each draft goes back there (infer::spec::DraftModel); it shares the model's devices, so the two take turns on one queue a device.
     beside = open_model(file, exec, progress, exec.threads, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
-    proposer = std::make_unique<infer::spec::DraftModel>(*beside->model, true);
+    proposer = std::make_unique<infer::spec::DraftModel>(*beside->model, lookup_first);
 }
 
 int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec,
@@ -920,8 +957,10 @@ struct BenchDrafter {
     explicit operator bool() const { return embedded || !file.empty(); }
 };
 BenchDrafter bench_drafter(const std::string& d, size_t draft_max) {
-    if (d == "lookup") throw UsageError("bench --model takes --drafter off, embedded or a drafter file, not 'lookup'");
-    return {d == "embedded", d == "embedded" || d == "off" ? std::string() : d, draft_max};
+    const auto sources = drafter_sources(d);
+    if (sources[0] == "lookup" || sources.size() > 1) throw UsageError("--drafter: bench --model takes off, embedded or a drafter file, not lookup");
+    const std::string& source = sources[0];
+    return {source == "embedded", source == "embedded" || source == "off" ? std::string() : source, draft_max};
 }
 
 // With `drafts` the file's embedded drafter, or the MTP blocks its file holds, is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
@@ -1171,6 +1210,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
         server::check_disk_cache(c.disk, *c.host_cache_bytes);
     }
     c.proposer = drafts.proposer.get();
+    c.drafter_sources = drafts.sources;
     c.draft_max = drafts.draft_max;
     http::Listener listener(c.host, c.port);
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
@@ -1179,6 +1219,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens" << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
+              << (drafts.sources.empty() ? std::string() : ", drafting " + join_sources(drafts.sources))
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";
     if (const std::string why = server::no_turns(model, *c.host_cache_bytes, host_given); !why.empty())
@@ -1279,10 +1320,12 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --penalty F             Repetition penalty (default: " << sampling.penalty << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "\nSpeculative decoding (the output is the same either way):\n"
-            << "  --drafter D             Propose several tokens and check them in one pass: off, lookup (the\n"
-            << "                          tokens that followed the last ones earlier), embedded (the MTP block\n"
-            << "                          the file carries), or a drafter file beside the model: its MTP blocks\n"
-            << "                          or a draft model (default: off)\n"
+            << "  --drafter D             Propose several tokens and check them in one pass: off, or sources\n"
+            << "                          tried in the order given, comma-separated: lookup (the tokens that\n"
+            << "                          followed the last ones earlier), embedded (the MTP block the file\n"
+            << "                          carries) or a drafter file beside the model (its MTP blocks or a\n"
+            << "                          draft model). One that runs a model comes last: embedded alone, or\n"
+            << "                          lookup,embedded to take the reply's own history first (default: off)\n"
             << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(true);
         if (chat) out << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
@@ -1333,9 +1376,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          so a follow-up turn skips re-reading its prompt (default: fitted, up to --max-seqs)\n"
             << "\nSpeculative decoding (replies are the same either way):\n"
             << "  --drafter D             Propose several tokens and check them in one pass, where measured to help:\n"
-            << "                          off, lookup (the tokens that followed the last ones earlier), embedded\n"
-            << "                          (the MTP block the file carries), or a file of MTP blocks beside the model\n"
-            << "                          (default: off)\n"
+            << "                          off, or sources tried in the order given, comma-separated: lookup (the\n"
+            << "                          tokens that followed the last ones earlier), embedded (the MTP block the\n"
+            << "                          file carries) or a file of MTP blocks beside the model. One that runs a\n"
+            << "                          model comes last: embedded alone, or lookup,embedded (default: off)\n"
             << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(false);
         out << "\nRoutes:\n"
@@ -1401,7 +1445,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          It counts toward --moe-stream-from's prompt length.\n"
             << "  --profile               Real-model kernel timing and statistics on Vulkan devices\n"
             << "  --drafter D             off, embedded (the MTP block the file carries) or a file\n"
-            << "                          of MTP blocks beside it: load it, run its rows in every\n"
+            << "                          of MTP blocks beside it, never with lookup: load it, run its rows in every\n"
             << "                          pass, drafting nothing, then time a round's rollback at\n"
             << "                          each kept row and a draft's chain and verify at each\n"
             << "                          draft count (default: off)\n"

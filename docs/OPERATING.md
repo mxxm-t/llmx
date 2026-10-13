@@ -44,7 +44,7 @@ The comparison does not cover the rows between the two stretches, as `--disk-cac
 
 **Drafting.**
 The server proposes several tokens and checks them in one pass, which gives the same reply and can be faster where the passes have room.
-`lookup` needs nothing in the model file, `embedded` uses the MTP block a file carries, and a path names a file of MTP blocks beside the model.
+`lookup` needs nothing in the model file, `embedded` uses the MTP block a file carries, and a path names a file of MTP blocks beside the model; sources are tried in the order listed, so `lookup,embedded` takes the reply's own history first and the block where it has nothing, the form to run on a file that carries the block (docs/USAGE.md, `generate`).
 The server drafts only while its measured cost finds a gain, so it goes off as more requests decode.
 
 ```
@@ -66,7 +66,7 @@ Choose the smallest share that makes a reply readable while a prompt arrives: 0.
 With nothing writing, a prompt is read at full speed in every mode; pacing, automatic or by a share, holds a small second arena on every device, which `--no-pacing` gives back.
 With many users the share also lowers total output, most where prompts are long, because a batch of prompt rows uses a device better than a batch of a few generated rows.
 
-One measured case, to read the trade from (a 27B model on a tensor group of two GPUs with `--drafter embedded`, one request writing while a 50000-token prompt is read; the record with its conditions and the many-user tables is in [STATUS](STATUS.md), A generating request keeps a share of a device beside a prompt):
+One measured case, to read the trade from (a 27B model on a tensor group of two GPUs with `--drafter embedded`, which then drafted from the block alone, as `embedded` does now, one request writing while a 50000-token prompt is read; the record with its conditions and the many-user tables is in [STATUS](STATUS.md), A generating request keeps a share of a device beside a prompt):
 
 | share | the writing request, tokens a second | its longest pause | the prompt's read |
 |---|---|---|---|

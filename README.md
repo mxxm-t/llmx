@@ -81,7 +81,7 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 
 | Option | What it does |
 |---|---|
-| `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`) or from a drafter file, a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
+| `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`) or from a drafter file, sources tried in the order listed (`lookup,embedded`), a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
 | `--cache-type-k`, `--cache-type-v` | KV cache storage, `f16` (default) or `f32` |
 | `--load-mode auto\|mapped\|direct` | How the weights are read from disk |
 

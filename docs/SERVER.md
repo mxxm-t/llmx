@@ -301,14 +301,14 @@ The mask changes the draw, not the logits row: whatever reads the row reads the 
 
 ### Drafts
 
-With `--drafter lookup`, `--drafter embedded` or a file of MTP blocks beside the model (`--drafter PATH`, which drafts as `embedded` does) a decoding request drafts the tokens after its last pick and verifies them in the same pass as the other requests' rows (docs/SPECULATIVE.md, section 3), and every reply is the one it gives without drafts.
+With `--drafter lookup`, `--drafter embedded`, `--drafter lookup,embedded` or a file of MTP blocks beside the model (`--drafter PATH` or `--drafter lookup,PATH`, which draft as `embedded` does) a decoding request drafts the tokens after its last pick and verifies them in the same pass as the other requests' rows (docs/SPECULATIVE.md, section 3), and every reply is the one it gives without drafts.
 The pass being formed asks each decoding request it takes for drafts (`Scheduler::propose`): `spec::draft_length` gives the count from the request's acceptance, the tokens it may still generate, the positions its reservation holds and the decode columns the pass has left (`Scheduler::draft_columns`), the rows the device's decode kernels read each weight once for (`Backend::decode_columns`) less a row for each decoding request in the pass, every draft a lone decoder asks, at most 64 draft rows a pass, and none while every seat is taken and a request is queued for one. A request paused or queued for room takes no draft away: it waits for the running requests to end or grow, which their drafts bring sooner.
 A request with drafts marks its history (`Model::mark`) and takes one entry, its last pick then the drafts, extent 1, every row's logits; one whose mark is refused, or whose proposer has nothing, takes a decode entry.
 Within those, a pass drafts only what pays: the scheduler measures its passes of generated tokens, a base and a row in milliseconds, each by the time the server gave it, from its formation through its retract or, with passes in flight, since the pass before it retired, the drafter's chains apart, and those chains a step, a chain counted once for each pass in flight beside the one being formed, since they all wait behind it (`spec::PassTimes`), and a request drafts where the drafts it is expected to keep, its own share kept at each position weighed with the server's, pay for their rows at the rate the pass gives without drafts, at the depth whose tokens a millisecond are most (`spec::draft_depths`); until passes of different widths have been measured every request drafts what the columns allow, so the price is learned, and a server long at one width measures it again.
 On Qwen3.6-27B Q8_0 on one MI50 a pass costs about 10 ms a row past a few rows, so the columns alone made four or more users drafting slower than without drafts (docs/STATUS-2026-09.md).
 The drafts stay inside the room its reservation already holds, so they never grow the ledger, pause, stall or evict anything.
 The pass asks for every request's drafts at once (`spec::Proposer::draft_all`): the embedded drafter's chains run as one batch on the head's device as the pass is formed (`Model::draft` over the requests' sequences), each step reading the drafter's weights and the head once for all of them, lookup's on the host.
-Ahead of a drafter that runs a model, a request whose own history convinces drafts from it and is left out of that batch (`spec::lookup_first`, docs/SPECULATIVE.md, section 8), its acceptance kept apart from the drafter's (`spec::Record`) and its drafts priced without a chain; a pass whose requests all draft so runs no chain.
+Where `lookup` is listed ahead of a drafter that runs a model (`--drafter lookup,embedded`), a request whose own history convinces drafts from it and is left out of that batch (`spec::lookup_first`, docs/SPECULATIVE.md, section 8), its acceptance kept apart from the drafter's (`spec::Record`) and its drafts priced without a chain; a pass whose requests all draft so runs no chain.
 The rows are drawn in order on the sampling pool as `infer::accept` takes them, each with the request's own settings, history and generator, stopping at the first pick that ends the request or differs from its draft, so the draws are those of the run without drafts; with log-probabilities each token's row is copied for the channel while the reader keeps up and its values computed once it has fallen behind (`Request::kRowsWaiting`), as for one row.
 Right after the pass ends, before anything parks, pauses or forks the request, its history goes back to the last pick and the drafts its picks kept (`Model::retract`, which on a model that keeps a state reruns the kept rows from the mark), and a request cancelled in flight keeps its last pick alone.
 Jobs, replays and resumes never draft; a resumed request drafts once it decodes again.
@@ -546,7 +546,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
   },
   "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
   "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},
-  "drafting": {"since_start": {"drafted": 4096, "kept": 2780,
+  "drafting": {"sources": ["lookup", "embedded"], "since_start": {"drafted": 4096, "kept": 2780,
                "by_position": [{"position": 1, "drafted": 1024, "kept": 901}],
                "own_history": {"drafted": 512, "kept": 480}}},
   "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}
@@ -554,6 +554,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 ```
 
 `timing` appears beside `passes` only under `--timing`, with the keys it has now and `stage_idle` renamed `stage_idle_share` (a fraction per stage).
+`drafting.sources` lists the `--drafter` sources in the order tried, as the flag spells them, and is empty with no drafter.
 `drafting.by_position` is empty with no drafter, and a server has one drafter, so the counts are by draft position and not by drafter; `own_history` counts those of them the requests' own histories gave ahead of a drafter that runs a model.
 
 ### Where each old field goes

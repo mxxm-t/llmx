@@ -17,7 +17,8 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --generating-share X serves with that share for generating requests, whose rows then go in passes of their own between a prompt pass's pieces.
 --no-pacing serves with pacing off, and --host-cache-bytes N with that much host memory for evicted prefixes; without them the server's own defaults run.
 --tensor-width W groups the devices in tensor groups of W, the server and the CLI alike.
---drafter lookup|embedded|PATH serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts; it prints the drafts the server fed and kept, and fails where it fed none.
+--drafter lookup|embedded|PATH, or lookup,embedded and lookup,PATH, serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts.
+It prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
 --ctx-size sets the server pool; leave enough room for every active request in this mode.
 
@@ -227,7 +228,8 @@ def main():
     p.add_argument("--no-pacing", action="store_true", help="serve with pacing off, the server's own mode when not given")
     p.add_argument("--host-cache-bytes", type=int, help="host memory for evicted prefixes, the server's own when not given")
     p.add_argument("--drafter", default="off",
-                   help="the server's drafter: off, lookup, embedded or a file of MTP blocks beside the model; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
+                   help="the server's drafter: off, or sources tried in order (lookup, embedded or a file of MTP blocks, as lookup,embedded)"
+                   "; the CLI runs without drafts, so its text holds the server's drafts to the reply without them")
     p.add_argument("--fresh-phases", action="store_true", help="fresh server for each capped phase; fail on prefix reuse or pauses")
     p.add_argument("--cli", type=int, default=4,
                    help="requests also checked against the CLI; the first four cover every prompt length, the last two several ubatch chunks")

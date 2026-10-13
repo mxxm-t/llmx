@@ -58,6 +58,7 @@ struct Config {
     infer::DtypePlan dtype;
     // The proposer a decoding request drafts with and its most drafts a verify (docs/SPECULATIVE.md, section 3); none drafts nothing.
     infer::spec::Proposer* proposer = nullptr;
+    std::vector<std::string> drafter_sources;   // the sources `--drafter` listed in the order tried, which /v1/health names
     size_t draft_max = 0;
     bool context_shift = false;   // a prompt that does not fit is cut at a turn's end (--context-overflow shift) and not refused
 };
@@ -187,10 +188,11 @@ private:
             return out;
         };
         const auto yes = [](bool v) { return std::string(v ? "true" : "false"); };
-        std::string devices, positions;
+        std::string devices, positions, sources;
         size_t drafted = 0, kept = 0, own_drafted = 0, own_kept = 0;
         for (size_t x : s.own_drafted) own_drafted += x;
         for (size_t x : s.own_kept) own_kept += x;
+        for (const auto& source : cfg_.drafter_sources) sources += (sources.empty() ? "" : ",") + jmini::quote(source);
         for (const auto& dev : cfg_.dtype.devices) devices += (devices.empty() ? "" : ",") + jmini::quote(dev.name);
         for (size_t i = 0; i < s.drafted.size(); ++i) {
             const size_t k = i < s.kept.size() ? s.kept[i] : 0;
@@ -222,7 +224,7 @@ private:
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + "}}" +
                   ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
-                  ",\"drafting\":{\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" +
+                  ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + "}}" +
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +

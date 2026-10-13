@@ -144,7 +144,7 @@ What grows is the kept histories, and each tier has a cap: host memory at `reuse
 Compare `bytes` with `limit_bytes` in each; a tier at its cap makes room by dropping entries.
 On disk, entries unused for longer than `--disk-cache-max-age` are deleted, and the server keeps `--disk-cache-floor` bytes of the file system free after every write (the larger of 16 GiB and a twentieth of the disk by default).
 A server without `--disk-cache-keep` removes its directory when it exits and the next server removes the directory of one that crashed.
-`reuse.disk.since_start.dropped_for_cap` counts entries deleted to stay under the cap, and `lost_before_written` the copies host memory gave up room for before any file held them; a disk cache that loses many of these is too small, or too slow, for the rate conversations end.
+`reuse.disk.since_start.dropped_for_cap` counts entries deleted to stay under the cap, and `lost_before_written` the histories and message boundaries released before any file held them, whether host memory gave up their room or a history left the devices with no copy made; a disk cache that loses many of these is too small, or too slow, for the rate conversations end.
 
 **The server refuses requests.**
 - 503: the queue is full.

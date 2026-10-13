@@ -549,7 +549,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 | `disk_capped` | `reuse.disk.since_start.dropped_for_cap` | `Stats` |
 | `disk_unproved` | `reuse.disk.now.unproved` | `Stats` |
 | `disk_proved`, `disk_disproved` | `reuse.disk.since_start.proved`, `.disproved` | `Stats` |
-| `host_unwritten` | `reuse.disk.since_start.lost_before_written` | `Stats` |
+| `lost_before_written` | `reuse.disk.since_start.lost_before_written` | `Stats` |
 | `disk_refused` | `reuse.disk.since_start.refused` | `Stats` |
 | `pauses`, `stalls`, `waits`, `recomputed`, `taken_back` | `pressure.since_start.pauses`, `.stalls`, `.waits`, `.recomputed_tokens`, `.resumes_taking_history_back` | `Stats` |
 | `reprefills`, `reprefill_rows`, `reprefill_cancels` | `reread.since_start.jobs`, `.rows`, `.cancelled` | `Stats` |

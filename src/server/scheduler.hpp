@@ -404,7 +404,7 @@ public:
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
         size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory, the request reading its prompt
-        size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
+        size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, histories and boundaries' states released while no file held them (lost), and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
         size_t disk_in_flight = 0;                // the write and the reads the disk tier has in flight now
@@ -2235,6 +2235,7 @@ private:
     // Boundary i out of host memory.
     // Under the lock.
     void drop_bound(size_t i) {
+        if (!bounds_[i].disk) lost();
         host_held_ -= bounds_[i].state.held;
         release_entry(true, bounds_[i].id, bounds_[i].state);
         bounds_.erase(bounds_.begin() + (std::ptrdiff_t)i);
@@ -2295,6 +2296,10 @@ private:
         if (!host_cap_ || d.superseded) return;
         const size_t n = copy_length(d);
         if (!n) return;
+        // A donor that leaves with no copy is lost unless its files are whole on disk.
+        const auto uncopied = [&] {
+            if (disk_ && !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state())) lost();
+        };
         for (size_t i = 0; i < host_.size(); ++i) {
             const HostDonor& h = host_[i];
             const bool same = h.history.length == n && std::equal(h.tokens.begin(), h.tokens.end(), d.tokens.begin()) &&
@@ -2313,7 +2318,7 @@ private:
         const size_t bytes = model_.host_bytes(n);
         if (bytes > host_cap_) {
             // Too large for the host tier: it is kept only where its files are already whole on disk, and otherwise lost, which is counted and said.
-            if (disk_ && !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state())) ++lost_before_written_;
+            uncopied();
             if (!disk_ || !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state()))
                 std::fprintf(stderr, "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)bytes / (1 << 20),
                              disk_ ? " and its files were not yet whole on disk" : "");
@@ -2331,6 +2336,7 @@ private:
                 if ((h.superseded || !h.back) && !h.through) room += h.history.held;
             if (room < bytes && host_refused_ < host_.size()) {
                 ++host_refused_;
+                uncopied();
                 return;
             }
             for (const bool writing : {false, true})
@@ -2353,6 +2359,7 @@ private:
         } catch (const std::exception& e) {
             host_.pop_back();
             std::fprintf(stderr, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
+            uncopied();
             return;
         }
         host_held_ += h.history.held;
@@ -2386,13 +2393,19 @@ private:
     // Under the lock.
     void drop_host(size_t i) {
         const bool through = host_[i].through;
-        // What the disk tier did not get to keep: a live copy leaving host memory with no file, while the server runs.
-        if (disk_ && !stopping_ && !through && !host_[i].disk && !host_[i].superseded) ++lost_before_written_;
+        // A superseded copy is no loss, a newer one of its conversation standing for it, nor is a read through host memory, whose files are on disk.
+        if (!through && !host_[i].disk && !host_[i].superseded) lost();
         if (!through) host_held_ -= host_[i].history.held;
         release_entry(false, host_[i].id, host_[i].history);
         host_.erase(host_.begin() + (std::ptrdiff_t)i);
         // The slabs of a copy held beyond the tier go back to the host, not to the pool the tier's copies reuse.
         if (through) quieted()->trim_host(host_cap_ + parked_held());
+    }
+
+    // One restore point, a history or a boundary's state a later request could have forked, released while no file holds it: counted beside a disk tier while the server runs (Stats::lost_before_written).
+    // Called where the entry is released (drop_host, drop_bound) or a donor leaves with no copy made (write_back); under the lock.
+    void lost() {
+        if (disk_ && !stopping_) ++lost_before_written_;
     }
 
     // A host entry's slabs back to the model, or, for the entry whose disk write is in flight, held until the write has stopped, which a cancel asks of it; the room counts free at once.

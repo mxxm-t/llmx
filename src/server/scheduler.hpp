@@ -404,7 +404,7 @@ public:
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
         size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory, the request reading its prompt
-        size_t host_unwritten = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
+        size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, copies room took from host memory before any file held them, and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
         size_t disk_in_flight = 0;                // the write and the reads the disk tier has in flight now
@@ -457,7 +457,7 @@ public:
         s.disk_bytes = disk_now_.bytes;
         s.disk_bytes_written = disk_now_.written;
         s.disk_errors = disk_ ? disk_->errors() : 0;
-        s.host_unwritten = host_unwritten_;
+        s.lost_before_written = lost_before_written_;
         s.disk_refused = disk_refused_;
         s.disk_capped = disk_now_.capped;
         s.disk_unproved = disk_now_.unproved;
@@ -2313,7 +2313,7 @@ private:
         const size_t bytes = model_.host_bytes(n);
         if (bytes > host_cap_) {
             // Too large for the host tier: it is kept only where its files are already whole on disk, and otherwise lost, which is counted and said.
-            if (disk_ && !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state())) ++host_unwritten_;
+            if (disk_ && !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state())) ++lost_before_written_;
             if (!disk_ || !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state()))
                 std::fprintf(stderr, "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)bytes / (1 << 20),
                              disk_ ? " and its files were not yet whole on disk" : "");
@@ -2387,7 +2387,7 @@ private:
     void drop_host(size_t i) {
         const bool through = host_[i].through;
         // What the disk tier did not get to keep: a live copy leaving host memory with no file, while the server runs.
-        if (disk_ && !stopping_ && !through && !host_[i].disk && !host_[i].superseded) ++host_unwritten_;
+        if (disk_ && !stopping_ && !through && !host_[i].disk && !host_[i].superseded) ++lost_before_written_;
         if (!through) host_held_ -= host_[i].history.held;
         release_entry(false, host_[i].id, host_[i].history);
         host_.erase(host_.begin() + (std::ptrdiff_t)i);
@@ -3539,7 +3539,7 @@ private:
         std::vector<RowClass> classes;
     };
     std::deque<DiskRead> disk_reads_;
-    size_t host_unwritten_ = 0;   // Stats::host_unwritten, under the lock
+    size_t lost_before_written_ = 0;   // Stats::lost_before_written, under the lock
     size_t disk_refused_ = 0;   // Stats::disk_refused, under the lock
     size_t disk_hits_ = 0, disk_waits_ = 0;
     uint64_t disk_read_bytes_ = 0;

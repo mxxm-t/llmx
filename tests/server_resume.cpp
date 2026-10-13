@@ -2031,8 +2031,8 @@ void disk_demotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
                 what + ": " + std::to_string(stats.disk_entries) + " entries on disk and " + std::to_string(stats.host_donors) + " in host memory, against " +
                     std::to_string(kept) + " and 4");
         // Every copy that left host memory had its file, and the small tier deleted two entries for its cap.
-        require(stats.host_unwritten == 0 && stats.disk_capped == 4 - kept,
-                what + ": " + std::to_string(stats.host_unwritten) + " copies dropped unwritten and " + std::to_string(stats.disk_capped) + " entries deleted for the cap, against 0 and " + std::to_string(4 - kept));
+        require(stats.lost_before_written == 0 && stats.disk_capped == 4 - kept,
+                what + ": " + std::to_string(stats.lost_before_written) + " copies dropped unwritten and " + std::to_string(stats.disk_capped) + " entries deleted for the cap, against 0 and " + std::to_string(4 - kept));
         require(stats.disk_bytes == kept * entry_bytes && stats.disk_bytes_written == 4 * entry_bytes,
                 what + ": " + std::to_string(stats.disk_bytes) + " bytes on disk and " + std::to_string(stats.disk_bytes_written) + " written");
         require(kv_files == kept && file_bytes == stats.disk_bytes && tmp_files == 0,
@@ -3936,13 +3936,13 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
     auto fresh = make(1024, 16);
     same(serve(*fresh, tok, 2, {{t2}})[0], got, what + ", the follow-up turn");
     const std::string seen = "reused " + std::to_string(reused) + " tokens, " + std::to_string(after.disk_hits) + " histories read from disk, " + std::to_string(after.disk_refused) + " reads refused, " +
-                             std::to_string(taken.host_unwritten) + " histories lost before any file held them";
+                             std::to_string(taken.lost_before_written) + " histories lost before any file held them";
     if (arm == Behind::read)
-        require(reused == 768 && after.disk_hits == 1 && !after.disk_refused && !taken.host_unwritten && written.boundaries == 1, what + ": " + seen + ", against 768 reused from one history read and nothing refused or lost");
+        require(reused == 768 && after.disk_hits == 1 && !after.disk_refused && !taken.lost_before_written && written.boundaries == 1, what + ": " + seen + ", against 768 reused from one history read and nothing refused or lost");
     else if (arm == Behind::refused)
         require(!reused && !after.disk_hits && after.disk_refused == 1, what + ": " + seen + ", against nothing reused or read and one read refused");
     else
-        require(!reused && !after.disk_hits && taken.host_unwritten >= 1 && !written.disk_entries, what + ": " + seen + ", against nothing reused and a history counted lost");
+        require(!reused && !after.disk_hits && taken.lost_before_written >= 1 && !written.disk_entries, what + ": " + seen + ", against nothing reused and a history counted lost");
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
@@ -4143,6 +4143,68 @@ void state_read_keeps_its_rows(const gguf::GGUFModel& mixed, bool spare) {
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
+// What leaves memory with no file is counted once where it is released (Stats::lost_before_written), on the hybrid model beside a disk tier that finishes no write while the case runs.
+// A boundary's state dropped for a copy's room and then a donor refused the room of a copy in use, or, the host having no memory, a donor whose copy fails.
+void lost_restore_points(const gguf::GGUFModel& mixed, bool no_memory) {
+    const std::string what = std::string("restore points released with no file") + (no_memory ? ", the host with no memory for a copy" : "");
+    const uint32_t v = (uint32_t)kHybrid.vocab;
+    const bpe::Tokenizer tok(mixed);
+    // Short of memory from the start in that arm: an idle round before the other request would otherwise take slabs (Scheduler::grow_host) that the copy then finds idle.
+    std::atomic<bool> short_of{no_memory};
+    const auto free = [&]() -> std::optional<size_t> { return short_of.load() ? 0 : std::numeric_limits<size_t>::max() / 2; };
+    const Make make = on(mixed, [] { return cpus(1); }, 3, 6, 0, 0, false, 1, free);
+    DiskRoot disk(no_memory ? "lost-no-memory" : "lost");
+    // No idle writes, and a write ahead that pauses three seconds after its first chunk, so no file is whole while the case runs.
+    server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(3000));
+    options.idle = std::chrono::hours(1);
+    const Req t1{prompt_of(5, 700, v), 20}, small{prompt_of(9, 500, v), 20};
+    Req t2;
+    size_t reused = 0;
+    server::Scheduler::Stats first, taken, after;
+    {
+        auto model = make(1024, 16);
+        // A host tier of exactly the first conversation's copy, 640 rows and a state.
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(640), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            // With no memory to come the first conversation keeps no boundary, whose slab its copy would otherwise take.
+            const auto h1 = sched.submit(t1.prompt, params_of(t1), std::numeric_limits<size_t>::max(), no_memory ? 0 : 256);
+            t2.prompt = t1.prompt;
+            for (uint32_t id : ids_of(drain(*h1))) t2.prompt.push_back(id);
+            const std::vector<uint32_t> more = prompt_of(6, 30, v);
+            t2.prompt.insert(t2.prompt.end(), more.begin(), more.end());
+            t2.cap = 20;
+            if (!no_memory) within_a_minute([&] { return sched.stats().boundaries == 1; }, what + ": the first conversation's boundary kept");
+            first = sched.stats();
+            // Another conversation takes the devices: the first one's copy takes the boundary's room in host memory, or is not made at all.
+            drain(*sched.submit(small.prompt, params_of(small)));
+            taken = sched.stats();
+            if (!no_memory) {
+                // The first conversation comes back and is promoted, so the other's donor, leaving the devices for it, is refused the room of a copy in use.
+                const auto h2 = sched.submit(t2.prompt, params_of(t2));
+                drain(*h2);
+                reused = h2->reused();
+            }
+            after = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const std::string seen = std::to_string(first.lost_before_written) + " lost before the other conversation, " + std::to_string(taken.lost_before_written) + " after it with " + std::to_string(taken.boundaries) + " boundaries and " +
+                             std::to_string(taken.host_donors) + " host copies held, " + std::to_string(after.lost_before_written) + " at the end, " + std::to_string(reused) + " tokens reused by the follow-up, " +
+                             std::to_string(after.disk_entries) + " files on disk";
+    if (no_memory)
+        require(!first.lost_before_written && !first.boundaries && taken.lost_before_written == 1 && !taken.host_donors && !after.disk_entries, what + ": " + seen + ", against 1 lost, the donor whose copy failed");
+    else
+        require(!first.lost_before_written && taken.lost_before_written == 1 && !taken.boundaries && taken.host_donors == 1 && after.lost_before_written == 2 && reused == 640 && after.host_donors == 1 && !after.disk_entries,
+                what + ": " + seen + ", against 1 lost with the boundary, then 2 with the donor refused room, and 640 reused");
+    std::cout << "server-resume: " << what << ": " << seen << "\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -4232,6 +4294,7 @@ int main(int argc, char** argv) {
             for (const Behind arm : {Behind::read, Behind::refused, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
             shorter_boundary_with_rows(mixed);
             for (const bool spare : {true, false}) state_read_keeps_its_rows(mixed, spare);
+            for (const bool no_memory : {false, true}) lost_restore_points(mixed, no_memory);
             for (const Take arm : {Take::follow, Take::one_seat, Take::in_flight, Take::first_leaves, Take::edited, Take::unrelated}) {
                 request_takes_job(one, tok, vocab, arm, "");
                 request_takes_job(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, arm, ", a model keeping a state");

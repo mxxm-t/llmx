@@ -3545,6 +3545,72 @@ void job_holds_its_ids(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     std::cout << "server-resume: " << what << ": a second job of the same " << held << " ids left the first's " << said(one) << "\n";
 }
 
+// A lone uncapped request whose growth step finds the pool full because the job reading its own reply holds the rest: the job gives way and the request grows in the same round, so a pass is formed.
+// With `beside`, a second such request runs with it, its prompt longer by the passes it starts decoding later, so both steps fall due in one round; each reply is its reply alone.
+void stalled_alone(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t pool, bool beside, const std::string& what) {
+    std::vector<Req> reqs = {{prompt_of(5, 700, vocab)}};
+    if (beside) reqs.push_back({prompt_of(9, 747, vocab)});
+    // The ids each next turn begins with once 250 tokens are written: the prompt and the reply's first 230, 896 as whole blocks, 7 blocks beside the 8 the request holds until its step at 1024.
+    std::vector<Reply> alone;
+    std::vector<std::vector<uint32_t>> early;
+    for (const Req& r : reqs) {
+        auto fresh = make(pool, 16);
+        alone.push_back(serve(*fresh, tok, 3, {{r}})[0]);
+        const std::vector<uint32_t> ids = ids_of(alone.back());
+        require(ids.size() > 600, what + ": the reply alone has " + std::to_string(ids.size()) + " tokens, too few to pass a growth step");
+        early.push_back(r.prompt);
+        early.back().insert(early.back().end(), ids.begin(), ids.begin() + 230);
+    }
+    auto model = make(pool, 16);
+    std::vector<Reply> replies;
+    server::Scheduler::Stats stats;
+    // The pass after which each request's cache holds its 8 blocks, so its step falls due in the next round.
+    std::vector<size_t> full(reqs.size(), 0);
+    {
+        // A seat for each request and for each one's job.
+        server::Scheduler sched(*model, tok, 2 * reqs.size() + 1, 64);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        std::vector<char> given(reqs.size(), 0);
+        size_t passes = 0;
+        std::mutex submitting;
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            std::lock_guard<std::mutex> lock(submitting);
+            ++passes;
+            for (size_t i = 0; i < handles.size(); ++i)
+                for (size_t k = 0; k < t.requests.size(); ++k) {
+                    if (t.requests[k] != handles[i].get()) continue;
+                    if (t.from[k] + t.rows[k] == 8 * kBlock) full[i] = passes;
+                    if (!given[i] && t.from[k] + t.rows[k] >= reqs[i].prompt.size() + 250) {
+                        given[i] = 1;
+                        sched.follow(handles[i], early[i], false);
+                    }
+                }
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            {
+                std::lock_guard<std::mutex> lock(submitting);
+                for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
+            }
+            for (auto& h : handles) replies.push_back(drain(*h));
+            stats = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], replies[i], what + ", request " + std::to_string(i));
+    // The path ran: with nothing queued or paused, a job gives way only for a request that could not grow.
+    require(stats.reprefill_cancels >= 1, what + ": no job gave way for a request that could not grow");
+    // A lone request takes its step in the round its job gave way, so it sat no pass out.
+    require(beside || stats.stalls == 0, what + ": the request sat out " + std::to_string(stats.stalls) + " passes");
+    require(!beside || (full[0] && full[0] == full[1]), what + ": the two requests did not fill their blocks in one pass");
+    std::cout << "server-resume: " << what << ": " << stats.stalls << " stalls, " << stats.reprefill_cancels << " jobs gave way, " << stats.reprefill_rows << " rows read again\n";
+}
+
 // A CPU backend that counts the host-visible allocations of a megabyte or more, which are the host tier's slabs.
 struct CountingSlabs : backend::CpuBackend {
     std::atomic<size_t>* slabs = nullptr;
@@ -4063,6 +4129,9 @@ int main(int argc, char** argv) {
             }
             request_takes_job(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, Take::one_slot, ", a model keeping a state");
             job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
+            stalled_alone(one, tok, vocab, 2048, false, "a lone request stalled by its own reply's job");
+            stalled_alone(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 2048, false, "a lone request stalled by its own reply's job, a model keeping a state");
+            stalled_alone(one, tok, vocab, 3840, true, "two requests stalled by their replies' jobs");
             job_holds_its_ids(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a job given ids a donor holds whole, a model keeping a state");
             for (const Plant plant : {Plant::none, Plant::first, Plant::last, Plant::cancel})
                 disk_adopt_proved(one, tok, vocab, 1, plant, std::string("another build's entries adopted and proved") + (plant == Plant::first ? ", a byte planted in the first block" : plant == Plant::last ? ", a byte planted in the last block" : plant == Plant::cancel ? ", the client leaving between the comparisons" : ""));

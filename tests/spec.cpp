@@ -69,11 +69,15 @@ struct Run {
     std::vector<float> next;   // the logits after the history and one more token, which hold the state the run left
     size_t drafted = 0;        // the drafts its verifies fed
     size_t own = 0, own_kept = 0;   // those of them its own history gave ahead of the proposer, and the ones kept
+    size_t own_depth = 0;           // the most drafts of its own history one verify fed
     bool rested = false;       // whether the proposer's acceptance ended resting
 };
 
 // The tensor width every model here is placed at (docs/TENSOR-SPLIT.md): above 1 each stage is a group of that many CPU backends, and a run is held to the run on one such group, since a group gives its own bits.
 size_t group_width = 1;
+
+// The rows a mark saves on the models placed here, 17 unless a case sets it.
+size_t mark_rows = 17;
 
 // A model of `weights` placed over `stages` stages of one-thread CPU backends, with a mark of up to 17 rows where it keeps a state and with `drafter` the file's embedded drafter; `submits`, when given, counts the first backend's submissions.
 std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stages, size_t* submits = nullptr, bool drafter = false) {
@@ -87,7 +91,7 @@ std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stag
     request.drafter = drafter;
     infer::ModelOptions options;
     options.mark_slots = 1;
-    options.mark_rows = 17;
+    options.mark_rows = mark_rows;
     return std::move(infer::place_model(infer::gguf_weights(weights), std::move(backends), request, options).model);
 }
 
@@ -124,6 +128,7 @@ Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<ui
         const infer::spec::Acceptance& own_history = drafting->record[infer::spec::Source::lookup];
         for (size_t n : own_history.drafted()) r.own += n;
         for (size_t n : own_history.kept()) r.own_kept += n;
+        r.own_depth = own_history.drafted().size();
         r.rested = drafting->record[infer::spec::Source::proposer].resting();
     }
     r.passes = submits - prefilled;
@@ -352,7 +357,107 @@ void convincing_rule() {
     require(infer::spec::lookup_first(cut, 16, 3, 100, 16, history({run, {20, 21, 22}, run}), out) == 2, "a draft of the history passed the tokens left");
     require(infer::spec::lookup_first(cut, 16, 100, 2, 16, history({run, {20, 21, 22}, run}), out) == 1, "a draft of the history passed the positions left");
     require(infer::spec::lookup_first(cut, 16, 100, 100, 2, history({run, {20, 21, 22}, run}), out) == 2, "a draft of the history passed the columns");
-    require(infer::spec::lookup_first(cut, 2, 100, 100, 16, history({run, {20, 21, 22}, run}), out) == 2, "a draft of the history passed the most drafts");
+    // Its own cap is kOwnDrafts where the proposer's most drafts are fewer, and the proposer's where they are more.
+    require(infer::spec::kOwnDrafts == 7, "the history's own cap is " + std::to_string(infer::spec::kOwnDrafts) + ", and the cases below are written for 7");
+    require(infer::spec::lookup_first(cut, 2, 100, 100, 16, history({run, {20, 21, 22}, run}), out) == 7, "a draft of the history stopped short of its own cap");
+    require(infer::spec::lookup_first(cut, 12, 100, 100, 16, history({run, {20, 21, 22}, run}), out) == 12, "a draft of the history stopped short of the proposer's most drafts");
+
+    // The price by a pass's width: a pass of 2 to 4 rows costs about a millisecond a row, the fifth row 14 more and each after it 5, as a device's decode builds step.
+    infer::spec::PassCost stepped;
+    stepped.known = true;
+    stepped.base_ms = 49.4, stepped.row_ms = 0.95;   // the line through passes of 2 to 4 rows, all a server may have seen
+    infer::spec::PassCost line = stepped;
+    stepped.width_ms = {0, 43.0, 51.2, 52.4, 53.1, 67.7, 73.1, 78.0, 83.1};
+    const std::vector<uint8_t> own_only{0};
+    const std::vector<double> good{0.9, 0.9, 0.9, 0.65, 0.65, 0.65, 0.65}, poor{0.9, 0.9, 0.9, 0.3, 0.3, 0.3, 0.3};
+    infer::spec::draft_depths(stepped, 1, {good}, takes, &own_only);
+    require(takes == std::vector<size_t>({7}), "a history kept at 0.65 past its third draft did not take its seven, but " + std::to_string(takes[0]));
+    infer::spec::draft_depths(stepped, 1, {poor}, takes, &own_only);
+    require(takes == std::vector<size_t>({3}), "a history kept at 0.3 past its third draft crossed the step, taking " + std::to_string(takes[0]));
+    infer::spec::draft_depths(line, 1, {poor}, takes, &own_only);
+    require(takes == std::vector<size_t>({7}), "the line alone was expected to cross the step it cannot see, and took " + std::to_string(takes[0]));
+    // The pass without drafts and the slope are the line's, and a measured width adds only what it costs beyond the line, so the rows a draft adds never cost less than the line's slope.
+    // Sixteen decoders whose own width measured dear, 30 ms where the line gives 26, beside a width of 19 at the line: drafts kept at a half do not pay the line's slope and are not taken.
+    infer::spec::PassCost crowded;
+    crowded.known = true;
+    crowded.base_ms = 10, crowded.row_ms = 1, crowded.step_ms = 0.1;
+    infer::spec::PassCost crowded_line = crowded;
+    crowded.width_ms.assign(32, 0.0);
+    crowded.width_ms[16] = 30, crowded.width_ms[19] = 29;
+    const std::vector<std::vector<double>> halves{{0.5, 0.5, 0.5}};
+    std::vector<size_t> by_line;
+    infer::spec::draft_depths(crowded_line, 16, halves, by_line);
+    infer::spec::draft_depths(crowded, 16, halves, takes);
+    require(by_line == std::vector<size_t>({0}) && takes == by_line, "a plain width measured above a wider one admitted " + std::to_string(takes[0]) + " drafts the line refuses");
+    // A width measured below the line prices as the line.
+    crowded.width_ms[16] = 0, crowded.width_ms[19] = 12;
+    const std::vector<std::vector<double>> sure{{0.9, 0.9, 0.9}};
+    infer::spec::draft_depths(crowded_line, 16, sure, by_line);
+    infer::spec::draft_depths(crowded, 16, sure, takes);
+    require(takes == by_line && by_line[0] > 0, "a width measured below the line changed the line's answer to " + std::to_string(takes[0]));
+    // At one depth the table takes a subset of what the line takes: one decoder, line 10 + 1 a row, a width of 7 measured 35, and two requests to three drafts, kept at 0.9 and at 0.2 a position.
+    // The line takes both; the table, whose rows there cost 4 ms, takes the first and not the second.
+    infer::spec::PassCost lone;
+    lone.known = true;
+    lone.base_ms = 10, lone.row_ms = 1;
+    infer::spec::PassCost stepped_at_seven = lone, stepped_at_four = lone;
+    stepped_at_seven.width_ms.assign(16, 0.0), stepped_at_four.width_ms.assign(16, 0.0);
+    stepped_at_seven.width_ms[7] = 35, stepped_at_four.width_ms[4] = 30;
+    const std::vector<uint8_t> no_chain{0, 0};
+    const std::vector<std::vector<double>> subset{{0.9, 0.9, 0.9}, {0.2, 0.2, 0.2}};
+    infer::spec::draft_depths(lone, 1, subset, by_line, &no_chain);
+    infer::spec::draft_depths(stepped_at_seven, 1, subset, takes, &no_chain);
+    require(by_line == std::vector<size_t>({3, 3}) && takes == std::vector<size_t>({3, 0}),
+            "at one depth the line took " + std::to_string(by_line[0]) + " and " + std::to_string(by_line[1]) + " and the table " + std::to_string(takes[0]) + " and " + std::to_string(takes[1]));
+    // Across depths the two may differ, which is the table seeing a step: a width of 4 measured 30 makes the third draft dear, so the table stops at two.
+    // There the second request's two drafts pay the line's slope, while the line goes to three and gives that request none.
+    const std::vector<std::vector<double>> depths{{0.9, 0.9, 0.9}, {0.1, 0.1, 0.0}};
+    infer::spec::draft_depths(lone, 1, depths, by_line, &no_chain);
+    infer::spec::draft_depths(stepped_at_four, 1, depths, takes, &no_chain);
+    require(by_line == std::vector<size_t>({3, 0}) && takes == std::vector<size_t>({2, 2}),
+            "across depths the line took " + std::to_string(by_line[0]) + " and " + std::to_string(by_line[1]) + " and the table " + std::to_string(takes[0]) + " and " + std::to_string(takes[1]));
+    // Whatever the widths measured, where the line's price takes no draft the table's takes none: 2000 tables of random widths, decoders and keeps.
+    uint64_t state = 0x9E3779B97F4A7C15ull;
+    const auto draw = [&] {
+        state ^= state << 13, state ^= state >> 7, state ^= state << 17;
+        return (double)(state >> 11) / (double)(1ull << 53);
+    };
+    size_t refused = 0;
+    for (int trial = 0; trial < 2000; ++trial) {
+        infer::spec::PassCost c;
+        c.known = true;
+        c.base_ms = 10 + 40 * draw(), c.row_ms = 0.2 + 3 * draw(), c.step_ms = 4 * draw();
+        const infer::spec::PassCost only_line = c;
+        c.width_ms.assign(64, 0.0);
+        for (double& w : c.width_ms) w = draw() < 0.5 ? 0 : 5 + 150 * draw();
+        const size_t decoders = 1 + (size_t)(20 * draw());
+        std::vector<std::vector<double>> keeps(1 + (size_t)(3 * draw()));
+        for (auto& k : keeps) {
+            k.resize(1 + (size_t)(7 * draw()));
+            double p = draw();
+            for (double& x : k) x = p, p *= 0.5 + 0.5 * draw();
+        }
+        infer::spec::draft_depths(only_line, decoders, keeps, by_line);
+        infer::spec::draft_depths(c, decoders, keeps, takes);
+        if (std::all_of(by_line.begin(), by_line.end(), [](size_t t) { return t == 0; })) {
+            ++refused;
+            require(std::all_of(takes.begin(), takes.end(), [](size_t t) { return t == 0; }), "measured widths admitted drafts the line's price refuses, trial " + std::to_string(trial));
+        }
+    }
+    require(refused > 100, "the random tables seldom met a line that refuses: " + std::to_string(refused));
+    // A chain's request at its three beside a history's at its seven, in one call.
+    infer::spec::PassCost cheap;
+    cheap.known = true;
+    cheap.base_ms = 34, cheap.row_ms = 1, cheap.step_ms = 1;
+    infer::spec::draft_depths(cheap, 2, {{0.9, 0.9, 0.9}, good}, takes, &mixed);
+    require(takes == std::vector<size_t>({3, 7}), "a chain's request and a history's did not each take its own cap");
+    // Passes of one width leave the line unknown, and that width is still priced by its own passes; a second width prices itself and the line the rest.
+    infer::spec::PassTimes times;
+    for (int i = 0; i < 10; ++i) times.pass(4, 53.0);
+    require(!times.cost().known && std::fabs(times.pass_ms(4) - 53.0) < 1e-9 && std::fabs(times.cost().pass_ms(4) - 53.0) < 1e-9, "passes of one width did not price that width");
+    for (int i = 0; i < 10; ++i) times.pass(8, 83.0);
+    require(times.cost().known && std::fabs(times.pass_ms(8) - 83.0) < 1e-9 && std::fabs(times.pass_ms(4) - 53.0) < 1e-9, "a second width changed the first's price or missed its own");
+    require(times.pass_ms(6) > 53.0 && times.pass_ms(6) < 83.0 && std::fabs(times.cost().pass_ms(6) - times.pass_ms(6)) < 1e-9, "a width never run was not priced by the line");
 }
 
 // Lookup ahead of a proposer (docs/SPECULATIVE.md, section 8) against the run without drafts: the proposers are shown the reply as an earlier turn, so once eight tokens are generated the reply's own continuation is found and kept.
@@ -390,6 +495,21 @@ void lookup_first(const std::string& name, const gguf::GGUFModel& plain, size_t 
                 // Until eight tokens are generated the proposer is asked, a token a round, and never after.
                 require(behind.calls >= 1 && behind.calls <= 9, at + ": the proposer was asked " + std::to_string(behind.calls) + " times beside a history that convinces from the eighth token on");
                 if (k == 16) require(got.passes * 3 < want.passes, at + ": " + std::to_string(got.passes) + " passes with the reply's continuation drafted, " + std::to_string(want.passes) + " without");
+            }
+            // At three drafts for the proposer the history's own draft still runs to its cap of seven, and on a model whose mark saves five rows to four.
+            {
+                Behind short_proposer;
+                short_proposer.inner = &wrong;
+                const Run deep = generate(plain, st, prompt, gp, &short_proposer, 3, false, &want.ids);
+                require(deep.own_depth == infer::spec::kOwnDrafts, at + ": the history's own draft ran to " + std::to_string(deep.own_depth) + " drafts beside a proposer of three");
+                mark_rows = 5;
+                Behind marked;
+                marked.inner = &wrong;
+                const Run cut_run = generate(plain, st, prompt, gp, &marked, 3, false, &want.ids);
+                mark_rows = 17;
+                same(want, cut_run, at + ", a mark of five rows");
+                const size_t most = placed(plain, 1)->keeps_state() ? 4 : infer::spec::kOwnDrafts;
+                require(cut_run.own_depth == most, at + ": under a mark of five rows the history's own draft ran to " + std::to_string(cut_run.own_depth) + " drafts, not " + std::to_string(most));
             }
             // A proposer that does not stand behind lookup is asked every round, whatever its history shows.
             const Run alone = generate(plain, st, prompt, gp, &wrong, 3, false, &want.ids);

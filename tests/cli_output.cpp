@@ -37,15 +37,16 @@ bool drafter_lists() {
         try { read(value, drafts); } catch (const UsageError& e) { return std::string(e.what()).find(why) != std::string::npos; }
         return false;
     };
-    const size_t plain = Drafts{}.draft_max + 1;
+    // Lookup ahead of a model drafter needs the rows of a history's own draft, which may be longer than the drafter's (infer::spec::kOwnDrafts).
+    const size_t plain = Drafts{}.draft_max + 1, own = std::max(Drafts{}.draft_max, infer::spec::kOwnDrafts) + 1;
     Drafts a, b, c, d, e, f;
     const bool read_all = read("embedded", a) && read("lookup,embedded", b) && read("lookup,x.gguf", c) && read("x.gguf", d) && read("lookup", e) && read("off", f);
     if (!read_all) return false;
     Drafts again;
     read("lookup,embedded", again);
     read("off", again);
-    return a.embedded && !a.lookup_first && !a.proposer && a.mark_rows() == plain && b.embedded && b.lookup_first && b.mark_rows() == plain &&
-           c.file == "x.gguf" && c.lookup_first && c.mark_rows() == plain && d.file == "x.gguf" && !d.lookup_first && d.mark_rows() == plain &&
+    return a.embedded && !a.lookup_first && !a.proposer && a.mark_rows() == plain && b.embedded && b.lookup_first && b.mark_rows() == own &&
+           c.file == "x.gguf" && c.lookup_first && c.mark_rows() == own && d.file == "x.gguf" && !d.lookup_first && d.mark_rows() == plain &&
            e.proposer && !e.lookup_first && e.mark_rows() == plain && !f.proposer && !f.embedded && f.file.empty() && f.mark_rows() == 0 &&
            !again.embedded && !again.lookup_first && !again.proposer && again.file.empty() &&
            drafter_sources("lookup,embedded") == std::vector<std::string>{"lookup", "embedded"} &&

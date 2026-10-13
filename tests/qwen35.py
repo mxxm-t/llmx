@@ -427,7 +427,7 @@ def check_serve(directory):
 def check_pure_embedded(model):
     """The list's order is the drafting's (docs/USAGE.md, generate).
     On a prompt that repeats itself `lookup,embedded` takes drafts from the reply's own history ahead of the MTP block and prints them as `own drafts kept:`, and `embedded` alone takes none.
-    Served, health names the sources in the flag's order and counts the own-history drafts."""
+    Served, health names the sources in the flag's order and counts the own-history drafts, and the start line marks a verify of 8 rows with lookup first and of draft-max + 1 rows for the pure form."""
     import server
     # The fixture's greedy pick after this prompt is 'F', so the last 8 tokens of the history, the prompt's last 7 and that pick, occur at its start and the history's own draft is the 7 that followed.
     # 'F' leads the runner-up by 0.130 logits on the CPU, and the component holds the fixture's device logits to common.F32_HF_LOGIT_BOUND (2e-5), so no device that meets it flips the pick.
@@ -453,6 +453,8 @@ def check_pure_embedded(model):
             srv.log.seek(0)
             log = srv.log.read()
             assert ("drafting " + form) in log, (form, log)
+            marks = re.search(r", (\d+) draft marks of (\d+) rows", log)
+            assert marks and int(marks.group(2)) == (8 if own else 4), (form, log)
         finally:
             srv.close()
 
@@ -471,6 +473,10 @@ def check_resume_drafts(directory, spec):
     bodies = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
     srv = server.Server(model, *flags)
     try:
+        # The start line gives the marks the fit took and the rows each saves, a history's own draft of seven needing eight.
+        srv.log.seek(0)
+        marks = re.search(r", (\d+) draft marks of (\d+) rows", srv.log.read())
+        assert marks and int(marks.group(1)) >= 1 and int(marks.group(2)) == 8, "the start line gives no marks of eight rows"
         alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0] for body in bodies]
     finally:
         srv.close()

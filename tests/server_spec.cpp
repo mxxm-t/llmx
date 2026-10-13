@@ -104,6 +104,32 @@ void own_history(const Make& plain, const Make& drafting, const bpe::Tokenizer& 
     std::cout << "server-spec: " << what << ": " << kept << " of " << own << " drafts of the replies' own continuations kept, " << total(stats.drafted) - own << " of the proposer's fed" << std::endl;
 }
 
+// A CPU backend whose decode kernels hold four columns, fewer than a history's own draft may take.
+struct Narrow : backend::CpuBackend {
+    Narrow() { set_threads(1); }
+    size_t decode_columns() const override { return 4; }
+};
+
+// A history's own draft runs past the proposer's most drafts to its cap of seven where the pass has the columns, and is cut to the proposer's three on a device of four columns; one request, its reply its reply alone on both.
+void own_depth(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    const MakeProposer astray = [vocab](infer::Model&) {
+        auto p = std::make_unique<Astray>();
+        p->vocab = vocab;
+        return p;
+    };
+    const std::vector<Req> one = {{prompt_of(4, 40, vocab), 300}};
+    const Make plain = on(weights, [] { return cpus(1); });
+    for (bool narrow : {false, true}) {
+        const Make drafting = on(weights, [narrow] { return narrow ? std::vector<backend::BackendPtr>{std::make_shared<Narrow>()} : wide(1); }, 8, 0, 4, infer::spec::kOwnDrafts + 1);
+        server::Scheduler::Stats stats;
+        const std::string where = what + (narrow ? " on four decode columns" : " on sixteen");
+        against_alone(plain, drafting, astray, tok, 4096, 4, 1, one, where, false, false, kDraftMax, &stats);
+        const size_t most = narrow ? kDraftMax : infer::spec::kOwnDrafts;
+        require(stats.own_drafted.size() == most && total(stats.own_kept) > 0,
+                where + ": the history's own draft ran to " + std::to_string(stats.own_drafted.size()) + " drafts, not " + std::to_string(most));
+    }
+}
+
 // A wide CPU backend that runs `hook` as the model submits its work (Hooked), so a case acts while a pass is in flight.
 struct WideHooked : Hooked {
     WideHooked() { set_threads(1); }
@@ -262,6 +288,7 @@ int main() {
             const Make drafting = on(q8, [stages] { return wide(stages); }, 8, 0, 4, kDraftMax + 1);
             against_alone(plain, drafting, lookup, q8_tok, 4096, 4, stages, requests(plain, q8_tok, q8_vocab), "Q8_0 with lookup on " + where);
             own_history(plain, drafting, q8_tok, q8_vocab, stages, "Q8_0 with lookup ahead of a proposer on " + where);
+            if (stages == 1) own_depth(q8, q8_tok, q8_vocab, "Q8_0, a history's own draft beside a proposer of three");
             // Three uncapped requests on 8 blocks: they pause and resume, with drafts as without.
             against_alone(plain, drafting, lookup, q8_tok, 1024, 3, stages, {{prompt_of(1, 40, q8_vocab)}, {prompt_of(2, 9, q8_vocab)}, {prompt_of(3, 23, q8_vocab)}},
                           "Q8_0 with lookup on " + where + ", paused", true);

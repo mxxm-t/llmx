@@ -1038,10 +1038,11 @@ void drafting_fit() {
         return std::vector<backend::BackendPtr>{d};
     };
     // The least room that holds the model with the budget and `kept` checkpoints, with the drafter and `marks` marks beside it or with neither.
-    const auto least = [&](bool drafter, size_t marks, size_t kept = 0) {
+    const auto least = [&](bool drafter, size_t marks, size_t kept = 0, size_t rows = 4) {
         const infer::ModelPlan plan = infer::plan_model(w, drafter);
         infer::ModelOptions o = options;
         o.mark_slots = marks;
+        o.mark_rows = rows;
         o.checkpoint_slots = kept;
         const auto holds = [&](size_t room) {
             try {
@@ -1088,6 +1089,42 @@ void drafting_fit() {
                 std::to_string(gave.model->checkpoint_slots()) + " checkpoints, " + std::to_string(gave.model->mark_slots()) + " marks");
     refuses("a checkpoint asked for by number beside the drafter", "drafting needs room beyond the KV budget of 512 tokens and 1 state checkpoints",
             [&] { infer::place_model(w, alone(short_of), request, one); });
+
+    // A mark of eight rows, which a history's own draft of seven needs, costs room a mark of four does not.
+    const size_t fits_eight = least(true, 1, 1, 8);
+    require(fits_eight > short_of + 1, "a mark of eight rows took no more room than one of four");
+    infer::ModelOptions eight = one;
+    eight.mark_rows = 8;
+    // Asked for with four rows as its least, as a server asks for a history's longer draft, the same mark is cut to four where eight do not fit and costs no checkpoint, and nothing is refused that four rows are not.
+    infer::PlacementRequest cut = automatic;
+    cut.least_mark_rows = 4;
+    infer::ModelOptions one_mark = eight;
+    one_mark.mark_slots = 1;
+    const infer::PlacedModel kept_eight = infer::place_model(w, alone(fits_eight), cut, one_mark);
+    // The three placements that fall short of their whole request, each on a backend of its own, wait their five seconds side by side.
+    infer::ModelOptions four_marks = eight;
+    four_marks.mark_slots = 4;
+    const size_t four_of_four = least(true, 4, 1, 4), four_of_eight = least(true, 4, 1, 8);
+    infer::PlacementRequest numbered = request;
+    numbered.least_mark_rows = 4;
+    const auto at_once = [&](size_t room, const infer::PlacementRequest& r, const infer::ModelOptions& o) {
+        return std::async(std::launch::async, [&w, &alone, room, r, o] { return infer::place_model(w, alone(room), r, o); });
+    };
+    auto cutting = at_once(fits_eight - 1, cut, one_mark), keeping_slots = at_once(four_of_four, cut, four_marks), numbering = at_once(fits_eight - 1, numbered, one_mark);
+    const infer::PlacedModel cut_to_four = cutting.get(), slots_kept = keeping_slots.get(), numbered_cut = numbering.get();
+    require(kept_eight.model->mark_rows() == 8 && kept_eight.model->checkpoint_slots() == 1 && cut_to_four.model->mark_rows() == 4 &&
+                cut_to_four.model->checkpoint_slots() == 1 && cut_to_four.model->kv_tokens_total() == 512,
+            "a mark of eight rows with four as its least, a byte short of its room: " + std::to_string(cut_to_four.model->mark_rows()) + " rows and " +
+                std::to_string(cut_to_four.model->checkpoint_slots()) + " checkpoints");
+    // Four marks asked for: where four of four rows fit and four of eight rows do not, the rows are cut and all four marks kept, so as many requests draft a pass; with room for four of eight rows they stay eight.
+    require(four_of_eight > four_of_four, "four marks of eight rows took no more room than four of four");
+    const infer::PlacedModel rows_kept = infer::place_model(w, alone(four_of_eight), cut, four_marks);
+    require(slots_kept.model->mark_slots() == 4 && slots_kept.model->mark_rows() == 4 && slots_kept.model->checkpoint_slots() == 1 &&
+                rows_kept.model->mark_slots() == 4 && rows_kept.model->mark_rows() == 8,
+            "four marks beside the room of four rows each: " + std::to_string(slots_kept.model->mark_slots()) + " marks of " +
+                std::to_string(slots_kept.model->mark_rows()) + " rows, and with the room of eight rows each " + std::to_string(rows_kept.model->mark_slots()) + " of " +
+                std::to_string(rows_kept.model->mark_rows()));
+    require(numbered_cut.model->mark_rows() == 4 && numbered_cut.model->checkpoint_slots() == 1, "a checkpoint asked for by number was refused for rows the mark could give up");
 
     infer::PlacementRequest split = automatic;
     split.names = {"device 0", "device 1"};

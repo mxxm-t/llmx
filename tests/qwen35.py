@@ -7,7 +7,7 @@ import tempfile
 
 import common
 from common import run_f32_cache as cli
-from f32 import TEXTS, VOCAB, check_logits_input, weight_hash, write_model
+from f32 import TEXTS, VOCAB, build_byte_vocab, check_logits_input, weight_hash, write_model
 
 
 # Tiny qwen35 models with deterministic weights against HF Qwen3_5ForCausalLM (tools/gen_baseline.py qwen35-tiny): all 257 logits and windowed NLL over ubatches, threads, both ways of scoring and greedy decode after a prefill.
@@ -31,6 +31,8 @@ FIXTURES = [
 ]
 # The end-of-text token, which the greedy goldens and the CLI both leave out of every draw.
 EOS = VOCAB - 1
+# A vocabulary of more ids than a device's argmax reduces in one workgroup: two slices of 4096 and the fixtures' own vocabulary past them.
+WIDE_VOCAB = 2 * 4096 + VOCAB
 # Physical batches that cut the texts into passes; under one of them the last row of every text of three or more tokens runs alone after a batched pass, as a decode step after a prefill does.
 UBATCHES = (1, 2, 3, 5, 16)
 # llmx's refusals of a qwen35 file: of the architecture, where it does not run it, and at load on a device whose backend lacks the linear attention's ops.
@@ -271,6 +273,41 @@ def write_fixture(directory, fixture, tokens=None):
                        arch="qwen35moe" if fixture.get("moe") else "qwen35", tokens=tokens)
 
 
+def check_wide_drafter(directory, require):
+    """The MTP block's fixture with a vocabulary of 8449 ids, past the 4096 a device's argmax reduces in one workgroup (docs/src/backends-vulkan.md, argmax_rows), so on a device a draft row's argmax takes three slices, the last of 257 ids.
+    Its drafts are read through llmx-decode-probe on the configured device and on the CPU: the pick and every draft id must be equal and every draft row's logits within the F32 bound, which a wrong id from the slices fails, where output alone would not, a wrong draft being refused; and generate with the drafter prints what it prints with drafts off."""
+    import decode_probe
+    spec = dict(next(f for f in FIXTURES if f["mtp"]), name="hv3-mtp-wide", vocab=WIDE_VOCAB)
+    tokens = build_byte_vocab() + ["<|endoftext|>"] + ["<wide %d>" % i for i in range(WIDE_VOCAB - VOCAB)]
+    model = write_fixture(directory, spec, tokens)
+    common.check_drafts("qwen35 wide vocabulary", model, drafter="embedded")
+    tool = decode_probe.tool_path()
+    if not os.path.exists(tool):
+        assert not require, "qwen35: llmx-decode-probe is not beside the executable, and --require-tools asks for it"
+        print("qwen35: SKIP the wide vocabulary's drafts against the CPU's - llmx-decode-probe is not beside the executable")
+        return
+    worst, drafted = 0.0, []
+    for prompt in ("a", "abcab", "abcdefghij"):
+        runs = []
+        for devices in (None, "cpu"):
+            p = decode_probe.probe(tool, model, directory, {"prompt": prompt, "ids": [], "tokens": [0, 1], "draft": 3, "cache": "f32"}, devices)
+            assert p.returncode == 0, "llmx-decode-probe failed on the wide vocabulary: " + p.stdout[-2000:] + p.stderr
+            pick = re.search(r"^draft pick (\d+), (\d+) drafts$", p.stdout, re.M)
+            rows = re.findall(r"^draft (\d+) (\d+):((?: \S+)+)$", p.stdout, re.M)
+            assert pick and len(rows) == 3, "the wide vocabulary's probe after %r gave %d draft rows" % (prompt, len(rows))
+            runs.append((pick.group(1), [r[1] for r in rows], [[float(v) for v in r[2].split()] for r in rows]))
+        (pick, ids, logits), (cpu_pick, cpu_ids, cpu_logits) = runs
+        assert (pick, ids) == (cpu_pick, cpu_ids), "after %r the device picks %s and drafts %s over %d ids, the CPU %s and %s" % (prompt, pick, ids, WIDE_VOCAB, cpu_pick, cpu_ids)
+        drafted += [int(i) for i in ids]
+        for row, cpu_row in zip(logits, cpu_logits):
+            assert len(row) == len(cpu_row) == WIDE_VOCAB, "a draft row of %d logits over a vocabulary of %d" % (len(row), WIDE_VOCAB)
+            worst = max(worst, max(abs(a - b) for a, b in zip(row, cpu_row)))
+    # The case holds the slices only if the drafts lie in more than the first of them, where a reduction that kept one slice's id would be right.
+    assert min(drafted) < 4096 <= max(drafted), "the wide vocabulary's drafts %s lie in one slice of the argmax, so the case holds no reduction across slices" % drafted
+    assert worst < common.F32_HF_LOGIT_BOUND, "the wide vocabulary's draft logits differ from the CPU's by %.8f" % worst
+    print("qwen35: a vocabulary of %d ids: the drafts and their logits on the configured device vs the CPU's, 3 drafts after 3 prompts, ids %s; max difference %.8f  [ok]" % (WIDE_VOCAB, drafted, worst))
+
+
 def check_serve(directory):
     """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; served with drafts, the MTP block's file with its embedded drafter and this model with lookup, each reply alone and at once is its reply without drafts, greedy and seeded; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one, and on the chat route a regenerate of a message after a reply, read whole, keeps a message boundary where that message starts, which an edit of the message then forks; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
     # Imported here, since the server test imports the baseline checks, which import this module.
@@ -504,6 +541,7 @@ def run(require=False):
             print("qwen35: SKIP - llmx does not run the qwen35 architecture here (%s), so nothing was compared" % refusal(rc, out))
             return common.SKIPPED
         check_serve(directory)
+        check_wide_drafter(directory, require)
         # The bench holds a state slot for each sequence it decodes at once.
         rc, out = cli(["bench", "--model", models["hv3"], "--p", "4", "--n", "2", "--r", "1", "--seqs", "3"])
         reports = re.findall(r"^bench: (.+?)\s+\S+ \+- \S+ tok/s  \((\d+) runs\)$", out, re.M)

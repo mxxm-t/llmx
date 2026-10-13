@@ -577,7 +577,7 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
     X(K_MATMUL_ROW_MXFP4_FLOAT_X, "matmul_row_mxfp4_float_x", kSpvMatmulRowMxfp4FloatX, sizeof(kSpvMatmulRowMxfp4FloatX), 12, kMatmulRowCounts) \
     X(K_MATMUL_TILE_Q8MX, "matmul_tile_q8mx", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts) \
     X(K_MATMUL_TILE_Q8MX_TALL, "matmul_tile_q8mx_tall", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts) \
-    X(K_ARGMAX_ROWS, "argmax_rows", kSpvArgmaxRows, sizeof(kSpvArgmaxRows), 3, nullptr) \
+    X(K_ARGMAX_ROWS, "argmax_rows", kSpvArgmaxRows, sizeof(kSpvArgmaxRows), 4, nullptr) \
     X(K_EMBED_IDS, "embed_ids", kSpvEmbedIds, sizeof(kSpvEmbedIds), 4, nullptr) \
     X(K_DELTA_RULE_SHORT, "delta_rule_short", kSpvDeltaRuleShort, sizeof(kSpvDeltaRuleShort), 8, nullptr) \
     X(K_EMBED_IDS_MXFP4, "embed_ids_mxfp4", kSpvEmbedIdsMxfp4, sizeof(kSpvEmbedIdsMxfp4), 4, nullptr)
@@ -2316,14 +2316,27 @@ public:
         dispatch(type == quant::GGML_TYPE_MXFP4 ? K_EMBED_IDS_MXFP4 : K_EMBED_IDS, {bind(dst), bind(table), bind(table), bind(ids)}, pc, sizeof(pc), u32(count));
     }
 
-    // One workgroup a row (shaders/argmax_rows.comp); without prior ids the logits are bound in their place and not read.
+    // A row past one slice is reduced by a workgroup a slice into partials, then a workgroup a row over them (shaders/argmax_rows.comp); a shorter row, or work recorded without barriers, takes one workgroup a row.
+    // Without prior ids the logits are bound in their place and not read.
     void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) override {
         if (!rows) return;
         if (!n || n >= UINT32_MAX) throw std::runtime_error("vulkan: argmax over no ids or more than 32 bits name");
         if (floats_from(ids) < rows || floats_from(logits) < size_mul(rows, n) || (after.buffer && floats_from(after) < rows))
             throw std::runtime_error("vulkan: argmax_rows operand outside its allocation");
-        const uint32_t pc[2] = {u32(n), after.buffer ? 1u : 0u};
-        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), after.buffer ? bind(after) : bind(logits)}, pc, sizeof(pc), u32(rows));
+        const VkDescriptorBufferInfo prior = after.buffer ? bind(after) : bind(logits);
+        const size_t slices = (n + kVulkanArgmaxSlice - 1) / kVulkanArgmaxSlice;
+        uint32_t pc[5] = {u32(n), after.buffer ? 1u : 0u, 0u, u32(slices), u32(kVulkanArgmaxSlice)};
+        if (slices == 1 || unordered_) {
+            dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, bind(ids)}, pc, sizeof(pc), u32(rows));
+            return;
+        }
+        const size_t bytes = size_mul(size_mul(rows, slices), 3 * sizeof(uint32_t));
+        if (!argmax_parts_ || argmax_parts_->size() < bytes) grow(argmax_parts_, bytes);
+        const VkDescriptorBufferInfo parts{argmax_parts_->handle(), 0, VK_WHOLE_SIZE};
+        pc[2] = 1u;
+        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, parts}, pc, sizeof(pc), u32(slices), u32(rows));
+        pc[2] = 2u;
+        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, parts}, pc, sizeof(pc), u32(rows));
     }
     void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
@@ -3555,6 +3568,7 @@ private:
     size_t kernel_calls_[2 * kTimedKernels] = {0};
     std::shared_ptr<VulkanBuffer> mx_copy_; // copies of one call, reused in queue order
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
+    std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
     std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)

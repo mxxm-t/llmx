@@ -21,6 +21,9 @@ struct VulkanUnavailable : std::runtime_error {
 // With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`, and on a queue that timestamps the dispatches are timed for `vulkan_kernel_times`.
 BackendPtr make_vulkan_backend(int device, bool diagnostics = false);
 
+// The ids one workgroup reduces of a row whose argmax is taken in slices (Backend::argmax_rows); a row of at most this many ids is reduced whole.
+inline constexpr size_t kVulkanArgmaxSlice = 4096;
+
 // The device's name as the driver reports it, for the CLI and the tests.
 std::string vulkan_device_name(const Backend& backend);
 

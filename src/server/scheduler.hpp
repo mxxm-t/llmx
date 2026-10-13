@@ -2337,7 +2337,7 @@ private:
     bool drop_oldest_host() {
         for (const bool writing : {false, true})
             for (size_t i = 0; i < host_.size(); ++i)
-                if (!host_[i].through && written_soon(false, host_[i].id) == writing) {
+                if (!host_[i].through && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) {
                     drop_host(i);
                     return true;
                 }
@@ -2389,9 +2389,15 @@ private:
             else ++i;
         }
         for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
-            if (host_[i].disk && host_[i].id != promoting_ && !host_[i].through) drop_host(i);
+            if (host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id) && !host_[i].through) drop_host(i);
             else ++i;
         }
+    }
+
+    // Whether host entry `id` holds the rows a state being read alone from disk is for, so no room releases it until that read ends (start_read).
+    // Under the lock.
+    bool read_source(uint64_t id) const {
+        return id == reading_for_ || std::any_of(disk_reads_.begin(), disk_reads_.end(), [&](const DiskRead& rd) { return rd.source == id; });
     }
 
     // The digests of a history's whole blocks (DiskIndex::digests), each stretch of its rows under the key the model gives its extent (Model::row_class), which is what makes two histories' rows the same bits.
@@ -2596,6 +2602,12 @@ private:
             disk_read_bytes_ += rd.history.bytes;
             uint64_t* key = nullptr;
             if (rd.state_only) {
+                // The copy holding its rows becomes the newest again, so room taken before the request is admitted goes to others first.
+                for (size_t h = 0; h < host_.size(); ++h)
+                    if (host_[h].id == rd.source) {
+                        std::rotate(host_.begin() + (std::ptrdiff_t)h, host_.begin() + (std::ptrdiff_t)h + 1, host_.end());
+                        break;
+                    }
                 bounds_.emplace_back();
                 Boundary& b = bounds_.back();
                 b.id = ++donor_ids_;
@@ -2743,6 +2755,7 @@ private:
                 const std::vector<RowClass>& own = r->classes_.empty() ? first : r->classes_;
                 const std::vector<std::string> d = digests_of(tokens.data(), limit, own);
                 DiskIndex::Path path = disk_->index().path(d, bt, limit, model_.keeps_state());
+                const DiskIndex::Path whole = path;
                 // A state higher than the blocks on disk reach serves where a history in memory holds its rows.
                 const auto alone = model_.keeps_state() ? disk_->index().state_below(d, bt, limit) : std::nullopt;
                 if (alone && alone->first > path.length && rows_held(tokens, own, alone->first)) {
@@ -2779,10 +2792,12 @@ private:
                     r->disk_checked_ = true;
                     continue;
                 }
-                const bool state_only = model_.keeps_state() && rows_held(tokens, own, path.length, true);
+                // A state alone is read for rows in memory; the path's blocks, where they share more than memory does, are what is read should the host tier have no room for that state beside a host copy holding them.
+                uint64_t source = 0;
+                const bool state_only = model_.keeps_state() && rows_held(tokens, own, path.length, &source);
                 if (disk_reads_.size() + 1 > kDiskReads) continue;
                 r->disk_checked_ = true;
-                const uint64_t id = start_read(path, state_only, tokens, own);
+                const uint64_t id = start_read(path, state_only, tokens, own, source, state_only && whole.length > shared ? &whole : nullptr);
                 if (!id) continue;
                 const auto now = std::chrono::steady_clock::now();
                 r->disk_wait_ = id;
@@ -2795,13 +2810,14 @@ private:
     }
 
     // Whether a history on the devices or in host memory holds the first `n` rows of `tokens` computed as `classes` record, so a state alone at `n` can be forked.
-    // With `renew`, a copy in host memory that does becomes the newest, so the room a read takes goes to others first.
-    bool rows_held(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, bool renew = false) {
+    // With `source`, a copy in host memory that does becomes the newest and `source` its id, so the room a read takes goes to others first and never to it (read_source).
+    bool rows_held(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t* source = nullptr) {
         for (const Donor& d : donors_)
             if (holds(tokens, classes, n, d.tokens, d.classes, d.seq.length())) return true;
         for (size_t h = 0; h < host_.size(); ++h)
             if (holds(tokens, classes, n, host_[h].tokens, host_[h].classes, host_[h].history.length)) {
-                if (renew) {
+                if (source) {
+                    *source = host_[h].id;
                     if (host_[h].disk) disk_->renew(host_[h].disk, host_[h].back);
                     std::rotate(host_.begin() + (std::ptrdiff_t)h, host_.begin() + (std::ptrdiff_t)h + 1, host_.end());
                 }
@@ -2812,7 +2828,7 @@ private:
 
     // Starts the read of a path into slabs it takes host room for as a write-back does, a history of `tokens` computed as `classes` record; the read's id, or 0 where the room or the memory is not to be had.
     // Under the lock.
-    uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes) {
+    uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, uint64_t source = 0, const DiskIndex::Path* whole = nullptr) {
         const size_t length = path.length;
         const bool blocks = !state_only;
         const size_t bytes = model_.host_bytes(length, blocks);
@@ -2820,6 +2836,8 @@ private:
         DiskRead rd;
         rd.through = blocks && bytes > host_cap_;
         rd.state_only = state_only;
+        // A state alone is read for the rows host entry `source` holds, 0 for a device donor's: the room it takes is never that entry's, and where there is no other the blocks of `whole` are read with their state instead.
+        rd.source = state_only ? source : 0;
         // A read that is not started says why and is counted: its request reads its prompt instead.
         const auto refused = [&](const char* why) {
             ++disk_refused_;
@@ -2828,10 +2846,13 @@ private:
         };
         if (!rd.through) {
             if (bytes > host_cap_) return refused("its state is larger than the host tier");
-            while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
+            reading_for_ = rd.source;
+            while (!host_.empty() && host_.front().superseded && host_.front().id != rd.source && host_held_ + bytes > host_cap_) drop_host(0);
             release_written(bytes);
             while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
             while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
+            reading_for_ = 0;
+            if (host_held_ + bytes > host_cap_ && rd.source && whole) return start_read(*whole, false, tokens, classes);
             if (host_held_ + bytes > host_cap_) return refused("the host tier has no room it may give");
         }
         try {
@@ -3429,6 +3450,7 @@ private:
     std::deque<Boundary> bounds_;                 // under the lock, oldest first, in host_held_
     uint64_t pinned_bound_ = 0;                   // the boundary a request being admitted forks (enter), which nothing drops meanwhile
     uint64_t promoting_ = 0;                      // the host entry being promoted, which no room it makes releases
+    uint64_t reading_for_ = 0;                    // the host entry whose rows a state about to be read alone is for, while that read's room is made (read_source)
     size_t bound_hits_ = 0;                       // under the lock
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
     size_t host_refused_ = 0;             // donors write_back refused in a row for want of room the tier keeps for conversations that came back, under the lock
@@ -3472,6 +3494,7 @@ private:
         infer::HostHistory history;
         bool through = false;      // as HostDonor::through
         bool state_only = false;   // a state alone, for blocks a history on the devices or in host memory holds
+        uint64_t source = 0;       // the host entry holding those blocks, which no room releases while the read runs, 0 for a history on the devices
         std::vector<uint32_t> tokens;
         std::vector<RowClass> classes;
     };

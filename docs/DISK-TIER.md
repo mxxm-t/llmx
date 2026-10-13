@@ -92,6 +92,7 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
   Such a read takes the tier's idle slabs first and the rest fresh, and the fresh part must leave the host the pool's reserve: a 17.6 GiB history beside a 12.2 GiB tier with nothing idle needs 17.6 GiB of host memory free beyond the reserve, and with the whole tier idle 5.4 GiB; it prints a line as it starts.
 - **Holders.** A copy in host memory holding a boundary's rows becomes the newest as the boundary's read starts, so the room the read takes goes to other entries first.
 - **States** are read with the blocks of their path, and alone where a history on the devices or in host memory holds the rows (`Scheduler::rows_held`), which the read then becomes a boundary beside.
+  A host entry holding those rows is not released for the read's room or for any other room while the read runs (`read_source`); where the host tier has no room for the state beside it, the path's blocks are read with their state instead, as a history of its own, which may then take that entry's room.
 
 ## Crash safety and cleanup
 

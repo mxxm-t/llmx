@@ -576,7 +576,8 @@ public:
                 }
                 // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
                 grow(active);
-                if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; })) yield_jobs(active);
+                // A request that could not grow makes the jobs give way and takes its step from what they held, in this round: with no other request ready, a round later nothing would be in flight.
+                if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; }) && yield_jobs(active)) grow(active, true);
                 {
                     std::lock_guard<std::mutex> lk(m_);
                     // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first, and new requests come in queue order once none is paused.
@@ -613,8 +614,8 @@ public:
                     for (size_t k = free_apart(); !admit && !ride && k < slots_.size() && !first_stage_held(true) && form(k, active, host, Rows::generated); k = free_apart()) {}
                     for (size_t k = free_slot(); k < slots_.size() && !first_stage_held(false) && form(k, active, host, ride ? Rows::all : Rows::prompt); k = free_slot()) {}
                     if (admit) serve_generated(active, host);
-                    if (!flying() && std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; }))
-                        throw std::logic_error("server: a round with active requests formed an empty pass");
+                    const auto left = std::find_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });
+                    if (!flying() && left != active.end()) throw std::logic_error("server: a round with active requests formed an empty pass: " + left_out(**left, requests(active)));
                 } catch (const std::exception& e) {
                     fail_all(active, e.what());
                     host.clear();
@@ -1726,9 +1727,12 @@ private:
 
     // Before a pass, every uncapped decoding request not in flight whose next token would pass its reservation takes another step, the earliest admitted first, with what make_room gives it.
     // A request make_room cannot give it to, or whose plan would pause a request in flight, sits the pass out with its cache as it is (a stall) and asks again before the next; it is never paused for its own growth.
-    void grow(std::vector<std::shared_ptr<Request>>& active) {
+    void grow(std::vector<std::shared_ptr<Request>>& active, bool again = false) {
+        // `again` is a round's second call, once the jobs gave way: only the stalled ask, and a stall is counted after the last call that could lift it.
+        const bool last = again || std::none_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& j) { return j->job_ && !j->seq_.in_flight(); });
         for (size_t i = 0; i < active.size(); ++i) {
             Request& r = *active[i];
+            if (again && !r.stalled_) continue;
             r.stalled_ = false;
             if (r.seq_.in_flight()) continue;
             const std::vector<size_t> step = kGrowth.step(pools_, r.params_.until_limit, decoding(r), r.seq_.length(), r.need_);
@@ -1742,6 +1746,7 @@ private:
             const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, holders(active), r.admission_, true, step);
             if (!t.enough || t.wait) {
                 r.stalled_ = true;
+                if (!last) continue;
                 ++r.stalls_;
                 std::lock_guard<std::mutex> lk(m_);
                 ++stalls_;
@@ -1755,6 +1760,13 @@ private:
             add(reserved_, step);
             add(r.need_, step);
         }
+    }
+
+    // What the empty-pass error says of the request left without a pass: its history, whether it could not grow, how many requests are active, and each pool's reserved blocks.
+    std::string left_out(const Request& r, size_t requests) const {
+        std::string s = "a request of " + std::to_string(r.seq_.length()) + " tokens" + (r.stalled_ ? " could not grow" : " was not ready") + ", " + std::to_string(requests) + " active, blocks reserved";
+        for (size_t p = 0; p < reserved_.size(); ++p) s += " " + std::to_string(reserved_[p]) + " of " + std::to_string(pools_.blocks[p]);
+        return s;
     }
 
     // The uncapped request paused longest, which a turn at the pool's edge goes to.
@@ -3174,8 +3186,9 @@ private:
         }
     }
 
-    // Each job not in flight gives way: it frees what it held and waits to start again from its source once nothing else waits.
-    void yield_jobs(std::vector<std::shared_ptr<Request>>& active) {
+    // Each job not in flight gives way: it frees what it held and waits to start again from its source once nothing else waits; whether any did.
+    bool yield_jobs(std::vector<std::shared_ptr<Request>>& active) {
+        bool any = false;
         for (size_t i = 0; i < active.size();) {
             auto j = active[i];
             if (!j->job_ || j->seq_.in_flight()) {
@@ -3187,10 +3200,12 @@ private:
             j->seq_ = infer::Sequence{};
             j->classes_.clear();
             j->source_ = 0;
+            any = true;
             std::lock_guard<std::mutex> lk(m_);
             jobs_.push_front(j);
             ++reprefill_cancels_;
         }
+        return any;
     }
 
     // The ids given since the last round, each to its request's job: a new job, a job's ids grown as the reply is written or made whole, or a job that has read ids the reply's next turn no longer begins with started again; none drops the job.

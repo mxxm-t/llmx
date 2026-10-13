@@ -176,8 +176,9 @@ private:
     std::vector<size_t> need_;     // blocks reserved for it, per cache pool
     std::vector<RowClass> classes_;   // how its history was computed, stretch by stretch; empty until the first admission
     uint32_t last_id_ = 0;
-    // Drafting (docs/SPECULATIVE.md, section 3): its acceptance, and the verify its pass in flight carries, its last pick then the drafts, empty for a decode entry.
-    infer::spec::Acceptance acceptance_;
+    // Drafting (docs/SPECULATIVE.md, section 3): its record, the draft its own history gave ahead of the proposer, and the verify its pass in flight carries, its last pick then the drafts, empty for a decode entry.
+    infer::spec::Record record_;
+    std::vector<uint32_t> own_draft_;
     std::vector<uint32_t> verify_;
     std::vector<uint32_t> gen_;
     std::string decoded_;
@@ -411,6 +412,7 @@ public:
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
+        std::vector<size_t> own_drafted{}, own_kept{};   // those of them requests' own histories gave ahead of the proposer (spec::lookup_first)
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
         size_t yields = 0, kv_tokens = 0, kv_donor_tokens = 0;   // pauses that gave the pool's edge to a paused request (Growth::yields), and the pool's reserved blocks as tokens, each the largest over the pools: the running requests' part, and the donors'
         uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
@@ -497,8 +499,13 @@ public:
         s.yields = yields_.load();
         s.host_limit = host_cap_;
         s.disk_limit = disk_ ? disk_->cap() : 0;
-        s.drafted = tally_.drafted();
-        s.kept = tally_.kept();
+        // Every source's by position, and the requests' own histories' apart.
+        s.own_drafted = tally_[infer::spec::Source::lookup].drafted();
+        s.own_kept = tally_[infer::spec::Source::lookup].kept();
+        s.drafted = tally_[infer::spec::Source::proposer].drafted();
+        s.kept = tally_[infer::spec::Source::proposer].kept();
+        if (s.drafted.size() < s.own_drafted.size()) s.drafted.resize(s.own_drafted.size()), s.kept.resize(s.own_drafted.size());
+        for (size_t i = 0; i < s.own_drafted.size(); ++i) s.drafted[i] += s.own_drafted[i], s.kept[i] += s.own_kept[i];
         return s;
     }
 
@@ -1216,21 +1223,37 @@ private:
     }
 
     // The verifies of the decoding requests `rs` in the pass being formed, each in r.verify_ on a mark of its sequence, its last pick then its drafts, or empty for a decode entry.
-    // Each takes drafts within the `columns` the requests before it leave, its reservation and the tokens it may still generate (spec::draft_length) and the gain the pass cost finds (spec::draft_depths), all drafted at once by the proposer.
+    // Each drafts within the `columns` left, its reservation and tokens left (spec::draft_length) and the price's gain (spec::draft_depths): from its own history where that convinces (spec::lookup_first), else from the proposer.
     void propose(const std::vector<std::shared_ptr<Request>>& rs, size_t columns) {
+        using infer::spec::Source;
         for (const auto& r : rs) r->verify_.clear();
         if (!proposer_) return;
         keeps_.clear();
         askers_.clear();
+        chained_.clear();
+        const bool first = proposer_->after_lookup();
         for (const auto& r : rs) {
             // A request resumed by a fork of its whole history decodes before any pass has fed its sequence, and drafts from the pass after (Model::can_draft).
             if (r->job_ || !model_.can_draft(r->seq_)) continue;
             const size_t at = r->seq_.length(), room = std::min(reserved_tokens(*r), token_limit());
-            const size_t k = infer::spec::draft_length(draft_max_, (size_t)r->params_.max_tokens - r->gen_.size(), room > at ? room - at : 0, columns, r->acceptance_);
+            const size_t left = (size_t)r->params_.max_tokens - r->gen_.size(), positions = room > at ? room - at : 0;
+            infer::spec::Record& record = r->record_;
+            record.drafted = Source::proposer;
+            size_t k = 0;
+            // Its history goes into the ask it would be this pass's next asker of, where the proposer's ask finds it again.
+            if (first) {
+                if (asks_.size() <= askers_.size()) asks_.resize(askers_.size() + 1);
+                std::vector<uint32_t>& history = asks_[askers_.size()].history;
+                history.assign(r->prompt_.begin(), r->prompt_.end());
+                history.insert(history.end(), r->gen_.begin(), r->gen_.end());
+                k = infer::spec::lookup_first(record, draft_max_, left, positions, columns, history, r->own_draft_);
+            }
+            if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record[Source::proposer]);
             if (!k) continue;
             columns -= k;
             keeps_.emplace_back(k);
-            for (size_t j = 0; j < k; ++j) keeps_.back()[j] = r->acceptance_.keeps(j, tally_);
+            for (size_t j = 0; j < k; ++j) keeps_.back()[j] = record[record.drafted].keeps(j, tally_[record.drafted]);
+            chained_.push_back(record.drafted == Source::proposer);
             askers_.push_back(r.get());
         }
         // A chain holds the scheduler thread and queues behind the head device's work, so every pass in flight waits on it as the one being formed does.
@@ -1238,49 +1261,64 @@ private:
         const double stall = 1.0 + (double)flights_live();
         cost.step_ms *= stall;
         cost.step_row_ms *= stall;
-        infer::spec::draft_depths(cost, rs.size(), keeps_, takes_);
+        infer::spec::draft_depths(cost, rs.size(), keeps_, takes_, &chained_);
         // A model that keeps a state holds as many marks as its fit gave, some held by verifies in flight, and a request without one drafts nothing, so no more draft than are free.
         size_t held = 0;
         for (const Slot& s : slots_)
             if (s.live)
                 for (const auto& m : s.members) held += !m->verify_.empty();
         const size_t marks = model_.mark_slots() > held ? model_.mark_slots() - held : 0;
-        size_t n = 0, steps = 0;
-        for (size_t i = 0; i < askers_.size() && n < marks; ++i) {
-            if (!takes_[i]) continue;
+        // The requests that draft, within the marks: `asked_[i]` is request i's place among the proposer's asks, or none for a draft of its own history.
+        size_t n = 0, chains = 0, steps = 0;
+        asked_.assign(askers_.size(), SIZE_MAX);
+        for (size_t i = 0; i < askers_.size(); ++i) {
+            if (!takes_[i] || n == marks) {
+                takes_[i] = 0;
+                continue;
+            }
+            ++n;
+            if (!chained_[i]) continue;
             Request& r = *askers_[i];
-            if (asks_.size() <= n) asks_.resize(n + 1);
-            infer::spec::Proposer::Ask& a = asks_[n];
+            if (asks_.size() <= chains) asks_.resize(chains + 1);
+            infer::spec::Proposer::Ask& a = asks_[chains];
             a.seq = &r.seq_;
-            a.history.assign(r.prompt_.begin(), r.prompt_.end());
-            a.history.insert(a.history.end(), r.gen_.begin(), r.gen_.end());
+            if (first) {
+                if (chains != i) std::swap(a.history, asks_[i].history);
+            } else {
+                a.history.assign(r.prompt_.begin(), r.prompt_.end());
+                a.history.insert(a.history.end(), r.gen_.begin(), r.gen_.end());
+            }
             a.k = takes_[i];
-            askers_[n++] = &r;
+            asked_[i] = chains++;
             steps = std::max(steps, a.k);
         }
         if (!n) return;
-        const Clock::time_point start = Clock::now();
-        // A draft is an optimisation: one that fails costs its pass the drafts and no request.
-        try {
-            // The chain is work on the head's device, which a stage's thread may be recording on.
-            const Held still(*this, true);
-            proposer_->draft_all(asks_.data(), n);
-        } catch (const std::exception& e) {
-            std::fprintf(stderr, "server: a draft failed and its pass runs without drafts (%s)\n", e.what());
-            ++draft_failures_;
-            return;
+        // A draft is an optimisation: one that fails costs its pass the proposer's drafts and no request.
+        bool failed = false;
+        if (chains) {
+            const Clock::time_point start = Clock::now();
+            try {
+                // The chain is work on the head's device, which a stage's thread may be recording on.
+                const Held still(*this, true);
+                proposer_->draft_all(asks_.data(), chains);
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "server: a draft failed and its pass runs without the proposer's drafts (%s)\n", e.what());
+                ++draft_failures_;
+                failed = true;
+            }
+            const double chain = ms_since(start);
+            if (!failed) times_.chain(steps, chains, chain);
+            round_.drafting_ms += chain;
+            formed_chains_ms_ += chain;
+            for (Retirement& kind : retirement_) kind.chain_ms += chain;
         }
-        const double chain = ms_since(start);
-        times_.chain(steps, n, chain);
-        round_.drafting_ms += chain;
-        formed_chains_ms_ += chain;
-        for (Retirement& kind : retirement_) kind.chain_ms += chain;
-        for (size_t i = 0; i < n; ++i) {
+        for (size_t i = 0; i < askers_.size(); ++i) {
+            if (!takes_[i] || (chained_[i] && failed)) continue;
             Request& r = *askers_[i];
-            const std::vector<uint32_t>& d = asks_[i].out;
+            const std::vector<uint32_t>& d = chained_[i] ? asks_[asked_[i]].out : r.own_draft_;
             // A draft past the vocabulary, and those after it, are not fed: a verify needs nothing a decode does not.
             const auto past = std::find_if(d.begin(), d.end(), [&](uint32_t id) { return id >= model_.n_vocab(); });
-            const size_t k = std::min(asks_[i].k, (size_t)(past - d.begin()));
+            const size_t k = std::min(takes_[i], (size_t)(past - d.begin()));
             if (!k || !quieted(true)->mark(r.seq_)) continue;
             r.verify_.assign(1, r.last_id_);
             r.verify_.insert(r.verify_.end(), d.begin(), d.begin() + (std::ptrdiff_t)k);
@@ -1316,7 +1354,7 @@ private:
                 continue;
             }
             std::lock_guard<std::mutex> lk(m_);
-            tally_.verified(keep - f.from[e] - 1, k_drafts);
+            tally_[r.record_.drafted].verified(keep - f.from[e] - 1, k_drafts);
         }
         if (timed_) round_.settling_ms += ms_since(start);
     }
@@ -3066,8 +3104,8 @@ private:
             r.push(std::move(t), row ? &r.logits_ : nullptr);
         }
         if (!proposer_) return;
-        if (r.verify_.empty()) r.acceptance_.stepped();
-        else r.acceptance_.verified(d.sampled - 1, r.verify_.size() - 1);
+        if (r.verify_.empty()) r.record_.stepped();
+        else r.record_.verified(d.sampled - 1, r.verify_.size() - 1);
     }
 
     // A finished request becomes a donor through park, and one line on stderr records it.
@@ -3413,7 +3451,9 @@ private:
     const size_t draft_max_;
     const bool priced_;
     std::vector<infer::spec::Proposer::Ask> asks_;   // the drafts being proposed, the first of them in use
-    std::vector<Request*> askers_;        // the requests asking them
+    std::vector<Request*> askers_;        // the requests that may draft in the pass being formed
+    std::vector<uint8_t> chained_;        // per such request, whether the proposer drafts for it, not its own history
+    std::vector<size_t> asked_;           // per such request, its place among the proposer's asks
     std::vector<std::vector<double>> keeps_;   // per request that may draft, the chance it keeps each draft
     std::vector<size_t> takes_;           // per request that may draft, the drafts the price gives it
     infer::spec::PassTimes times_;        // the passes' measured cost, the scheduler thread's
@@ -3424,7 +3464,7 @@ private:
     };
     Retirement retirement_[2];            // of the passes, and of the passes apart
     std::atomic<size_t> draft_failures_{0};   // Stats::draft_failures
-    infer::spec::Acceptance tally_;       // under the lock, every verify's drafts by position
+    infer::spec::Record tally_;           // under the lock, every verify's drafts by position, a source apart
     Timing round_;                        // the scheduler thread's, published to timing_ each round
     Timing timing_;                       // under the lock
     std::vector<double> host_stage_ms_ = std::vector<double>(model_.stage_count(), 0.0);   // per stage on the host, its time since the last reading; a stage's first pass adds to it before any round has ended

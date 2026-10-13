@@ -46,20 +46,27 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         size_t k = 0;
         if (drafting) {
             // One request alone: its verify is the pass, so every column its kernels hold is its own.
-            k = spec::draft_length(drafting->draft_max, (size_t)gp.max_tokens - gen.size(), (size_t)model.context_length() - (size_t)model.n_tokens(),
-                                   drafting->draft_max, drafting->acceptance);
-            if (k) {
+            const size_t left = (size_t)gp.max_tokens - gen.size(), room = (size_t)model.context_length() - (size_t)model.n_tokens();
+            spec::Record& record = drafting->record;
+            record.drafted = spec::Source::proposer;
+            const bool first = drafting->proposer->after_lookup();
+            if (first || !record[spec::Source::proposer].resting()) {
                 history = drafting->history;
                 history.insert(history.end(), gen.begin(), gen.end());
-                drafting->proposer->draft(nullptr, history, k, drafts);
-                // A draft past the vocabulary, and those after it, are not fed: the verify needs nothing a decode does not.
-                const auto past = std::find_if(drafts.begin(), drafts.end(), [&](uint32_t id) { return id >= n_vocab; });
-                drafts.erase(past, drafts.end());
-                k = std::min(k, drafts.size());
             }
+            // The history's own convincing continuation is the draft where it has one, and the proposer is not run that round.
+            if (first) k = spec::lookup_first(record, drafting->draft_max, left, room, drafting->draft_max, history, drafts);
+            if (!k) {
+                k = spec::draft_length(drafting->draft_max, left, room, drafting->draft_max, record[spec::Source::proposer]);
+                if (k) drafting->proposer->draft(nullptr, history, k, drafts);
+            }
+            // A draft past the vocabulary, and those after it, are not fed: the verify needs nothing a decode does not.
+            const auto past = std::find_if(drafts.begin(), drafts.end(), [&](uint32_t id) { return id >= n_vocab; });
+            drafts.erase(past, drafts.end());
+            k = std::min(k, drafts.size());
         }
         if (!k || !model.mark()) {
-            if (drafting) drafting->acceptance.stepped();
+            if (drafting) drafting->record.stepped();
             logits = model.step((int)y);   // predict the token after y
             y = infer::sample(logits.data(), n_vocab, gp, tok.eos_id, gen, rng);
             going = take(y);
@@ -74,7 +81,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         // y and the drafts its picks equalled were fed, and a last pick the reply ends on fed where the verify fed it as its draft.
         const bool last_fed = end == End::fed && a.rows <= k && a.last == drafts[a.rows - 1];
         model.retract(start + a.rows + (last_fed ? 1 : 0));
-        drafting->acceptance.verified(a.rows - 1, k);
+        drafting->record.verified(a.rows - 1, k);
         y = a.last;
         if (end == End::fed && !last_fed) model.step((int)y);
     }

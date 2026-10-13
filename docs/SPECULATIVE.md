@@ -365,3 +365,23 @@ Draft rows are extent 1 and never history.
 
 XDEV reviewed this section at 26c40e54 on 2026-10-01, agreed with the owners and the nine recommendations, and asked for the amendments now written in: invalid drafts handled on the device before the next embedding read, the draft's blocks returned through the cache's owner on failure, a resident embedding reused, the carried row's saved rows with the other saved state, one- and two-token prompts and each convention held by the assembled reference, and the reference build frozen before measuring with the margin in percentage points.
 The user approved it on 2026-10-02 ("Mtp is yes if xdev accepted").
+
+## 8. Lookup ahead of a model drafter
+
+Agreed in design on 2026-10-11 and 2026-10-12 from the lookup match profile and the draft cost profile (`docs/STATUS.md`), the owner having approved building it: where a request's own history already holds what comes next, that is the draft, and the model drafter is not run that round.
+
+**The rule** (`spec::lookup_first`, the one owner; `infer::generate` and `Scheduler::propose` call it and hold no match rule of their own):
+- A proposer that runs a model, the embedded drafter or a draft model, stands behind lookup where the commands make it so (`Proposer::after_lookup`, which `Drafts::attach` sets and nothing else); `--drafter lookup` keeps its own rule and `--drafter off` drafts nothing.
+- One depth a pass serves both sources (`spec::draft_depths`): a draft of the history is cut to the depth the price gives its request, its rows priced like any and its chances from lookup's own record, with no chain charged.
+- Each round, for each drafting request: if the last `Lookup::kConvincing` tokens of its history, its prompt and its reply so far, occur earlier in that history, the tokens after the latest such occurrence are its draft, up to the count `spec::draft_length` allows, and the request is left out of the proposer's batch; an occurrence that reaches the history's end goes on into its own draft, as a repeating run does.
+- Otherwise the proposer drafts for it as before.
+- The verify, `infer::accept`, the mark and the retract are those of section 3, so ids, draws, log-probabilities and ends are those of the run without drafts whatever was drafted.
+
+**An acceptance a source** (`spec::Record`): a verify counts in the acceptance of the source that drafted it, so a resting proposer does not stop a history that convinces, and lookup's misses never rest the proposer; the tokens one source's verifies generate count down the other's rest.
+The price (`spec::draft_depths`) charges a chain's steps only for requests whose drafts a chain gives.
+
+**The constant** is in tokens, so it means the same on any hardware: `kConvincing` is 8.
+Over 10338 reply positions of 30 prompts in six kinds (Qwen3.5-4B Q4_K_M, greedy), a match of 8 or more was wrong at its first token 4 percent of the time, of 3 or more 16 percent and of 1 or more 45 percent; it covered 79 percent of the positions of code edits and under 3 percent of prose.
+What hardware changes is what a skipped chain saves, not whether the rule loses: the draft it puts in a chain's place is kept more often than the model drafter's first position.
+
+**Not built:** a kept source position after a hit (the scan is one backward walk of the history, measured before any cursor is added); a verify longer than `--draft-max` for a long match; a lookup continuation after a model draft and a probe after a refused one (the next step, measured first); candidates verified as a tree; lookup across requests, since one user's text must never shape another's timing.

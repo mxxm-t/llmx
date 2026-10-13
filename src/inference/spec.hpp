@@ -54,6 +54,8 @@ public:
     virtual void draft_all(Ask* asks, size_t n) {
         for (size_t i = 0; i < n; ++i) draft(asks[i].seq, asks[i].history, asks[i].k, asks[i].out);
     }
+    // Whether a history's own convincing continuation is drafted in this proposer's place where it has one (lookup_first), as the commands ask of a proposer that runs a model.
+    virtual bool after_lookup() const { return false; }
 };
 
 // Prompt lookup: the tokens that followed the latest earlier occurrence of the history's last three tokens, else two, else one.
@@ -72,12 +74,28 @@ public:
             }
         }
     }
+
+    // The match that stands in for a model's draft, in tokens; docs/SPECULATIVE.md, section 8, has the measurement it comes from.
+    static constexpr size_t kConvincing = 8;
+    // Up to `k` tokens that followed the latest earlier occurrence of the history's last kConvincing tokens, in `out`, or none where they occur nowhere earlier.
+    // An occurrence that overlaps the history's end goes on into the tokens drafted, as a repeating run does.
+    static void convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) {
+        out.clear();
+        const size_t size = h.size(), n = kConvincing;
+        if (size <= n) return;
+        const uint32_t last = h[size - 1];
+        for (size_t i = size - n; i-- > 0;) {
+            if (h[i + n - 1] != last || !std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n - 1), h.end() - (std::ptrdiff_t)n)) continue;
+            for (size_t j = i + n; out.size() < k; ++j) out.push_back(j < size ? h[j] : out[j - size]);
+            return;
+        }
+    }
 };
 
 // The embedded drafter a model was loaded with (docs/SPECULATIVE.md, section 7): its chain of drafts after the history's last pick, which the model drafts from the row its history carries.
 class Embedded final : public Proposer {
 public:
-    explicit Embedded(Model& model) : model_(model) {}
+    explicit Embedded(Model& model, bool after_lookup = false) : model_(model), after_lookup_(after_lookup) {}
     void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
         out.clear();
         if (h.empty()) return;
@@ -93,9 +111,11 @@ public:
         }
         model_.draft(batch_.data(), batch_.size());
     }
+    bool after_lookup() const override { return after_lookup_; }
 
 private:
     Model& model_;
+    const bool after_lookup_;
     std::vector<Model::DraftAsk> batch_;
 };
 
@@ -103,7 +123,7 @@ private:
 // A draft takes that history back to what it shares with the given one, feeds the rest in one pass (keeping the state there on a model that keeps one), then drafts a token a step.
 class DraftModel final : public Proposer {
 public:
-    explicit DraftModel(Model& model) : model_(model) {}
+    explicit DraftModel(Model& model, bool after_lookup = false) : model_(model), after_lookup_(after_lookup) {}
     void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
         out.clear();
         if (seq) throw std::logic_error("inference: a draft model drafts for one history, not a sequence of another model");
@@ -133,9 +153,11 @@ public:
             fed_.push_back(d);
         }
     }
+    bool after_lookup() const override { return after_lookup_; }
 
 private:
     Model& model_;
+    const bool after_lookup_;
     std::vector<uint32_t> fed_;   // the tokens the model's history holds
 };
 
@@ -153,10 +175,8 @@ public:
             kept_[i] += i < kept;
         }
     }
-    // A token generated without drafts.
-    void stepped() {
-        if (rest_) --rest_;
-    }
+    // `n` tokens generated without this acceptance's drafts.
+    void stepped(size_t n = 1) { rest_ -= std::min(rest_, n); }
     bool resting() const { return rest_ > 0; }
     const std::vector<size_t>& drafted() const { return drafted_; }
     const std::vector<size_t>& kept() const { return kept_; }
@@ -175,11 +195,43 @@ private:
     std::vector<size_t> drafted_, kept_;
 };
 
+// Where a draft comes from: the request's own history ahead of a model proposer (lookup_first), or its proposer.
+enum class Source : uint8_t { lookup, proposer };
+
+// A request's drafting record: an acceptance for each source, so neither's misses rest the other, and the source of the draft its verify in flight feeds.
+struct Record {
+    Acceptance of[2];
+    Source drafted = Source::proposer;
+    Acceptance& operator[](Source s) { return of[(size_t)s]; }
+    const Acceptance& operator[](Source s) const { return of[(size_t)s]; }
+    // A verify that fed `fed` drafts of the source `drafted` and kept the first `kept`, the tokens it generated counted against the other source's rest.
+    void verified(size_t kept, size_t fed) {
+        of[(size_t)drafted].verified(kept, fed);
+        of[1 - (size_t)drafted].stepped(kept + 1);
+    }
+    // A token generated without drafts.
+    void stepped() {
+        for (Acceptance& a : of) a.stepped();
+    }
+};
+
 // How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, and none while it rests (Acceptance).
 // It is also at most `columns`, the rows the pass's decode kernels read each weight once for, past which a draft row costs a weight read of its own (docs/SPECULATIVE.md, section 3).
 inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const Acceptance& acceptance) {
     if (acceptance.resting() || !tokens_left || !context_left) return 0;
     return std::min({draft_max, tokens_left - 1, context_left - 1, columns});
+}
+
+// A request's draft ahead of its proposer (docs/SPECULATIVE.md, section 8): the convincing continuation of its own `history` (Lookup::convincing), up to the drafts draft_length allows lookup's acceptance, in `out`.
+// It sets the record's source and returns the drafts; with none the source is the proposer's, which the caller asks under that source's acceptance.
+inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const std::vector<uint32_t>& history,
+                           std::vector<uint32_t>& out) {
+    out.clear();
+    r.drafted = Source::proposer;
+    const size_t k = draft_length(draft_max, tokens_left, context_left, columns, r[Source::lookup]);
+    if (k) Lookup::convincing(history, k, out);
+    if (!out.empty()) r.drafted = Source::lookup;
+    return out.size();
 }
 
 // What a pass of generated rows costs, `base_ms` and `row_ms` a row, and a step of the drafter's chains, which run before the pass, `step_ms` and `step_row_ms` a chain.
@@ -237,8 +289,9 @@ private:
 };
 
 // The drafts each of a pass's drafting requests verifies (docs/SPECULATIVE.md, section 3), from the pass cost `c`, the pass's `decoders` and each request's chance of keeping each draft its cap allows (`keeps[i]`), into `takes`.
-// The depth taken is the one with the most tokens a millisecond, request i getting min(K, its cap) drafts, or none where no depth beats the pass without drafts; free rows or an unknown cost give every request its cap.
-inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<std::vector<double>>& keeps, std::vector<size_t>& takes) {
+// The depth taken gives the most tokens a millisecond, request i getting min(K, its cap) drafts, or none where no depth beats the pass without drafts; free rows or an unknown cost give each its cap, and `chained` marks a chain's requests.
+inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<std::vector<double>>& keeps, std::vector<size_t>& takes,
+                         const std::vector<uint8_t>* chained = nullptr) {
     takes.assign(keeps.size(), 0);
     size_t depth = 0, capped = decoders;
     for (const auto& k : keeps) depth = std::max(depth, k.size()), capped += k.size();
@@ -248,37 +301,41 @@ inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<s
         return;
     }
     const double plain_ms = c.base_ms + c.row_ms * (double)decoders, rate = (double)decoders / plain_ms;
-    const auto take = [&](size_t K, std::vector<size_t>* out) {
+    // A depth is weighed with the chain and without it, where only the requests that need no chain draft, so a dear chain does not take their drafts with it.
+    const auto take = [&](size_t K, bool chain, std::vector<size_t>* out) {
         double tokens = (double)decoders, ms = plain_ms;
-        size_t chains = 0;
+        size_t chains = 0, steps = 0;
         for (size_t i = 0; i < keeps.size(); ++i) {
-            const size_t k = std::min(K, keeps[i].size());
+            const bool chains_it = !chained || (*chained)[i];
+            const size_t k = chains_it && !chain ? 0 : std::min(K, keeps[i].size());
             double kept = 0;
             for (size_t j = 0; j < k; ++j) kept += keeps[i][j];
             if (!k || kept < rate * c.row_ms * (double)k) continue;
             tokens += kept;
             ms += c.row_ms * (double)k;
-            ++chains;
+            if (chains_it) ++chains, steps = std::max(steps, k);
             if (out) (*out)[i] = k;
         }
-        if (chains) ms += (double)K * (c.step_ms + c.step_row_ms * (double)chains);
+        if (chains) ms += (double)steps * (c.step_ms + c.step_row_ms * (double)chains);
         return tokens / ms;
     };
     double best = rate;
     size_t best_depth = 0;
-    for (size_t K = 1; K <= depth; ++K) {
-        const double r = take(K, nullptr);
-        if (r > best) best = r, best_depth = K;
-    }
-    if (best_depth) take(best_depth, &takes);
+    bool best_chain = true;
+    for (size_t K = 1; K <= depth; ++K)
+        for (bool chain : {true, false}) {
+            const double r = take(K, chain, nullptr);
+            if (r > best) best = r, best_depth = K, best_chain = chain;
+        }
+    if (best_depth) take(best_depth, best_chain, &takes);
 }
 
-// A request's drafting: its proposer, its most drafts a verify, the tokens its history held before it generated, and its acceptance.
+// A request's drafting: its proposer, its most drafts a verify, the tokens its history held before it generated, and its record.
 struct Drafting {
     Proposer* proposer = nullptr;
     size_t draft_max = 0;
     std::vector<uint32_t> history;
-    Acceptance acceptance;
+    Record record;
 };
 
 } // namespace spec

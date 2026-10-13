@@ -552,7 +552,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--draft-max N`         | most drafts a verify takes, 1 to 63                  | 3       |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
-| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back, and with a drafter the drafts kept by position | off   |
+| `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back, and with a drafter the drafts kept by position, as `drafts kept:` and, for drafts the history gave ahead of a drafter, `own drafts kept:` | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
 `--temp` and `--topk` are at least 0, `--topp` is 0 to 1 and `--penalty` is at least 1, the ranges the server takes for the same settings.
@@ -565,6 +565,8 @@ Each row is sampled as the token without drafts would be, so the text, the ids a
 On a model that keeps a recurrent state a verify keeps the state it started from in a slot of its own, and a rejected draft runs the state's update again over the rows it keeps.
 `--drafter embedded` drafts with the MTP block a qwen35 file carries after its layers (docs/SPECULATIVE.md, section 7): the model is loaded with the block on the device of its head, every pass writes the block's cache rows for the tokens it feeds, and each round's drafts are one chain of the block's rows on that device; a file without the block is refused by name.
 The text, the ids and every draw are those of `--drafter off` here too.
+A drafter that runs a model, `embedded` or a file, stands behind the reply's own history: where the last 8 tokens of the prompt and the reply so far occur earlier in them, the tokens that followed are the round's drafts and the drafter is not run that round, which pays where a reply repeats its prompt or itself and changes nothing elsewhere (docs/SPECULATIVE.md, section 8).
+Each of the two rests on its own kept drafts, so one that misses does not stop the other.
 `--drafter PATH` names a drafter file beside the model, which must pair with it before any byte of either is read (docs/SPECULATIVE.md, step 6): the same tokenizer (tokens, token types, merges, pre-tokenizer and end of text), and for the kind of drafter it is, its widths and blocks; a file that does not pair is refused, naming both files and both values.
 A file of the model's MTP blocks, as `llmx-drafter-pack split` writes one from a file that embeds them, drafts as `embedded` does, the same drafts bit for bit; a draft model, a model of its own with the same tokenizer such as Qwen3-0.6B for Qwen3-8B or Qwen3.5-0.8B for Qwen3.6-27B, is loaded on the same devices once the model has taken its room and drafts greedily on its own history, one pass to catch up and then a token a step; a DFlash drafter is refused, as llmx does not run one yet.
 With `--verbose`, a line after the ids gives the drafts kept and fed at each draft position, as `drafts kept: 7/10 4/8 ...`.
@@ -826,7 +828,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0}},
  "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},
- "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
+ "drafting": {"since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}], "own_history": {"drafted": 512, "kept": 480}}},
  "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3, "since_start": {"apart": 0, "between_pieces": 0, "rode": 0}}}
 ```
 
@@ -880,6 +882,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reread.since_start.jobs`, `.rows`, `.cancelled` | jobs, rows, jobs | since start | Background jobs that read a reply again so the next turn finds it kept, the rows they read, and the jobs that gave way to a request at a pass boundary | |
 | `reread.since_start.handed` | jobs | since start | Jobs whose rows a request of the same conversation took over when it arrived while the job was reading | |
 | `drafting.since_start.drafted`, `.kept` | tokens | since start | Drafted tokens that verifies fed, and the ones they kept; `by_position` has the same by draft position, from 1 | `kept` far below `drafted` |
+| `drafting.since_start.own_history.drafted`, `.kept` | tokens | since start | Those of them the requests' own histories gave ahead of a drafter that runs a model | - |
 | `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |
 | `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |
 | `passes.sampling_threads` | threads | fixed | Threads that sample beside the scheduler's | |

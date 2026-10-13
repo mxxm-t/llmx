@@ -613,7 +613,7 @@ bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::strin
 void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server) {
     if (loaded.drafter == infer::spec::DrafterKind::mtp) embedded = true;
     if (embedded) {
-        proposer = std::make_unique<infer::spec::Embedded>(*loaded.model);
+        proposer = std::make_unique<infer::spec::Embedded>(*loaded.model, true);
         return;
     }
     if (loaded.drafter != infer::spec::DrafterKind::model) return;
@@ -621,7 +621,7 @@ void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, b
         throw std::runtime_error("serve: " + file + " is a draft model, which drafts in generate and chat; the server drafts with lookup, embedded, or MTP blocks in a file beside the model");
     // A draft model that keeps a recurrent state keeps one where its drafts begin, so each draft goes back there (infer::spec::DraftModel); it shares the model's devices, so the two take turns on one queue a device.
     beside = open_model(file, exec, progress, exec.threads, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
-    proposer = std::make_unique<infer::spec::DraftModel>(*beside->model);
+    proposer = std::make_unique<infer::spec::DraftModel>(*beside->model, true);
 }
 
 int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec,
@@ -659,10 +659,14 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
         printf("\n");
         // By draft position, the drafts the verifies kept of those they fed.
         if (drafting) {
-            printf("drafts kept:");
-            const infer::spec::Acceptance& a = drafting->acceptance;
-            for (size_t i = 0; i < a.drafted().size(); ++i) printf(" %zu/%zu", a.kept()[i], a.drafted()[i]);
-            printf("\n");
+            // The proposer's, then those the reply's own history gave ahead of it, where it gave any.
+            for (infer::spec::Source s : {infer::spec::Source::proposer, infer::spec::Source::lookup}) {
+                const infer::spec::Acceptance& a = drafting->record[s];
+                if (s == infer::spec::Source::lookup && a.drafted().empty()) continue;
+                printf(s == infer::spec::Source::lookup ? "own drafts kept:" : "drafts kept:");
+                for (size_t i = 0; i < a.drafted().size(); ++i) printf(" %zu/%zu", a.kept()[i], a.drafted()[i]);
+                printf("\n");
+            }
         }
     }
     return 0;

@@ -308,6 +308,7 @@ Within those, a pass drafts only what pays: the scheduler measures its passes of
 On Qwen3.6-27B Q8_0 on one MI50 a pass costs about 10 ms a row past a few rows, so the columns alone made four or more users drafting slower than without drafts (docs/STATUS-2026-09.md).
 The drafts stay inside the room its reservation already holds, so they never grow the ledger, pause, stall or evict anything.
 The pass asks for every request's drafts at once (`spec::Proposer::draft_all`): the embedded drafter's chains run as one batch on the head's device as the pass is formed (`Model::draft` over the requests' sequences), each step reading the drafter's weights and the head once for all of them, lookup's on the host.
+Ahead of a drafter that runs a model, a request whose own history convinces drafts from it and is left out of that batch (`spec::lookup_first`, docs/SPECULATIVE.md, section 8), its acceptance kept apart from the drafter's (`spec::Record`) and its drafts priced without a chain; a pass whose requests all draft so runs no chain.
 The rows are drawn in order on the sampling pool as `infer::accept` takes them, each with the request's own settings, history and generator, stopping at the first pick that ends the request or differs from its draft, so the draws are those of the run without drafts; with log-probabilities each token's row is copied for the channel while the reader keeps up and its values computed once it has fallen behind (`Request::kRowsWaiting`), as for one row.
 Right after the pass ends, before anything parks, pauses or forks the request, its history goes back to the last pick and the drafts its picks kept (`Model::retract`, which on a model that keeps a state reruns the kept rows from the mark), and a request cancelled in flight keeps its last pick alone.
 Jobs, replays and resumes never draft; a resumed request drafts once it decodes again.
@@ -517,13 +518,14 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
   "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
   "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},
   "drafting": {"since_start": {"drafted": 4096, "kept": 2780,
-               "by_position": [{"position": 1, "drafted": 1024, "kept": 901}]}},
+               "by_position": [{"position": 1, "drafted": 1024, "kept": 901}],
+               "own_history": {"drafted": 512, "kept": 480}}},
   "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}
 }
 ```
 
 `timing` appears beside `passes` only under `--timing`, with the keys it has now and `stage_idle` renamed `stage_idle_share` (a fraction per stage).
-`drafting.by_position` is empty with no drafter, and a server has one drafter, so the counts are by draft position and not by drafter.
+`drafting.by_position` is empty with no drafter, and a server has one drafter, so the counts are by draft position and not by drafter; `own_history` counts those of them the requests' own histories gave ahead of a drafter that runs a model.
 
 ### Where each old field goes
 
@@ -553,6 +555,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 | `reprefills`, `reprefill_rows`, `reprefill_cancels` | `reread.since_start.jobs`, `.rows`, `.cancelled` | `Stats` |
 | `reprefill_handed` | `reread.since_start.handed` | `Stats` |
 | `drafted`, `kept` | `drafting.since_start.by_position[]` and their sums | `Stats` |
+| `own_drafted`, `own_kept` | `drafting.since_start.own_history` | `Stats` |
 | `passes`, `in_flight` | `passes.limit`, `passes.in_flight` | `Stats` |
 | `timing` | `timing` | `Stats::timing` |
 

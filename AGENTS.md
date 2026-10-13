@@ -1026,7 +1026,7 @@ matters: **each layer depends only on the layers below it** -
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | model loading, sampler, log-probabilities, generate, perplexity, chat template renderer |
-| `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler with prefix reuse, its policy core and sampling threads, routes |
+| `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler, the cache's moves between its places (`reuse.hpp`), its policy core and sampling threads, routes |
 | `cli/`       | thin argument parsing + dispatch               |
 
 ## Starting a feature

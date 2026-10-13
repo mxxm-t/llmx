@@ -83,6 +83,9 @@ server/
                  chunked stream; blocking sockets, one thread per connection
   scheduler.hpp  the request queue, admission, batch assembly, the rounds
                  over the model's pass API, sampling, token channels
+  reuse.hpp      the cache's moves between its places: device donors,
+                 message boundaries, host entries, the disk tier's side
+                 and the restores from it; members of the scheduler
   policy.hpp     the policy core: the pools' blocks, the growth rule,
                  make_room, the round's stages, the decode share and the
                  logits rows, as free functions
@@ -485,7 +488,7 @@ None: forks across row classes, the last, closed with `Model::row_class` ([SPECU
 
 ## The cache's moves
 
-A conversation's cache lives on the device (an active request's or a job's sequence, a donor), in host memory (a copy, or a message boundary's state alone) and on disk, and every move between those places is said and counted in one function, `Scheduler::moved` (`src/server/scheduler.hpp`), by kind (`server::Move`).
+A conversation's cache lives on the device (an active request's or a job's sequence, a donor), in host memory (a copy, or a message boundary's state alone) and on disk, and every move between those places is said and counted in one function, `Scheduler::moved` (`src/server/reuse.hpp`), by kind (`server::Move`).
 `/v1/health` gives the counts since start under `reuse.moves.since_start`, one field a kind, and `reread.since_start.rows_released`, the rows jobs had read and released as they gave way.
 A kind whose move the request's own line already says, or that loses nothing, is counted without a line.
 

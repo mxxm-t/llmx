@@ -2202,14 +2202,19 @@ private:
         bounds_.erase(bounds_.begin() + (std::ptrdiff_t)i);
     }
 
-    // The boundary sharing the most whole blocks with r's history, by best_donor's rule at the boundary's position; bounds_.size() when none shares a block.
+    // The boundary r can use that shares the most whole blocks with its history, by best_donor's rule at the boundary's position; bounds_.size() when none does.
+    // A boundary is a state alone, so it is one r can use only where a donor or a host entry holds its rows; a longer one without them does not hide a shorter one with them.
     size_t best_bound(const Request& r, size_t& tokens) const {
         size_t best = bounds_.size();
         tokens = 0;
         for (size_t i = 0; i < bounds_.size(); ++i) {
-            const size_t len = bounds_[i].state.length;
-            const size_t n = shareable(r, bounds_[i].tokens, bounds_[i].classes, len, std::optional<size_t>(len));
-            if (n > tokens) { tokens = n; best = i; }
+            const Boundary& b = bounds_[i];
+            const size_t len = b.state.length;
+            const size_t n = shareable(r, b.tokens, b.classes, len, std::optional<size_t>(len));
+            if (n <= tokens) continue;
+            const bool rows = std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return holds(b, d.tokens, d.classes, d.seq.length()); }) ||
+                              std::any_of(host_.begin(), host_.end(), [&](const HostDonor& h) { return holds(b, h.tokens, h.classes, h.history.length); });
+            if (rows) { tokens = n; best = i; }
         }
         return best;
     }
@@ -2749,9 +2754,9 @@ private:
                 best_donor(*r, shared);
                 best_host(*r, more);
                 shared = std::max(shared, more);
-                // A boundary is a state alone and serves only with a history in memory that holds its rows; without one it does not stand for what the disk holds.
+                // A boundary counts only with a history in memory that holds its rows (best_bound); without one it does not stand for what the disk holds.
                 best_bound(*r, more);
-                if (more > shared && rows_held(tokens, own, more)) shared = more;
+                shared = std::max(shared, more);
                 // Another build's files beyond what this build holds for it: the request proves them at its first admission (prove), waiting for their read, or for the proof already on them, as for any read.
                 // On a model that keeps a state the restore and the state at the path's end each take a checkpoint slot, so a server of one proves nothing.
                 const bool proves = r->classes_.empty() && (!model_.keeps_state() || model_.checkpoint_slots() > 1);

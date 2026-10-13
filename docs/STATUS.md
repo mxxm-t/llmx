@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## The server-resume test's limit is 600 seconds (2026-10-13, branch ci/server-resume-limit, the build file only, lands by fast-forward)
+
+- **Why:** `server-resume` passed in 252.88 seconds of its 300 on the hosted macOS runner at 9758fbabb (run 38353196756), and was ended at 300 on the same runner on two heads of a branch under review within the hour (runs 38357998877 and 38362598549), every other test passing and no check of its own failing. The test has gained cases with each cache fix, and a landing could be cancelled by the runner it drew.
+- **Done:** `TIMEOUT 600` for `server-resume` in `CMakeLists.txt`, the limit `server-passes-cpu` has. No case or check changes, and no wait in the test rides the limit: each fails by its own 60-second bound. Next, so the limit does not grow with the next cache fix: the CPU half is split by case group, the disk-tier and boundary cases apart from the resume cases, into two tests each under its own limit; splitting the CPU and device halves would shorten nothing on a runner without a device.
+- **Gates:** CTest on the CPU on Linux at this head, the suite's `docs` and `dead-code` components, and the hosted run of this commit, whose macOS job shows the test under its new limit.
+
 ## A state read alone from disk keeps the host copy whose rows it is for (2026-10-13, branch fix/state-read-source, lands by fast-forward)
 
 - **The defect, found by reading the restore path:** on a model that keeps a state, `Scheduler::prefetch` reads a state alone from disk where a history in memory holds its rows, and `start_read` then made room for that state by the rules of any read, which release host entries whose files are on disk first. With the host tier full of the one copy holding the rows, the room for the state was that copy's: the state arrived as a boundary with no rows, and the request read its prompt from the first token although the conversation was whole on disk.

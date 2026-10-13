@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## The suite holds drafts kept, with a drafter that is right by construction (2026-10-13, branch test/kept-drafts-fixture, tests only, on test/argmax-slices-fixture, lands by fast-forward)
+
+- **The gap:** no model fixture of the suite ever had a model drafter's draft kept. The MTP fixtures' weights are a fixed pseudo-random sequence, so their blocks predict nothing: 0 kept of 7 to 206 drafts fed in every run, greedy and seeded. A verify that wrongly refused every draft would change no output and no check through the CLI or on a device would see it; `spec` and `server-spec` hold kept drafts only with oracle proposers inside the inference layer.
+- **Added:** the suite's `qwen35` component runs the Hv = 3 Hk model as its own draft model (`--drafter` naming the same file, a 1024-token context). Its greedy drafts are the model's greedy picks, so at temperature 0 every draft fed must be kept, at 1, 4, 8 and 16 drafts over 60 tokens (29 of 29 at one draft; 12, 12, 12 and 11 by position at four), with most of the tokens fed as drafts; greedy and seeded the output is that of drafts off. It runs the hybrid's mark and rerun and the draft model's own kept state, on the CPU and on the configured device.
+- **Seeded, held to output only, with the reason:** at temperature 0.8 the same drafter keeps 0 of 13 at every position on this fixture, the model's distribution being nearly flat, so a greedy draft is seldom the draw; a requirement there would fail for no defect.
+- **That it catches what it is for:** with `infer::accept` made to stop at every first row, the suite's `f32` draft checks pass and this case fails ("the model's own greedy drafts at --draft-max 1 were not all kept: 0 of 13").
+- **Checked, Windows, MSVC:** the suite's `qwen35` on the CPU and with `--device vulkan:0` on a Radeon VII, with and without the planted fault on the CPU; `docs` and `dead-code`.
+
 ## The suite drafts through the argmax's slices (2026-10-13, branch test/argmax-slices-fixture, tests only, lands by fast-forward)
 
 - **The gap it closes:** `argmax_rows` reduces a row past 4096 ids in slices (the record below), and every model fixture of the suite has a vocabulary under that, so on a device the embedded drafter ran the one-workgroup form everywhere but in `backend-vulkan`'s kernel cases and the gate's Qwen3.8-27B identity runs. The reviewer named a larger fixture as the follow-up.

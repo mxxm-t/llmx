@@ -308,6 +308,24 @@ def check_wide_drafter(directory, require):
     print("qwen35: a vocabulary of %d ids: the drafts and their logits on the configured device vs the CPU's, 3 drafts after 3 prompts, ids %s; max difference %.8f  [ok]" % (WIDE_VOCAB, drafted, worst))
 
 
+def check_kept_drafts(directory):
+    """A drafter that is right by construction: the Hv = 3 Hk model as its own draft model (`--drafter` naming the same file), whose greedy drafts are the model's greedy picks.
+    So at temperature 0 every draft a verify feeds must be kept, at each of 1, 4, 8 and 16 drafts, which a verify that refused right drafts would fail though its output stayed the same; and greedy and seeded the output is that of drafts off."""
+    spec = FIXTURES[1]
+    model = write_model(os.path.join(directory, "tiny-qwen35-own-drafter.gguf"), gguf_tensors(spec, raw_weights(spec)), eos_id=EOS,
+                        config=dict(gguf_config(spec), context_length=1024), arch="qwen35")
+    prompt = "abcabcabcabcabcabc xyz abcabcabcabc"
+    common.check_drafts("qwen35 as its own draft model", model, prompt, 60, drafter=model)
+    for k in ("1", "4", "8", "16"):
+        run = common.run_process(["generate", model, prompt, "-n", "60", "--ignore-eos", "--verbose", "--temp", "0", "--drafter", model, "--draft-max", k])
+        assert run.returncode == 0, "generate with the model as its own draft model failed: " + run.stderr.decode("utf-8", "replace")
+        line = re.search(rb"^drafts kept:((?: \d+/\d+)+)$", common.cli_stdout(run.stdout), re.M)
+        counts = [tuple(int(n) for n in c.split(b"/")) for c in line[1].split()] if line else []
+        assert counts and all(kept == fed for kept, fed in counts), "the model's own greedy drafts at --draft-max %s were not all kept: %s" % (k, counts)
+        # 59 tokens follow the first pick, and every verify generates its drafts and one more.
+        assert sum(fed for _, fed in counts) >= 59 * int(k) // (int(k) + 1) - int(k), "at --draft-max %s only %d drafts were fed of 59 tokens" % (k, sum(fed for _, fed in counts))
+
+
 def check_serve(directory):
     """The Hv = 3 Hk model served with a context of 1024: greedy ids through /v1/generate alone, four at once and from the CLI are the same; served with drafts, the MTP block's file with its embedded drafter and this model with lookup, each reply alone and at once is its reply without drafts, greedy and seeded; a follow-up turn forks the state its first turn kept at its prompt's last whole block and gives the CLI's text for its whole prompt, on this model and on a qwen35moe one, and on the chat route a regenerate of a message after a reply, read whole, keeps a message boundary where that message starts, which an edit of the message then forks; and uncapped requests on a pool too small for them together are paused and resumed with the text each gives alone, with and without checkpoints, those without recomputing from their start; growth takes the paused requests' donors here, so the take-back of a kept state is `server-resume`'s."""
     # Imported here, since the server test imports the baseline checks, which import this module.
@@ -541,6 +559,7 @@ def run(require=False):
             print("qwen35: SKIP - llmx does not run the qwen35 architecture here (%s), so nothing was compared" % refusal(rc, out))
             return common.SKIPPED
         check_serve(directory)
+        check_kept_drafts(directory)
         check_wide_drafter(directory, require)
         # The bench holds a state slot for each sequence it decodes at once.
         rc, out = cli(["bench", "--model", models["hv3"], "--p", "4", "--n", "2", "--r", "1", "--seqs", "3"])

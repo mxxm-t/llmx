@@ -4036,6 +4036,60 @@ void request_takes_job(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
+// A shorter boundary whose rows are held serves where the longest has none (Scheduler::best_bound), on the hybrid model: two conversations share their first 300 tokens.
+// One leaves a boundary at 256 and a donor kept past the point they part; the other leaves a boundary at 512 and no rows, its donor superseded and gone, so a request continuing the second must fork the first's 256.
+void shorter_boundary_with_rows(const gguf::GGUFModel& mixed) {
+    const std::string what = "a shorter boundary whose rows are held, behind a longer one without rows";
+    const uint32_t v = (uint32_t)kHybrid.vocab;
+    const bpe::Tokenizer tok(mixed);
+    const Make make = on(mixed, [] { return cpus(1); }, 3, 6);
+    const std::vector<uint32_t> common = prompt_of(5, 684, v);
+    // The first conversation parts from the common tokens at 300 and keeps a boundary at 256; its donor's own state is at 384, past that.
+    Req first{std::vector<uint32_t>(common.begin(), common.begin() + 300), 20};
+    const std::vector<uint32_t> apart = prompt_of(11, 120, v);
+    first.prompt.insert(first.prompt.end(), apart.begin(), apart.end());
+    // The second is the common tokens whole, a boundary at 512; the request under test continues it from 520.
+    const Req second{common, 20}, filler{prompt_of(40, 200, v), 20};
+    Req next{std::vector<uint32_t>(common.begin(), common.begin() + 520), 20};
+    const std::vector<uint32_t> tail = prompt_of(12, 100, v);
+    next.prompt.insert(next.prompt.end(), tail.begin(), tail.end());
+    size_t reused = 0;
+    Reply got;
+    server::Scheduler::Stats before, after;
+    {
+        auto model = make(2048, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(first.prompt, params_of(first), std::numeric_limits<size_t>::max(), 256));
+            const auto h = sched.submit(second.prompt, params_of(second), std::numeric_limits<size_t>::max(), 512);
+            drain(*h);
+            within_a_minute([&] { return sched.stats().boundaries == 2; }, what + ": the two boundaries kept");
+            // A job of other ids for the second conversation's request supersedes that request's donor, and the next donor made takes its place: its rows are gone, its boundary stays.
+            sched.follow(h, prompt_of(41, 256, v), true);
+            within_a_minute([&] { return sched.stats().reprefills == 1; }, what + ": the job that supersedes the second conversation's donor");
+            drain(*sched.submit(filler.prompt, params_of(filler)));
+            before = sched.stats();
+            const auto f = sched.submit(next.prompt, params_of(next));
+            got = drain(*f);
+            reused = f->reused();
+            after = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    auto fresh = make(2048, 16);
+    same(serve(*fresh, tok, 3, {{next}})[0], got, what + ", the request's reply");
+    require(before.donors == 3 && before.boundaries >= 2 && reused == 256 && after.boundary_hits == before.boundary_hits + 1,
+            what + ": reused " + std::to_string(reused) + " tokens with " + std::to_string(after.boundary_hits - before.boundary_hits) + " boundaries forked, " + std::to_string(before.donors) + " donors and " +
+                std::to_string(before.boundaries) + " boundaries held before, against 256 from one boundary");
+    std::cout << "server-resume: " << what << ": reused " << reused << " tokens from the boundary at 256\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -4123,6 +4177,7 @@ int main(int argc, char** argv) {
             host_pool_pressure(weights, tok, vocab);
             host_pool_shortest_copy();
             for (const Behind arm : {Behind::read, Behind::refused, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
+            shorter_boundary_with_rows(mixed);
             for (const Take arm : {Take::follow, Take::one_seat, Take::in_flight, Take::first_leaves, Take::edited, Take::unrelated}) {
                 request_takes_job(one, tok, vocab, arm, "");
                 request_takes_job(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, arm, ", a model keeping a state");

@@ -233,9 +233,15 @@ struct TooLong : std::runtime_error {
 };
 
 
-// The moves of the cache between its places that the scheduler says and counts (docs/SERVER.md, the cache's moves).
+// The moves of the cache between its places that the scheduler says and counts (Scheduler::moved; docs/SERVER.md, the cache's moves).
 enum class Move { parked, consumed, forked, promoted, promote_failed, to_host, not_to_host, host_dropped, host_lost, boundary_kept, boundary_not_kept, boundary_dropped, boundary_lost,
                   job_started, job_done, job_gave_way, job_lost, job_handed, job_not_handed, read_started, read_done, read_refused, read_failed, write_whole, write_failed, disk_removed, consumed_lost, count };
+// A move's name in /v1/health, `reuse.moves.since_start`.
+inline const char* move_name(Move m) {
+    static const char* const names[] = {"parked", "consumed", "forked", "promoted", "promote_failed", "to_host", "not_to_host", "host_dropped", "host_lost", "boundary_kept", "boundary_not_kept", "boundary_dropped", "boundary_lost",
+                                        "job_started", "job_done", "job_gave_way", "job_lost", "job_handed", "job_not_handed", "read_started", "read_done", "read_refused", "read_failed", "write_whole", "write_failed", "disk_removed", "consumed_lost"};
+    return names[(size_t)m];
+}
 
 class Scheduler {
 public:
@@ -410,7 +416,8 @@ public:
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
         size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory, the request reading its prompt
-        std::array<size_t, (size_t)Move::count> moves{};   // the cache's moves since start, by kind
+        std::array<size_t, (size_t)Move::count> moves{};   // the cache's moves since start, by kind (moved)
+        size_t reprefill_released = 0;            // rows jobs had read and released as they gave way
         size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, histories and boundaries' states released while no file held them (lost), and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
@@ -465,6 +472,8 @@ public:
         s.disk_bytes_written = disk_now_.written;
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.lost_before_written = lost_before_written_;
+        for (size_t k = 0; k < s.moves.size(); ++k) s.moves[k] = moves_[k].load();
+        s.reprefill_released = reprefill_released_.load();
         s.disk_refused = disk_refused_;
         s.disk_capped = disk_now_.capped;
         s.disk_unproved = disk_now_.unproved;
@@ -948,6 +957,7 @@ private:
                     e.keep = checkpoint_room(keeps, r->source_);
                     keeps += e.keep;
                 }
+                if (!e.keep) moved(Move::boundary_not_kept, "server: cache: the message boundary asked at %zu tokens was not kept (no checkpoint slot for it)\n", at + n);
                 r->boundary_at_ = 0;
                 r->boundary_kept_ = e.keep;
             }
@@ -1197,7 +1207,7 @@ private:
                 // A state computed over rows restored from unproved files is kept by no one: prove keeps the one at its path's end once the proof has ended equal.
                 r.boundary_kept_ = r.unproved_ && to == r.prove_at_;
                 std::lock_guard<std::mutex> lk(m_);
-                if (!r.cancel_.load() && !r.unproved_) keep_boundary(r.seq_, r.prompt_, r.classes_);
+                if (!r.cancel_.load() && !r.unproved_) asked_boundary(r);
             }
         }
         if (again || job_rows) {
@@ -1931,7 +1941,18 @@ private:
                 std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
                 break;
             }
-        if (consume && !take) drop_donor(d);
+        if (consume && !take) {
+            moved(Move::consumed, "server: cache: a donor of %zu tokens consumed by the %s that forked %zu of it\n", donors_[d].seq.length(), r->job_ ? "job" : "request", shared);
+            // The fork holds the donor's rows up to where it forked; what the donor could restore past that goes with it unless another holder has it.
+            const size_t point = copy_length(donors_[d]);
+            const std::vector<uint32_t> tokens = donors_[d].tokens;
+            const std::vector<RowClass> classes = donors_[d].classes;
+            drop_donor(d);
+            const size_t left = point > shared ? std::max(shared, held_below(tokens, classes, point)) : point;
+            if (point > left) this->gone(tokens, Move::consumed_lost, left, point, "server: cache: rows %zu to %zu of a history left memory with the donor a fork consumed\n", left, point);
+        }
+        if (shared) moved(Move::forked);
+        if (r->job_) moved(Move::job_started, "server: cache: a job started, rows %zu to %zu to read\n", shared, r->prompt_.size());
         add(reserved_, need);
         r->need_ = std::move(need);
         if (!r->admission_) r->admission_ = ++admissions_;
@@ -2161,6 +2182,16 @@ private:
 
     // Job donor d's state kept as a boundary as its job completes (keep_boundary below).
     void keep_boundary(Donor& d) { keep_boundary(d.seq, d.tokens, d.classes); }
+    // The boundary request r asked for, its pass retired: kept, or said not kept with what keep_boundary found; under the lock.
+    void asked_boundary(Request& r) {
+        const std::optional<size_t> kept = model_.keeps_state() ? model_.checkpoint(r.seq_) : std::nullopt;
+        const size_t before = bounds_.size(), bt = model_.kv_block_tokens();
+        const uint64_t was = moves_[(size_t)Move::boundary_kept].load() + moves_[(size_t)Move::boundary_not_kept].load();
+        keep_boundary(r.seq_, r.prompt_, r.classes_);
+        if (!host_cap_ || !model_.keeps_state() || bounds_.size() > before || moves_[(size_t)Move::boundary_kept].load() + moves_[(size_t)Move::boundary_not_kept].load() != was) return;
+        const char* why = !kept ? "its history has no state kept once its pass retired" : !*kept || *kept % bt ? "the state kept is not at a whole block" : *kept > r.prompt_.size() ? "the state kept is past its prompt" : nullptr;
+        if (why) moved(Move::boundary_not_kept, "server: cache: the message boundary a request asked for was not kept (%s, at %zu)\n", why, kept.value_or(0));
+    }
     // The checkpoint of `seq`, holding `tokens` computed as `classes` record, kept as a boundary, the copy enqueued behind the passes that wrote it, within the room the host tier and the host's free memory leave; one already kept is renewed.
     // Superseded copies and then the longest unheard conversation's boundaries go first and, without a disk tier, a conversation's are thinned to kBoundaries, so the state survives the history's fate; under the lock.
     void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes) {
@@ -2201,7 +2232,10 @@ private:
         while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
         release_written(bytes);
         while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
-        if (host_held_ + bytes > host_cap_) return;
+        if (host_held_ + bytes > host_cap_) {
+            moved(Move::boundary_not_kept, "server: a message boundary at %zu tokens was not kept in host memory (the host tier has no room it may give)\n", n);
+            return;
+        }
         // The conversation's boundaries take its age, behind every other conversation's, so the room the tier needs takes the longest unheard conversation's boundaries, its first among them, before any of one still going.
         std::stable_partition(bounds_.begin(), bounds_.end(), [&](const Boundary& o) {
             return !(o.tokens.size() < n && std::equal(o.tokens.begin(), o.tokens.end(), tokens.begin()));
@@ -2216,12 +2250,12 @@ private:
             quieted()->save_host(seq, n, b.state, host_cap_ + parked_held(), false);
         } catch (const std::exception& e) {
             bounds_.pop_back();
-            std::fprintf(stderr, "server: a message boundary at %zu tokens was not kept in host memory (%s)\n", n, e.what());
+            moved(Move::boundary_not_kept, "server: a message boundary at %zu tokens was not kept in host memory (%s)\n", n, e.what());
             return;
         }
         host_held_ += b.state.held;
         host_moved_ += b.state.bytes;
-        std::fprintf(stderr, "server: a message boundary at %zu tokens kept in host memory, %.1f MiB\n", n, (double)b.state.bytes / (1 << 20));
+        moved(Move::boundary_kept, "server: a message boundary at %zu tokens kept in host memory, %.1f MiB\n", n, (double)b.state.bytes / (1 << 20));
         if (disk_) {
             refresh_disk();
             if (b.disk) disk_->renew(b.disk, true);
@@ -2251,7 +2285,10 @@ private:
     // Boundary i out of host memory.
     // Under the lock.
     void drop_bound(size_t i) {
+        const bool gone = !bounds_[i].disk && disk_ && !stopping_;
         if (!bounds_[i].disk) lost();
+        this->gone(bounds_[i].tokens, gone ? Move::boundary_lost : Move::boundary_dropped, bounds_[i].state.length, bounds_[i].state.length, gone ? "server: cache: the state at %zu tokens left host memory with no file\n" : nullptr,
+                   bounds_[i].state.length);
         host_held_ -= bounds_[i].state.held;
         release_entry(true, bounds_[i].id, bounds_[i].state);
         bounds_.erase(bounds_.begin() + (std::ptrdiff_t)i);
@@ -2335,9 +2372,8 @@ private:
         if (bytes > host_cap_) {
             // Too large for the host tier: it is kept only where its files are already whole on disk, and otherwise lost, which is counted and said.
             uncopied();
-            if (!disk_ || !disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state()))
-                std::fprintf(stderr, "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)bytes / (1 << 20),
-                             disk_ ? " and its files were not yet whole on disk" : "");
+            const bool whole = disk_ && disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state());
+            moved(Move::not_to_host, whole ? nullptr : "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)bytes / (1 << 20), disk_ ? " and its files were not yet whole on disk" : "");
             return;
         }
         // Superseded copies go first, then entries whose files are on disk, which lose nothing, then message boundaries, which live in the room the other copies leave.
@@ -2353,6 +2389,7 @@ private:
             if (room < bytes && host_refused_ < host_.size()) {
                 ++host_refused_;
                 uncopied();
+                moved(Move::not_to_host, "server: a donor of %zu tokens was not kept in host memory (the copies there are of conversations that came back, and its own did not)\n", n);
                 return;
             }
             for (const bool writing : {false, true})
@@ -2374,14 +2411,13 @@ private:
             quieted()->save_host(d.seq, n, h.history, host_cap_ + parked_held());
         } catch (const std::exception& e) {
             host_.pop_back();
-            std::fprintf(stderr, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
+            moved(Move::not_to_host, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
             uncopied();
             return;
         }
         host_held_ += h.history.held;
         host_moved_ += h.history.bytes;
-        std::fprintf(stderr, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20),
-                     ms_since(start));
+        moved(Move::to_host, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20), ms_since(start));
         host_refused_ = 0;
         if (disk_) {
             refresh_disk();
@@ -2410,12 +2446,50 @@ private:
     void drop_host(size_t i) {
         const bool through = host_[i].through;
         // A superseded copy is no loss, a newer one of its conversation standing for it, nor is a read through host memory, whose files are on disk.
-        if (!through && !host_[i].disk && !host_[i].superseded) lost();
+        const bool gone = !through && !host_[i].disk && !host_[i].superseded;
+        if (gone) lost();
+        if (gone && disk_ && !stopping_) this->gone(host_[i].tokens, Move::host_lost, 0, host_[i].history.length, "server: cache: a copy of %zu tokens left host memory with no file\n", host_[i].history.length);
+        else moved(Move::host_dropped);
         if (!through) host_held_ -= host_[i].history.held;
         release_entry(false, host_[i].id, host_[i].history);
         host_.erase(host_.begin() + (std::ptrdiff_t)i);
         // The slabs of a copy held beyond the tier go back to the host, not to the pool the tier's copies reuse.
         if (through) quieted()->trim_host(host_cap_ + parked_held());
+    }
+
+    // The one place a move of the cache between its places is said and counted (docs/SERVER.md, the cache's moves): `kind`, with its line, or none for a move its request's own line says.
+    template <class... A>
+    void moved(Move kind, const char* line = nullptr, A... a) {
+        ++moves_[(size_t)kind];
+        if (!line) return;
+        if constexpr (sizeof...(A) == 0) std::fputs(line, stderr);
+        else std::fprintf(stderr, line, a...);
+    }
+
+    // The most rows below `n` of `tokens`, in whole blocks, that a donor or a host entry holds: what is left in memory of a history whose other holder goes.
+    size_t held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n) {
+        const size_t bt = model_.kv_block_tokens();
+        for (size_t m = n / bt * bt; m; m -= bt)
+            if (rows_held(tokens, classes, m)) return m;
+        return 0;
+    }
+
+    // Why job j, about to give way, was not handed to a waiting request (hand_jobs), in that function's own terms; under the lock.
+    const char* not_handed(const Request& j) const {
+        bool first = false, shares = false;
+        for (const auto& r : queue_) {
+            if (r->cancel_.load() || !r->classes_.empty()) continue;
+            first = true;
+            shares = shares || shareable(*r, j.prompt_, j.classes_, j.seq_) > 0;
+        }
+        return !first ? "no queued request at its first admission" : !shares ? "no queued request shares a state or block it kept" : "a history kept shares as much with the request";
+    }
+
+    // Rows [first, tokens) of `history` leaving memory with their last holder, or a state of it at `tokens`: moved, and first given to a test that tells whose rows they were (on_move).
+    template <class... A>
+    void gone(const std::vector<uint32_t>& history, Move kind, size_t first, size_t tokens, const char* line = nullptr, A... a) {
+        if (on_move) on_move(Moved{kind, first, tokens, &history});
+        moved(kind, line, a...);
     }
 
     // One restore point, a history or a boundary's state a later request could have forked, released while no file holds it: counted beside a disk tier while the server runs (Stats::lost_before_written).
@@ -2495,7 +2569,16 @@ private:
     // After a call that may have changed the index: the entries' standing and the figures stats gives.
     void sync_disk() {
         if (disk_->take_changed()) refresh_disk();
+        const DiskTier::Figures was = disk_now_;
         disk_now_ = disk_->figures();
+        // The tier's own outcomes since the last look, said here and never from its I/O threads: writes published or failed, and files that left the index with the tier's reason.
+        for (uint64_t k = was.whole; k < disk_now_.whole; ++k) moved(Move::write_whole);
+        if (disk_now_.failed > was.failed) moved(Move::write_failed, "server: cache: %llu writes to disk failed\n", (unsigned long long)(disk_now_.failed - was.failed));
+        for (size_t g = 0; g < disk_now_.gone.size(); ++g)
+            if (const size_t n = disk_now_.gone[g] - was.gone[g]) {
+                for (size_t k = 1; k < n; ++k) moved(Move::disk_removed);
+                moved(Move::disk_removed, "server: cache: %zu files left the disk (%s)\n", n, DiskTier::gone_name((DiskTier::Gone)g));
+            }
     }
 
     // The disk tier's part of a round: what the store finished since the last round taken in, what a server before left adopted, files past the age limit deleted, reads started for waiting requests, and the next write started.
@@ -2695,8 +2778,9 @@ private:
             }
             refresh_disk();
             if (*key) disk_->renew(*key, true);
-            std::fprintf(stderr, "server: %s of %zu tokens read from disk, %.1f MiB\n", rd.state_only ? "a state" : "a history", length, mib);
+            moved(Move::read_done, "server: %s of %zu tokens read from disk, %.1f MiB\n", rd.state_only ? "a state" : "a history", length, mib);
         } else {
+            moved(Move::read_failed, "server: cache: the read of %zu tokens from disk failed; its request reads its prompt\n", rd.history.length);
             if (!rd.through) host_held_ -= rd.history.held;
             model_.release_host(rd.history);
         }
@@ -2769,7 +2853,7 @@ private:
                 ++prefix_hits_;
                 prefix_tokens_ += p->fork;
             }
-            if (r.boundary_kept_) keep_boundary(r.seq_, r.prompt_, r.classes_);
+            if (r.boundary_kept_) asked_boundary(r);
             // The path the proof read is a history read from disk from here, a host entry where the tier has the room.
             release_written(proved.held);
             if (proved.owner && host_held_ + proved.held <= host_cap_) {
@@ -2908,7 +2992,7 @@ private:
         // A read that is not started says why and is counted: its request reads its prompt instead.
         const auto refused = [&](const char* why) {
             ++disk_refused_;
-            std::fprintf(stderr, "server: a history of %zu tokens on disk was not read back (%s); its request reads its prompt\n", length, why);
+            moved(Move::read_refused, "server: a history of %zu tokens on disk was not read back (%s); its request reads its prompt\n", length, why);
             return uint64_t(0);
         };
         if (!rd.through) {
@@ -2937,6 +3021,7 @@ private:
         rd.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)length);
         rd.classes = clip(classes, length);
         const uint64_t id = rd.id;
+        moved(Move::read_started);
         disk_reads_.push_back(std::move(rd));
         return id;
     }
@@ -3001,7 +3086,7 @@ private:
         try {
             d.seq = quieted()->restore_host(h->history);
         } catch (const std::exception& e) {
-            std::fprintf(stderr, "server: a donor of %zu tokens was not promoted from host memory (%s)\n", h->history.length, e.what());
+            moved(Move::promote_failed, "server: a donor of %zu tokens was not promoted from host memory (%s)\n", h->history.length, e.what());
             return false;
         }
         d.id = ++donor_ids_;
@@ -3013,8 +3098,7 @@ private:
         add(reserved_, d.blocks);
         host_moved_ += h->history.bytes;
         ++host_hits_;
-        std::fprintf(stderr, "server: a donor of %zu tokens promoted from host memory, %.1f MiB, its copy enqueued in %.1f ms\n", h->history.length,
-                     (double)h->history.bytes / (1 << 20), ms_since(start));
+        moved(Move::promoted, "server: a donor of %zu tokens promoted from host memory, %.1f MiB, its copy enqueued in %.1f ms\n", h->history.length, (double)h->history.bytes / (1 << 20), ms_since(start));
         donors_.push_back(std::move(d));
         return true;
     }
@@ -3211,6 +3295,7 @@ private:
             // Where a finished request's donor ends at its prompt's checkpoint the copy is the longer one, its rows past the prompt decode rows no later prompt forks.
             for (Donor& o : donors_) o.superseded = o.superseded || (r->paused_as_ && o.on_host == r->paused_as_);
             donors_.push_back(std::move(d));
+            moved(Move::parked);
             for (HostDonor& h : host_) h.superseded = h.superseded || (r->paused_as_ && h.id == r->paused_as_);
             std::stable_partition(host_.begin(), host_.end(), [](const HostDonor& h) { return h.superseded; });
         } else {
@@ -3269,11 +3354,13 @@ private:
                 ++i;
                 continue;
             }
+            const size_t held = j->seq_.length();
             park(active, i, j->prompt_);
             j->classes_.clear();
             j->source_ = 0;
             std::lock_guard<std::mutex> lk(m_);
             ++reprefill_handed_;
+            moved(Move::job_handed, "server: cache: a job of %zu rows handed to the request it read for\n", held);
             if (covered) j->finished_ = true;
             else jobs_.push_front(j);
         }
@@ -3289,6 +3376,17 @@ private:
                 continue;
             }
             active.erase(active.begin() + (std::ptrdiff_t)i);
+            {
+                // Said before its rows go: what it had read, the state it had kept, why no request took it over, and what of it no other holder has.
+                std::lock_guard<std::mutex> lk(m_);
+                const size_t held = j->seq_.length();
+                const std::optional<size_t> kept = model_.keeps_state() ? model_.checkpoint(j->seq_) : std::nullopt;
+                const size_t bt = model_.kv_block_tokens(), usable = model_.keeps_state() ? kept.value_or(0) : held / bt * bt, elsewhere = held_below(j->prompt_, j->classes_, usable);
+                reprefill_released_ += held;
+                moved(Move::job_not_handed, "server: cache: a job of %zu rows was not handed over (%s)\n", held, not_handed(*j));
+                moved(Move::job_gave_way, "server: cache: a job gave way, %zu rows released, its state kept at %zu, %zu of them held elsewhere\n", held, kept.value_or(0), elsewhere);
+                if (usable > elsewhere) gone(j->prompt_, Move::job_lost, elsewhere, usable, "server: cache: rows %zu to %zu of a history left memory with the job that alone held them\n", elsewhere, usable);
+            }
             release(*j);
             j->seq_ = infer::Sequence{};
             j->classes_.clear();
@@ -3402,6 +3500,7 @@ private:
                 j->finished_ = true;
                 std::lock_guard<std::mutex> lk(m_);
                 ++reprefills_;
+                moved(Move::job_done);
                 // It is the conversation's newest holder now, whatever an earlier job's longer ids made of it.
                 for (Donor& d : donors_)
                     if (d.id == j->source_) {
@@ -3428,6 +3527,7 @@ private:
             std::lock_guard<std::mutex> lk(m_);
             if (!id) continue;
             ++reprefills_;
+            moved(Move::job_done);
             if (!donors_.empty() && donors_.back().id == id) keep_boundary(donors_.back());
             supersede(*j, id);
         }
@@ -3569,6 +3669,8 @@ private:
     };
     std::deque<DiskRead> disk_reads_;
     size_t lost_before_written_ = 0;   // Stats::lost_before_written, under the lock
+    std::array<std::atomic<size_t>, (size_t)Move::count> moves_{};   // Stats::moves
+    std::atomic<size_t> reprefill_released_{0};   // Stats::reprefill_released
     size_t disk_refused_ = 0;   // Stats::disk_refused, under the lock
     size_t disk_hits_ = 0, disk_waits_ = 0;
     uint64_t disk_read_bytes_ = 0;

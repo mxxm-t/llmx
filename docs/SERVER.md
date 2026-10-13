@@ -483,6 +483,35 @@ None: forks across row classes, the last, closed with `Model::row_class` ([SPECU
 | 15 | A first admission forks only rows of the classes it computes them in (`Model::row_class`; [SPECULATIVE](SPECULATIVE.md), step 1) | `server-resume`: a follow-up turn, on the CPU and on a device, and a prompt sharing a block of a prompt of another tile split, each equal to the same prompt on a fresh model; `backend-group` and `backend-vulkan`: rows of every pair of extents of one class give the same bits |
 | 14 | A retiring pass's rows drawn on the scheduler's sampling threads beside the scheduler thread (layer split phase 3, step 4) | `sampling-pool`: each index once, the threads side by side, an exception rethrown once every call has returned; TSan over the pool; every reply byte-identical to the step before, as for step 13 (`docs/STATUS-2026-09.md`, layer split phase 3) |
 
+## The cache's moves
+
+A conversation's cache lives on the device (an active request's or a job's sequence, a donor), in host memory (a copy, or a message boundary's state alone) and on disk, and every move between those places is said and counted in one function, `Scheduler::moved` (`src/server/scheduler.hpp`), by kind (`server::Move`).
+`/v1/health` gives the counts since start under `reuse.moves.since_start`, one field a kind, and `reread.since_start.rows_released`, the rows jobs had read and released as they gave way.
+A kind whose move the request's own line already says, or that loses nothing, is counted without a line.
+
+| Kind | The move | Its line |
+|---|---|---|
+| `parked` | a request's or a job's history is kept as a donor (one too short to keep is not counted) | none |
+| `forked` | a request takes rows from a holder | none; the request's line gives the tokens reused |
+| `consumed` | a donor is dropped by the request or job that forked it, the two not fitting together | `server: cache: a donor of N tokens consumed by the job that forked M of it` |
+| `consumed_lost` | rows past the fork point that only that donor held | `server: cache: rows A to B of a history left memory with the donor a fork consumed` |
+| `job_started`, `job_done` | a reply's read-ahead job begins and completes | `server: cache: a job started, rows A to B to read`; none |
+| `job_gave_way` | a job releases its rows for a waiting request | `server: cache: a job gave way, N rows released, its state kept at K, M of them held elsewhere` |
+| `job_not_handed` | at that give-way, why no waiting request took the job over | `server: cache: a job of N rows was not handed over (why)` |
+| `job_lost` | rows the job alone held | `server: cache: rows A to B of a history left memory with the job that alone held them` |
+| `job_handed` | a job's rows taken over by the request it read for | `server: cache: a job of N rows handed to the request it read for` |
+| `to_host`, `not_to_host` | a donor leaving the device is copied to host memory, or is not | `server: a donor of N tokens kept in host memory, ...`; `... was not kept in host memory (why)`, or `a history of N tokens left the devices with no copy: ...` |
+| `promoted`, `promote_failed` | a host copy goes back to the device, or cannot | `server: a donor of N tokens promoted from host memory, ...`; `... was not promoted from host memory (why)` |
+| `host_dropped`, `host_lost` | a host copy released with its files whole or superseded, or with no file | none; `server: cache: a copy of N tokens left host memory with no file` |
+| `boundary_kept`, `boundary_not_kept` | a state kept at a message's end, or not: the host tier without room, no checkpoint slot for the one a request asked for, or no state found once its pass retired | `server: a message boundary at N tokens kept in host memory, ...`; `... was not kept in host memory (why)`; `server: cache: the message boundary asked at N tokens was not kept (no checkpoint slot for it)`; `server: cache: the message boundary a request asked for was not kept (why, at N)` |
+| `boundary_dropped`, `boundary_lost` | a state released with its file whole or thinned, or beside a disk tier with no file | none; `server: cache: the state at N tokens left host memory with no file` |
+| `read_started`, `read_done`, `read_refused`, `read_failed` | a history read from disk for a waiting request: one outcome a read, whatever its files | none; `server: a history of N tokens read from disk, ...`; `... was not read back (why); its request reads its prompt`; `server: cache: the read of N tokens from disk failed; its request reads its prompt` |
+| `write_whole`, `write_failed` | a file published in the disk tier's index, the moment it becomes a holder, or a write that failed | none; `server: cache: N writes to disk failed` |
+| `disk_removed` | a file leaving the index, with the tier's reason: a file of this build covering it, an unclaimed write, the cap, its age, its build's failed proof, no whole path reaching it, its read failing | `server: cache: N files left the disk (why)` |
+
+`reuse.disk.since_start.lost_before_written` stays what it was, the restore points released while no file held them beside a disk tier; `job_lost` and `consumed_lost` count rows that left the device with their only holder, with or without a disk tier.
+The disk tier's outcomes are taken where the scheduler takes in the tier's completions (`Scheduler::sync_disk` from `DiskTier::figures`), never on an I/O thread.
+
 ## The grouped `/v1/health` and help pages (2026-10-07)
 
 `/v1/health` is one flat object of about 45 fields in the order they were added, and the `serve` help page is two long groups.

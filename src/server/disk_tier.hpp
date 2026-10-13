@@ -265,12 +265,20 @@ public:
         return c;
     }
     // The tier's figures as the scheduler's stats give them: the files on disk and the states among them, their bytes, every finished write's bytes, and the files deleted while running to stay within the cap.
+    // Why a file left the index: a file of this build covering it, a write nobody claimed, the cap, its age, a failed proof of its build, no whole path reaching it, or its read failing.
+    enum class Gone { covered, unclaimed, cap, age, condemned, unreachable, read_failed, count };
+    static const char* gone_name(Gone g) {
+        static const char* const names[] = {"covered by this build's file", "an unclaimed write", "the cap", "its age", "its build's failed proof", "no whole path reaching it", "its read failing"};
+        return names[(size_t)g];
+    }
     struct Figures {
+        std::array<size_t, (size_t)Gone::count> gone{};   // files that left the index since start, by reason
+        uint64_t whole = 0, failed = 0;                   // writes published in the index, and writes that failed
         size_t files = 0, states = 0, capped = 0;
         uint64_t bytes = 0, written = 0;
         size_t unproved = 0, proved = 0, disproved = 0;   // another build's files not proved yet, and since the start those proofs made this build's and those deleted with a build that failed one
     };
-    Figures figures() const { return {index_.files().size(), index_.states(), capped_, index_.bytes(), written_, unproved(), proved_, disproved_}; }
+    Figures figures() const { return {gone_, whole_, failed_, index_.files().size(), index_.states(), capped_, index_.bytes(), written_, unproved(), proved_, disproved_}; }
     // Once an idle server's writes have ended: one line of what went to disk since the last such line.
     void say_written() {
         if (written_ == said_) return;
@@ -324,7 +332,10 @@ public:
                     }
                     r.ok = r.ok && f.ok;
                     // A file that failed its read is gone, and what stood on it with it.
-                    if (!f.ok && index_.remove(f.key)) out.changed = changed_ = true;
+                    if (!f.ok && index_.remove(f.key)) {
+                        out.changed = changed_ = true;
+                        ++gone_[(size_t)Gone::read_failed];
+                    }
                     if (--r.left) break;
                     out.reads.push_back({r.id, r.ok});
                     model.release_host(r.scratch);
@@ -357,9 +368,13 @@ public:
                 // This build's own file makes the unproved ones it covers needless, but for one a proof is reading.
                 const std::vector<uint64_t> held = pinned();
                 for (uint64_t key : index_.covered(pending_))
-                    if (std::find(held.begin(), held.end(), key) == held.end()) forget(key);
+                    if (std::find(held.begin(), held.end(), key) == held.end()) forget(key, Gone::covered);
                 index_.add(std::move(pending_));
                 out.changed = true;
+                // Published: only now is the file a holder of its rows.
+                ++whole_;
+            } else {
+                ++failed_;
             }
             pending_ = DiskIndex::File{};
             key_ = source_ = 0;
@@ -373,7 +388,7 @@ public:
             std::lock_guard<std::mutex> lk(m_);
             unclaimed.swap(unclaimed_);
         }
-        for (uint64_t key : unclaimed) forget(key);
+        for (uint64_t key : unclaimed) forget(key, Gone::unclaimed);
         if (sweep() || !unclaimed.empty()) out.changed = true;
         if (out.changed) prune(false);
         return out;
@@ -406,7 +421,7 @@ public:
         while (index_.bytes() > cap()) {
             const std::optional<DiskIndex::Victim> v = index_.victim();
             if (!v) break;
-            forget(v->key);
+            forget(v->key, Gone::cap);
             ++over;
         }
         std::fprintf(stderr, "server: %zu entries on disk from the server before", index_.files().size());
@@ -423,7 +438,7 @@ public:
         bool any = false;
         const DiskIndex::Time before = DiskIndex::Time::clock::now() - std::chrono::seconds(age);
         for (std::optional<DiskIndex::Victim> v; (v = index_.victim(before, pinned()));) {
-            forget(v->key);
+            forget(v->key, Gone::age);
             any = true;
         }
         return any;
@@ -766,7 +781,7 @@ private:
         for (const DiskIndex::File& f : index_.files())
             if (f.unproved && std::find(condemned_.begin(), condemned_.end(), f.unproved) != condemned_.end() && std::find(held.begin(), held.end(), f.key) == held.end())
                 gone.push_back(f.key);
-        for (uint64_t key : gone) forget(key);
+        for (uint64_t key : gone) forget(key, Gone::condemned);
         disproved_ += gone.size();
         if (!gone.empty()) prune(false);
         return !gone.empty();
@@ -847,7 +862,8 @@ private:
         for (const Reading& r : reads_) keys.insert(keys.end(), r.keys.begin(), r.keys.end());
         return keys;
     }
-    void forget(uint64_t key) {
+    void forget(uint64_t key, Gone why) {
+        ++gone_[(size_t)why];
         changed_ = true;
         index_.remove(key);
         remove(key);
@@ -855,7 +871,7 @@ private:
     // Files no whole path reaches any more deleted, states whose history's blocks are not all there only at a start (`states`), when no history in memory can still use them; how many.
     size_t prune(bool states) {
         const std::vector<uint64_t> gone = index_.unreachable(states);
-        for (uint64_t key : gone) forget(key);
+        for (uint64_t key : gone) forget(key, Gone::unreachable);
         return gone.size();
     }
     // Disk room for `bytes` more within the cap, files going as the index orders them (DiskIndex::victim); one of a conversation that did not come back (`back` false) takes no room of one that did.
@@ -872,7 +888,7 @@ private:
             trial.remove(v->key);
             gone.push_back(v->key);
         }
-        for (uint64_t key : gone) forget(key);
+        for (uint64_t key : gone) forget(key, Gone::cap);
         capped_ += gone.size();
         return true;
     }
@@ -903,6 +919,8 @@ private:
     size_t proved_ = 0, disproved_ = 0;
     uint64_t read_ids_ = 0, written_ = 0, said_ = 0;
     size_t capped_ = 0;
+    std::array<size_t, (size_t)Gone::count> gone_{};   // Figures::gone
+    uint64_t whole_ = 0, failed_ = 0;                 // Figures::whole and failed
     bool measured_ = false;
     uint64_t block_bytes_ = 0, state_bytes_ = 0;
 };

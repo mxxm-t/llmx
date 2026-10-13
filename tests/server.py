@@ -417,7 +417,9 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
         assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "shifts", "shifted_tokens"}, health["requests"]
-        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries"}, health["reuse"]
+        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "moves"}, health["reuse"]
+        moves = health["reuse"]["moves"]["since_start"]
+        assert {"parked", "forked", "consumed", "job_gave_way", "job_lost", "to_host", "read_done", "write_whole", "disk_removed"} <= set(moves) and all(isinstance(v, int) for v in moves.values()), moves
         assert srv.get("/v1/live") == {"status": "ok"}
         for device in dtype["devices"]:
             assert set(device) == {"device", "how", "paths", "effective"} and device["device"] and device["paths"], device

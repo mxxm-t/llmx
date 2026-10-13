@@ -2,6 +2,7 @@
 // The scheduler of docs/SERVER.md: one thread drives the model in rounds over its pass API, each pass carrying ready decoding requests and slices of what other caches lack, and samples each request's logits into its channel.
 // Room in the KV pool goes by first admission (make_room, policy core in server/policy.hpp), and a request records how each stretch of its history was computed (RowClass), so a paused request resumes to the logits it gives when never paused.
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -231,6 +232,11 @@ struct TooLong : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
+
+// The moves of the cache between its places that the scheduler says and counts (docs/SERVER.md, the cache's moves).
+enum class Move { parked, consumed, forked, promoted, promote_failed, to_host, not_to_host, host_dropped, host_lost, boundary_kept, boundary_not_kept, boundary_dropped, boundary_lost,
+                  job_started, job_done, job_gave_way, job_lost, job_handed, job_not_handed, read_started, read_done, read_refused, read_failed, write_whole, write_failed, disk_removed, consumed_lost, count };
+
 class Scheduler {
 public:
     // The model's context is reserved here for `passes` passes in flight (the stage count on a pipelined layer split and one elsewhere when none is given; passes that do not fit run fewer, and stderr says so).
@@ -404,6 +410,7 @@ public:
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
         size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory, the request reading its prompt
+        std::array<size_t, (size_t)Move::count> moves{};   // the cache's moves since start, by kind
         size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, histories and boundaries' states released while no file held them (lost), and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
@@ -705,6 +712,15 @@ public:
     };
     // Called on the scheduler thread with each pass that retires, before its rows are sampled; set before run.
     std::function<void(const Retired&)> on_retire;
+    // A loss as `gone` reports it: the kind, the rows, and the history they were of, valid during the call.
+    struct Moved {
+        Move kind;
+        size_t first, tokens;
+        const std::vector<uint32_t>* history;
+    };
+    // Called on the scheduler thread, under its lock at some sites, with each loss of rows or of a state, so a test matches it to the history it was of; set before run.
+    // A handler takes nothing of the scheduler's: it copies what it needs and returns.
+    std::function<void(const Moved&)> on_move;
     size_t turn_steps = 0;   // for tests: the growth steps of a turn at the pool's edge, in place of the measured ones; set before run
 
 private:

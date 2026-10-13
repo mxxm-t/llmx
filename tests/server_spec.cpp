@@ -28,7 +28,7 @@ size_t total(const std::vector<size_t>& v) { return std::accumulate(v.begin(), v
 // Each request alone on a fresh model without drafts, then alone with them, then all at once with them: every reply its reply alone, and drafts fed and kept, which a scheduler `priced` by its passes' timing need not feed.
 void against_alone(const Make& plain, const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, size_t pool, size_t max_seqs,
                    size_t passes, const std::vector<Req>& reqs, const std::string& what, bool pauses = false, bool priced = false,
-                   size_t draft_max = kDraftMax) {
+                   size_t draft_max = kDraftMax, server::Scheduler::Stats* counted = nullptr) {
     std::vector<Reply> alone;
     for (const Req& r : reqs) {
         auto model = plain(pool, 0);
@@ -48,6 +48,7 @@ void against_alone(const Make& plain, const Make& drafting, const MakeProposer& 
     require(priced || (total(stats.drafted) > 0 && total(stats.kept) > 0),
             what + ": " + std::to_string(total(stats.drafted)) + " drafts fed and " + std::to_string(total(stats.kept)) + " kept");
     if (pauses) require(stats.pauses >= 1, what + ": nothing paused");
+    if (counted) *counted = stats;
     std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted) << " drafts kept, " << stats.pauses << " pauses" << std::endl;
 }
 
@@ -76,6 +77,31 @@ void timed_phases(const Make& plain, const Make& drafting, const MakeProposer& p
     require(t.drafting_ms > 0 && t.settling_ms > 0 && t.assembly_ms >= 0,
             what + ": chains " + std::to_string(t.drafting_ms) + " ms, retracts " + std::to_string(t.settling_ms) + " ms, forming " + std::to_string(t.assembly_ms) + " ms");
     std::cout << "server-spec: " << what << ": chains " << t.drafting_ms << " ms, retracts " << t.settling_ms << " ms over " << t.rounds << " rounds" << std::endl;
+}
+
+// A proposer that stands behind lookup as a model drafter does and drafts the token after each history's last, which a reply seldom holds next.
+struct Astray final : infer::spec::Proposer {
+    uint32_t vocab = 0;
+    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override { out.assign(k, (h.back() + 1) % vocab); }
+    bool after_lookup() const override { return true; }
+};
+
+// Lookup ahead of a proposer in the scheduler (docs/SPECULATIVE.md, section 8): greedy replies that come to repeat themselves draft their own continuation, the proposer drafting for the others in the same passes, each reply its own alone.
+void own_history(const Make& plain, const Make& drafting, const bpe::Tokenizer& tok, uint32_t vocab, size_t stages, const std::string& what) {
+    const MakeProposer astray = [vocab](infer::Model&) {
+        auto p = std::make_unique<Astray>();
+        p->vocab = vocab;
+        return p;
+    };
+    std::vector<Req> reqs;
+    for (uint32_t seed : {3u, 4u, 5u}) reqs.push_back({prompt_of(seed, 40, vocab), 300});
+    reqs.push_back({prompt_of(6, 40, vocab), 300, "", 0.8f, 7});
+    server::Scheduler::Stats stats;
+    against_alone(plain, drafting, astray, tok, 4096, 4, stages, reqs, what, false, false, kDraftMax, &stats);
+    const size_t own = total(stats.own_drafted), kept = total(stats.own_kept);
+    require(kept * 2 > own && kept >= 100, what + ": " + std::to_string(kept) + " of " + std::to_string(own) + " drafts of the replies' own continuations kept");
+    require(total(stats.drafted) > own && total(stats.kept) >= kept, what + ": the proposer drafted nothing beside them, " + std::to_string(total(stats.drafted)) + " drafts fed in all");
+    std::cout << "server-spec: " << what << ": " << kept << " of " << own << " drafts of the replies' own continuations kept, " << total(stats.drafted) - own << " of the proposer's fed" << std::endl;
 }
 
 // A wide CPU backend that runs `hook` as the model submits its work (Hooked), so a case acts while a pass is in flight.
@@ -235,6 +261,7 @@ int main() {
             const Make plain = on(q8, [stages] { return cpus(stages); });
             const Make drafting = on(q8, [stages] { return wide(stages); }, 8, 0, 4, kDraftMax + 1);
             against_alone(plain, drafting, lookup, q8_tok, 4096, 4, stages, requests(plain, q8_tok, q8_vocab), "Q8_0 with lookup on " + where);
+            own_history(plain, drafting, q8_tok, q8_vocab, stages, "Q8_0 with lookup ahead of a proposer on " + where);
             // Three uncapped requests on 8 blocks: they pause and resume, with drafts as without.
             against_alone(plain, drafting, lookup, q8_tok, 1024, 3, stages, {{prompt_of(1, 40, q8_vocab)}, {prompt_of(2, 9, q8_vocab)}, {prompt_of(3, 23, q8_vocab)}},
                           "Q8_0 with lookup on " + where + ", paused", true);

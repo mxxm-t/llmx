@@ -1,5 +1,6 @@
 // Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: test-only proposers, lookup and the embedded drafter, on dense, routed and hybrid models over one to four CPU stages (AGENTS.md, Tests).
 // Then the history calls under a verify: every row equals single steps, a retract to any row continues as if never drafted, and a rerun that fails keeps the mark for a retry.
+#include <chrono>
 #include <iostream>
 #include <random>
 
@@ -50,12 +51,25 @@ struct Hostile final : Proposer {
     }
 };
 
+// A proposer that stands behind lookup as a model drafter does, drafting as `inner` does and counting its calls.
+struct Behind final : Proposer {
+    Proposer* inner = nullptr;
+    size_t calls = 0;
+    void draft(infer::Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+        ++calls;
+        inner->draft(seq, h, k, out);
+    }
+    bool after_lookup() const override { return true; }
+};
+
 struct Run {
     std::vector<uint32_t> ids;
     int fed = 0;
     size_t passes = 0;         // the passes that generated them, counted at the first stage's submissions
     std::vector<float> next;   // the logits after the history and one more token, which hold the state the run left
     size_t drafted = 0;        // the drafts its verifies fed
+    size_t own = 0, own_kept = 0;   // those of them its own history gave ahead of the proposer, and the ones kept
+    bool rested = false;       // whether the proposer's acceptance ended resting
 };
 
 // The tensor width every model here is placed at (docs/TENSOR-SPLIT.md): above 1 each stage is a group of that many CPU backends, and a run is held to the run on one such group, since a group gives its own bits.
@@ -78,8 +92,9 @@ std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stag
 }
 
 // With `embedded` and no proposer, the model is loaded with the file's embedded drafter and drafts with it.
+// `shown`, when given, stands before the prompt in the history the proposers see, as an earlier turn the model was never fed, so a test chooses what lookup finds.
 Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<uint32_t>& prompt, const infer::GenParams& gp,
-             Proposer* proposer, size_t draft_max, bool embedded = false) {
+             Proposer* proposer, size_t draft_max, bool embedded = false, const std::vector<uint32_t>* shown = nullptr, bool behind = false) {
     size_t submits = 0;
     auto model = placed(weights, stages, &submits, embedded);
     const std::vector<float> logits = model->prefill(prompt);
@@ -90,19 +105,27 @@ Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<ui
     std::unique_ptr<infer::spec::Drafting> drafting;
     std::unique_ptr<infer::spec::Embedded> own;
     if (embedded && !proposer) {
-        own = std::make_unique<infer::spec::Embedded>(*model);
+        own = std::make_unique<infer::spec::Embedded>(*model, behind);
         proposer = own.get();
     }
     if (proposer) {
         drafting = std::make_unique<infer::spec::Drafting>();
         drafting->proposer = proposer;
         drafting->draft_max = draft_max;
-        drafting->history = prompt;
+        if (shown) drafting->history = *shown;
+        drafting->history.insert(drafting->history.end(), prompt.begin(), prompt.end());
     }
     Run r;
     r.ids = infer::generate(*model, tok, gp, rng, logits, {}, drafting.get());
     if (drafting)
-        for (size_t n : drafting->acceptance.drafted()) r.drafted += n;
+        for (const infer::spec::Acceptance& a : drafting->record.of)
+            for (size_t n : a.drafted()) r.drafted += n;
+    if (drafting) {
+        const infer::spec::Acceptance& own_history = drafting->record[infer::spec::Source::lookup];
+        for (size_t n : own_history.drafted()) r.own += n;
+        for (size_t n : own_history.kept()) r.own_kept += n;
+        r.rested = drafting->record[infer::spec::Source::proposer].resting();
+    }
     r.passes = submits - prefilled;
     r.fed = model->n_tokens();
     r.next = model->step(7);
@@ -221,7 +244,198 @@ void embedded(const gguf::GGUFModel& plain, const gguf::GGUFModel& mtp, size_t v
                     same(want, got, at);
                     require(got.drafted > 0, at + ": no draft was fed");
                 }
+            // Shown its reply as an earlier turn, the drafter stands behind the reply's own continuation.
+            for (size_t st : stages) {
+                // Made as the tests above make it, the drafter is alone: it looks nowhere, whatever the history shows.
+                require(generate(mtp, st, prompt, gp, nullptr, 3, true, &want.ids).own == 0, "the embedded drafter alone drafted from the history it was shown");
+                const Run got = generate(mtp, st, prompt, gp, nullptr, 3, true, &want.ids, true);
+                const std::string at = "the embedded drafter behind lookup, " + std::to_string(st) + " stages, prompt " + std::to_string(prompt_len) + (gp.temp > 0 ? ", seeded" : "");
+                same(want, got, at);
+                require(got.own_kept > 0 && got.drafted > got.own, at + ": " + std::to_string(got.own_kept) + " drafts of the reply's own continuation kept of " + std::to_string(got.drafted) + " fed");
+            }
         }
+}
+
+// Lookup::convincing and spec::Record on their own: the latest earlier occurrence of the last eight tokens, a run that repeats into its own draft, and each source's rest apart.
+void convincing_rule() {
+    using infer::spec::Lookup;
+    using infer::spec::Source;
+    require(Lookup::kConvincing == 8, "the convincing match is " + std::to_string(Lookup::kConvincing) + " tokens, and the cases below are written for 8");
+    std::vector<uint32_t> out{99};
+    const std::vector<uint32_t> run{1, 2, 3, 4, 5, 6, 7, 8};
+    auto history = [&](std::initializer_list<std::vector<uint32_t>> parts) {
+        std::vector<uint32_t> h;
+        for (const auto& p : parts) h.insert(h.end(), p.begin(), p.end());
+        return h;
+    };
+    Lookup::convincing(history({run, {20, 21, 22}, run}), 2, out);
+    require(out == std::vector<uint32_t>({20, 21}), "the continuation of an earlier run of eight was not drafted");
+    Lookup::convincing(history({run, {20, 21, 22}, run}), 16, out);
+    require(out == history({{20, 21, 22}, run, {20, 21, 22}, {1, 2}}), "a continuation that reaches the history's end did not go on into its own draft");
+    Lookup::convincing(history({run, {20}, run, {30}, run}), 1, out);
+    require(out == std::vector<uint32_t>({30}), "the earlier of two occurrences was drafted from, not the latest");
+    Lookup::convincing(history({{2, 3, 4, 5, 6, 7, 8}, {20}, run}), 4, out);
+    require(out.empty(), "a match of seven tokens was taken as convincing");
+    Lookup::convincing(history({run, {20}, {9, 2, 3, 4, 5, 6, 7, 8}}), 4, out);
+    require(out.empty(), "a run differing in its first token was taken as convincing");
+    Lookup::convincing(run, 4, out);
+    require(out.empty(), "a history of eight tokens drafted from itself");
+    Lookup::convincing(std::vector<uint32_t>(9, 5), 3, out);
+    require(out == std::vector<uint32_t>(3, 5), "a token repeated nine times did not draft itself on");
+    Lookup::convincing(history({run, {20, 21, 22}, run}), 0, out);
+    require(out.empty(), "a draft of no tokens gave some");
+
+    // Eleven verifies that kept nothing rest a source, and the other still drafts; the tokens the other's verifies generate count its rest down.
+    infer::spec::Record r;
+    r.drafted = Source::lookup;
+    for (int i = 0; i < 11; ++i) r.verified(0, 3);
+    require(r[Source::lookup].resting() && !r[Source::proposer].resting(), "lookup's misses rested the proposer, or not lookup");
+    require(infer::spec::lookup_first(r, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 0 && r.drafted == Source::proposer,
+            "a resting lookup drafted ahead of the proposer");
+    r.drafted = Source::proposer;
+    for (int i = 0; i < 4; ++i) r.verified(3, 3);
+    require(!r[Source::lookup].resting(), "16 tokens the proposer's verifies generated did not end lookup's rest");
+    require(infer::spec::lookup_first(r, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 3 && r.drafted == Source::lookup &&
+                out == std::vector<uint32_t>({20, 21, 22}),
+            "lookup did not draft ahead of the proposer once its rest ended");
+    require(infer::spec::lookup_first(r, 3, 100, 100, 3, history({run, {20, 21, 22}}), out) == 0 && r.drafted == Source::proposer && out.empty(),
+            "a history without a convincing run left a draft or lookup's source");
+    infer::spec::Record p;
+    for (int i = 0; i < 11; ++i) p.verified(0, 3);
+    require(p[Source::proposer].resting() && !p[Source::lookup].resting(), "the proposer's misses rested lookup, or not the proposer");
+    require(infer::spec::lookup_first(p, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 3, "a resting proposer stopped lookup");
+
+    // What a round pays to look: the walk of a history that holds no convincing run, and the copy of that history the scheduler makes to look in, printed and held to nothing.
+    for (size_t tokens : {size_t(32768), size_t(262144)}) {
+        std::mt19937 rng(20261012u);
+        std::vector<uint32_t> h(tokens), copy;
+        for (uint32_t& t : h) t = rng() % 150000u;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 100; ++i) Lookup::convincing(h, 3, out);
+        const auto t1 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 100; ++i) copy.assign(h.begin(), h.end());
+        const auto t2 = std::chrono::steady_clock::now();
+        require(out.empty() && copy.size() == tokens, "a random history convinced");
+        std::cout << "spec: looking in " << tokens << " tokens: the walk " << std::chrono::duration<double, std::micro>(t1 - t0).count() / 100 << " us, the copy "
+                  << std::chrono::duration<double, std::micro>(t2 - t1).count() / 100 << " us" << std::endl;
+    }
+
+    // A chain's steps are priced only where a request's drafts come from one: 34 ms a pass and 10 ms a row, a chain step 40 ms.
+    infer::spec::PassCost c;
+    c.known = true;
+    c.base_ms = 34, c.row_ms = 10, c.step_ms = 40;
+    std::vector<size_t> takes;
+    const std::vector<uint8_t> chain{1}, own{0};
+    infer::spec::draft_depths(c, 1, {{0.9, 0.9, 0.9}}, takes, &chain);
+    require(takes == std::vector<size_t>({0}), "a chain dearer than its drafts was taken");
+    infer::spec::draft_depths(c, 1, {{0.9, 0.9, 0.9}}, takes, &own);
+    require(takes == std::vector<size_t>({3}), "drafts of a request's own history were priced with a chain");
+    // Two requests in a pass, one of each: the chain is charged for its own request alone, 4 ms a step and 1 ms a chain, and every flag set gives the price without flags.
+    c.step_ms = 4, c.step_row_ms = 1;
+    const std::vector<std::vector<double>> two{{0.9, 0.9, 0.9}, {0.9, 0.9, 0.9}};
+    const std::vector<uint8_t> mixed{1, 0}, both{1, 1};
+    std::vector<size_t> flagged, plain;
+    infer::spec::draft_depths(c, 2, two, flagged, &both);
+    infer::spec::draft_depths(c, 2, two, plain);
+    require(flagged == plain && plain == std::vector<size_t>({3, 3}), "every request chained was priced otherwise than without flags");
+    infer::spec::draft_depths(c, 2, two, flagged, &mixed);
+    require(flagged == std::vector<size_t>({3, 3}), "a pass of a chain's request and a history's did not take both");
+    // A chain too dear for its own request leaves the history's drafts, which cost rows alone: 60 ms a step against rows of 10.
+    c.step_ms = 60;
+    infer::spec::draft_depths(c, 2, {{0.5, 0.5, 0.5}, {0.9, 0.9, 0.9}}, flagged, &mixed);
+    infer::spec::draft_depths(c, 2, {{0.5, 0.5, 0.5}, {0.9, 0.9, 0.9}}, plain, &both);
+    std::cout << "spec: a dear chain beside a history's drafts takes " << flagged[0] << " and " << flagged[1] << ", both chained " << plain[0] << " and " << plain[1] << std::endl;
+    require(flagged[1] == 3, "a dear chain took a history's drafts with it");
+
+    // A draft of the history is cut to what draft_length allows: the tokens left, the positions left and the columns.
+    infer::spec::Record cut;
+    require(infer::spec::lookup_first(cut, 16, 3, 100, 16, history({run, {20, 21, 22}, run}), out) == 2, "a draft of the history passed the tokens left");
+    require(infer::spec::lookup_first(cut, 16, 100, 2, 16, history({run, {20, 21, 22}, run}), out) == 1, "a draft of the history passed the positions left");
+    require(infer::spec::lookup_first(cut, 16, 100, 100, 2, history({run, {20, 21, 22}, run}), out) == 2, "a draft of the history passed the columns");
+    require(infer::spec::lookup_first(cut, 2, 100, 100, 16, history({run, {20, 21, 22}, run}), out) == 2, "a draft of the history passed the most drafts");
+}
+
+// Lookup ahead of a proposer (docs/SPECULATIVE.md, section 8) against the run without drafts: the proposers are shown the reply as an earlier turn, so once eight tokens are generated the reply's own continuation is found and kept.
+// Then a turn whose every run of eight is followed by a wrong token, so lookup misses until it rests and the proposer drafts on.
+void lookup_first(const std::string& name, const gguf::GGUFModel& plain, size_t vocab, const std::vector<size_t>& stages) {
+    std::vector<infer::GenParams> samplers(2);
+    samplers[0].temp = 0;
+    samplers[1].temp = 0.8f, samplers[1].top_k = 40, samplers[1].top_p = 0.95f, samplers[1].seed = 5;
+    const std::vector<uint32_t> prompt = prompt_of(3, 10, (uint32_t)vocab);
+    for (size_t s = 0; s < samplers.size(); ++s) {
+        infer::GenParams gp = samplers[s];
+        gp.max_tokens = 80;
+        const Run want = generate(plain, 1, prompt, gp, nullptr, 0);
+        // Every window of eight of the reply followed by a token the reply does not hold there.
+        std::vector<uint32_t> misleading;
+        for (size_t j = 0; j + 8 < want.ids.size(); ++j) {
+            misleading.insert(misleading.end(), want.ids.begin() + (std::ptrdiff_t)j, want.ids.begin() + (std::ptrdiff_t)(j + 8));
+            misleading.push_back((want.ids[j + 8] + 1) % (uint32_t)vocab);
+        }
+        for (size_t st : stages) {
+            const std::string at = name + ", sampler " + std::to_string(s) + ", " + std::to_string(st) + " stages";
+            Oracle wrong, right;
+            for (Oracle* o : {&wrong, &right}) {
+                o->truth = &want.ids;
+                o->vocab = vocab;
+            }
+            wrong.prompt = want.ids.size() + prompt.size();
+            wrong.miss = 0;
+            for (size_t k : {1, 3, 16}) {
+                Behind behind;
+                behind.inner = &wrong;
+                const Run got = generate(plain, st, prompt, gp, &behind, k, false, &want.ids);
+                same(want, got, at + ", the reply shown, " + std::to_string(k) + " drafts");
+                require(got.own_kept * 2 > got.own, at + ": " + std::to_string(got.own_kept) + " of " + std::to_string(got.own) + " drafts of the reply's own continuation kept");
+                // Until eight tokens are generated the proposer is asked, a token a round, and never after.
+                require(behind.calls >= 1 && behind.calls <= 9, at + ": the proposer was asked " + std::to_string(behind.calls) + " times beside a history that convinces from the eighth token on");
+                if (k == 16) require(got.passes * 3 < want.passes, at + ": " + std::to_string(got.passes) + " passes with the reply's continuation drafted, " + std::to_string(want.passes) + " without");
+            }
+            // A proposer that does not stand behind lookup is asked every round, whatever its history shows.
+            const Run alone = generate(plain, st, prompt, gp, &wrong, 3, false, &want.ids);
+            same(want, alone, at + ", a proposer alone shown the reply");
+            require(alone.own == 0, at + ": " + std::to_string(alone.own) + " drafts of the history fed for a proposer that does not stand behind lookup");
+            right.prompt = misleading.size() + prompt.size();
+            Behind behind;
+            behind.inner = &right;
+            const Run got = generate(plain, st, prompt, gp, &behind, 3, false, &misleading);
+            same(want, got, at + ", a misleading turn shown");
+            require(got.own >= 11 && got.own_kept == 0, at + ": " + std::to_string(got.own_kept) + " of " + std::to_string(got.own) + " misleading drafts kept");
+            require(behind.calls > 0 && !got.rested && got.drafted > got.own, at + ": lookup's misses stopped the proposer, asked " + std::to_string(behind.calls) + " times");
+        }
+    }
+    // A stop text and each limit inside a draft of the reply's own continuation, and an end token inside one.
+    infer::GenParams g0 = samplers[0];
+    g0.max_tokens = 40;
+    const Run free = generate(plain, 1, prompt, g0, nullptr, 0);
+    Oracle none;
+    none.truth = &free.ids;
+    none.vocab = vocab;
+    none.prompt = SIZE_MAX / 2;
+    Behind behind;
+    behind.inner = &none;
+    bpe::Tokenizer tok(plain);
+    infer::GenParams stop = g0;
+    stop.stop = tok.decode({free.ids[11], free.ids[12]});
+    const Run stopped = generate(plain, 1, prompt, stop, nullptr, 0);
+    same(stopped, generate(plain, stages.back(), prompt, stop, &behind, 16, false, &free.ids), name + ": a stop text inside a draft of the reply's own continuation");
+    for (size_t limit = 9; limit <= 20; ++limit) {
+        infer::GenParams lim = g0;
+        lim.max_tokens = (int)limit;
+        const Run want = generate(plain, 1, prompt, lim, nullptr, 0);
+        same(want, generate(plain, stages.back(), prompt, lim, &behind, 16, false, &free.ids), name + ": a limit of " + std::to_string(limit) + " inside a draft of the reply's own continuation");
+    }
+    // An end token the reply first holds past its twelfth token, so drafts of its own continuation reach it.
+    size_t at_end = 12;
+    while (at_end < free.ids.size() && std::find(free.ids.begin(), free.ids.begin() + (std::ptrdiff_t)at_end, free.ids[at_end]) != free.ids.begin() + (std::ptrdiff_t)at_end) ++at_end;
+    require(at_end < free.ids.size(), name + ": the reply holds no token first met past its twelfth");
+    const uint32_t end = free.ids[at_end];
+    const gguf::GGUFModel ended = ending(plain, end);
+    const Run want = generate(ended, 1, prompt, g0, nullptr, 0);
+    require(want.ids.size() == at_end, name + ": the end token did not end the reply where it stands");
+    const Run got = generate(ended, stages.back(), prompt, g0, &behind, 16, false, &free.ids);
+    same(want, got, name + ": an end token inside a draft of the reply's own continuation");
+    require(got.own > 0, name + ": no draft of the reply's own continuation met the end token");
 }
 
 // A member's footprint with the embedded drafter (infer::footprint with a width) against counts made here, on the hybrid model a group of two splits whole: the block's shards, its projection and norms whole, the head and embedding whole.
@@ -337,6 +551,9 @@ int main() {
     try {
         const gguf::GGUFModel dense = served(kCpu), hybrid = served_hybrid(kHybrid);
         const gguf::GGUFModel routed = with_tokens(tiny_qwen_moe(3, 512, false), 16);
+        convincing_rule();
+        lookup_first("the dense model behind lookup", dense, (size_t)kCpu.vocab, {1, 2});
+        lookup_first("the hybrid model behind lookup", hybrid, (size_t)kHybrid.vocab, {1, 2, 4});
         rounds("the dense model", dense, (size_t)kCpu.vocab, {1, 2});
         rounds("the routed model", routed, 16, {1, 3});
         rounds("the hybrid model", hybrid, (size_t)kHybrid.vocab, {1, 2, 4});

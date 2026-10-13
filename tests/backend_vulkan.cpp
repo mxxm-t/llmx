@@ -1978,6 +1978,43 @@ size_t check_timing_coverage() {
     return calls * per;
 }
 
+// A timed backend's argmax_rows time for one row of 248320 logits, in device and host-visible memory, in slices and in one workgroup, alone and after the head's product that wrote them, as a draft row runs them; printed, held to nothing.
+void print_argmax_after_head() {
+    backend::BackendPtr tb = backend::make_vulkan_backend(0, true);
+    const size_t vocab = 248320, width = 512, blocks = width / quant::Q8_0_BLOCK, calls = 50;
+    std::vector<uint8_t> w(vocab * blocks * quant::Q8_0_TYPESIZE);
+    uint32_t seed = 2026;
+    for (uint8_t& byte : w) byte = (uint8_t)((seed = seed * 1664525u + 1013904223u) >> 24) & 0x3f;
+    const std::vector<float> x = uniform(width, 11, -1.0f, 1.0f);
+    const auto wb = tb->adopt(w.data(), w.size()), xb = tb->adopt(x.data(), width * sizeof(float));
+    const auto ids = tb->alloc(4 * sizeof(float), backend::Memory::host_visible), prior = tb->alloc(4 * sizeof(float), backend::Memory::host_visible);
+    const uint32_t zero[4] = {};
+    tb->write(*prior, 0, zero, sizeof(zero));
+    const backend::RowRun decode{1, 1};
+    for (bool host : {false, true}) {
+        const auto logits = tb->alloc(vocab * sizeof(float), host ? backend::Memory::host_visible : backend::Memory::device);
+        for (bool whole : {true, false})
+        for (bool head : {false, true}) {
+            tb->matmul_logits(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {logits.get(), 0}, width, vocab, 1, {&decode, 1});
+            tb->sync();
+            backend::vulkan_kernel_times(*tb);
+            const auto t0 = std::chrono::steady_clock::now();
+            for (size_t i = 0; i < calls; ++i) {
+                if (head) tb->matmul_logits(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {logits.get(), 0}, width, vocab, 1, {&decode, 1});
+                tb->unordered(whole);
+                tb->argmax_rows({ids.get(), 0}, {logits.get(), 0}, 1, vocab, {prior.get(), 0});
+                tb->unordered(false);
+            }
+            tb->sync();
+            const double wall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / double(calls);
+            double argmax = 0, product = 0;
+            for (const auto& t : backend::vulkan_kernel_times(*tb)) (t.first == "argmax_rows" ? argmax : product) += t.second;
+            std::cout << "backend-vulkan: timed argmax_rows over " << vocab << (host ? " host-visible" : " device") << " logits, " << (whole ? "one workgroup a row, " : "in slices, ") << (head ? "after the head's product" : "alone") << ": "
+                      << argmax / double(calls) << " ms a row" << (head ? ", the head's product " + std::to_string(product / double(calls)) + " ms" : std::string()) << ", wall " << wall << " ms a call" << std::endl;
+        }
+    }
+}
+
 void check_float_ops() {
     const std::string divide =
         "v_mul_f32_e32 v16, v21, v16\n"
@@ -2888,17 +2925,25 @@ size_t check_drafter_ops(Pair& p) {
         b.read(buf, 0, ids.data(), n * sizeof(uint32_t));
         return ids;
     };
-    for (size_t n : {size_t(37), size_t(248320)}) {
+    // Rows of one slice of the device's reduction, of a slice less one id and plus one, whose last slice is one id, and of a vocabulary's 61 slices; 64 rows a call, as many as a pass drafts.
+    for (size_t n : {size_t(37), backend::kVulkanArgmaxSlice - 1, backend::kVulkanArgmaxSlice + 1, size_t(248320)}) {
         const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
-        const size_t rows = 9;
+        const size_t rows = 64;
         std::vector<float> flat = uniform(rows * n, (uint32_t)(300 + n % 7), -6.0f, 6.0f);
         flat[1 * n + 3] = flat[1 * n + n - 2] = 9.5f;   // a tie
         flat[2 * n + n / 2] = inf;
-        flat[3 * n] = nan;
-        flat[4 * n + n - 1] = nan;
+        flat[3 * n] = nan;                               // a NaN in the first slice, the largest in the last
+        flat[3 * n + n - 1] = 9.5f;
+        flat[4 * n + n - 1] = nan;                       // and a NaN in the last, the largest in the first
+        flat[4 * n] = 9.5f;
         for (size_t i = 0; i < n; ++i) flat[5 * n + i] = -inf;
         flat[6 * n + 7] = 9.0f;                          // its prior id is invalid
-        const std::vector<uint32_t> prior = {0, 0, 0, 0, 0, 0, (uint32_t)n, 0, 0};
+        flat[7 * n + n - 1] = 9.25f;                     // the largest in the last slice
+        flat[8 * n] = 9.25f;                             // and in the first
+        flat[9 * n] = flat[9 * n + n - 1] = 9.75f;       // a tie between the first id and the last
+        flat[10 * n + n - 1] = inf;                      // an infinity in the last slice
+        std::vector<uint32_t> prior(rows, 0);
+        prior[6] = (uint32_t)n;
         const backend::BufferPtr lc = q35::floats_on(p.cpu, flat), lv = q35::floats_on(p.vk, flat), pc = ids_on(p.cpu, prior), pv = ids_on(p.vk, prior);
         for (bool with_prior : {true, false}) {
             const backend::BufferPtr oc = p.cpu.alloc(rows * sizeof(float), backend::Memory::device), ov = p.vk.alloc(rows * sizeof(float), backend::Memory::device);
@@ -2908,6 +2953,7 @@ size_t check_drafter_ops(Pair& p) {
             const std::vector<uint32_t> c = ids_of(p.cpu, *oc, rows), v = ids_of(p.vk, *ov, rows);
             require(c == v, ("argmax_rows differs from the CPU over " + std::to_string(n) + " ids").c_str());
             require(c[1] == 3 && c[2] == n && c[3] == n && c[4] == n && c[5] == n && c[6] == (with_prior ? n : 7), "argmax_rows over ties, infinities and NaN");
+            require(c[7] == n - 1 && c[8] == 0 && c[9] == 0 && c[10] == n, "argmax_rows over the first and the last slice of a row");
             values += rows;
         }
     }
@@ -3494,6 +3540,7 @@ int main(int argc, char** argv) {
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
+        print_argmax_after_head();
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";
         const size_t columns = check_decode_columns(*b, backend::Dtype::f16);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";

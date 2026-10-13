@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The fit cases of the qwen35 module are a CTest of their own, their two groups side by side (2026-10-13, branch test/fit-cases, tests only, lands by fast-forward)
+
+- **Why:** a placement that falls short of its whole request waits five quiet seconds for its device's memory to settle, and `arch-qwen35` runs those placements one after another, which is nearly all of its time; a branch that added more of them passed the test's 120-second limit on a hosted macOS run. Its review asked for the fit cases as a test of their own with their waits side by side, as a tests-only change.
+- **What changed:** `llmx-arch-qwen35-test` takes `fit` or `models` and runs both without an argument. CTest `arch-qwen35` runs `models` with its limit at 60 seconds; the new `arch-qwen35-fit` runs `fit`, the checkpoint fit and the drafting fit on a thread each, with a limit of 240. No case is removed or changed, and nothing under `src/`.
+- **Measured** (a Windows desktop, one run each): the fit cases 50.6 s (22 checks), the rest 0.3 s (792 checks), the whole binary without an argument 50.8 s. The test before the change was not timed on this base here; the hosted runs give its time on each runner.
+- **Not done:** the fit has no seam to shorten its wait and none was added, since a seam only tests use is what the dead-code rule refuses; the checkpoint fit's own placements still wait in turn and could be overlapped the same way, a placement a thread.
+
 ## One count of what leaves memory with no file (2026-10-13, branch fix/lost-restore-points, lands by fast-forward)
 
 - **The gap:** beside a disk tier, `reuse.disk.since_start.lost_before_written` counted a host copy dropped unwritten and a donor too large for the host tier, and nothing else. A boundary's state dropped unwritten, a donor refused host room because the copies there were in use, and a donor whose copy failed for want of host memory left no count, though each is something a later request could have forked and no file kept.

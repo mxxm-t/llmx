@@ -6,7 +6,9 @@
 #include <cstdlib>
 #include <array>
 #include <cstring>
+#include <atomic>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -42,7 +44,7 @@ void operator delete(void* p, std::size_t) noexcept { std::free(p); }
 
 namespace {
 
-int checked = 0;
+std::atomic<int> checked{0};
 
 void require(bool ok, const std::string& message) {
     if (!ok) throw std::runtime_error(message);
@@ -1623,24 +1625,35 @@ void experts() {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const std::string part = argc > 1 ? argv[1] : "";
+    if (!part.empty() && part != "fit" && part != "models") {
+        std::cerr << "usage: llmx-arch-qwen35-test [fit|models]" << std::endl;
+        return 2;
+    }
     try {
-        configuration();
-        plan();
-        footprint();
-        state_rules();
-        checkpoints();
-        host_round_trip();
-        host_state_fork();
-        checkpoint_fit();
-        refused_passes_take_no_slot();
-        failed_admission_takes_no_slot();
-        marks();
-        drafts();
-        drafting_fit();
-        slices(tiny());
-        split_with_a_stage_of_states(tiny());
-        experts();
+        if (part != "fit") {
+            configuration();
+            plan();
+            footprint();
+            state_rules();
+            checkpoints();
+            host_round_trip();
+            host_state_fork();
+            refused_passes_take_no_slot();
+            failed_admission_takes_no_slot();
+            marks();
+            drafts();
+            slices(tiny());
+            split_with_a_stage_of_states(tiny());
+            experts();
+        }
+        if (part != "models") {
+            // The two groups of fit cases wait for their devices' memory side by side.
+            auto drafting = std::async(std::launch::async, drafting_fit);
+            checkpoint_fit();
+            drafting.get();
+        }
     } catch (const std::exception& e) {
         std::cerr << "arch-qwen35: FAIL: " << e.what() << "\n";
         return 1;

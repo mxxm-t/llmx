@@ -53,13 +53,19 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests
+        id: ctest
         run: ctest --test-dir build -C Release --output-on-failure
+      # The failed tests' names as an annotation, which the public check-runs API shows without a login (docs/CI.md, Reading a failed job without a login).
+      - name: Failed tests as annotations
+        if: ${{ !cancelled() && steps.ctest.outcome != 'skipped' }}
+        continue-on-error: true
+        run: python -X utf8 tools/ci_annotations.py build
       # The suite needs only the standard library, and with numpy raw-blocks also holds the spec decoders' numpy form to the pure form.
       # That form makes the file-exact references and the MXFP4 fixture, so --require-tools fails raw-blocks without numpy.
       - name: Numpy for the spec decoders
         run: python -m pip install --only-binary=numpy numpy==2.4.3
       - name: Test
-        run: python -X utf8 tests/run_tests.py --exe "${{ matrix.executable }}" --no-perf-floor --require-tools
+        run: python -X utf8 tests/run_tests.py --annotate --exe "${{ matrix.executable }}" --no-perf-floor --require-tools
       # build.bat builds llmx.exe alone, without the tools beside it, so this run lets the split component skip.
       - name: Plain build and test
         if: runner.os == 'Windows'
@@ -70,7 +76,7 @@ jobs:
           build\Release\llmx.exe --version > "%RUNNER_TEMP%\cmake-version.txt" || exit /b 1
           type "%RUNNER_TEMP%\plain-version.txt"
           fc "%RUNNER_TEMP%\plain-version.txt" "%RUNNER_TEMP%\cmake-version.txt" || exit /b 1
-          python -X utf8 tests/run_tests.py --exe llmx.exe --no-perf-floor
+          python -X utf8 tests/run_tests.py --annotate --exe llmx.exe --no-perf-floor
 
   sanitizer:
     name: CPU (Linux UBSan)
@@ -91,11 +97,17 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests
+        id: ctest
         run: ctest --test-dir build -C Release --output-on-failure
+      # The failed tests' names as an annotation, which the public check-runs API shows without a login (docs/CI.md, Reading a failed job without a login).
+      - name: Failed tests as annotations
+        if: ${{ !cancelled() && steps.ctest.outcome != 'skipped' }}
+        continue-on-error: true
+        run: python -X utf8 tools/ci_annotations.py build
       - name: Numpy for the spec decoders
         run: python -m pip install --only-binary=numpy numpy==2.4.3
       - name: Test
-        run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools
+        run: python -X utf8 tests/run_tests.py --annotate --exe build/llmx --no-perf-floor --require-tools
 
   thread-sanitizer:
     name: CPU (Linux TSan)
@@ -140,12 +152,18 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 4
       - name: Backend tests
+        id: ctest
         run: ctest --test-dir build -C Release --output-on-failure
+      # The failed tests' names as an annotation, which the public check-runs API shows without a login (docs/CI.md, Reading a failed job without a login).
+      - name: Failed tests as annotations
+        if: ${{ !cancelled() && steps.ctest.outcome != 'skipped' }}
+        continue-on-error: true
+        run: python -X utf8 tools/ci_annotations.py build
       - name: Numpy for the spec decoders
         run: python -m pip install --only-binary=numpy numpy==2.4.3
       # The build Linux GPU users make, on its CPU path: the runner has no device, so the Vulkan commands the suite tries are refused.
       - name: Test on the CPU
-        run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --device cpu
+        run: python -X utf8 tests/run_tests.py --annotate --exe build/llmx --no-perf-floor --require-tools --device cpu
       # Every target built again at -O0 with every inline function emitted, so the functions only tests keep show (AGENTS.md, Dead code and stale docs).
       # It builds a tree of its own, so it runs whatever the steps before it gave, and a run reports its findings beside theirs.
       - name: Dead code in the linked binaries
@@ -194,9 +212,9 @@ jobs:
       - name: Numpy for the spec decoders
         run: python -m pip install --only-binary=numpy numpy==2.4.3
       - name: Test with required HF fixtures
-        run: python -X utf8 tests/run_tests.py --exe build/llmx --no-perf-floor --require-tools --require-baseline
+        run: python -X utf8 tests/run_tests.py --annotate --exe build/llmx --no-perf-floor --require-tools --require-baseline
       - name: HF gate with f32 caches
-        run: python -X utf8 tests/run_tests.py --exe build/llmx --require-baseline --cache-type f32 --only baseline
+        run: python -X utf8 tests/run_tests.py --annotate --exe build/llmx --require-baseline --cache-type f32 --only baseline
       - name: Q8_0 fixture path and perplexity excerpt
         run: |
           python -X utf8 - >> "$GITHUB_ENV" <<'EOF'

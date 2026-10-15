@@ -144,7 +144,7 @@ The `cli` component checks that the builds without the Vulkan backend, and the V
 It also checks that the CLI's usage errors exit with status 2 and the command's page on stderr, before any model file is opened.
 It shows every help page without a model, and checks that each command takes every flag its page lists, refuses a second value for it in any of its spellings, takes a switch given twice, and refuses the flags its page does not.
 The UBSan job makes misaligned in-memory tensors a test failure.
-The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping, GGUF structure, custom alignment and loading failures, Qwen model configuration and required tensor/storage layouts, grouped kernels, the qwen35 layers' CPU ops and the qwen35 module's refusals, plan and state rules (`arch-qwen35`), worker failures, chat rendering against transformers' own renderer, sampling, log-probabilities, KV storage, the automatic worker count's reading of the CPU quota and the available host memory's reading of the memory limits, plus the Python HF follow-up fixtures and CLI thread-control checks, which hold the automatic count to the one the test reads itself.
+The three CPU jobs and the UBSan job also run CTest for JSON syntax/Unicode/numeric boundaries and string escaping, GGUF structure, custom alignment and loading failures, Qwen model configuration and required tensor/storage layouts, grouped kernels, the qwen35 layers' CPU ops and the qwen35 module's refusals, plan and state rules (`arch-qwen35`, and `arch-qwen35-fit` for its fit cases), worker failures, chat rendering against transformers' own renderer, sampling, log-probabilities, KV storage, the automatic worker count's reading of the CPU quota and the available host memory's reading of the memory limits, plus the Python HF follow-up fixtures and CLI thread-control checks, which hold the automatic count to the one the test reads itself.
 The Python suite's `roundtrip` component in these jobs checks the Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4 decoders bit for bit against the spec decoders of `tests/spec_decode.py`, each on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under the negative scales quantize never writes, so those readers are covered without a real model.
 Its `raw-blocks` component checks the spec decoders themselves, those of F16, BF16, IQ4_NL, IQ4_XS, MXFP4, Q2_K and Q3_K included, against values computed from each format's fields and the sign each zero takes.
 Every job that runs the suite with `--require-tools` installs numpy 2.4.3 first, so raw-blocks also holds the spec decoders' numpy form, which makes the file-exact references and the MXFP4 fixture, to the pure form, and fails rather than skips without numpy.
@@ -231,6 +231,22 @@ gh api --allow-escape-sequences repos/mxxm-t/llmx/actions/jobs/JOB/logs
 ```
 
 Capture the second command's output and strip terminal control sequences before displaying excerpts. Without that flag, `gh` can refuse a readable log because it contains escape sequences; that refusal does not establish a GitHub permission failure. Check annotations can identify a failed step but may contain only its exit code, so they do not replace the log.
+
+### Reading a failed job without a login
+
+The log needs a login, the check run's annotations do not.
+The jobs that run CTest add a step, "Failed tests as annotations", that runs `tools/ci_annotations.py build` after CTest, pass or fail, and prints one `::error title=CTest failed (N)::` line naming the tests listed in `Testing/Temporary/LastTestsFailed.log`, and one `::notice title=CTest times::` line with the times of `cache-scenario`, `server-resume` and `arch-qwen35-fit` (by name prefix) from `CTestCostData.txt`, which are the figures their limits are set from.
+The suite runs with `--annotate` and prints one `::error title=Suite components failed::` line naming the components that failed.
+A run with no failure prints no error line.
+The step never changes the exit status of the step it follows.
+The annotations are read without a credential:
+
+```
+curl -s https://api.github.com/repos/mxxm-t/llmx/commits/SHA/check-runs
+curl -s https://api.github.com/repos/mxxm-t/llmx/check-runs/ID/annotations
+```
+
+The first lists the commit's check runs with their conclusions and `id`s, the second gives a check run's annotations, whose `title` and `message` carry the names.
 
 Use an existing authenticated `gh` session, or supply an existing Git credential as `GH_TOKEN` only in the child process environment. Do not print the credential, put it in command arguments or save it in the evidence. A successful read of one run does not establish that a different commit passed.
 

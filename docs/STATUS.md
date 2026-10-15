@@ -12,6 +12,14 @@
 - **Not measured:** pure `embedded` against c27fb5fa6 (its `embedded` was pure) on tokens a pass and a second on one MI50 is the gate runner's cell, not run here; nor were the forms run on the 27B.
 - **Checked, Windows, MSVC, CPU only:** see the REVIEW-REQUEST for what ran.
 
+## Failed tests are named in annotations anyone can read (2026-10-13, branch ci/failed-test-annotations, CI only, lands by fast-forward)
+
+- **Why:** a failed hosted job shows through the public API only that its "Backend tests" step failed; the failing test's name is in the log, which needs a login, and twice a developer without one chased the wrong cause for an hour.
+- **What changed:** the three jobs that run CTest (CPU on three systems, UBSan, Vulkan build) add a step after CTest, "Failed tests as annotations", that runs `tools/ci_annotations.py build` whether CTest passed or failed. It prints one `::error` line naming the tests of `Testing/Temporary/LastTestsFailed.log`, and one `::notice` line with the times of `cache-scenario`, `server-resume*` and `arch-qwen35-fit` from `CTestCostData.txt`, the figures their limits are set from. It always exits 0, so no step's status changes, and which tests run is unchanged. `tests/run_tests.py` takes `--annotate` and prints one `::error` line naming the failed components; every workflow call of the suite passes it. `docs/CI.md` gives how to read a failed job without a login, with the API calls, and names `arch-qwen35-fit` beside `arch-qwen35`.
+- **Checked locally** (Git Bash on Windows): the tool on a made-up `Testing/Temporary` with two failed tests and times, on an empty one and on a missing one; and against real CTest output of a small project with a passing, a failing and a `server-resume` test, where a fresh all-pass run left no `LastTestsFailed.log` and printed only the time notice. A run that passes prints the time notice and no error line.
+- **Not checked:** how GitHub renders the lines, and the failing path on a hosted runner; no test is broken on a branch that could land to see an error annotation, so the rendering is proved by the first real failure on a hosted run. The annotation step has `continue-on-error: true`, so a failure of the step itself cannot fail a job after a green CTest.
+- **Gates:** the suite's `docs` and `dead-code` components and the hosted run.
+
 ## The cache's moves said and counted in one place, and the plan's scenario (2026-10-13, branch step1/scenario, step 1 of docs/CACHE-PLAN.md, lands by fast-forward)
 
 - **Why:** the cache and the context are planned as one thing (`docs/CACHE-PLAN.md`, approved on 2026-10-13, in this change). Its first step makes every move of a conversation's cache visible and gives the plan one scripted scenario every later step must keep green. No behaviour changes: lines printed and counters only.

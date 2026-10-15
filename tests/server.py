@@ -740,6 +740,125 @@ def check_reasoning(model):
         srv.close()
 
 
+# The fields the compatible routes cannot honour, each with a value that asks for something, and the fields they ignore because their default is harmless.
+REFUSED_FIELDS = [("tools", [{"type": "function", "function": {"name": "f"}}]), ("tool_choice", "auto"), ("tool_choice", {"type": "function"}),
+                  ("response_format", {"type": "json_object"}), ("logit_bias", {"5": 10}), ("best_of", 2), ("echo", True), ("suffix", "x"),
+                  ("reasoning_effort", "low"), ("n", 2)]
+IGNORED_FIELDS = {"user": "u", "metadata": {"k": "v"}, "store": False, "service_tier": "auto", "parallel_tool_calls": True,
+                  "stream_options": {"include_usage": False}, "model": "anything", "tools": [], "tool_choice": "none",
+                  "response_format": {"type": "text"}, "logit_bias": {}, "best_of": 1, "echo": False, "suffix": None, "reasoning_effort": None}
+
+
+def check_api_fields(model, directory):
+    """The compatible routes refuse a field they cannot honour with a 400 that names it, and ignore the ones whose default is harmless.
+    presence_penalty, frequency_penalty and min_p are read by every route and by generate and chat, refused outside their ranges, and at their neutral values change nothing.
+    An assistant message with null content and tool_calls renders as an empty content, and the role developer as system.
+    A stop text is left out of the compatible routes' reply, whole and streamed, and stays in /v1/generate's; usage carries the cached tokens."""
+    prompt, n = "ab", 12
+    srv = Server(model)
+    try:
+        base = {"prompt": prompt, "max_tokens": n, "temperature": 0}
+        plain = srv.raw("/v1/generate", base)
+        for name, value in (("presence_penalty", 0), ("frequency_penalty", 0), ("min_p", 0), ("presence_penalty", 0.0)):
+            assert srv.raw("/v1/generate", dict(base, **{name: value})) == plain, name
+        for name, bad in (("presence_penalty", [2.5, -2.5, "x"]), ("frequency_penalty", [2.5, -2.5, "x"]), ("min_p", [1.5, -0.1, "x"])):
+            for path in ("/v1/generate", "/v1/completions"):
+                for value in bad:
+                    status, err = srv.post(path, dict(base, **{name: value}))
+                    assert status == 400, (path, name, value, status, err)
+                    message = err["error"]["message"] if isinstance(err["error"], dict) else err["error"]
+                    assert name in message, (path, name, value, err)
+        # min_p 1 keeps only the likeliest token, so a drawn reply at any temperature is the greedy one.
+        greedy = post_ok(srv, "/v1/generate", base)["ids"]
+        drawn = post_ok(srv, "/v1/generate", dict(base, temperature=1.5, seed=7))["ids"]
+        assert post_ok(srv, "/v1/generate", dict(base, temperature=1.5, seed=7, min_p=1))["ids"] == greedy
+        # The greedy reply repeats tokens, so a penalty for repeating them changes it, each by its own rule.
+        for name in ("presence_penalty", "frequency_penalty"):
+            assert post_ok(srv, "/v1/generate", dict(base, **{name: 2}))["ids"] != greedy, name
+        assert drawn != greedy, (drawn, greedy)
+        assert post_ok(srv, "/v1/completions", dict(base, temperature=1.5, seed=7, min_p=1))["choices"][0]["text"] == post_ok(srv, "/v1/completions", base)["choices"][0]["text"]
+        # The same through the CLI, where the flags are the same three names, refused outside the same ranges.
+        want, count = cli_reply(model, prompt, n, ("--temp", "0"))
+        assert cli_reply(model, prompt, n, ("--temp", "1.5", "--seed", "7", "--min-p", "1")) == (want, count)
+        assert cli_reply(model, prompt, n, ("--temp", "0", "--presence-penalty", "0", "--frequency-penalty", "0", "--min-p", "0")) == (want, count)
+        for flag, bad in (("--presence-penalty", "2.5"), ("--frequency-penalty", "-2.5"), ("--min-p", "1.5")):
+            p = common.run_process(["generate", model, prompt, "-n", "2", flag, bad], cache="f32")
+            assert p.returncode == 2 and flag.encode() in p.stderr, (flag, p.stderr)
+        # Refused fields, named in the message, on both compatible routes; ignored ones change nothing.
+        for path, body in (("/v1/completions", base), ("/v1/chat/completions", {"messages": [{"role": "user", "content": "a"}], "max_tokens": 2})):
+            for name, value in REFUSED_FIELDS:
+                status, err = srv.post(path, dict(body, **{name: value}))
+                assert status == 400 and name in err["error"]["message"], (path, name, value, status, err)
+        answer = post_ok(srv, "/v1/completions", base)["choices"][0]["text"]
+        for name, value in IGNORED_FIELDS.items():
+            status, reply = srv.post("/v1/completions", dict(base, **{name: value}))
+            assert status == 200 and reply["choices"][0]["text"] == answer, (name, value, reply)
+        status, err = srv.post("/v1/completions", dict(base, prompt=["a", "b"]))
+        assert status == 400 and "prompt" in err["error"]["message"] and "one" in err["error"]["message"], err
+        status, reply = srv.post("/v1/completions", dict(base, prompt=["ab"]))
+        assert status == 200, reply
+        assert reply["usage"]["prompt_tokens_details"] == {"cached_tokens": reply["timings"]["cache_n"]}, reply
+        events = srv.stream("/v1/completions", dict(base, stream=True, stream_options={"include_usage": True}))
+        assert "prompt_tokens_details" in events[-2]["usage"], events[-2]
+    finally:
+        srv.close()
+
+    fields = os.path.join(directory, "fields.gguf")
+    f32.write_model(fields, reasoning_tensors(), OPEN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
+    srv = Server(fields)
+    try:
+        first = [{"role": "system", "content": ""}, {"role": "user", "content": "a"}]
+        call = [{"id": "c1", "type": "function", "function": {"name": "f", "arguments": "{}"}}]
+        chat = {"max_tokens": 16, "temperature": 0}
+        # Null content beside tool_calls renders as an empty content; without tool_calls it is still refused.
+        with_calls = first + [{"role": "assistant", "content": None, "tool_calls": call}, {"role": "user", "content": "b"}]
+        empty = first + [{"role": "assistant", "content": ""}, {"role": "user", "content": "b"}]
+        counts = []
+        for messages in (with_calls, empty, first + [{"role": "assistant", "tool_calls": call}, {"role": "user", "content": "b"}]):
+            status, got = srv.post("/v1/tokenize", {"messages": messages})
+            assert status == 200, (messages, got)
+            counts.append(got["count"])
+        assert counts[0] == counts[1] == counts[2], counts
+        status, got = srv.post("/v1/chat/completions", dict(chat, messages=with_calls))
+        assert status == 200 and got["usage"]["prompt_tokens"] == counts[0], got
+        status, err = srv.post("/v1/chat/completions", dict(chat, messages=first + [{"role": "assistant", "content": None}, {"role": "user", "content": "b"}]))
+        assert status == 400 and "content" in err["error"]["message"], err
+        # The role developer is the system message.
+        status, system = srv.post("/v1/tokenize", {"messages": first})
+        status, got = srv.post("/v1/tokenize", {"messages": [{"role": "developer", "content": ""}, first[1]]})
+        assert status == 200 and got == system, (got, system)
+        # The stop text: the reply is "qr</think>o", then the end token.
+        reply = REASONING_REPLY.decode()
+        for stop, want_reasoning, want_content in (("</th", "qr", ""), (["</think>o", "zz"], "qr", ""), ("think>", "qr</", ""), ("o!", "qr", "o"), ("zz", "qr", "o")):
+            body = dict(chat, messages=first, stop=stop)
+            status, got = srv.post("/v1/chat/completions", body)
+            message = got["choices"][0]["message"]
+            assert status == 200 and message.get("reasoning_content", "") == want_reasoning and message["content"] == want_content, (stop, got)
+            assert got["choices"][0]["finish_reason"] == "stop", got
+            events = srv.stream("/v1/chat/completions", dict(body, stream=True))
+            deltas = [e["choices"][0]["delta"] for e in events if e and e.get("choices")]
+            assert "".join(d.get("reasoning_content", "") for d in deltas) == want_reasoning, (stop, deltas)
+            assert "".join(d.get("content", "") for d in deltas) == want_content, (stop, deltas)
+        prompt = "\n"
+        for stop, want in (("</th", "qr"), ("r<", "q"), ("o!", reply), ("</think>o", "qr"), ("zz", reply)):
+            body = {"prompt": prompt, "max_tokens": 16, "temperature": 0, "stop": stop}
+            status, got = srv.post("/v1/completions", body)
+            assert status == 200 and got["choices"][0]["text"] == want, (stop, got)
+            events = srv.stream("/v1/completions", dict(body, stream=True))
+            assert "".join(e["choices"][0]["text"] for e in events if e and e.get("choices")) == want, (stop, events)
+        # The native route keeps the stop text in the reply.
+        status, got = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": 16, "temperature": 0, "stop": "</th"})
+        assert status == 200 and got["text"] == "qr</th" and got["finish"] == "stop", got
+        # A prompt long enough to fill a block is reused by its repeat, and the usage says how much.
+        long = {"prompt": "\n" * 300, "max_tokens": 2, "temperature": 0}
+        status, a = srv.post("/v1/completions", long)
+        status, b = srv.post("/v1/completions", long)
+        assert status == 200 and a["usage"]["prompt_tokens_details"]["cached_tokens"] == a["timings"]["cache_n"], a
+        assert b["usage"]["prompt_tokens_details"]["cached_tokens"] == b["timings"]["cache_n"] > 0, b
+    finally:
+        srv.close()
+
+
 # The tokens each position of a logprobs request lists beside its sampled one.
 TOP = 5
 
@@ -1474,7 +1593,9 @@ def check_paused_prefill(model):
         status, reply = result[0]
         assert status == 200, reply
         want = cli_greedy_text(model, long_prompt, reply["usage"]["completion_tokens"], flags)
-        assert reply["choices"][0]["text"] == want, (reply["choices"][0]["text"], want)
+        # The stop text ends the reply and is left out of the compatible route's text, so the CLI's text is the reply's and the stop text, which the token completing it may be followed by.
+        text = reply["choices"][0]["text"]
+        assert reply["choices"][0]["finish_reason"] == "stop" and " ." not in text and want.startswith(text + " ."), (text, want)
         same_choice(alone["choices"][0], reply["choices"][0], "a prompt paused while prefilling")
         health = srv.get("/v1/health")
         assert health["requests"]["now"]["active"] == 0 and health["pressure"]["since_start"]["pauses"] >= 1, health
@@ -1844,6 +1965,10 @@ def run():
         print("server: an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, "
               "and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; "
               "/v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]")
+        check_api_fields(model, directory)
+        print("server: the compatible routes refuse tools, tool_choice, response_format, logit_bias, best_of, echo, suffix, reasoning_effort, n and a prompt array of several, "
+              "ignore the fields with a harmless default, read presence_penalty, frequency_penalty and min_p alike on the server and the CLI with neutral values changing nothing, "
+              "leave a stop text out of the reply whole and streamed, accept null content beside tool_calls and the developer role, and report cached tokens  [ok]")
         # The synthetic mixture of experts, each prompt's ids alone equal to its ids four at a time, where a pass routes one request's prompt rows beside another's decode rows.
         # On a device its routed layers run on the host with prompts from extent 3 streamed, so a pass holds streamed prompt rows beside host decode rows; those flags need a device, so the CPU and a device list run the model without them.
         device = os.environ.get("LLMX_DEVICE", "cpu")

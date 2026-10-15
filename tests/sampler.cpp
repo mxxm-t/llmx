@@ -455,10 +455,114 @@ void pass_price() {
     require(!t.cost().known && close_to(t.cost().seen_rows, 8, 1e-3), "passes of one width do not give that width as the rows seen");
 }
 
+// The additive penalties of the compatible APIs, subtracted from a seen token's score before the temperature: presence once however often the token was seen, frequency once for each time.
+infer::Sampling settings(float temp, int top_k, float top_p) {
+    infer::Sampling s;
+    s.temp = temp;
+    s.top_k = top_k;
+    s.top_p = top_p;
+    return s;
+}
+
+uint32_t pick(const std::vector<float>& logits, const infer::Sampling& s, const std::vector<uint32_t>& gen = no_history, uint64_t seed = 1) {
+    infer::RNG rng;
+    rng.seed(seed);
+    return infer::sample(logits.data(), logits.size(), s, -1, gen, rng);
+}
+
+std::vector<int> counts_of(const std::vector<float>& logits, const infer::Sampling& s, const std::vector<uint32_t>& gen, uint64_t seed) {
+    infer::RNG rng;
+    rng.seed(seed);
+    std::vector<int> n(logits.size(), 0);
+    for (int i = 0; i < draws; i++) n[infer::sample(logits.data(), logits.size(), s, -1, gen, rng)]++;
+    return n;
+}
+
+void additive_penalties() {
+    const std::vector<float> row = {3.0f, 2.5f, 0.0f};
+    infer::Sampling s = settings(0.0f, 40, 1.0f);
+    s.presence_penalty = 0.6f;
+    require(pick(row, s, {0}) == 1, "a presence penalty did not lower a seen leader");
+    require(pick(row, s, {0, 0, 0}) == 1, "a presence penalty of 0.6 on a token seen three times did not lower it");
+    s.presence_penalty = 0.4f;
+    require(pick(row, s, {0, 0, 0}) == 0, "a presence penalty was taken once for each time the token was seen");
+    require(pick(row, s, {}) == 0, "a presence penalty lowered a token not seen");
+    s.presence_penalty = 0.0f;
+    s.frequency_penalty = 0.2f;
+    require(pick(row, s, {0, 0, 0}) == 1, "a frequency penalty of 0.2 on a token seen three times did not take 0.6");
+    require(pick(row, s, {0}) == 0, "a frequency penalty of 0.2 on a token seen once took more than 0.2");
+    s.frequency_penalty = 0.1f;
+    require(pick(row, s, {0, 0, 0}) == 0, "a frequency penalty took more than once for each time");
+    // A negative penalty favors a seen token.
+    s.frequency_penalty = 0.0f;
+    s.presence_penalty = -1.0f;
+    require(pick({1.0f, 1.5f, 0.0f}, s, {0}) == 0, "a negative presence penalty did not raise a seen token");
+    // It is subtracted from the score before the temperature, and beside the repetition penalty, which is applied first: 3 / 2 - 0.4 is 1.1 against 1.5.
+    s = settings(0.0f, 40, 1.0f);
+    s.penalty = 2.0f;
+    s.presence_penalty = 0.4f;
+    require(pick({3.0f, 1.2f, 0.0f}, s, {0}) == 1, "the additive penalty was not taken from the repetition-penalized score");
+    require(pick({3.0f, 1.0f, 0.0f}, s, {0}) == 0, "the additive penalty took more than its amount");
+    // Drawn at temperature 2, the scores 0 and 1 with a presence penalty of 1 on the second are the softmax of 0 and 0.
+    const std::vector<float> pair = {0.0f, 1.0f};
+    s = settings(2.0f, 0, 1.0f);
+    s.presence_penalty = 1.0f;
+    fits("a presence penalty before the temperature", counts_of(pair, s, {1}, 9), {0.5, 0.5});
+    // Neutral values are no penalty: the draws and the generator's state are those of the call without the three.
+    for (uint64_t seed = 1; seed < 40; seed++) {
+        infer::RNG a = seeded(seed), b = seeded(seed);
+        const std::vector<float> logits = scores(300, 0, seed);
+        const std::vector<uint32_t> gen = {1, 2, 2, 7};
+        infer::Sampling n = settings(0.8f, 40, 0.95f);
+        n.penalty = 1.2f;
+        const uint32_t x = infer::sample(logits.data(), logits.size(), n, -1, gen, a);
+        const uint32_t y = infer::sample(logits.data(), logits.size(), 0.8f, 40, 0.95f, 1.2f, gen, b, -1);
+        require(x == y && a.s == b.s, "neutral additive penalties and min_p changed a draw");
+    }
+}
+
+// min_p keeps the tokens whose probability, at the temperature, is at least min_p times the likeliest token's, after top-k and top-p.
+void min_p() {
+    const std::vector<float> logits = {0.0f, 1.2f, -1.0f, 1.7f, -0.5f};
+    infer::Sampling s = settings(1.0f, 0, 1.0f);
+    // Against the likeliest, id 3, the others weigh 0.607, 0.183, 0.111 and 0.067 at temperature 1.
+    s.min_p = 0.5f;
+    fits("min_p 0.5", counts_of(logits, s, no_history, 11), softmax(logits, 1.0, {3, 1}));
+    s.min_p = 0.15f;
+    fits("min_p 0.15", counts_of(logits, s, no_history, 12), softmax(logits, 1.0, {3, 1, 0}));
+    // At temperature 2 the weights are their square roots, 0.78, 0.43, 0.33 and 0.26, so the same 0.4 keeps three where temperature 1 keeps two.
+    s = settings(2.0f, 0, 1.0f);
+    s.min_p = 0.4f;
+    fits("min_p 0.4 at temperature 2", counts_of(logits, s, no_history, 13), softmax(logits, 2.0, {3, 1, 0}));
+    s = settings(1.0f, 0, 1.0f);
+    s.min_p = 0.4f;
+    fits("min_p 0.4 at temperature 1", counts_of(logits, s, no_history, 14), softmax(logits, 1.0, {3, 1}));
+    // After top-k and top-p: top_k 2 with min_p 0.15 keeps the two best; a nucleus of 0.65 keeps two and min_p 0.7 cuts the second.
+    s = settings(1.0f, 2, 1.0f);
+    s.min_p = 0.15f;
+    fits("top_k 2 with min_p 0.15", counts_of(logits, s, no_history, 15), softmax(logits, 1.0, {3, 1}));
+    s = settings(1.0f, 0, 0.65f);
+    s.min_p = 0.7f;
+    fits("top_p 0.65 with min_p 0.7", counts_of(logits, s, no_history, 16), softmax(logits, 1.0, {3}));
+    // min_p 1 keeps the likeliest token alone, whatever the temperature, and a tie keeps both.
+    s = settings(5.0f, 40, 0.95f);
+    s.min_p = 1.0f;
+    for (uint64_t seed = 1; seed < 20; seed++) require(pick(logits, s, no_history, seed) == 3, "min_p 1 drew a token below the likeliest");
+    fits("min_p 1 on a tie", counts_of({2.0f, 2.0f, 1.0f}, s, no_history, 17), {0.5, 0.5, 0.0});
+    // A masked leader leaves the next best as the likeliest.
+    infer::RNG rng = seeded(3);
+    s = settings(1.0f, 0, 1.0f);
+    s.min_p = 1.0f;
+    s.ignore_eos = true;
+    for (int i = 0; i < 20; i++) require(infer::sample(logits.data(), logits.size(), s, 3, no_history, rng) == 1, "min_p ranked the masked token");
+}
+
 int main() {
     try {
         temperature_zero();
         penalty();
+        additive_penalties();
+        min_p();
         top_k();
         top_p();
         temperature();

@@ -4209,16 +4209,21 @@ void lost_restore_points(const gguf::GGUFModel& mixed, bool no_memory) {
 
 int main(int argc, char** argv) {
     const std::string only = argc > 1 ? argv[1] : "";
-    if (!only.empty() && only != "cpu" && only != "device") {
-        std::fprintf(stderr, "usage: llmx-server-resume-test [cpu|device]\n");
+    if (!only.empty() && only != "cpu" && only != "cpu-resume" && only != "cpu-cache" && only != "device") {
+        std::fprintf(stderr, "usage: llmx-server-resume-test [cpu|cpu-resume|cpu-cache|device]\n");
         return 2;
     }
     try {
         if (only != "device") {
+            // The CPU half is two groups of about equal time, the cases up to disk_faults and those from disk_cap_base on; each builds its own models and directories.
+            const bool resume_group = only != "cpu-cache";
+            const bool cache_group = only != "cpu-resume";
             const gguf::GGUFModel weights = served(kCpu);
             const bpe::Tokenizer tok(weights);
             const Make one = on(weights, [] { return cpus(1); });
             const uint32_t vocab = (uint32_t)kCpu.vocab;
+            const gguf::GGUFModel mixed = served_hybrid(kHybrid);
+            if (resume_group) {
             three_uncapped(one, tok, vocab, "three uncapped requests");
             prefilling_victim(one, tok, vocab);
             follow_up(one, tok, vocab);
@@ -4244,7 +4249,6 @@ int main(int argc, char** argv) {
             growth_before_admission(one, tok, vocab);
             stall_holds_room(one, tok, vocab);
             cancelled_short_donor(one, tok, vocab);
-            const gguf::GGUFModel mixed = served_hybrid(kHybrid);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             turns_at_edge(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "turns at the pool's edge on a hybrid model");
@@ -4281,6 +4285,8 @@ int main(int argc, char** argv) {
             disk_increment(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "disk writes of what changed, a model keeping a state");
             disk_faults(one, tok, vocab, "files lost between two servers");
             disk_faults(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "files lost between two servers, a model keeping a state");
+            }
+            if (cache_group) {
             disk_cap_base(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
@@ -4370,7 +4376,8 @@ int main(int argc, char** argv) {
                 if (w == When::idle) reprefilled(kept, mixed_tok, (uint32_t)kHybrid.vocab, 3, w, "a hybrid model's reply read again beside a request that fits", true);
                 reprefilled(on(mixed, [] { return cpus(2); }, 3, 3), mixed_tok, (uint32_t)kHybrid.vocab, 0, w, "a hybrid model's reply read again over a two-CPU split" + when);
             }
-            std::printf("server-resume: CPU cases pass\n");
+            }
+            std::printf("server-resume: CPU cases pass (%s)\n", only.empty() ? "cpu" : only.c_str());
         }
         if (only != "cpu") {
             backend::BackendPtr device;

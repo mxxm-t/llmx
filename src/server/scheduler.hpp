@@ -1272,7 +1272,7 @@ private:
                 std::vector<uint32_t>& history = asks_[askers_.size()].history;
                 history.assign(r->prompt_.begin(), r->prompt_.end());
                 history.insert(history.end(), r->gen_.begin(), r->gen_.end());
-                k = infer::spec::lookup_first(record, draft_max_, left, positions, columns, history, r->own_draft_);
+                k = infer::spec::lookup_first(record, draft_max_, left, positions, std::min(columns, model_.mark_rows() ? model_.mark_rows() - 1 : 0), history, r->own_draft_);
             }
             if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record[Source::proposer]);
             if (!k) continue;

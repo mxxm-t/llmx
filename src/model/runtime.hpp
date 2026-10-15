@@ -700,6 +700,8 @@ public:
     size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
     // The marks sequences may hold at once; a model that keeps no state marks any number.
     size_t mark_slots() const { return state_layers_ ? options_.mark_slots : SIZE_MAX; }
+    // The rows a pass after a mark may feed; a model that keeps no state saves none and takes any.
+    size_t mark_rows() const { return state_layers_ ? options_.mark_rows : SIZE_MAX; }
     size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
 
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.

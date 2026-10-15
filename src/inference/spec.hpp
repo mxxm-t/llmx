@@ -34,6 +34,9 @@ namespace spec {
 // The most drafts a verify takes: with the last pick 64 rows, the most generated tokens a pass's kernels are held to give the bits of single steps for (AGENTS.md, backend-vulkan).
 inline constexpr int kMaxDrafts = 63;
 
+// The most drafts a request's own history gives a verify where that is more than its proposer's `--draft-max`: with the last pick eight rows, the price deciding each pass how many of them pay (docs/SPECULATIVE.md, section 8).
+inline constexpr size_t kOwnDrafts = 7;
+
 // A drafter of the next tokens of a history: it proposes, the verify decides, so a wrong proposal costs time and never output.
 // A proposer drafts deterministically and never touches a request's generator.
 class Proposer {
@@ -228,7 +231,7 @@ inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size
                            std::vector<uint32_t>& out) {
     out.clear();
     r.drafted = Source::proposer;
-    const size_t k = draft_length(draft_max, tokens_left, context_left, columns, r[Source::lookup]);
+    const size_t k = draft_length(std::max(draft_max, kOwnDrafts), tokens_left, context_left, columns, r[Source::lookup]);
     if (k) Lookup::convincing(history, k, out);
     if (!out.empty()) r.drafted = Source::lookup;
     return out.size();
@@ -239,17 +242,30 @@ inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size
 struct PassCost {
     double base_ms = 0, row_ms = 0, step_ms = 0, step_row_ms = 0, seen_rows = 0;
     bool known = false;
+    // A pass's time by its rows where passes of that many have run, 0 elsewhere: a pass's cost steps where its kernels change build, which the line cannot hold.
+    std::vector<double> width_ms;
+    // The line's price of a pass of `rows` generated rows, which is the price of the pass without drafts and gives the least a row may cost.
+    double line_ms(size_t rows) const { return base_ms + row_ms * (double)rows; }
+    // What a pass widened by drafts costs: the line's, and what its width measured beyond that, so a measured width can add a step's cost and never take a row's away.
+    double pass_ms(size_t rows) const { return std::max(line_ms(rows), rows < width_ms.size() ? width_ms[rows] : 0.0); }
 };
 
 // The pass cost measured as passes run: lines through the passes of generated rows (rows against milliseconds) and through the chains' steps, each measurement weighing kForget of the one after it.
 // A line is known while the rows it was fitted to spread by half a row or more, so a width run long enough is forgotten and measured again; an unknown chain line is its mean step.
 class PassTimes {
 public:
-    void pass(size_t rows, double ms) { passes_.add((double)rows, ms); }
+    void pass(size_t rows, double ms) {
+        passes_.add((double)rows, ms);
+        if (rows < kWidths) {
+            widths_[rows].w = widths_[rows].w * kForget + 1;
+            widths_[rows].ms = widths_[rows].ms * kForget + ms;
+        }
+    }
     void chain(size_t steps, size_t chains, double ms) {
         if (steps) chains_.add((double)chains, ms / (double)steps);
     }
     // What a pass of `rows` generated rows takes, from the line where it is known and else the mean of those seen; 0 before any.
+    // The widths' own means reach the draft price through cost() alone.
     double pass_ms(double rows) const {
         double base = 0, row = 0;
         return passes_.fit(base, row) ? base + row * rows : passes_.mean();
@@ -259,6 +275,9 @@ public:
         if (!chains_.fit(c.step_ms, c.step_row_ms)) c.step_ms = chains_.mean();
         c.known = passes_.fit(c.base_ms, c.row_ms);
         if (!c.known) c.seen_rows = passes_.mean_x();
+        c.width_ms.assign(kWidths, 0.0);
+        for (size_t i = 0; i < kWidths; ++i)
+            if (widths_[i].w > 0) c.width_ms[i] = widths_[i].ms / widths_[i].w;
         return c;
     }
 
@@ -286,6 +305,12 @@ private:
         }
     };
     Line passes_, chains_;
+    // A forgetting mean of the passes of each width up to a verify's most rows and a row.
+    static constexpr size_t kWidths = size_t(kMaxDrafts) + 2;
+    struct Width {
+        double w = 0, ms = 0;
+    };
+    Width widths_[kWidths];
 };
 
 // The drafts each of a pass's drafting requests verifies (docs/SPECULATIVE.md, section 3), from the pass cost `c`, the pass's `decoders` and each request's chance of keeping each draft its cap allows (`keeps[i]`), into `takes`.
@@ -300,22 +325,31 @@ inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<s
         for (size_t i = 0; i < keeps.size(); ++i) takes[i] = keeps[i].size();
         return;
     }
-    const double plain_ms = c.base_ms + c.row_ms * (double)decoders, rate = (double)decoders / plain_ms;
+    const double plain_ms = c.line_ms(decoders), rate = (double)decoders / plain_ms;
     // A depth is weighed with the chain and without it, where only the requests that need no chain draft, so a dear chain does not take their drafts with it.
     const auto take = [&](size_t K, bool chain, std::vector<size_t>* out) {
-        double tokens = (double)decoders, ms = plain_ms;
-        size_t chains = 0, steps = 0;
-        for (size_t i = 0; i < keeps.size(); ++i) {
+        const auto drafts = [&](size_t i) {
             const bool chains_it = !chained || (*chained)[i];
-            const size_t k = chains_it && !chain ? 0 : std::min(K, keeps[i].size());
+            return chains_it && !chain ? size_t(0) : std::min(K, keeps[i].size());
+        };
+        // A row's cost at this depth is the pass's with every request drafting over its rows, so a step in the pass's cost is spread over the rows that cross it.
+        size_t asked = 0;
+        for (size_t i = 0; i < keeps.size(); ++i) asked += drafts(i);
+        if (!asked) return rate;
+        const double row_ms = (c.pass_ms(decoders + asked) - plain_ms) / (double)asked;
+        double tokens = (double)decoders;
+        size_t chains = 0, steps = 0, rows = decoders;
+        for (size_t i = 0; i < keeps.size(); ++i) {
+            const size_t k = drafts(i);
             double kept = 0;
             for (size_t j = 0; j < k; ++j) kept += keeps[i][j];
-            if (!k || kept < rate * c.row_ms * (double)k) continue;
+            if (!k || kept < rate * row_ms * (double)k) continue;
             tokens += kept;
-            ms += c.row_ms * (double)k;
-            if (chains_it) ++chains, steps = std::max(steps, k);
+            rows += k;
+            if (!chained || (*chained)[i]) ++chains, steps = std::max(steps, k);
             if (out) (*out)[i] = k;
         }
+        double ms = c.pass_ms(rows);
         if (chains) ms += (double)steps * (c.step_ms + c.step_row_ms * (double)chains);
         return tokens / ms;
     };

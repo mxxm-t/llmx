@@ -65,7 +65,13 @@ backends its caller made. It reads the plan
   slots (`fit_checkpoints`) give way, the most of them that still fit, and
   checkpoints asked for by number do not, so it refuses, naming the
   budget and the checkpoints that left no room (docs/SPECULATIVE.md,
-  section 3). With
+  section 3). A mark asked for more rows than drafting needs
+  (`least_mark_rows` below the options' `mark_rows`) is cut to those least
+  rows where the larger does not fit beside the budget and its
+  checkpoints, before any checkpoint gives way, and, once the mark slots
+  are fitted, where the larger rows would leave fewer slots than the
+  least give, so the extra rows cost no checkpoint, no mark slot and no
+  placement. With
   `fit_marks`, on a model that keeps a state, it then takes as mark slots
   the most, up to the options', at which that budget and those
   checkpoints still fit, so marks past the first take only the room left

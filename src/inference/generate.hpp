@@ -55,7 +55,9 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                 history.insert(history.end(), gen.begin(), gen.end());
             }
             // The history's own convincing continuation is the draft where it has one, and the proposer is not run that round.
-            if (first) k = spec::lookup_first(record, drafting->draft_max, left, room, drafting->draft_max, history, drafts);
+            // Its draft may be longer than the proposer's, within the rows the mark saves after the last pick.
+            const size_t own = std::min(std::max(drafting->draft_max, spec::kOwnDrafts), model.mark_rows() ? model.mark_rows() - 1 : 0);
+            if (first) k = spec::lookup_first(record, drafting->draft_max, left, room, own, history, drafts);
             if (!k) {
                 k = spec::draft_length(drafting->draft_max, left, room, drafting->draft_max, record[spec::Source::proposer]);
                 if (k) drafting->proposer->draft(nullptr, history, k, drafts);

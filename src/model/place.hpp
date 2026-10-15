@@ -214,6 +214,8 @@ struct PlacementRequest {
     bool fit_checkpoints = false;
     // With fit_kv, the options' mark slots past the first are the most the fit gives, only in the room the KV budget and the checkpoint slots leave (fitted_kv).
     bool fit_marks = false;
+    // With fit_kv, the rows a mark is cut to where the options' `mark_rows` do not fit beside the budget and its checkpoints or would leave fewer mark slots, so the rows beyond cost no checkpoint, no mark and no placement; 0 cuts none.
+    size_t least_mark_rows = 0;
     // The file's embedded drafter planned and loaded beside the model (Architecture::plan_drafter, docs/SPECULATIVE.md, section 7).
     bool drafter = false;
     // Devices each layer is split across (docs/TENSOR-SPLIT.md): consecutive backends form groups of this many, and the groups are the stages of the layer split; 1 is the layer split alone.
@@ -465,6 +467,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     if (tokens && (drafter || most_marks)) {
         fitting = &held;
         options.mark_slots = marks ? 1 : most_marks;
+        if (request.least_mark_rows && request.least_mark_rows < options.mark_rows && !fits(tokens)) options.mark_rows = request.least_mark_rows;
         if (!fits(tokens) && choose) {
             size_t lo = 0, hi = kept;
             while (lo < hi) {
@@ -480,13 +483,25 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     }
     // Then the marks past the first, by bisection, the most at which the budget and the checkpoint slots still fit.
     if (marks && tokens) {
-        size_t lo = 1, hi = most_marks;
-        while (lo < hi) {
-            options.mark_slots = lo + (hi - lo) / 2 + (hi - lo) % 2;
-            if (fits(tokens)) lo = options.mark_slots;
-            else hi = options.mark_slots - 1;
+        const auto most_slots = [&] {
+            size_t lo = 1, hi = most_marks;
+            while (lo < hi) {
+                options.mark_slots = lo + (hi - lo) / 2 + (hi - lo) % 2;
+                if (fits(tokens)) lo = options.mark_slots;
+                else hi = options.mark_slots - 1;
+            }
+            return lo;
+        };
+        size_t slots = most_slots();
+        // Rows beyond the least are kept only where they cost no mark slot either, so as many requests draft a pass as with the least.
+        if (request.least_mark_rows && request.least_mark_rows < options.mark_rows) {
+            const size_t asked_rows = options.mark_rows;
+            options.mark_rows = request.least_mark_rows;
+            const size_t with_least = most_slots();
+            if (with_least == slots) options.mark_rows = asked_rows;
+            slots = with_least;
         }
-        options.mark_slots = lo;
+        options.mark_slots = slots;
     }
     if (given_up) *given_up = bare - tokens;
     if (read) *read = budgets;

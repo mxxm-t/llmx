@@ -486,11 +486,12 @@ std::string load_timing(const infer::LoadTimes& t) {
 }
 
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass.
-// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared) are described in docs/src/cli-main.md, open_model.
+// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, least_mark_rows) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
-                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0) {
+                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0,
+                                               size_t least_mark_rows = 0) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
@@ -534,6 +535,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         options.mark_slots = decode_rows ? server::draft_marks(decode_rows, columns) : 1;
         options.mark_rows = mark_rows;
         request.fit_marks = decode_rows > 0;
+        request.least_mark_rows = least_mark_rows;
     }
     format::LoadProgress shown;
     if (progress) {
@@ -605,7 +607,11 @@ struct Drafts {
     size_t draft_max = 3;
     std::unique_ptr<infer::LoadedModel> beside;   // a draft model the file was, loaded as a model of its own
     // The rows of a verify a mark must save, none without a proposer.
-    size_t mark_rows() const { return proposer || embedded || !file.empty() ? draft_max + 1 : 0; }
+    // A drafter that runs a model stands behind the history's own draft, which may be longer than its own (infer::spec::kOwnDrafts).
+    size_t mark_rows() const {
+        if (lookup_first) return std::max(draft_max, infer::spec::kOwnDrafts) + 1;
+        return proposer || embedded || !file.empty() ? draft_max + 1 : 0;
+    }
     // The proposer over what the model was loaded with: its embedded drafter or the MTP blocks the drafter file held, or the draft model the file was, opened on the same devices once the model has taken its room.
     // A `server` takes no draft model, which drafts on its own history.
     void attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server = false);
@@ -1190,7 +1196,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
     const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() > 0);
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart);
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart, drafts.draft_max + 1);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);
@@ -1219,6 +1225,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens" << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
+              << (model.keeps_state() && model.mark_slots() ? ", " + std::to_string(model.mark_slots()) + " draft marks of " + std::to_string(model.mark_rows()) + " rows" : std::string())
               << (drafts.sources.empty() ? std::string() : ", drafting " + join_sources(drafts.sources))
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";

@@ -947,6 +947,9 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
             if (when != When::at_once) read_again();
             // A regenerated reply resends the prompt alone: it forks the request's own donor, which the job's donor stands beside, at the prompt's last whole block, and gives the reply again.
             if (when == When::idle && !interrupt) {
+                const auto work = sched.stats();
+                require(work.reprefill_rows > 0 && work.prefilled_tokens == first.prompt.size() - h->reused() && work.published_tokens == reply.size(),
+                        what + ": background read-again rows counted as client work");
                 const auto g = sched.submit(first.prompt, params_of(first));
                 same(reply, drain(*g), what + ", the regenerated reply");
                 require(g->reused() == 2 * kBlock, what + ": the regenerated reply reused " + std::to_string(g->reused()) + " tokens, against " + std::to_string(2 * kBlock));

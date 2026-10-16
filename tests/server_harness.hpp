@@ -301,8 +301,14 @@ inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, 
                          size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, server::Pacing pacing = {}) {
     server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {}, pacing);
     std::mutex submitting;
+    uint64_t prompt_rows = 0;
     // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
-    sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
+    sched.on_retire = [&](const server::Scheduler::Retired& t) {
+        std::lock_guard<std::mutex> lock(submitting);
+        for (size_t e = 0; e < t.requests.size(); ++e)
+            for (size_t row = 0; row < t.rows[e]; ++row)
+                prompt_rows += t.from[e] + row < t.requests[e]->prompt_tokens();
+    };
     std::thread runner([&] { sched.run(); });
     std::vector<Reply> replies;
     try {
@@ -313,7 +319,12 @@ inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, 
                 for (const Req& r : wave) handles.push_back(sched.submit(r.prompt, params_of(r)));
             }
             for (auto& h : handles) replies.push_back(drain(*h));
-            ledger(sched.stats(), model, "after a wave");
+            const auto current = sched.stats();
+            ledger(current, model, "after a wave");
+            uint64_t published = 0;
+            for (const Reply& reply : replies) published += reply.size();
+            require(current.published_tokens == published, "published work differs from the tokens the channels gave");
+            require(current.prefilled_tokens == prompt_rows, "prefilled work differs from the client prompt positions the passes read");
         }
         if (stats) *stats = sched.stats();
     } catch (...) {

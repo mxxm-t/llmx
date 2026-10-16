@@ -45,6 +45,11 @@ void against_alone(const Make& plain, const Make& drafting, const MakeProposer& 
     server::Scheduler::Stats stats;
     const std::vector<Reply> together = serve(*model, tok, max_seqs, {reqs}, &stats, passes, 0, p.get(), draft_max, priced);
     for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], together[i], what + ", request " + std::to_string(i) + " beside the others with drafts");
+    if (!pauses) {
+        uint64_t prompt = 0;
+        for (const Req& r : reqs) prompt += r.prompt.size();
+        require(stats.prefilled_tokens == prompt - stats.prefix_tokens, what + ": verify or drafter rows counted as prompt work");
+    }
     require(priced || (total(stats.drafted) > 0 && total(stats.kept) > 0),
             what + ": " + std::to_string(total(stats.drafted)) + " drafts fed and " + std::to_string(total(stats.kept)) + " kept");
     if (pauses) require(stats.pauses >= 1, what + ": nothing paused");

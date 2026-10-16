@@ -297,7 +297,11 @@ Ended hooked_run(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, cons
                 out.finish.push_back(r->finish());
                 out.error.push_back(r->error());
             }
-            ledger(sched.stats(), *model, name(run));
+            const auto work = sched.stats();
+            ledger(work, *model, name(run));
+            uint64_t published = 0;
+            for (const Reply& reply : out.replies) published += reply.size();
+            require(work.published_tokens == published, "cancelled or failed passes changed published output accounting");
         } catch (...) {
             sched.stop();
             runner.join();
@@ -403,11 +407,59 @@ void stopped(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t
     }
 }
 
+// Work advances while requests are running, cached rows are skipped, and a split counts each row and published token once.
+void live_work(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const Run run : {Run{1, 1}, Run{2, 2}}) {
+        auto model = run.stages == 1 ? one(32 * kBlock, kUbatch) : split(run.stages)(32 * kBlock, kUbatch);
+        server::Scheduler sched(*model, tok, kSeqs, 64, run.passes);
+        const auto empty = sched.stats();
+        require(empty.prefilled_tokens == 0 && empty.published_tokens == 0, "new scheduler has nonzero work");
+        bool prompt_running = false, output_running = false, monotonic = true;
+        uint64_t last_prompt = 0, last_output = 0;
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            const auto s = sched.stats();
+            monotonic = monotonic && s.prefilled_tokens >= last_prompt && s.published_tokens >= last_output;
+            last_prompt = s.prefilled_tokens;
+            last_output = s.published_tokens;
+            prompt_running = prompt_running || (s.finished == 0 && s.prefilled_tokens > 0);
+            output_running = output_running || (s.finished == 0 && s.published_tokens > 0);
+        };
+        const Req first{prompt_of(5, 513, vocab), 8};
+        std::vector<std::shared_ptr<server::Request>> handles;
+        uint64_t expected_prompt = 0, expected_output = 0;
+        std::thread runner([&] { sched.run(); });
+        try {
+            handles.push_back(sched.submit(first.prompt, params_of(first)));
+            expected_output += drain(*handles.back()).size();
+            // The repeated prompt can reuse the first request's donor while another prompt starts beside it.
+            handles.push_back(sched.submit(first.prompt, params_of(first)));
+            const Req other{prompt_of(7, 257, vocab), 8};
+            handles.push_back(sched.submit(other.prompt, params_of(other)));
+            expected_output += drain(*handles[1]).size();
+            expected_output += drain(*handles[2]).size();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        for (const auto& r : handles) expected_prompt += r->prompt_tokens() - r->reused();
+        const auto done = sched.stats();
+        require(monotonic, "work counters decreased");
+        require(prompt_running && output_running, "work did not advance before the first request finished");
+        require(done.prefilled_tokens == expected_prompt, "retired prompt work includes cached, generated or duplicate stage rows");
+        require(done.published_tokens == expected_output, "published work differs from the channels' tokens");
+        if (!model->keeps_state()) require(handles[1]->reused() > 0, "the work check did not exercise a cached prompt");
+    }
+}
+
 // Every case over `weights`, served one pass at a time on one CPU and with passes in flight on splits.
 void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
     const Make one = on(weights, [] { return cpus(1); });
     const auto split = [&weights](size_t stages) { return on(weights, [stages] { return cpus(stages); }); };
+    live_work(one, split, tok, vocab);
     // Passes in flight need a pipelined split, and one CPU runs one at a time.
     {
         auto model = one(kBlock, kUbatch);

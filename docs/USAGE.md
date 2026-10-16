@@ -849,6 +849,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
  "precision": {"requested": "auto", "declared": "bf16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "native", "paths": "...", "effective": "f16"}]},
  "requests": {"now": {"active": 3, "queued": 0, "paused": 0, "kv_tokens": 9216}, "limits": {"active": 16, "queued": 64},
               "since_start": {"finished": 912, "prompt_tokens": 481203, "generated_tokens": 90112}},
+ "work": {"since_start": {"prefilled_tokens": 300000, "generated_tokens": 90200}},
  "reuse": {"since_start": {"forks": 311, "tokens": 205112},
            "device": {"now": {"entries": 4, "state_checkpoints": 0, "kv_tokens": 6144}},
            "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184, "allocated_bytes": 17179869184}, "since_start": {"promotions": 40, "yielded_bytes": 0, "bytes_moved": 4093640704}},
@@ -874,6 +875,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `requests.limits.active`, `.queued` | requests | fixed | `--max-seqs` and `--max-queue` | |
 | `requests.since_start.finished` | requests | since start | Clients' requests that were admitted and ended, by any cause, a read-again job not counted; a request is added just after its reply is complete, so a poll right after a reply may not show it yet | |
 | `requests.since_start.prompt_tokens`, `.generated_tokens` | tokens | since start | Prompt tokens and generated tokens of those requests | |
+| `work.since_start.prefilled_tokens` | tokens | since start | Client prompt rows in successfully retired passes, including recovery re-prefill; excludes cached rows, background jobs, generated-history replay and speculative verification or drafter rows | divide changes by actual elapsed sampling time for live aggregate prompt throughput |
+| `work.since_start.generated_tokens` | tokens | since start | Output tokens successfully published to request channels, including the first token and accepted speculative tokens, each once; excludes EOS and rejected drafts | divide changes by actual elapsed sampling time for live aggregate output throughput |
 | `requests.since_start.shifts`, `.shifted_tokens` | requests, tokens | since start | Under `--context-overflow shift`: the requests whose prompt was cut, and the tokens those cuts dropped | each shift is a kept window read again; many shifts for few requests means a context too small for the conversations |
 | `reuse.since_start.forks` | requests | since start | Requests that started from a shared history rather than from nothing | close to 0 for a client that sends conversations |
 | `reuse.since_start.tokens` | tokens | since start | Prompt tokens those requests did not have to read | |
@@ -923,6 +926,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `pacing.since_start.deferred_by_floor`, `.longest_piece_ms` | passes, milliseconds | since start | The batches of generated rows that were due and waited so that prompts kept moving, and the longest piece of a prompt's batch | |
 | `passes.since_start.apart`, `.between_pieces`, `.rode` | passes | since start | With pacing on: the passes of generated rows formed apart from a prompt's, those of them recorded between two pieces of a prompt's pass, and the prompt passes generated rows rode: under the automatic rule because that pass took no longer than the target gap, under a fixed share because it cost them no more than their share | all 0 with pacing on while prompts and replies overlap |
 | `timing` | milliseconds | since start | With `--timing` only: the means of the rounds' parts, `stage_idle_share` (a fraction of the span for each stage) and `device_bound_rows_per_s` | |
+
+Live work counters are available without `--timing` and advance while requests are still running. Their sampled rates include concurrency and idle time; they are not per-request or per-kernel PP/TG speeds. A long pass contributes prompt rows only at retirement, so a zero change does not establish that the engine was idle. Keep gaps for missing samples or fields, counter decreases and restarts. The completed-request counters under `requests.since_start` remain separate and include reused prompt tokens.
 
 The flat field names this reply had before (`prefix_hits`, `host_donors`, `disk_ready`, `drafted` and the rest) are gone, and `docs/SERVER.md` (The grouped `/v1/health`) maps each to its place.
 

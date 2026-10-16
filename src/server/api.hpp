@@ -248,6 +248,7 @@ private:
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
                   ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) + "}}" +
+                  ",\"work\":{\"since_start\":{\"prefilled_tokens\":" + n(s.prefilled_tokens) + ",\"generated_tokens\":" + n(s.published_tokens) + "}}" +
                   ",\"reuse\":{\"since_start\":{\"forks\":" + n(s.prefix_hits) + ",\"tokens\":" + n(s.prefix_tokens) +
                   "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + ",\"kv_tokens\":" + n(s.kv_donor_tokens) + "}}" +
                   ",\"host\":{\"now\":{\"entries\":" + n(s.host_donors) + ",\"bytes\":" + n(s.host_bytes) + ",\"limit_bytes\":" + n(s.host_limit) + ",\"allocated_bytes\":" + n(s.host_allocated) +

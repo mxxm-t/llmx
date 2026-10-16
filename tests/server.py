@@ -417,6 +417,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
         assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "shifts", "shifted_tokens"}, health["requests"]
+        assert health["work"] == {"since_start": {"prefilled_tokens": 0, "generated_tokens": 0}}, health
         assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "moves"}, health["reuse"]
         moves = health["reuse"]["moves"]["since_start"]
         assert {"parked", "forked", "consumed", "job_gave_way", "job_lost", "to_host", "read_done", "write_whole", "disk_removed"} <= set(moves) and all(isinstance(v, int) for v in moves.values()), moves
@@ -434,6 +435,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
 
         # Greedy through the server gives the CLI's text, and the replies are kept for the checks that follow.
         expected, replies = {}, {}
+        published = 0
         for prompt in prompts:
             want = cli_greedy_text(model, prompt, n, flags)
             status, reply = srv.post("/v1/generate", {"prompt": prompt, "max_tokens": n, "temperature": 0})
@@ -442,6 +444,10 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert reply["finish"] in ("eos", "length", "stop"), reply
             expected[prompt] = reply["ids"]
             replies[prompt] = reply
+            published += len(reply["ids"])
+            work = srv.get("/v1/health")["work"]["since_start"]
+            assert set(work) == {"prefilled_tokens", "generated_tokens"} and work["generated_tokens"] == published, work
+            assert isinstance(work["prefilled_tokens"], int) and work["prefilled_tokens"] > 0, work
 
         # The same requests four at a time give the same ids each.
         results = {}

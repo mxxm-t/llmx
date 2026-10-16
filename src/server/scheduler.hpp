@@ -435,6 +435,7 @@ public:
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
         size_t yields = 0, kv_tokens = 0, kv_donor_tokens = 0;   // pauses that gave the pool's edge to a paused request (Growth::yields), and the pool's reserved blocks as tokens, each the largest over the pools: the running requests' part, and the donors'
         uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
+        uint64_t prefilled_tokens = 0, published_tokens = 0;   // client prompt rows retired and output tokens published, including requests still running
         uint64_t host_limit = 0, disk_limit = 0;  // the host tier's and the disk tier's byte caps, 0 for a tier that is off
         uint64_t rode = 0;                        // and the passes in which generated rows rode a prompt's rows though passes go apart
         uint64_t apart = 0, between = 0;          // since start, the passes of generated rows formed apart, and those of them a stage recorded between a prompt pass's pieces
@@ -516,6 +517,8 @@ public:
         }
         s.prompt_tokens = prompt_total_.load();
         s.generated_tokens = generated_total_.load();
+        s.prefilled_tokens = prefilled_total_.load();
+        s.published_tokens = published_total_.load();
         s.draft_failures = draft_failures_.load();
         s.yields = yields_.load();
         s.host_limit = host_cap_;
@@ -1188,6 +1191,12 @@ private:
             return;
         }
         model_.end_pass(ctx_, k);
+        uint64_t prefilled = 0;
+        for (size_t e = f.decoders; e < f.members.size(); ++e) {
+            const Request& r = *f.members[e];
+            if (!r.job_) prefilled += std::min(f.rows[e], r.prompt_.size() - std::min(f.from[e], r.prompt_.size()));
+        }
+        if (prefilled) prefilled_total_ += prefilled;
         settle_verifies(k);
         // A pass's cost is the time the server gave it since the last pass of its own kind retired, less the chains drafted meanwhile, which the price counts apart; passes apart retire past the others.
         Retirement& last = retirement_[f.apart];
@@ -2287,6 +2296,7 @@ private:
             // A row a token goes with comes back, once the reader has finished with another, for a later pass to fill.
             const bool row = !t.row.empty();
             r.push(std::move(t), row ? &r.logits_ : nullptr);
+            ++published_total_;
         }
         if (!proposer_) return;
         if (r.verify_.empty()) r.record_.stepped();
@@ -2686,6 +2696,7 @@ private:
     size_t reprefills_ = 0, reprefill_rows_ = 0, reprefill_cancels_ = 0, reprefill_handed_ = 0;   // under the lock
     std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0}, checkpoints_{0};
     std::atomic<uint64_t> finished_{0}, prompt_total_{0}, generated_total_{0};   // what Stats gives as the totals since start
+    std::atomic<uint64_t> prefilled_total_{0}, published_total_{0};
     std::atomic<uint64_t> rode_{0};   // Stats::rode
     RideRun ride_run_;    // the prompt passes the generated rows have ridden in a row
     std::atomic<uint64_t> apart_formed_{0}, between_{0};                         // Stats::apart and Stats::between, the second counted by the stages' threads

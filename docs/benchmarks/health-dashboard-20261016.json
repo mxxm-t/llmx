@@ -1879,13 +1879,11 @@
       ]
     },
     "pending": [
-      "Live-counter exact-head hosted validation; CPU, Linux MI50 server/identity and all32 matched scheduler-cost blocks completed. Topology has its own remaining gates.",
-      "Hosted tools branch validation",
-      "Coordinated API and dashboard deployment, then actual live verification"
+      "Native health topology is not on main and is tracked separately; the deployed dashboard reports topology unavailable."
     ]
   },
   "integration": {
-    "scope": "Prepared dependent dashboard landing; API is a separate preceding commit. No deployment or main update.",
+    "scope": "API and dependent dashboard integration completed; exact-head hosted CI, fast-forward landing to both main refs and the separately recorded production deployment are verified below.",
     "api_commit": "982362408c997b9ee52c5efacfecc83101dd7c0d",
     "native_evidence_checkpoint": "67c6913ea1342663f6c79018681aad507f3add18",
     "dashboard_checkpoint": "e1ddaf5671c901334636ba3d902261d4c7aeaae5",
@@ -1924,9 +1922,194 @@
       "dead_code": "PASS: 5 listed findings (unused 1, test-only 4), 18 planted faults, 12.6 s",
       "command": "python tests/run_tests.py --exe ../.tmp-live-throughput-20261016/build-live/Release/llmx.exe --only docs,dead-code"
     },
-    "pending": [
-      "Exact-head hosted validation for API 982362408c997b9ee52c5efacfecc83101dd7c0d and final dependent dashboard commit",
-      "Coordinated API/dashboard deployment and actual live production verification"
-    ]
+    "pending": []
+  },
+  "production_live_deployment": {
+    "scope": "User-authorized API and dashboard deployment, separate from main landing; no native topology included.",
+    "native_gate_evidence": "docs/benchmarks/live-throughput-20261016.json",
+    "head": "250d3bcc083da3c2e290a47a26d95eca64d79195",
+    "binary": {
+      "version": "llmx 0.1.0+g250d3bcc083d numerics f1c2064b7f390e71",
+      "sha256": "23bfde62695334396ec0172f1e99dab11bd6bc78755356914d0901e1bf9ed377"
+    },
+    "runtime_switch": {
+      "ok": true,
+      "new_id": "51e0093de4dfaa2013805edcc58bd1e9f195d114e5cd1496faa82e7fb872166f",
+      "old_id": "04e800326c5c7d90866e4d9d26a9323a2a4aa7ab99855060e66fda1d4aa8f23b",
+      "binary": {
+        "version": "llmx 0.1.0+g250d3bcc083d numerics f1c2064b7f390e71",
+        "sha256": "23bfde62695334396ec0172f1e99dab11bd6bc78755356914d0901e1bf9ed377"
+      }
+    },
+    "dashboard": {
+      "head": "250d3bcc083da3c2e290a47a26d95eca64d79195",
+      "utc": "2026-10-16T22:10:02Z",
+      "container_id": "6bb528e7c8b9f09a1291e75c10ad9ce6b0ee308b65bb775496b968259cd0b197",
+      "container_restarted": false,
+      "collector_id_preserved": true,
+      "configuration_preserved": true,
+      "interval_s": 2.0,
+      "retention_s": 3600.0,
+      "served_html_sha256": "8e220a61646c8592b3bf1a41a78b8e31174754e9e860f1307223af4c9f44b5c2",
+      "files": {
+        "index.html": "8e220a61646c8592b3bf1a41a78b8e31174754e9e860f1307223af4c9f44b5c2",
+        "server.py": "e0cd71c328e0ea3f9910bd619e7a91766b929c639be58e978ba093be440de8d7",
+        "README.md": "36b80222d50f18cc465ce886d85d2d058181f5b3d11d5e1355192e2a1201e421",
+        "test_server.py": "5e184bd8eada5a41b7fdb61fa2791c8cd5fa1f0a689090a00fe4fd2c926e3995"
+      },
+      "previous_files": {
+        "index.html": "77979525ebe96f5f875ae03e5f441f7662a9d56e0c51c6d609c0939be514771c",
+        "server.py": "e0cd71c328e0ea3f9910bd619e7a91766b929c639be58e978ba093be440de8d7",
+        "README.md": "f6f6264070183ddec24e8663414a95cddc5a6226d15b74cf0a2e93bfc8c7914f",
+        "test_server.py": "5e184bd8eada5a41b7fdb61fa2791c8cd5fa1f0a689090a00fe4fd2c926e3995"
+      },
+      "upstream_version": "0.1.0+ga14e71c92457",
+      "mode": "completed-work fallback; native API not updated",
+      "last_success": 1792188602.494577
+    },
+    "initial_health": {
+      "before_version": "0.1.0+ga14e71c92457",
+      "after_version": "0.1.0+g250d3bcc083d",
+      "work": {
+        "since_start": {
+          "prefilled_tokens": 0,
+          "generated_tokens": 0
+        }
+      },
+      "disk_ready": false
+    },
+    "cache": {
+      "adoption_flag": [
+        "--disk-cache-adopt",
+        "proved"
+      ],
+      "ready_at_browser_check": true,
+      "entries": 599,
+      "unproved": 599,
+      "proved": 0,
+      "disproved": 0,
+      "meaning": "Existing files retained; cross-build reuse still requires proof per returning conversation. Unproved is not a successful reuse witness."
+    },
+    "browser": {
+      "checks": [
+        "fresh production API and healthy collector",
+        "both rate panels use native live counters",
+        "both live labels visible",
+        "actual wallclock and retirement limitation visible",
+        "native lifetime fields selected",
+        "restart recorded and rate gap preserved",
+        "desktop no overflow",
+        "shared inspection live values",
+        "keyboard moves synchronized live inspection",
+        "mobile no overflow"
+      ],
+      "errors": [],
+      "readouts": [
+        {
+          "id": "prompt-mode",
+          "text": "PP / LIVE AGGREGATE THROUGHPUT"
+        },
+        {
+          "id": "prompt-value",
+          "text": "254.5"
+        },
+        {
+          "id": "prompt-total",
+          "text": "10,511"
+        },
+        {
+          "id": "throughput-mode",
+          "text": "TG / LIVE AGGREGATE THROUGHPUT"
+        },
+        {
+          "id": "throughput-value",
+          "text": "13.9"
+        },
+        {
+          "id": "throughput-total",
+          "text": "1,129"
+        }
+      ],
+      "work": {
+        "since_start": {
+          "prefilled_tokens": 10511,
+          "generated_tokens": 1129
+        }
+      },
+      "completed_requests": 0,
+      "restart_samples": [
+        {
+          "t": 1792188998.3494954,
+          "seq": 4444
+        }
+      ],
+      "measurement_kind": "One sample of ongoing user workload, not a benchmark; no inference sent by verifier.",
+      "refresh": "Reload; Ctrl+F5 if an old tab keeps earlier JavaScript."
+    },
+    "artifacts": {
+      "root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-live-tps-dashboard-20261017\\build-integration",
+      "sha256": {
+        "binary.json": "4d62fb3b9bc2a4a4b00ced2ffdefe013331dbf07d5771fb89af84bf02f500214",
+        "switch-result.json": "af8a7d815850c839c5c4696c9d74b376a91b86b89908ff358328c9fa0843d2eb",
+        "health-before.json": "5b0afc8b2c42b09e681e5b13637aee96262b5f53726e6adfb69ce462455708b7",
+        "health-after.json": "cf889a79fe07552892964121598f457774f2a7be8b86ac8a83e2fb72ef7295a8",
+        "deploy-250d3bcc/deployment.json": "303a4af8b5a0327fcec106dc31caad9dde9803dc41d398d520340fbcb0c95dda",
+        "live-browser/verification.json": "1a05190887db0b6e3b486d859c616c9ce9dd57a36b7115c2a276fc02f3957728",
+        "live-browser/desktop-rates.png": "8f714702e32f75a1ef488507e8a6eeda1dfee9a7c22c3292fd78dd78b357d151",
+        "live-browser/mobile-rates.png": "4fdf073f3f65b8e50725c95058a17bc528451f71c63547e7ae90f1f6c36de1c6",
+        "rollout.py": "f10a755fc708150178ab036ddc7cf1db52af63c559851fdbe203e26787eecb6a",
+        "hosted-run38973950982.json": "fee602ba06a04dbb1de8f784cd852f7d94a3d76414055b8c2e319256c47f554c",
+        "hosted-jobs38973950982.json": "d3e46cab85b808f33f4e901adc201af8c69f7114bd4535698e61c6e4cce457c6",
+        "deploy-250d3bcc/manifest.json": "88315261abcf6595c2c75c4f6489a2b8110fc09f134ebc153892b72ca885a40e"
+      }
+    },
+    "markdown_review": {
+      "tracked": 109,
+      "carried_from": "250d3bcc exact content (CRLF/LF normalized only)",
+      "carried_unchanged": 108,
+      "reviewed_changed": {
+        "docs/STATUS.md": "ba20599ac1875ffeba3dd51a2f0046413790c51642ed3f8144a2d7aca2a62299"
+      },
+      "review": "All 109 tracked Markdown pages audited against the exact landing tree: 108 unchanged pages carried forward and docs/STATUS.md reread for completion, cache-adoption limits and the separate topology feature not on main. Deployment and exact-head CI evidence checked.",
+      "manifest_sha256": "db0bbb40beea28acb57b53548756555cb1ce229e6d91540e07c2ca4baf76fdb4"
+    },
+    "pending": [],
+    "main_landing": {
+      "commit": "250d3bcc083da3c2e290a47a26d95eca64d79195",
+      "method": "fast-forward",
+      "gitea_main": "250d3bcc083da3c2e290a47a26d95eca64d79195",
+      "github_main": "250d3bcc083da3c2e290a47a26d95eca64d79195",
+      "hosted_ci": {
+        "run_id": 38973950982,
+        "run_number": 1097,
+        "url": "https://github.com/mxxm-t/llmx/actions/runs/38973950982",
+        "head_sha": "250d3bcc083da3c2e290a47a26d95eca64d79195",
+        "conclusion": "success",
+        "jobs_succeeded": 7,
+        "jobs_total": 7,
+        "job_names": [
+          "CPU (Linux TSan)",
+          "CPU (Linux UBSan)",
+          "HF reference (CPU)",
+          "CPU (windows-2022)",
+          "CPU (macos-15-intel)",
+          "Vulkan backend (build, Linux)",
+          "CPU (ubuntu-24.04)"
+        ]
+      },
+      "gate_branch": "gate/live-tps-dashboard",
+      "gate_branch_deleted": true
+    },
+    "documentation_checks": {
+      "docs": "PASS, 0 findings, 21 planted faults, 8.0 s on the current tree",
+      "dead_code": "PASS, 5 listed findings, 18 planted faults, 8.8 s on the current tree",
+      "command": "python tests/run_tests.py --exe ../.tmp-live-throughput-20261016/build-live/Release/llmx.exe --only docs,dead-code"
+    },
+    "monitoring_correction": {
+      "evidence": "live-throughput-20261016.json matched_scheduler_cost.process_attribution_correction",
+      "summary": "Original CID-substring role matcher failed under private cgroup namespace: own llmx cgroup is 0::/ and is labeled unrelated in every block. Monitor self-PID attribution worked. Role-derived unrelated CPU range is withdrawn, not a valid background CPU estimate.",
+      "all_32_blocks_results_flags_preserved": true,
+      "assigned_core_residual_and_disk_flags_independent_of_roles": true
+    }
   }
 }

@@ -1695,17 +1695,14 @@
       "New/disappeared/inaccessible processes limit process CPU accounting; raw coverage markers retained.",
       "The observer and HTTP load client share one Python process; raw monitor-role CPU includes both, and their individual overhead is not isolated.",
       "Matched net runtime result; individual atomic cost and C++ layout sensitivity are not isolated.",
-      "HTTP end-to-end workload throughput and latency; not kernel or per-request engine PP/TG."
+      "HTTP end-to-end workload throughput and latency; not kernel or per-request engine PP/TG.",
+      "Original CID-substring role matcher failed under private cgroup namespace: own llmx cgroup is 0::/ and is labeled unrelated in every block. Monitor self-PID attribution worked. Role-derived unrelated CPU range is withdrawn, not a valid background CPU estimate. No corrected total unrelated CPU figure is claimed: process deltas have new/disappeared/inaccessible and short-lived coverage limits, and own cgroup includes monitor/client. Namespace-root rows demonstrate contamination without requiring guessed PID roles."
     ],
     "activity": {
       "samples": 320,
       "predeclared_cpu_flags": 0,
       "predeclared_disk_flag_blocks": 0,
       "unattributed_assigned_busy_fraction_max": 0.05759611227460183,
-      "observed_unrelated_cpu_core_range": [
-        0.21452536806549746,
-        1.668984371389659
-      ],
       "process_read_or_disappearance_markers": 941
     },
     "all_blocks_csv": "docs/benchmarks/live-throughput-overhead-20261016.csv",
@@ -1819,6 +1816,46 @@
       "build-live/overhead/31-candidate-cached-c4/server.log": "f5f8b72d219639e69bed0b759fa4f9bf21ab6c109f21e140833a3088c0ab0278"
     },
     "remote_artifacts": "/zpool1/llmx-live-throughput-healthui-20261017/overhead",
-    "conclusion": "No demonstrated net throughput regression in this fixed experiment. Gains/losses and wide concurrent fresh-prefix interval retained; no zero-overhead or isolated-atomic-cost claim."
+    "conclusion": "No demonstrated net throughput regression in this fixed experiment. Gains/losses and wide concurrent fresh-prefix interval retained; no zero-overhead or isolated-atomic-cost claim.",
+    "process_attribution_correction": {
+      "finding": "Original CID-substring role matcher failed under private cgroup namespace: own llmx cgroup is 0::/ and is labeled unrelated in every block. Monitor self-PID attribution worked. Role-derived unrelated CPU range is withdrawn, not a valid background CPU estimate.",
+      "withdrawn_unrelated_cpu_core_range": [
+        0.21452536806549746,
+        1.668984371389659
+      ],
+      "own_cgroup_mislabeled_records": 287,
+      "own_cgroup_mislabeled_ticks": 2552,
+      "own_cgroup_mislabeled_core_range": [
+        0.07075160630868862,
+        0.10116531717674931
+      ],
+      "blocks_affected": 32,
+      "benchmark_role_ticks_all_blocks": 0,
+      "example": {
+        "block": 0,
+        "at": "2026-10-16T21:49:21.229016+00:00",
+        "pid": 3286284,
+        "start_ticks": 45134555,
+        "name": "llmx",
+        "state": "S",
+        "ppid": 3286276,
+        "ticks": 177,
+        "delta_ticks": 8,
+        "threads": 11,
+        "role": "unrelated",
+        "cgroup": "0::/"
+      },
+      "independent_flags": "Assigned-core CPU residual uses /host-proc/stat cpu4/cpu5 minus own /sys/fs/cgroup/cpu.stat usage_usec; it does not use role matching. Existing maximum 5.7596 percent and zero flags remain a coarse residual, not complete unrelated CPU accounting. Whole-device disk flags also do not use process roles.",
+      "limits": "No corrected total unrelated CPU figure is claimed: process deltas have new/disappeared/inaccessible and short-lived coverage limits, and own cgroup includes monitor/client. Namespace-root rows demonstrate contamination without requiring guessed PID roles.",
+      "preserved": "All 32 raw blocks, throughput/latency comparisons, counter witnesses and flags remain unchanged. No reruns or removed observations.",
+      "source_hashes": {
+        "overhead_monitor.py": "473192659a7acb99150c2545817d63a11d9da7b75b7983cf204ab581df460ddf",
+        "analyze-overhead.py": "ea185ceeb521842066bf3b97776bb64526b751812191752371fb5df4afb3389a",
+        "overhead-run.py": "9b436e440115915172a4835177d131791c80bd3608d7cc947bd2ebf21b40a45b",
+        "overhead/analysis.json": "63715fe6df246903db299a8339fdc4fdc1f7eba06566d850a50f1750b9e6d3b4"
+      },
+      "local_audit": "build-deployment/attribution-audit.json",
+      "local_audit_sha256": "2ccce1eb898fad69caa3c9ba5da6514600905af76831ad82058e651d56d65fa9"
+    }
   }
 }

@@ -1329,6 +1329,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -2653,6 +2654,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -3976,6 +3978,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -5300,6 +5303,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -6622,6 +6626,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -7944,6 +7949,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -9268,6 +9274,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": null,
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -10591,6 +10598,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "json",
       "reference_keeps": null,
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n"
@@ -11920,6 +11928,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
@@ -13253,6 +13262,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n"
@@ -14581,6 +14591,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
@@ -15906,6 +15917,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n"
@@ -17234,6 +17246,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>system\n<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n"
@@ -18556,6 +18569,7 @@
         }
       ],
       "split_turns": false,
+      "tool_format": "xml",
       "reference_keeps": "whole",
       "first": {
         "expected": "<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n"
@@ -19884,6 +19898,7 @@
         }
       ],
       "split_turns": true,
+      "tool_format": "xml",
       "reference_keeps": "split",
       "first": {
         "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n"
@@ -21209,6 +21224,7 @@
         }
       ],
       "split_turns": true,
+      "tool_format": "xml",
       "reference_keeps": "split",
       "first": {
         "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\na<|im_end|>\n<|im_start|>assistant\n<think>\n"

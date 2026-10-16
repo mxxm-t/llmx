@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <functional>
@@ -197,6 +198,205 @@ void check_reply_split(const std::string& what, bool opened, const std::string& 
     }
 }
 
+// A call as the test expects it: its function's name and its arguments.
+struct Call {
+    std::string name, arguments;
+    bool operator==(const Call& o) const { return name == o.name && arguments == o.arguments; }
+};
+
+std::string calls_text(const std::vector<Call>& calls) {
+    std::string out;
+    for (const Call& c : calls) out += "[" + c.name + " " + c.arguments + "]";
+    return out;
+}
+
+// A reply's content split into its text and its tool calls in `format`: the whole text at once and cut at every byte and every pair of bytes give the same content and calls, and each call's name comes with its first piece.
+void check_tool_split(const std::string& what, chat::ToolFormat format, const chat::ToolTypes& typed, const std::string& text, const std::string& content,
+                      const std::vector<Call>& calls, Tally& tally) {
+    auto split = [&](const std::vector<std::string>& pieces, std::string& got, std::vector<Call>& found) {
+        chat::ToolCallSplit splitter(format, typed);
+        std::vector<chat::ToolCallDelta> deltas;
+        for (const std::string& piece : pieces) {
+            const chat::ToolCallSplit::Parts p = splitter.feed(piece);
+            got += p.content;
+            deltas.insert(deltas.end(), p.calls.begin(), p.calls.end());
+        }
+        const chat::ToolCallSplit::Parts p = splitter.finish();
+        got += p.content;
+        deltas.insert(deltas.end(), p.calls.begin(), p.calls.end());
+        bool named = splitter.calls() == calls.size() && !splitter.open();
+        for (const chat::ToolCallDelta& d : deltas) {
+            if (d.index == found.size()) {
+                named = named && !d.name.empty();
+                found.push_back({ d.name, std::string() });
+            } else {
+                named = named && d.index + 1 == found.size() && d.name.empty();
+            }
+            if (d.index < found.size()) found[d.index].arguments += d.arguments;
+        }
+        return named;
+    };
+    std::vector<std::vector<std::string>> cuts = { { text } };
+    for (size_t i = 0; i <= text.size(); ++i) {
+        cuts.push_back({ text.substr(0, i), text.substr(i) });
+        for (size_t j = i; j <= text.size(); j += 3) cuts.push_back({ text.substr(0, i), text.substr(i, j - i), text.substr(j) });
+    }
+    std::vector<std::string> bytes;
+    for (char c : text) bytes.push_back(std::string(1, c));
+    cuts.push_back(bytes);
+    for (const auto& pieces : cuts) {
+        ++tally.cases;
+        std::string got;
+        std::vector<Call> found;
+        const bool named = split(pieces, got, found);
+        if (got != content || !(found == calls) || !named)
+            return tally.fail(what + ": split into content \"" + got + "\" and calls " + calls_text(found) + " from " + std::to_string(pieces.size()) +
+                              " pieces, where the content is \"" + content + "\" and the calls " + calls_text(calls) + (named ? "" : ", or a call's name came late"));
+    }
+}
+
+void check_tool_splits(Tally& tally) {
+    using chat::ToolFormat;
+    const chat::ToolTypes typed = { { "get_weather", { "days" } } };
+    const std::string paris = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>";
+    check_tool_split("a JSON call alone", ToolFormat::json, typed, paris, "", { { "get_weather", "{\"city\": \"Paris\"}" } }, tally);
+    check_tool_split("text and two JSON calls", ToolFormat::json, typed, "Let me check.\n" + paris + "\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call>",
+                     "Let me check.", { { "get_weather", "{\"city\": \"Paris\"}" }, { "noop", "{}" } }, tally);
+    check_tool_split("text after a JSON call", ToolFormat::json, typed, paris + "\n\nDone.", "Done.", { { "get_weather", "{\"city\": \"Paris\"}" } }, tally);
+    check_tool_split("nested arguments", ToolFormat::json, typed, "<tool_call>{\"name\":\"f\",\"arguments\":{\"a\": {\"b\": [1, {\"c\": \"}\"}]}}}</tool_call>", "",
+                     { { "f", "{\"a\": {\"b\": [1, {\"c\": \"}\"}]}}" } }, tally);
+    check_tool_split("an escaped name", ToolFormat::json, typed, "<tool_call>\n{\"name\": \"a\\\"b\", \"arguments\": {}}\n</tool_call>", "", { { "a\"b", "{}" } }, tally);
+    check_tool_split("an opening that is no call", ToolFormat::json, typed, "Look: <tool_call>\nnot json\n</tool_call> end", "Look: <tool_call>\nnot json\n</tool_call> end", {}, tally);
+    check_tool_split("arguments first", ToolFormat::json, typed, "<tool_call>{\"arguments\": {}, \"name\": \"f\"}</tool_call>", "<tool_call>{\"arguments\": {}, \"name\": \"f\"}</tool_call>", {}, tally);
+    check_tool_split("a call with arguments that are not JSON", ToolFormat::json, typed, "<tool_call>\n{\"name\": \"f\", \"arguments\": {\"a\": }\n</tool_call>", "", { { "f", "{\"a\":" } }, tally);
+    check_tool_split("a JSON call cut short", ToolFormat::json, typed, "<tool_call>\n{\"name\": \"f\", \"arguments\": {\"a\": 1", "", { { "f", "{\"a\": 1" } }, tally);
+    check_tool_split("an opening cut short", ToolFormat::json, typed, "x <tool_call>\n{\"na", "x <tool_call>\n{\"na", {}, tally);
+    check_tool_split("text that only looks like an opening", ToolFormat::json, typed, "a < b <tool_c\n", "a < b <tool_c\n", {}, tally);
+    check_tool_split("a reply without calls", ToolFormat::json, typed, "Plain reply.\n\n", "Plain reply.\n\n", {}, tally);
+
+    const std::string fn = "<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call>";
+    check_tool_split("a function call", ToolFormat::xml, typed, fn, "", { { "get_weather", "{\"city\": \"Paris\", \"days\": 3}" } }, tally);
+    check_tool_split("text and two function calls", ToolFormat::xml, typed, "Checking.\n\n" + fn + "\n<tool_call>\n<function=noop>\n</function>\n</tool_call>", "Checking.",
+                     { { "get_weather", "{\"city\": \"Paris\", \"days\": 3}" }, { "noop", "{}" } }, tally);
+    check_tool_split("a value of several lines", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=text>\na \"b\"\n\nc\\d\n</parameter>\n</function>\n</tool_call>", "",
+                     { { "f", "{\"text\": \"a \\\"b\\\"\\u000a\\u000ac\\\\d\"}" } }, tally);
+    check_tool_split("a typed value that is not JSON", ToolFormat::xml, typed, "<tool_call>\n<function=get_weather>\n<parameter=days>\nthree\n</parameter>\n</function>\n</tool_call>", "",
+                     { { "get_weather", "{\"days\": \"three\"}" } }, tally);
+    check_tool_split("an untyped value that looks like JSON", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=n>\n3\n</parameter>\n</function>\n</tool_call>", "",
+                     { { "f", "{\"n\": \"3\"}" } }, tally);
+    check_tool_split("a function opening that is no call", ToolFormat::xml, typed, "<tool_call>\nhello\n</tool_call>", "<tool_call>\nhello\n</tool_call>", {}, tally);
+    check_tool_split("a function call cut inside a parameter", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=a>\n1\n</parameter>\n<parameter=b>\nx", "",
+                     { { "f", "{\"a\": \"1\"}" } }, tally);
+    check_tool_split("a function call without its closing tag", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=a>\n1\n</parameter>\n</tool_call>", "",
+                     { { "f", "{\"a\": \"1\"}" } }, tally);
+    check_tool_split("text inside a call", ToolFormat::xml, typed, "<tool_call>\n<function=f>\njunk\n<parameter=a>\n1\n</parameter>\n</function>\n</tool_call>", "",
+                     { { "f", "{\"a\": \"1\"}" } }, tally);
+}
+
+// A tokenizer of one token a byte and the Qwen templates' special tokens, <|im_end|> its end of text.
+bpe::Tokenizer qwen_byte_tokenizer() {
+    gguf::GGUFModel m;
+    gguf::MetaValue tokens, types, eos;
+    tokens.vtype = types.vtype = gguf::V_ARRAY;
+    tokens.u = gguf::V_STRING;
+    types.u = gguf::V_UINT32;
+    const auto bytes = bpe::build_byte_encoder();
+    const auto add = [&](const std::string& t, uint64_t type) {
+        gguf::MetaValue v, k;
+        v.vtype = gguf::V_STRING;
+        v.s = t;
+        k.vtype = gguf::V_UINT32;
+        k.u = type;
+        tokens.arr.push_back(v);
+        types.arr.push_back(k);
+    };
+    for (int b = 0; b < 256; ++b) add(bytes.at((uint8_t)b), 1);
+    add("<|im_start|>", 3);
+    add("<|im_end|>", 3);
+    eos.vtype = gguf::V_UINT32;
+    eos.u = 257;
+    m.kv.push_back({ "tokenizer.ggml.tokens", tokens });
+    m.kv.push_back({ "tokenizer.ggml.token_type", types });
+    m.kv.push_back({ "tokenizer.ggml.eos_token_id", eos });
+    return bpe::Tokenizer(m);
+}
+
+// Under a pinned template: chat_format reads the tool-call format Jinja's parse gives, a turn of calls read back as a reply and sent back renders the same bytes, and the next turn begins a tool result's ids.
+// The end tokens place each message's end where its render ends, trailing whitespace aside, wherever that render begins the prompt.
+void check_tool_template(const std::string& name, const chat::ChatFormat& format, const jmini::Value& t, const bpe::Tokenizer& tok, Tally& tally) {
+    static const char* const names[] = { "none", "json", "xml" };
+    ++tally.cases;
+    if (names[(int)format.tool_format] != field(t, "tool_format").str)
+        tally.fail(name + ": reads the tool-call format " + names[(int)format.tool_format] + " where the fixture records " + field(t, "tool_format").str);
+    const auto args = [](const std::string& text) {
+        jmini::Value v;
+        v.t = jmini::Value::T::String;
+        v.str = text;
+        return v;
+    };
+    const chat::ToolTypes typed = { { "get_weather", { "days" } } };
+    if (format.tool_format != chat::ToolFormat::none)
+        for (const std::string& content : { std::string(), std::string("Let me check.") }) {
+            ++tally.cases;
+            const std::vector<chat::Message> ask = { { "user", "Weather in Paris?", std::nullopt } };
+            chat::Message turn{ "assistant", content, std::nullopt };
+            turn.tool_calls = { { "call_1", "get_weather", args("{\"city\": \"Paris\", \"days\": 3}") }, { "call_2", "noop", args("{}") } };
+            const std::string where = name + " / a turn of calls" + (content.empty() ? "" : " after text");
+            try {
+                const std::string prompt = format.render(ask, true), whole = format.render({ ask[0], turn }, false);
+                const size_t end = whole.rfind("<|im_end|>");
+                if (whole.compare(0, prompt.size(), prompt) != 0 || end == std::string::npos || end < prompt.size()) {
+                    tally.fail(where + ": the turn's render does not begin with the prompt");
+                    continue;
+                }
+                bool open = true;
+                const chat::Message back = chat::reply_message(format, chat::opens_reasoning(prompt), format.tool_format, typed, whole.substr(prompt.size(), end - prompt.size()), &open);
+                const std::string again = format.render({ ask[0], back }, false);
+                if (open || back.tool_calls.size() != 2 || again != whole)
+                    tally.fail(where + ": read back as " + std::to_string(back.tool_calls.size()) + " calls and content \"" + back.content + "\", it renders\n" + again + "\nwhere the turn renders\n" + whole);
+                ++tally.cases;
+                std::vector<chat::Message> after = { ask[0], back, { "tool", "21", std::nullopt } };
+                const std::vector<uint32_t> next = chat::stable_prefix(format, tok, { ask[0], back }, false), full = tok.encode(format.render(after, true));
+                if (next.empty() || next.size() > full.size() || !std::equal(next.begin(), next.end(), full.begin()))
+                    tally.fail(where + ": the next turn's " + std::to_string(next.size()) + " ids do not begin a tool result's render");
+            } catch (const chat::TemplateError& e) {
+                tally.fail(where + ": fails with \"" + e.what() + "\"");
+            }
+        }
+    for (const bool system : { false, true }) {
+        std::vector<chat::Message> c = { { "user", "a", std::nullopt }, { "assistant", "b", std::nullopt }, { "user", "c", std::nullopt } };
+        if (system) c.insert(c.begin(), { "system", "s", std::nullopt });
+        const std::string where = name + " / the end tokens of a conversation " + (system ? "with" : "without") + " a system message";
+        ++tally.cases;
+        const std::string prompt = format.render(c, true);
+        const std::vector<uint32_t> ids = tok.encode(prompt);
+        std::vector<size_t> points, bytes;
+        size_t at = 0;
+        for (size_t i = 0; i < ids.size(); ++i) {
+            if (tok.is_eos(ids[i])) points.push_back(i + 1);
+            bytes.push_back(at += tok.decode({ ids[i] }).size());
+        }
+        const size_t own = chat::own_end_tokens(format, tok, c, {});
+        if (points.size() != c.size() + own) {
+            tally.fail(where + ": " + std::to_string(points.size()) + " end tokens for " + std::to_string(c.size()) + " messages and " + std::to_string(own) + " of the template's own");
+            continue;
+        }
+        size_t compared = 0;
+        for (size_t k = 1; k <= c.size(); ++k) {
+            std::string part;
+            try { part = format.render(std::vector<chat::Message>(c.begin(), c.begin() + (std::ptrdiff_t)k), false); }
+            catch (const chat::TemplateError&) { continue; }
+            if (prompt.compare(0, part.size(), part) != 0) continue;
+            ++compared;
+            size_t len = part.size();
+            while (len > 0 && (part[len - 1] == '\n' || part[len - 1] == ' ')) --len;
+            const size_t rows = (size_t)(std::upper_bound(bytes.begin(), bytes.end(), len) - bytes.begin());
+            if (rows != points[own + k - 1]) tally.fail(where + ": message " + std::to_string(k) + " ends at row " + std::to_string(points[own + k - 1]) + " by the end tokens and " + std::to_string(rows) + " by its render");
+        }
+        if (!compared) tally.fail(where + ": no render of the conversation up to a message begins its prompt");
+    }
+}
+
 std::string repeated(const std::string& s, size_t n) {
     std::string out;
     for (size_t k = 0; k < n; ++k) out += s;
@@ -354,6 +554,7 @@ int main(int argc, char** argv) {
     try {
         if (argc < 2) throw std::runtime_error("usage: llmx-chat-template-test FIXTURE.json...");
         Tally tally;
+        const bpe::Tokenizer qwen_bytes = qwen_byte_tokenizer();
         size_t templates = 0, features = 0, refused = 0, splits = 0, goldens = 0;
         std::map<std::string, std::string> sources;   // the templates read so far, by SHA-256
         for (int arg = 1; arg < argc; ++arg) {
@@ -394,6 +595,7 @@ int main(int argc, char** argv) {
                 if (!format.program) { tally.fail(name + ": refused: " + format.refusal); continue; }
                 check_cases(name, format, field(t, "cases"), tally);
                 check_server_cases(name, format, field(t, "server_cases"), tally);
+                check_tool_template(name, format, t, qwen_bytes, tally);
                 check_turns(name, format, fixture, t, tally);
             }
             if (const auto* list = fixture.get("features"))
@@ -428,6 +630,7 @@ int main(int argc, char** argv) {
             try { format.render({ { "user", "x", std::nullopt } }, false); } catch (const chat::TemplateError&) {}
         }
         check_stable_prefix(tally);
+        check_tool_splits(tally);
         {
             ++tally.cases;
             const chat::ChatFormat format = chat::chat_format(qwen3_repositories, "", "<|im_end|>");

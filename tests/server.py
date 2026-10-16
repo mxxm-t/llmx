@@ -603,12 +603,10 @@ def split_reply(text, opened=False):
     return {"role": "assistant", "reasoning_content": reasoning.strip("\n"), "content": rest.lstrip("\n") if closed else ""}
 
 
-def reasoning_tensors():
-    """The weights of that model: each token of the chain, from the line feed, is one dimension of the embedding, and the head maps that dimension to the token after it."""
-    cfg, vocab, eos = REASONING_CONFIG, f32.VOCAB, f32.VOCAB - 1
+def chain_tensors(chain, vocab, cfg):
+    """The weights of a model of one layer that adds nothing to the embedding, whose next token follows from its last alone: each token of `chain` is one dimension of the embedding, and the head maps that dimension to the token after it."""
     width, ff, hd = cfg["embedding_length"], cfg["feed_forward_length"], cfg["attention.key_length"]
     q, kv = cfg["attention.head_count"] * hd, cfg["attention.head_count_kv"] * hd
-    chain = [ord("\n")] + list(REASONING_REPLY) + [eos]
     assert len(set(chain)) == len(chain) and len(chain) - 1 <= width
     embedding, head = [0.0] * (width * vocab), [0.0] * (width * vocab)
     for dim, (token, following) in enumerate(zip(chain, chain[1:])):
@@ -624,6 +622,119 @@ def reasoning_tensors():
                                     ("blk.0.ffn_gate.weight", [width, ff]), ("blk.0.ffn_up.weight", [width, ff]),
                                     ("blk.0.ffn_down.weight", [ff, width]))]
     return [(name, None, shape, values) for name, shape, values in tensors]
+
+
+def reasoning_tensors():
+    """The weights of that model: its chain runs from the line feed through the reply's bytes to the end of text."""
+    return chain_tensors([ord("\n")] + list(REASONING_REPLY) + [f32.VOCAB - 1], f32.VOCAB, REASONING_CONFIG)
+
+
+# A weather tool as a client declares it, its days an integer.
+WEATHER_TOOLS = [{"type": "function", "function": {"name": "get_weather", "description": "The weather in a city.",
+                                                   "parameters": {"type": "object", "properties": {"city": {"type": "string"}, "days": {"type": "integer"}},
+                                                                  "required": ["city"]}}}]
+# Replies of calls to it in the two formats the pinned templates write, each cut into pieces that become tokens of their own, so a stream's chunks split tags and arguments.
+# The JSON reply opens with the empty reasoning the Qwen3 template writes back for a last turn; the function reply follows the <think> the Qwen 3.8 template opens.
+TOOL_REPLIES = {
+    "Qwen3 (official repositories)": ["<think>\n\n</think>\n\n<tool", "_call>\n{\"na", "me\": \"get_", "weather\", \"argu", "ments\": {\"ci", "ty\": \"Par",
+                                      "is\", \"days\": 3}", "}\n</tool_", "call>"],
+    "Qwen3.8": ["\n</think>\n\n<tool_ca", "ll>\n<function=get_w", "eather>\n<para", "meter=city>\nPa", "ris\n</parameter>\n<parameter=da",
+                "ys>\n3\n</param", "eter>\n</function>\n</tool", "_call>"],
+}
+WEATHER_ARGUMENTS = "{\"city\": \"Paris\", \"days\": 3}"
+
+
+def check_tool_calls(directory):
+    """Tool calls on the chat routes (docs/SERVER.md, Tool calls), on a model whose reply under a pinned template is a call to a weather tool in that template's format, cut into tokens that split its tags.
+    /v1/chat/completions gives the call in the compatible shape, whole and streamed, with finish_reason tool_calls and a null content; /v1/chat gives the text whole; tool_choice "none" is the request without tools.
+    The loop's second request, the call sent back as the reply gave it with the tool's result, reuses the first request's history past its reply, which the server read again as the client sends it back.
+    The tools of the chat fixture render through /v1/tokenize as the reference renders them under every pinned template, and what the server cannot honour is refused with its reason."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
+        fixture = json.load(f)
+    templates = {t["name"]: t for t in fixture["templates"]}
+    model = os.path.join(directory, "tools.gguf")
+    config = dict(REASONING_CONFIG, context_length=4096)
+    byte = build_byte_vocab()
+    ask = [{"role": "user", "content": "Weather in Paris?"}]
+    rendered = 0
+    for name, pieces in TOOL_REPLIES.items():
+        vocab = byte + ["".join(byte[b] for b in p.encode()) for p in pieces] + ["<|endoftext|>"]
+        eos = len(vocab) - 1
+        f32.write_model(model, chain_tensors([ord("\n")] + list(range(256, eos)) + [eos], len(vocab), config), templates[name]["template"], eos,
+                        config=config, tokens=vocab)
+        reply = "".join(pieces)
+        srv = Server(model)
+        try:
+            body = {"messages": ask, "tools": WEATHER_TOOLS, "temperature": 0, "max_tokens": 64}
+            status, got = srv.post("/v1/chat/completions", body)
+            choice = got["choices"][0]
+            [call] = choice["message"]["tool_calls"]
+            assert status == 200 and choice["finish_reason"] == "tool_calls" and choice["message"]["content"] is None, (name, got)
+            assert call["id"].startswith("call_") and call["type"] == "function" and call["function"] == {"name": "get_weather", "arguments": WEATHER_ARGUMENTS}, (name, call)
+            first = got["usage"]["prompt_tokens"]
+            events = srv.stream("/v1/chat/completions", dict(body, stream=True))
+            deltas = [e["choices"][0]["delta"] for e in events if e and e.get("choices")]
+            pieces_seen = [t for d in deltas for t in d.get("tool_calls", [])]
+            assert deltas[0]["role"] == "assistant" and pieces_seen[0]["id"].startswith("call_") and pieces_seen[0]["id"] != call["id"] and pieces_seen[0]["function"]["name"] == "get_weather", (name, deltas)
+            assert len(pieces_seen) > 2 and all(t["index"] == 0 for t in pieces_seen) and "".join(t["function"]["arguments"] for t in pieces_seen) == WEATHER_ARGUMENTS, (name, pieces_seen)
+            assert "".join(d.get("content", "") for d in deltas) == "" and events[-2]["choices"][0]["finish_reason"] == "tool_calls", (name, events[-2])
+            status, native = srv.post("/v1/chat", body)
+            assert status == 200 and native["text"] == reply and "tool_calls" not in native, (name, native)
+            # tool_choice "none" is the request without tools: the same prompt and the reply as text.
+            status, plain = srv.post("/v1/chat/completions", {"messages": ask, "temperature": 0, "max_tokens": 64})
+            status_none, none = srv.post("/v1/chat/completions", dict(body, tool_choice="none"))
+            assert status == status_none == 200 and none["usage"]["prompt_tokens"] == plain["usage"]["prompt_tokens"] < first, (name, none, plain)
+            assert none["choices"][0]["message"] == plain["choices"][0]["message"] and "tool_calls" not in none["choices"][0]["message"], (name, none)
+            assert none["choices"][0]["finish_reason"] == "stop", none
+            # The loop's second request reuses the first's history past its reply.
+            srv.wait(lambda h: h["reread"]["since_start"]["jobs"] >= 1, "the reply of calls was not read again", 60)
+            back = {"role": "assistant", "content": None, "tool_calls": [call]}
+            status, again = srv.post("/v1/chat/completions", dict(body, messages=ask + [back, {"role": "tool", "tool_call_id": call["id"], "content": "21"}]))
+            assert status == 200 and again["timings"]["cache_n"] > first, (name, first, again["timings"], again["usage"])
+            for refused, text in (({"tool_choice": "required"}, "tool_choice \"required\" is not supported"),
+                                  ({"tool_choice": {"type": "function", "function": {"name": "get_weather"}}}, "tool_choice naming a function is not supported"),
+                                  ({"tool_choice": "maybe"}, "tool_choice must be \"auto\" or \"none\""),
+                                  ({"parallel_tool_calls": False}, "parallel_tool_calls false is not supported yet"),
+                                  ({"parallel_tool_calls": "yes"}, "parallel_tool_calls must be true or false"),
+                                  ({"tools": {"type": "function"}}, "tools must be an array"),
+                                  ({"tools": [{"function": {"name": "f"}}]}, "tools[0] must be"),
+                                  ({"tools": [{"type": "function", "function": {"name": "f", "strict": True}}]}, "tools[0].function.strict is not supported")):
+                for path in ("/v1/chat/completions", "/v1/chat"):
+                    status, err = srv.post(path, dict(body, **refused))
+                    message = err["error"]["message"] if isinstance(err.get("error"), dict) else err.get("error", "")
+                    assert status == 400 and text in message, (path, refused, status, err)
+            status, err = srv.post("/v1/completions", {"prompt": "x", "tools": WEATHER_TOOLS})
+            assert status == 400 and "the completions route renders no chat template" in err["error"]["message"], err
+            # The fixture's conversations with tools, through /v1/tokenize, as the reference renders them under every pinned template.
+        finally:
+            srv.close()
+    for t in fixture["templates"]:
+        f32.write_model(model, reasoning_tensors(), t["template"], f32.VOCAB - 1, config=config)
+        srv = Server(model)
+        try:
+            for case in t["cases"]:
+                if not case.get("tools") or any("tool_calls" in m for m in case["messages"]) or not case["generate"]:
+                    continue
+                status, got = srv.post("/v1/tokenize", {"messages": case["messages"], "tools": case["tools"]})
+                if "expected" not in case:
+                    assert status == 400, (t["name"], case["name"], got)
+                    continue
+                status, text = srv.post("/v1/detokenize", {"tokens": got["tokens"]})
+                assert status == 200 and text["text"] == case["expected"], (t["name"], case["name"], text)
+                rendered += 1
+        finally:
+            srv.close()
+    # A template that writes no tool-call format refuses tools.
+    f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=config)
+    srv = Server(model)
+    try:
+        status, err = srv.post("/v1/chat/completions", {"messages": ask, "tools": WEATHER_TOOLS})
+        assert status == 400 and "writes no tool-call format the server reads" in err["error"]["message"], err
+        status, got = srv.post("/v1/chat/completions", {"messages": ask, "tools": WEATHER_TOOLS, "tool_choice": "none", "max_tokens": 4})
+        assert status == 200, got
+    finally:
+        srv.close()
+    return rendered
 
 
 def reasoning_render(messages):
@@ -741,6 +852,7 @@ def check_reasoning(model):
 
 
 # The fields the compatible routes cannot honour, each with a value that asks for something, and the fields they ignore because their default is harmless.
+# The chat route takes tool_choice "auto" (docs/SERVER.md, Tool calls), which the completions route, without tools, refuses.
 REFUSED_FIELDS = [("tools", [{"type": "function", "function": {"name": "f"}}]), ("tool_choice", "auto"), ("tool_choice", {"type": "function"}),
                   ("response_format", {"type": "json_object"}), ("logit_bias", {"5": 10}), ("best_of", 2), ("echo", True), ("suffix", "x"),
                   ("reasoning_effort", "low"), ("n", 2)]
@@ -787,6 +899,8 @@ def check_api_fields(model, directory):
         # Refused fields, named in the message, on both compatible routes; ignored ones change nothing.
         for path, body in (("/v1/completions", base), ("/v1/chat/completions", {"messages": [{"role": "user", "content": "a"}], "max_tokens": 2})):
             for name, value in REFUSED_FIELDS:
+                if path == "/v1/chat/completions" and (name, value) == ("tool_choice", "auto"):
+                    continue
                 status, err = srv.post(path, dict(body, **{name: value}))
                 assert status == 400 and name in err["error"]["message"], (path, name, value, status, err)
         answer = post_ok(srv, "/v1/completions", base)["choices"][0]["text"]
@@ -1034,6 +1148,32 @@ def check_context_overflow(model):
     finally:
         srv.close()
     return cuts
+
+
+def check_tool_calls_real(model):
+    """The Qwen3 fixture asked for the weather with a weather tool, greedy, calls it as the template's JSON format writes a call, which the compatible route gives as a call whole and streamed with finish_reason tool_calls; sent back with the tool's result, the call gets an answer."""
+    tools = [{"type": "function", "function": {"name": "get_weather", "description": "The current weather in a city.",
+              "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "The city"}}, "required": ["city"]}}}]
+    ask = [{"role": "user", "content": "What is the weather in Paris right now?"}]
+    body = {"messages": ask, "tools": tools, "temperature": 0, "max_tokens": 400}
+    srv = Server(model, "--ctx-size", "4096")
+    try:
+        status, got = srv.post("/v1/chat/completions", body)
+        choice = got["choices"][0]
+        [call] = choice["message"]["tool_calls"]
+        assert status == 200 and choice["finish_reason"] == "tool_calls" and call["function"]["name"] == "get_weather", got
+        assert json.loads(call["function"]["arguments"]) == {"city": "Paris"}, call
+        events = srv.stream("/v1/chat/completions", dict(body, stream=True))
+        pieces = [t for e in events if e and e.get("choices") for t in e["choices"][0]["delta"].get("tool_calls", [])]
+        assert "".join(t["function"]["arguments"] for t in pieces) == call["function"]["arguments"], pieces
+        back = {"role": "assistant", "content": choice["message"]["content"], "tool_calls": [call]}
+        result = {"role": "tool", "tool_call_id": call["id"], "content": "{\"temperature_c\": 21, \"sky\": \"clear\"}"}
+        status, again = srv.post("/v1/chat/completions", dict(body, messages=ask + [back, result]))
+        answer = again["choices"][0]
+        assert status == 200 and answer["finish_reason"] == "stop" and "21" in answer["message"]["content"] and "tool_calls" not in answer["message"], again
+        return call["function"]["arguments"], answer["message"]["content"]
+    finally:
+        srv.close()
 
 
 def check_context_overflow_real(model, excerpt):
@@ -2025,6 +2165,9 @@ def run():
         checked = check_tool_messages(os.path.join(directory, "tools.gguf"))
         print("server: conversations with tool calls as a client sends them, %d renders under the pinned templates, are the reference's as the server hands them on, "
               "a refusal where the reference raises, answered on the chat routes, malformed calls refused with 400, and a template variable written 1.0 a float  [ok]" % checked)
+        rendered = check_tool_calls(directory)
+        print("server: a reply of a tool call in the JSON and the function format given in the compatible shape whole and streamed with finish_reason tool_calls, as text on /v1/chat, "
+              "tool_choice none the request without tools, the loop's second request reusing the reply, the refusals, and %d renders with tools as the reference's  [ok]" % rendered)
         print("server: an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, "
               "and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; "
               "/v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]")
@@ -2077,6 +2220,9 @@ def run():
                          16, 4000, chat=True, texts=texts, prefix=excerpt)
         check_seeded(real)
         check_limits(real)
+        arguments, answer = check_tool_calls_real(real)
+        print("server: %s, asked for the weather with a weather tool, calls it with %s whole and streamed, finish_reason tool_calls, and answers its result: %r  [ok]"
+              % (os.path.basename(real), arguments, answer[:80]))
         cuts = check_context_overflow_real(real, excerpt)
         print("server: %s, a chat past a 2048-token pool with --context-overflow shift cut by %s messages at turn ends, the turn after a cut reusing it, and a text prompt in the chat format cut at a turn end  [ok]" % (os.path.basename(real), cuts))
         check_uncapped(real)

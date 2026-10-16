@@ -180,6 +180,10 @@ int main() {
             require(with(0) == 30 && with(1) == 100 && asked == 2 && with(0) == 30 && asked == 2, "the system message alone, refused, did not end at the end token before the next part's end, or was rendered twice");
             server::MessageEnds without(4, 200, {}, rows);
             require(without(0) == 100, "a refused part without an end token before the next part's end did not end with it");
+            // A refused part whose end token before the next part's end lies before a known earlier end ends at that earlier end, so the ends do not decrease.
+            const auto late = [&](size_t k) -> std::optional<size_t> { if (k == 2) return std::nullopt; return k == 1 ? 40 : k * 20; };
+            server::MessageEnds known(4, 200, {12, 30, 60}, late);
+            require(known(0) == 40 && known(1) == 40, "a refused part was placed before a known earlier end");
         }
         std::cout << "context-cut: " << checks << " checks passed\n";
         return 0;

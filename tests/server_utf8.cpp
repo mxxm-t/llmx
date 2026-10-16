@@ -59,7 +59,8 @@ int main() {
         const chat::ChatFormat keeps = chat::chat_format("{% for m in messages %}|{{ m.role }}:{% if m.reasoning_content is defined %}<{{ m.reasoning_content }}>{% endif %}{{ m.content }}{% endfor %}"
                                                          "{% if add_generation_prompt %}|assistant:<think>\n{% endif %}", "", "");
         const std::string reply = "why\n</think>\n\nanswer";
-        const chat::Message compatible = server::reply_sent_back(keeps, true, true, reply), native = server::reply_sent_back(keeps, false, true, reply);
+        const chat::Message compatible = server::reply_sent_back(keeps, true, true, reply, chat::ToolFormat::none, {}, nullptr),
+                            native = server::reply_sent_back(keeps, false, true, reply, chat::ToolFormat::none, {}, nullptr);
         if (compatible.content != "answer" || compatible.reasoning_content) throw std::runtime_error("a compatible chat reply read again with the reasoning its client does not send back");
         if (keeps.render({{"user", "q", std::nullopt}, compatible, {"user", "r", std::nullopt}}, false) != "|user:q|assistant:answer|user:r")
             throw std::runtime_error("a compatible chat reply read again as another prompt than its content sent back renders");

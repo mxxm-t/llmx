@@ -431,6 +431,16 @@ def splits_turns(parse, template):
     return reads and not splits
 
 
+def tool_format(parse, template):
+    """The tool-call format a template writes, read from Jinja's own parse rather than llmx's: "xml" where a text or string constant holds `<function=`, "json" where one holds `<tool_call>` otherwise, else "none"."""
+    from jinja2 import nodes
+    texts = [n.value for n in parse(template).find_all(nodes.Const) if isinstance(n.value, str)]
+    texts += [n.data for n in parse(template).find_all(nodes.TemplateData)]
+    if any("<function=" in t for t in texts):
+        return "xml"
+    return "json" if any("<tool_call>" in t for t in texts) else "none"
+
+
 def reference_keeps(render, template):
     """How transformers' renders say a conversation should keep an assistant turn, where they decide it: "whole" when the template treats a </think> in a turn itself, "split" when it shows reasoning passed apart in reasoning_content and leaves </think> alone, and None when they do not decide.
     The turn is the last message where a template shows only the latest reasoning, and before a user message where the template needs the last message to be the user's.
@@ -463,6 +473,7 @@ def real_template(render, parse, t):
         case.update(attempt(render, t["template"], server_form(messages), generate))
         t["server_cases"].append(case)
     t["split_turns"] = splits_turns(parse, t["template"])
+    t["tool_format"] = tool_format(parse, t["template"])
     t["reference_keeps"] = reference_keeps(render, t["template"])
     t["first"] = attempt(render, t["template"], TURN_BEFORE, True)
     turns = []

@@ -19,14 +19,6 @@ std::vector<uint32_t> ids_of(const Reply& r) {
     return ids;
 }
 
-void within_a_minute(const std::function<bool()>& done, const std::string& what) {
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-    while (!done()) {
-        require(std::chrono::steady_clock::now() < until, what + " within a minute");
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-}
-
 // One turn's line of the report: its logical rows by kind, which add up to the prompt, and what the server counted while it ran.
 struct Row {
     std::string leg;
@@ -105,66 +97,64 @@ struct Witness {
 
 constexpr size_t kPool = 2048, kUser = 88, kReply = 40, kOther = 300, kOtherReply = 30;
 
-void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std::string& on_what, const Witness& w) {
-    const size_t bt = kBlock;
-    auto model = make(kPool, 64);
-    const bool state = model->keeps_state();
-    server::Scheduler sched(*model, tok, 4, 64, 0, false, (size_t)1 << 30);
+// The test's view of a running scheduler: the handles it gave out, the arrivals it submits from the scheduler's thread at a job's pass or at another request's, and every loss reported with its history.
+struct Watch {
+    server::Scheduler& sched;
     std::mutex handles;
     std::vector<Handle> known;
     std::function<void()> at_job_pass, at_that_pass;
     const server::Request* at_pass_of = nullptr;
-    // A pass holding a request no handle of the test's names is a job's: the script's arrivals are submitted from here, on the scheduler's thread.
-    sched.on_retire = [&](const server::Scheduler::Retired& t) {
-        std::function<void()> act;
-        {
-            std::lock_guard<std::mutex> lk(handles);
-            for (const server::Request* r : t.requests)
-                if (at_job_pass && std::none_of(known.begin(), known.end(), [&](const Handle& h) { return h.get() == r; })) act = std::move(at_job_pass);
-            if (act) at_job_pass = nullptr;
-        }
-        if (act) {
-            act();
-            return;
-        }
-        {
-            std::lock_guard<std::mutex> lk(handles);
-            if (at_that_pass && std::find(t.requests.begin(), t.requests.end(), at_pass_of) != t.requests.end()) act = std::move(at_that_pass);
-            if (act) at_that_pass = nullptr;
-        }
-        if (act) act();
-    };
-    // Every loss the server reports, with the history it was of, kept for the classification.
     std::mutex losing;
     std::vector<Loss> losses;
-    sched.on_move = [&](const server::Scheduler::Moved& m) {
-        std::lock_guard<std::mutex> lk(losing);
-        losses.push_back(Loss{m.kind, m.first, m.tokens, std::vector<uint32_t>(m.history->begin(), m.history->begin() + (std::ptrdiff_t)std::min(m.tokens, m.history->size()))});
-    };
-    std::thread runner([&] { sched.run(); });
-    std::vector<Row> report;
-    Conversation chat;
-    chat.seed = 7;
-    chat.history = prompt_of(5, 400, v);
-    uint32_t other_seed = 33;
-    // The uncut conversation's message ends and which messages are a user's, the leading 400 rows its system message; `dropped` is what the cuts so far took.
-    std::vector<size_t> ends{400};
-    std::vector<char> starts{0};
-    size_t dropped = 0, cuts = 0, follows = 0, since1 = 0, since3 = 0;
-    std::vector<uint32_t> after3, after1;
-    std::vector<Expectation> table;
-    const auto submit = [&](const Req& r, size_t message) {
+    explicit Watch(server::Scheduler& s) : sched(s) {
+        // A pass holding a request no handle of the test's names is a job's: the script's arrivals are submitted from here, on the scheduler's thread.
+        sched.on_retire = [this](const server::Scheduler::Retired& t) {
+            std::function<void()> act;
+            {
+                std::lock_guard<std::mutex> lk(handles);
+                for (const server::Request* r : t.requests)
+                    if (at_job_pass && std::none_of(known.begin(), known.end(), [&](const Handle& h) { return h.get() == r; })) act = std::move(at_job_pass);
+                if (act) at_job_pass = nullptr;
+            }
+            if (act) {
+                act();
+                return;
+            }
+            {
+                std::lock_guard<std::mutex> lk(handles);
+                if (at_that_pass && std::find(t.requests.begin(), t.requests.end(), at_pass_of) != t.requests.end()) act = std::move(at_that_pass);
+                if (act) at_that_pass = nullptr;
+            }
+            if (act) act();
+        };
+        sched.on_move = [this](const server::Scheduler::Moved& m) {
+            std::lock_guard<std::mutex> lk(losing);
+            losses.push_back(Loss{m.kind, m.first, m.tokens, std::vector<uint32_t>(m.history->begin(), m.history->begin() + (std::ptrdiff_t)std::min(m.tokens, m.history->size()))});
+        };
+    }
+    Handle submit(const Req& r, size_t message = std::numeric_limits<size_t>::max()) {
         std::lock_guard<std::mutex> lk(handles);
         known.push_back(sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), message));
         return known.back();
-    };
-    const auto lost_so_far = [&] {
+    }
+    size_t lost_so_far() {
         std::lock_guard<std::mutex> lk(losing);
         return losses.size();
-    };
-    // A turn of the chat: its user message after the history, its reply, and its row of the report against what the script saw prepared.
-    const auto classify = [&](Conversation& c, const Req& r, const Handle& h, const Reply& reply, const std::string& leg, const Stats& before) {
-        const Stats after = sched.stats();
+    }
+};
+
+// The report a script keeps: each turn's row, and the uncut conversation's message ends and which of them open a user's message, the leading 400 rows its system message; `dropped` is what the cuts so far took.
+struct Ledger {
+    std::string on_what;
+    bool state = false;
+    std::vector<Row> report;
+    std::vector<size_t> ends{400};
+    std::vector<char> starts{0};
+    size_t dropped = 0;
+
+    // A turn: its row of the report against what the script saw prepared, the chat's message ends where it is the chat's, and the conversation's history and its own donor as the next turn's restore point.
+    void classify(Watch& w, Conversation& c, bool chat, const Req& r, const Handle& h, const Reply& reply, const std::string& leg, const Stats& before) {
+        const Stats after = w.sched.stats();
         Row row;
         row.leg = leg;
         row.turn = report.size() + 1;
@@ -177,13 +167,13 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
         row.consumed = after.moves[(size_t)server::Move::consumed] - before.moves[(size_t)server::Move::consumed];
         const size_t shortfall = row.expected > row.reused ? row.expected - row.reused : 0;
         {
-            std::lock_guard<std::mutex> lk(losing);
-            row.evicted = explained(r.prompt, row.reused, row.expected, losses, c.since);
+            std::lock_guard<std::mutex> lk(w.losing);
+            row.evicted = explained(r.prompt, row.reused, row.expected, w.losses, c.since);
         }
         row.unexplained = shortfall - row.evicted;
         row.new_work = row.prompt - row.reused - shortfall;
         c.said.push_back({r, reply});
-        if (&c == &chat) {
+        if (chat) {
             ends.push_back(dropped + r.prompt.size());
             starts.push_back(1);
             ends.push_back(dropped + r.prompt.size() + reply.size());
@@ -192,14 +182,56 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
         c.history = r.prompt;
         for (uint32_t id : ids_of(reply)) c.history.push_back(id);
         // The request's own donor: its prompt's whole blocks, or on a model that keeps a state the block its state was kept at.
-        c.prepared = (state ? r.prompt.size() - 1 : r.prompt.size()) / bt * bt;
-        c.since = lost_so_far();
+        c.prepared = (state ? r.prompt.size() - 1 : r.prompt.size()) / kBlock * kBlock;
+        c.since = w.lost_so_far();
         c.last = h;
         report.push_back(row);
         std::cout << "cache-scenario" << on_what << ": turn " << row.turn << " (" << leg << "): prompt " << row.prompt << ", boundary " << row.boundary << ", expected " << row.expected << ", reused " << row.reused
                   << ", new work " << row.new_work << ", evicted " << row.evicted << ", failed restore " << row.failed_restore << ", unexplained " << row.unexplained << "; jobs given way " << row.gave_way << ", handed "
                   << row.handed << ", donors consumed " << row.consumed << "\n";
-    };
+    }
+
+    // A prompt of the chat that passes `room`, cut by the product's rule at the message ends the script knows: the system message kept and the rows from the first kept message on; the row of the uncut conversation the kept part starts at.
+    size_t cut(Req& r, size_t room) {
+        const size_t n = dropped + r.prompt.size();
+        std::vector<size_t> e = ends;
+        std::vector<char> st = starts;
+        e.push_back(n);
+        st.push_back(1);
+        server::MessageEnds cut_ends(e);
+        const size_t k = server::first_kept(cut_ends, st, 1, n, room, kPool / server::kCutTo);
+        require(k < e.size(), "cache-scenario" + on_what + ": a prompt of " + std::to_string(n) + " rows has no cut");
+        const size_t from = e[k - 1] - dropped;
+        r.prompt.erase(r.prompt.begin() + 400, r.prompt.begin() + (std::ptrdiff_t)from);
+        dropped = e[k - 1] - 400;
+        return e[k - 1];
+    }
+};
+
+void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std::string& on_what, const Witness& w) {
+    const size_t bt = kBlock;
+    auto model = make(kPool, 64);
+    const bool state = model->keeps_state();
+    server::Scheduler sched(*model, tok, 4, 64, 0, false, (size_t)1 << 30);
+    Watch watch(sched);
+    auto& handles = watch.handles;
+    auto& known = watch.known;
+    auto& at_job_pass = watch.at_job_pass;
+    auto& at_that_pass = watch.at_that_pass;
+    auto& at_pass_of = watch.at_pass_of;
+    std::thread runner([&] { sched.run(); });
+    Ledger book{on_what, state};
+    std::vector<Row>& report = book.report;
+    Conversation chat;
+    chat.seed = 7;
+    chat.history = prompt_of(5, 400, v);
+    uint32_t other_seed = 33;
+    size_t cuts = 0, follows = 0, since1 = 0, since3 = 0;
+    std::vector<uint32_t> after3, after1;
+    std::vector<Expectation> table;
+    const auto submit = [&](const Req& r, size_t message) { return watch.submit(r, message); };
+    const auto lost_so_far = [&] { return watch.lost_so_far(); };
+    const auto classify = [&](Conversation& c, const Req& r, const Handle& h, const Reply& reply, const std::string& leg, const Stats& before) { book.classify(watch, c, &c == &chat, r, h, reply, leg, before); };
     const auto next_of = [&](Conversation& c) {
         Req r{c.history, (int)kReply};
         const std::vector<uint32_t> user = prompt_of(c.seed++ % v, kUser, v);
@@ -337,20 +369,10 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
         for (size_t after_cut = 0; cuts < 2 || after_cut < 2;) {
             const Stats before = sched.stats();
             Req r = next_of(chat);
-            const size_t n = dropped + r.prompt.size();
             bool cut = false;
             if (r.prompt.size() > room) {
-                std::vector<size_t> e = ends;
-                std::vector<char> st = starts;
-                e.push_back(n);
-                st.push_back(1);
-                server::MessageEnds cut_ends(e);
-                const size_t k = server::first_kept(cut_ends, st, 1, n, room, kPool / server::kCutTo);
-                require(k < e.size() && cuts < 2 && e[k - 1] == where[cuts], "leg E: cut " + std::to_string(cuts + 1) + " falls at row " + std::to_string(k < e.size() ? e[k - 1] : 0) + " of the conversation, against " + std::to_string(cuts < 2 ? where[cuts] : 0));
-                // The cut prompt: the system message and the rows from the first kept message on.
-                const size_t from = e[k - 1] - dropped;
-                r.prompt.erase(r.prompt.begin() + 400, r.prompt.begin() + (std::ptrdiff_t)from);
-                dropped = e[k - 1] - 400;
+                const size_t at = book.cut(r, room);
+                require(cuts < 2 && at == where[cuts], "leg E: cut " + std::to_string(cuts + 1) + " falls at row " + std::to_string(at) + " of the conversation, against " + std::to_string(cuts < 2 ? where[cuts] : 0));
                 chat.prepared = w.boundaries ? 400 / bt * bt : 0;
                 chat.since = 0;
                 ++cuts;
@@ -358,7 +380,7 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
                 cut = true;
             } else if (cuts) {
                 // The turn after a cut is cut at the same place: its prompt is the one before it and more.
-                same_place = same_place && dropped == where[cuts - 1] - 400;
+                same_place = same_place && book.dropped == where[cuts - 1] - 400;
                 ++after_cut;
             }
             const Handle h = submit(r, r.prompt.size() - kUser);
@@ -404,6 +426,159 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
     }
 }
 
+// Production's proportions (docs/CACHE-PLAN.md, Production since 2026-10-11): a chat past half the pool, after every reply an unrelated request that does not fit beside the reply's job, and the next turn while it runs.
+// The host tier holds less than one history and a disk tier keeps files, with no idle moment for its idle writes; the chat passes the context and is cut, and the server restarts over its kept files.
+void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std::string& on_what, const Witness& w) {
+    const size_t bt = kBlock;
+    DiskRoot disk("cache-scenario");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::hours(1);
+    auto model = make(kPool, 64);
+    const bool state = model->keeps_state();
+    // A host tier of 1024 rows: the chat's history passes it from the first turn, the unrelated request's fits.
+    const size_t host = model->host_bytes(1024);
+    auto sched = std::make_unique<server::Scheduler>(*model, tok, 4, 64, 0, false, host, nullptr, 0, true, options);
+    auto watch = std::make_unique<Watch>(*sched);
+    std::thread runner([&] { sched->run(); });
+    Ledger book{on_what + ", production's proportions", state};
+    Conversation chat;
+    chat.seed = 70;
+    chat.history = prompt_of(5, 400, v);
+    std::vector<Expectation> table;
+    std::vector<size_t> cut_turns, restart_turns;
+    size_t released = 0, job_lost = 0, consumed_lost = 0, not_to_host = 0, host_lost = 0, written = 0, read = 0, tasks = 0;
+    uint32_t other_seed = 90;
+    const auto tally = [&] {
+        const Stats s = sched->stats();
+        released += s.reprefill_released;
+        job_lost += s.moves[(size_t)server::Move::job_lost];
+        consumed_lost += s.moves[(size_t)server::Move::consumed_lost];
+        not_to_host += s.moves[(size_t)server::Move::not_to_host];
+        host_lost += s.moves[(size_t)server::Move::host_lost];
+        written += s.moves[(size_t)server::Move::write_whole];
+        read += s.moves[(size_t)server::Move::read_done];
+    };
+    try {
+        within_a_minute([&] { return sched->stats().disk_ready; }, "production: the disk tier made");
+        // The first turn's user message takes the chat to 1256 rows, past half the pool, its reply crossing a block's end as every later turn's, each adding a block.
+        Req r{chat.history, (int)kReply};
+        const std::vector<uint32_t> first = prompt_of(chat.seed++ % v, 856, v);
+        r.prompt.insert(r.prompt.end(), first.begin(), first.end());
+        Handle h = watch->submit(r, chat.history.size());
+        Stats mark = sched->stats();
+        std::string leg = "P";
+        constexpr size_t kTurns = 10, kRestartAfter = 7;
+        const size_t room = sched->prompt_room(params_of(Req{{}, (int)kReply}));
+        for (size_t k = 0;; ++k) {
+            const Reply reply = drain(*h);
+            book.classify(*watch, chat, true, r, h, reply, leg, mark);
+            if (k + 1 == kTurns) break;
+            // The next turn, cut where it passes what a prompt may take, and its restore point the system message's whole blocks after a cut.
+            Req next{chat.history, (int)kReply};
+            const std::vector<uint32_t> user = prompt_of(chat.seed++ % v, kUser, v);
+            next.prompt.insert(next.prompt.end(), user.begin(), user.end());
+            const size_t message = next.prompt.size() - kUser;
+            bool cut = false;
+            if (next.prompt.size() > room) {
+                book.cut(next, room);
+                cut = true;
+            }
+            // The unrelated request at the job's pass, and the next turn at that request's pass, but before the restart, where it waits for the new server.
+            Handle other, after;
+            const Req o{prompt_of(other_seed++ % v, 700, v), (int)kOtherReply};
+            const bool restart = k + 1 == kRestartAfter;
+            {
+                std::lock_guard<std::mutex> lk(watch->handles);
+                watch->at_job_pass = [&, o, next, message, restart] {
+                    std::lock_guard<std::mutex> lk2(watch->handles);
+                    other = sched->submit(o.prompt, params_of(o));
+                    watch->known.push_back(other);
+                    if (restart) return;
+                    watch->at_pass_of = other.get();
+                    watch->at_that_pass = [&, next, message] {
+                        std::lock_guard<std::mutex> lk3(watch->handles);
+                        after = sched->submit(next.prompt, params_of(next), std::numeric_limits<size_t>::max(), message);
+                        watch->known.push_back(after);
+                    };
+                };
+            }
+            mark = sched->stats();
+            const size_t jobs = mark.reprefills;
+            sched->follow(h, chat.history, true);
+            within_a_minute([&] { std::lock_guard<std::mutex> lk(watch->handles); return other != nullptr && (restart || after != nullptr); }, "production: the arrivals at the job's pass and at the other request's");
+            drain(*other);
+            ++tasks;
+            if (cut) {
+                chat.prepared = w.boundaries ? 400 / bt * bt : 0;
+                chat.since = 0;
+                cut_turns.push_back(book.report.size() + 1);
+            }
+            leg = cut ? "P, cut" : "P";
+            if (restart) {
+                // Once the job has read the reply, a clean stop under keep writes what memory holds; a new server on a fresh model adopts the files, and the next turn reads them.
+                within_a_minute([&] { return sched->stats().reprefills > jobs; }, "production: the job before the restart done");
+                tally();
+                sched->stop();
+                runner.join();
+                std::vector<Loss> losses = std::move(watch->losses);
+                watch.reset();
+                sched.reset();
+                model = make(kPool, 64);
+                sched = std::make_unique<server::Scheduler>(*model, tok, 4, 64, 0, false, host, nullptr, 0, true, options);
+                watch = std::make_unique<Watch>(*sched);
+                watch->losses = std::move(losses);
+                runner = std::thread([&] { sched->run(); });
+                within_a_minute([&] { return sched->stats().disk_ready; }, "production: the disk tier made again");
+                mark = sched->stats();
+                after = watch->submit(next, message);
+                restart_turns.push_back(book.report.size() + 1);
+                leg = "P, after a restart";
+            }
+            h = after;
+            r = next;
+        }
+        tally();
+        require(cut_turns.size() == 1 && restart_turns.size() == 1, "production: " + std::to_string(cut_turns.size()) + " cuts and " + std::to_string(restart_turns.size()) + " restarts, against 1 and 1");
+        size_t evicted = 0, unexplained = 0;
+        for (const Row& row : book.report) {
+            if (row.turn != cut_turns.front() && row.turn != restart_turns.front()) evicted += row.evicted;
+            unexplained += row.unexplained;
+        }
+        const Row &cut = book.report[cut_turns.front() - 1], &restarted = book.report[restart_turns.front() - 1];
+        std::cout << "cache-scenario" << on_what << ", production's proportions: " << tasks << " unrelated requests; rows evicted " << evicted << " on the plain turns, " << cut.evicted << " on the cut turn and " << restarted.evicted
+                  << " after the restart, unexplained " << unexplained << "; moves: job_lost " << job_lost << ", consumed_lost " << consumed_lost << ", not_to_host " << not_to_host << ", host_lost " << host_lost
+                  << ", rows jobs released " << released << ", files written whole " << written << ", reads " << read << "\n";
+        table.push_back({"past half the pool, with a host tier smaller than a history, a turn after an unrelated request loses no row its history held", "P1, P3", false, !evicted});
+        table.push_back({"a job that gives way releases no row it read", "P7", false, !released});
+        // Over two devices no state is kept at the system message (Witness::boundaries), so a cut turn has nothing to reuse and loses nothing.
+        table.push_back({"a cut turn reuses its leading message's rows beside an unrelated request", "P5", !w.boundaries, !cut.evicted});
+        // What the turn after the restart falls short by was lost before the stop; everything else it reads back.
+        table.push_back({"a restart over kept files of this build costs the next turn a read, not a recompute", "P4", true, read && restarted.reused + restarted.evicted == restarted.expected});
+        table.push_back({"every row a turn falls short by is a loss the server reported with its history", "P8", true, !unexplained});
+        // Today each job gives way to the unrelated request and releases the chat's rows, which it alone held (S8): every plain turn from the third reads its history again, and so do the cut turn and the turn after the restart.
+        const size_t plain = state ? 7296 : 5888, at_cut = w.boundaries ? 384 : 0;
+        require(evicted == plain && cut.evicted == at_cut && restarted.evicted == 512 && job_lost == (state ? 7u : 6u),
+                "production's witness: " + std::to_string(evicted) + ", " + std::to_string(cut.evicted) + " and " + std::to_string(restarted.evicted) + " rows evicted, " + std::to_string(job_lost) + " job losses, against " +
+                    std::to_string(plain) + ", " + std::to_string(at_cut) + ", 512 and " + std::to_string(state ? 7 : 6));
+    } catch (...) {
+        sched->stop();
+        runner.join();
+        throw;
+    }
+    sched->stop();
+    runner.join();
+    for (size_t i = 0; i < chat.said.size(); ++i) {
+        auto fresh = make(kPool, 64);
+        same(serve(*fresh, tok, 4, {{chat.said[i].first}})[0], chat.said[i].second, "cache-scenario" + on_what + ", production's proportions: turn " + std::to_string(i + 1) + "'s reply");
+    }
+    for (const Row& row : book.report) require(row.reused + row.new_work + row.evicted + row.failed_restore + row.unexplained == row.prompt, "cache-scenario" + on_what + ", production's proportions: turn " + std::to_string(row.turn) + "'s kinds do not add up to its prompt");
+    for (const Expectation& e : table) {
+        std::cout << "cache-scenario" << on_what << ", production's proportions: " << (e.seen ? "held" : "broken") << ": " << e.name << " (" << e.promise << ")\n";
+        require(e.seen == e.held_today, "cache-scenario" + on_what + ", production's proportions: \"" + e.name + "\" (" + e.promise + ") is " + (e.seen ? "held" : "broken") + ", and the plan records it as " + (e.held_today ? "held" : "broken") + " today");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -411,11 +586,15 @@ int main() {
         attribution();
         const gguf::GGUFModel weights = served(kCpu);
         scenario(on(weights, [] { return cpus(1); }), bpe::Tokenizer(weights), (uint32_t)kCpu.vocab, "", {3, 768, 512, 768, true});
+        production(on(weights, [] { return cpus(1); }), bpe::Tokenizer(weights), (uint32_t)kCpu.vocab, "", {3, 768, 512, 768, true});
         const gguf::GGUFModel deep = served(kSplit);
         scenario(on(deep, [] { return cpus(2); }), bpe::Tokenizer(deep), (uint32_t)kSplit.vocab, ", a split over two CPUs", {3, 768, 512, 768, true});
+        production(on(deep, [] { return cpus(2); }), bpe::Tokenizer(deep), (uint32_t)kSplit.vocab, ", a split over two CPUs", {3, 768, 512, 768, true});
         const gguf::GGUFModel mixed = served_hybrid(kHybrid);
         scenario(on(mixed, [] { return cpus(1); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model", {1, 640, 384, 768, true});
+        production(on(mixed, [] { return cpus(1); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model", {1, 640, 384, 768, true});
         scenario(on(mixed, [] { return cpus(2); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {1, 0, 0, 1152, false});
+        production(on(mixed, [] { return cpus(2); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {1, 0, 0, 1152, false});
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";
         return 1;

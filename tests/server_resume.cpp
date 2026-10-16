@@ -1933,61 +1933,6 @@ void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t 
 
 namespace fs = std::filesystem;
 
-// A disk tier's root for one case, removed after it, with a small file standing for the model, whose digest the entries' identity carries.
-struct DiskRoot {
-    fs::path root;
-    std::string model;
-    explicit DiskRoot(const std::string& name) {
-        root = fs::temp_directory_path() / ("llmx-server-resume-" + name + "-" + std::to_string(std::random_device{}()));
-        fs::remove_all(root);
-        fs::create_directories(root);
-        model = (root / "model.bin").u8string();
-        // A model file the tier can read the files of: a GGUF of no tensors.
-        gguf::write_gguf(gguf::GGUFModel{}, model);
-    }
-    ~DiskRoot() {
-        std::error_code ec;
-        fs::remove_all(root, ec);
-    }
-    server::DiskOptions options(uint64_t bytes, std::chrono::milliseconds pace = std::chrono::milliseconds(0)) const {
-        server::DiskOptions o;
-        o.bytes = bytes;
-        o.dir = root.u8string();
-        o.floor = 0;
-        o.model_path = model;
-        o.pace = pace;
-        return o;
-    }
-    // The servers' directories under the root.
-    std::vector<fs::path> servers() const {
-        std::vector<fs::path> v;
-        for (const auto& e : fs::directory_iterator(root))
-            if (e.is_directory() && e.path().filename().u8string().rfind("server-", 0) == 0) v.push_back(e.path());
-        return v;
-    }
-    // The files of extension `ext` in the servers' directories, and their bytes.
-    std::vector<fs::path> files(const std::string& ext, uint64_t* bytes = nullptr) const {
-        std::vector<fs::path> v;
-        if (bytes) *bytes = 0;
-        for (const fs::path& d : servers())
-            for (const auto& e : fs::directory_iterator(d))
-                if (e.path().extension().u8string() == ext) {
-                    v.push_back(e.path());
-                    if (bytes) *bytes += (uint64_t)fs::file_size(e.path());
-                }
-        return v;
-    }
-};
-
-// Polls `done` for up to a minute.
-void within_a_minute(const std::function<bool()>& done, const std::string& what) {
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-    while (!done()) {
-        require(std::chrono::steady_clock::now() < until, what + " within a minute");
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-}
-
 // Demotion to disk (docs/DISK-TIER.md): eight conversations in turn evict each donor to a host tier of four copies, the oldest being written to disk while it stays in host memory and released at once when room is needed.
 // So after turn k the disk holds the k - 3 oldest, and with a disk tier of two entries the two newest; every reply is its reply alone, the files in the directory are the entries counted, and a clean exit leaves no directory.
 void disk_demotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices) {

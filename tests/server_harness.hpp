@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -437,6 +438,61 @@ inline std::vector<std::shared_ptr<Hooked>> hooked(size_t n, bool device = false
 
 // The CPU's 128-token blocks, of which a case's pool holds a given number.
 inline constexpr size_t kBlock = 128;
+
+// Polls `done` for up to a minute.
+inline void within_a_minute(const std::function<bool()>& done, const std::string& what) {
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (!done()) {
+        require(std::chrono::steady_clock::now() < until, what + " within a minute");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+}
+
+// A disk tier's root for one case, removed after it, with a small file standing for the model, whose digest the entries' identity carries.
+struct DiskRoot {
+    std::filesystem::path root;
+    std::string model;
+    explicit DiskRoot(const std::string& name) {
+        root = std::filesystem::temp_directory_path() / ("llmx-server-test-" + name + "-" + std::to_string(std::random_device{}()));
+        std::filesystem::remove_all(root);
+        std::filesystem::create_directories(root);
+        model = (root / "model.bin").u8string();
+        // A model file the tier can read the files of: a GGUF of no tensors.
+        gguf::write_gguf(gguf::GGUFModel{}, model);
+    }
+    ~DiskRoot() {
+        std::error_code ec;
+        std::filesystem::remove_all(root, ec);
+    }
+    server::DiskOptions options(uint64_t bytes, std::chrono::milliseconds pace = std::chrono::milliseconds(0)) const {
+        server::DiskOptions o;
+        o.bytes = bytes;
+        o.dir = root.u8string();
+        o.floor = 0;
+        o.model_path = model;
+        o.pace = pace;
+        return o;
+    }
+    // The servers' directories under the root.
+    std::vector<std::filesystem::path> servers() const {
+        std::vector<std::filesystem::path> v;
+        for (const auto& e : std::filesystem::directory_iterator(root))
+            if (e.is_directory() && e.path().filename().u8string().rfind("server-", 0) == 0) v.push_back(e.path());
+        return v;
+    }
+    // The files of extension `ext` in the servers' directories, and their bytes.
+    std::vector<std::filesystem::path> files(const std::string& ext, uint64_t* bytes = nullptr) const {
+        std::vector<std::filesystem::path> v;
+        if (bytes) *bytes = 0;
+        for (const std::filesystem::path& d : servers())
+            for (const auto& e : std::filesystem::directory_iterator(d))
+                if (e.path().extension().u8string() == ext) {
+                    v.push_back(e.path());
+                    if (bytes) *bytes += (uint64_t)std::filesystem::file_size(e.path());
+                }
+        return v;
+    }
+};
 
 // Once the scheduler has stopped, the model's own history takes the whole pool of `tokens`, so every block has come back, a block of a request whose handle is still held included.
 inline void whole_pool_free(infer::Model& model, size_t tokens, uint32_t vocab, const std::string& what) {

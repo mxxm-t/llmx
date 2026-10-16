@@ -539,6 +539,7 @@ A kind whose move the request's own line already says, or that loses nothing, is
 `reuse.disk.since_start.lost_before_written` stays what it was, the restore points released while no file held them beside a disk tier; `job_lost` and `consumed_lost` count rows that left the device with their only holder, with or without a disk tier.
 The disk tier's outcomes are taken where the scheduler takes in the tier's completions (`Scheduler::sync_disk` from `DiskTier::figures`), never on an I/O thread.
 
+
 ## Live work counters
 
 `work.since_start.prefilled_tokens` counts client prompt positions in successfully retired passes, including prompt rows recomputed after a pause. A cached prefix contributes no rows; background read-again jobs, generated history replay, drafter calls and speculative verification rows contribute none. `work.since_start.generated_tokens` counts output tokens successfully pushed to clients' request channels, including the first output token and accepted speculative tokens, each once. EOS and rejected drafts contribute none; output already published before a later error stays counted. Both counters start at zero with each scheduler and are available without `--timing`.
@@ -546,6 +547,21 @@ The disk tier's outcomes are taken where the scheduler takes in the tier's compl
 The scheduler owns both: `retire` intersects each non-decoding client entry's rows with its prompt positions after `Model::end_pass`, and `step` increments its counter after each successful `Request::push`, so a later exception preserves the count of tokens already published. `Scheduler::Stats` reads their atomics and `Api::health` serializes them. The request counters under `requests.since_start` retain their separate meaning: admitted requests that ended, with their whole prompt including reused tokens.
 
 Counter differences divided by the actual time between health samples give live aggregate throughput over that wall-clock interval, including concurrency and idle time. This is not a per-request or per-kernel PP/TG speed. A long pass reveals its prompt work only when it retires; zero means no counted work crossed these boundaries during the interval, even if a pass is still running. Restarted, decreasing or missing counters and missing samples must break a derived rate rather than imply zero work.
+
+## Health dashboard
+
+The separate [health dashboard](../tools/health_dashboard/README.md) collects
+`/v1/health` and serves charts on its own port. It uses the Python standard
+library, keeps bounded history in memory and sends no inference requests.
+When the API exposes `work.since_start`, sampled changes show live aggregate
+client prompt retirement and output publication per wall-clock second. A long
+pass is unobserved until retirement; zero does not establish idle hardware.
+Older APIs show an explicitly labeled completed-work fallback, whose prompt
+totals include cached tokens and advance at request completion. Missing live
+fields remain unavailable. Neither mode measures per-request or per-kernel
+speed. Runtime-reported topology describes backend assignments when available;
+neither placement nor cache reservations are physical GPU memory telemetry.
+
 
 ## The grouped `/v1/health` and help pages (2026-10-07)
 

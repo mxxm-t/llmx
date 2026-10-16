@@ -46,6 +46,8 @@ jobs:
             echo "$tool --help"
             python -X utf8 "$tool" --help > /dev/null
           done
+      - name: Health dashboard tests
+        run: python -X utf8 -m unittest discover -s tools/health_dashboard -v
       - name: Test fixture downloader
         run: python -X utf8 tests/fetch_models.py
       - name: Configure

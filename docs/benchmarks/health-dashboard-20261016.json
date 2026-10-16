@@ -1,0 +1,1932 @@
+{
+  "scope": "Read-only dashboard deployment checkpoint; no runtime change or merge claim",
+  "base": "f801f404b",
+  "collector_tests": {
+    "command": "python -X utf8 -m unittest discover -s tools/health_dashboard -v",
+    "passed": 5
+  },
+  "browser": {
+    "checks": [
+      "production model and live data",
+      "no horizontal desktop overflow",
+      "draft position metrics appear",
+      "own history ratio present",
+      "rate reset and missing data gaps",
+      "range control",
+      "pause banner",
+      "resume control",
+      "nested metrics search",
+      "search empty state",
+      "no horizontal mobile overflow",
+      "collector disconnect keeps stale display",
+      "collector connection recovers"
+    ],
+    "errors": [],
+    "source_sha256": "6e3bdf17231782b1918c4eddaf9af9e8961f8ee055a7fdc07c458dde2cf02ed1"
+  },
+  "checks": {
+    "docs": "PASS, zero findings",
+    "dead-code": "PASS, five unchanged listed findings",
+    "build": "build.bat PASS; existing C4457 in scheduler.hpp",
+    "hosted": "not run",
+    "ctest": "not run at preview checkpoint"
+  },
+  "deployment": {
+    "url": "http://11.10.10.13:8182",
+    "html_sha256": "6e3bdf17231782b1918c4eddaf9af9e8961f8ee055a7fdc07c458dde2cf02ed1",
+    "samples": 11,
+    "ok": true,
+    "container": "6bb528e7c8b9f09a1291e75c10ad9ce6b0ee308b65bb775496b968259cd0b197",
+    "restart": "unless-stopped",
+    "user_approval": "Publish on the rig and restart after reboot",
+    "rig_running": true,
+    "rig_source_directory": "/zpool1/llmx-health-dashboard-xdev-20261016",
+    "collector_tests_passed": 5,
+    "browser": {
+      "checks": [
+        "production model and live data",
+        "no horizontal desktop overflow",
+        "draft position metrics appear",
+        "own history ratio present",
+        "rate reset and missing data gaps",
+        "range control",
+        "pause banner",
+        "resume control",
+        "nested metrics search",
+        "search empty state",
+        "no horizontal mobile overflow",
+        "collector disconnect keeps stale display",
+        "collector connection recovers"
+      ],
+      "errors": [],
+      "source_sha256": "6e3bdf17231782b1918c4eddaf9af9e8961f8ee055a7fdc07c458dde2cf02ed1"
+    }
+  },
+  "source_hashes": {
+    "tools/health_dashboard/server.py": "e0cd71c328e0ea3f9910bd619e7a91766b929c639be58e978ba093be440de8d7",
+    "tools/health_dashboard/test_server.py": "5e184bd8eada5a41b7fdb61fa2791c8cd5fa1f0a689090a00fe4fd2c926e3995",
+    "tools/health_dashboard/index.html": "6e3bdf17231782b1918c4eddaf9af9e8961f8ee055a7fdc07c458dde2cf02ed1",
+    "tools/health_dashboard/README.md": "f6f6264070183ddec24e8663414a95cddc5a6226d15b74cf0a2e93bfc8c7914f"
+  },
+  "artifact_hashes": {
+    "build-health-dashboard/build.log": {
+      "sha256": "a4780be6a79a8b530a128aa380f766bfe61893c3e0f3ffd310e72d30875d2743",
+      "bytes": 576
+    },
+    "build-health-dashboard/static.log": {
+      "sha256": "9d38b54227f2a02c819b26ea9b22a1819ec2db79bbe1459b3601bf00f3936dbc",
+      "bytes": 212
+    },
+    "build-health-dashboard/browser-checks.json": {
+      "sha256": "eeae5f55c0120055f5757c5a5b64243245570aabdf7f8cf53d37b7b556dab9fb",
+      "bytes": 569
+    },
+    "build-health-dashboard/desktop-final.png": {
+      "sha256": "0ad3b0e13d26d92c9929e166718d0ed34470574e91ee74d79936552502c66bc1",
+      "bytes": 302048
+    },
+    "build-health-dashboard/desktop-details.png": {
+      "sha256": "1051b47e59a065280d16372a2c2152991e3ec6121594276c6e45f1ba09177879",
+      "bytes": 326364
+    },
+    "build-health-dashboard/mobile.png": {
+      "sha256": "8a954fe27c682a46a9c7c2056b523799bbd66e6c458b8cd7e7fb397e27fad7c1",
+      "bytes": 88857
+    }
+  },
+  "markdown_review": {
+    "purpose": "Dashboard Markdown claim/link audit; this is not broad runtime revalidation.",
+    "prior_snapshot": {
+      "path": "../.tmp-qwen38-model-20261014/docs/benchmarks/qwen38-http-memory-20261016.json",
+      "markdown_count": 112,
+      "current_tracked_markdown_count": 109,
+      "exact_prior_hash_matches": 69,
+      "prior_hash_differences": 39,
+      "new_pages": 1,
+      "prior_pages_absent_now": [
+        "docs/QWEN38-FLASH.md",
+        "docs/research/qwen38-runtime-patterns-20261014.md",
+        "docs/src/model-arch-qwen4exp.md",
+        "docs/src/model-weight_rows.md"
+      ]
+    },
+    "pages": [
+      {
+        "path": "AGENTS.md",
+        "current_sha256": "f2075063e116df112d0824924800d5b802fc29264f4ca746ac622629917132f1",
+        "prior_sha256": "a296ca6e470737165b54c6b1d4a036c9c93c24ab1539e29049cc25128e26ecc4",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "README.md",
+        "current_sha256": "43827fb0251e24ebfa13b793677a329fc27cd2280c8d90c01193ea89e4fa74e5",
+        "prior_sha256": "5cdbfeae5a76cc9b3554a42550185fe449515d45c217fee16f3b2e6ebe43ef57",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "current_sha256": "5119030e1a1dff96f0fc8b3300e59d3163ceb19787a04912cbf7dadebbfc0f12",
+        "prior_sha256": "0d2b1696bad82752986d266fd5f50c8417137cac8b8ddc5326f19dacfcbed4aa",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "current_sha256": "9bf7e571ff9acddfb13969b48446bf52314d59224b19dc8abb3a6de83e5a57c1",
+        "prior_sha256": "28764e9e7817c12a7f3983a93374bc2020dbe8d4f4eb2a102aa23fe9c1a09d9d",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "current_sha256": "c77ef6e48a44b45018f01435f8729a90298410f416cbf4bcdd823ca549c698a3",
+        "prior_sha256": "44b3b045593df0c51f06dbec4fc2aa54ebf62e4e2ec54a427c6b5cfdf79d0f1f",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/BUILD.md",
+        "current_sha256": "1ab6639742fea661957ca297e3d7346780a5199e21413036d963b7737a715bba",
+        "prior_sha256": "1ab6639742fea661957ca297e3d7346780a5199e21413036d963b7737a715bba",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/CACHE-PLAN.md",
+        "current_sha256": "db8fef6bb942de92358428f9bd73e609458e47426ca22939853b7a23612003e6",
+        "prior_sha256": "71ecf5c5c136cc6d4314b27fdc4055407acd76db857608c8a10c3d035af443c4",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/CI.md",
+        "current_sha256": "1f3b3a7ce671724fd9d10c81922bec2f5fcea7a2d5b4913efa8dfd808496358f",
+        "prior_sha256": "8467bb158c272f03886be6a57c399fa36a60cced1318465da7ec57794a94b73c",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "current_sha256": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+        "prior_sha256": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/DISK-TIER.md",
+        "current_sha256": "01a6d544d3be08653eeae659b9be7118f49f8dd13944c8ec26189136d8023bf4",
+        "prior_sha256": "a87a25f9d5e6c0a8d84ae1d2f65db8c95b92316247b02d4aa4f3d74e255e105b",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "current_sha256": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+        "prior_sha256": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "current_sha256": "b6de3314c1ec1791681995c06ef32a7703b105295bfd843352a1ae7c012f6aee",
+        "prior_sha256": "dc7c6bdd7213c2cea874829c37fcabbab445687087176992e18207fcb8f0922a",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "current_sha256": "90dbf6a88405069bae956ca0da6b5080ae2a4db7a81fbb60a2de2263e2260c54",
+        "prior_sha256": "c59de6beec221e507b7dc75e7125745911a17545c687dd6a083708d8f9ff9bbf",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/OPERATING.md",
+        "current_sha256": "cdf6995b2e4ec8a196c1c641454c391fba13a1ddf1e3bfce9dfd1b851de519d5",
+        "prior_sha256": "cdf6995b2e4ec8a196c1c641454c391fba13a1ddf1e3bfce9dfd1b851de519d5",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "current_sha256": "7119a65104481c64ddd0e01b2a57956cbe7c02a6a992d0faeefac1ade8c4c9f9",
+        "prior_sha256": "47fb721a9f976f8dc4db0c8f0b4faffd81e09f65392be847916d60bfeb7019b7",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "current_sha256": "a1459c4b685331150b1b9e84cad71904d391b066c486c975af3700e272399227",
+        "prior_sha256": "13a8532ccbcda0913045d90f7a0213bce2d4460cc5974d178c3e08468955797a",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "current_sha256": "2145f0c0a945cbfe8c54aba234b44d601483a8f793f433747d9af993de06c15a",
+        "prior_sha256": "1391280e8fc83ae64e5173f778676828e32ac840ee77148861f1a1276634fbc7",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/ROCM.md",
+        "current_sha256": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+        "prior_sha256": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/SERVER.md",
+        "current_sha256": "3ae2d504032d0388ff8f7e22c5fc717b1d4b4003eeb7bb44ec79128914ae4f75",
+        "prior_sha256": "4fb72df1779d5ece85e4d192c5923e3e3b218b9abb81de0b68d2f749e4b05161",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Read in context. The dashboard link is valid; bounded collection, separate port and no-inference statements agree with the tool. Request rates are completed-counter deltas; cache reservations are not GPU memory telemetry."
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "current_sha256": "f1f9c285fd8e18621a918f23aa884181af17fbc4f9814b9dbf9072559d2621c0",
+        "prior_sha256": "f1f9c285fd8e18621a918f23aa884181af17fbc4f9814b9dbf9072559d2621c0",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/STATUS-2026-09.md",
+        "current_sha256": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+        "prior_sha256": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/STATUS.md",
+        "current_sha256": "d71fb5b42e4b8d3b322c20a8f0e24323668f34e550e0c8c8dd2e843b44571c00",
+        "prior_sha256": "ae226cfc0a7ae2ea7d5f1c5cf157f1230d14b05d414a96d41a87c021a954b5ff",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Read in context. Accurate scope and safety notes. The Left list still names sampler implementation although server.py now implements it; UI/browser/production-read-only preview work remains."
+      },
+      {
+        "path": "docs/TENSOR-SPLIT.md",
+        "current_sha256": "cf59ec447d2ba653ff12c4ad5ac95565badaae359844ec552e5cc589a4690e4b",
+        "prior_sha256": "cac08dbb7e8b78a3deb996f96b069ce8752f7fd3b69b3a1a7f63fbc841dfb953",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/USAGE.md",
+        "current_sha256": "e59f919657ebc78c1a155f69362696b4224e94ae13807d748b49c108cfc8c570",
+        "prior_sha256": "0a5ee131e38e35fc468e3b69fdb9d3c3e84c6039bbdad418b56e91051c47e805",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "current_sha256": "7169a64be07d95b22af94649a9640188af8ad5efbe76c907cd5d9089aa0c0fff",
+        "prior_sha256": "478f3f77a507003961d60d5d979f5fbce72c810b843a8f1a1233408a1f3ffc99",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "current_sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+        "prior_sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "current_sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+        "prior_sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "current_sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+        "prior_sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "current_sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+        "prior_sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "current_sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+        "prior_sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "current_sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+        "prior_sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "current_sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+        "prior_sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "current_sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+        "prior_sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "current_sha256": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+        "prior_sha256": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "current_sha256": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+        "prior_sha256": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "current_sha256": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+        "prior_sha256": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "current_sha256": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+        "prior_sha256": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "current_sha256": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+        "prior_sha256": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "current_sha256": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+        "prior_sha256": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "current_sha256": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+        "prior_sha256": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+        "current_sha256": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+        "prior_sha256": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+        "current_sha256": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+        "prior_sha256": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+        "current_sha256": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+        "prior_sha256": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+        "current_sha256": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+        "prior_sha256": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+        "current_sha256": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+        "prior_sha256": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "current_sha256": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+        "prior_sha256": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "current_sha256": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+        "prior_sha256": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "current_sha256": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+        "prior_sha256": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "current_sha256": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+        "prior_sha256": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/research/rocm-20261009.md",
+        "current_sha256": "4631c36a2087f706574c740a41bd435e76f34c8d9354bd86a0d119cbb433a259",
+        "prior_sha256": "4631c36a2087f706574c740a41bd435e76f34c8d9354bd86a0d119cbb433a259",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "current_sha256": "82ad175112b7d0b6cbb777ca4aa7aa38d1acf02d835d3779db828423b736c1ea",
+        "prior_sha256": "2411298c8d8a4274fac3f3aee621c706fdb9c2d62c6728068d5b9adc09f2a0db",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "current_sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+        "prior_sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/backends-cpu-q8_dots.md",
+        "current_sha256": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+        "prior_sha256": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "current_sha256": "bb0eab45a4996eec07da0eb862ed47ae1b69199dc1009fef10413604bf5813c6",
+        "prior_sha256": "26459311d2a3b6a964908c995f6a9f19c5279d39688e71e2ec9b2eb5cc4bac45",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "current_sha256": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a",
+        "prior_sha256": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "current_sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+        "prior_sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "current_sha256": "46ec7bf753205ffb01ba2575ae82f5b87e1177faff36e75107840d6bfb72f139",
+        "prior_sha256": "320299beda00ddb37cb524df2070316ff3acb4d57d05d2197c0359e5e6e67bf0",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "current_sha256": "3cedbbe9ed632cf6489a1fb6ac6355554d4e14adc22eb39ced38cb66daf22df7",
+        "prior_sha256": "33280ce4341804bf6c099e0f2746d4b8c71508ad7748a891c367ffcda855e4e9",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "current_sha256": "4c0fc8c5a0c28b88608cdfda80cc329fb5a5dd6caf5c94176ba39ba048d89f71",
+        "prior_sha256": "fac67206073cd405614226f5d0e2c119d00bafb6bc8b215bf3dce39326fe1957",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/config.md",
+        "current_sha256": "78ba26b61c9625b0f61d7b5d4baa77e19a14064a8461ebf45de9eb4a298a8375",
+        "prior_sha256": "78ba26b61c9625b0f61d7b5d4baa77e19a14064a8461ebf45de9eb4a298a8375",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "current_sha256": "a15a4583d55915be0ae2bd5bc07d88be0fdea659b2f9bfd75a58341dce1bf73c",
+        "prior_sha256": "a15a4583d55915be0ae2bd5bc07d88be0fdea659b2f9bfd75a58341dce1bf73c",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "current_sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+        "prior_sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "current_sha256": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+        "prior_sha256": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-crc32c.md",
+        "current_sha256": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+        "prior_sha256": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "current_sha256": "446867ff079cf0e58dab2b802d57944c9ad93e38a37d6bf5a91f7e0c73578bce",
+        "prior_sha256": "446867ff079cf0e58dab2b802d57944c9ad93e38a37d6bf5a91f7e0c73578bce",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "current_sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+        "prior_sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-job_threads.md",
+        "current_sha256": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+        "prior_sha256": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "current_sha256": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e",
+        "prior_sha256": "70615868deb49e586f42e9485aefdab833ebc3d4d1c158301c66f8e327cff09b",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "current_sha256": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+        "prior_sha256": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "current_sha256": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+        "prior_sha256": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "current_sha256": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+        "prior_sha256": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-file_digest.md",
+        "current_sha256": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693",
+        "prior_sha256": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "current_sha256": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+        "prior_sha256": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-file_writer.md",
+        "current_sha256": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba",
+        "prior_sha256": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "current_sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+        "prior_sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "current_sha256": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+        "prior_sha256": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "current_sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+        "prior_sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "current_sha256": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+        "prior_sha256": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "current_sha256": "10fcd3a3ca2e0eeede2262cf6ec9064b147bd301cbca82790defda1cac0a2aec",
+        "prior_sha256": "10fcd3a3ca2e0eeede2262cf6ec9064b147bd301cbca82790defda1cac0a2aec",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/hub.md",
+        "current_sha256": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+        "prior_sha256": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "current_sha256": "01d58e566256aa29c01664d2f20be9b522565f5bf2a49491a54cd33bb45ec64f",
+        "prior_sha256": "a702bea306dd4cea1b1cd977fcacc7c6b1259f6f9c36f544e57325abc840b0e9",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "current_sha256": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+        "prior_sha256": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "current_sha256": "3ecc1e3a336db0f07b03242e67d44d27b21842c1b54e7fbb04b784ddd28b0b2c",
+        "prior_sha256": "862762684861d5c8f26f47f92629c1151a50da472ee21c91ed6dd69dc2792e6d",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "current_sha256": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+        "prior_sha256": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/inference-pair.md",
+        "current_sha256": "a63036b25e0b9d1f46d690582f778f5a3e031d000b005c5551afab1b4a1749c3",
+        "prior_sha256": "a63036b25e0b9d1f46d690582f778f5a3e031d000b005c5551afab1b4a1749c3",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "current_sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+        "prior_sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "current_sha256": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa",
+        "prior_sha256": "704a0222627654d343076b474040b5d0d9c1ca316d1a5ff641d4cdd1014cdce0",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "current_sha256": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8",
+        "prior_sha256": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "current_sha256": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3",
+        "prior_sha256": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "current_sha256": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+        "prior_sha256": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "current_sha256": "6a469b8d46f98a3047bb6b1d8dd390f50ea850b688bee112ba35b0f49aa217c7",
+        "prior_sha256": "6a469b8d46f98a3047bb6b1d8dd390f50ea850b688bee112ba35b0f49aa217c7",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "current_sha256": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07",
+        "prior_sha256": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "current_sha256": "07e0df6847091b95e842ef96268d8be0fa229c4171ff2152638cc2e18d356332",
+        "prior_sha256": "07e0df6847091b95e842ef96268d8be0fa229c4171ff2152638cc2e18d356332",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "current_sha256": "03a3fb1a53408d2fe774720f20f717a2a08b216059b7076e36750e4af2ee2702",
+        "prior_sha256": "d08fb7f6a5e3c9e0e021a550ef61e0c0d1fb093016939e78e71af0e04d984ba0",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "current_sha256": "3c37db5e4d5ed61fb99af083bd8537a9d8244663165a42105b31f2b66695800c",
+        "prior_sha256": "1b0f233feaa80be25a299dd9620f9fcb7a0d527458c41c6d214d2d19416935c6",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "current_sha256": "ad2c8e4e7016c8bf0bb4089654d06179d26a4b794222f07ec496971ebb3db9f3",
+        "prior_sha256": "6fb016f05b411b399e6a86d7eed55116dc7ba08576bfdee83b4c7d7f0737260c",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "current_sha256": "13cd15de619e69a01b770006a9bf9b8410a1dc18954b274ee73ca1e6cd84288d",
+        "prior_sha256": "617c87182788cf2a240496696075828b6ebf9f843b9e4e3e7a9522674be2ff93",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-passes.md",
+        "current_sha256": "9468f0ef53a6b6666b874a81cc679074dc368a93d34973ba5e8ddee1f4122f74",
+        "prior_sha256": "6ed16394c9e5d0a7dfbb8f282e0f72e3172d1dda535c293b1ebe145e43e5a5ad",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "current_sha256": "4361ceacb697df32745c23a4a56c7598f9b31d645d21c1ca5cf9fdffb6e5adde",
+        "prior_sha256": "af23bd8d166b660ef12dbe81e7b80376c7d7671213f062372da0014a9fdf2092",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "current_sha256": "bc33994ec345533581a56b6dc80a790292b66586b6682a43bc7ddb8c30b81a5b",
+        "prior_sha256": "c500c053d02e5a1d0c5df4c81c4b3898d103d7b3fb05abbc5e2f8539f782add9",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-shard.md",
+        "current_sha256": "5c4945d09e28d7f45812233518eb3310337a25fb1ff72c22c79f17d8b3f778e3",
+        "prior_sha256": "263998ae78941ac634358eccd2d3049cfc252970e4e3f99ca761d78c2e5ceae1",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "current_sha256": "414bdc83dc054668f4a0621364a0868c10bbaa069b4f3bf6e8dc0ad33e83c61a",
+        "prior_sha256": "e0475e3c4c11c3c4c5d6a4f5746cc80c3b078462b686b286ffa78c57651113fe",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "current_sha256": "2dd727d4896d47601d430b030f23c4be821cdd9c70797895f13f6a3e127f240b",
+        "prior_sha256": "2dd727d4896d47601d430b030f23c4be821cdd9c70797895f13f6a3e127f240b",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "current_sha256": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8",
+        "prior_sha256": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "current_sha256": "c51debcec7d43f0a5d04bc805dfbdbab38a4aaeb3b8a5a0bbba7590840360f12",
+        "prior_sha256": "c51debcec7d43f0a5d04bc805dfbdbab38a4aaeb3b8a5a0bbba7590840360f12",
+        "comparison": "exact_prior_match",
+        "review": "Hash matches the verified checkpoint Markdown snapshot."
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "current_sha256": "10ef86b49e7a9cbe8a3af435cde5951b567207fa7fa91b703cb2db3a26e335fd",
+        "prior_sha256": "8c76349f67afae83b6faf527d050a18b7c4d4cd752c66186c5df7361ce34ff63",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/server.md",
+        "current_sha256": "959983c1179bce3a974c3b96b0980161a1d03ef238af9e9af75baba9a92600a0",
+        "prior_sha256": "f2a463ddb144eb15aaf203c6aa4f7ff23d2feab1c63488139176784a8995ca34",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "current_sha256": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff",
+        "prior_sha256": "84c5f4526350224d9f455a9ed3f5f7d61746e9cfe03ba4ada05ae26594c050b5",
+        "comparison": "difference_reviewed_for_dashboard",
+        "review": "Current hash recorded; full tracked-Markdown search found no dashboard link or dashboard-specific claim here."
+      },
+      {
+        "path": "tools/health_dashboard/README.md",
+        "current_sha256": "f6f6264070183ddec24e8663414a95cddc5a6226d15b74cf0a2e93bfc8c7914f",
+        "prior_sha256": null,
+        "comparison": "new_since_snapshot",
+        "review": "New dashboard README; reviewed as a feature-specific page."
+      }
+    ],
+    "findings": [
+      {
+        "severity": "note",
+        "path": "tools/health_dashboard/README.md",
+        "claim": "Request rates use completed-request counters, not instantaneous decode or prefill speed.",
+        "result": "Supported by docs/USAGE.md and Scheduler::finish/Stats counters."
+      },
+      {
+        "severity": "note",
+        "path": "tools/health_dashboard/README.md",
+        "claim": "KV/cache reservations are not physical GPU memory, utilization, or per-request latency telemetry.",
+        "result": "Accurately bounds what /v1/health reports; no GPU VRAM claim found."
+      },
+      {
+        "severity": "note",
+        "path": "docs/SERVER.md",
+        "claim": "New dashboard link and summary.",
+        "result": "Relative README link resolves; statements agree with source and README."
+      },
+      {
+        "severity": "follow_up",
+        "path": "docs/STATUS.md",
+        "claim": "Left: Implement a bounded sampler...",
+        "result": "Sampler is implemented; update this partial checklist before merge. Responsive charts, reset/unavailable-metric behavior, production read-only preview, and browser validation may remain."
+      }
+    ],
+    "review_scope": {
+      "read_in_context": [
+        "tools/health_dashboard/README.md",
+        "tools/health_dashboard/server.py",
+        "docs/SERVER.md",
+        "docs/STATUS.md",
+        "docs/USAGE.md health schema",
+        "src/server/scheduler.hpp counters",
+        "docs/ARCHITECTURE.md",
+        "docs/BUILD.md",
+        "docs/CI.md"
+      ],
+      "tracked_markdown_scan": "Searched every current tracked Markdown file for dashboard paths/names and unsupported instantaneous-speed/GPU-memory claims. Dashboard-specific tracked references are docs/SERVER.md and docs/STATUS.md only. Hash differences unrelated to dashboard content were not treated as dashboard changes."
+    },
+    "conclusion": "No new claim of instantaneous token speed or GPU VRAM/use telemetry. Dashboard scope and link are consistent. Status checklist has one implementation item to update."
+  },
+  "markdown_final_hashes": {
+    "AGENTS.md": "f2075063e116df112d0824924800d5b802fc29264f4ca746ac622629917132f1",
+    "README.md": "43827fb0251e24ebfa13b793677a329fc27cd2280c8d90c01193ea89e4fa74e5",
+    "docs/ADDING-AN-ARCHITECTURE.md": "5119030e1a1dff96f0fc8b3300e59d3163ceb19787a04912cbf7dadebbfc0f12",
+    "docs/ARCHITECTURE.md": "9bf7e571ff9acddfb13969b48446bf52314d59224b19dc8abb3a6de83e5a57c1",
+    "docs/ASSETS.md": "c77ef6e48a44b45018f01435f8729a90298410f416cbf4bcdd823ca549c698a3",
+    "docs/BUILD.md": "1ab6639742fea661957ca297e3d7346780a5199e21413036d963b7737a715bba",
+    "docs/CACHE-PLAN.md": "db8fef6bb942de92358428f9bd73e609458e47426ca22939853b7a23612003e6",
+    "docs/CI.md": "1f3b3a7ce671724fd9d10c81922bec2f5fcea7a2d5b4913efa8dfd808496358f",
+    "docs/DEVICE-EXECUTION.md": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+    "docs/DISK-TIER.md": "01a6d544d3be08653eeae659b9be7118f49f8dd13944c8ec26189136d8023bf4",
+    "docs/EXECUTION.md": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+    "docs/KV-CACHE.md": "b6de3314c1ec1791681995c06ef32a7703b105295bfd843352a1ae7c012f6aee",
+    "docs/MULTI-DEVICE.md": "90dbf6a88405069bae956ca0da6b5080ae2a4db7a81fbb60a2de2263e2260c54",
+    "docs/OPERATING.md": "cdf6995b2e4ec8a196c1c641454c391fba13a1ddf1e3bfce9dfd1b851de519d5",
+    "docs/PRECISION.md": "7119a65104481c64ddd0e01b2a57956cbe7c02a6a992d0faeefac1ade8c4c9f9",
+    "docs/QWEN35.md": "a1459c4b685331150b1b9e84cad71904d391b066c486c975af3700e272399227",
+    "docs/ROADMAP.md": "2145f0c0a945cbfe8c54aba234b44d601483a8f793f433747d9af993de06c15a",
+    "docs/ROCM.md": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+    "docs/SERVER.md": "3ae2d504032d0388ff8f7e22c5fc717b1d4b4003eeb7bb44ec79128914ae4f75",
+    "docs/SPECULATIVE.md": "f1f9c285fd8e18621a918f23aa884181af17fbc4f9814b9dbf9072559d2621c0",
+    "docs/STATUS-2026-09.md": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+    "docs/STATUS.md": "e02725c4e4c01bf338f6cf4ff659e9a6b97559ef05aa5eae30fbf5300c03e334",
+    "docs/TENSOR-SPLIT.md": "cf59ec447d2ba653ff12c4ad5ac95565badaae359844ec552e5cc589a4690e4b",
+    "docs/USAGE.md": "e59f919657ebc78c1a155f69362696b4224e94ae13807d748b49c108cfc8c570",
+    "docs/VULKAN.md": "7169a64be07d95b22af94649a9640188af8ad5efbe76c907cd5d9089aa0c0fff",
+    "docs/benchmarks/attention-coverage-20260925/README.md": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+    "docs/benchmarks/backend-audit-20260925/README.md": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/README.md": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+    "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+    "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+    "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+    "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+    "docs/benchmarks/dtype-cpu-final-20261002.md": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+    "docs/benchmarks/dtype-execution-history-20261002.md": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+    "docs/benchmarks/expert-types-20261002.md": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+    "docs/benchmarks/kquant-decode-columns-20260929/README.md": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+    "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+    "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+    "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+    "docs/benchmarks/rocm-attention-20261010/README.md": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+    "docs/benchmarks/rocm-combined-20261010/README.md": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+    "docs/benchmarks/rocm-controls-20261009/README.md": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+    "docs/benchmarks/rocm-model-budget-20261010/README.md": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+    "docs/benchmarks/rocm-q8-compute-20261010/README.md": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+    "docs/benchmarks/server-investigation-20260929/README.md": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+    "docs/benchmarks/server-investigation-20260929/micro/microtab.md": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+    "docs/benchmarks/storage-types-20261002.md": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+    "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+    "docs/research/rocm-20261009.md": "4631c36a2087f706574c740a41bd435e76f34c8d9354bd86a0d119cbb433a259",
+    "docs/src/backends-backend.md": "82ad175112b7d0b6cbb777ca4aa7aa38d1acf02d835d3779db828423b736c1ea",
+    "docs/src/backends-cpu-placement.md": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+    "docs/src/backends-cpu-q8_dots.md": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+    "docs/src/backends-cpu.md": "bb0eab45a4996eec07da0eb862ed47ae1b69199dc1009fef10413604bf5813c6",
+    "docs/src/backends-device_profile.md": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a",
+    "docs/src/backends-devices.md": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+    "docs/src/backends-kv_storage.md": "46ec7bf753205ffb01ba2575ae82f5b87e1177faff36e75107840d6bfb72f139",
+    "docs/src/backends-vulkan.md": "3cedbbe9ed632cf6489a1fb6ac6355554d4e14adc22eb39ced38cb66daf22df7",
+    "docs/src/cli-main.md": "4c0fc8c5a0c28b88608cdfda80cc329fb5a5dd6caf5c94176ba39ba048d89f71",
+    "docs/src/config.md": "78ba26b61c9625b0f61d7b5d4baa77e19a14064a8461ebf45de9eb4a298a8375",
+    "docs/src/core-bf16.md": "a15a4583d55915be0ae2bd5bc07d88be0fdea659b2f9bfd75a58341dce1bf73c",
+    "docs/src/core-cgroup.md": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+    "docs/src/core-cpus.md": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+    "docs/src/core-crc32c.md": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+    "docs/src/core-fp16.md": "446867ff079cf0e58dab2b802d57944c9ad93e38a37d6bf5a91f7e0c73578bce",
+    "docs/src/core-host_memory.md": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+    "docs/src/core-job_threads.md": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+    "docs/src/core-json.md": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e",
+    "docs/src/core-list.md": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+    "docs/src/core-sha.md": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+    "docs/src/core-utf8.md": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+    "docs/src/format-file_digest.md": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693",
+    "docs/src/format-file_reader.md": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+    "docs/src/format-file_writer.md": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba",
+    "docs/src/format-format.md": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+    "docs/src/format-gguf.md": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+    "docs/src/format-mapped_file.md": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+    "docs/src/format-output_file.md": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+    "docs/src/format-raw_convert.md": "10fcd3a3ca2e0eeede2262cf6ec9064b147bd301cbca82790defda1cac0a2aec",
+    "docs/src/hub.md": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+    "docs/src/inference-chat.md": "01d58e566256aa29c01664d2f20be9b522565f5bf2a49491a54cd33bb45ec64f",
+    "docs/src/inference-generate.md": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+    "docs/src/inference-load.md": "3ecc1e3a336db0f07b03242e67d44d27b21842c1b54e7fbb04b784ddd28b0b2c",
+    "docs/src/inference-logprobs.md": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+    "docs/src/inference-pair.md": "a63036b25e0b9d1f46d690582f778f5a3e031d000b005c5551afab1b4a1749c3",
+    "docs/src/inference-perplexity.md": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+    "docs/src/inference-sampler.md": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa",
+    "docs/src/inference-spec.md": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8",
+    "docs/src/model-arch-blocks.md": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3",
+    "docs/src/model-arch-metadata.md": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+    "docs/src/model-arch-qwen3.md": "6a469b8d46f98a3047bb6b1d8dd390f50ea850b688bee112ba35b0f49aa217c7",
+    "docs/src/model-arch-qwen35.md": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07",
+    "docs/src/model-arch-registry.md": "07e0df6847091b95e842ef96268d8be0fa229c4171ff2152638cc2e18d356332",
+    "docs/src/model-architecture.md": "03a3fb1a53408d2fe774720f20f717a2a08b216059b7076e36750e4af2ee2702",
+    "docs/src/model-history.md": "3c37db5e4d5ed61fb99af083bd8537a9d8244663165a42105b31f2b66695800c",
+    "docs/src/model-kv_cache.md": "ad2c8e4e7016c8bf0bb4089654d06179d26a4b794222f07ec496971ebb3db9f3",
+    "docs/src/model-layer_split.md": "13cd15de619e69a01b770006a9bf9b8410a1dc18954b274ee73ca1e6cd84288d",
+    "docs/src/model-passes.md": "9468f0ef53a6b6666b874a81cc679074dc368a93d34973ba5e8ddee1f4122f74",
+    "docs/src/model-place.md": "4361ceacb697df32745c23a4a56c7598f9b31d645d21c1ca5cf9fdffb6e5adde",
+    "docs/src/model-runtime.md": "bc33994ec345533581a56b6dc80a790292b66586b6682a43bc7ddb8c30b81a5b",
+    "docs/src/model-shard.md": "5c4945d09e28d7f45812233518eb3310337a25fb1ff72c22c79f17d8b3f778e3",
+    "docs/src/model-weights.md": "414bdc83dc054668f4a0621364a0868c10bbaa069b4f3bf6e8dc0ad33e83c61a",
+    "docs/src/quant-k_quants.md": "2dd727d4896d47601d430b030f23c4be821cdd9c70797895f13f6a3e127f240b",
+    "docs/src/quant-mxfp4.md": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8",
+    "docs/src/quant-quant.md": "c51debcec7d43f0a5d04bc805dfbdbab38a4aaeb3b8a5a0bbba7590840360f12",
+    "docs/src/quant-types.md": "10ef86b49e7a9cbe8a3af435cde5951b567207fa7fa91b703cb2db3a26e335fd",
+    "docs/src/server.md": "959983c1179bce3a974c3b96b0980161a1d03ef238af9e9af75baba9a92600a0",
+    "docs/src/tokenizer-tokenizer.md": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff",
+    "tools/health_dashboard/README.md": "f6f6264070183ddec24e8663414a95cddc5a6226d15b74cf0a2e93bfc8c7914f"
+  },
+  "markdown_review_scope": "Current-main pages reviewed for the tool change; no claim of revalidating unrelated runtime behavior.",
+  "refinement": {
+    "base_commit": "1da7a977f3f00c185256e4382a9d7615821326dd",
+    "runtime_changed": false,
+    "sampler_changed": false,
+    "browser_checks": {
+      "refinement-extra": {
+        "checks": [
+          "four charts with independent PP/TG series",
+          "large PP/TG readouts",
+          "completion and cache semantics visible",
+          "four charts share selected timestamp",
+          "readouts follow inspection",
+          "keyboard moves common timestamp",
+          "inspection returns to latest",
+          "one-hour coverage and invalidation",
+          "preferences survive reload",
+          "desktop no overflow",
+          "mobile no overflow"
+        ],
+        "errors": [],
+        "source_sha256": "abf62700dbd14d3d33582dfe32d34a5e0cea2a12c91540027f86155d8b56a659"
+      },
+      "refinement-browser": {
+        "checks": [
+          "production model and live data",
+          "no horizontal desktop overflow",
+          "draft position metrics appear",
+          "own history ratio present",
+          "rate reset and missing data gaps",
+          "range control",
+          "pause banner",
+          "resume control",
+          "nested metrics search",
+          "search empty state",
+          "no horizontal mobile overflow",
+          "collector disconnect keeps stale display",
+          "collector connection recovers"
+        ],
+        "errors": [],
+        "source_sha256": "abf62700dbd14d3d33582dfe32d34a5e0cea2a12c91540027f86155d8b56a659"
+      },
+      "refinement-rig-extra": {
+        "checks": [
+          "four charts with independent PP/TG series",
+          "large PP/TG readouts",
+          "completion and cache semantics visible",
+          "four charts share selected timestamp",
+          "readouts follow inspection",
+          "keyboard moves common timestamp",
+          "inspection returns to latest",
+          "one-hour coverage and invalidation",
+          "preferences survive reload",
+          "desktop no overflow",
+          "mobile no overflow"
+        ],
+        "errors": [],
+        "source_sha256": "77979525ebe96f5f875ae03e5f441f7662a9d56e0c51c6d609c0939be514771c"
+      },
+      "refinement-rig-browser": {
+        "checks": [
+          "production model and live data",
+          "no horizontal desktop overflow",
+          "draft position metrics appear",
+          "own history ratio present",
+          "rate reset and missing data gaps",
+          "range control",
+          "pause banner",
+          "resume control",
+          "nested metrics search",
+          "search empty state",
+          "no horizontal mobile overflow",
+          "collector disconnect keeps stale display",
+          "collector connection recovers"
+        ],
+        "errors": [],
+        "source_sha256": "77979525ebe96f5f875ae03e5f441f7662a9d56e0c51c6d609c0939be514771c"
+      }
+    },
+    "deployment": {
+      "utc": "2026-10-16T20:08:24.774704+00:00",
+      "html_sha256": "77979525ebe96f5f875ae03e5f441f7662a9d56e0c51c6d609c0939be514771c",
+      "collector_id": "096f5315-b8bd-43d5-9aef-dd9aed438331",
+      "history_preserved": true,
+      "container_unchanged": true,
+      "container": "6bb528e7c8b9f09a1291e75c10ad9ce6b0ee308b65bb775496b968259cd0b197",
+      "url": "http://11.10.10.13:8182"
+    },
+    "artifacts": {
+      "tools/health_dashboard/index.html": {
+        "sha256": "77979525ebe96f5f875ae03e5f441f7662a9d56e0c51c6d609c0939be514771c",
+        "bytes": 84607
+      },
+      "tools/health_dashboard/README.md": {
+        "sha256": "31d3fdac9c5100a3a0ff790da7933051a834b86ae2d1eea0d226e3aca66e0221",
+        "bytes": 3499
+      },
+      "build-health-dashboard/deployment-refinement.json": {
+        "sha256": "1ca09a0977307824a6ddfd2d907d52a3556eb63822abdbbd68dd8dc4f39fd037",
+        "bytes": 370
+      },
+      "build-health-dashboard/refinement-extra/checks.json": {
+        "sha256": "a7a2ca41af4f5c26cb3b2e8c2f78b45c09a9fca9c8dc1d46407eb6632fbd6905",
+        "bytes": 546
+      },
+      "build-health-dashboard/refinement-browser/browser-checks.json": {
+        "sha256": "88db4cb005c95e9b3d719bd535c3f866564263a1ae49d40784b1df0199796ba5",
+        "bytes": 569
+      },
+      "build-health-dashboard/refinement-rig-extra/checks.json": {
+        "sha256": "77bd2afa22c387777be98ea601b070fd27f0da51316a450c4d21afb583aa5976",
+        "bytes": 546
+      },
+      "build-health-dashboard/refinement-rig-browser/browser-checks.json": {
+        "sha256": "1d15483cd0d375511022ae67a5559b6d16ea1fca216bf61f2f81fdce804059ee",
+        "bytes": 569
+      },
+      "build-health-dashboard/refinement-extra/desktop-rates.png": {
+        "sha256": "952ac34d15160a4f0970622ddd7997ce9df01760ae60ca526336da50e2933dc3",
+        "bytes": 350240
+      },
+      "build-health-dashboard/refinement-extra/desktop-top.png": {
+        "sha256": "84793af7b0a392c60202d4f71b3b07f0b753d276ad58857570aa34768c134198",
+        "bytes": 316429
+      },
+      "build-health-dashboard/refinement-extra/mobile-rates.png": {
+        "sha256": "cfced85ff4ce7e7d499bbf84a58753e6c8b6760494a38660491f60163a09997e",
+        "bytes": 104609
+      },
+      "build-health-dashboard/refinement-extra/mobile-top.png": {
+        "sha256": "908c2fd2efa199ced759a2c03f0be460cef0d6727054792014aec7c771b33540",
+        "bytes": 91131
+      },
+      "build-health-dashboard/cmake-configure.log": {
+        "sha256": "90ae4a212d54974eafa5721585b70395afe930602153dc38572a48da74699f0d",
+        "bytes": 1976
+      },
+      "build-health-dashboard/cmake-build.log": {
+        "sha256": "0946e4d372dfcc2fcc276bfcf23c4c6a006b7f8fa13b52a33d0bddccfe360f76",
+        "bytes": 52990
+      },
+      "build-health-dashboard/ctest.log": {
+        "sha256": "b3f01b01aaf63ed6d05a9bc92aed6b50d4d2e3804d72c64d5333d0bb64a087c0",
+        "bytes": 10210
+      }
+    },
+    "markdown_review": {
+      "count": 109,
+      "unchanged_carried_forward": 107,
+      "changed_reviewed": [
+        "docs/STATUS.md",
+        "tools/health_dashboard/README.md"
+      ],
+      "hashes": {
+        "AGENTS.md": "f2075063e116df112d0824924800d5b802fc29264f4ca746ac622629917132f1",
+        "README.md": "43827fb0251e24ebfa13b793677a329fc27cd2280c8d90c01193ea89e4fa74e5",
+        "docs/ADDING-AN-ARCHITECTURE.md": "5119030e1a1dff96f0fc8b3300e59d3163ceb19787a04912cbf7dadebbfc0f12",
+        "docs/ARCHITECTURE.md": "9bf7e571ff9acddfb13969b48446bf52314d59224b19dc8abb3a6de83e5a57c1",
+        "docs/ASSETS.md": "c77ef6e48a44b45018f01435f8729a90298410f416cbf4bcdd823ca549c698a3",
+        "docs/BUILD.md": "1ab6639742fea661957ca297e3d7346780a5199e21413036d963b7737a715bba",
+        "docs/CACHE-PLAN.md": "db8fef6bb942de92358428f9bd73e609458e47426ca22939853b7a23612003e6",
+        "docs/CI.md": "1f3b3a7ce671724fd9d10c81922bec2f5fcea7a2d5b4913efa8dfd808496358f",
+        "docs/DEVICE-EXECUTION.md": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+        "docs/DISK-TIER.md": "01a6d544d3be08653eeae659b9be7118f49f8dd13944c8ec26189136d8023bf4",
+        "docs/EXECUTION.md": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+        "docs/KV-CACHE.md": "b6de3314c1ec1791681995c06ef32a7703b105295bfd843352a1ae7c012f6aee",
+        "docs/MULTI-DEVICE.md": "90dbf6a88405069bae956ca0da6b5080ae2a4db7a81fbb60a2de2263e2260c54",
+        "docs/OPERATING.md": "cdf6995b2e4ec8a196c1c641454c391fba13a1ddf1e3bfce9dfd1b851de519d5",
+        "docs/PRECISION.md": "7119a65104481c64ddd0e01b2a57956cbe7c02a6a992d0faeefac1ade8c4c9f9",
+        "docs/QWEN35.md": "a1459c4b685331150b1b9e84cad71904d391b066c486c975af3700e272399227",
+        "docs/ROADMAP.md": "2145f0c0a945cbfe8c54aba234b44d601483a8f793f433747d9af993de06c15a",
+        "docs/ROCM.md": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+        "docs/SERVER.md": "3ae2d504032d0388ff8f7e22c5fc717b1d4b4003eeb7bb44ec79128914ae4f75",
+        "docs/SPECULATIVE.md": "f1f9c285fd8e18621a918f23aa884181af17fbc4f9814b9dbf9072559d2621c0",
+        "docs/STATUS-2026-09.md": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+        "docs/STATUS.md": "deea49c615b438a66c35d265d54e8cdaf21bf582d8be0f75a920282ad7d224fb",
+        "docs/TENSOR-SPLIT.md": "cf59ec447d2ba653ff12c4ad5ac95565badaae359844ec552e5cc589a4690e4b",
+        "docs/USAGE.md": "e59f919657ebc78c1a155f69362696b4224e94ae13807d748b49c108cfc8c570",
+        "docs/VULKAN.md": "7169a64be07d95b22af94649a9640188af8ad5efbe76c907cd5d9089aa0c0fff",
+        "docs/benchmarks/attention-coverage-20260925/README.md": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+        "docs/benchmarks/backend-audit-20260925/README.md": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+        "docs/benchmarks/cpu-activation-final-perf-20260925/README.md": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+        "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+        "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+        "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+        "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+        "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+        "docs/benchmarks/dtype-cpu-final-20261002.md": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+        "docs/benchmarks/dtype-execution-history-20261002.md": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+        "docs/benchmarks/expert-types-20261002.md": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+        "docs/benchmarks/kquant-decode-columns-20260929/README.md": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+        "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+        "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+        "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+        "docs/benchmarks/rocm-attention-20261010/README.md": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+        "docs/benchmarks/rocm-combined-20261010/README.md": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+        "docs/benchmarks/rocm-controls-20261009/README.md": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+        "docs/benchmarks/rocm-model-budget-20261010/README.md": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+        "docs/benchmarks/rocm-q8-compute-20261010/README.md": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+        "docs/benchmarks/server-investigation-20260929/README.md": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+        "docs/benchmarks/server-investigation-20260929/micro/microtab.md": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+        "docs/benchmarks/storage-types-20261002.md": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+        "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+        "docs/research/rocm-20261009.md": "4631c36a2087f706574c740a41bd435e76f34c8d9354bd86a0d119cbb433a259",
+        "docs/src/backends-backend.md": "82ad175112b7d0b6cbb777ca4aa7aa38d1acf02d835d3779db828423b736c1ea",
+        "docs/src/backends-cpu-placement.md": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+        "docs/src/backends-cpu-q8_dots.md": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+        "docs/src/backends-cpu.md": "bb0eab45a4996eec07da0eb862ed47ae1b69199dc1009fef10413604bf5813c6",
+        "docs/src/backends-device_profile.md": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a",
+        "docs/src/backends-devices.md": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+        "docs/src/backends-kv_storage.md": "46ec7bf753205ffb01ba2575ae82f5b87e1177faff36e75107840d6bfb72f139",
+        "docs/src/backends-vulkan.md": "3cedbbe9ed632cf6489a1fb6ac6355554d4e14adc22eb39ced38cb66daf22df7",
+        "docs/src/cli-main.md": "4c0fc8c5a0c28b88608cdfda80cc329fb5a5dd6caf5c94176ba39ba048d89f71",
+        "docs/src/config.md": "78ba26b61c9625b0f61d7b5d4baa77e19a14064a8461ebf45de9eb4a298a8375",
+        "docs/src/core-bf16.md": "a15a4583d55915be0ae2bd5bc07d88be0fdea659b2f9bfd75a58341dce1bf73c",
+        "docs/src/core-cgroup.md": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+        "docs/src/core-cpus.md": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+        "docs/src/core-crc32c.md": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+        "docs/src/core-fp16.md": "446867ff079cf0e58dab2b802d57944c9ad93e38a37d6bf5a91f7e0c73578bce",
+        "docs/src/core-host_memory.md": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+        "docs/src/core-job_threads.md": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+        "docs/src/core-json.md": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e",
+        "docs/src/core-list.md": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+        "docs/src/core-sha.md": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+        "docs/src/core-utf8.md": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+        "docs/src/format-file_digest.md": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693",
+        "docs/src/format-file_reader.md": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+        "docs/src/format-file_writer.md": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba",
+        "docs/src/format-format.md": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+        "docs/src/format-gguf.md": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+        "docs/src/format-mapped_file.md": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+        "docs/src/format-output_file.md": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+        "docs/src/format-raw_convert.md": "10fcd3a3ca2e0eeede2262cf6ec9064b147bd301cbca82790defda1cac0a2aec",
+        "docs/src/hub.md": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+        "docs/src/inference-chat.md": "01d58e566256aa29c01664d2f20be9b522565f5bf2a49491a54cd33bb45ec64f",
+        "docs/src/inference-generate.md": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+        "docs/src/inference-load.md": "3ecc1e3a336db0f07b03242e67d44d27b21842c1b54e7fbb04b784ddd28b0b2c",
+        "docs/src/inference-logprobs.md": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+        "docs/src/inference-pair.md": "a63036b25e0b9d1f46d690582f778f5a3e031d000b005c5551afab1b4a1749c3",
+        "docs/src/inference-perplexity.md": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+        "docs/src/inference-sampler.md": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa",
+        "docs/src/inference-spec.md": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8",
+        "docs/src/model-arch-blocks.md": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3",
+        "docs/src/model-arch-metadata.md": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+        "docs/src/model-arch-qwen3.md": "6a469b8d46f98a3047bb6b1d8dd390f50ea850b688bee112ba35b0f49aa217c7",
+        "docs/src/model-arch-qwen35.md": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07",
+        "docs/src/model-arch-registry.md": "07e0df6847091b95e842ef96268d8be0fa229c4171ff2152638cc2e18d356332",
+        "docs/src/model-architecture.md": "03a3fb1a53408d2fe774720f20f717a2a08b216059b7076e36750e4af2ee2702",
+        "docs/src/model-history.md": "3c37db5e4d5ed61fb99af083bd8537a9d8244663165a42105b31f2b66695800c",
+        "docs/src/model-kv_cache.md": "ad2c8e4e7016c8bf0bb4089654d06179d26a4b794222f07ec496971ebb3db9f3",
+        "docs/src/model-layer_split.md": "13cd15de619e69a01b770006a9bf9b8410a1dc18954b274ee73ca1e6cd84288d",
+        "docs/src/model-passes.md": "9468f0ef53a6b6666b874a81cc679074dc368a93d34973ba5e8ddee1f4122f74",
+        "docs/src/model-place.md": "4361ceacb697df32745c23a4a56c7598f9b31d645d21c1ca5cf9fdffb6e5adde",
+        "docs/src/model-runtime.md": "bc33994ec345533581a56b6dc80a790292b66586b6682a43bc7ddb8c30b81a5b",
+        "docs/src/model-shard.md": "5c4945d09e28d7f45812233518eb3310337a25fb1ff72c22c79f17d8b3f778e3",
+        "docs/src/model-weights.md": "414bdc83dc054668f4a0621364a0868c10bbaa069b4f3bf6e8dc0ad33e83c61a",
+        "docs/src/quant-k_quants.md": "2dd727d4896d47601d430b030f23c4be821cdd9c70797895f13f6a3e127f240b",
+        "docs/src/quant-mxfp4.md": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8",
+        "docs/src/quant-quant.md": "c51debcec7d43f0a5d04bc805dfbdbab38a4aaeb3b8a5a0bbba7590840360f12",
+        "docs/src/quant-types.md": "10ef86b49e7a9cbe8a3af435cde5951b567207fa7fa91b703cb2db3a26e335fd",
+        "docs/src/server.md": "959983c1179bce3a974c3b96b0980161a1d03ef238af9e9af75baba9a92600a0",
+        "docs/src/tokenizer-tokenizer.md": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff",
+        "tools/health_dashboard/README.md": "31d3fdac9c5100a3a0ff790da7933051a834b86ae2d1eea0d226e3aca66e0221"
+      }
+    },
+    "whitespace_cleanup": {
+      "before_sha256": "abf62700dbd14d3d33582dfe32d34a5e0cea2a12c91540027f86155d8b56a659",
+      "after_sha256": "77979525ebe96f5f875ae03e5f441f7662a9d56e0c51c6d609c0939be514771c",
+      "verification": "Only trailing whitespace removed after local24 browser checks; published24 browser checks rerun on final bytes"
+    },
+    "native_checks": {
+      "head": "1da7a977f3f00c185256e4382a9d7615821326dd",
+      "source_unchanged": true,
+      "cmake_build": "PASS, CPU-only, MSVC19.50",
+      "ctest": {
+        "passed": 48,
+        "failed": 0,
+        "elapsed_s": 696.06
+      },
+      "warnings": "9 C4457 at scheduler.hpp2371, unchanged native sources",
+      "binary_version": "llmx 0.1.0+g1da7a977f3f0 numerics f1c2064b7f390e71",
+      "binary_sha256": "76191b03fd217f69e3435dcefd5e47ed73a9c22202294b0e95cc8de1c1d33c84",
+      "hosted": "not run"
+    }
+  },
+  "local_live_topology_refinement": {
+    "scope": "Undeployed live-counter consumer and topology presentation; no runtime or deployment change.",
+    "base": "e53f4a01bf4885ffcae7c60d19abe7d1ae5cf88b",
+    "checks": {
+      "live_counter_dom": "23 assertions PASS against combined topology UI",
+      "topology": "Parent/owner reports all-mode, malformed, safe-text, mobile and expansion fixtures PASS",
+      "docs": "PASS zero findings, 21 planted faults",
+      "dead_code": "PASS five listed findings, 18 planted faults"
+    },
+    "source_hashes": {
+      "tools/health_dashboard/index.html": "363e14bf9b9c1b6f65c74aab81556241ebc1589f5db7dd848e4871f31758acbb",
+      "tools/health_dashboard/README.md": "36b80222d50f18cc465ce886d85d2d058181f5b3d11d5e1355192e2a1201e421"
+    },
+    "markdown_review": {
+      "tracked": 109,
+      "carried_unchanged": 106,
+      "reviewed_changed": 3,
+      "pages": [
+        {
+          "path": "AGENTS.md",
+          "sha256": "f2075063e116df112d0824924800d5b802fc29264f4ca746ac622629917132f1",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "README.md",
+          "sha256": "43827fb0251e24ebfa13b793677a329fc27cd2280c8d90c01193ea89e4fa74e5",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/ADDING-AN-ARCHITECTURE.md",
+          "sha256": "5119030e1a1dff96f0fc8b3300e59d3163ceb19787a04912cbf7dadebbfc0f12",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/ARCHITECTURE.md",
+          "sha256": "9bf7e571ff9acddfb13969b48446bf52314d59224b19dc8abb3a6de83e5a57c1",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/ASSETS.md",
+          "sha256": "c77ef6e48a44b45018f01435f8729a90298410f416cbf4bcdd823ca549c698a3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/BUILD.md",
+          "sha256": "1ab6639742fea661957ca297e3d7346780a5199e21413036d963b7737a715bba",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/CACHE-PLAN.md",
+          "sha256": "db8fef6bb942de92358428f9bd73e609458e47426ca22939853b7a23612003e6",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/CI.md",
+          "sha256": "1f3b3a7ce671724fd9d10c81922bec2f5fcea7a2d5b4913efa8dfd808496358f",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/DEVICE-EXECUTION.md",
+          "sha256": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/DISK-TIER.md",
+          "sha256": "01a6d544d3be08653eeae659b9be7118f49f8dd13944c8ec26189136d8023bf4",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/EXECUTION.md",
+          "sha256": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/KV-CACHE.md",
+          "sha256": "b6de3314c1ec1791681995c06ef32a7703b105295bfd843352a1ae7c012f6aee",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/MULTI-DEVICE.md",
+          "sha256": "90dbf6a88405069bae956ca0da6b5080ae2a4db7a81fbb60a2de2263e2260c54",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/OPERATING.md",
+          "sha256": "cdf6995b2e4ec8a196c1c641454c391fba13a1ddf1e3bfce9dfd1b851de519d5",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/PRECISION.md",
+          "sha256": "7119a65104481c64ddd0e01b2a57956cbe7c02a6a992d0faeefac1ade8c4c9f9",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/QWEN35.md",
+          "sha256": "a1459c4b685331150b1b9e84cad71904d391b066c486c975af3700e272399227",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/ROADMAP.md",
+          "sha256": "2145f0c0a945cbfe8c54aba234b44d601483a8f793f433747d9af993de06c15a",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/ROCM.md",
+          "sha256": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/SERVER.md",
+          "sha256": "39b0045a8f8425add9908d5185df1e0f6fb3d5a13409ce145e7ec3377df4be97",
+          "review": "Dashboard section describes optional live work, explicit older API fallback and actual topology; does not claim native fields exist in this branch."
+        },
+        {
+          "path": "docs/SPECULATIVE.md",
+          "sha256": "f1f9c285fd8e18621a918f23aa884181af17fbc4f9814b9dbf9072559d2621c0",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/STATUS-2026-09.md",
+          "sha256": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/STATUS.md",
+          "sha256": "b990f2317dfebd51355763cc28d1176f1f36d2a89a19895d1596b7f207af3eb5",
+          "review": "Local live-counter/topology changes distinguished from deployed completed-work dashboard; checks and pending gates recorded."
+        },
+        {
+          "path": "docs/TENSOR-SPLIT.md",
+          "sha256": "cf59ec447d2ba653ff12c4ad5ac95565badaae359844ec552e5cc589a4690e4b",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/USAGE.md",
+          "sha256": "e59f919657ebc78c1a155f69362696b4224e94ae13807d748b49c108cfc8c570",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/VULKAN.md",
+          "sha256": "7169a64be07d95b22af94649a9640188af8ad5efbe76c907cd5d9089aa0c0fff",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+          "sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/backend-audit-20260925/README.md",
+          "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+          "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+          "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+          "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+          "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+          "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+          "sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+          "sha256": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+          "sha256": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/expert-types-20261002.md",
+          "sha256": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+          "sha256": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+          "sha256": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+          "sha256": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+          "sha256": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+          "sha256": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+          "sha256": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+          "sha256": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+          "sha256": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+          "sha256": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/server-investigation-20260929/README.md",
+          "sha256": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+          "sha256": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/storage-types-20261002.md",
+          "sha256": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+          "sha256": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/research/rocm-20261009.md",
+          "sha256": "4631c36a2087f706574c740a41bd435e76f34c8d9354bd86a0d119cbb433a259",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-backend.md",
+          "sha256": "82ad175112b7d0b6cbb777ca4aa7aa38d1acf02d835d3779db828423b736c1ea",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-cpu-placement.md",
+          "sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-cpu-q8_dots.md",
+          "sha256": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-cpu.md",
+          "sha256": "bb0eab45a4996eec07da0eb862ed47ae1b69199dc1009fef10413604bf5813c6",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-device_profile.md",
+          "sha256": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-devices.md",
+          "sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-kv_storage.md",
+          "sha256": "46ec7bf753205ffb01ba2575ae82f5b87e1177faff36e75107840d6bfb72f139",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/backends-vulkan.md",
+          "sha256": "3cedbbe9ed632cf6489a1fb6ac6355554d4e14adc22eb39ced38cb66daf22df7",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/cli-main.md",
+          "sha256": "4c0fc8c5a0c28b88608cdfda80cc329fb5a5dd6caf5c94176ba39ba048d89f71",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/config.md",
+          "sha256": "78ba26b61c9625b0f61d7b5d4baa77e19a14064a8461ebf45de9eb4a298a8375",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-bf16.md",
+          "sha256": "a15a4583d55915be0ae2bd5bc07d88be0fdea659b2f9bfd75a58341dce1bf73c",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-cgroup.md",
+          "sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-cpus.md",
+          "sha256": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-crc32c.md",
+          "sha256": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-fp16.md",
+          "sha256": "446867ff079cf0e58dab2b802d57944c9ad93e38a37d6bf5a91f7e0c73578bce",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-host_memory.md",
+          "sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-job_threads.md",
+          "sha256": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-json.md",
+          "sha256": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-list.md",
+          "sha256": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-sha.md",
+          "sha256": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/core-utf8.md",
+          "sha256": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-file_digest.md",
+          "sha256": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-file_reader.md",
+          "sha256": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-file_writer.md",
+          "sha256": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-format.md",
+          "sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-gguf.md",
+          "sha256": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-mapped_file.md",
+          "sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-output_file.md",
+          "sha256": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/format-raw_convert.md",
+          "sha256": "10fcd3a3ca2e0eeede2262cf6ec9064b147bd301cbca82790defda1cac0a2aec",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/hub.md",
+          "sha256": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-chat.md",
+          "sha256": "01d58e566256aa29c01664d2f20be9b522565f5bf2a49491a54cd33bb45ec64f",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-generate.md",
+          "sha256": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-load.md",
+          "sha256": "3ecc1e3a336db0f07b03242e67d44d27b21842c1b54e7fbb04b784ddd28b0b2c",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-logprobs.md",
+          "sha256": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-pair.md",
+          "sha256": "a63036b25e0b9d1f46d690582f778f5a3e031d000b005c5551afab1b4a1749c3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-perplexity.md",
+          "sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-sampler.md",
+          "sha256": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/inference-spec.md",
+          "sha256": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-arch-blocks.md",
+          "sha256": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-arch-metadata.md",
+          "sha256": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-arch-qwen3.md",
+          "sha256": "6a469b8d46f98a3047bb6b1d8dd390f50ea850b688bee112ba35b0f49aa217c7",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-arch-qwen35.md",
+          "sha256": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-arch-registry.md",
+          "sha256": "07e0df6847091b95e842ef96268d8be0fa229c4171ff2152638cc2e18d356332",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-architecture.md",
+          "sha256": "03a3fb1a53408d2fe774720f20f717a2a08b216059b7076e36750e4af2ee2702",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-history.md",
+          "sha256": "3c37db5e4d5ed61fb99af083bd8537a9d8244663165a42105b31f2b66695800c",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-kv_cache.md",
+          "sha256": "ad2c8e4e7016c8bf0bb4089654d06179d26a4b794222f07ec496971ebb3db9f3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-layer_split.md",
+          "sha256": "13cd15de619e69a01b770006a9bf9b8410a1dc18954b274ee73ca1e6cd84288d",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-passes.md",
+          "sha256": "9468f0ef53a6b6666b874a81cc679074dc368a93d34973ba5e8ddee1f4122f74",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-place.md",
+          "sha256": "4361ceacb697df32745c23a4a56c7598f9b31d645d21c1ca5cf9fdffb6e5adde",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-runtime.md",
+          "sha256": "bc33994ec345533581a56b6dc80a790292b66586b6682a43bc7ddb8c30b81a5b",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-shard.md",
+          "sha256": "5c4945d09e28d7f45812233518eb3310337a25fb1ff72c22c79f17d8b3f778e3",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/model-weights.md",
+          "sha256": "414bdc83dc054668f4a0621364a0868c10bbaa069b4f3bf6e8dc0ad33e83c61a",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/quant-k_quants.md",
+          "sha256": "2dd727d4896d47601d430b030f23c4be821cdd9c70797895f13f6a3e127f240b",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/quant-mxfp4.md",
+          "sha256": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/quant-quant.md",
+          "sha256": "c51debcec7d43f0a5d04bc805dfbdbab38a4aaeb3b8a5a0bbba7590840360f12",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/quant-types.md",
+          "sha256": "10ef86b49e7a9cbe8a3af435cde5951b567207fa7fa91b703cb2db3a26e335fd",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/server.md",
+          "sha256": "959983c1179bce3a974c3b96b0980161a1d03ef238af9e9af75baba9a92600a0",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "docs/src/tokenizer-tokenizer.md",
+          "sha256": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff",
+          "review": "Unchanged from HEAD; carry prior dashboard checkpoint review."
+        },
+        {
+          "path": "tools/health_dashboard/README.md",
+          "sha256": "36b80222d50f18cc465ce886d85d2d058181f5b3d11d5e1355192e2a1201e421",
+          "review": "Read against consumer field selection, cached/recovery/speculation semantics, actual 2s sample intervals, topology modes, safe text, shared inspection and persistence."
+        }
+      ]
+    },
+    "pending": [
+      "Live-counter exact-head hosted validation; CPU, Linux MI50 server/identity and all32 matched scheduler-cost blocks completed. Topology has its own remaining gates.",
+      "Hosted tools branch validation",
+      "Coordinated API and dashboard deployment, then actual live verification"
+    ]
+  },
+  "integration": {
+    "scope": "Prepared dependent dashboard landing; API is a separate preceding commit. No deployment or main update.",
+    "api_commit": "982362408c997b9ee52c5efacfecc83101dd7c0d",
+    "native_evidence_checkpoint": "67c6913ea1342663f6c79018681aad507f3add18",
+    "dashboard_checkpoint": "e1ddaf5671c901334636ba3d902261d4c7aeaae5",
+    "identity": {
+      "native_source_tests_build_diff_from_validated_checkpoint": "empty",
+      "dashboard_tool_diff_from_dashboard_checkpoint": "empty",
+      "native_topology_included": false,
+      "native_src_tree": "2b2065c36589a9db542ef61cae084748347d3dd1",
+      "native_tests_tree": "0b5f594cc2b8410afc881e0acf91374b7727e2c6",
+      "tool_hashes": {
+        "tools/health_dashboard/README.md": "232bfecedd3eff806d2af6b9134480b07a9df934ba3066ff5cc2df2b8a78acd4",
+        "tools/health_dashboard/index.html": "363e14bf9b9c1b6f65c74aab81556241ebc1589f5db7dd848e4871f31758acbb",
+        "tools/health_dashboard/server.py": "09f01514edff669980556eda004be04d1ffc27345865261d8d65bcd42f795de1",
+        "tools/health_dashboard/test_server.py": "ceddc20e376d44922542a0f912f8960ba384d2dc8d171913ae4e5ac8b10c7b69"
+      }
+    },
+    "markdown_review": {
+      "tracked": 109,
+      "carried_unchanged": 106,
+      "prior_inventories": [
+        "Native checkpoint 67c6913ea: docs/benchmarks/live-throughput-20261016.json markdown_review",
+        "Dashboard checkpoint e1ddaf567: this report local_live_topology_refinement.markdown_review"
+      ],
+      "carried_rule": "Each of the 106 carried pages exactly matches at least one prior inventory SHA256.",
+      "manifest_sha256": "144ab03d2939ea9fe4e46710f2cc824dbb7bd02a8732932c1bfd2799be28963b",
+      "reviewed_changed": {
+        "docs/SERVER.md": "24988ac51d164b267ae52626f3a4fed42a7fbd16419429f2fa58fe9a909d57a8",
+        "docs/STATUS.md": "eb61c65484e29e6673467215610cc6731ac7e5942a591f9230a61c89ff4628b2",
+        "tools/health_dashboard/README.md": "232bfecedd3eff806d2af6b9134480b07a9df934ba3066ff5cc2df2b8a78acd4"
+      },
+      "review": "Merged runtime counter ownership, consumer semantics, separate API/dashboard landing, optional topology and pending exact-head gates reread against code/evidence."
+    },
+    "checks": {
+      "collector": "5/5 passed in prepared integration, reported by parent",
+      "docs": "PASS: 0 findings, 21 planted faults, 11.1 s",
+      "dead_code": "PASS: 5 listed findings (unused 1, test-only 4), 18 planted faults, 12.6 s",
+      "command": "python tests/run_tests.py --exe ../.tmp-live-throughput-20261016/build-live/Release/llmx.exe --only docs,dead-code"
+    },
+    "pending": [
+      "Exact-head hosted validation for API 982362408c997b9ee52c5efacfecc83101dd7c0d and final dependent dashboard commit",
+      "Coordinated API/dashboard deployment and actual live production verification"
+    ]
+  }
+}

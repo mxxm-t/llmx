@@ -1,0 +1,3452 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <meta content="dark" name="color-scheme"/>
+  <title>
+   llmx / Observatory
+  </title>
+  <style>
+
+
+:root {
+  --bg: #0b1017;
+  --panel: #111923;
+  --raised: #151f2c;
+  --line: #233040;
+  --muted: #8796ab;
+  --text: #e8eef6;
+  --cyan: #66dfd1;
+  --blue: #7aa9ff;
+  --amber: #f3c17e;
+  --red: #f48d99;
+  --violet: #b09aff;
+  font-family: Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg)
+}
+* {
+  box-sizing: border-box
+}
+body {
+  margin: 0
+}
+button,input,summary,a {
+  -webkit-tap-highlight-color: transparent
+}
+button,input {
+  font: inherit
+}
+button,a,summary {
+  touch-action: manipulation
+}
+button {
+  cursor: pointer
+}
+button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,.chart:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 4px
+}
+a {
+  color: inherit;
+  text-decoration: none
+}
+svg {
+  display: block
+}
+header {
+  border-bottom: 1px solid var(--line);
+  background: #0e151e
+}
+header .inner {
+  max-width: 1560px;
+  margin: auto;
+  padding: 20px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px
+}
+.mark {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #37605e;
+  border-radius: 10px;
+  background: #162f32;
+  display: grid;
+  place-items: center;
+  color: var(--cyan)
+}
+.brand strong {
+  font-size: 20px;
+  letter-spacing: -1px
+}
+.brand .slash {
+  color: #425166;
+  font-size: 23px;
+  font-weight: 300;
+  margin: 0 3px
+}
+.brand .sub {
+  font-size: 13px;
+  color: #a4b1c3;
+  letter-spacing: .02em
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  font-size: 12px;
+  color: var(--muted)
+}
+.live {
+  display: flex;
+  align-items: center;
+  gap: 8px
+}
+.dot {
+  height: 7px;
+  width: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 4px #f3c17e0c
+}
+.live.good .dot {
+  background: var(--cyan);
+  box-shadow: 0 0 0 4px #66dfd110
+}
+.live.bad .dot {
+  background: var(--red);
+  box-shadow: 0 0 0 4px #f48d9910
+}
+.external {
+  display: flex;
+  align-items: center;
+  gap: 7px
+}
+.external:hover {
+  color: var(--text)
+}
+main {
+  max-width: 1560px;
+  margin: auto;
+  padding: 34px 36px 28px
+}
+.intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 24px
+}
+.eyebrow {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-bottom: 9px
+}
+h1 {
+  font-size: 27px;
+  letter-spacing: -.9px;
+  font-weight: 600;
+  margin: 0 0 8px
+}
+h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -.1px
+}
+h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a8b7ca;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  margin: 0 0 14px
+}
+p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+  font-size: 12px
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0
+}
+.segmented {
+  padding: 4px;
+  background: #111923;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  display: flex;
+  gap: 3px
+}
+.segmented button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 7px 13px;
+  font-size: 12px;
+  border-radius: 5px
+}
+.segmented button[aria-pressed=true] {
+  background: #293746;
+  color: var(--text);
+  box-shadow: 0 1px 3px #0003
+}
+.pause {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: #bdc9d9;
+  padding: 11px 13px;
+  font-size: 12px
+}
+.pause:hover {
+  background: var(--raised)
+}
+.pause[aria-pressed=true] {
+  border-color: #6c573b;
+  color: var(--amber)
+}
+.notice {
+  display: none;
+  border: 1px solid #645036;
+  background: #282217;
+  color: var(--amber);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 20px;
+  line-height: 1.5
+}
+.notice.show {
+  display: block
+}
+.grid {
+  display: grid;
+  gap: 18px
+}
+.kpis {
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  margin-bottom: 18px
+}
+.card {
+  background: linear-gradient(145deg,#131c27,#101822);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  min-width: 0
+}
+.kpi {
+  padding: 20px 22px;
+  position: relative
+}
+.card-label {
+  color: #a9b6c8;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px
+}
+.card-label svg {
+  color: #567184
+}
+.big {
+  font-size: 33px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1.3;
+  margin-top: 12px;
+  font-variant-numeric: tabular-nums
+}
+.unit {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin-left: 7px
+}
+.kpi-foot {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-top: 9px;
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 17px
+}
+.accent {
+  color: var(--cyan)
+}
+.small-pill {
+  font-size: 10px;
+  letter-spacing: .03em;
+  border: 1px solid #294740;
+  border-radius: 5px;
+  padding: 3px 6px;
+  background: #16312b;
+  color: #86d4ba
+}
+.primary {
+  grid-template-columns: 1.6fr 1fr;
+  margin-bottom: 18px
+}
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 21px 22px 0;
+  gap: 12px
+}
+.card-head p {
+  font-size: 11px;
+  margin-top: 5px
+}
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 10px
+}
+.legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px
+}
+.legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--series)
+}
+.chart-wrap {
+  padding: 16px 16px 5px;
+  position: relative
+}
+.chart {
+  position: relative;
+  height: 215px;
+  outline: none;
+  touch-action: pan-y
+}
+.chart svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible
+}
+.chart text {
+  fill: #77899f;
+  font-size: 11px;
+  font-family: inherit
+}
+.chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  background: linear-gradient(0deg,#111923d9,transparent)
+}
+.chart-empty small {
+  font-size: 10px;
+  color: #63768d
+}
+.tooltip {
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+  top: 8px;
+  left: 60px;
+  background: #1b2838f5;
+  border: 1px solid #3a4d61;
+  box-shadow: 0 8px 24px #0005;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11px;
+  min-width: 160px;
+  display: none
+}
+.tooltip strong {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #c0cfe0
+}
+.tooltip div {
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 3px 0
+}
+.chart-summary {
+  font-size: 10px;
+  color: #74869c;
+  padding: 0 22px 16px;
+  line-height: 1.5
+}
+.under-chart {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  border-top: 1px solid var(--line);
+  padding: 16px 22px;
+  gap: 18px
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 10px
+}
+.stat-value {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 5px;
+  letter-spacing: -.3px
+}
+.capacity {
+  padding: 23px 22px 20px
+}
+.capacity-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  font-size: 12px
+}
+.capacity-row span:last-child {
+  font-size: 11px;
+  color: var(--muted)
+}
+.bar {
+  height: 6px;
+  background: #253140;
+  border-radius: 4px;
+  overflow: hidden
+}
+.bar>span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--cyan);
+  border-radius: 4px;
+  transition: width .35s
+}
+.capacity-block+.capacity-block {
+  margin-top: 23px
+}
+.capacity .under-chart {
+  margin: 24px -22px -20px
+}
+.section-title {
+  margin: 30px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px
+}
+.section-title>span {
+  color: #617388;
+  font-size: 10px;
+  letter-spacing: .06em
+}
+.section-title h2 {
+  font-size: 15px
+}
+.topology-card {
+  padding: 21px 22px;
+  margin-bottom: 18px
+}
+.topology-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px
+}
+.topology-head p { margin-top: 5px }
+.topology-badges { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end }
+.topology-badge {
+  border: 1px solid #294740;
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: #91d7c3;
+  background: #142923;
+  font-size: 10px;
+  white-space: nowrap
+}
+.topology-badge.mixed { color: var(--amber); border-color: #5a4930; background: #282217 }
+.topology-layout { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(220px,.8fr); gap: 14px }
+.topology-stages, .topology-roles { min-width: 0; border: 1px solid var(--line); border-radius: 9px; background: #0e151e; padding: 14px }
+.topology-stage-list { display: grid; gap: 9px }
+.topology-stage {
+  display: grid;
+  grid-template-columns: 48px minmax(0,1fr);
+  gap: 12px;
+  align-items: stretch
+}
+.topology-stage-index { color: #7b8da3; font: 10px ui-monospace,monospace; padding-top: 12px }
+.topology-stage-body { border-left: 2px solid var(--cyan); background: #131e29; border-radius: 0 7px 7px 0; padding: 10px 12px; min-width: 0 }
+.topology-stage-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 12px }
+.topology-stage-range { color: var(--muted); font: 10px ui-monospace,monospace; white-space: nowrap }
+.topology-members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
+.topology-member { color: #b9c8d9; background: #202d3b; border-radius: 4px; padding: 4px 7px; font-size: 10px }
+.topology-member.unused { color: #75849a; border: 1px dashed #354253; background: transparent }
+.topology-roles-grid { display: grid; gap: 10px }
+.topology-role { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; border-bottom: 1px solid #1e2a37; padding-bottom: 8px }
+.topology-role span:first-child { color: var(--muted) }
+.topology-role span:last-child { text-align: right; overflow-wrap: anywhere }
+.topology-details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px }
+.topology-details summary { color: #a9b8ca; font-size: 11px; cursor: pointer }
+.topology-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px }
+.topology-table th, .topology-table td { text-align: left; vertical-align: top; border-bottom: 1px solid #1e2a37; padding: 7px 8px }
+.topology-table th { color: #8293a8; font-weight: 500 }
+.topology-empty { color: var(--muted); padding: 10px 0; font-size: 11px }
+@media(max-width:760px) {
+  .topology-head { flex-direction: column }
+  .topology-badges { justify-content: flex-start }
+  .topology-layout { grid-template-columns: 1fr }
+  .topology-stage { grid-template-columns: 36px minmax(0,1fr); gap: 7px }
+  .topology-table { display: block; overflow-x: auto; white-space: nowrap }
+}
+.cache-grid {
+  grid-template-columns: repeat(3,minmax(0,1fr))
+}
+.tier {
+  padding: 21px 22px
+}
+.tier-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center
+}
+.tier-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 500;
+  font-size: 12px
+}
+.tier-name svg {
+  color: var(--cyan)
+}
+.tier-index {
+  color: #4c6279;
+  font-family: ui-monospace,monospace;
+  font-size: 11px
+}
+.tier .big {
+  font-size: 27px;
+  margin-top: 18px
+}
+.tier-description {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 4px 0 15px
+}
+.tier .bar {
+  margin-bottom: 18px;
+  height: 4px
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 17px 14px
+}
+.metric-grid .stat-value {
+  font-size: 14px
+}
+.tier-note {
+  font-size: 10px;
+  color: #72859a;
+  margin-top: 17px;
+  line-height: 1.5
+}
+.secondary {
+  grid-template-columns: 1.2fr 1fr 1fr;
+  margin-top: 18px
+}
+.pad {
+  padding: 21px 22px
+}
+.acceptance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 21px 0
+}
+.acceptance-number {
+  font-size: 35px;
+  font-weight: 600;
+  letter-spacing: -1px
+}
+.acceptance-number small {
+  font-size: 15px;
+  color: var(--muted);
+  margin-left: 3px
+}
+.ring {
+  height: 66px;
+  width: 66px;
+  transform: rotate(-90deg)
+}
+.ring circle {
+  fill: none;
+  stroke: #263343;
+  stroke-width: 5
+}
+.ring circle:last-child {
+  stroke: var(--cyan);
+  stroke-linecap: round;
+  stroke-dasharray: 0 176;
+  transition: stroke-dasharray .3s
+}
+.detail-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 9px 0;
+  border-top: 1px solid #22304080;
+  gap: 10px
+}
+.detail-line span:last-child {
+  color: #d5dfec;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere
+}
+.position-title {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 17px 0 8px
+}
+.positions {
+  display: flex;
+  gap: 5px;
+  min-height: 57px;
+  align-items: flex-end
+}
+.position {
+  flex: 1;
+  min-width: 17px;
+  max-width: 64px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 9px
+}
+.position-track {
+  height: 34px;
+  background: #202e3b;
+  border-radius: 3px;
+  position: relative;
+  margin-bottom: 5px
+}
+.position-track i {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #5bc5ba;
+  border-radius: 3px
+}
+.position strong {
+  display: block;
+  font-size: 9px;
+  font-weight: 400;
+  color: #b4c9d4;
+  margin-bottom: 5px
+}
+.muted {
+  color: var(--muted)
+}
+.no-data {
+  color: #6e8095;
+  font-size: 11px;
+  padding: 10px 0
+}
+.mode {
+  display: inline-flex;
+  font-size: 10px;
+  color: var(--cyan);
+  border: 1px solid #2b514f;
+  background: #16302f;
+  padding: 4px 7px;
+  border-radius: 5px;
+  margin: 14px 0
+}
+.subsection {
+  margin-top: 20px
+}
+.moves {
+  grid-template-columns: repeat(4,minmax(0,1fr))
+}
+.moves .pad {
+  padding: 18px 20px
+}
+.moves h3 {
+  margin-bottom: 10px
+}
+.meta-events {
+  grid-template-columns: 1.35fr 1fr;
+  margin-top: 18px
+}
+.metadata {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px 15px;
+  margin-top: 19px;
+  font-size: 11px;
+  line-height: 1.6
+}
+.metadata dt {
+  color: var(--muted)
+}
+.metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #c8d6e7
+}
+.metadata code {
+  font-family: ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-size: 10px
+}
+.events {
+  margin-top: 15px;
+  max-height: 280px;
+  overflow: auto
+}
+.event {
+  padding: 10px 0;
+  border-top: 1px solid #22304080;
+  display: grid;
+  grid-template-columns: 59px 1fr;
+  gap: 12px;
+  font-size: 11px;
+  line-height: 1.5
+}
+.event time {
+  color: #6c829a;
+  font-variant-numeric: tabular-nums
+}
+.event .kind {
+  color: var(--amber);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 3px
+}
+.event p {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  color: #adbdd0
+}
+.explorer {
+  margin-top: 24px
+}
+.explorer summary {
+  padding: 20px 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none
+}
+.explorer summary::-webkit-details-marker {
+  display: none
+}
+.explorer summary .exp-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500
+}
+.explorer summary svg {
+  color: #7c91a9;
+  transition: transform .15s
+}
+.explorer[open] summary svg {
+  transform: rotate(90deg)
+}
+.explorer summary small {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400
+}
+.explorer-body {
+  border-top: 1px solid var(--line);
+  padding: 18px 22px
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0b131d;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  max-width: 450px
+}
+.search svg {
+  color: var(--muted)
+}
+.search input {
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--text);
+  outline: none;
+  font-size: 12px
+}
+.metric-table-wrap {
+  overflow: auto;
+  max-height: 450px;
+  margin-top: 15px
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+  font-size: 11px
+}
+th {
+  position: sticky;
+  top: 0;
+  background: #111923;
+  color: #8da0b7;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line)
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #23304070;
+  color: #bacbdf;
+  overflow-wrap: anywhere
+}
+td:first-child {
+  font-family: ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-size: 10px;
+  width: 65%
+}
+td:last-child {
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap;
+  word-break: break-word
+}
+.explorer-foot {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 13px
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 24px;
+  color: #65788e;
+  font-size: 10px;
+  line-height: 1.6
+}
+.footer span:last-child {
+  text-align: right
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0
+}
+@media(min-width:1250px) {
+  .primary .card-head {
+    align-items: center
+  }
+}
+@media(max-width:1100px) {
+  main {
+    padding: 26px 24px
+  }
+  header .inner {
+    padding: 18px 24px
+  }
+  .kpi {
+    padding: 18px
+  }
+  .secondary {
+    grid-template-columns: 1fr 1fr
+  }
+  .secondary>.card:first-child {
+    grid-column: 1/-1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 30px
+  }
+  .draft-overview {
+    grid-row: 1/4
+  }
+  .moves {
+    grid-template-columns: repeat(2,1fr)
+  }
+  .primary {
+    grid-template-columns: 1.4fr 1fr
+  }
+  .card-head {
+    flex-wrap: wrap
+  }
+  .cache-grid {
+    gap: 12px
+  }
+  .tier {
+    padding: 18px
+  }
+}
+@media(max-width:760px) {
+  main {
+    padding: 24px 16px
+  }
+  header .inner {
+    padding: 16px
+  }
+  .brand .sub {
+    font-size: 12px
+  }
+  .header-right {
+    gap: 12px
+  }
+  .external {
+    font-size: 0
+  }
+  .external svg {
+    width: 16px;
+    height: 16px
+  }
+  .intro {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px
+  }
+  h1 {
+    font-size: 25px
+  }
+  .controls {
+    width: 100%;
+    justify-content: space-between
+  }
+  .kpis {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px
+  }
+  .big {
+    font-size: 28px
+  }
+  .primary,.cache-grid,.meta-events {
+    grid-template-columns: 1fr
+  }
+  .primary .card-head {
+    align-items: center
+  }
+  .cache-grid {
+    gap: 12px
+  }
+  .tier .metric-grid {
+    grid-template-columns: repeat(4,1fr)
+  }
+  .tier .big {
+    margin-top: 14px
+  }
+  .secondary {
+    gap: 12px
+  }
+  .secondary>.card:first-child {
+    display: block;
+    grid-column: 1/-1
+  }
+  .draft-overview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 20px
+  }
+  .draft-overview>.card-label {
+    grid-column: 1/-1
+  }
+  .draft-overview .detail-line {
+    align-self: center
+  }
+  .acceptance {
+    grid-row: 2/5
+  }
+  .moves {
+    gap: 12px
+  }
+  .pad {
+    padding: 18px
+  }
+  .section-title {
+    margin-top: 25px
+  }
+  .header-right .live {
+    font-size: 11px
+  }
+  .metadata {
+    grid-template-columns: 95px 1fr
+  }
+  .footer {
+    flex-direction: column;
+    gap: 5px
+  }
+  .footer span:last-child {
+    text-align: left
+  }
+}
+@media(max-width:440px) {
+  .secondary {
+    grid-template-columns: 1fr
+  }
+  .moves {
+    grid-template-columns: 1fr
+  }
+  .moves .detail-line {
+    padding: 8px 0
+  }
+  .tier .metric-grid {
+    grid-template-columns: 1fr 1fr
+  }
+  .brand {
+    gap: 8px
+  }
+  .brand .slash {
+    display: none
+  }
+  .brand .sub {
+    display: none
+  }
+  .kpi {
+    padding: 16px
+  }
+  .card-label {
+    font-size: 11px
+  }
+  .kpi-foot {
+    font-size: 10px
+  }
+  .under-chart {
+    gap: 10px;
+    padding: 14px 18px
+  }
+  .stat-value {
+    font-size: 14px
+  }
+  .legend {
+    gap: 9px
+  }
+  .header-right {
+    gap: 18px
+  }
+  .draft-overview {
+    display: block
+  }
+  .capacity {
+    padding-top: 18px
+  }
+  .explorer summary small {
+    display: none
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*:before,*:after {
+    transition: none!important;
+    scroll-behavior: auto!important
+  }
+}
+.range-overview {
+  margin-bottom: 18px;
+}
+.range-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 19px 22px 0;
+}
+.range-heading p {
+  font-size: 10px;
+  margin-top: 5px;
+}
+.window-chip {
+  color: var(--cyan);
+  font-size: 9px;
+  letter-spacing: .08em;
+  padding: 6px 9px;
+  border: 1px solid #2b484b;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.range-metrics {
+  display: grid;
+  grid-template-columns: repeat(6,minmax(0,1fr));
+  padding: 20px 22px;
+  gap: 15px;
+}
+.range-value {
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -.5px;
+  margin: 7px 0 5px;
+}
+.range-total {
+  color: var(--muted);
+  font-size: 10px;
+}
+.pressure-summary {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  padding: 12px 22px;
+  background: #15202b;
+  border-top: 1px solid var(--line);
+  color: #adbed0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.pressure-indicator {
+  width: 6px;
+  height: 6px;
+  background: var(--amber);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.inspection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 24px 0 14px;
+  min-height: 38px;
+}
+.inspection-toolbar strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c4d4e6;
+}
+.inspection-toolbar p {
+  font-size: 10px;
+  margin-top: 4px;
+}
+.inspection-toolbar .pause {
+  padding: 8px 11px;
+  font-size: 10px;
+}
+button[hidden] {
+  display: none;
+}
+.fold {
+  margin-top: 17px;
+  border-top: 1px solid var(--line);
+}
+.fold > summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #9cb1c6;
+  padding: 13px 0 0;
+  line-height: 1.6;
+}
+.fold > summary:hover {
+  color: var(--text);
+}
+.fold[open] > summary {
+  color: var(--cyan);
+}
+.fold-body {
+  padding-top: 15px;
+}
+.fold-body .metric-grid {
+  margin-bottom: 6px;
+}
+.secondary > .card:first-child {
+  display: block;
+}
+.draft-overview {
+  display: block;
+}
+.movement-fold {
+  margin-top: 24px;
+}
+.movement-fold > summary {
+  padding: 19px 22px;
+  font-size: 13px;
+}
+.movement-fold .moves {
+  border-top: 1px solid var(--line);
+  padding: 16px;
+}
+.movement-fold .moves .card {
+  background: #101822;
+}
+.event-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 10px 3px 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+.event-key span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.event-key i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.event-key small {
+  font-size: 9px;
+  color: #687c93;
+}
+.compact main {
+  padding-top: 22px;
+}
+.compact .grid {
+  gap: 12px;
+}
+.compact .kpi,.compact .pad,.compact .tier {
+  padding: 16px 18px;
+}
+.compact .chart {
+  height: 175px;
+}
+.compact .detail-line {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+@media (max-width: 1100px) {
+  .range-metrics {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: 20px;
+  }
+}
+@media (max-width: 760px) {
+  .range-heading {
+    padding: 17px 18px 0;
+  }
+  .range-metrics {
+    padding: 18px;
+  }
+  .pressure-summary {
+    padding: 12px 18px;
+  }
+  .controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .controls .segmented {
+    margin-right: auto;
+  }
+  .range-value {
+    font-size: 21px;
+  }
+  .range-total {
+    font-size: 9px;
+  }
+  .inspection-toolbar {
+    align-items: flex-start;
+  }
+  .inspection-toolbar p {
+    max-width: 240px;
+  }
+}
+@media (max-width: 440px) {
+  .range-metrics {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+  .controls .density {
+    margin-left: auto;
+  }
+  .window-chip {
+    font-size: 8px;
+  }
+}
+
+.primary {
+  grid-template-columns: 1.1fr 1.1fr 1fr;
+}
+.rate-card .card-head {
+  align-items: flex-start;
+  min-height: 108px;
+}
+.rate-eyebrow {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .11em;
+  color: var(--cyan);
+  margin-bottom: 9px;
+}
+.rate-card:first-child .rate-eyebrow {
+  color: var(--blue);
+}
+.rate-readout {
+  padding: 8px 22px 0;
+}
+.rate-readout > div {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.rate-readout strong {
+  font-size: 36px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+}
+.rate-readout span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rate-readout small {
+  display: block;
+  min-height: 16px;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #8ba2b9;
+}
+.rate-card .under-chart {
+  grid-template-columns: 1fr 1fr;
+}
+.rate-explainer {
+  font-size: 10px;
+  color: #8094aa;
+  margin-top: -7px;
+  line-height: 1.6;
+}
+@media (max-width: 1100px) {
+  .primary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .capacity-card {
+    grid-column: 1 / -1;
+  }
+  .capacity-card .capacity {
+    display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: 20px;
+  }
+  .capacity-card .capacity-block + .capacity-block {
+    margin-top: 0;
+  }
+  .capacity-card .capacity .under-chart {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+}
+@media (max-width: 760px) {
+  .primary {
+    grid-template-columns: 1fr;
+  }
+  .rate-card .card-head {
+    min-height: 0;
+  }
+  .rate-readout {
+    padding-top: 16px;
+  }
+  .rate-readout strong {
+    font-size: 34px;
+  }
+  .capacity-card .capacity {
+    display: block;
+  }
+  .capacity-card .capacity-block + .capacity-block {
+    margin-top: 23px;
+  }
+  .capacity-card .capacity .under-chart {
+    margin-top: 24px;
+  }
+}
+
+
+  </style>
+ </head>
+ <body>
+  <header>
+   <div class="inner">
+    <a aria-label="llmx Observatory home" class="brand" href="/">
+     <span class="mark">
+      <svg aria-hidden="true" fill="none" height="22" stroke="currentColor" stroke-width="1.6" viewbox="0 0 24 24" width="22">
+       <path d="M4 16V8m5 11V5m5 12V7m5 7v-4">
+       </path>
+      </svg>
+     </span>
+     <strong>
+      llmx
+     </strong>
+     <span class="slash">
+      /
+     </span>
+     <span class="sub">
+      Observatory
+     </span>
+    </a>
+    <div class="header-right">
+     <div class="live" id="connection" role="status">
+      <i class="dot">
+      </i>
+      <span id="connection-text">
+       Connecting
+      </span>
+     </div>
+     <a class="external" href="http://11.10.10.13:8282" rel="noopener noreferrer" target="_blank">
+      Open WebUI
+      <svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-width="1.4" viewbox="0 0 20 20" width="13">
+       <path d="M11 4h5v5m0-5-8 8M8 4H4v12h12v-4">
+       </path>
+      </svg>
+     </a>
+    </div>
+   </div>
+  </header>
+  <main>
+   <div class="intro">
+    <div>
+     <div class="eyebrow">
+      Inference telemetry
+     </div>
+     <h1>
+      Production overview
+     </h1>
+     <p>
+      Request activity, memory reuse, and scheduler health.
+     </p>
+    </div>
+    <div class="controls">
+     <div aria-label="Chart time range" class="segmented" role="group">
+      <button aria-pressed="false" data-range="300">
+       5 min
+      </button>
+      <button aria-pressed="true" data-range="900">
+       15 min
+      </button>
+      <button aria-pressed="false" data-range="3600">
+       1 hour
+      </button>
+     </div>
+     <button aria-pressed="false" class="pause" id="pause">
+      <svg aria-hidden="true" fill="currentColor" height="12" viewbox="0 0 12 12" width="12">
+       <path d="M3 2h2v8H3zm4 0h2v8H7z">
+       </path>
+      </svg>
+      <span>
+       Pause view
+      </span>
+     </button>
+     <button aria-pressed="false" class="pause density" id="density" title="Use compact spacing">
+      Compact
+     </button>
+    </div>
+   </div>
+   <div class="notice" id="notice" role="status">
+   </div>
+   <div class="grid kpis">
+    <div class="card kpi">
+     <div class="card-label">
+      Active requests
+      <span class="accent">
+       NOW
+      </span>
+     </div>
+     <div class="big">
+      <span data-m="requests.now.active">
+       --
+      </span>
+      <span class="unit" id="active-limit">
+       / -- capacity
+      </span>
+     </div>
+     <div class="kpi-foot">
+      <span data-m="requests.now.queued">
+       --
+      </span>
+      queued
+      <span class="muted">
+       /
+      </span>
+      <span data-m="requests.now.paused">
+       --
+      </span>
+      paused
+     </div>
+    </div>
+    <div class="card kpi">
+     <div class="card-label">
+      <span id="token-rate-label">Live output throughput</span>
+      <span class="accent">
+       TOK/S
+      </span>
+     </div>
+     <div class="big">
+      <span id="token-rate">
+       --
+      </span>
+      <span class="unit">
+       tokens/s
+      </span>
+     </div>
+     <div class="kpi-foot" id="token-rate-note">
+      Waiting for compatible health data
+     </div>
+    </div>
+    <div class="card kpi">
+     <div class="card-label">
+      Completed request rate
+      <span class="accent">
+       REQ/MIN
+      </span>
+     </div>
+     <div class="big">
+      <span id="request-rate">
+       --
+      </span>
+      <span class="unit">
+       req/min
+      </span>
+     </div>
+     <div class="kpi-foot">
+      <span data-m="requests.since_start.finished">
+       --
+      </span>
+      finished since server start
+     </div>
+    </div>
+    <div class="card kpi">
+     <div class="card-label">
+      Reused history
+      <span class="accent">
+       TOKENS
+      </span>
+     </div>
+     <div class="big">
+      <span data-m="reuse.since_start.tokens">
+       --
+      </span>
+      <span class="unit">
+       tokens
+      </span>
+     </div>
+     <div class="kpi-foot">
+      <span data-m="reuse.since_start.forks">
+       --
+      </span>
+      history forks since server start
+     </div>
+    </div>
+   </div>
+   <section aria-labelledby="range-title" class="range-overview card">
+    <div class="range-heading">
+     <div>
+      <h2 id="range-title">
+       Selected-range changes
+      </h2>
+      <p id="range-coverage">
+       Waiting for history coverage.
+      </p>
+     </div>
+     <span class="window-chip" id="range-window">
+      15 MIN WINDOW
+     </span>
+    </div>
+    <div class="range-metrics" id="range-metrics">
+    </div>
+    <div class="pressure-summary">
+     <span aria-hidden="true" class="pressure-indicator">
+     </span>
+     <span id="pressure-overview">
+      Pressure measurements will appear after two samples.
+     </span>
+    </div>
+   </section>
+   <div class="inspection-toolbar">
+    <div>
+     <strong id="inspection-time">
+      Explore a shared timeline
+     </strong>
+     <p id="inspection-hint">
+      Hover a chart, click to hold, or use arrow keys to inspect all charts together.
+     </p>
+    </div>
+    <button class="pause" hidden="" id="clear-inspection">
+     Return to latest
+    </button>
+   </div>
+   <span aria-live="polite" class="sr-only" id="inspection-live" role="status">
+   </span>
+   <div class="grid primary">
+    <section class="card rate-card">
+     <div class="card-head">
+      <div>
+       <div class="rate-eyebrow" id="prompt-mode">PP / LIVE COUNTERS UNAVAILABLE</div>
+       <h2 id="prompt-title">Prompt throughput</h2>
+       <p id="prompt-description">Waiting for compatible health data.</p>
+      </div>
+     </div>
+     <div class="rate-readout">
+      <div>
+       <strong id="prompt-value">
+        --
+       </strong>
+       <span>
+        tok/s
+       </span>
+      </div>
+      <small id="prompt-at">
+       Latest completed-work interval
+      </small>
+     </div>
+     <div class="chart-wrap">
+      <div aria-label="Completed prompt work rate chart. Use arrow keys to inspect all charts." class="chart" id="prompt-chart" role="img" tabindex="0">
+      </div>
+     </div>
+     <p class="chart-summary" id="prompt-summary">
+      Waiting for two successful samples to calculate rates.
+     </p>
+     <div class="under-chart">
+      <div>
+       <div class="stat-label" id="prompt-total-label">
+        Prompt tokens / lifetime
+       </div>
+       <div class="stat-value" id="prompt-total" data-m="requests.since_start.prompt_tokens">
+        --
+       </div>
+      </div>
+      <div>
+       <div class="stat-label">
+        Finished requests / lifetime
+       </div>
+       <div class="stat-value" data-m="requests.since_start.finished">
+        --
+       </div>
+      </div>
+     </div>
+    </section>
+    <section class="card rate-card">
+     <div class="card-head">
+      <div>
+       <div class="rate-eyebrow" id="throughput-mode">TG / LIVE COUNTERS UNAVAILABLE</div>
+       <h2 id="throughput-title">Output throughput</h2>
+       <p id="throughput-description">Waiting for compatible health data.</p>
+      </div>
+     </div>
+     <div class="rate-readout">
+      <div>
+       <strong id="throughput-value">
+        --
+       </strong>
+       <span>
+        tok/s
+       </span>
+      </div>
+      <small id="throughput-at">
+       Latest completed-work interval
+      </small>
+     </div>
+     <div class="chart-wrap">
+      <div aria-label="Completed generated work rate chart. Use arrow keys to inspect all charts." class="chart" id="throughput-chart" role="img" tabindex="0">
+      </div>
+     </div>
+     <p class="chart-summary" id="throughput-summary">
+      Waiting for two successful samples to calculate rates.
+     </p>
+     <div class="under-chart">
+      <div>
+       <div class="stat-label" id="throughput-total-label">
+        Generated tokens / lifetime
+       </div>
+       <div class="stat-value" id="throughput-total" data-m="requests.since_start.generated_tokens">
+        --
+       </div>
+      </div>
+      <div>
+       <div class="stat-label">
+        Finished requests / lifetime
+       </div>
+       <div class="stat-value" data-m="requests.since_start.finished">
+        --
+       </div>
+      </div>
+     </div>
+    </section>
+    <section class="card capacity-card">
+     <div class="card-head">
+      <div>
+       <h2>
+        Request capacity
+       </h2>
+       <p>
+        Live work across the scheduler
+       </p>
+      </div>
+      <span class="small-pill" id="capacity-status">
+       WAITING
+      </span>
+     </div>
+     <div class="capacity">
+      <div class="capacity-block">
+       <div class="capacity-row">
+        <span>
+         Active
+        </span>
+        <span id="active-capacity">
+         -- / --
+        </span>
+       </div>
+       <div class="bar">
+        <span id="active-bar">
+        </span>
+       </div>
+      </div>
+      <div class="capacity-block">
+       <div class="capacity-row">
+        <span>
+         Queued
+        </span>
+        <span id="queued-capacity">
+         -- / --
+        </span>
+       </div>
+       <div class="bar">
+        <span id="queued-bar" style="background:var(--blue)">
+        </span>
+       </div>
+      </div>
+      <div class="capacity-block">
+       <div class="capacity-row">
+        <span>
+         Paused requests
+        </span>
+        <span data-m="requests.now.paused">
+         --
+        </span>
+       </div>
+       <p>
+        Requests waiting to resume with their history.
+       </p>
+      </div>
+      <div class="under-chart">
+       <div>
+        <div class="stat-label">
+         Active reserved KV
+        </div>
+        <div class="stat-value" data-m="requests.now.kv_tokens">
+         --
+        </div>
+       </div>
+       <div>
+        <div class="stat-label">
+         Passes in flight
+        </div>
+        <div class="stat-value">
+         <span data-m="passes.in_flight">
+          --
+         </span>
+         <span class="unit">
+          /
+          <span data-m="passes.limit">
+           --
+          </span>
+         </span>
+        </div>
+       </div>
+       <div>
+        <div class="stat-label">
+         Sampling threads
+        </div>
+        <div class="stat-value" data-m="passes.sampling_threads">
+         --
+        </div>
+       </div>
+      </div>
+     </div>
+    </section>
+   </div>
+   <p class="rate-explainer" id="rate-explainer">
+    PP and TG above describe completed-request work. Health telemetry does not report live prefill or generation engine speed. Zero means no tokens were counted in that interval.
+   </p>
+   <div class="section-title">
+    <h2>Model placement</h2>
+    <span>REALIZED BACKEND TOPOLOGY</span>
+   </div>
+   <section class="card topology-card" aria-live="polite">
+    <div id="topology-view"></div>
+   </section>
+   <div class="section-title">
+    <h2>
+     History &amp; cache
+    </h2>
+    <span>
+     DEVICE / HOST / DISK
+    </span>
+   </div>
+   <div class="grid cache-grid">
+    <section class="card tier">
+     <div class="tier-title">
+      <div class="tier-name">
+       <svg aria-hidden="true" fill="none" height="17" stroke="currentColor" stroke-width="1.3" viewbox="0 0 20 20" width="17">
+        <rect height="12" rx="2" width="12" x="4" y="4">
+        </rect>
+        <path d="M7 1v3m6-3v3M7 16v3m6-3v3M1 7h3m-3 6h3m12-6h3m-3 6h3M7 7h6v6H7z">
+        </path>
+       </svg>
+       Device cache
+      </div>
+      <span class="tier-index">
+       01
+      </span>
+     </div>
+     <div class="big">
+      <span data-m="reuse.device.now.kv_tokens">
+       --
+      </span>
+      <span class="unit">
+       reusable KV tokens
+      </span>
+     </div>
+     <div class="tier-description" id="device-description">
+      Server KV pool: -- tokens
+     </div>
+     <div class="bar">
+      <span id="device-bar">
+      </span>
+     </div>
+     <div class="tier-note">
+      Reserved KV token accounting across pools, not physical device memory.
+     </div>
+     <details class="fold" id="device-details">
+      <summary>
+       Tier counters / lifetime
+      </summary>
+      <div class="fold-body">
+       <div class="metric-grid">
+        <div>
+         <div class="stat-label">
+          History entries
+         </div>
+         <div class="stat-value" data-m="reuse.device.now.entries">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          State checkpoints
+         </div>
+         <div class="stat-value" data-m="reuse.device.now.state_checkpoints">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Boundary entries
+         </div>
+         <div class="stat-value" data-m="reuse.boundaries.now.entries">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Boundary hits
+         </div>
+         <div class="stat-value" data-m="reuse.boundaries.since_start.hits">
+          --
+         </div>
+        </div>
+       </div>
+      </div>
+     </details>
+    </section>
+    <section class="card tier">
+     <div class="tier-title">
+      <div class="tier-name">
+       <svg aria-hidden="true" fill="none" height="17" stroke="currentColor" stroke-width="1.3" viewbox="0 0 20 20" width="17">
+        <rect height="10" rx="2" width="16" x="2" y="5">
+        </rect>
+        <path d="M5 8h2v4H5zm4 0h2v4H9zm4 0h2v4h-2zM5 15v3m5-3v3m5-3v3">
+        </path>
+       </svg>
+       Host memory
+      </div>
+      <span class="tier-index">
+       02
+      </span>
+     </div>
+     <div class="big">
+      <span data-format="bytes" data-m="reuse.host.now.bytes">
+       --
+      </span>
+      <span class="unit">
+       used
+      </span>
+     </div>
+     <div class="tier-description" id="host-description">
+      -- allocated / -- limit
+     </div>
+     <div class="bar">
+      <span id="host-bar" style="background:var(--blue)">
+      </span>
+     </div>
+     <div class="tier-note">
+      Occupancy uses the configured host cache limit.
+     </div>
+     <details class="fold" id="host-details">
+      <summary>
+       Tier counters / lifetime
+      </summary>
+      <div class="fold-body">
+       <div class="metric-grid">
+        <div>
+         <div class="stat-label">
+          History entries
+         </div>
+         <div class="stat-value" data-m="reuse.host.now.entries">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Promotions
+         </div>
+         <div class="stat-value" data-m="reuse.host.since_start.promotions">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Yielded / lifetime
+         </div>
+         <div class="stat-value" data-format="bytes" data-m="reuse.host.since_start.yielded_bytes">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Moved / lifetime
+         </div>
+         <div class="stat-value" data-format="bytes" data-m="reuse.host.since_start.bytes_moved">
+          --
+         </div>
+        </div>
+       </div>
+      </div>
+     </details>
+    </section>
+    <section class="card tier">
+     <div class="tier-title">
+      <div class="tier-name">
+       <svg aria-hidden="true" fill="none" height="17" stroke="currentColor" stroke-width="1.3" viewbox="0 0 20 20" width="17">
+        <ellipse cx="10" cy="5" rx="7" ry="3">
+        </ellipse>
+        <path d="M3 5v10c0 1.7 3.1 3 7 3s7-1.3 7-3V5M3 10c0 1.7 3.1 3 7 3s7-1.3 7-3">
+        </path>
+       </svg>
+       Disk cache
+      </div>
+      <span class="tier-index">
+       03
+      </span>
+     </div>
+     <div class="big">
+      <span data-format="bytes" data-m="reuse.disk.now.bytes">
+       --
+      </span>
+      <span class="unit">
+       used
+      </span>
+     </div>
+     <div class="tier-description" id="disk-description">
+      -- cache limit
+     </div>
+     <div class="bar">
+      <span id="disk-bar" style="background:var(--violet)">
+      </span>
+     </div>
+     <div class="tier-note">
+      Ready:
+      <span data-m="reuse.disk.now.ready">
+       --
+      </span>
+      / writing:
+      <span data-m="reuse.disk.now.writing">
+       --
+      </span>
+      /
+      <span data-m="reuse.disk.now.in_flight">
+       --
+      </span>
+      in flight
+     </div>
+     <details class="fold" id="disk-details">
+      <summary>
+       Tier counters / lifetime
+      </summary>
+      <div class="fold-body">
+       <div class="metric-grid">
+        <div>
+         <div class="stat-label">
+          Read / lifetime
+         </div>
+         <div class="stat-value" data-format="bytes" data-m="reuse.disk.since_start.bytes_read">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Written / lifetime
+         </div>
+         <div class="stat-value" data-format="bytes" data-m="reuse.disk.since_start.bytes_written">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Read rate
+         </div>
+         <div class="stat-value" id="disk-read-rate">
+          --
+         </div>
+        </div>
+        <div>
+         <div class="stat-label">
+          Write rate
+         </div>
+         <div class="stat-value" id="disk-write-rate">
+          --
+         </div>
+        </div>
+       </div>
+      </div>
+     </details>
+    </section>
+   </div>
+   <div class="grid trend-grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));margin-top:18px">
+    <section class="card">
+     <div class="card-head">
+      <div>
+       <h2>
+        Request activity
+       </h2>
+       <p>
+        Concurrent work over time
+       </p>
+      </div>
+      <div class="legend">
+       <span>
+        <i style="--series:var(--cyan)">
+        </i>
+        Active
+       </span>
+       <span>
+        <i style="--series:var(--blue)">
+        </i>
+        Queued
+       </span>
+       <span>
+        <i style="--series:var(--amber)">
+        </i>
+        Paused
+       </span>
+      </div>
+     </div>
+     <div class="chart-wrap">
+      <div aria-label="Request activity history" class="chart" id="activity-chart" role="img" tabindex="0">
+      </div>
+     </div>
+     <p class="chart-summary" id="activity-summary">
+      Waiting for request history.
+     </p>
+    </section>
+    <section class="card">
+     <div class="card-head">
+      <div>
+       <h2>
+        Cache occupancy
+       </h2>
+       <p>
+        Used bytes as a share of each configured cache limit
+       </p>
+      </div>
+      <div class="legend">
+       <span>
+        <i style="--series:var(--blue)">
+        </i>
+        Host %
+       </span>
+       <span>
+        <i style="--series:var(--violet)">
+        </i>
+        Disk %
+       </span>
+      </div>
+     </div>
+     <div class="chart-wrap">
+      <div aria-label="Host and disk cache occupancy history" class="chart" id="cache-chart" role="img" tabindex="0">
+      </div>
+     </div>
+     <p class="chart-summary" id="cache-summary">
+      Waiting for cache history.
+     </p>
+    </section>
+   </div>
+   <div class="event-key">
+    <span>
+     <i style="background:var(--red)">
+     </i>
+     Server restart
+    </span>
+    <span>
+     <i style="background:var(--amber)">
+     </i>
+     Source disconnected
+    </span>
+    <span>
+     <i style="background:var(--cyan)">
+     </i>
+     Source recovered
+    </span>
+    <small>
+     Markers appear only for recorded collector events.
+    </small>
+   </div>
+   <div class="grid secondary">
+    <section class="card pad">
+     <div class="draft-overview">
+      <div class="card-label">
+       <h2>
+        Drafting acceptance
+       </h2>
+       <span class="muted" id="draft-sources" style="font-size:10px">
+        --
+       </span>
+      </div>
+      <div class="acceptance">
+       <div>
+        <div class="acceptance-number">
+         <span id="acceptance">
+          --
+         </span>
+         <small>
+          %
+         </small>
+        </div>
+        <p>
+         Kept / drafted, since start
+        </p>
+       </div>
+       <svg aria-hidden="true" class="ring" viewbox="0 0 66 66">
+        <circle cx="33" cy="33" r="28">
+        </circle>
+        <circle cx="33" cy="33" id="accept-ring" r="28">
+        </circle>
+       </svg>
+      </div>
+      <div class="detail-line">
+       <span>
+        Drafted tokens
+       </span>
+       <span data-m="drafting.since_start.drafted">
+        --
+       </span>
+      </div>
+      <div class="detail-line">
+       <span>
+        Kept tokens
+       </span>
+       <span data-m="drafting.since_start.kept">
+        --
+       </span>
+      </div>
+     </div>
+     <details class="fold" id="draft-details">
+      <summary>
+       Position &amp; own-history details / lifetime
+      </summary>
+      <div class="fold-body">
+       <div class="detail-line">
+        <span>
+         Failed drafts
+        </span>
+        <span data-m="drafting.since_start.failed">
+         --
+        </span>
+       </div>
+       <div>
+        <div class="position-title">
+         Acceptance by draft position
+        </div>
+        <div class="positions" id="positions">
+         <p class="no-data">
+          No position data available
+         </p>
+        </div>
+        <div class="detail-line" style="margin-top:15px">
+         <span>
+          Own-history acceptance
+         </span>
+         <span id="own-acceptance">
+          --
+         </span>
+        </div>
+        <div class="detail-line">
+         <span>
+          Own-history kept / drafted
+         </span>
+         <span id="own-counts">
+          -- / --
+         </span>
+        </div>
+       </div>
+      </div>
+     </details>
+    </section>
+    <section class="card pad">
+     <h2>
+      Scheduler pacing
+     </h2>
+     <div class="mode" id="pacing-mode">
+      Mode unavailable
+     </div>
+     <div class="detail-line">
+      <span>
+       Target gap
+      </span>
+      <span data-format="ms" data-m="pacing.target_gap_ms">
+       --
+      </span>
+     </div>
+     <div class="detail-line">
+      <span>
+       Longest piece / lifetime
+      </span>
+      <span data-format="ms" data-m="pacing.since_start.longest_piece_ms">
+       --
+      </span>
+     </div>
+     <p class="tier-note">
+      Pacing counters describe scheduling decisions since server start.
+     </p>
+     <details class="fold" id="scheduler-details">
+      <summary>
+       All scheduler counters / lifetime
+      </summary>
+      <div class="fold-body">
+       <div class="detail-line">
+        <span>
+         Gaps / above target
+        </span>
+        <span>
+         <span data-m="pacing.since_start.gaps">
+          --
+         </span>
+         /
+         <span data-m="pacing.since_start.gaps_above_target">
+          --
+         </span>
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Deferred by floor
+        </span>
+        <span data-m="pacing.since_start.deferred_by_floor">
+         --
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Passes apart / between pieces
+        </span>
+        <span>
+         <span data-m="passes.since_start.apart">
+          --
+         </span>
+         /
+         <span data-m="passes.since_start.between_pieces">
+          --
+         </span>
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Passes rode together
+        </span>
+        <span data-m="passes.since_start.rode">
+         --
+        </span>
+       </div>
+      </div>
+     </details>
+    </section>
+    <section class="card pad">
+     <h2>
+      Measured pressure &amp; recovery
+     </h2>
+     <div class="detail-line" style="margin-top:14px">
+      <span>
+       Pauses / stalls / waits
+      </span>
+      <span>
+       <span data-m="pressure.since_start.pauses">
+        --
+       </span>
+       /
+       <span data-m="pressure.since_start.stalls">
+        --
+       </span>
+       /
+       <span data-m="pressure.since_start.waits">
+        --
+       </span>
+      </span>
+     </div>
+     <div class="detail-line">
+      <span>
+       Recomputed tokens
+      </span>
+      <span data-m="pressure.since_start.recomputed_tokens">
+       --
+      </span>
+     </div>
+     <details class="fold" id="pressure-details">
+      <summary>
+       All recovery counters / lifetime
+      </summary>
+      <div class="fold-body">
+       <div class="detail-line">
+        <span>
+         Resumes taking history back
+        </span>
+        <span data-m="pressure.since_start.resumes_taking_history_back">
+         --
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Pressure turns
+        </span>
+        <span data-m="pressure.since_start.turns">
+         --
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Request shifts / shifted tokens
+        </span>
+        <span>
+         <span data-m="requests.since_start.shifts">
+          --
+         </span>
+         /
+         <span data-m="requests.since_start.shifted_tokens">
+          --
+         </span>
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Reread jobs / rows
+        </span>
+        <span>
+         <span data-m="reread.since_start.jobs">
+          --
+         </span>
+         /
+         <span data-m="reread.since_start.rows">
+          --
+         </span>
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Reread cancelled / handed
+        </span>
+        <span>
+         <span data-m="reread.since_start.cancelled">
+          --
+         </span>
+         /
+         <span data-m="reread.since_start.handed">
+          --
+         </span>
+        </span>
+       </div>
+       <div class="detail-line">
+        <span>
+         Reread rows released
+        </span>
+        <span data-m="reread.since_start.rows_released">
+         --
+        </span>
+       </div>
+      </div>
+     </details>
+    </section>
+   </div>
+   <details class="card fold movement-fold" id="movement-details">
+    <summary>
+     Cache movement &amp; integrity / lifetime counters
+    </summary>
+    <div class="grid moves" id="moves">
+    </div>
+   </details>
+   <div class="grid meta-events">
+    <section class="card pad">
+     <h2>
+      Runtime configuration
+     </h2>
+     <dl class="metadata" id="metadata">
+     </dl>
+    </section>
+    <section class="card pad">
+     <div class="card-label">
+      <h2>
+       Collector events
+      </h2>
+      <span class="muted" style="font-size:10px">
+       Latest 30
+      </span>
+     </div>
+     <div class="events" id="events">
+      <p class="no-data">
+       No collector events yet.
+      </p>
+     </div>
+    </section>
+   </div>
+   <details class="card explorer" id="explorer">
+    <summary>
+     <span class="exp-title">
+      <svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-width="1.5" viewbox="0 0 12 12" width="12">
+       <path d="m4 2 4 4-4 4">
+       </path>
+      </svg>
+      All metrics
+      <small id="metric-count">
+       Waiting for metrics
+      </small>
+     </span>
+     <small>
+      Search the complete health response
+     </small>
+    </summary>
+    <div class="explorer-body">
+     <label class="search">
+      <svg aria-hidden="true" fill="none" height="16" stroke="currentColor" stroke-width="1.4" viewbox="0 0 16 16" width="16">
+       <circle cx="7" cy="7" r="4.5">
+       </circle>
+       <path d="m10.5 10.5 3 3">
+       </path>
+      </svg>
+      <input aria-label="Search all metrics" id="search" placeholder="Search metric name or value..." type="search"/>
+     </label>
+     <div class="metric-table-wrap">
+      <table>
+       <thead>
+        <tr>
+         <th scope="col">
+          Metric path
+         </th>
+         <th scope="col">
+          Current value
+         </th>
+        </tr>
+       </thead>
+       <tbody id="metric-table">
+       </tbody>
+      </table>
+     </div>
+     <div class="explorer-foot" id="explorer-foot">
+      All numeric, text, and array fields are included. Missing fields are unavailable.
+     </div>
+    </div>
+   </details>
+   <div class="footer">
+    <span id="timestamp">
+     Waiting for the first health sample.
+    </span>
+    <span>
+     2s collection / 1h history
+     <br/>
+     <span id="rate-footer">Live rates require the runtime work counters.</span>
+    </span>
+   </div>
+  </main>
+  <script>
+
+
+
+
+
+'use strict';
+const $ = id => document.getElementById(id);
+function readPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('llmx.observatory.preferences') || '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+  } catch (_) {
+    return {};
+  }
+}
+const preferences = readPreferences();
+function savePreferences() {
+  try {
+    localStorage.setItem('llmx.observatory.preferences', JSON.stringify(preferences));
+  } catch (_) {
+    // Restricted browser storage must not interrupt telemetry.
+  }
+}
+const state = {
+  samples: [],
+  latest: null,
+  events: [],
+  collector: null,
+  seq: 0,
+  lastSuccess: null,
+  interval: 2,
+  ok: false,
+  error: null,
+  range: [300, 900, 3600].includes(preferences.range) ? preferences.range : 900,
+  paused: false,
+  view: null,
+  polling: false,
+  received: false
+};
+const nf = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 1
+});
+const exact = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 6
+});
+function number(v) {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+function get(o, path) {
+  return path.split('.').reduce((a, k) => a !== null && typeof a === 'object' ? a[k]: undefined, o)
+}
+function fmt(v) {
+  return number(v) ? nf.format(v): '--'
+}
+function formatRate(value) {
+  if (!number(value)) return '--';
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value > 0 && value < 1 ? 3 : value < 10 ? 2 : 1
+  }).format(value);
+}
+function bytes(v) {
+  if (!number(v)) return '--';
+  if (v === 0) return '0 B';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+  const i = Math.min(units.length - 1, Math.max(0, Math.floor(Math.log(Math.abs(v)) / Math.log(1024))));
+  return fmt(v / 1024 ** i) + ' ' + units[i]
+}
+function duration(v) {
+  if (!number(v)) return '--';
+  if (v < 60) return Math.floor(v) + 's';
+  if (v < 3600) return Math.floor(v / 60) + 'm ' + Math.floor(v % 60) + 's';
+  return Math.floor(v / 3600) + 'h ' + Math.floor(v % 3600 / 60) + 'm'
+}
+function txt(id, value) {
+  $(id).textContent = value
+}
+function element(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e
+}
+function ratio(a, b) {
+  return number(a) && number(b) && b > 0 ? a / b: null
+}
+function percentage(a, b) {
+  const v = ratio(a, b);
+  return v === null ? '--': fmt(v * 100) + '%'
+}
+function fill(id, a, b) {
+  const v = ratio(a, b);
+  $(id).style.width = v === null ? '0%': Math.min(100, Math.max(0, v * 100)) + '%';
+  $(id).parentElement.setAttribute('aria-label', v === null ? 'Occupancy unavailable': fmt(a) + ' of ' + fmt(b));
+}
+function rate(samples, i, path) {
+  if (i < 1) return null;
+  const a = samples[i - 1],
+  b = samples[i],
+  dt = b.t - a.t;
+  const av = a.metrics[path],
+  bv = b.metrics[path];
+  if (b.reset || dt <= 0 || dt > Math.max(15, state.interval * 3) || !number(av) || !number(bv) || bv < av) return null;
+  return(bv - av) / dt
+}
+function latestRate(samples, path) {
+  return rate(samples, samples.length - 1, path)
+}
+const rangeFields = [
+  ['Completed requests', 'requests.since_start.finished'],
+  ['Generated tokens / completed requests', 'requests.since_start.generated_tokens'],
+  ['Reused tokens', 'reuse.since_start.tokens'],
+  ['Pressure pauses', 'pressure.since_start.pauses'],
+  ['Recomputed tokens', 'pressure.since_start.recomputed_tokens'],
+  ['Draft tokens kept', 'drafting.since_start.kept']
+];
+function rangeDelta(view, path) {
+  const end = view.lastSuccess;
+  if (!number(end)) return { value: null, reason: 'No successful sample yet.' };
+  const start = end - state.range;
+  const samples = view.samples;
+  let first = -1, last = -1;
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].t <= end) {
+      if (first < 0 || Math.abs(samples[i].t - start) < Math.abs(samples[first].t - start)) first = i;
+      last = i;
+    }
+  }
+  const gapLimit = Math.max(15, state.interval * 3);
+  if (first < 0 || last <= first || Math.abs(start - samples[first].t) > state.interval * 1.5 || end - samples[last].t > state.interval * 1.5) {
+    return { value: null, reason: 'The full selected window is not covered by samples.' };
+  }
+  if (view.events.some(event => event.t > samples[first].t && event.t <= end && ['disconnect', 'restart'].includes(event.kind))) {
+    return { value: null, reason: 'A recorded disconnect or restart interrupts this window.' };
+  }
+  const baseline = samples[first].metrics[path];
+  if (!number(baseline)) return { value: null, reason: 'This counter is missing from the selected window.' };
+  for (let i = first + 1; i <= last; i++) {
+    const a = samples[i - 1], b = samples[i];
+    const previous = a.metrics[path], current = b.metrics[path];
+    if (b.reset || b.t <= a.t || b.t - a.t > gapLimit || !number(previous) || !number(current) || current < previous) {
+      return { value: null, reason: 'A sample gap, missing counter, or counter reset interrupts this window.' };
+    }
+  }
+  return {
+    value: samples[last].metrics[path] - baseline,
+    reason: 'Observed change from ' + new Date(samples[first].t * 1000).toLocaleTimeString() + ' to ' +
+      new Date(samples[last].t * 1000).toLocaleTimeString() + ' / ' + exact.format(samples[last].t - samples[first].t) +
+      ' seconds. Sample boundaries approximate the selected window; no extrapolation.'
+  };
+}
+function renderRangeOverview(view) {
+  const host = $('range-metrics');
+  host.replaceChildren();
+  for (const [label, path] of rangeFields) {
+    const result = rangeDelta(view, path);
+    const cell = element('div', 'range-metric');
+    const value = element('div', 'range-value', fmt(result.value));
+    value.title = result.reason;
+    cell.append(element('div', 'stat-label', label), value,
+      element('div', 'range-total', fmt(get(view.latest, path)) + ' / lifetime'));
+    host.append(cell);
+  }
+  const first = view.samples[0];
+  const available = first && number(view.lastSuccess) ? Math.max(0, view.lastSuccess - first.t) : 0;
+  txt('range-window', Math.round(state.range / 60) + ' MIN WINDOW');
+  txt('range-coverage', 'Observed sample-boundary changes approximate the selected window; no extrapolation. ' +
+    (available + state.interval * 1.5 < state.range ? duration(available) + ' retained; full-window changes unavailable.' :
+      'Hover a value for observed endpoints and duration. Missing or interrupted history stays unavailable.'));
+  const index = view.samples.length - 1;
+  const pressure = ['pauses', 'stalls', 'waits'].map(key => {
+    const path = 'pressure.since_start.' + key;
+    const perSecond = rate(view.samples, index, path);
+    return perSecond === null ? null : perSecond * (view.samples[index].t - view.samples[index - 1].t);
+  });
+  txt('pressure-overview', pressure.every(number) ? 'Last sampled interval: ' +
+    pressure.map((value, i) => fmt(value) + ' ' + ['pauses', 'stalls', 'waits'][i]).join(' / ') +
+    '. Recovery: ' + fmt(get(view.latest, 'pressure.since_start.resumes_taking_history_back')) + ' resumes reclaimed history / lifetime.' :
+    'Pressure changes unavailable until two adjacent valid samples are present. Lifetime counters remain in the recovery panel.');
+}
+const moveGroups = [['History lifecycle',
+[['Parked', 'parked'],
+['Consumed', 'consumed'],
+['Forked', 'forked'],
+['Promoted', 'promoted'],
+['Promotion failed', 'promote_failed'],
+['Consumed history lost', 'consumed_lost']]],
+['Host & boundaries',
+[['Moved to host', 'to_host'],
+['Not moved to host', 'not_to_host'],
+['Host dropped / lost',
+['host_dropped', 'host_lost']],
+['Boundary kept', 'boundary_kept'],
+['Boundary not kept', 'boundary_not_kept'],
+['Boundary dropped / lost',
+['boundary_dropped', 'boundary_lost']]]],
+['Background transfers',
+[['Jobs started / completed',
+['job_started', 'job_done']],
+['Jobs gave way / lost',
+['job_gave_way', 'job_lost']],
+['Jobs handed / not handed',
+['job_handed', 'job_not_handed']],
+['Reads started / completed',
+['read_started', 'read_done']],
+['Reads refused / failed',
+['read_refused', 'read_failed']],
+['Whole writes / failed',
+['write_whole', 'write_failed']],
+['Disk entries removed', 'disk_removed']]],
+['Disk integrity',
+[['Entries / segments / states',
+['now.entries', 'now.segments', 'now.states'], 'disk'],
+['Unproved entries', 'now.unproved', 'disk'],
+['Hits / waits',
+['since_start.hits', 'since_start.waits'], 'disk'],
+['Wait time', 'since_start.wait_ms', 'disk', 'ms'],
+['Errors / refused',
+['since_start.errors', 'since_start.refused'], 'disk'],
+['Dropped for capacity', 'since_start.dropped_for_cap', 'disk'],
+['Proved / disproved',
+['since_start.proved', 'since_start.disproved'], 'disk'],
+['Lost before written', 'since_start.lost_before_written', 'disk']]]];
+for (const[title, rows] of moveGroups) {
+  const card = element('section', 'card pad');
+  card.append(element('h3', '', title));
+  for (const[label, keys, prefix, format] of rows) {
+    const row = element('div', 'detail-line');
+    row.append(element('span', '', label));
+    const value = element('span');
+    (Array.isArray(keys) ? keys: [keys]).forEach((key, i) => {
+      if (i) value.append(document.createTextNode(' / '));
+      const field = element('span', '', '--');
+      field.dataset.m = (prefix === 'disk' ? 'reuse.disk.': 'reuse.moves.since_start.') + key;
+      if (format) field.dataset.format = format;
+      value.append(field)
+    });
+    row.append(value);
+    card.append(row)
+  }
+  $('moves').append(card)
+}
+function snapshot() {
+  return {
+    samples: state.samples.slice(),
+    latest: state.latest,
+    events: state.events.slice(),
+    lastSuccess: state.lastSuccess
+  }
+}
+function drawPositions(raw) {
+  const target = $('positions');
+  target.replaceChildren();
+  const positions = get(raw, 'drafting.since_start.by_position');
+  if (!Array.isArray(positions) || !positions.length) {
+    target.append(element('p', 'no-data', 'No position data available'));
+    return
+  }
+  for (const p of positions) {
+    const item = element('div', 'position');
+    const r = ratio(p.kept, p.drafted);
+    item.title = 'Position ' + fmt(p.position) + ': ' + fmt(p.kept) + ' / ' + fmt(p.drafted) + ' kept';
+    item.append(element('strong', '', percentage(p.kept, p.drafted)));
+    const track = element('div', 'position-track');
+    const bar = element('i');
+    bar.style.height = (r === null ? 0: Math.max(0, Math.min(100, r * 100))) + '%';
+    track.append(bar);
+    item.append(track, document.createTextNode(fmt(p.position)));
+    target.append(item)
+  }
+}
+function displayValue(v) {
+  if (v === undefined || v === null) return 'Unavailable';
+  if (typeof v === 'string') return v || '(empty)';
+  if (typeof v === 'number') return number(v) ? exact.format(v): 'Unavailable';
+  if (typeof v === 'boolean') return v ? 'true': 'false';
+  return JSON.stringify(v)
+}
+function renderMetadata(raw) {
+  const host = $('metadata');
+  host.replaceChildren();
+  const fields = [['Model', get(raw, 'server.model')],
+  ['Version', get(raw, 'server.version')],
+  ['Numerics', get(raw, 'server.numerics')],
+  ['Devices', get(raw, 'server.devices')],
+  ['Context', number(get(raw, 'server.context_tokens')) ? fmt(get(raw, 'server.context_tokens')) + ' tokens': null],
+  ['Server uptime', number(get(raw, 'server.uptime_s')) ? duration(get(raw, 'server.uptime_s')): null],
+  ['Precision requested', get(raw, 'precision.requested')],
+  ['Precision declared', get(raw, 'precision.declared')],
+  ['Precision effective', get(raw, 'precision.effective')]];
+  const devices = get(raw, 'precision.devices');
+  if (Array.isArray(devices)) for (const d of devices) {
+    fields.push(['Device ' + displayValue(d.device),
+    ['Effective: ' + displayValue(d.effective), 'How: ' + displayValue(d.how), 'Paths: ' + displayValue(d.paths)].join(' / ')])
+  }
+  for (const[label, value] of fields) {
+    host.append(element('dt', '', label), element('dd', '', displayValue(value)))
+  }
+}
+function renderTopology(raw) {
+  const host = $('topology-view');
+  const detailsWereOpen = host.querySelector('.topology-details')?.open === true;
+  host.replaceChildren();
+  const t = get(raw, 'topology');
+  const modes = {single: 'Single backend', layer: 'Layer split', tensor: 'Tensor split', staged_tensor: 'Staged tensor split'};
+  if (!t || typeof t !== 'object' || Array.isArray(t) || !Object.prototype.hasOwnProperty.call(modes, t.mode) || !Array.isArray(t.devices) || !Array.isArray(t.stages)) {
+    host.append(element('p', 'topology-empty', t === undefined ?
+      'Placement details are unavailable from this server version.' : 'Placement details are unavailable because the topology payload is incomplete.'));
+    return
+  }
+  const validId = v => Number.isInteger(v) && v >= 0;
+  const devices = t.devices.filter(d => d && typeof d === 'object' && validId(d.index) && typeof d.name === 'string' && typeof d.used === 'boolean');
+  if (devices.length !== t.devices.length) {
+    host.append(element('p', 'topology-empty', 'Placement details are unavailable because a device record is malformed.'));
+    return
+  }
+  const byId = new Map(devices.map(d => [d.index, d]));
+  const name = id => byId.has(id) ? byId.get(id).name : 'Backend ' + id;
+  const members = value => Array.isArray(value) && value.every(validId) ? value : null;
+  const memberText = value => {
+    const ids = members(value);
+    return ids === null ? 'Unavailable' : ids.length ? ids.map(name).join(' + ') : 'None'
+  };
+  const heading = element('div', 'topology-head');
+  const intro = element('div');
+  intro.append(element('h2', '', modes[t.mode]), element('p', '', t.mode === 'staged_tensor' ?
+    'Layer stages are distributed across tensor-parallel backend groups.' :
+    t.mode === 'tensor' ? 'The model uses one tensor-parallel backend group.' :
+    t.mode === 'layer' ? 'Contiguous layer ranges run on their listed backend groups.' : 'All model layers use one backend group.'));
+  if (t.mode === 'single') intro.lastChild.textContent = 'Mixer layers use one backend group; feed-forward roles may be placed separately.';
+  const badges = element('div', 'topology-badges');
+  badges.append(element('span', 'topology-badge', 'Tensor width ' + (Number.isInteger(t.tensor_width) && t.tensor_width > 0 ? t.tensor_width : 'unavailable')));
+  if (typeof t.mixed_roles === 'boolean' && t.mixed_roles) badges.append(element('span', 'topology-badge mixed', 'Mixed role placement'));
+  heading.append(intro, badges);
+
+  const layout = element('div', 'topology-layout');
+  const stagePanel = element('div', 'topology-stages');
+  stagePanel.append(element('h3', '', 'Layer stages'));
+  const stageList = element('div', 'topology-stage-list');
+  const stages = t.stages.filter(s => s && typeof s === 'object' && validId(s.index) && Number.isInteger(s.first_layer) && Number.isInteger(s.end_layer) && s.first_layer >= 0 && s.end_layer > s.first_layer && members(s.members) !== null);
+  if (stages.length) {
+    for (const s of stages) {
+      const row = element('div', 'topology-stage');
+      row.append(element('div', 'topology-stage-index', 'STAGE ' + String(s.index + 1).padStart(2, '0')));
+      const body = element('div', 'topology-stage-body');
+      const title = element('div', 'topology-stage-title');
+      title.append(element('strong', '', memberText(s.members)), element('span', 'topology-stage-range', 'Layers ' + (s.first_layer + 1) + ' to ' + s.end_layer));
+      body.append(title);
+      const tags = element('div', 'topology-members');
+      for (const id of s.members) tags.append(element('span', 'topology-member', name(id)));
+      body.append(tags);
+      row.append(body);
+      stageList.append(row)
+    }
+  } else stageList.append(element('p', 'topology-empty', 'No valid layer stages are reported.'));
+  const unused = devices.filter(d => !d.used);
+  if (unused.length) {
+    const tags = element('div', 'topology-members');
+    tags.append(element('span', 'topology-stage-index', 'SELECTED / UNUSED'));
+    for (const d of unused) tags.append(element('span', 'topology-member unused', d.name));
+    stageList.append(tags)
+  }
+  stagePanel.append(stageList);
+
+  const rolePanel = element('div', 'topology-roles');
+  rolePanel.append(element('h3', '', 'Model endpoints'));
+  const roleGrid = element('div', 'topology-roles-grid');
+  for (const [label, value] of [['Embedding', t.embedding_members], ['Output head', t.head_members]]) {
+    const row = element('div', 'topology-role');
+    row.append(element('span', '', label), element('span', '', memberText(value)));
+    roleGrid.append(row)
+  }
+  rolePanel.append(roleGrid);
+  layout.append(stagePanel, rolePanel);
+  host.append(heading, layout);
+
+  if (Array.isArray(t.layers)) {
+    const detail = element('details', 'topology-details');
+    detail.open = detailsWereOpen;
+    detail.append(element('summary', '', 'Per-layer roles / expert offload (' + t.layers.length + ' layers)'));
+    const table = element('table', 'topology-table');
+    const thead = element('thead');
+    const header = element('tr');
+    for (const label of ['Layer', 'Mixer', 'Feed-forward', 'Experts']) header.append(element('th', '', label));
+    thead.append(header);
+    const tbody = element('tbody');
+    for (const layer of t.layers) {
+      if (!layer || typeof layer !== 'object' || !validId(layer.index)) continue;
+      const tr = element('tr');
+      tr.append(element('td', '', String(layer.index + 1)), element('td', '', memberText(layer.mixer_members)), element('td', '', memberText(layer.ffn_members)));
+      let expert = layer.routed === true ? 'Routed' : layer.routed === false ? 'Dense' : 'Unavailable';
+      if (layer.expert_stream === null) expert += '; experts resident';
+      else if (layer.expert_stream && typeof layer.expert_stream === 'object' && members(layer.expert_stream.members) !== null && Number.isInteger(layer.expert_stream.min_prompt_tokens) && layer.expert_stream.min_prompt_tokens >= 0)
+        expert += '; streaming eligible from ' + layer.expert_stream.min_prompt_tokens + ' prompt tokens to ' + memberText(layer.expert_stream.members) + ' (not necessarily active now)';
+      else expert += '; stream details unavailable';
+      tr.append(element('td', '', expert));
+      tbody.append(tr)
+    }
+    table.append(thead, tbody);
+    detail.append(table);
+    host.append(detail)
+  }
+}
+function flattenAll(value, path = '', rows = []) {
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value);
+    if (!entries.length) rows.push([path, Array.isArray(value) ? '[]': '{}']);
+    for (const[k, v] of entries) flattenAll(v, path ? path + '.' + k: k, rows)
+  } else rows.push([path, displayValue(value)]);
+  return rows
+}
+let explorerRows = [];
+function renderExplorer() {
+  const query = $('search').value.toLowerCase().trim();
+  const rows = explorerRows.filter(([k, v]) => (k + ' ' + v).toLowerCase().includes(query));
+  const fragment = document.createDocumentFragment();
+  for (const[k, v] of rows) {
+    const tr = element('tr');
+    tr.append(element('td', '', k), element('td', '', v));
+    fragment.append(tr)
+  }
+  if (!rows.length) {
+    const tr = element('tr');
+    const td = element('td', '', query ? 'No metrics match your search.': 'Waiting for a health response.');
+    td.colSpan = 2;
+    tr.append(td);
+    fragment.append(tr)
+  }
+  $('metric-table').replaceChildren(fragment);
+  txt('explorer-foot', rows.length + ' of ' + explorerRows.length + ' fields. Values are from the ' + (state.paused ? 'paused': 'latest successful') + ' view.');
+}
+function renderEvents(events) {
+  const host = $('events');
+  host.replaceChildren();
+  if (!events.length) {
+    host.append(element('p', 'no-data', 'No collector events yet.'));
+    return
+  }
+  for (const e of events.slice( - 30).reverse()) {
+    const row = element('div', 'event');
+    row.append(element('time', '', new Date(e.t * 1000).toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })));
+    const content = element('div');
+    content.append(element('div', 'kind', String(e.kind || 'event')), element('p', '', String(e.message || '')));
+    row.append(content);
+    host.append(row)
+  }
+}
+const svgNS = 'http://www.w3.org/2000/svg';
+function svgNode(tag, attrs = {
+}, text) {
+  const e = document.createElementNS(svgNS, tag);
+  for (const[k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e
+}
+const chartConfigurations = [{
+  id: 'prompt',
+  title: 'Completed prompt token rate, including cached tokens',
+  unit: 'tok/s',
+  format: formatRate,
+  fields: ['requests.since_start.prompt_tokens'],
+  labels: ['Completed prompt tok/s'],
+  colors: ['#7aa9ff'],
+  values: (samples, i, config) => config.fields.map(path => rate(samples, i, path)),
+  note: 'Includes cached prompt tokens; counted at request completion. Gaps indicate unavailable rates.'
+},
+{
+  id: 'throughput',
+  title: 'Completed generated token rate',
+  unit: 'tok/s',
+  format: formatRate,
+  fields: ['requests.since_start.generated_tokens'],
+  labels: ['Completed generated tok/s'],
+  colors: ['#66dfd1'],
+  values: (samples, i, config) => config.fields.map(path => rate(samples, i, path)),
+  note: 'Completed-request counter deltas; gaps mark missing samples or counter resets.'
+},
+{
+  id: 'activity',
+  title: 'Concurrent request activity',
+  unit: 'requests',
+  fields: ['requests.now.active', 'requests.now.queued', 'requests.now.paused'],
+  labels: ['Active', 'Queued', 'Paused'],
+  colors: ['#66dfd1', '#7aa9ff', '#f3c17e'],
+  values: (samples, i, config) => config.fields.map(path => samples[i].metrics[path]),
+  note: 'Current concurrent counts at each sample; gaps mark missing samples or restarts.'
+},
+{
+  id: 'cache',
+  title: 'Host and disk cache occupancy',
+  unit: '% of configured limit',
+  floor: 100,
+  labels: ['Host %', 'Disk %'],
+  colors: ['#7aa9ff', '#b09aff'],
+  values: (samples, i) => ['host', 'disk'].map(tier => {
+    const metrics = samples[i].metrics;
+    const share = ratio(metrics['reuse.' + tier + '.now.bytes'], metrics['reuse.' + tier + '.now.limit_bytes']);
+    return share === null ? null: share * 100;
+  }),
+  note: 'Used bytes / configured tier limit. A missing or zero limit is unavailable.'
+}];
+function configureWorkRates(raw) {
+  const work = get(raw, 'work');
+  const legacy = number(get(raw, 'requests.since_start.prompt_tokens')) && number(get(raw, 'requests.since_start.generated_tokens'));
+  const mode = work !== undefined ? 'live' : legacy ? 'completed' : 'unavailable';
+  for (const [id, counter, legacyCounter, name, detail] of [
+    ['prompt', 'prefilled_tokens', 'prompt_tokens', 'Prompt', 'Client prompt rows retired; excludes cache hits and background/draft work, includes recovery re-prefill.'],
+    ['throughput', 'generated_tokens', 'generated_tokens', 'Output', 'Tokens published to request channels, including the first token and accepted speculative output.']
+  ]) {
+    const config = chartConfigurations.find(chart => chart.id === id);
+    const prefix = mode === 'completed' ? 'requests.since_start.' : 'work.since_start.';
+    config.fields = [prefix + (mode === 'completed' ? legacyCounter : counter)];
+    const missing = mode === 'live' && !number(get(raw, config.fields[0]));
+    config.mode = mode;
+    config.title = mode === 'completed' ? 'Completed-request ' + name.toLowerCase() + ' rate' : 'Live aggregate ' + name.toLowerCase() + ' throughput';
+    config.labels = [mode === 'completed' ? 'Completed ' + name.toLowerCase() + ' tok/s' : name + ' throughput tok/s'];
+    config.note = mode === 'completed' ? 'Old API fallback: counters advance at request completion, not during ongoing work.' :
+      mode === 'unavailable' ? 'Compatible live work counters are unavailable.' :
+      'Sampled aggregate wall-clock throughput; prompt work appears at pass retirement, output at publication.';
+    config.zeroHint = mode === 'completed' ? 'No completed tokens counted in the latest interval' :
+      id === 'prompt' ? 'No client prompt rows retired in the latest interval' : 'No output tokens published in the latest interval';
+    txt(id + '-mode', (id === 'prompt' ? 'PP' : 'TG') + (mode === 'live' && !missing ? ' / LIVE AGGREGATE THROUGHPUT' :
+      mode === 'completed' ? ' / COMPLETED-WORK FALLBACK' : ' / LIVE COUNTERS UNAVAILABLE'));
+    txt(id + '-title', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' work' : name + ' throughput');
+    txt(id + '-description', missing ? 'This live counter is missing. Its rate stays unavailable; completed totals are not substituted.' : mode === 'live' ? detail : mode === 'completed' ?
+      (id === 'prompt' ? 'Includes cached tokens; counted at request completion. ' : 'Counted at request completion. ') + 'Live throughput is unavailable from this API.' :
+      'Waiting for health data with compatible live work counters.');
+    $(id + '-total').dataset.m = config.fields[0];
+    txt(id + '-total-label', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' tokens / lifetime' :
+      (id === 'prompt' ? 'Client prompt rows retired' : 'Output tokens published') + ' / lifetime');
+  }
+  txt('token-rate-label', mode === 'completed' ? 'Completed token rate' : 'Live output throughput');
+  txt('token-rate-note', mode === 'completed' ? 'Old API / completed requests only' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
+    'Published output / sampled wall-clock rate' : 'Live counters unavailable');
+  txt('rate-explainer', mode === 'completed' ?
+    'Live PP/TG throughput is unavailable from this API. These fallback charts use completed-request counters; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
+    'PP/TG panels show aggregate work over actual elapsed sample time (' + fmt(state.interval) + 's collection target), not per-request or per-kernel speeds. A long pass stays unobserved until retirement; zero does not establish idle hardware. Missing live counters remain unavailable.');
+  txt('rate-footer', mode === 'completed' ? 'Old API: completed-work fallback, not live throughput.' :
+    mode === 'unavailable' ? 'Live throughput unavailable / waiting for health counters.' : 'Live rates use work counters / aggregate wall-clock throughput.');
+  return mode;
+}
+const chartViews = {};
+const inspection = { time: null, pinned: false };
+function clearInspection() {
+  inspection.time = null;
+  inspection.pinned = false;
+  Object.values(chartViews).forEach(view => view.hide());
+  txt('inspection-time', 'Explore a shared timeline');
+  txt('inspection-hint', 'Hover a chart, click to hold, or use arrow keys to inspect all charts together.');
+  txt('inspection-live', 'Timeline inspection cleared.');
+  $('clear-inspection').hidden = true;
+}
+function inspectTime(time, pinned = false) {
+  inspection.time = time;
+  inspection.pinned = pinned;
+  const summaries = [];
+  Object.values(chartViews).forEach(view => {
+    const text = view.show(time);
+    if (text) summaries.push(text);
+  });
+  const stamp = new Date(time * 1000).toLocaleTimeString();
+  txt('inspection-time', (pinned ? 'Held at ' : 'Inspecting ') + stamp + ' / all charts');
+  txt('inspection-hint', pinned ? 'This timestamp stays selected while new samples arrive. Return to latest to clear.' : 'Click to hold this timestamp. All charts follow the same sample.');
+  if (pinned) txt('inspection-live', stamp + '. ' + summaries.join('. '));
+  $('clear-inspection').hidden = false;
+}
+function renderChart(samples, stamp, config, events) {
+  const host = $(config.id + '-chart');
+  const format = config.format || fmt;
+  host.replaceChildren();
+  const end = Math.max(stamp || Date.now() / 1000, events.length ? events.at(-1).t : 0);
+  const start = end - state.range;
+  const W = Math.max(240, host.clientWidth || 400),
+  H = Math.max(160, host.clientHeight || 215),
+  L = 49,
+  R = 14,
+  T = 17,
+  B = 30;
+  const points = [];
+  samples.forEach((sample, i) => {
+    if (sample.t < start || sample.t > end) return;
+    const previous = i ? samples[i - 1]: null;
+    const gap = previous && sample.t - previous.t > Math.max(15, state.interval * 3);
+    if (gap || sample.reset) points.push({
+      t: sample.t - .001,
+      values: config.labels.map(() => null),
+      gap: true
+    });
+    points.push({
+      t: sample.t,
+      values: config.values(samples, i, config)
+    });
+  });
+  const finite = points.flatMap(point => point.values.filter(number));
+  const maximum = finite.length ? Math.max(...finite): 0;
+  const cap = config.floor ? Math.max(config.floor, maximum * 1.05): maximum > 0 ? maximum * 1.14: 1;
+  const x = t => L + (t - start) / state.range * (W - L - R);
+  const y = value => T + (1 - value / cap) * (H - T - B);
+  const svg = svgNode('svg', {
+    viewBox: '0 0 ' + W + ' ' + H,
+    preserveAspectRatio: 'none',
+    'aria-hidden': 'true'
+  });
+  svg.append(svgNode('text', { x: L, y: 9 }, config.unit));
+  for (let i = 0; i < 4; i++) {
+    const yy = T + i * (H - T - B) / 3;
+    svg.append(svgNode('line', {
+      x1: L,
+      y1: yy,
+      x2: W - R,
+      y2: yy,
+      stroke: '#253343',
+      'stroke-dasharray': '3 5'
+    }), svgNode('text', {
+      x: L - 10,
+      y: yy + 3,
+      'text-anchor': 'end'
+    }, format(cap * (1 - i / 3))));
+  }
+  const timeIntervals = W < 420 ? 3 : 4;
+  for (let i = 0; i <= timeIntervals; i++) {
+    const time = start + state.range * i / timeIntervals;
+    svg.append(svgNode('text', {
+      x: x(time),
+      y: H - 7,
+      'text-anchor': i === 0 ? 'start': i === timeIntervals ? 'end': 'middle'
+    }, new Date(time * 1000).toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit'
+    })));
+  }
+  for (let series = config.labels.length - 1; series >= 0; series--) {
+    let path = '',
+    connected = false;
+    for (const point of points) {
+      if (!number(point.values[series])) {
+        connected = false;
+        continue;
+      }
+      path += (connected ? 'L': 'M') + x(point.t).toFixed(2) + ',' + y(point.values[series]).toFixed(2) + ' ';
+      connected = true;
+    }
+    svg.append(svgNode('path', {
+      d: path,
+      fill: 'none',
+      stroke: config.colors[series],
+      'stroke-width': series ? 1.6: 2,
+      'stroke-linejoin': 'round',
+      'stroke-linecap': 'round',
+      'vector-effect': 'non-scaling-stroke'
+    }));
+  }
+  const eventColors = { restart: '#f48d99', disconnect: '#f3c17e', recovery: '#66dfd1' };
+  events.filter(event => event.t >= start && event.t <= end && eventColors[event.kind]).forEach(event => {
+    const marker = svgNode('g');
+    marker.append(svgNode('title', {}, event.kind + ': ' + event.message + ' / ' + new Date(event.t * 1000).toLocaleTimeString()),
+      svgNode('line', { x1: x(event.t), x2: x(event.t), y1: T, y2: H - B, stroke: eventColors[event.kind], 'stroke-dasharray': '2 5', opacity: '.55' }),
+      svgNode('circle', { cx: x(event.t), cy: T, r: 3, fill: eventColors[event.kind] }));
+    svg.append(marker);
+  });
+  const cross = svgNode('line', {
+    x1: 0,
+    x2: 0,
+    y1: T,
+    y2: H - B,
+    stroke: '#7f95ad',
+    'stroke-dasharray': '3 3',
+    visibility: 'hidden'
+  });
+  svg.append(cross);
+  host.append(svg);
+  const tooltip = element('div', 'tooltip');
+  host.append(tooltip);
+  if (!finite.length) {
+    const empty = element('div', 'chart-empty');
+    empty.append(element('span', '', samples.length ? 'Collecting history': 'Waiting for the runtime'), element('small', '', samples.length ? 'Available samples will appear here automatically.': 'Successful samples will appear here automatically.'));
+    host.append(empty);
+  }
+  const newest = points.at( - 1);
+  const latest = newest ? config.labels.map((label, i) => label + ': ' + format(newest.values[i])).join(' / '): 'No samples available.';
+  txt(config.id + '-summary', latest + ' ' + config.note);
+  const readout = $(config.id + '-value');
+  const updateReadout = (value, time = null) => {
+    if (!readout) return;
+    readout.textContent = format(value);
+    txt(config.id + '-at', time !== null ? 'Selected interval ending ' + new Date(time * 1000).toLocaleTimeString() :
+      !number(value) ? 'Rate unavailable / waiting for adjacent samples' :
+      value === 0 ? config.zeroHint : config.mode === 'completed' ? 'Latest completed-request interval' : 'Latest observed sampling interval');
+  };
+  updateReadout(newest ? newest.values[0] : null);
+  const selectable = points.filter(point => !point.gap);
+  const nearestIndex = time => {
+    let best = 0;
+    for (let i = 1; i < selectable.length; i++) {
+      if (Math.abs(selectable[i].t - time) < Math.abs(selectable[best].t - time)) best = i;
+    }
+    return best;
+  };
+  const hide = () => {
+    tooltip.style.display = 'none';
+    cross.setAttribute('visibility', 'hidden');
+    updateReadout(newest ? newest.values[0] : null);
+  };
+  chartViews[config.id] = {
+    hide,
+    show: time => {
+      if (!selectable.length) { hide(); return ''; }
+      const point = selectable[nearestIndex(time)];
+      if (Math.abs(point.t - time) > .01) { hide(); return ''; }
+      const xx = x(point.t);
+      updateReadout(point.values[0], point.t);
+      cross.setAttribute('x1', xx);
+      cross.setAttribute('x2', xx);
+      cross.setAttribute('visibility', 'visible');
+      tooltip.replaceChildren(element('strong', '', new Date(point.t * 1000).toLocaleTimeString()));
+      config.labels.forEach((label, i) => {
+        const row = element('div');
+        row.append(element('span', '', label), element('span', '', format(point.values[i])));
+        tooltip.append(row);
+      });
+      tooltip.style.display = 'block';
+      const real = host.clientWidth * xx / W;
+      tooltip.style.left = Math.max(2, Math.min(host.clientWidth - 190, real + 12)) + 'px';
+      return config.labels.map((label, i) => label + ': ' + format(point.values[i])).join(', ');
+    }
+  };
+  const pointerTime = event => {
+    const rect = host.getBoundingClientRect();
+    return start + ((event.clientX - rect.left) / rect.width * W - L) / (W - L - R) * state.range;
+  };
+  host.onpointermove = event => {
+    if (selectable.length && !inspection.pinned) inspectTime(selectable[nearestIndex(pointerTime(event))].t);
+  };
+  host.onclick = event => {
+    if (selectable.length) inspectTime(selectable[nearestIndex(pointerTime(event))].t, true);
+  };
+  host.onpointerleave = () => { if (!inspection.pinned) clearInspection(); };
+  host.onkeydown = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Escape', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Escape') { clearInspection(); return; }
+    if (!selectable.length) return;
+    const initial = inspection.time === null ? selectable.length - 1 : nearestIndex(inspection.time);
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? selectable.length - 1 :
+      Math.max(0, Math.min(selectable.length - 1, initial + (event.key === 'ArrowLeft' ? -1 : 1)));
+    inspectTime(selectable[index].t, true);
+  };
+  host.onblur = () => { if (!inspection.pinned) clearInspection(); };
+  host.setAttribute('aria-label', config.title + ', ' + Math.round(state.range / 60) + ' minute range. ' + latest + ' Left and right arrows inspect samples.');
+}
+function render() {
+  const view = state.paused && state.view ? state.view: snapshot();
+  const raw = view.latest || {
+  };
+  const m = p => get(raw, p);
+  const workMode = configureWorkRates(raw);
+  document.querySelectorAll('[data-m]').forEach(e => {
+    const v = m(e.dataset.m);
+    e.textContent = e.dataset.format === 'bytes' ? bytes(v): e.dataset.format === 'ms' ? (number(v) ? fmt(v) + ' ms': '--'): typeof v === 'boolean' ? (v ? 'Yes': 'No'): fmt(v);
+    e.title = number(v) ? exact.format(v): typeof v === 'boolean' ? String(v): 'Unavailable';
+  });
+  txt('active-limit', '/ ' + fmt(m('requests.limits.active')) + ' capacity');
+  for (const key of['active', 'queued']) {
+    txt(key + '-capacity', fmt(m('requests.now.' + key)) + ' / ' + fmt(m('requests.limits.' + key)));
+    fill(key + '-bar', m('requests.now.' + key), m('requests.limits.' + key))
+  }
+  const paused = m('requests.now.paused'),
+  queued = m('requests.now.queued');
+  txt('capacity-status', !view.latest ? 'WAITING': number(paused) && paused > 0 ? 'PAUSED WORK': number(queued) && queued > 0 ? 'QUEUED WORK': 'CURRENT STATE');
+  const outputField = chartConfigurations.find(config => config.id === 'throughput').fields[0];
+  txt('token-rate', workMode === 'unavailable' ? '--' : formatRate(latestRate(view.samples, outputField)));
+  const req = latestRate(view.samples, 'requests.since_start.finished');
+  txt('request-rate', number(req) ? fmt(req * 60): '--');
+  txt('device-description', 'Server KV pool: ' + fmt(m('server.kv_tokens')) + ' tokens');
+  fill('device-bar', m('reuse.device.now.kv_tokens'), m('server.kv_tokens'));
+  txt('host-description', bytes(m('reuse.host.now.allocated_bytes')) + ' allocated / ' + bytes(m('reuse.host.now.limit_bytes')) + ' limit');
+  fill('host-bar', m('reuse.host.now.bytes'), m('reuse.host.now.limit_bytes'));
+  txt('disk-description', bytes(m('reuse.disk.now.limit_bytes')) + ' cache limit');
+  fill('disk-bar', m('reuse.disk.now.bytes'), m('reuse.disk.now.limit_bytes'));
+  for (const dir of['read', 'write']) {
+    const v = latestRate(view.samples, 'reuse.disk.since_start.bytes_' + (dir === 'read' ? 'read': 'written'));
+    txt('disk-' + dir + '-rate', number(v) ? bytes(v) + '/s': '--')
+  }
+  const draft = m('drafting.since_start.drafted'),
+  kept = m('drafting.since_start.kept'),
+  r = ratio(kept, draft);
+  txt('acceptance', r === null ? '--': fmt(r * 100));
+  $('accept-ring').style.strokeDasharray = (r === null ? 0: Math.max(0, Math.min(1, r)) * 176) + ' 176';
+  const sources = m('drafting.sources');
+  txt('draft-sources', Array.isArray(sources) ? sources.join(' + '): 'Unavailable');
+  txt('own-acceptance', percentage(m('drafting.since_start.own_history.kept'), m('drafting.since_start.own_history.drafted')));
+  txt('own-counts', fmt(m('drafting.since_start.own_history.kept')) + ' / ' + fmt(m('drafting.since_start.own_history.drafted')));
+  const mode = m('pacing.mode'),
+  automatic = m('pacing.automatic');
+  txt('pacing-mode', mode === undefined ? 'Mode unavailable': String(mode) + (typeof automatic === 'boolean' ? ' / ' + (automatic ? 'automatic': 'manual'): ''));
+  drawPositions(raw);
+  renderMetadata(raw);
+  renderTopology(raw);
+  renderEvents(view.events);
+  explorerRows = view.latest ? flattenAll(raw): [];
+  txt('metric-count', explorerRows.length + ' fields');
+  if ($('explorer').open) renderExplorer();
+  renderRangeOverview(view);
+  chartConfigurations.forEach(config => renderChart(view.samples, view.lastSuccess, config, view.events));
+  if (inspection.time !== null) {
+    const end = Math.max(view.lastSuccess || 0, view.events.length ? view.events.at(-1).t : 0);
+    if (inspection.time < end - state.range || !view.samples.some(sample => sample.t === inspection.time)) clearInspection();
+    else inspectTime(inspection.time, inspection.pinned);
+  }
+  renderStatus();
+}
+function renderStatus() {
+  const age = state.lastSuccess === null ? null: Math.max(0, Date.now() / 1000 - state.lastSuccess);
+  const stale = !state.ok || (age !== null && age > Math.max(10, state.interval * 3));
+  const status = $('connection');
+  status.className = 'live ' + (state.ok && !stale ? 'good': state.received ? 'bad': '');
+  txt('connection-text', !state.received ? 'Connecting': state.ok && !stale ? 'Live telemetry': state.lastSuccess ? 'Telemetry stale': 'Disconnected');
+  const messages = [];
+  if (state.paused) messages.push('View paused. Collection continues in the background. Resume to see the latest samples.');
+  if (state.received && stale) messages.push((state.lastSuccess ? 'Showing the last successful health response. ': 'No successful health response yet. ') + (state.error || 'Waiting for fresh telemetry.'));
+  txt('notice', messages.join(' '));
+  $('notice').classList.toggle('show', messages.length > 0);
+  const view = state.paused && state.view ? state.view: snapshot();
+  txt('timestamp', view.lastSuccess === null ? 'Waiting for the first health sample.': (state.paused ? 'Paused at ': 'Last successful sample ') + new Date(view.lastSuccess * 1000).toLocaleString() + ' / ' + duration(Math.max(0, Date.now() / 1000 - view.lastSuccess)) + ' ago');
+}
+async function poll() {
+  if (state.polling) return;
+  state.polling = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch('/api/history?after=' + state.seq, {
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error('Collector returned HTTP ' + response.status);
+    const data = await response.json();
+    if (!data || typeof data !== 'object') throw new Error('Invalid collector response');
+    if (state.collector !== null && data.collector_id !== state.collector) {
+      state.samples = [];
+      state.events = [];
+      state.seq = 0;
+    }
+    state.collector = data.collector_id;
+    state.interval = number(data.interval_s) && data.interval_s > 0 ? data.interval_s: 2;
+    state.ok = data.ok === true;
+    state.error = typeof data.error === 'string' ? data.error: null;
+    state.received = true;
+    state.lastSuccess = number(data.last_success) ? data.last_success: null;
+    state.latest = data.latest && typeof data.latest === 'object' ? data.latest: null;
+    const fresh = Array.isArray(data.samples) ? data.samples: [];
+    for (const s of fresh) {
+      if (Number.isInteger(s.seq) && s.seq > state.seq && number(s.t) && s.metrics && typeof s.metrics === 'object') {
+        state.samples.push(s);
+        state.seq = s.seq
+      }
+    }
+    state.samples.sort((a, b) => a.seq - b.seq);
+    const newest = state.samples.at( - 1);
+    if (newest) state.samples = state.samples.filter(s => s.t >= newest.t - 3600);
+    if (Array.isArray(data.events)) {
+      const seen = new Set(state.events.map(e => e.t + '|' + e.kind + '|' + e.message));
+      for (const e of data.events) {
+        if (!e || !number(e.t)) continue;
+        const key = e.t + '|' + e.kind + '|' + e.message;
+        if (!seen.has(key)) {
+          state.events.push(e);
+          seen.add(key)
+        }
+      }
+      state.events.sort((a, b) => a.t - b.t);
+      state.events = state.events.slice( - 100)
+    }
+    if (!state.paused) render();
+    else renderStatus();
+  } catch (error) {
+    state.received = true;
+    state.ok = false;
+    state.error = error.name === 'AbortError' ? 'Collector request timed out.': String(error.message || error);
+    renderStatus();
+  } finally {
+    clearTimeout(timeout);
+    state.polling = false;
+    setTimeout(poll, Math.max(500, state.interval * 1000));
+  }
+}
+document.querySelectorAll('[data-range]').forEach(button => button.addEventListener('click', () => {
+  state.range = Number(button.dataset.range);
+  preferences.range = state.range;
+  savePreferences();
+  document.querySelectorAll('[data-range]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+  render()
+}));
+$('pause').addEventListener('click', () => {
+  if (!state.paused) state.view = snapshot();
+  state.paused = !state.paused;
+  $('pause').setAttribute('aria-pressed', String(state.paused));
+  $('pause').querySelector('span').textContent = state.paused ? 'Resume live': 'Pause view';
+  render()
+});
+$('clear-inspection').addEventListener('click', clearInspection);
+$('density').addEventListener('click', () => {
+  preferences.compact = !document.body.classList.contains('compact');
+  document.body.classList.toggle('compact', preferences.compact);
+  $('density').setAttribute('aria-pressed', String(preferences.compact));
+  savePreferences();
+});
+document.body.classList.toggle('compact', preferences.compact === true);
+$('density').setAttribute('aria-pressed', String(preferences.compact === true));
+document.querySelectorAll('[data-range]').forEach(button => {
+  button.setAttribute('aria-pressed', String(Number(button.dataset.range) === state.range));
+});
+document.querySelectorAll('details[id]').forEach(panel => {
+  if (preferences.panels && typeof preferences.panels[panel.id] === 'boolean') panel.open = preferences.panels[panel.id];
+  panel.addEventListener('toggle', () => {
+    if (!preferences.panels || typeof preferences.panels !== 'object' || Array.isArray(preferences.panels)) preferences.panels = {};
+    preferences.panels[panel.id] = panel.open;
+    savePreferences();
+  });
+});
+$('search').addEventListener('input', renderExplorer);
+$('explorer').addEventListener('toggle', () => {
+  if ($('explorer').open) renderExplorer()
+});
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 100);
+});
+setInterval(renderStatus, 1000);
+render();
+poll();
+
+
+
+
+
+  </script>
+ </body>
+</html>

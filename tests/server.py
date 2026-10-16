@@ -859,6 +859,66 @@ def check_api_fields(model, directory):
         srv.close()
 
 
+def check_tool_messages(model):
+    """A conversation as an OpenAI client sends it after tool calls, its calls' arguments as JSON text, content null beside them and tool results naming their call, renders under each pinned template as transformers renders it as the server hands it on (the chat fixture's server cases, docs/SERVER.md, Protocol): /v1/tokenize gives the ids of the reference's text, or the 400 with the template's own message where the reference raises.
+    The chat routes answer such a conversation, malformed calls and a null content without calls are refused with 400, and a chat_template_kwargs value written 1.0 reaches the template as the float transformers passes."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
+        fixture = json.load(f)
+    reply = REASONING_REPLY.decode()
+    # A context the longest conversation of the fixture fits in, one byte a token.
+    config = dict(REASONING_CONFIG, context_length=2048)
+    checked = 0
+    for t in fixture["templates"]:
+        f32.write_model(model, reasoning_tensors(), t["template"], f32.VOCAB - 1, config=config)
+        srv = Server(model)
+        try:
+            for case in t["server_cases"]:
+                assert case["generate"], case["name"]
+                where = (t["name"], case["name"])
+                status, got = srv.post("/v1/tokenize", {"messages": case["messages"]})
+                if "expected" not in case:
+                    assert status == 400 and got["error"].startswith("the chat template refused the messages: "), (where, status, got)
+                    if case["error_type"] in ("TemplateError", "TypeError"):
+                        assert got["error"].endswith(case["error"]), (where, got, case["error"])
+                    continue
+                assert status == 200, (where, got)
+                status, text = srv.post("/v1/detokenize", {"tokens": got["tokens"]})
+                assert status == 200 and text["text"] == case["expected"], (where, text, case["expected"])
+                checked += 1
+            if t["name"] == "Qwen3.8":
+                [calls] = [c for c in t["server_cases"] if c["name"] == "client-calls"]
+                for path in ("/v1/chat", "/v1/chat/completions"):
+                    status, got = srv.post(path, {"messages": calls["messages"], "max_tokens": 16, "temperature": 0})
+                    assert status == 200, (path, got)
+                    prompt = got["prompt_tokens"] if path == "/v1/chat" else got["usage"]["prompt_tokens"]
+                    assert prompt == len(calls["expected"].encode()), (path, got)
+                call = {"id": "c", "type": "function", "function": {"name": "f", "arguments": "{}"}}
+                for message, text in (({"role": "assistant", "content": None}, "message content must be a string or an array of text parts"),
+                                      ({"role": "user", "content": "x", "tool_calls": [call]}, "only an assistant message may carry tool_calls"),
+                                      ({"role": "assistant", "content": None, "tool_calls": {}}, "tool_calls must be an array of"),
+                                      ({"role": "assistant", "content": None, "tool_calls": [dict(call, type="other")]}, "tool_calls must be an array of"),
+                                      ({"role": "assistant", "content": None, "tool_calls": [dict(call, function={"name": "f", "arguments": 1})]}, "tool_calls must be an array of"),
+                                      ({"role": "assistant", "content": None, "tool_calls": [dict(call, function={"name": "", "arguments": "{}"})]}, "tool_calls must be an array of"),
+                                      ({"role": "tool", "content": "x", "tool_call_id": 1}, "tool_call_id must be a string"),
+                                      ({"role": "user", "content": "x", "name": ["a"]}, "name must be a string")):
+                    status, err = srv.post("/v1/chat/completions", {"messages": [{"role": "user", "content": "q"}, message, {"role": "user", "content": "x"}]})
+                    assert status == 400 and text in err["error"]["message"], (message, status, err)
+        finally:
+            srv.close()
+    # A template variable written 1.0 is the float transformers passes, 2 the int, and a whole number of 2^53 or more, which a double may not hold, is refused.
+    f32.write_model(model, reasoning_tensors(), "{{ x }}|{{ y }}|{% for m in messages %}{{ m.content }}{% endfor %}{{ '\\n' }}", f32.VOCAB - 1, config=config)
+    srv = Server(model)
+    try:
+        status, got = srv.post("/v1/chat", {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 16, "temperature": 0,
+                                            "chat_template_kwargs": {"x": 1.0, "y": 2}})
+        assert status == 200 and got["text"] == reply and got["prompt_tokens"] == len("1.0|2|hi\n"), got
+        status, err = srv.post("/v1/chat", {"messages": [{"role": "user", "content": "hi"}], "chat_template_kwargs": {"x": 9007199254740993}})
+        assert status == 400 and "chat_template_kwargs: a whole number of 2^53 or more" in err["error"], (status, err)
+    finally:
+        srv.close()
+    return checked
+
+
 # The tokens each position of a logprobs request lists beside its sampled one.
 TOP = 5
 
@@ -1962,6 +2022,9 @@ def run():
         check_unencodable(directory)
         print("server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]")
         check_reasoning(os.path.join(directory, "reasoning.gguf"))
+        checked = check_tool_messages(os.path.join(directory, "tools.gguf"))
+        print("server: conversations with tool calls as a client sends them, %d renders under the pinned templates, are the reference's as the server hands them on, "
+              "a refusal where the reference raises, answered on the chat routes, malformed calls refused with 400, and a template variable written 1.0 a float  [ok]" % checked)
         print("server: an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, "
               "and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; "
               "/v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]")

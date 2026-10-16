@@ -1088,6 +1088,246 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": not json}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": [1, 2]}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": }\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -2172,6 +2412,246 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": not json}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": [1, 2]}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": }\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -3253,6 +3733,246 @@
           ],
           "generate": true,
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": not json}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": [1, 2]}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": }\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
         }
       ],
       "split_turns": false,
@@ -4339,6 +5059,246 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": not json}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": [1, 2]}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": }\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -5421,6 +6381,246 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": not json}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": [1, 2]}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": }\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -6501,6 +7701,246 @@
           ],
           "generate": true,
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": not json}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": [1, 2]}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": }\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
         }
       ],
       "split_turns": false,
@@ -7586,6 +9026,247 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\n<think>a</think>b</think>c<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response>\n<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{'b': 1.0, 'a': [100000.0, 0, 2.5, -0.0, 12, None, True]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response>\n<|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response>\n<|im_end|>\n<|im_start|>assistant\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response>\n<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response>\n<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TypeError",
+          "error": "Can only get item pairs from a mapping."
+        }
+      ],
       "split_turns": false,
       "reference_keeps": null,
       "first": {
@@ -8667,6 +10348,246 @@
           ],
           "generate": true,
           "expected": "<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\n<think>a</think>b</think>c<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"T\u014dky\u014d\", \"days\": 3}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Oslo\"}}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Rome\", \"days\": 2.0}}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": \"not json\"}\n</tool_call>\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": \"[1, 2]\"}\n</tool_call>\n<tool_call>\n{\"name\": \"noop\", \"arguments\": \"\"}\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n"
         }
       ],
       "split_turns": false,
@@ -9755,6 +11676,247 @@
           ],
           "generate": true,
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TypeError",
+          "error": "Can only get item pairs from a mapping."
         }
       ],
       "split_turns": false,
@@ -10849,6 +13011,247 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TypeError",
+          "error": "Can only get item pairs from a mapping."
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -11937,6 +14340,246 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -13020,6 +15663,246 @@
           ],
           "generate": true,
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
         }
       ],
       "split_turns": false,
@@ -14109,6 +16992,247 @@
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TypeError",
+          "error": "Can only get item pairs from a mapping."
+        }
+      ],
       "split_turns": false,
       "reference_keeps": "whole",
       "first": {
@@ -15189,6 +18313,246 @@
           ],
           "generate": true,
           "expected": "<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\nc<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response>\n<tool_response>\n?\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
         }
       ],
       "split_turns": false,
@@ -16278,6 +19642,247 @@
           "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<think>a</think>b</think>c<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n"
         }
       ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.\n\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.\n\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TypeError",
+          "error": "Can only get item pairs from a mapping."
+        }
+      ],
       "split_turns": true,
       "reference_keeps": "split",
       "first": {
@@ -17360,6 +20965,247 @@
           ],
           "generate": true,
           "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\nq<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<think>a</think>b</think>c<|im_end|>\n<|im_start|>user\nr<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        }
+      ],
+      "server_cases": [
+        {
+          "name": "client-calls",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Weather in Paris and Tokyo?",
+              "name": "alice"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Paris\"}"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"T\u014dky\u014d\", \"days\": 3}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "21",
+              "tool_call_id": "call_1",
+              "name": "get_weather"
+            },
+            {
+              "role": "tool",
+              "content": "18",
+              "tool_call_id": "call_2"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.\n\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nWeather in Paris and Tokyo?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=get_weather>\n<parameter=city>\nT\u014dky\u014d\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\n21\n</tool_response>\n<tool_response>\n18\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-content",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": "Let me check.",
+              "tool_calls": [
+                {
+                  "id": "call_a",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Z\u00fcrich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "sunny",
+              "tool_call_id": "call_a"
+            },
+            {
+              "role": "user",
+              "content": "Thanks."
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nLet me check.\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nZ\u00fcrich\n</parameter>\n<parameter=unit>\n{\"b\": 1.0, \"a\": [100000.0, 0, 2.5, -0.0, 12, null, true]}\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nsunny\n</tool_response><|im_end|>\n<|im_start|>user\nThanks.<|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-loop",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a helpful assistant."
+            },
+            {
+              "role": "user",
+              "content": "Plan a trip."
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "ok",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "{\"city\": \"Oslo\"}"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "cold",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "done",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.\n\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nPlan a trip.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nok\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nOslo\n</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function=noop>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\ncold\n</tool_response>\n<tool_response>\ndone\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": {
+                      "city": "Rome",
+                      "days": 2.0
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "warm",
+              "tool_call_id": "call_1"
+            }
+          ],
+          "generate": true,
+          "expected": "<|im_start|>system\nReasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.<|im_end|>\n<|im_start|>user\nWeather?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n<tool_call>\n<function=get_weather>\n<parameter=city>\nRome\n</parameter>\n<parameter=days>\n2.0\n</parameter>\n</function>\n</tool_call><|im_end|>\n<|im_start|>user\n<tool_response>\nwarm\n</tool_response><|im_end|>\n<|im_start|>assistant\n<think>\n"
+        },
+        {
+          "name": "client-call-not-object",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Weather?"
+            },
+            {
+              "role": "assistant",
+              "content": null,
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "not json"
+                  }
+                },
+                {
+                  "id": "call_2",
+                  "type": "function",
+                  "function": {
+                    "name": "get_weather",
+                    "arguments": "[1, 2]"
+                  }
+                },
+                {
+                  "id": "call_3",
+                  "type": "function",
+                  "function": {
+                    "name": "noop",
+                    "arguments": ""
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_1"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_2"
+            },
+            {
+              "role": "tool",
+              "content": "?",
+              "tool_call_id": "call_3"
+            }
+          ],
+          "generate": true,
+          "error_type": "TemplateError",
+          "error": "Tool call arguments for function \"get_weather\" were passed as a JSON string. Parse them into an object before calling apply_chat_template."
         }
       ],
       "split_turns": true,

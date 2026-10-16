@@ -42,29 +42,6 @@ bool plain(const jmini::Value& list) {
     return true;
 }
 
-// A fixture's JSON as the renderer's values, as Python's json module reads it; a whole number is an int, so the fixtures write no float with a whole value.
-Value value_of(const jmini::Value& v) {
-    switch (v.t) {
-        case jmini::Value::T::Null: return Value::none();
-        case jmini::Value::T::Bool: return Value::boolean(v.b);
-        case jmini::Value::T::Number:
-            if (v.num == double(int64_t(v.num)) && std::abs(v.num) < 9e15) return Value::integer(int64_t(v.num));
-            return Value::number(v.num);
-        case jmini::Value::T::String: return Value::str(v.str);
-        case jmini::Value::T::Array: {
-            std::vector<Value> items;
-            for (const auto& x : v.arr) items.push_back(value_of(x));
-            return Value::list(std::move(items));
-        }
-        case jmini::Value::T::Object: {
-            auto o = std::make_shared<chat::jj::Object>();
-            for (const auto& kv : v.obj) o->set(kv.first, value_of(kv.second));
-            return Value::dict(o);
-        }
-    }
-    return Value::none();
-}
-
 // A case's render: through chat::Message where it holds the messages, and otherwise, with tools or tool calls or content parts, from the fixture's JSON into the variables chat::context sets.
 std::string render_case(const chat::ChatFormat& format, const jmini::Value& c) {
     const jmini::Value& messages = field(c, "messages");
@@ -73,8 +50,8 @@ std::string render_case(const chat::ChatFormat& format, const jmini::Value& c) {
     if (!tools && plain(messages)) return format.render(messages_of(messages), generate);
     format.require();
     Value context = chat::context({}, generate, format.bos, format.eos);
-    context.obj->set("messages", value_of(messages));
-    if (tools) context.obj->set("tools", value_of(*tools));
+    context.obj->set("messages", chat::template_value(messages));
+    if (tools) context.obj->set("tools", chat::template_value(*tools));
     return format.program->render(context);
 }
 
@@ -108,6 +85,34 @@ void check_render(const std::string& where, const std::function<std::string()>& 
 void check_cases(const std::string& name, const chat::ChatFormat& format, const jmini::Value& cases, Tally& tally) {
     for (const auto& c : cases.arr)
         check_render(name + " / " + field(c, "name").str, [&] { return render_case(format, c); }, c, tally);
+}
+
+// A conversation as a client sends it to the server's chat routes, read into chat::Message as the server reads it: content null beside calls as "", each call's arguments as given, and `tool_call_id` and `name`.
+std::vector<chat::Message> client_messages(const chat::ChatFormat& format, const jmini::Value& list) {
+    std::vector<chat::Message> messages;
+    for (const auto& message : list.arr) {
+        const auto* content = message.get("content");
+        const std::string text = content && content->isString() ? content->str : std::string();
+        const auto* reasoning = message.get("reasoning_content");
+        if (reasoning) messages.push_back({ field(message, "role").str, text, reasoning->str });
+        else if (field(message, "role").str == "assistant") messages.push_back(format.assistant(text));
+        else messages.push_back({ field(message, "role").str, text, std::nullopt });
+        if (const auto* calls = message.get("tool_calls"))
+            for (const auto& c : calls->arr) {
+                const auto& function = field(c, "function");
+                messages.back().tool_calls.push_back({ field(c, "id").str, field(function, "name").str, field(function, "arguments") });
+            }
+        if (const auto* id = message.get("tool_call_id")) messages.back().tool_call_id = id->str;
+        if (const auto* name = message.get("name")) messages.back().name = name->str;
+    }
+    return messages;
+}
+
+// The conversations a client sends with tool calls, through chat::context's own reading of the calls, against the reference's render of them as the server hands them on.
+void check_server_cases(const std::string& name, const chat::ChatFormat& format, const jmini::Value& cases, Tally& tally) {
+    for (const auto& c : cases.arr)
+        check_render(name + " / " + field(c, "name").str,
+                     [&] { return format.render(client_messages(format, field(c, "messages")), field(c, "generate").b); }, c, tally);
 }
 
 // The two-turn conversation of the fixture with each reply kept as chat and the server keep it, through ChatFormat::assistant.
@@ -388,6 +393,7 @@ int main(int argc, char** argv) {
                 const chat::ChatFormat format = chat::chat_format(source, bos, eos);
                 if (!format.program) { tally.fail(name + ": refused: " + format.refusal); continue; }
                 check_cases(name, format, field(t, "cases"), tally);
+                check_server_cases(name, format, field(t, "server_cases"), tally);
                 check_turns(name, format, fixture, t, tally);
             }
             if (const auto* list = fixture.get("features"))

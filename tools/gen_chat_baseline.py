@@ -117,6 +117,71 @@ TEMPLATE_CASES = legacy_cases() + [
     ("two-thinks", [m("user", "q"), m("assistant", "<think>a</think>b</think>c"), m("user", "r")], True),
 ]
 
+# Conversations as an OpenAI client sends them to the server's chat routes: calls with their arguments as JSON text, content null beside calls, tool results naming their call.
+# Each real template renders them as the server hands them on (server_form), so the reference does not take llmx's conversion on trust.
+def client_call(id, name, arguments):
+    return {"id": id, "type": "function", "function": {"name": name, "arguments": arguments}}
+
+
+def client_turn(content, *calls):
+    return {"role": "assistant", "content": content, "tool_calls": list(calls)}
+
+
+def tool_result(content, id, name=None):
+    message = {"role": "tool", "content": content, "tool_call_id": id}
+    if name is not None:
+        message["name"] = name
+    return message
+
+
+ARGS_NUMBERS = "{\"city\": \"Zürich\", \"unit\": {\"b\": 1.0, \"a\": [1e5, -0, 2.50, -0.0, 12, null, true]}}"
+SERVER_CASES = [
+    ("client-calls", [m("system", SYSTEM), dict(m("user", "Weather in Paris and Tokyo?"), name="alice"),
+                      client_turn(None, client_call("call_1", "get_weather", "{\"city\": \"Paris\"}"),
+                                  client_call("call_2", "get_weather", "{\"city\": \"Tōkyō\", \"days\": 3}")),
+                      tool_result("21", "call_1", "get_weather"), tool_result("18", "call_2")], True),
+    ("client-call-content", [m("user", "Weather?"), client_turn("Let me check.", client_call("call_a", "get_weather", ARGS_NUMBERS)),
+                             tool_result("sunny", "call_a"), m("user", "Thanks.")], True),
+    ("client-loop", [m("system", SYSTEM), m("user", "Plan a trip."),
+                     client_turn("", client_call("call_1", "noop", "{}")), tool_result("ok", "call_1"),
+                     client_turn(None, client_call("call_2", "get_weather", "{\"city\": \"Oslo\"}"), client_call("call_3", "noop", "{}")),
+                     tool_result("cold", "call_2"), tool_result("done", "call_3")], True),
+    ("client-call-object", [m("user", "Weather?"), client_turn(None, client_call("call_1", "get_weather", {"city": "Rome", "days": 2.0})),
+                            tool_result("warm", "call_1")], True),
+    ("client-call-not-object", [m("user", "Weather?"), client_turn(None, client_call("call_1", "get_weather", "not json"),
+                                                                    client_call("call_2", "get_weather", "[1, 2]"), client_call("call_3", "noop", "")),
+                                tool_result("?", "call_1"), tool_result("?", "call_2"), tool_result("?", "call_3")], True),
+]
+
+
+def server_form(messages):
+    """Messages as the server hands them to the template, the rule written here apart from llmx's code: an assistant turn's null content beside calls as "", each call as {"id", "type", "function": {"name", "arguments"}} with arguments given as text that holds a JSON object read as that object, other text kept, and the fields in the order the server sets them."""
+    out = []
+    for message in messages:
+        calls = message.get("tool_calls") or []
+        kept = {"role": message["role"], "content": "" if calls and message.get("content") is None else message["content"]}
+        if "reasoning_content" in message:
+            kept["reasoning_content"] = message["reasoning_content"]
+        if calls:
+            kept["tool_calls"] = []
+            for call in calls:
+                arguments = call["function"]["arguments"]
+                if isinstance(arguments, str):
+                    try:
+                        parsed = json.loads(arguments)
+                    except ValueError:
+                        parsed = None
+                    if isinstance(parsed, dict):
+                        arguments = parsed
+                function = {"name": call["function"]["name"], "arguments": arguments}
+                kept["tool_calls"].append(dict(({"id": call["id"]} if "id" in call else {}), type="function", function=function))
+        for key in ("tool_call_id", "name"):
+            if key in message:
+                kept[key] = message[key]
+        out.append(kept)
+    return out
+
+
 # The two-turn conversation each real template renders an assistant turn in, kept as chat and the server keep it: its first turn, then the reply between it and the second.
 # The replies hold no </think>, a leading <think>, only the closing tag a thinking generation prompt leaves, two closing tags, and spaces or a tab after it, and the last is the reply of the reasoning model in tests/server.py.
 TURN_BEFORE = [m("system", ""), m("user", "a")]
@@ -392,6 +457,11 @@ def real_template(render, parse, t):
     """A real template's pin, cases, split decision and two-turn renders."""
     t["sha256"] = hashlib.sha256(t["template"].encode("utf-8", "surrogateescape")).hexdigest()
     t["cases"] = render_all(render, t["template"], TEMPLATE_CASES)
+    t["server_cases"] = []
+    for name, messages, generate in SERVER_CASES:
+        case = {"name": name, "messages": messages, "generate": generate}
+        case.update(attempt(render, t["template"], server_form(messages), generate))
+        t["server_cases"].append(case)
     t["split_turns"] = splits_turns(parse, t["template"])
     t["reference_keeps"] = reference_keeps(render, t["template"])
     t["first"] = attempt(render, t["template"], TURN_BEFORE, True)

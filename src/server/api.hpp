@@ -115,6 +115,44 @@ inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compat
     return format.assistant(parts.content + last.content);
 }
 
+// Cuts a reply's text at the first stop text, which the compatible routes leave out, and holds back the end of the text so far that could still grow into one.
+class StopTrim {
+public:
+    explicit StopTrim(const std::vector<std::string>& stops) : stops_(stops) {}
+    // The part of `piece`, with what was held, that no stop text can still reach.
+    std::string feed(const std::string& piece) {
+        if (hit_) return {};
+        held_ += piece;
+        size_t at = std::string::npos;
+        for (const std::string& s : stops_)
+            if (!s.empty()) at = std::min(at, held_.find(s));
+        if (at != std::string::npos) {
+            hit_ = true;
+            std::string out = held_.substr(0, at);
+            held_.clear();
+            return out;
+        }
+        size_t keep = 0;
+        for (const std::string& s : stops_)
+            for (size_t len = std::min(s.size() - 1, held_.size()); len > keep; --len)
+                if (held_.compare(held_.size() - len, len, s, 0, len) == 0) { keep = len; break; }
+        std::string out = held_.substr(0, held_.size() - keep);
+        held_.erase(0, held_.size() - keep);
+        return out;
+    }
+    // What is still held when the reply ended without a stop text.
+    std::string finish() {
+        std::string out;
+        out.swap(held_);
+        return out;
+    }
+
+private:
+    const std::vector<std::string>& stops_;
+    std::string held_;
+    bool hit_ = false;
+};
+
 class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
@@ -326,8 +364,10 @@ private:
     }
 
     // A message's content: a string, or the array of text parts the compatible chat route accepts.
+    // An assistant message that carries tool_calls may leave its content null or out, which renders as an empty content.
     static std::string content_of(const jmini::Value& m) {
         const jmini::Value* content = m.get("content");
+        if ((!content || content->t == jmini::Value::T::Null) && given(m, "tool_calls")) return {};
         if (!content) throw BadRequest(400, "every message needs a content");
         if (content->isString()) return content->asString();
         if (!content->isArray()) throw BadRequest(400, "message content must be a string or an array of text parts");
@@ -348,13 +388,15 @@ private:
         if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
         std::vector<chat::Message> messages;
         for (const auto& m : msgs->asArray()) {
-            const jmini::Value* role = m.get("role");
-            if (!role || !role->isString()) throw BadRequest(400, "every message needs a string role");
+            const jmini::Value* given_role = m.get("role");
+            if (!given_role || !given_role->isString()) throw BadRequest(400, "every message needs a string role");
+            // The developer role of the newer chat APIs is the system message.
+            const std::string role = given_role->asString() == "developer" ? "system" : given_role->asString();
             const jmini::Value* reasoning = m.get("reasoning_content");
             if (reasoning && reasoning->t != jmini::Value::T::Null && !reasoning->isString()) throw BadRequest(400, "reasoning_content must be a string");
-            if (reasoning && reasoning->isString()) messages.push_back({role->asString(), content_of(m), reasoning->asString()});
-            else if (role->asString() == "assistant") messages.push_back(format_.assistant(content_of(m)));
-            else messages.push_back({role->asString(), content_of(m), std::nullopt});
+            if (reasoning && reasoning->isString()) messages.push_back({role, content_of(m), reasoning->asString()});
+            else if (role == "assistant") messages.push_back(format_.assistant(content_of(m)));
+            else messages.push_back({role, content_of(m), std::nullopt});
         }
         return messages;
     }
@@ -439,8 +481,33 @@ private:
         if (route == Route::chat || route == Route::chat_completions) return render_messages(body);
         const jmini::Value* p = body.get("prompt");
         if (route == Route::completions && p && p->isArray() && p->asArray().size() == 1) p = &p->asArray()[0];
+        else if (route == Route::completions && p && p->isArray() && p->asArray().size() > 1) throw BadRequest(400, "prompt must be one string, not an array of several prompts");
         if (!p || !p->isString() || p->asString().empty()) throw BadRequest(400, "prompt must be a non-empty string");
         return p->asString();
+    }
+
+    // The fields of a compatible request that llmx cannot honour, refused by name; fields with a harmless default are not read (docs/SERVER.md).
+    // The refusals of tools and tool_choice stand until tool calling does.
+    static void refuse_unsupported(const jmini::Value& body) {
+        const auto refuse = [](const char* name, const char* what) { throw BadRequest(400, std::string(name) + " is not supported: " + what); };
+        const auto set = [&](const char* key) { return given(body, key) ? body.get(key) : nullptr; };
+        const jmini::Value* tools = set("tools");
+        if (tools && !(tools->isArray() && tools->asArray().empty())) refuse("tools", "llmx does not call tools");
+        const jmini::Value* choice = set("tool_choice");
+        if (choice && !(choice->isString() && choice->asString() == "none")) refuse("tool_choice", "llmx does not call tools, so only \"none\" is accepted");
+        const jmini::Value* format = set("response_format");
+        if (format) {
+            const jmini::Value* type = format->isObject() ? format->get("type") : nullptr;
+            if (!type || !type->isString() || type->asString() != "text") refuse("response_format", "only {\"type\":\"text\"} is accepted");
+        }
+        const jmini::Value* bias = set("logit_bias");
+        if (bias && !(bias->isObject() && bias->obj.empty())) refuse("logit_bias", "llmx has no logit bias");
+        const jmini::Value* best_of = set("best_of");
+        if (best_of && !(best_of->isNumber() && best_of->asNumber() == 1)) refuse("best_of", "llmx draws one completion, so only 1 is accepted");
+        const jmini::Value* echo = set("echo");
+        if (echo && !(echo->t == jmini::Value::T::Bool && !echo->b)) refuse("echo", "llmx does not return the prompt with the completion");
+        if (set("suffix")) refuse("suffix", "llmx has no insertion");
+        if (set("reasoning_effort")) refuse("reasoning_effort", "llmx has no reasoning budget");
     }
 
     // The sampling fields, native names first and the compatible routes' synonyms accepted beside them.
@@ -464,6 +531,9 @@ private:
         // The largest double below 2^64 is the last one a seed holds.
         const double seed = integer(body, "seed", compat(route) ? -1 : 0, std::nextafter(18446744073709551616.0, 0.0), (double)defaults.seed);
         params.seed = seed == -1 ? defaults.seed : (uint64_t)seed;
+        params.presence_penalty = setting(body, "presence_penalty", infer::Sampling::presence_penalty_range, defaults.presence_penalty);
+        params.frequency_penalty = setting(body, "frequency_penalty", infer::Sampling::frequency_penalty_range, defaults.frequency_penalty);
+        params.min_p = setting(body, "min_p", infer::Sampling::min_p_range, defaults.min_p);
         params.ignore_eos = boolean(body, "ignore_eos", defaults.ignore_eos);
         if (const jmini::Value* stop = body.get("stop")) {
             if (stop->isString()) params.stop.push_back(stop->asString());
@@ -558,9 +628,9 @@ private:
     static std::string finish_reason(const std::string& finish) {
         return finish == "length" ? "length" : "stop";
     }
-    std::string usage_json(size_t prompt_tokens, size_t tokens) const {
+    std::string usage_json(size_t prompt_tokens, size_t tokens, size_t cached) const {
         return "{\"prompt_tokens\":" + std::to_string(prompt_tokens) + ",\"completion_tokens\":" + std::to_string(tokens) +
-               ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + "}";
+               ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + ",\"prompt_tokens_details\":{\"cached_tokens\":" + std::to_string(cached) + "}}";
     }
     // A finished request's speed in the fields clients that display speed read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
     static std::string timings_json(const Request& r, size_t tokens) {
@@ -722,6 +792,7 @@ private:
         // The time to first token counts from here, so the render, the tokenizer and a cut are in it.
         const Request::Clock::time_point received = Request::Clock::now();
         jmini::Value body = body_of(req);
+        if (compat(route)) refuse_unsupported(body);
         std::string prompt = prompt_of(body, route);
         const SampleParams params = params_of(body, route);
         const bool stream = flag(body, "stream");
@@ -746,6 +817,9 @@ private:
         std::vector<uint32_t> gen;
         std::string text, pending;
         bool first = true;
+        // The compatible routes leave a stop text out of the reply, holding back the end of the text while it could still become one.
+        const bool trims = compat(route) && !params.stop.empty();
+        StopTrim trim(params.stop);
         // With logprobs, a whole reply's tokens, and the characters of the text so far, where the next token's offset is.
         std::vector<Sampled> sampled;
         size_t chars = 0;
@@ -775,7 +849,8 @@ private:
                 const size_t whole = utf8_complete(pending);
                 const std::string piece = utf8_sanitize(pending.substr(0, whole));
                 pending.erase(0, whole);
-                text += piece;
+                const std::string out = trims ? trim.feed(piece) : piece;
+                text += out;
                 if (following && gen.size() % kFollowEvery == 0) sched_.follow(r, next_turn(body, route, prompt, text, true), false);
                 Sampled s;
                 if (params.logprobs) {
@@ -788,11 +863,13 @@ private:
                 }
                 if (compat(route)) {
                     const std::string lp = params.logprobs ? compat_logprobs(route, &s, 1) : "";
+                    // A token whose text is all held back sends a chunk only for its logprobs or to open the stream.
+                    if (trims && out.empty() && lp.empty() && !first) continue;
                     if (split) {
-                        const chat::ReplySplit::Parts parts = splitter.feed(piece);
+                        const chat::ReplySplit::Parts parts = splitter.feed(out);
                         c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, lp, parts.reasoning.empty() ? nullptr : &parts.reasoning) + "\n\n");
                     } else {
-                        c.write_chunk("data: " + chunk(route, id, piece, first, nullptr, lp) + "\n\n");
+                        c.write_chunk("data: " + chunk(route, id, out, first, nullptr, lp) + "\n\n");
                     }
                 } else {
                     std::string lp;
@@ -803,7 +880,8 @@ private:
             }
             // Whatever is left never completed a character.
             pending = utf8_sanitize(pending);
-            text += pending;
+            const std::string rest = trims ? trim.feed(pending) + trim.finish() : pending;
+            text += rest;
             const std::string finish = r->finish();
             if (finish == "error") {
                 if (!stream) throw std::runtime_error(r->error());
@@ -817,19 +895,19 @@ private:
             const size_t prompt_tokens = r->prompt_tokens();
             if (stream && compat(route)) {
                 if (split) {
-                    chat::ReplySplit::Parts parts = splitter.feed(pending);
+                    chat::ReplySplit::Parts parts = splitter.feed(rest);
                     const chat::ReplySplit::Parts last = splitter.finish();
                     parts.reasoning += last.reasoning;
                     parts.content += last.content;
                     if (!parts.reasoning.empty() || !parts.content.empty() || first)
                         c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, no_logprobs, parts.reasoning.empty() ? nullptr : &parts.reasoning) + "\n\n");
-                } else if (!pending.empty() || first) {
-                    c.write_chunk("data: " + chunk(route, id, pending, first, nullptr, no_logprobs) + "\n\n");
+                } else if (!rest.empty() || first) {
+                    c.write_chunk("data: " + chunk(route, id, rest, first, nullptr, no_logprobs) + "\n\n");
                 }
                 c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size(), no_logprobs) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
-                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\n");
+                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size(), r->reused()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\n");
                 c.write_chunk("data: [DONE]\n\n");
                 c.end_stream();
             } else if (stream) {
@@ -852,7 +930,7 @@ private:
                 c.respond(200, "application/json",
                           head(id, route == Route::chat_completions ? "chat.completion" : "text_completion") + ",\"choices\":[" + choice + lp +
                           ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
-                          usage_json(prompt_tokens, gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
+                          usage_json(prompt_tokens, gen.size(), r->reused()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else {
                 // With logprobs, a list beside the ids, and with top_logprobs a list of each position's most likely tokens.
                 std::string lp;

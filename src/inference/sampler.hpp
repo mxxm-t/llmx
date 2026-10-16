@@ -8,6 +8,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <unordered_map>
 
 // The sampler and the sampling settings it reads, with their defaults and ranges.
 // generate (the CLI's generate and chat) and the server's scheduler both sample through it.
@@ -43,6 +44,9 @@ struct Sampling {
     int top_k = 40;
     float top_p = 0.95f;
     float penalty = 1.0f;   // repetition penalty
+    float presence_penalty = 0.0f;    // subtracted from the score of a token already generated, once however often
+    float frequency_penalty = 0.0f;   // subtracted from the score of a token already generated, once for each time
+    float min_p = 0.0f;     // drops the tokens less likely than this share of the likeliest token's probability
     uint64_t seed = 0;      // 0 keeps the fixed default RNG state
     bool ignore_eos = false;    // the token that ends a reply is never drawn, so the reply runs to its limit or a stop text
 
@@ -50,6 +54,9 @@ struct Sampling {
     static constexpr SampleRange<int> top_k_range{0, std::numeric_limits<int>::max()};            // 0 keeps every token
     static constexpr SampleRange<float> top_p_range{0.0f, 1.0f};                                  // 1 keeps every token
     static constexpr SampleRange<float> penalty_range{1.0f, std::numeric_limits<float>::max()};  // 1 is none, and below 1 would favor repeats
+    static constexpr SampleRange<float> presence_penalty_range{-2.0f, 2.0f};   // 0 is none, and a negative value favors repeats
+    static constexpr SampleRange<float> frequency_penalty_range{-2.0f, 2.0f};  // 0 is none
+    static constexpr SampleRange<float> min_p_range{0.0f, 1.0f};                // 0 keeps every token, 1 only the likeliest
 };
 
 // What generate reads: the sampling settings and the one stop text of the CLI's generate and chat.
@@ -185,25 +192,33 @@ private:
 
 } // namespace detail
 
-// Temperature, top-k and top-p nucleus sampling over the n logits of one row, read in place and never written; returns the chosen id.
-// `penalty` >= 1 divides a generated token's nonnegative score and multiplies a negative one, `masked` (an id or -1) is passed over, ties rank by the lower id and sums run in id order, best first for the nucleus.
+// Temperature, top-k, top-p and min-p sampling over the n logits of one row, read in place and never written; returns the chosen id.
+// The order of the penalties, of top-k, top-p and min-p, of the mask and of ties is in docs/src/inference-sampler.md.
 inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
                        float top_p, float penalty, const std::vector<uint32_t>& gen,
-                       RNG& rng, int64_t masked = -1) {
+                       RNG& rng, int64_t masked = -1, float min_p = 0.0f, float presence = 0.0f, float frequency = 0.0f) {
     // The id every path passes over, n for none; a row holding nothing else keeps the masked id, since a draw needs a token.
     const size_t skip = (masked >= 0 && (uint64_t)masked < n && n > 1) ? (size_t)masked : n;
     const size_t m = skip < n ? n - 1 : n;  // the ids a draw can give
 
-    // Repetition penalty, in a copy made only when a token is penalized.
-    // A seen token's score is set from its logit, so a token seen several times is penalized once.
+    // The penalties, in a copy made only when a token is penalized.
+    // A seen token's repetition-penalized score is set from its logit, so a token seen several times is penalized once; the additive penalties then come off it.
     const float* score = logits;
     std::vector<float> penalized;
-    if (penalty > 0.0f && penalty != 1.0f && !gen.empty()) {
+    const bool repetition = penalty > 0.0f && penalty != 1.0f, additive = presence != 0.0f || frequency != 0.0f;
+    if ((repetition || additive) && !gen.empty()) {
         penalized.assign(logits, logits + n);
-        for (uint32_t id : gen) {
-            if (id >= n) continue;
-            const float v = logits[id];
-            penalized[id] = (v > 0.0f) ? (v / penalty) : (v * penalty);
+        if (repetition)
+            for (uint32_t id : gen) {
+                if (id >= n) continue;
+                const float v = logits[id];
+                penalized[id] = (v > 0.0f) ? (v / penalty) : (v * penalty);
+            }
+        if (additive) {
+            std::unordered_map<uint32_t, uint32_t> seen;
+            for (uint32_t id : gen)
+                if (id < n) ++seen[id];
+            for (const auto& [id, times] : seen) penalized[id] -= presence + frequency * (float)times;
         }
         score = penalized.data();
     }
@@ -224,6 +239,9 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
     // Temperature is applied exactly once, here: pre-scaling the scores by temp as well would cancel this division and make --temp a no-op at every value > 0.
     const size_t keep = (top_k > 0 && (size_t)top_k < m) ? (size_t)top_k : m;
     const float r = rng.unit();
+    // A weight below min_p, the share of the likeliest token's weight of 1, is dropped to 0, which no draw reaches.
+    // With top-p the nucleus is measured on the weights of the top-k set before min_p cuts its tail, so the order is top-k, top-p, min_p.
+    const auto cut = [min_p](float w) { return w < min_p ? 0.0f : w; };
 
     // Every token kept: the draw walks the whole vocabulary, so nothing is ranked.
     if (keep == m && top_p >= 1.0f) {
@@ -233,8 +251,13 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
         const float best_score = score[best];
         std::unique_ptr<float[]> w(new float[n]);  // not zeroed, since every weight read is written first
         double sum = 0.0;
-        for (size_t i = 0; i < n; i++)
-            if (i != skip) sum += w[i] = std::exp((score[i] - best_score) / temp);
+        if (min_p > 0.0f) {
+            for (size_t i = 0; i < n; i++)
+                if (i != skip) sum += w[i] = cut(std::exp((score[i] - best_score) / temp));
+        } else {
+            for (size_t i = 0; i < n; i++)
+                if (i != skip) sum += w[i] = std::exp((score[i] - best_score) / temp);
+        }
         const double target = r * sum;
         double acc = 0.0;
         for (size_t i = 0; i < n; i++)
@@ -265,6 +288,10 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
 
     // Without top-p the draw walks the kept tokens in id order.
     if (top_p >= 1.0f) {
+        if (min_p > 0.0f) {
+            sum = 0.0;
+            for (size_t j = 0; j < keep; j++) sum += w[j] = cut(w[j]);
+        }
         const double target = r * sum;
         double acc = 0.0;
         for (size_t j = 0; j < keep; j++)
@@ -282,6 +309,16 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
         nucleus_weight += kept_weight(ranking.id(nucleus));
         nucleus++;
     } while (nucleus < keep && nucleus_weight < goal);
+    // The nucleus is a prefix of the ranking, so the weights below min_p are its tail.
+    if (min_p > 0.0f) {
+        size_t last = nucleus;
+        while (last > 1 && kept_weight(ranking.id(last - 1)) < min_p) last--;
+        if (last < nucleus) {
+            nucleus = last;
+            nucleus_weight = 0.0;
+            for (size_t i = 0; i < nucleus; i++) nucleus_weight += kept_weight(ranking.id(i));
+        }
+    }
     const double target = r * nucleus_weight;
     double acc = 0.0;
     for (size_t i = 0; i < nucleus; i++)
@@ -293,7 +330,7 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
 // `end` is the id that ends a reply (bpe::Tokenizer::eos_id, -1 for none); with s.ignore_eos it is masked, so the reply runs on to its token limit.
 inline uint32_t sample(const float* logits, size_t n, const Sampling& s, int32_t end,
                        const std::vector<uint32_t>& gen, RNG& rng) {
-    return sample(logits, n, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1);
+    return sample(logits, n, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1, s.min_p, s.presence_penalty, s.frequency_penalty);
 }
 
 } // namespace infer

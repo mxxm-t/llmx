@@ -1318,6 +1318,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --topk N                Top-k sampling (default: " << sampling.top_k << ")\n"
             << "  --topp F                Nucleus sampling (default: " << sampling.top_p << ")\n"
             << "  --penalty F             Repetition penalty (default: " << sampling.penalty << ")\n"
+            << "  --presence-penalty F    Subtracted from the score of every token already generated, -2 to 2 (default: " << sampling.presence_penalty << ")\n"
+            << "  --frequency-penalty F   Subtracted from a generated token's score once for each time, -2 to 2 (default: " << sampling.frequency_penalty << ")\n"
+            << "  --min-p F               Drop tokens less likely than F times the likeliest, after --topk and --topp (default: " << sampling.min_p << ")\n"
             << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
             << "\nSpeculative decoding (the output is the same either way):\n"
             << "  --drafter D             Propose several tokens and check them in one pass: off, or sources\n"
@@ -1588,6 +1591,9 @@ int main(int argc, char** argv) {
                 else if (f == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi);
                 else if (f == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::Sampling::top_p_range.lo, infer::Sampling::top_p_range.hi);
                 else if (f == "--penalty") gp.penalty = float_arg(argc, argv, i, a, infer::Sampling::penalty_range.lo, infer::Sampling::penalty_range.hi);
+                else if (f == "--presence-penalty") gp.presence_penalty = float_arg(argc, argv, i, a, infer::Sampling::presence_penalty_range.lo, infer::Sampling::presence_penalty_range.hi);
+                else if (f == "--frequency-penalty") gp.frequency_penalty = float_arg(argc, argv, i, a, infer::Sampling::frequency_penalty_range.lo, infer::Sampling::frequency_penalty_range.hi);
+                else if (f == "--min-p") gp.min_p = float_arg(argc, argv, i, a, infer::Sampling::min_p_range.lo, infer::Sampling::min_p_range.hi);
                 else if (f == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
                 else if (f == "--stop") gp.stop = nonempty_value(argc, argv, i, a, "a text");
                 else if (f == "--ignore-eos") gp.ignore_eos = true;

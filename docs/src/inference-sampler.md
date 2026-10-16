@@ -5,18 +5,21 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
 
 - `RNG`: minimal deterministic xorshift64 PRNG (no `<random>` dependency), `seed()`, `next()`, `unit()`.
 - `SampleRange<T>`: the values a setting takes, from `lo` to `hi`; `holds` is false for NaN.
-- `Sampling`: one generation's settings, `max_tokens`, `temp`, `top_k`, `top_p`, `penalty`, `seed` and `ignore_eos`, each default written here once.
-  Beside them are its four ranges, `temp_range` from 0 (greedy), `top_k_range` from 0 (every token kept), `top_p_range` 0 to 1 and `penalty_range` from 1 (no penalty).
-  The CLI's flags start from these defaults and read `--temp`, `--topk`, `--topp` and `--penalty` against these ranges, and the server's requests do the same for `temperature`, `top_k`, `top_p` and `penalty` (on the compatible routes also read as `repetition_penalty`), so the two take the same defaults and refuse the same values, except the `top_k` of -1 that the compatible routes take as 0.
+- `Sampling`: one generation's settings, `max_tokens`, `temp`, `top_k`, `top_p`, `penalty`, `presence_penalty`, `frequency_penalty`, `min_p`, `seed` and `ignore_eos`, each default written here once.
+  Beside them are its ranges, `temp_range` from 0 (greedy), `top_k_range` from 0 (every token kept), `top_p_range` 0 to 1, `penalty_range` from 1 (no penalty), `presence_penalty_range` and `frequency_penalty_range` -2 to 2 and `min_p_range` 0 to 1.
+  The CLI's flags start from these defaults and read `--temp`, `--topk`, `--topp`, `--penalty`, `--presence-penalty`, `--frequency-penalty` and `--min-p` against these ranges, and the server's requests do the same for `temperature`, `top_k`, `top_p` and `penalty` (on the compatible routes also read as `repetition_penalty`), so the two take the same defaults and refuse the same values, except the `top_k` of -1 that the compatible routes take as 0.
   `ignore_eos`, off by default, is the CLI's `--ignore-eos` and a request's `ignore_eos`: a reply that ends only at its token limit or a stop text.
 - `GenParams`: `Sampling` plus the one `stop` text of the CLI's `generate` and `chat`, which is what `infer::generate` reads.
   The server's `SampleParams` is `Sampling` plus its list of stop texts, `until_limit`, `logprobs` and `top_logprobs` (see [server](server.md)).
-- `sample(logits, n, temp, top_k, top_p, penalty, gen, rng, masked = -1) -> uint32_t`: temperature + top-k + top-p nucleus sampling with repetition penalty, over the `n` logits of one row.
+- `sample(logits, n, temp, top_k, top_p, penalty, gen, rng, masked = -1, min_p = 0, presence = 0, frequency = 0) -> uint32_t`: temperature + top-k + top-p + min-p nucleus sampling with repetition, presence and frequency penalties, over the `n` logits of one row.
   Returns the chosen token id.
   It reads the row in place and never writes it, so the server draws from a pass's mapped logits without copying them.
   A `masked` id of the row is passed over by every path whatever the penalty, so greedy never takes it, and a draw leaves it out before top-k, top-p and the softmax, so no rounding in the nucleus's sum can fall back on it; a row holding nothing else keeps it, and -1 or an id past the row masks nothing.
   The mask writes nothing to the caller's logits.
   The repetition penalty is applied into a copy of the logits, made only when a token is penalized, and a token seen several times is penalized once.
+  The presence and frequency penalties are subtracted in the same copy after it, once and once for each time a token was generated, so the draw and greedy see the penalized scores.
+  `min_p` cuts the weights below it to 0 where no top-p ranks them, and with top-p drops the tail of the nucleus whose weight is below it after the nucleus is found, so the order is top-k, top-p, min-p.
+  With the three at 0 no path changes: the copy is not made for them and a weight is never below 0.
   At `temp <= 0` it takes a linear maximum and returns; ties go to the lowest token id.
   The scan starts past a masked id 0, so greedy does not give the masked id even when every other score is negative infinity or NaN.
   Above zero tokens rank by score and a tie by the lower id, through `detail::rank_key`, one integer per token whose order is that ranking, so no sort's or selection's handling of equal scores reaches the result.

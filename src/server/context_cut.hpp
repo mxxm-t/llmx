@@ -78,7 +78,11 @@ public:
         if (const std::optional<size_t> r = rows_(m + 1)) return ends_[m] = *r;
         const size_t next = m + 1 < ends_.size() ? (*this)(m + 1) : prompt_;
         const auto before = std::lower_bound(points_.begin(), points_.end(), next);
-        return ends_[m] = before == points_.begin() ? next : *(before - 1);
+        size_t at = before == points_.begin() ? next : *(before - 1);
+        // Never before a known earlier end, so the ends first_kept halves over do not decrease.
+        for (size_t k = m; k-- > 0;)
+            if (ends_[k] != kUnknown) { at = std::max(at, ends_[k]); break; }
+        return ends_[m] = at;
     }
     // How many parts were rendered.
     size_t renders() const { return renders_; }

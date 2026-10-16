@@ -107,12 +107,11 @@ inline std::string compat_number(float logprob) {
 }
 
 // The assistant turn a client sends back for a chat reply `text`, which the reply is read again as (Api::next_turn).
-// On the compatible route it is the content alone, since clients do not return the reasoning the route gave apart, and on the native route the text whole, as the format keeps a turn.
-inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text) {
+// On the compatible route it is the content alone and the calls in the format `tools` names (chat::reply_message), and on the native route the text whole, as the format keeps a turn.
+inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text, chat::ToolFormat tools,
+                                     const chat::ToolTypes& typed, bool* open) {
     if (!compatible) return format.assistant(text);
-    chat::ReplySplit split(opened);
-    const chat::ReplySplit::Parts parts = split.feed(text), last = split.finish();
-    return format.assistant(parts.content + last.content);
+    return chat::reply_message(format, opened, tools, typed, text, open);
 }
 
 // Cuts a reply's text at the first stop text, which the compatible routes leave out, and holds back the end of the text so far that could still grow into one.
@@ -435,9 +434,68 @@ private:
         return messages;
     }
 
-    // A request's chat_template_kwargs: variables of a boolean, number, string or null the template reads beside the conversation, none of them one the render itself sets.
-    static std::vector<chat::TemplateVar> template_vars(const jmini::Value& body) {
+    // A chat request's tools (docs/SERVER.md, Tool calls): given to the template where `tool_choice` is "auto", its default, and then the reply's calls parsed on the compatible route; "none" is the request without tools.
+    // What the server cannot honour is refused: a strict schema, "required" or a named function, which need constrained decoding, `parallel_tool_calls` false, and tools for a template that writes no tool-call format.
+    struct Tools {
+        bool on = false;
+        chat::jj::Value value;
+        chat::ToolTypes typed;
+    };
+    Tools tools_of(const jmini::Value& body) const {
+        Tools t;
+        if (const jmini::Value* parallel = given(body, "parallel_tool_calls") ? body.get("parallel_tool_calls") : nullptr) {
+            if (parallel->t != jmini::Value::T::Bool) throw BadRequest(400, "parallel_tool_calls must be true or false");
+            if (!parallel->b) throw BadRequest(400, "parallel_tool_calls false is not supported yet: a reply may hold several calls");
+        }
+        bool none = false;
+        if (const jmini::Value* choice = given(body, "tool_choice") ? body.get("tool_choice") : nullptr) {
+            const std::string c = choice->isString() ? choice->asString() : std::string();
+            if (c == "required") throw BadRequest(400, "tool_choice \"required\" is not supported: it needs constrained decoding; send \"auto\" or \"none\"");
+            if (choice->isObject()) throw BadRequest(400, "tool_choice naming a function is not supported: it needs constrained decoding; send \"auto\" or \"none\"");
+            if (c != "auto" && c != "none") throw BadRequest(400, "tool_choice must be \"auto\" or \"none\"");
+            none = c == "none";
+        }
+        const jmini::Value* tools = given(body, "tools") ? body.get("tools") : nullptr;
+        if (!tools) return t;
+        if (!tools->isArray()) throw BadRequest(400, "tools must be an array of {\"type\": \"function\", \"function\": {\"name\": a string, ...}}");
+        for (size_t i = 0; i < tools->asArray().size(); ++i) {
+            const jmini::Value& tool = tools->asArray()[i];
+            const std::string at = "tools[" + std::to_string(i) + "]";
+            const jmini::Value* type = tool.get("type");
+            const jmini::Value* fn = tool.get("function");
+            const jmini::Value* name = fn ? fn->get("name") : nullptr;
+            const jmini::Value* params = fn ? fn->get("parameters") : nullptr;
+            const jmini::Value* about = fn ? fn->get("description") : nullptr;
+            if (!type || !type->isString() || type->asString() != "function" || !fn || !fn->isObject() || !name || !name->isString() || name->asString().empty() ||
+                (params && !params->isObject()) || (about && !about->isString()))
+                throw BadRequest(400, at + " must be {\"type\": \"function\", \"function\": {\"name\": a string, \"description\": a string, \"parameters\": an object}}");
+            const jmini::Value* strict = fn->get("strict");
+            if (strict && strict->t == jmini::Value::T::Bool && strict->b) throw BadRequest(400, at + ".function.strict is not supported: a strict schema needs constrained decoding");
+            // A parameter whose declared type is not a string, nor a list holding "string", has its value written as JSON (chat::ToolCallSplit).
+            const jmini::Value* properties = params ? params->get("properties") : nullptr;
+            if (properties && properties->isObject())
+                for (const auto& [key, schema] : properties->obj) {
+                    const jmini::Value* kind = schema.get("type");
+                    bool text = !kind || (kind->isString() && kind->asString() == "string");
+                    if (kind && kind->isArray())
+                        for (const auto& k : kind->asArray()) text = text || (k.isString() && k.asString() == "string");
+                    if (!text) t.typed[name->asString()].insert(key);
+                }
+        }
+        if (none || tools->asArray().empty()) return t;
+        if (format_.tool_format == chat::ToolFormat::none)
+            throw BadRequest(400, "tools are not supported by this model's chat template, which writes no tool-call format the server reads");
+        try { t.value = chat::template_value(*tools); }
+        catch (const chat::TemplateError& e) { throw BadRequest(400, "tools: " + std::string(e.what())); }
+        t.on = true;
+        return t;
+    }
+
+    // A chat request's template variables: its chat_template_kwargs, booleans, numbers, strings or null, none of them one the render itself sets, and its tools where they are given (tools_of).
+    std::vector<chat::TemplateVar> template_vars(const jmini::Value& body) const {
         std::vector<chat::TemplateVar> vars;
+        Tools tools = tools_of(body);
+        if (tools.on) vars.push_back({"tools", std::move(tools.value)});
         const jmini::Value* kwargs = body.get("chat_template_kwargs");
         if (!kwargs || kwargs->t == jmini::Value::T::Null) return vars;
         if (!kwargs->isObject()) throw BadRequest(400, "chat_template_kwargs must be an object");
@@ -495,12 +553,16 @@ private:
     }
 
     // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as a client of the route sends it (reply_sent_back, docs/SPECULATIVE.md, section 2, Idle re-prefill).
-    // None while the reply's reasoning is still being written, which a next turn may drop.
+    // None while the reply's reasoning or a call is still being written, which a next turn may drop or would write otherwise.
     std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing) const {
         const bool opened = chat::opens_reasoning(prompt);
         if (writing && (opened || text.find("<think>") != std::string::npos) && text.find("</think>") == std::string::npos) return {};
         std::vector<chat::Message> messages = messages_of(body);
-        messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text));
+        const Tools tools = tools_of(body);
+        bool open = false;
+        messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text,
+                                           route == Route::chat_completions && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, &open));
+        if (writing && open) return {};
         return chat::stable_prefix(format_, tok_, messages, writing, template_vars(body));
     }
 
@@ -523,14 +585,14 @@ private:
     }
 
     // The fields of a compatible request that llmx cannot honour, refused by name; fields with a harmless default are not read (docs/SERVER.md).
-    // The refusals of tools and tool_choice stand until tool calling does.
-    static void refuse_unsupported(const jmini::Value& body) {
+    // Tools are the chat routes' (tools_of); the completions route renders no template to give them to.
+    static void refuse_unsupported(const jmini::Value& body, Route route) {
         const auto refuse = [](const char* name, const char* what) { throw BadRequest(400, std::string(name) + " is not supported: " + what); };
         const auto set = [&](const char* key) { return given(body, key) ? body.get(key) : nullptr; };
-        const jmini::Value* tools = set("tools");
-        if (tools && !(tools->isArray() && tools->asArray().empty())) refuse("tools", "llmx does not call tools");
-        const jmini::Value* choice = set("tool_choice");
-        if (choice && !(choice->isString() && choice->asString() == "none")) refuse("tool_choice", "llmx does not call tools, so only \"none\" is accepted");
+        const jmini::Value* tools = route == Route::completions ? set("tools") : nullptr;
+        if (tools && !(tools->isArray() && tools->asArray().empty())) refuse("tools", "the completions route renders no chat template to give them to");
+        const jmini::Value* choice = route == Route::completions ? set("tool_choice") : nullptr;
+        if (choice && !(choice->isString() && choice->asString() == "none")) refuse("tool_choice", "the completions route has no tools, so only \"none\" is accepted");
         const jmini::Value* format = set("response_format");
         if (format) {
             const jmini::Value* type = format->isObject() ? format->get("type") : nullptr;
@@ -661,8 +723,34 @@ private:
         return "[" + top + "]";
     }
 
-    static std::string finish_reason(const std::string& finish) {
-        return finish == "length" ? "length" : "stop";
+    // A compatible reply's finish_reason: cut by its length, ended after calling tools, or ended.
+    static std::string finish_reason(const std::string& finish, bool called) {
+        return finish == "length" ? "length" : called ? "tool_calls" : "stop";
+    }
+    // A reply's call id: the server's start, the reply's number and the call's index, so ids stay unique across restarts.
+    std::string call_id(const std::string& reply, size_t index) const {
+        return "call_" + std::to_string(started_) + "_" + reply.substr(reply.find('-') + 1) + "_" + std::to_string(index);
+    }
+    // A whole reply's calls in the compatible chat shape.
+    std::string calls_json(const std::string& reply, const std::vector<chat::ToolCall>& calls) const {
+        std::string out;
+        for (size_t i = 0; i < calls.size(); ++i)
+            out += (i ? ",{\"id\":" : "{\"id\":") + jmini::quote(call_id(reply, i)) + ",\"type\":\"function\",\"function\":{\"name\":" + jmini::quote(calls[i].name) +
+                   ",\"arguments\":" + jmini::quote(calls[i].arguments.str) + "}}";
+        return "[" + out + "]";
+    }
+    // Streamed pieces of calls as a delta's tool_calls: a call's first piece with its id, type and name, the later ones with their index and arguments alone; empty where there are none.
+    std::string deltas_json(const std::string& reply, const std::vector<chat::ToolCallDelta>& pieces) const {
+        std::string out;
+        for (const chat::ToolCallDelta& d : pieces) {
+            out += out.empty() ? "{\"index\":" : ",{\"index\":";
+            out += std::to_string(d.index);
+            if (!d.name.empty())
+                out += ",\"id\":" + jmini::quote(call_id(reply, d.index)) + ",\"type\":\"function\",\"function\":{\"name\":" + jmini::quote(d.name) + ",";
+            else out += ",\"function\":{";
+            out += "\"arguments\":" + jmini::quote(d.arguments) + "}}";
+        }
+        return out.empty() ? out : "[" + out + "]";
     }
     std::string usage_json(size_t prompt_tokens, size_t tokens, size_t cached) const {
         return "{\"prompt_tokens\":" + std::to_string(prompt_tokens) + ",\"completion_tokens\":" + std::to_string(tokens) +
@@ -685,25 +773,26 @@ private:
                ",\"model\":" + jmini::quote(cfg_.model_name);
     }
     // One streamed chunk of a compatible route: a chat delta or a text piece, with the finish reason on the last, and the chunk's logprobs when the request asked for them.
-    // A chat delta carries `reasoning` as reasoning_content beside its content when a reply's reasoning is split off.
-    std::string chunk(Route route, const std::string& id, const std::string& piece, bool first,
-                      const std::string* finish, const std::string& logprobs = "", const std::string* reasoning = nullptr) const {
-        const std::string fr = finish ? jmini::quote(finish_reason(*finish)) : "null";
+    // A chat delta carries `reasoning` as reasoning_content beside its content when a reply's reasoning is split off, and `calls`, pieces of tool calls (deltas_json), where it has any.
+    std::string chunk(Route route, const std::string& id, const std::string& piece, bool first, const std::string* finish, const std::string& logprobs = "",
+                      const std::string* reasoning = nullptr, const std::string& calls = "") const {
+        const std::string fr = finish ? jmini::quote(*finish) : "null";
         const std::string lp = logprobs.empty() ? "" : ",\"logprobs\":" + logprobs;
         if (route == Route::chat_completions) {
             const std::string thought = reasoning ? "\"reasoning_content\":" + jmini::quote(*reasoning) + "," : "";
-            std::string delta = first ? "{\"role\":\"assistant\"," + thought + "\"content\":" + jmini::quote(piece) + "}"
-                              : finish ? "{}" : "{" + thought + "\"content\":" + jmini::quote(piece) + "}";
+            const std::string called = calls.empty() ? "" : ",\"tool_calls\":" + calls;
+            std::string delta = first ? "{\"role\":\"assistant\"," + thought + "\"content\":" + jmini::quote(piece) + called + "}"
+                              : finish ? "{}" : "{" + thought + "\"content\":" + jmini::quote(piece) + called + "}";
             return head(id, "chat.completion.chunk") + ",\"choices\":[{\"index\":0,\"delta\":" + delta + lp +
                    ",\"finish_reason\":" + fr + "}]}";
         }
         return head(id, "text_completion") + ",\"choices\":[{\"index\":0,\"text\":" + jmini::quote(piece) + lp +
                ",\"finish_reason\":" + fr + "}]}";
     }
-    // The same chunk with a request's timings, for the one that carries the finish reason.
-    std::string last_chunk(Route route, const std::string& id, const std::string& finish, const Request& r, size_t tokens,
+    // The same chunk with a request's timings, for the one that carries the finish reason, `reason` as finish_reason gives it.
+    std::string last_chunk(Route route, const std::string& id, const std::string& reason, const Request& r, size_t tokens,
                            const std::string& logprobs) const {
-        std::string c = chunk(route, id, "", false, &finish, logprobs);
+        std::string c = chunk(route, id, "", false, &reason, logprobs);
         c.pop_back();
         return c + ",\"timings\":" + timings_json(r, tokens) + "}";
     }
@@ -746,16 +835,7 @@ private:
     // A rendered part takes the ids whose text lies within it, and one the template refuses is placed by the end tokens (MessageEnds, docs/SERVER.md, A prompt larger than the context).
     MessageEnds message_ends(const std::vector<chat::Message>& messages, const std::vector<chat::TemplateVar>& vars, const std::vector<uint32_t>& ids) const {
         std::vector<size_t> points = cut_points(ids.data(), ids.size(), [this](uint32_t id) { return tok_.is_eos(id); });
-        // The end tokens a template writes before its messages, such as a system block it adds where the conversation has none, from the leading system message and one user message alone.
-        std::vector<chat::Message> probe(messages.begin(), messages.begin() + (messages[0].role == "system" ? 1 : 0));
-        probe.push_back({"user", "x", std::nullopt});
-        size_t own = 0;
-        try {
-            const std::vector<uint32_t> p = tok_.encode(format_.render(probe, false, vars));
-            const size_t found = (size_t)std::count_if(p.begin(), p.end(), [this](uint32_t id) { return tok_.is_eos(id); });
-            own = found > probe.size() ? found - probe.size() : 0;
-        } catch (const std::exception&) {
-        }
+        const size_t own = chat::own_end_tokens(format_, tok_, messages, vars);
         if (points.size() == messages.size() + own) return MessageEnds(std::vector<size_t>(points.begin() + (std::ptrdiff_t)own, points.end()));
         auto bytes = std::make_shared<std::vector<size_t>>();
         return MessageEnds(messages.size(), ids.size(), std::move(points), [this, &messages, &vars, &ids, bytes](size_t k) -> std::optional<size_t> {
@@ -766,7 +846,10 @@ private:
                 size_t at = 0;
                 for (uint32_t id : ids) bytes->push_back(at += tok_.decode({id}).size());
             }
-            return (size_t)(std::upper_bound(bytes->begin(), bytes->end(), text.size()) - bytes->begin());
+            // A part ends with its last text, as its end token ends it, not with the whitespace a template writes after the token.
+            size_t len = text.size();
+            while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == ' ')) --len;
+            return (size_t)(std::upper_bound(bytes->begin(), bytes->end(), len) - bytes->begin());
         });
     }
 
@@ -828,7 +911,7 @@ private:
         // The time to first token counts from here, so the render, the tokenizer and a cut are in it.
         const Request::Clock::time_point received = Request::Clock::now();
         jmini::Value body = body_of(req);
-        if (compat(route)) refuse_unsupported(body);
+        if (compat(route)) refuse_unsupported(body, route);
         std::string prompt = prompt_of(body, route);
         const SampleParams params = params_of(body, route);
         const bool stream = flag(body, "stream");
@@ -847,6 +930,9 @@ private:
         // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself.
         const bool split = route == Route::chat_completions;
         chat::ReplySplit splitter(chat::opens_reasoning(prompt));
+        // With tools, its content's tool calls apart from its text, as calls in the compatible shape.
+        const Tools tools = split ? tools_of(body) : Tools{};
+        chat::ToolCallSplit caller(tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed);
 
         // Drain the channel; a write that fails means the client went away, so cancel the request and stop.
         // Between writes the socket is looked at every kProbe, token or not, since a request that is queued, prefilling or building a whole reply writes nothing that could fail.
@@ -902,8 +988,15 @@ private:
                     // A token whose text is all held back sends a chunk only for its logprobs or to open the stream.
                     if (trims && out.empty() && lp.empty() && !first) continue;
                     if (split) {
-                        const chat::ReplySplit::Parts parts = splitter.feed(out);
-                        c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, lp, parts.reasoning.empty() ? nullptr : &parts.reasoning) + "\n\n");
+                        chat::ReplySplit::Parts parts = splitter.feed(out);
+                        std::string calls;
+                        if (tools.on) {
+                            const chat::ToolCallSplit::Parts t = caller.feed(parts.content);
+                            parts.content = t.content;
+                            calls = deltas_json(id, t.calls);
+                            if (parts.content.empty() && parts.reasoning.empty() && calls.empty() && lp.empty() && !first) continue;
+                        }
+                        c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, lp, parts.reasoning.empty() ? nullptr : &parts.reasoning, calls) + "\n\n");
                     } else {
                         c.write_chunk("data: " + chunk(route, id, out, first, nullptr, lp) + "\n\n");
                     }
@@ -935,12 +1028,21 @@ private:
                     const chat::ReplySplit::Parts last = splitter.finish();
                     parts.reasoning += last.reasoning;
                     parts.content += last.content;
-                    if (!parts.reasoning.empty() || !parts.content.empty() || first)
-                        c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, no_logprobs, parts.reasoning.empty() ? nullptr : &parts.reasoning) + "\n\n");
+                    std::string calls;
+                    if (tools.on) {
+                        chat::ToolCallSplit::Parts t = caller.feed(parts.content);
+                        const chat::ToolCallSplit::Parts end = caller.finish();
+                        t.content += end.content;
+                        t.calls.insert(t.calls.end(), end.calls.begin(), end.calls.end());
+                        parts.content = t.content;
+                        calls = deltas_json(id, t.calls);
+                    }
+                    if (!parts.reasoning.empty() || !parts.content.empty() || !calls.empty() || first)
+                        c.write_chunk("data: " + chunk(route, id, parts.content, first, nullptr, no_logprobs, parts.reasoning.empty() ? nullptr : &parts.reasoning, calls) + "\n\n");
                 } else if (!rest.empty() || first) {
                     c.write_chunk("data: " + chunk(route, id, rest, first, nullptr, no_logprobs) + "\n\n");
                 }
-                c.write_chunk("data: " + last_chunk(route, id, finish, *r, gen.size(), no_logprobs) + "\n\n");
+                c.write_chunk("data: " + last_chunk(route, id, finish_reason(finish, caller.calls() > 0), *r, gen.size(), no_logprobs) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
                                   ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size(), r->reused()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\n");
@@ -957,15 +1059,25 @@ private:
                 if (split) {
                     const chat::ReplySplit::Parts parts = splitter.feed(text);
                     const chat::ReplySplit::Parts last = splitter.finish();
+                    std::string content = parts.content + last.content;
+                    std::vector<chat::ToolCall> calls;
+                    if (tools.on) {
+                        const chat::ToolCallSplit::Parts a = caller.feed(content), b = caller.finish();
+                        content = a.content + b.content;
+                        chat::gather_calls(calls, a.calls);
+                        chat::gather_calls(calls, b.calls);
+                    }
+                    // A reply of calls alone has a null content, as the compatible API gives it.
                     message = (splitter.reasoned() ? "\"reasoning_content\":" + jmini::quote(parts.reasoning + last.reasoning) + "," : std::string()) +
-                              "\"content\":" + jmini::quote(parts.content + last.content);
+                              "\"content\":" + (calls.empty() || !content.empty() ? jmini::quote(content) : std::string("null")) +
+                              (calls.empty() ? std::string() : ",\"tool_calls\":" + calls_json(id, calls));
                 }
                 const std::string choice = route == Route::chat_completions
                     ? "{\"index\":0,\"message\":{\"role\":\"assistant\"," + message + "}"
                     : "{\"index\":0,\"text\":" + jmini::quote(text);
                 c.respond(200, "application/json",
                           head(id, route == Route::chat_completions ? "chat.completion" : "text_completion") + ",\"choices\":[" + choice + lp +
-                          ",\"finish_reason\":" + jmini::quote(finish_reason(finish)) + "}],\"usage\":" +
+                          ",\"finish_reason\":" + jmini::quote(finish_reason(finish, caller.calls() > 0)) + "}],\"usage\":" +
                           usage_json(prompt_tokens, gen.size(), r->reused()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
             } else {
                 // With logprobs, a list beside the ids, and with top_logprobs a list of each position's most likely tokens.

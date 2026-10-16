@@ -10,6 +10,7 @@
 #include <ctime>
 #include <initializer_list>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -169,6 +170,278 @@ private:
         out.content += s;
     }
 };
+
+// The tool-call format a chat template writes, read from its text: a JSON object in <tool_call>, a function and its parameters in <tool_call>, or none (docs/SERVER.md, Tool calls).
+enum class ToolFormat { none, json, xml };
+
+// For each tool by name, the parameters whose declared type is not a string, whose values in the function format are written as JSON where they are JSON.
+using ToolTypes = std::map<std::string, std::set<std::string>>;
+
+// A piece of a reply's tool call: its index among the reply's calls, the function's name on the call's first piece, and the next part of its arguments.
+struct ToolCallDelta {
+    size_t index = 0;
+    std::string name, arguments;
+};
+
+// A reply's content split into its text and its tool calls as it arrives in pieces, in the template's format, after ReplySplit (docs/SERVER.md, Tool calls).
+// A block is a call once its opening parses, its arguments the model's text in the JSON format and built from its parameters in the other; an opening that never parses stays content.
+class ToolCallSplit {
+public:
+    struct Parts {
+        std::string content;
+        std::vector<ToolCallDelta> calls;
+    };
+    ToolCallSplit(ToolFormat format, ToolTypes typed) : format_(format), typed_(std::move(typed)) {}
+
+    Parts feed(const std::string& piece) {
+        Parts out;
+        buf_ += piece;
+        step(out, false);
+        return out;
+    }
+    // The rest, where the reply ended: an opening that never parsed is content, and a call cut short ends with the arguments it has.
+    Parts finish() {
+        Parts out;
+        step(out, true);
+        return out;
+    }
+    size_t calls() const { return calls_; }
+    // Whether the text so far ends inside a call.
+    bool open() const { return state_ != State::text; }
+
+private:
+    enum class State { text, head, json_args, xml_params, xml_close };
+    ToolFormat format_;
+    ToolTypes typed_;
+    State state_ = State::text;
+    std::string buf_, space_, name_;
+    size_t calls_ = 0, params_ = 0;
+    bool after_call_ = false;
+
+    static bool space(char c) { return c == ' ' || c == '\n' || c == '\r' || c == '\t'; }
+    static bool starts(const std::string& s, const std::string& with) { return s.compare(0, with.size(), with) == 0; }
+    // The length of the longest end of `s` that begins `tag`, shorter than `tag`.
+    static size_t partial(const std::string& s, const std::string& tag) {
+        for (size_t k = std::min(s.size(), tag.size() - 1); k > 0; --k)
+            if (s.compare(s.size() - k, k, tag, 0, k) == 0) return k;
+        return 0;
+    }
+    static void trim_end(std::string& s) {
+        while (!s.empty() && space(s.back())) s.pop_back();
+    }
+
+    void text(Parts& out, std::string s) {
+        if (after_call_) {
+            size_t i = 0;
+            while (i < s.size() && space(s[i])) ++i;
+            s.erase(0, i);
+            after_call_ = s.empty();
+        }
+        out.content += s;
+    }
+    void arguments(Parts& out, const std::string& s) {
+        if (s.empty()) return;
+        if (!out.calls.empty() && out.calls.back().index == calls_ - 1) out.calls.back().arguments += s;
+        else out.calls.push_back({calls_ - 1, std::string(), s});
+    }
+    void start(Parts& out, std::string name) {
+        name_ = name;
+        out.calls.push_back({calls_++, std::move(name), std::string()});
+        space_.clear();
+        params_ = 0;
+    }
+    void end() {
+        state_ = State::text;
+        after_call_ = true;
+    }
+    // An opening that does not parse: the text it took, and the whitespace before it, go back to the content.
+    void refuse(Parts& out) {
+        text(out, space_ + "<tool_call>");
+        space_.clear();
+        state_ = State::text;
+    }
+    // 1 where `s` opens a JSON call, with its name and the bytes the opening took, 0 where it may still, -1 where it cannot.
+    static int json_head(const std::string& s, std::string& name, size_t& used) {
+        size_t i = 0;
+        const auto ws = [&] { while (i < s.size() && space(s[i])) ++i; return i < s.size(); };
+        const auto literal = [&](const std::string& l) {
+            if (!ws()) return 0;
+            const size_t n = std::min(l.size(), s.size() - i);
+            if (s.compare(i, n, l, 0, n) != 0) return -1;
+            if (n < l.size()) return 0;
+            i += n;
+            return 1;
+        };
+        int r;
+        if ((r = literal("{")) < 1 || (r = literal("\"name\"")) < 1 || (r = literal(":")) < 1) return r;
+        if (!ws()) return 0;
+        if (s[i] != '"') return -1;
+        size_t j = i + 1;
+        while (j < s.size() && s[j] != '"') j += s[j] == '\\' ? 2 : 1;
+        if (j >= s.size()) return 0;
+        try {
+            const jmini::Value v = jmini::parse(s.substr(i, j + 1 - i));
+            if (!v.isString() || v.str.empty()) return -1;
+            name = v.str;
+        } catch (const std::runtime_error&) {
+            return -1;
+        }
+        i = j + 1;
+        if ((r = literal(",")) < 1 || (r = literal("\"arguments\"")) < 1 || (r = literal(":")) < 1) return r;
+        if (!ws()) return 0;
+        used = i;
+        return 1;
+    }
+    // A parameter's value as JSON: as written where the tool declares a type other than a string and the text is JSON, else as a string.
+    std::string value(const std::string& key, const std::string& v) const {
+        const auto tool = typed_.find(name_);
+        if (tool != typed_.end() && tool->second.count(key)) {
+            size_t b = 0, e = v.size();
+            while (b < e && space(v[b])) ++b;
+            while (e > b && space(v[e - 1])) --e;
+            const std::string trimmed = v.substr(b, e - b);
+            try {
+                jmini::parse(trimmed);
+                return trimmed;
+            } catch (const std::runtime_error&) {
+            }
+        }
+        return jmini::quote(v);
+    }
+
+    void step(Parts& out, bool last) {
+        static const std::string open_tag = "<tool_call>", close_tag = "</tool_call>", fn = "<function=", param = "<parameter=",
+                                 param_end = "</parameter>", fn_end = "</function>";
+        for (;;) {
+            if (state_ == State::text) {
+                const size_t at = buf_.find(open_tag);
+                if (at != std::string::npos) {
+                    std::string before = buf_.substr(0, at);
+                    const size_t kept = before.size();
+                    trim_end(before);
+                    space_ = buf_.substr(before.size(), kept - before.size());
+                    text(out, before);
+                    buf_.erase(0, at + open_tag.size());
+                    state_ = State::head;
+                    continue;
+                }
+                size_t cut = last ? buf_.size() : buf_.size() - partial(buf_, open_tag);
+                if (!last)
+                    while (cut > 0 && space(buf_[cut - 1])) --cut;
+                text(out, buf_.substr(0, cut));
+                buf_.erase(0, cut);
+                return;
+            }
+            if (state_ == State::head) {
+                int r = -1;
+                size_t used = 0;
+                std::string name;
+                if (format_ == ToolFormat::json) {
+                    r = json_head(buf_, name, used);
+                } else {
+                    size_t i = 0;
+                    while (i < buf_.size() && space(buf_[i])) ++i;
+                    const size_t n = std::min(fn.size(), buf_.size() - i);
+                    if (i == buf_.size()) r = 0;
+                    else if (buf_.compare(i, n, fn, 0, n) != 0) r = -1;
+                    else if (n < fn.size()) r = 0;
+                    else {
+                        const size_t close = buf_.find_first_of(">\n<", i + fn.size());
+                        if (close == std::string::npos) r = 0;
+                        else if (buf_[close] != '>' || close == i + fn.size()) r = -1;
+                        else { name = buf_.substr(i + fn.size(), close - i - fn.size()); used = close + 1; r = 1; }
+                    }
+                }
+                if (r == 0 && (last || buf_.find(close_tag) != std::string::npos)) r = -1;
+                if (r < 0) { refuse(out); continue; }
+                if (r == 0) return;
+                start(out, name);
+                buf_.erase(0, used);
+                state_ = format_ == ToolFormat::json ? State::json_args : State::xml_params;
+                continue;
+            }
+            if (state_ == State::json_args) {
+                const size_t at = buf_.find(close_tag);
+                if (at != std::string::npos || last) {
+                    std::string args = buf_.substr(0, at == std::string::npos ? buf_.size() : at);
+                    trim_end(args);
+                    if (!args.empty() && args.back() == '}') args.pop_back();
+                    trim_end(args);
+                    arguments(out, args);
+                    buf_.erase(0, at == std::string::npos ? buf_.size() : at + close_tag.size());
+                    end();
+                    continue;
+                }
+                size_t cut = buf_.size() - partial(buf_, close_tag);
+                while (cut > 0 && space(buf_[cut - 1])) --cut;
+                if (cut > 0 && buf_[cut - 1] == '}') {
+                    --cut;
+                    while (cut > 0 && space(buf_[cut - 1])) --cut;
+                }
+                arguments(out, buf_.substr(0, cut));
+                buf_.erase(0, cut);
+                return;
+            }
+            if (state_ == State::xml_params) {
+                size_t i = 0;
+                while (i < buf_.size() && space(buf_[i])) ++i;
+                buf_.erase(0, i);
+                const auto close_object = [&] { arguments(out, params_ ? "}" : "{}"); };
+                if (starts(buf_, param)) {
+                    const size_t gt = buf_.find('>', param.size()), stop = gt == std::string::npos ? std::string::npos : buf_.find(param_end, gt);
+                    if (stop == std::string::npos) {
+                        if (!last) return;
+                        close_object();
+                        buf_.clear();
+                        end();
+                        continue;
+                    }
+                    const std::string key = buf_.substr(param.size(), gt - param.size());
+                    std::string v = buf_.substr(gt + 1, stop - gt - 1);
+                    if (!v.empty() && v.front() == '\n') v.erase(0, 1);
+                    if (!v.empty() && v.back() == '\n') v.pop_back();
+                    arguments(out, (params_++ ? ", " : "{") + jmini::quote(key) + ": " + value(key, v));
+                    buf_.erase(0, stop + param_end.size());
+                    continue;
+                }
+                if (starts(buf_, fn_end)) { close_object(); buf_.erase(0, fn_end.size()); state_ = State::xml_close; continue; }
+                if (starts(buf_, close_tag)) { close_object(); buf_.erase(0, close_tag.size()); end(); continue; }
+                const bool partial_tag = !buf_.empty() && (param.compare(0, buf_.size(), buf_) == 0 || fn_end.compare(0, buf_.size(), buf_) == 0 ||
+                                                           close_tag.compare(0, buf_.size(), buf_) == 0);
+                if (buf_.empty() || partial_tag) {
+                    if (!last) return;
+                    close_object();
+                    buf_.clear();
+                    end();
+                    continue;
+                }
+                // Text the format has no place for inside a call is passed over, up to the next tag.
+                const size_t next = buf_.find('<', 1);
+                buf_.erase(0, next == std::string::npos ? buf_.size() : next);
+                continue;
+            }
+            // xml_close: the call's closing tag after its function's.
+            size_t i = 0;
+            while (i < buf_.size() && space(buf_[i])) ++i;
+            if (starts(buf_.substr(i), close_tag)) { buf_.erase(0, i + close_tag.size()); end(); continue; }
+            if (!last && (i == buf_.size() || close_tag.compare(0, buf_.size() - i, buf_, i, buf_.size() - i) == 0)) return;
+            end();
+            if (last && i == buf_.size()) { buf_.clear(); return; }
+        }
+    }
+};
+
+// A reply's calls, gathered from their pieces into the calls as a client sends them back: the name from a call's first piece, its arguments as JSON text.
+inline void gather_calls(std::vector<ToolCall>& calls, const std::vector<ToolCallDelta>& pieces) {
+    for (const ToolCallDelta& d : pieces) {
+        if (d.index >= calls.size()) {
+            calls.resize(d.index + 1);
+            calls[d.index].arguments.t = jmini::Value::T::String;
+        }
+        if (!d.name.empty()) calls[d.index].name = d.name;
+        calls[d.index].arguments.str += d.arguments;
+    }
+}
 
 namespace jj {
 
@@ -2817,7 +3090,10 @@ private:
 class Template {
 public:
     explicit Template(const std::string& source) {
-        Parser parser(tokenize(source));
+        std::vector<Token> tokens = tokenize(source);
+        for (const Token& t : tokens)
+            if (t.type == Token::DATA || t.type == Token::STRING) texts_.push_back(t.text);
+        Parser parser(std::move(tokens));
         body_ = parser.parse();
         fields_ = std::move(parser.fields);
         separators_ = std::move(parser.separators);
@@ -2825,6 +3101,12 @@ public:
 
     // Whether the template reads a field of this name, as an attribute, a constant subscript, a get() or a filter's attribute.
     bool reads(const std::string& field) const { return fields_.count(field) > 0; }
+    // Whether a text or a string constant of the template holds `part`.
+    bool writes(const std::string& part) const {
+        for (const std::string& t : texts_)
+            if (t.find(part) != std::string::npos) return true;
+        return false;
+    }
     // Whether it splits text at this constant separator.
     bool splits_at(const std::string& separator) const { return separators_.count(separator) > 0; }
 
@@ -2840,6 +3122,7 @@ public:
 private:
     Body body_;
     std::set<std::string> fields_, separators_;
+    std::vector<std::string> texts_;
 };
 
 } // namespace jj
@@ -2927,6 +3210,8 @@ struct ChatFormat {
     std::string bos, eos;
     // Whether an assistant turn is kept split at </think>: the template reads `reasoning_content` and does not split a reply at </think> itself.
     bool split_turns = false;
+    // The tool-call format the template writes: the function format where its text holds `<function=`, the JSON one where it holds `<tool_call>` otherwise.
+    ToolFormat tool_format = ToolFormat::none;
 
     // An assistant turn as a conversation keeps it, the same for chat's own replies and the turns a client sends back.
     // It is split by assistant_turn only where the template needs the reasoning apart, and whole elsewhere, as that template was written to take it.
@@ -2952,6 +3237,7 @@ inline ChatFormat chat_format(const std::string& source, std::string bos, std::s
     try { f.program = std::make_shared<const jj::Template>(source); }
     catch (const Refused& e) { f.refusal = e.what(); }
     f.split_turns = f.program && f.program->reads("reasoning_content") && !f.program->splits_at("</think>");
+    if (f.program) f.tool_format = f.program->writes("<function=") ? ToolFormat::xml : f.program->writes("<tool_call>") ? ToolFormat::json : ToolFormat::none;
     f.bos = std::move(bos);
     f.eos = std::move(eos);
     return f;
@@ -2969,7 +3255,7 @@ inline size_t stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok,
     return n;
 }
 
-// The ids a next turn begins with after `messages`, which end with the assistant's reply: what the conversation rendered with a user message after it shares for two different user messages (docs/SPECULATIVE.md, section 2, Idle re-prefill).
+// The ids a next turn begins with after `messages`, which end with the reply: what the conversation shares with two different user messages after it, or tool results after calls (docs/SPECULATIVE.md, section 2, Idle re-prefill).
 // With `writing` the reply is still being written, so a token the rest of it could still join to another is left out; a refused render gives none.
 inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::Tokenizer& tok, const std::vector<Message>& messages, bool writing,
                                            const std::vector<TemplateVar>& vars = {}) {
@@ -2981,7 +3267,7 @@ inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::
         for (int i = 0; i < 2; ++i) {
             std::vector<Message> m = messages;
             if (writing) m.back().content += more[i];
-            m.push_back({"user", next[i], std::nullopt});
+            m.push_back({messages.back().tool_calls.empty() ? "user" : "tool", next[i], std::nullopt});
             ids[i] = tok.encode(format.render(m, true, vars));
         }
     } catch (const std::exception&) {
@@ -2991,6 +3277,35 @@ inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::
     while (n < ids[0].size() && n < ids[1].size() && ids[0][n] == ids[1][n]) ++n;
     ids[0].resize(n);
     return ids[0];
+}
+
+// The assistant turn a compatible client sends back for a reply `text`: its content without the reasoning, and with a tool format the calls with their arguments as the reply gave them.
+// `open`, where given, is set when the text ends inside a call, whose arguments are not yet whole.
+inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat tools, const ToolTypes& typed, const std::string& text, bool* open = nullptr) {
+    ReplySplit split(opened);
+    const ReplySplit::Parts parts = split.feed(text), last = split.finish();
+    if (tools == ToolFormat::none) return format.assistant(parts.content + last.content);
+    ToolCallSplit calls(tools, typed);
+    const ToolCallSplit::Parts a = calls.feed(parts.content + last.content);
+    if (open) *open = calls.open();
+    const ToolCallSplit::Parts b = calls.finish();
+    Message m = format.assistant(a.content + b.content);
+    gather_calls(m.tool_calls, a.calls);
+    gather_calls(m.tool_calls, b.calls);
+    return m;
+}
+
+// The end tokens a template writes before a conversation's messages, such as a system block it adds: those of its leading system message and one user message alone, less one each.
+inline size_t own_end_tokens(const ChatFormat& format, const bpe::Tokenizer& tok, const std::vector<Message>& messages, const std::vector<TemplateVar>& vars) {
+    std::vector<Message> probe(messages.begin(), messages.begin() + (!messages.empty() && messages[0].role == "system" ? 1 : 0));
+    probe.push_back({"user", "x", std::nullopt});
+    try {
+        const std::vector<uint32_t> ids = tok.encode(format.render(probe, false, vars));
+        const size_t found = (size_t)std::count_if(ids.begin(), ids.end(), [&](uint32_t id) { return tok.is_eos(id); });
+        return found > probe.size() ? found - probe.size() : 0;
+    } catch (const std::exception&) {
+        return 0;
+    }
 }
 
 // The template a file carries, or ChatML when it carries none, with its tokenizer's start and end text.

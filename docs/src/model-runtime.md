@@ -41,6 +41,16 @@ delegated to a `backend::Backend`.
   each way. Which side a weight is on is the backend's `reads_in_place()`:
   a backend that reads what it adopts in place is the host side, whether
   or not it is the CPU, and one that copies it is the device side.
+- The Model::topology accessor returns an immutable snapshot of the placement
+  the runtime validated and constructed. Its ordered stages are the runtime's
+  consecutive mixer-layer runs; ranges are half-open and members are actual
+  tensor-group backend indices. Layer entries retain mixer and feed-forward
+  groups separately, identify routed layers, and name a streamed-expert target
+  only when the runtime admitted that path. A stream target is eligible from
+  max(stream_from, 2) prompt tokens; it does not say a request is streaming
+  now. The snapshot reports unused backends explicitly and keeps embedding
+  and head groups as endpoints. It describes execution placement, not the
+  fit's proposed budgets.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions

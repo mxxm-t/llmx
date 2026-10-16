@@ -870,6 +870,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `server.model`, `server.context_tokens`, `server.devices` | text, tokens, names | fixed | The model file's name, its context length, and the devices it runs on | |
 | `server.kv_tokens` | tokens | fixed | The KV pool every request and kept conversation shares (`--ctx-size`, or what the devices' memory gave) | |
 | `precision` | | fixed | The activation precision requested and the one each device runs, with `how` it runs (`native`, `emulated` or `fallback`) | a device shows `fallback` |
+| `topology` | indices, layer ranges | fixed | The realized `mode` (`single`, `layer`, `tensor`, `staged_tensor`), `tensor_width`, `mixed_roles`, backend `devices`, mixer `stages`, `embedding_members`, `head_members` and per-layer mixer, feed-forward and eligible expert-stream groups; layer ranges are half-open and device indices refer to this model's backend list | the actual placement differs from the intended layout |
 | `requests.now.active` | requests | now | Requests running in passes | it sits at `requests.limits.active` |
 | `requests.now.queued` | requests | now | Requests waiting for a place | it stays above 0, or reaches `requests.limits.queued`, where new requests get a 503 |
 | `requests.now.paused` | requests | now | Requests paused for want of KV room, waiting to resume; not counted in `queued` | above 0 for long |

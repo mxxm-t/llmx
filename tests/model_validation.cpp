@@ -93,7 +93,7 @@ void erase_tensor(gguf::GGUFModel& m, const std::string& name) {
 }
 
 gguf::GGUFModel fixture(bool tied = false, uint32_t type = 0, bool odd = false,
-                        bool grouped = true, uint64_t layers = 1) {
+                        bool grouped = true, uint64_t layers = 1, uint64_t vocab = 5) {
     gguf::GGUFModel m;
     const uint64_t emb = type ? 256 : (odd ? 7 : 8);
     const uint64_t ff = type ? 256 : 12;
@@ -103,7 +103,7 @@ gguf::GGUFModel fixture(bool tied = false, uint32_t type = 0, bool odd = false,
             {"attention.head_count", 2}, {"attention.head_count_kv", grouped ? 1u : 2u},
             {"attention.key_length", hd}, {"context_length", 8}})
         m.kv.push_back({"qwen3." + kv.first, integer(kv.second)});
-    add(m, "token_embd.weight", {emb, 5}, type);
+    add(m, "token_embd.weight", {emb, vocab}, type);
     add(m, "output_norm.weight", {emb}, 0, true);
     for (uint64_t l = 0; l < layers; ++l) {
         const std::string pre = "blk." + std::to_string(l) + ".";
@@ -119,7 +119,7 @@ gguf::GGUFModel fixture(bool tied = false, uint32_t type = 0, bool odd = false,
         add(m, pre + "ffn_up.weight", {emb, ff}, type);
         add(m, pre + "ffn_down.weight", {ff, emb}, type);
     }
-    if (!tied) add(m, "output.weight", {emb, 5}, type);
+    if (!tied) add(m, "output.weight", {emb, vocab}, type);
     return m;
 }
 
@@ -722,6 +722,79 @@ void placement_checks() {
     rejects("a negative layer share", [&] { infer::place_model(weights, {cpu(), cpu()}, request, options); });
 }
 
+void topology_checks() {
+    auto cpu = [] {
+        auto b = std::make_shared<backend::CpuBackend>();
+        b->set_threads(1);
+        return b;
+    };
+    {
+        const auto file = fixture();
+        infer::Model model(infer::gguf_weights(file));
+        const auto& t = model.topology();
+        require(t.mode == infer::Model::Topology::Mode::single && !t.mixed_roles && t.tensor_width == 1,
+                "single-device topology mode changed");
+        require(t.devices.size() == 1 && t.devices[0].used && t.embedding_members == std::vector<size_t>{0} &&
+                t.head_members == std::vector<size_t>{0}, "single-device topology endpoints changed");
+        require(t.stages.size() == 1 && t.stages[0].first_layer == 0 && t.stages[0].end_layer == 1 &&
+                t.stages[0].members == std::vector<size_t>{0}, "single-device topology stage changed");
+        ++checks;
+    }
+    {
+        const auto file = fixture(false, 0, false, true, 3);
+        infer::Placement p;
+        p.mixer_device = {0, 2, 2}; p.ffn_device = p.mixer_device; p.embed_device = 0; p.output_device = 2;
+        infer::Model model(infer::gguf_weights(file), {cpu(), cpu(), cpu()}, p);
+        const auto& t = model.topology();
+        require(t.mode == infer::Model::Topology::Mode::layer && t.stages.size() == 2 &&
+                t.stages[0].first_layer == 0 && t.stages[0].end_layer == 1 &&
+                t.stages[1].first_layer == 1 && t.stages[1].end_layer == 3,
+                "layer topology did not preserve actual contiguous stage ranges");
+        require(t.devices.size() == 3 && t.devices[0].used && !t.devices[1].used && t.devices[2].used &&
+                t.stages[1].members == std::vector<size_t>{2}, "unused selected device or stage member was misreported");
+        ++checks;
+    }
+    {
+        const auto file = fixture(false, 0, false, true, 1, 4);
+        infer::Placement p;
+        p.mixer_device = {0}; p.ffn_device = {0}; p.width = 2;
+        infer::Model model(infer::gguf_weights(file), {cpu(), cpu()}, p);
+        const auto& t = model.topology();
+        require(t.mode == infer::Model::Topology::Mode::tensor && t.tensor_width == 2 &&
+                t.stages.size() == 1 && t.stages[0].members == std::vector<size_t>({0, 1}) &&
+                t.layers[0].mixer_members == std::vector<size_t>({0, 1}), "tensor-group topology members changed");
+        ++checks;
+    }
+    {
+        const auto file = fixture(false, 0, false, true, 2, 4);
+        infer::Placement p;
+        p.mixer_device = {0, 2}; p.ffn_device = p.mixer_device; p.output_device = 2; p.width = 2;
+        infer::Model model(infer::gguf_weights(file), {cpu(), cpu(), cpu(), cpu()}, p);
+        const auto& t = model.topology();
+        require(t.mode == infer::Model::Topology::Mode::staged_tensor && t.stages.size() == 2 &&
+                t.stages[0].members == std::vector<size_t>({0, 1}) && t.stages[1].members == std::vector<size_t>({2, 3}) &&
+                t.stages[1].first_layer == 1 && t.stages[1].end_layer == 2,
+                "staged tensor topology did not preserve stage groups");
+        ++checks;
+    }
+    {
+        const auto file = routed_fixture();
+        auto device = std::make_shared<LoadingBackend>();
+        device->set_threads(1);
+        auto host = cpu();
+        infer::Placement p;
+        p.mixer_device = {0}; p.ffn_device = {1}; p.stream_from = 1;
+        infer::Model model(infer::gguf_weights(file), {device, host}, p);
+        const auto& t = model.topology();
+        const auto& layer = t.layers[0];
+        require(t.mode == infer::Model::Topology::Mode::single && t.mixed_roles && layer.routed &&
+                layer.mixer_members == std::vector<size_t>{0} && layer.ffn_members == std::vector<size_t>{1} &&
+                layer.stream_members == std::vector<size_t>{0} && layer.stream_min_prompt_tokens == 2,
+                "routed FFN offload and eligible streaming topology changed");
+        ++checks;
+    }
+}
+
 // A device with a missing weight type or mixed routed products, whose counters distinguish an early refusal from a failed upload.
 struct TypeBackend : backend::CpuBackend {
     uint32_t refused = quant::GGML_TYPE_Q8_0;
@@ -1094,6 +1167,7 @@ int main(int argc, char** argv) {
         moe_metadata_checks();
         routed_tensor_checks();
         placement_checks();
+        topology_checks();
         context_checks();
         loading_lifetime_checks();
         loading_window_checks();

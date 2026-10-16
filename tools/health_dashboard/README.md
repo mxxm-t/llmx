@@ -65,12 +65,13 @@ The dashboard groups requests, cache tiers, drafting, scheduling and recovery.
 The searchable metrics explorer exposes the complete latest health document,
 including fields introduced by newer server versions.
 
-The model placement panel shows the runtime-reported split mode, tensor width,
-layer stages and the backend names assigned to each stage. Expand per-layer
-details for mixer/feed-forward placement and routed-expert streaming eligibility.
-Those are realized backend assignments, not inferred GPU numbers or physical
-VRAM telemetry. The current health API does not expose `topology`, so placement
-is unavailable; the dashboard does not infer it from the device count.
+The model placement panel shows realized topology when `/v1/health` includes
+`topology`: split mode, tensor width, layer stages and backend names. Expand
+per-layer details for mixer/feed-forward placement and routed-expert streaming
+eligibility; eligibility does not mean that streaming is active for the current
+request. These are backend assignments, not inferred physical GPU numbers or
+VRAM telemetry. Older runtimes without `topology` show placement as unavailable.
+The dashboard does not infer placement from device count.
 
 Hover a chart to inspect the same timestamp across all four charts. Click to
 hold it, use the arrow keys to move it, or return to the latest sample. The

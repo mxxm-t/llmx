@@ -420,7 +420,22 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16", "int8"), dtype
         assert dtype["devices"], dtype
         # The groups and the units in their names (docs/OPERATING.md), and the route a load balancer polls without waiting on the scheduler.
-        assert set(health) >= {"status", "server", "precision", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing"} and "timing" not in health, health
+        assert set(health) >= {"status", "server", "precision", "topology", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing"} and "timing" not in health, health
+        topology = health["topology"]
+        assert topology["mode"] in ("single", "layer", "tensor", "staged_tensor") and isinstance(topology["mixed_roles"], bool), topology
+        assert topology["tensor_width"] >= 1 and len(topology["devices"]) == len(dtype["devices"]), topology
+        assert [d["index"] for d in topology["devices"]] == list(range(len(dtype["devices"]))), topology
+        assert [d["name"] for d in topology["devices"]] == [d["device"] for d in dtype["devices"]], topology
+        assert all(d["member"] == d["index"] % topology["tensor_width"] for d in topology["devices"]), topology
+        assert topology["embedding_members"] and topology["head_members"], topology
+        assert len(topology["layers"]) > 0 and topology["stages"], topology
+        assert topology["stages"][0]["first_layer"] == 0 and topology["stages"][-1]["end_layer"] == len(topology["layers"]), topology
+        assert all(a["end_layer"] == b["first_layer"] for a, b in zip(topology["stages"], topology["stages"][1:])), topology
+        for layer in topology["layers"]:
+            assert layer["index"] < len(topology["layers"]) and layer["mixer_members"] and layer["ffn_members"], topology
+            assert all(i < len(topology["devices"]) for i in layer["mixer_members"] + layer["ffn_members"]), topology
+            stream = layer["expert_stream"]
+            assert stream is None or (stream["members"] and stream["min_prompt_tokens"] >= 2), topology
         # Generating requests are paced by the automatic rule where a stage is fed in pieces, on one device that is not the CPU with nothing beside it, and not elsewhere.
         pacing = health["pacing"]
         device = os.environ.get("LLMX_DEVICE", "cpu")

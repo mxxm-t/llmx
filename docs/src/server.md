@@ -6,6 +6,13 @@ The API configuration carries placement's `DtypePlan`; `/v1/health` serializes i
 `docs/SERVER.md`. No external libraries: sockets, HTTP/1.1, JSON and the
 scheduler are the runtime's own.
 
+The API serializes Model::topology once at construction and reuses the immutable
+JSON for the /v1/health topology group.
+Its backend indices map to the resolved dtype device names, its stages and
+layer groups come from the model's validated placement, and its expert-stream
+target means eligible for prompts at the reported threshold rather than active
+on the current request.
+
 - `http.hpp`: `Listener`, `Connection`, `Request`.
   Blocking BSD or Winsock sockets for the connections, one thread each; a request is read with size limits (413 and 431 past them, 400 for a malformed line), a reply is written whole or as a chunked stream, and a client's disconnect surfaces as a failed write, which throws `ClientGone`, rather than a signal.
   `peer_closed` asks without writing, blocking or taking a byte whether the client has closed the connection: `poll` or `WSAPoll` with no wait, then a one-byte `MSG_PEEK` (with `MSG_DONTWAIT` where the platform has it) whose end of stream or reset means closed and whose data means open, so a client that shuts only its sending side reads as closed.

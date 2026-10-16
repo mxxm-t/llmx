@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Health device topology integration (2026-10-18, branch feat/health-topology-land-20261018)
+
+- **Goal:** Integrate the realized model placement health payload so the dashboard can show actual backend groups and layer stages.
+- **Done:** Applied topology-only commit `53c6b6854` to current main `25a542856`. The model owns the realized placement snapshot; the health response adds it while retaining `requests.live`. The dashboard renders the payload and shows unavailable on older servers. A follow-up caches this immutable topology JSON when `Api` is constructed, avoiding layer traversal and serialization on each health poll.
+- **Focused checks:** Release MSVC binary SHA256 `896488b0019130999e281ab53de9dd5d0797871b33af56f57eaf355f7b146470`, version `llmx 0.1.0+gdc2bbc9c5371.dirty numerics 6439d0f46e37628e`; one-target rebuild used VS18, Ninja `-j1`, Vulkan disabled. `model-validation` passed 509 checks and 396 refusal texts (93.70 s) on the clean integration build before the API-only serialization change. The corrected synthetic two-layer Qwen3 HTTP check passes 12 assertions for exact topology and preserved live schema against the rebuilt CLI, with all imported helpers verified to belong to this worktree. Its initial helper imported tests from the parent checkout; that run is superseded, not landing evidence.
+- **Left:** Clean final build, applicable CTest/CPU/device and identity checks, timing comparison, hosted CI and deployment. No release gate or production upgrade is claimed by the focused checks.
+- **Review:** All 110 tracked Markdown files were compared with main `25a542856`: 104 unchanged and six changed pages reviewed against the model snapshot, API and dashboard. The corrected synthetic health payload and older-server fallback passed Chromium checks at 1440x1200 and 390x1000 without horizontal overflow. The static dashboard deployment record below now distinguishes the original UI release from the subsequent live API deployment.
+- **Gotchas:** Production currently runs `3b2a701b` and its health endpoint has no `topology` field. Topology reports backend-vector placement and expert-stream eligibility, not physical GPU identity or current streaming execution. Existing topology identity evidence carries a dirty pre-commit build identity and is not a substitute for this rebuilt binary. This focused follow-up binary is also dirty until the API optimization is committed and rebuilt.
+
+
 ## Validation follows the changed behavior (2026-10-17, lands by fast-forward)
 
 Static dashboard changes use focused browser checks; documentation changes use the docs and dead-code checks. Neither requires unrelated HF or inference performance runs. Runtime and numerical changes retain their applicable gates. Follow-up fixes rerun affected checks and record retained evidence with its revision and intervening delta. AGENTS.md owns the gate policy; docs/CI.md explains the existing hosted workflow and skipping its unrelated matrix for documentation/static-UI-only pushes.
@@ -1235,7 +1245,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Live generation and loading progress     | Done |
 | Live aggregate-throughput counters in `/v1/health` | Done (API `982362408c997b9ee52c5efacfecc83101dd7c0d` and dashboard `250d3bcc` landed on both mains; hosted CI run 38973950982 passed 7/7; deployed; [evidence](benchmarks/health-dashboard-20261016.json)) |
 | Read-only health dashboard with live charts | Done (`250d3bcc` landed on both mains; hosted CI run 38973950982 passed 7/7; deployed; [evidence](benchmarks/health-dashboard-20261016.json)) |
-| Runtime health device topology | Not on main; separate feature; deployed dashboard reports unavailable |
+| Runtime health device topology | Integrated on its feature branch; landing checks pending; production still reports unavailable |
 | Model loading and teardown buffer lifetime | Done (2026-09-25 checkpoint) |
 | CPU zero-byte transfer and zero-thread hint contracts | Done (2026-09-25 checkpoint) |
 | GitHub CPU CI                          | Done     |
@@ -1266,7 +1276,7 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
 - Goal: Polish the dashboard title, visualize own-history acceptance, and show per-request live rates from runtime counters.
 - Done: Title is `llmx monitor`; own-history kept/not-kept totals use a compact labeled bar. Live-request cards put runtime phase, elapsed time and PP/TG rates first, with token counters collapsed per request. The throughput charts and lower secondary panels have a tighter hierarchy; range changes follow the primary throughput and request views. Thirteen focused browser assertions pass, including redraw interaction preservation. Parent's synthetic full-page Chromium review passed at 1440px desktop and 390px mobile with no horizontal overflow. Evidence is in ignored `build-dashboard-review/cdp-review.json` and `cdp-{desktop,mobile}-{top,requests,lower}.png`; source SHA256 `0c3d2bdbc80e4405f782aae550bfbfd398dd11bda223dd2dc0ee81a342a08689`.
-- Deployment: This static UI lands separately by fast-forward. Its HTML is the tested dashboard artifact; the collector and inference runtime are unchanged. Aggregate live throughput remains available on the current API. Per-request cards require the separate `requests.live` API change and show unavailable until that runtime is deployed.
+- Deployment: The static UI landed separately by fast-forward, without changing the collector or inference runtime. The later runtime deployment `3b2a701b` added `requests.live`, enabling per-request cards after two distinct samples for a request. Servers without that API still show the unavailable state.
 - Gotchas: Own-history provides lifetime drafted and kept totals only; its bar does not imply position, time-series or per-request data. Live rates are unavailable for first samples, resets and older APIs; requests can start and finish between polls without appearing, and the endpoint may omit rows above its cap. Replacing the Python collector requires browser-local polling/history (per-tab and lost on reload) or a native shared collector; serving only the static page is insufficient.
 
 ## Active feature blocks

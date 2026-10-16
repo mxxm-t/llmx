@@ -156,7 +156,8 @@ class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
         const Config& cfg)
-        : model_(model), tok_(tok), format_(format), sched_(sched), cfg_(cfg), started_((int64_t)std::time(nullptr)) {
+        : model_(model), tok_(tok), format_(format), sched_(sched), cfg_(cfg),
+          cached_topology_json_(topology_json(model_.topology(), cfg_.dtype)), started_((int64_t)std::time(nullptr)) {
         // The model's name is its file's, which on Linux can hold bytes that are not UTF-8, and every reply that names the model carries it.
         cfg_.model_name = utf8_sanitize(cfg_.model_name);
     }
@@ -250,7 +251,7 @@ private:
                   "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
                   ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
                   ",\"context_tokens\":" + n(model_.context_length()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" +
-                  ",\"precision\":" + dtype_json(cfg_.dtype) +
+                  ",\"topology\":" + cached_topology_json_ + ",\"precision\":" + dtype_json(cfg_.dtype) +
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
@@ -282,6 +283,36 @@ private:
                   "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"ms\":" + jmini::number((float)s.background_ms) +
                   ",\"largest_ms\":" + jmini::number((float)s.background_largest_ms) + "}}}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
+    }
+    static std::string topology_json(const infer::Model::Topology& t, const infer::DtypePlan& dtype) {
+        const auto n = [](size_t v) { return std::to_string(v); };
+        const auto members = [&](const std::vector<size_t>& ids) {
+            std::string out = "[";
+            for (size_t i = 0; i < ids.size(); ++i) out += (i ? "," : "") + n(ids[i]);
+            return out + "]";
+        };
+        const char* mode = t.mode == infer::Model::Topology::Mode::single ? "single" :
+                           t.mode == infer::Model::Topology::Mode::layer ? "layer" :
+                           t.mode == infer::Model::Topology::Mode::tensor ? "tensor" : "staged_tensor";
+        std::string devices, stages, layers;
+        for (const auto& d : t.devices) {
+            const std::string name = d.index < dtype.devices.size() ? dtype.devices[d.index].name : "device " + n(d.index);
+            devices += (devices.empty() ? "" : ",") + std::string("{\"index\":") + n(d.index) + ",\"name\":" + jmini::quote(name) +
+                       ",\"used\":" + (d.used ? "true" : "false") + ",\"member\":" + n(d.member) + "}";
+        }
+        for (const auto& s : t.stages)
+            stages += (stages.empty() ? "" : ",") + std::string("{\"index\":") + n(s.index) + ",\"first_layer\":" + n((size_t)s.first_layer) +
+                      ",\"end_layer\":" + n((size_t)s.end_layer) + ",\"members\":" + members(s.members) + "}";
+        for (const auto& l : t.layers) {
+            const std::string stream = l.stream_members.empty() ? "null" :
+                std::string("{\"members\":") + members(l.stream_members) + ",\"min_prompt_tokens\":" + n(l.stream_min_prompt_tokens) + "}";
+            layers += (layers.empty() ? "" : ",") + std::string("{\"index\":") + n(l.index) + ",\"mixer_members\":" + members(l.mixer_members) +
+                      ",\"ffn_members\":" + members(l.ffn_members) + ",\"routed\":" + (l.routed ? "true" : "false") +
+                      ",\"expert_stream\":" + stream + "}";
+        }
+        return std::string("{\"mode\":\"") + mode + "\",\"mixed_roles\":" + (t.mixed_roles ? "true" : "false") +
+               ",\"tensor_width\":" + n(t.tensor_width) + ",\"devices\":[" + devices + "],\"stages\":[" + stages +
+               "],\"embedding_members\":" + members(t.embedding_members) + ",\"head_members\":" + members(t.head_members) + ",\"layers\":[" + layers + "]}";
     }
     // The run's request and resolved dtype, including each device's emulation or wider fallback.
     static std::string dtype_json(const infer::DtypePlan& d) {
@@ -1133,6 +1164,7 @@ private:
     const chat::ChatFormat format_;
     Scheduler& sched_;
     Config cfg_;
+    const std::string cached_topology_json_;
     const int64_t started_;
     std::atomic<uint64_t> shifts_{0}, shifted_tokens_{0};   // since start, the requests whose prompt a shift cut, and the tokens those cuts dropped
     std::atomic<uint64_t> next_id_{1};

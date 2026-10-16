@@ -258,6 +258,26 @@ inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& o
 
 class Model {
 public:
+    // The realized device topology, captured once after placement validation. Indices refer to this model's backend vector; tensor groups are consecutive members.
+    struct Topology {
+        enum class Mode { single, layer, tensor, staged_tensor };
+        struct Device { size_t index = 0, member = 0; bool used = false; };
+        struct Stage { size_t index = 0; int first_layer = 0, end_layer = 0; std::vector<size_t> members; };
+        struct Layer {
+            size_t index = 0;
+            std::vector<size_t> mixer_members, ffn_members, stream_members;
+            bool routed = false;
+            size_t stream_min_prompt_tokens = 0;
+        };
+        Mode mode = Mode::single;
+        bool mixed_roles = false;
+        size_t tensor_width = 1;
+        std::vector<Device> devices;
+        std::vector<Stage> stages;
+        std::vector<size_t> embedding_members, head_members;
+        std::vector<Layer> layers;
+    };
+
     // Construct from a model's weights on one backend (the CPU by default) or over several with a placement of every role, each weight put on its host backend by `adopt`, planned here or given the plan plan_model made.
     // The views are not kept; the bytes a backend adopted in place must outlive the Model (Backend::adopt).
     explicit Model(const ModelWeights& weights,
@@ -448,6 +468,7 @@ public:
                 m.local_layer = first.local_layer;
             }
         }
+        topology_ = make_topology();
 
         try {
             resolve_tensors(weights, adopt);
@@ -846,7 +867,51 @@ public:
         return c;
     }
 
+    const Topology& topology() const { return topology_; }
+
 private:
+    std::vector<size_t> group_members(int first) const {
+        std::vector<size_t> members;
+        for (size_t m = 0; m < width_; ++m) members.push_back((size_t)first + m);
+        return members;
+    }
+
+    Topology make_topology() const {
+        Topology t;
+        t.tensor_width = width_;
+        t.mode = width_ > 1 ? (stages_.size() > 1 ? Topology::Mode::staged_tensor : Topology::Mode::tensor)
+                            : (stages_.size() > 1 ? Topology::Mode::layer : Topology::Mode::single);
+        t.devices.reserve(devices_.size());
+        for (size_t d = 0; d < devices_.size(); ++d)
+            t.devices.push_back(Topology::Device{d, d % width_, devices_[d]->used});
+        t.embedding_members = group_members(place_.embed_device);
+        t.head_members = group_members(place_.output_device);
+        t.stages.reserve(stages_.size());
+        for (size_t s = 0; s < stages_.size(); ++s) {
+            const Stage& stage = stages_[s];
+            t.stages.push_back(Topology::Stage{s, stage.first, stage.end, group_members((int)stage.device)});
+        }
+        t.layers.reserve(plan_.layers.size());
+        for (size_t l = 0; l < plan_.layers.size(); ++l) {
+            Topology::Layer layer;
+            layer.index = l;
+            layer.mixer_members = group_members(place_.mixer_device[l]);
+            layer.ffn_members = group_members(place_.ffn_device[l]);
+            layer.routed = plan_.layers[l].routed;
+            if (place_.mixer_device[l] != place_.ffn_device[l]) t.mixed_roles = true;
+            if (stream_device_[l] >= 0) {
+                layer.stream_members = group_members(stream_device_[l]);
+                layer.stream_min_prompt_tokens = std::max<size_t>(place_.stream_from, 2);
+            }
+            t.layers.push_back(std::move(layer));
+        }
+        if (!stages_.empty()) {
+            t.mixed_roles = t.mixed_roles || place_.embed_device != (int)stages_.front().device ||
+                            place_.output_device != (int)stages_.back().device;
+        }
+        return t;
+    }
+
     // One backend and what the placement put on it.
     // A pool is not movable, because sequences hold its address, so devices live behind pointers.
     struct Device {
@@ -880,6 +945,7 @@ private:
     };
 
     Placement place_;
+    Topology topology_;
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
     size_t kv_layers_ = 0;                       // the model's layers that keep KV

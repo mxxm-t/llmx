@@ -162,6 +162,8 @@ malformed input, nesting limits and JSON output string escaping.
 A float written by `number` is its shortest decimal in the C locale's form under a comma locale too, reads back through `parse` as the same float for every finite value among a million random bit patterns, and is `null` when JSON cannot hold it.
 The Q8/Q4 round-trip test also checks escaped Unicode tensor names through the actual CLI.
 
+`tokenizer-encode` holds `bpe::Tokenizer::encode` to the encode it replaced, written out in the test (every byte checked against every special token, BPE run on every word), on a vocabulary of the 256 bytes, merged words and six special tokens, one a prefix of two others: each piece alone, special tokens at the start and the end and side by side, a `<` that begins none and specials cut short, the text's end among them, and 50 texts of up to 4000 random pieces, so a word stands beside every neighbour and repeats.
+
 `format-output` checks conversion staging, serialization and stream failure,
 refusal of premature publication, a later publication failure after the first
 complete file was published, and temporary cleanup. The Python round-trip adds

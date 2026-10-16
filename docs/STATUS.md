@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Tokenizing a long chat takes a tenth of the time (2026-10-16, branch fix/tokenize-speed, lands by fast-forward)
+
+- **Why:** after fix/message-ends a cut costs one render and one tokenize of the whole conversation, and the owner saw one core at 100 percent during it. Measured on a 159-message conversation under the Qwen3.8 template of the chat fixture, cut from tests/data/wiki.test.raw (4114542 bytes, 954025 ids, 480 special tokens), Qwen3's tokenizer, on the Windows development machine: `encode` took 943 to 956 ms, of which 366 to 382 ms comparing every byte against all 26 special tokens and 591 to 606 ms running BPE on 854644 words of which 20389 are distinct.
+- **The change, in `bpe::Tokenizer::encode` alone:** the scan for a special token looks only at a byte one begins with (`special_lead`, filled as the tokenizer is made), and the text between special tokens is taken as one range; a word merged once in a call is not merged again (a map local to the call, so concurrent connections share nothing and need no lock). The ids are the same by construction: BPE gives a word the same ids wherever it stands, and a special token can only begin at a byte one begins with.
+- **Measured, same machine and conversation, two runs of five encodes each:** 943 to 958 ms before, 95 to 105 ms after, the same ids (FNV hash b945fc0893991e8b both). Threads and ids kept across turns were weighed in the design (devlog 2026-10-16 08:47, F2DEV's review 08:59) and left out: the tokenizer sits below the backends' pool, and kept ids need state across requests.
+- **Tests:** `tokenizer-encode`, new: `encode` against the encode it replaced, written out in the test, on a vocabulary with merges and six special tokens: each piece alone, special tokens at the start, the end and side by side, a `<` that begins none, specials cut short at the text's end, and 50 texts of up to 4000 random pieces, a word beside every neighbour (87 checks); a memo keyed on the word's first byte alone fails it. The `tokenizer` component's goldens (Qwen3 and qwen35) and `chat-template` hold the real vocabularies. No test can fail on the unchanged code, since the change keeps every id: there is one commit.
+- **Checked, Windows, MSVC, on the CPU:** see the REVIEW-REQUEST. The tier's gates (CTest, the CPU suite, Qwen3-0.6B identity against main, the hosted run) are the gate runner's at the head that lands.
+
 ## A cut finds its messages' ends in a few renders and never answers 500, and the time to first token counts it (2026-10-16, branch fix/message-ends, lands by fast-forward)
 
 - **Two causes in one function, `Api::message_ends`:**

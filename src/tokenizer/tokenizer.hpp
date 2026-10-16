@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <cctype>
@@ -50,6 +51,7 @@ public:
     std::unordered_map<uint8_t, std::string> byte_to_char;
     std::unordered_map<std::string, uint8_t> char_to_byte;
     std::vector<SpecialToken> specials; // control / user-defined tokens
+    std::array<bool, 256> special_lead{};   // the bytes a special token begins with, so the scan for one skips every other byte
     int32_t bos_id = -1;
     int32_t eos_id = -1;
 
@@ -120,6 +122,8 @@ public:
             if (types[i] == 3 || types[i] == 4)
                 specials.push_back({ vocab[i], (uint32_t)i });
         }
+        for (const auto& sp : specials)
+            if (!sp.text.empty()) special_lead[(unsigned char)sp.text[0]] = true;
 
         // ids
         if (const gguf::MetaValue* v = m.find("tokenizer.ggml.bos_token_id"))
@@ -235,35 +239,40 @@ public:
         return sym;
     }
 
-    // Encode text, handling special tokens as single ids.
+    // Encode text, handling special tokens as single ids: the longest special token at a byte one can begin with, and BPE over the pretokenized text between them.
+    // A word merged once is not merged again within the call, since BPE gives a word the same ids wherever it stands; the map lives for one call, so calls share nothing.
     std::vector<uint32_t> encode(const std::string& text) const {
         std::vector<uint32_t> ids;
-        // greedy longest-match split on special tokens
-        size_t i = 0; std::string plain;
-        auto flush = [&]() {
-            if (plain.empty()) return;
-            for (const auto& tok : pretokenize(plain)) {
-                std::string w = byte_encode(tok);
-                for (const auto& sym : bpe(w)) {
-                    auto it = token_to_id.find(sym);
-                    if (it == token_to_id.end())
-                        throw std::runtime_error("tokenizer: symbol not in vocab: " + sym);
-                    ids.push_back(it->second);
+        std::unordered_map<std::string, std::vector<uint32_t>> merged;
+        auto flush = [&](size_t from, size_t to) {
+            if (from == to) return;
+            for (const auto& tok : pretokenize(text.substr(from, to - from))) {
+                auto known = merged.find(tok);
+                if (known == merged.end()) {
+                    std::vector<uint32_t> word;
+                    for (const auto& sym : bpe(byte_encode(tok))) {
+                        auto it = token_to_id.find(sym);
+                        if (it == token_to_id.end())
+                            throw std::runtime_error("tokenizer: symbol not in vocab: " + sym);
+                        word.push_back(it->second);
+                    }
+                    known = merged.emplace(tok, std::move(word)).first;
                 }
+                ids.insert(ids.end(), known->second.begin(), known->second.end());
             }
-            plain.clear();
         };
-        while (i < text.size()) {
+        size_t start = 0;
+        for (size_t i = 0; i < text.size();) {
             const SpecialToken* match = nullptr; size_t best_len = 0;
-            for (const auto& sp : specials) {
-                if (sp.text.size() > best_len && text.compare(i, sp.text.size(), sp.text) == 0) {
-                    match = &sp; best_len = sp.text.size();
-                }
-            }
-            if (match) { flush(); ids.push_back(match->id); i += best_len; }
-            else { plain += text[i++]; }
+            if (special_lead[(unsigned char)text[i]])
+                for (const auto& sp : specials)
+                    if (sp.text.size() > best_len && text.compare(i, sp.text.size(), sp.text) == 0) {
+                        match = &sp; best_len = sp.text.size();
+                    }
+            if (match) { flush(start, i); ids.push_back(match->id); i += best_len; start = i; }
+            else ++i;
         }
-        flush();
+        flush(start, text.size());
         return ids;
     }
 

@@ -17,6 +17,8 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
     Without the check, such a file would encode to valid-looking but wrong ids.
     A key the file omits is not checked, so the synthetic test models, which name neither, are read as this tokenizer.
   - `encode(text) -> vector<uint32_t>`: the control and user-defined tokens' texts matched first, the longest at each place, each as its one id, and the text between them pretokenized, byte-encoded, BPE-merged by rank and mapped to ids; a symbol the vocabulary lacks throws.
+    The scan for a special token looks only at a byte one begins with (`special_lead`), and a word merged once is not merged again within the call (a map local to it, so concurrent calls share nothing), since BPE gives a word the same ids wherever it stands.
+    On a 159-message chat of 4.1 MB and 954025 ids that took the encode from about 950 ms to about 100 ms on the Windows development machine, 40 percent of it having been the scan and 60 percent BPE run again on words already merged.
   - `decode(ids) -> string`: reverse; an id outside the vocabulary throws.
   - `bpe(word)`, `byte_encode(raw)`.
   - Tracks `bos_id`, `eos_id` and the special tokens.
@@ -40,6 +42,7 @@ Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files 
   llmx encodes each as its one id, as transformers' tokenizer does from `tokenizer_config.json`, while `tokenizer.json` alone splits the text into several ordinary tokens.
 
 `tests/baseline.py` compares encoded ids against the HF tokenizer for pinned real Qwen3 models.
+`tests/tokenizer_encode.cpp` (CTest `tokenizer-encode`) holds `encode` to the encode it replaced, written out in the test, on a small vocabulary with merges and special tokens.
 `tests/tokenizer.py` does the same for the qwen35 pretokenizer on every build, from `tests/data/baseline_tokenizer_qwen35.json`: HF's ids for 37 texts (the 20 of the Qwen3 fixture, Thai, Devanagari, CJK punctuation and every added token) and the part of the pinned HF vocabulary those texts reach.
 It also requires one id for each of the 7 control tokens above, which the golden keeps apart with the types the GGUF files give them.
 These are the external gates for this file.

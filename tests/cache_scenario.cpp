@@ -344,7 +344,8 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
                 std::vector<char> st = starts;
                 e.push_back(n);
                 st.push_back(1);
-                const size_t k = server::first_kept(e, st, 1, n, room, kPool / server::kCutTo);
+                server::MessageEnds cut_ends(e);
+                const size_t k = server::first_kept(cut_ends, st, 1, n, room, kPool / server::kCutTo);
                 require(k < e.size() && cuts < 2 && e[k - 1] == where[cuts], "leg E: cut " + std::to_string(cuts + 1) + " falls at row " + std::to_string(k < e.size() ? e[k - 1] : 0) + " of the conversation, against " + std::to_string(cuts < 2 ? where[cuts] : 0));
                 // The cut prompt: the system message and the rows from the first kept message on.
                 const size_t from = e[k - 1] - dropped;

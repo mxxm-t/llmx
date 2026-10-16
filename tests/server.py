@@ -917,6 +917,92 @@ def check_no_turns_line(model):
         assert lines() == []
 
 
+# A template's opening that raises for a conversation without a user message, as the Qwen 3.5 templates and the official 3.6 and 3.8 templates raise.
+NEEDS_USER = ("{%- set ns = namespace(user=false) %}{%- for m in messages %}{%- if m.role == 'user' %}{%- set ns.user = true %}{%- endif %}{%- endfor %}"
+              "{%- if not ns.user %}{{- raise_exception('No user query found in messages.') }}{%- endif %}")
+# A template that ends each message with the end token but a tool result followed by another, as the Qwen templates put a run of tool results in one turn.
+TOOL_RUN_TEMPLATE = ("{% for m in messages %}{{ m.role }}:{{ m.content * 3 }}"
+                     "{% if loop.last or m.role != 'tool' or messages[loop.index0 + 1].role != 'tool' %}<|endoftext|>{% endif %}{% endfor %}"
+                     "{% if add_generation_prompt %}|assistant:\n{% endif %}")
+
+
+# A template that writes a system block of its own, ended by the end token, where the conversation has none, as the Qwen 3.8 templates write their reasoning instructions, then each message ended by the end token.
+OWN_BLOCK_TEMPLATE = ("{% if messages[0].role != 'system' %}own:block<|endoftext|>{% endif %}"
+                      "{% for m in messages %}{{ m.role }}:{{ m.content * 3 }}<|endoftext|>{% endfor %}"
+                      "{% if add_generation_prompt %}|assistant:\n{% endif %}")
+
+
+def ask_bound(count):
+    """The most parts a cut renders to place the ends of `count` messages: the probe of the template's own end tokens, the head, two searches by halving and the turn start before the first that fits (server/context_cut.hpp)."""
+    return 2 * ((count).bit_length() + 1) + 3
+
+
+def check_message_ends(model):
+    """Where a cut under --context-overflow shift finds each message's end (docs/SERVER.md, A prompt larger than the context), on the synthetic reasoning model and a pool of 128 tokens.
+    The end tokens give the ends where they number the messages and the template's own: a template that writes a system block of its own where the conversation has none, as the Qwen 3.8 templates do, is placed by them and one small render, its cut line says, with and without a system message.
+    Where they do not, as when tool results share an end token or a template writes none, the cut renders only a few parts found by halving, never one a message, and a part the template refuses, the system message alone under a template that asks for a user message, as the Qwen 3.5 templates and the official 3.6 and 3.8 ones raise, is placed by the end tokens, where that raise was answered 500.
+    Each cut chat's reply and prompt are those of the kept messages sent alone, and under a template whose tool results share an end token the cuts are those of the same template without the raise.
+    The request line counts from the request's reading, so its time to first token holds the render, the tokenizer and the cut, and the compatible routes' timings give that part as prepared_ms."""
+    system = {"role": "system", "content": "s"}
+    reply = REASONING_REPLY.decode()
+
+    def cut_lines(srv):
+        srv.log.seek(0)
+        return [line for line in srv.log.read().splitlines() if line.startswith("server: a prompt of")]
+
+    def chat(template, tools, lead=True, turns=6):
+        f32.write_model(model, reasoning_tensors(), template, f32.VOCAB - 1, config=REASONING_CONFIG, control=(f32.VOCAB - 1,))
+        messages, cuts, prompts, renders = [system] if lead else [], [], [], []
+        srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")
+        try:
+            for turn in range(turns):
+                if turn:
+                    messages.append({"role": "assistant", "content": reply})
+                    if tools:
+                        messages += [{"role": "tool", "content": "t"}, {"role": "tool", "content": "u"}]
+                messages.append({"role": "user", "content": "abcd"})
+                if turn < turns - 2 and turns > 6:
+                    continue
+                seen = len(cut_lines(srv))
+                status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
+                assert status == 200 and got["text"] == reply, (turn, status, got)
+                dropped = got["context"].get("dropped_messages", 0)
+                cuts.append(dropped)
+                prompts.append(got["prompt_tokens"])
+                if not dropped:
+                    continue
+                [line] = cut_lines(srv)[seen:]
+                found = re.search(r"its messages' ends found in (\d+) renders?", line)
+                assert found, line
+                renders.append((int(found.group(1)), len(messages)))
+                kept = ([system] if lead else []) + messages[(1 if lead else 0) + dropped:]
+                status, own = srv.post("/v1/chat", {"messages": kept, "max_tokens": 16, "temperature": 0})
+                assert kept[1 if lead else 0]["role"] == "user" and status == 200 and own["text"] == got["text"] and own["prompt_tokens"] == got["prompt_tokens"], (turn, own)
+            status, err = srv.post("/v1/chat", {"messages": [system], "max_tokens": 4})
+            assert (status == 400 and "No user query found in messages." in err["error"]) == template.startswith(NEEDS_USER), (status, err)
+            status, got = srv.post("/v1/chat/completions", {"messages": messages, "max_tokens": 4, "temperature": 0})
+            assert status == 200 and got["timings"]["prepared_ms"] >= 0, got
+            srv.log.seek(0)
+            [request] = [line for line in srv.log.read().splitlines() if line.startswith("request:")][-1:]
+            timed = re.search(r"(\d+) ms preparing, (\d+) ms queued, (\d+) ms to first token", request)
+            assert timed and int(timed.group(3)) >= int(timed.group(1)) + int(timed.group(2)) - 1, request
+        finally:
+            srv.close()
+        return cuts, prompts, renders, len(messages)
+
+    plain = chat(NEEDS_USER + PLAIN_TEMPLATE, False)
+    assert plain[0][2] > 0 and all(r <= ask_bound(n) for r, n in plain[2]), plain
+    refused = chat(NEEDS_USER + TOOL_RUN_TEMPLATE, True)
+    rendered = chat(TOOL_RUN_TEMPLATE, True)
+    assert refused[:2] == rendered[:2] and refused[0][-1] > 0, (refused, rendered)
+    own = [chat(OWN_BLOCK_TEMPLATE, False, lead) for lead in (False, True)]
+    assert all(o[2] and {r for r, _ in o[2]} == {1} for o in own), own
+    # A long chat whose tool results share an end token: the cut renders a few parts, not one a message.
+    long = chat(TOOL_RUN_TEMPLATE, True, turns=60)
+    assert long[2] and all(r <= ask_bound(n) and 4 * r < n for r, n in long[2]), long
+    return plain[0], refused[0], [r for r, _ in long[2]], long[3]
+
+
 def check_no_turns_whole_block(model):
     """On a model whose 512-token context and 128-token pool hold one whole block, a tier of 1 MiB holds no copy of it (a copy is whole 64 MiB slabs), so the line says turns are off and names both sizes; one of 64 MiB holds it and says nothing."""
     def lines(size):
@@ -1778,6 +1864,10 @@ def run():
         check_no_turns_whole_block(os.path.join(directory, "overflow.gguf"))
         print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "
               "each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows  [ok]" % cuts)
+        plain, runs, renders, count = check_message_ends(os.path.join(directory, "overflow.gguf"))
+        print("server: with --context-overflow shift, message ends placed by the end tokens and one render under a template with a system block of its own, "
+              "a chat under a template that raises without a user message cut by %s messages without end tokens and by %s with tool results sharing an end token, as without the raise, "
+              "a chat of %d messages cut after %s renders, and the time to first token counting the render and the cut  [ok]" % (plain, runs, count, renders))
         check_mxfp4(directory)
         check_disk_identity(directory)
         print("server: two models of three shards that share their first shard and differ in their tensors have different disk identities, each naming every file's digest  [ok]")

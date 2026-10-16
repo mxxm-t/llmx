@@ -95,7 +95,7 @@ def metadata_value(value):
     return struct.pack("<II", 4, value)
 
 
-def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None, quantized=()):
+def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config=CONFIG, arch="qwen3", tokens=None, quantized=(), control=()):
     # `tokens` replaces the VOCAB token strings, one a byte and then <|endoftext|> by default, by as many as a fixture's vocabulary holds, and `quantized` adds tensors already encoded, as (name, shape, GGUF type, bytes).
     # A 34-byte Q8 tensor exposes unaligned F32 rows if the loader discards file padding without preserving float alignment in its in-memory blob.
     entries = [("unused.weight", [32], 8, b"\0" * 34)]
@@ -105,7 +105,7 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
     def write_part(filename, subset, index):
         with open(filename, "wb") as f:
             named = arch != "qwen3"
-            nmeta = (len(config) + 1 + named + (chat_template is not None) + (eos_id is not None)) if index == 0 else 0
+            nmeta = (len(config) + 1 + named + (chat_template is not None) + (eos_id is not None) + bool(control)) if index == 0 else 0
             f.write(struct.pack("<IIQQ", 0x46554747, 3, len(subset), nmeta + (3 if shards > 1 else 0)))
             if shards > 1:
                 for key, value in (("split.no", index), ("split.count", shards)):
@@ -133,6 +133,11 @@ def write_model(path, weights, chat_template=None, eos_id=None, shards=1, config
                 f.write(struct.pack("<IIQ", 9, 8, len(vocab)))
                 for token in vocab:
                     w_str(f, token)
+                if control:
+                    # The ids `control` names are control tokens, whose text in a prompt reads as the token, as a model's end of text does.
+                    w_str(f, "tokenizer.ggml.token_type")
+                    f.write(struct.pack("<IIQ", 9, 4, len(vocab)))
+                    f.write(struct.pack("<%dI" % len(vocab), *[3 if i in control else 1 for i in range(len(vocab))]))
             offset = 0
             for name, shape, kind, data in subset:
                 w_str(f, name)

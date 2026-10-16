@@ -212,9 +212,9 @@ std::string calls_text(const std::vector<Call>& calls) {
 
 // A reply's content split into its text and its tool calls in `format`: the whole text at once and cut at every byte and every pair of bytes give the same content and calls, and each call's name comes with its first piece.
 void check_tool_split(const std::string& what, chat::ToolFormat format, const chat::ToolTypes& typed, const std::string& text, const std::string& content,
-                      const std::vector<Call>& calls, Tally& tally) {
+                      const std::vector<Call>& calls, Tally& tally, bool single = false) {
     auto split = [&](const std::vector<std::string>& pieces, std::string& got, std::vector<Call>& found) {
-        chat::ToolCallSplit splitter(format, typed);
+        chat::ToolCallSplit splitter(format, typed, single);
         std::vector<chat::ToolCallDelta> deltas;
         for (const std::string& piece : pieces) {
             const chat::ToolCallSplit::Parts p = splitter.feed(piece);
@@ -224,7 +224,7 @@ void check_tool_split(const std::string& what, chat::ToolFormat format, const ch
         const chat::ToolCallSplit::Parts p = splitter.finish();
         got += p.content;
         deltas.insert(deltas.end(), p.calls.begin(), p.calls.end());
-        bool named = splitter.calls() == calls.size() && !splitter.open();
+        bool named = splitter.calls() == calls.size() && !splitter.open() && splitter.done() == (single && !calls.empty());
         for (const chat::ToolCallDelta& d : deltas) {
             if (d.index == found.size()) {
                 named = named && !d.name.empty();
@@ -273,6 +273,10 @@ void check_tool_splits(Tally& tally) {
     check_tool_split("an opening cut short", ToolFormat::json, typed, "x <tool_call>\n{\"na", "x <tool_call>\n{\"na", {}, tally);
     check_tool_split("text that only looks like an opening", ToolFormat::json, typed, "a < b <tool_c\n", "a < b <tool_c\n", {}, tally);
     check_tool_split("a reply without calls", ToolFormat::json, typed, "Plain reply.\n\n", "Plain reply.\n\n", {}, tally);
+    // With one call a reply (parallel_tool_calls false), the reply ends at the first call's close: what follows it is not read.
+    check_tool_split("two JSON calls, one a reply", ToolFormat::json, typed, "Let me check.\n" + paris + "\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call>\nDone.",
+                     "Let me check.", { { "get_weather", "{\"city\": \"Paris\"}" } }, tally, true);
+    check_tool_split("a reply without calls, one a reply", ToolFormat::json, typed, "Plain <tool_c reply.", "Plain <tool_c reply.", {}, tally, true);
 
     const std::string fn = "<tool_call>\n<function=get_weather>\n<parameter=city>\nParis\n</parameter>\n<parameter=days>\n3\n</parameter>\n</function>\n</tool_call>";
     check_tool_split("a function call", ToolFormat::xml, typed, fn, "", { { "get_weather", "{\"city\": \"Paris\", \"days\": 3}" } }, tally);
@@ -289,6 +293,8 @@ void check_tool_splits(Tally& tally) {
                      { { "f", "{\"a\": \"1\"}" } }, tally);
     check_tool_split("a function call without its closing tag", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=a>\n1\n</parameter>\n</tool_call>", "",
                      { { "f", "{\"a\": \"1\"}" } }, tally);
+    check_tool_split("two function calls, one a reply", ToolFormat::xml, typed, fn + "\n<tool_call>\n<function=noop>\n</function>\n</tool_call>", "",
+                     { { "get_weather", "{\"city\": \"Paris\", \"days\": 3}" } }, tally, true);
     check_tool_split("text inside a call", ToolFormat::xml, typed, "<tool_call>\n<function=f>\njunk\n<parameter=a>\n1\n</parameter>\n</function>\n</tool_call>", "",
                      { { "f", "{\"a\": \"1\"}" } }, tally);
 }

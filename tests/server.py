@@ -642,13 +642,17 @@ TOOL_REPLIES = {
                 "ys>\n3\n</param", "eter>\n</function>\n</tool", "_call>"],
 }
 WEATHER_ARGUMENTS = "{\"city\": \"Paris\", \"days\": 3}"
+# A reply of two calls under the Qwen3 template, the token that closes the first also opening the second.
+TWO_CALLS = ["<think>\n\n</think>\n\n<tool_call>\n{\"name\": \"get_", "weather\", \"arguments\": {\"city\": \"Par", "is\"}}\n</tool_",
+             "call>\n<tool_call>\n{\"name\": \"get_weather\", \"argu", "ments\": {\"city\": \"Tok", "yo\"}}\n</tool_call>"]
 
 
 def check_tool_calls(directory):
     """Tool calls on the chat routes (docs/SERVER.md, Tool calls), on a model whose reply under a pinned template is a call to a weather tool in that template's format, cut into tokens that split its tags.
     /v1/chat/completions gives the call in the compatible shape, whole and streamed, with finish_reason tool_calls and a null content; /v1/chat gives the text whole; tool_choice "none" is the request without tools.
     The loop's second request, the call sent back as the reply gave it with the tool's result, reuses the first request's history past its reply, which the server read again as the client sends it back.
-    The tools of the chat fixture render through /v1/tokenize as the reference renders them under every pinned template, and what the server cannot honour is refused with its reason."""
+    The tools of the chat fixture render through /v1/tokenize as the reference renders them under every pinned template, and what the server cannot honour is refused with its reason.
+    parallel_tool_calls false ends a reply of two calls at the first call's close, the compatible reply holding one call and /v1/chat's text ending with the token that closes it."""
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
         fixture = json.load(f)
     templates = {t["name"]: t for t in fixture["templates"]}
@@ -694,7 +698,6 @@ def check_tool_calls(directory):
             for refused, text in (({"tool_choice": "required"}, "tool_choice \"required\" is not supported"),
                                   ({"tool_choice": {"type": "function", "function": {"name": "get_weather"}}}, "tool_choice naming a function is not supported"),
                                   ({"tool_choice": "maybe"}, "tool_choice must be \"auto\" or \"none\""),
-                                  ({"parallel_tool_calls": False}, "parallel_tool_calls false is not supported yet"),
                                   ({"parallel_tool_calls": "yes"}, "parallel_tool_calls must be true or false"),
                                   ({"tools": {"type": "function"}}, "tools must be an array"),
                                   ({"tools": [{"function": {"name": "f"}}]}, "tools[0] must be"),
@@ -724,6 +727,32 @@ def check_tool_calls(directory):
                 rendered += 1
         finally:
             srv.close()
+    # parallel_tool_calls false ends a reply of two calls at the first call's close: one call whole and streamed, the text on /v1/chat ending with the token that closes it.
+    vocab = byte + ["".join(byte[b] for b in p.encode()) for p in TWO_CALLS] + ["<|endoftext|>"]
+    eos = len(vocab) - 1
+    f32.write_model(model, chain_tensors([ord("\n")] + list(range(256, eos)) + [eos], len(vocab), config), templates["Qwen3 (official repositories)"]["template"], eos,
+                    config=config, tokens=vocab)
+    srv = Server(model)
+    try:
+        body = {"messages": ask, "tools": WEATHER_TOOLS, "temperature": 0, "max_tokens": 64}
+        status, both = srv.post("/v1/chat/completions", body)
+        assert status == 200 and [json.loads(c["function"]["arguments"])["city"] for c in both["choices"][0]["message"]["tool_calls"]] == ["Paris", "Tokyo"], both
+        for parallel in (False, True):
+            status, got = srv.post("/v1/chat/completions", dict(body, parallel_tool_calls=parallel))
+            calls = got["choices"][0]["message"]["tool_calls"] if status == 200 else None
+            assert status == 200 and got["choices"][0]["finish_reason"] == "tool_calls" and len(calls) == (1 if not parallel else 2), (parallel, status, got)
+            assert calls[0]["function"]["arguments"] == "{\"city\": \"Paris\"}" and got["choices"][0]["message"]["content"] is None, (parallel, got)
+        assert got["usage"]["completion_tokens"] == len(TWO_CALLS), got
+        status, one = srv.post("/v1/chat/completions", dict(body, parallel_tool_calls=False))
+        assert one["usage"]["completion_tokens"] == 4, one
+        events = srv.stream("/v1/chat/completions", dict(body, parallel_tool_calls=False, stream=True))
+        pieces = [t for e in events if e and e.get("choices") for t in e["choices"][0]["delta"].get("tool_calls", [])]
+        assert {t["index"] for t in pieces} == {0} and "".join(t["function"]["arguments"] for t in pieces) == "{\"city\": \"Paris\"}", pieces
+        assert events[-2]["choices"][0]["finish_reason"] == "tool_calls" and events[-1] is None, events[-2:]
+        status, native = srv.post("/v1/chat", dict(body, parallel_tool_calls=False))
+        assert status == 200 and native["text"] == "".join(TWO_CALLS[:4]) and native["tokens"] == 4, native
+    finally:
+        srv.close()
     # A template that writes no tool-call format refuses tools.
     f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=config)
     srv = Server(model)

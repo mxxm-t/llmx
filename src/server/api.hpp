@@ -109,9 +109,9 @@ inline std::string compat_number(float logprob) {
 // The assistant turn a client sends back for a chat reply `text`, which the reply is read again as (Api::next_turn).
 // On the compatible route it is the content alone and the calls in the format `tools` names (chat::reply_message), and on the native route the text whole, as the format keeps a turn.
 inline chat::Message reply_sent_back(const chat::ChatFormat& format, bool compatible, bool opened, const std::string& text, chat::ToolFormat tools,
-                                     const chat::ToolTypes& typed, bool* open) {
+                                     const chat::ToolTypes& typed, bool single, bool* open) {
     if (!compatible) return format.assistant(text);
-    return chat::reply_message(format, opened, tools, typed, text, open);
+    return chat::reply_message(format, opened, tools, typed, single, text, open);
 }
 
 // Cuts a reply's text at the first stop text, which the compatible routes leave out, and holds back the end of the text so far that could still grow into one.
@@ -435,9 +435,9 @@ private:
     }
 
     // A chat request's tools (docs/SERVER.md, Tool calls): given to the template where `tool_choice` is "auto", its default, and then the reply's calls parsed on the compatible route; "none" is the request without tools.
-    // What the server cannot honour is refused: a strict schema, "required" or a named function, which need constrained decoding, `parallel_tool_calls` false, and tools for a template that writes no tool-call format.
+    // Refused: a strict schema, "required" or a named function, which need constrained decoding, and tools for a template without a tool-call format; `parallel_tool_calls` false is `single`, one call a reply.
     struct Tools {
-        bool on = false;
+        bool on = false, single = false;
         chat::jj::Value value;
         chat::ToolTypes typed;
     };
@@ -445,7 +445,7 @@ private:
         Tools t;
         if (const jmini::Value* parallel = given(body, "parallel_tool_calls") ? body.get("parallel_tool_calls") : nullptr) {
             if (parallel->t != jmini::Value::T::Bool) throw BadRequest(400, "parallel_tool_calls must be true or false");
-            if (!parallel->b) throw BadRequest(400, "parallel_tool_calls false is not supported yet: a reply may hold several calls");
+            t.single = !parallel->b;
         }
         bool none = false;
         if (const jmini::Value* choice = given(body, "tool_choice") ? body.get("tool_choice") : nullptr) {
@@ -561,7 +561,7 @@ private:
         const Tools tools = tools_of(body);
         bool open = false;
         messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text,
-                                           route == Route::chat_completions && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, &open));
+                                           route == Route::chat_completions && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, tools.single, &open));
         if (writing && open) return {};
         return chat::stable_prefix(format_, tok_, messages, writing, template_vars(body));
     }
@@ -931,8 +931,13 @@ private:
         const bool split = route == Route::chat_completions;
         chat::ReplySplit splitter(chat::opens_reasoning(prompt));
         // With tools, its content's tool calls apart from its text, as calls in the compatible shape.
-        const Tools tools = split ? tools_of(body) : Tools{};
-        chat::ToolCallSplit caller(tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed);
+        const Tools tools = route == Route::chat || split ? tools_of(body) : Tools{};
+        chat::ToolCallSplit caller(split && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, tools.single);
+        // With one call a reply, on either chat route, the request is cancelled at the first call's close and what it draws after is left out.
+        const bool single = tools.on && tools.single;
+        chat::ReplySplit watch_reasoning(chat::opens_reasoning(prompt));
+        chat::ToolCallSplit watch(single ? format_.tool_format : chat::ToolFormat::none, tools.typed, true);
+        bool cut = false;
 
         // Drain the channel; a write that fails means the client went away, so cancel the request and stop.
         // Between writes the socket is looked at every kProbe, token or not, since a request that is queued, prefilling or building a whole reply writes nothing that could fail.
@@ -964,7 +969,7 @@ private:
                     if (c.peer_closed()) throw http::ClientGone("http: the client closed the connection");
                     probe = Request::Clock::now() + kProbe;
                 }
-                if (got == Request::Next::timeout) continue;
+                if (got == Request::Next::timeout || cut) continue;
                 gen.push_back(tok.id);
                 std::string bytes = tok_.decode({tok.id});
                 pending += bytes;
@@ -973,6 +978,10 @@ private:
                 pending.erase(0, whole);
                 const std::string out = trims ? trim.feed(piece) : piece;
                 text += out;
+                if (single && (watch.feed(watch_reasoning.feed(out).content), watch.done())) {
+                    r->cancel();
+                    cut = true;
+                }
                 if (following && gen.size() % kFollowEvery == 0) sched_.follow(r, next_turn(body, route, prompt, text, true), false);
                 Sampled s;
                 if (params.logprobs) {
@@ -1011,7 +1020,7 @@ private:
             pending = utf8_sanitize(pending);
             const std::string rest = trims ? trim.feed(pending) + trim.finish() : pending;
             text += rest;
-            const std::string finish = r->finish();
+            const std::string finish = cut ? "stop" : r->finish();
             if (finish == "error") {
                 if (!stream) throw std::runtime_error(r->error());
                 // The stream's head went out as 200, so the failure is its last event.

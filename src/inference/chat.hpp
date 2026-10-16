@@ -191,7 +191,8 @@ public:
         std::string content;
         std::vector<ToolCallDelta> calls;
     };
-    ToolCallSplit(ToolFormat format, ToolTypes typed) : format_(format), typed_(std::move(typed)) {}
+    // With `single`, one call a reply (parallel_tool_calls false): the reply ends at the first call's close, and nothing after it is read.
+    ToolCallSplit(ToolFormat format, ToolTypes typed, bool single) : format_(format), typed_(std::move(typed)), single_(single) {}
 
     Parts feed(const std::string& piece) {
         Parts out;
@@ -207,12 +208,15 @@ public:
     }
     size_t calls() const { return calls_; }
     // Whether the text so far ends inside a call.
-    bool open() const { return state_ != State::text; }
+    bool open() const { return state_ != State::text && state_ != State::done; }
+    // Whether the reply has ended at its one call's close.
+    bool done() const { return state_ == State::done; }
 
 private:
-    enum class State { text, head, json_args, xml_params, xml_close };
+    enum class State { text, head, json_args, xml_params, xml_close, done };
     ToolFormat format_;
     ToolTypes typed_;
+    bool single_;
     State state_ = State::text;
     std::string buf_, space_, name_;
     size_t calls_ = 0, params_ = 0;
@@ -251,7 +255,7 @@ private:
         params_ = 0;
     }
     void end() {
-        state_ = State::text;
+        state_ = single_ ? State::done : State::text;
         after_call_ = true;
     }
     // An opening that does not parse: the text it took, and the whitespace before it, go back to the content.
@@ -313,6 +317,10 @@ private:
         static const std::string open_tag = "<tool_call>", close_tag = "</tool_call>", fn = "<function=", param = "<parameter=",
                                  param_end = "</parameter>", fn_end = "</function>";
         for (;;) {
+            if (state_ == State::done) {
+                buf_.clear();
+                return;
+            }
             if (state_ == State::text) {
                 const size_t at = buf_.find(open_tag);
                 if (at != std::string::npos) {
@@ -3279,13 +3287,13 @@ inline std::vector<uint32_t> stable_prefix(const ChatFormat& format, const bpe::
     return ids[0];
 }
 
-// The assistant turn a compatible client sends back for a reply `text`: its content without the reasoning, and with a tool format the calls with their arguments as the reply gave them.
+// The assistant turn a compatible client sends back for a reply `text`: its content without the reasoning, and with a tool format the calls with their arguments as the reply gave them, one at most with `single`.
 // `open`, where given, is set when the text ends inside a call, whose arguments are not yet whole.
-inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat tools, const ToolTypes& typed, const std::string& text, bool* open = nullptr) {
+inline Message reply_message(const ChatFormat& format, bool opened, ToolFormat tools, const ToolTypes& typed, bool single, const std::string& text, bool* open = nullptr) {
     ReplySplit split(opened);
     const ReplySplit::Parts parts = split.feed(text), last = split.finish();
     if (tools == ToolFormat::none) return format.assistant(parts.content + last.content);
-    ToolCallSplit calls(tools, typed);
+    ToolCallSplit calls(tools, typed, single);
     const ToolCallSplit::Parts a = calls.feed(parts.content + last.content);
     if (open) *open = calls.open();
     const ToolCallSplit::Parts b = calls.finish();

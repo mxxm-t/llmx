@@ -356,7 +356,7 @@ void check_tool_template(const std::string& name, const chat::ChatFormat& format
                     continue;
                 }
                 bool open = true;
-                const chat::Message back = chat::reply_message(format, chat::opens_reasoning(prompt), format.tool_format, typed, whole.substr(prompt.size(), end - prompt.size()), &open);
+                const chat::Message back = chat::reply_message(format, chat::opens_reasoning(prompt), format.tool_format, typed, false, whole.substr(prompt.size(), end - prompt.size()), &open);
                 const std::string again = format.render({ ask[0], back }, false);
                 if (open || back.tool_calls.size() != 2 || again != whole)
                     tally.fail(where + ": read back as " + std::to_string(back.tool_calls.size()) + " calls and content \"" + back.content + "\", it renders\n" + again + "\nwhere the turn renders\n" + whole);

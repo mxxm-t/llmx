@@ -4,7 +4,7 @@ Renders a GGUF file's `tokenizer.chat_template`, a template in the Jinja languag
 Values behave as Python's do: `str()` and `repr()` of every kind, string methods over characters rather than bytes, integer and float arithmetic, the undefined value's messages, and Python's own messages for the type and division errors a render can raise.
 Namespace `chat`, with the language itself in `chat::jj`.
 
-- `Message`: `{ role, content, reasoning_content }`, the last absent when a turn has no reasoning apart from its reply.
+- `Message`: `{ role, content, reasoning_content, tool_calls, tool_call_id, name }`; `reasoning_content` is absent when a turn has no reasoning apart from its reply, `tool_calls` (`ToolCall`: `{ id, name, arguments }`, the arguments a JSON text or an object as a client sends them) is an assistant turn's calls, and `tool_call_id` and `name` are a message's as a client gives them.
 - `assistant_turn(text) -> Message`: an assistant reply split as the Qwen templates split one themselves, the reply after the last `</think>` without the newlines that open it and the reasoning before the first `</think>`, after the last `<think>` there, without the newlines around it.
   A text without `</think>` is all reply.
   It is the one owner of the split of a turn a conversation keeps.
@@ -24,9 +24,12 @@ Namespace `chat`, with the language itself in `chat::jj`.
   A template that raises on that render, or a text the tokenizer refuses, gives 0, so nothing is kept; `chat` and the server's chat routes both take it from here.
 - `Refused` is a template the renderer does not take; `TemplateError` is a render that fails.
 
-The variables a render reads are those the reference passes for a conversation without tools or documents: `messages` (each a dict of `role`, `content` and, when present, `reasoning_content`, in that order), `tools` and `documents` as none, `add_generation_prompt`, `bos_token` and `eos_token`.
+The variables a render reads are those the reference passes for a conversation without tools or documents: `messages` (each a dict of `role`, `content` and, when present, `reasoning_content`, `tool_calls`, `tool_call_id` and `name`, in that order), `tools` and `documents` as none, `add_generation_prompt`, `bos_token` and `eos_token`.
+A call is the dict `{"id", "type": "function", "function": {"name", "arguments"}}`, its `id` only where one was given, and its arguments read by one rule (`arguments_value`): a text that holds a JSON object is that object, any other text stays text, and an object stays as it is.
+Clients send arguments as JSON text, and the official Qwen 3.5, 3.6 and 3.8 templates and Qwen3-Coder take only a mapping ("Can only get item pairs from a mapping."), while the Qwen3 templates write a mapping with `tojson` in the form the model writes; so the rule is what the newer templates need to render at all, and it changes nothing the older ones show.
+JSON reaches the template through `template_value`, as Python's json module reads it: a number written whole an int and any other a float (`jmini::Value::whole`), an object's keys in order with a repeated key's last value in its first place, and a whole number of 2^53 or more, which a double may not hold, refused.
 The thinking variables (`enable_thinking` and the like) are passed only when a request sets them, the server's `chat_template_kwargs`, so a template otherwise takes its own default.
-`context(messages, add_generation_prompt, bos, eos, vars)` builds them, and `jj::Template::render` renders any such dict, which the fixture test uses for tools, tool calls and content given as parts.
+`context(messages, add_generation_prompt, bos, eos, vars)` builds them, and `jj::Template::render` renders any such dict, which the fixture test uses, through `template_value`, for tools, tool calls as the reference takes them and content given as parts.
 
 ## Which turns are split
 
@@ -75,6 +78,7 @@ Those bounds keep parsing and rendering within about 100 KB and 200 KB of host s
 `tests/chat_template.cpp` (CTest `chat-template`) reads `tests/data/baseline_chat_template.json`, which `tools/gen_chat_baseline.py` writes with transformers' renderer:
 
 - the pinned real templates, each held to its SHA-256, over 34 conversations each: the twelve the Qwen3 fixture always held, replies with their reasoning inline and split, tool turns, tools with text beyond ASCII and nested objects, tool calls with their arguments as a dict and as a string, content given as parts, conversations the templates raise on, and text JSON or whitespace handling could change;
+- five conversations of each real template as an OpenAI client sends them after tool calls (`server_cases`): arguments as JSON text with numbers written whole, as fractions and with exponents, content null beside calls, an object as arguments, tool results with `tool_call_id` and `name`, a loop of two rounds of calls, and arguments that are not an object; the generator renders them as the server hands them on, its rule written in Python apart from llmx's, and the test reads them into `Message` and renders them through `context`;
 - for each of them, whether the reference's renders keep an assistant turn split, which `split_turns` must match, and a two-turn conversation with seven replies kept through `ChatFormat::assistant`, among them replies with two `</think>`, none, and spaces or a tab after it, each rendering as the reference renders the turn kept that way;
 - small feature templates over three conversations each, for the parts of the language the real templates reach only in branches their conversations do not take;
 - templates the renderer must refuse;

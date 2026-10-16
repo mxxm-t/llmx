@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/json.hpp"
 #include "core/utf8.hpp"
 #include "format/gguf.hpp"
 #include "tokenizer/tokenizer.hpp"
@@ -33,12 +34,20 @@ struct Refused : std::runtime_error { using std::runtime_error::runtime_error; }
 // It is also raised where this renderer cannot follow Python, such as a number past 64 bits or case mapping beyond ASCII, rather than render other text.
 struct TemplateError : std::runtime_error { using std::runtime_error::runtime_error; };
 
+// A call an assistant turn makes, as a client sends it back: the function's name, its arguments as a JSON text or an object, and its id where one was given.
+struct ToolCall {
+    std::string id, name;
+    jmini::Value arguments;
+};
+
 // One turn of a conversation.
 // `reasoning_content` is an assistant turn's reasoning, held apart from its reply as clients pass it, and absent when the turn has none.
 struct Message {
     std::string role;
     std::string content;
     std::optional<std::string> reasoning_content;
+    std::vector<ToolCall> tool_calls{};                     // an assistant turn's calls
+    std::optional<std::string> tool_call_id{}, name{};      // the call a tool result answers, and a name the client gave the message
 };
 
 // An assistant turn split as the Qwen templates split one: the reply after the last </think> without the newlines that open it, and the reasoning before the first </think>, after the last <think> there, trimmed likewise.
@@ -2838,6 +2847,41 @@ private:
 // A template variable a request sets beside the conversation, as `enable_thinking` switches the Qwen templates' reasoning.
 using TemplateVar = std::pair<std::string, jj::Value>;
 
+// A JSON value as the template reads it, as Python's json module reads it: a number written whole is an int and any other a float, and an object keeps its keys in order, a repeated key's last value in its first place.
+// A whole number of 2^53 or more, which a double may not hold exactly as Python's int does, is refused.
+inline jj::Value template_value(const jmini::Value& v) {
+    using jj::Value;
+    switch (v.t) {
+        case jmini::Value::T::Null: return Value::none();
+        case jmini::Value::T::Bool: return Value::boolean(v.b);
+        case jmini::Value::T::Number:
+            if (!v.whole) return Value::number(v.num);
+            if (std::fabs(v.num) >= 9007199254740992.0) throw TemplateError("a whole number of 2^53 or more cannot be given to the template exactly");
+            return Value::integer((int64_t)v.num);
+        case jmini::Value::T::String: return Value::str(v.str);
+        case jmini::Value::T::Array: {
+            std::vector<Value> items;
+            for (const auto& x : v.arr) items.push_back(template_value(x));
+            return Value::list(std::move(items));
+        }
+        case jmini::Value::T::Object: {
+            auto o = std::make_shared<jj::Object>();
+            for (const auto& kv : v.obj) o->set(kv.first, template_value(kv.second));
+            return Value::dict(o);
+        }
+    }
+    return Value::none();
+}
+
+// A call's arguments as the template reads them: a text that holds a JSON object as that object, since the newer Qwen templates take only a mapping, any other text as itself, and an object as it is.
+inline jj::Value arguments_value(const jmini::Value& arguments) {
+    if (!arguments.isString()) return template_value(arguments);
+    jmini::Value parsed;
+    try { parsed = jmini::parse(arguments.str); }
+    catch (const std::runtime_error&) { return jj::Value::str(arguments.str); }
+    return parsed.isObject() ? template_value(parsed) : jj::Value::str(arguments.str);
+}
+
 // The variables a chat render reads, as the reference renderer passes them for a conversation without tools or documents, then `vars`.
 inline jj::Value context(const std::vector<Message>& messages, bool add_generation_prompt,
                          const std::string& bos_token, const std::string& eos_token, const std::vector<TemplateVar>& vars = {}) {
@@ -2848,6 +2892,21 @@ inline jj::Value context(const std::vector<Message>& messages, bool add_generati
         o->set("role", Value::str(m.role));
         o->set("content", Value::str(m.content));
         if (m.reasoning_content) o->set("reasoning_content", Value::str(*m.reasoning_content));
+        if (!m.tool_calls.empty()) {
+            std::vector<Value> calls;
+            for (const ToolCall& c : m.tool_calls) {
+                auto function = std::make_shared<jj::Object>(), call = std::make_shared<jj::Object>();
+                function->set("name", Value::str(c.name));
+                function->set("arguments", arguments_value(c.arguments));
+                if (!c.id.empty()) call->set("id", Value::str(c.id));
+                call->set("type", Value::str("function"));
+                call->set("function", Value::dict(function));
+                calls.push_back(Value::dict(call));
+            }
+            o->set("tool_calls", Value::list(std::move(calls)));
+        }
+        if (m.tool_call_id) o->set("tool_call_id", Value::str(*m.tool_call_id));
+        if (m.name) o->set("name", Value::str(*m.name));
         list.push_back(Value::dict(o));
     }
     auto c = std::make_shared<jj::Object>();

@@ -24,6 +24,7 @@ struct Value {
     enum class T { Null, Bool, Number, String, Array, Object } t = T::Null;
     bool b = false;
     double num = 0;
+    bool whole = false;   // a number written without a fraction or an exponent, which Python's json reads as an int
     std::string str;
     Array arr;
     Object obj;
@@ -167,6 +168,7 @@ class Parser {
         if (!digit()) throw std::runtime_error("json: expected number");
         if (s[i] == '0') ++i;
         else while (digit()) ++i;
+        const size_t integral = i;
         if (i < s.size() && s[i] == '.') {
             ++i;
             if (!digit()) throw std::runtime_error("json: missing fractional digits");
@@ -179,6 +181,7 @@ class Parser {
             while (digit()) ++i;
         }
         Value v; v.t = Value::T::Number;
+        v.whole = integral == i;
         std::istringstream input(s.substr(start, i - start));
         input.imbue(std::locale::classic());
         input >> v.num;

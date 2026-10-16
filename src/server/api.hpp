@@ -382,7 +382,36 @@ private:
         return text;
     }
 
+    // An assistant message's tool calls in the compatible chat API's form, {"id", "type": "function", "function": {"name", "arguments"}}, the arguments a JSON text or an object; none where the field is absent, null or empty.
+    static std::vector<chat::ToolCall> tool_calls_of(const jmini::Value& m) {
+        std::vector<chat::ToolCall> calls;
+        const jmini::Value* list = m.get("tool_calls");
+        if (!list || list->t == jmini::Value::T::Null) return calls;
+        static const char* const form = "tool_calls must be an array of {\"type\": \"function\", \"function\": {\"name\": a string, \"arguments\": a string or an object}}";
+        if (!list->isArray()) throw BadRequest(400, form);
+        for (const auto& c : list->asArray()) {
+            const jmini::Value* type = c.get("type");
+            const jmini::Value* id = c.get("id");
+            const jmini::Value* function = c.get("function");
+            const jmini::Value* name = function ? function->get("name") : nullptr;
+            const jmini::Value* arguments = function ? function->get("arguments") : nullptr;
+            if (!c.isObject() || (type && (!type->isString() || type->asString() != "function")) || (id && !id->isString()) || !name || !name->isString() ||
+                name->asString().empty() || !arguments || (!arguments->isString() && !arguments->isObject()))
+                throw BadRequest(400, form);
+            calls.push_back({id ? id->asString() : std::string(), name->asString(), *arguments});
+        }
+        return calls;
+    }
+    // A message's optional string field, refused when it is neither a string nor null.
+    static std::optional<std::string> text_field(const jmini::Value& m, const char* key) {
+        const jmini::Value* f = m.get(key);
+        if (!f || f->t == jmini::Value::T::Null) return std::nullopt;
+        if (!f->isString()) throw BadRequest(400, key + std::string(" must be a string"));
+        return f->asString();
+    }
+
     // A request's messages as chat records its own turns: a message's reasoning as the client passes it in `reasoning_content`, or else an assistant message as chat::ChatFormat::assistant keeps chat's own replies.
+    // An assistant message's tool calls come with it, and a message's `tool_call_id` and `name` as given.
     std::vector<chat::Message> messages_of(const jmini::Value& body) const {
         const jmini::Value* msgs = body.get("messages");
         if (!msgs || !msgs->isArray() || msgs->asArray().empty()) throw BadRequest(400, "messages must be a non-empty array");
@@ -392,11 +421,16 @@ private:
             if (!given_role || !given_role->isString()) throw BadRequest(400, "every message needs a string role");
             // The developer role of the newer chat APIs is the system message.
             const std::string role = given_role->asString() == "developer" ? "system" : given_role->asString();
+            std::vector<chat::ToolCall> calls = tool_calls_of(m);
+            if (!calls.empty() && role != "assistant") throw BadRequest(400, "only an assistant message may carry tool_calls");
             const jmini::Value* reasoning = m.get("reasoning_content");
             if (reasoning && reasoning->t != jmini::Value::T::Null && !reasoning->isString()) throw BadRequest(400, "reasoning_content must be a string");
             if (reasoning && reasoning->isString()) messages.push_back({role, content_of(m), reasoning->asString()});
             else if (role == "assistant") messages.push_back(format_.assistant(content_of(m)));
             else messages.push_back({role, content_of(m), std::nullopt});
+            messages.back().tool_calls = std::move(calls);
+            messages.back().tool_call_id = text_field(m, "tool_call_id");
+            messages.back().name = text_field(m, "name");
         }
         return messages;
     }
@@ -414,8 +448,10 @@ private:
             if (v.t == jmini::Value::T::Bool) vars.push_back({name, chat::jj::Value::boolean(v.b)});
             else if (v.isString()) vars.push_back({name, chat::jj::Value::str(v.asString())});
             else if (v.t == jmini::Value::T::Null) vars.push_back({name, chat::jj::Value::none()});
-            else if (v.isNumber())
-                vars.push_back({name, v.num == std::floor(v.num) && std::fabs(v.num) < 9007199254740992.0 ? chat::jj::Value::integer((int64_t)v.num) : chat::jj::Value::number(v.num)});
+            else if (v.isNumber()) {
+                try { vars.push_back({name, chat::template_value(v)}); }
+                catch (const chat::TemplateError& e) { throw BadRequest(400, "chat_template_kwargs: " + std::string(e.what())); }
+            }
             else throw BadRequest(400, "chat_template_kwargs values must be booleans, numbers, strings or null");
         }
         return vars;

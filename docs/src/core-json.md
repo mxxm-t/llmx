@@ -22,6 +22,9 @@ Recursive-descent JSON parser, written from scratch (no libs), in namespace
   a stream imbued with the classic locale. Overflow and nonzero values that
   underflow to zero are rejected; signed zero is preserved. This is bounded
   floating-point storage, not exact arbitrary-precision integer storage.
+  `Value::whole` records a number written without a fraction or an exponent,
+  which Python's json module reads as an int, so the chat template's values
+  (`chat::template_value`, [inference-chat.md](inference-chat.md)) tell `1` from `1.0`.
 - At most 256 nested arrays/objects are accepted. Primitive values do not add
   to that depth. No separate document-size limit is imposed.
 - `quote(text)` returns a quoted JSON string, escaping quotation marks,

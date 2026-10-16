@@ -570,7 +570,8 @@ private:
         return "{\"cache_n\":" + std::to_string(cached) + ",\"prompt_n\":" + std::to_string(prefilled) +
                ",\"prompt_ms\":" + num(t.prompt_ms) + ",\"prompt_per_second\":" + num(Request::Timings::per_second(prefilled, t.prompt_ms)) +
                ",\"predicted_n\":" + std::to_string(Request::Timings::predicted(tokens)) + ",\"predicted_ms\":" + num(t.predicted_ms) +
-               ",\"predicted_per_second\":" + num(t.predicted_per_second(tokens)) + ",\"queued_ms\":" + num(t.queued_ms) + "}";
+               ",\"predicted_per_second\":" + num(t.predicted_per_second(tokens)) + ",\"queued_ms\":" + num(t.queued_ms) +
+               ",\"prepared_ms\":" + num(t.prepared_ms) + "}";
     }
     // The head every compatible object and chunk starts with.
     std::string head(const std::string& id, const char* object) const {
@@ -631,19 +632,36 @@ private:
 
     // What a cut dropped of a prompt, for the reply's context object and the request's line.
     struct Fitted {
-        size_t messages = 0, tokens = 0;
+        size_t messages = 0, tokens = 0, renders = 0;   // renders: those that placed the messages' ends, on a chat route
         bool cut = false, at_marker = false;
     };
 
-    // Where each message of a rendered conversation ends in the prompt's rows (context_cut.hpp): the end tokens the scan finds, where there is one a message.
-    // Otherwise the conversation is rendered up to each message and counted, which runs only where the scan's count differs and only for a prompt that does not fit.
-    std::vector<size_t> message_ends(const std::vector<chat::Message>& messages, const std::vector<chat::TemplateVar>& vars, const std::vector<uint32_t>& ids) const {
-        std::vector<size_t> ends = cut_points(ids.data(), ids.size(), [this](uint32_t id) { return tok_.is_eos(id); });
-        if (ends.size() == messages.size()) return ends;
-        ends.clear();
-        for (size_t k = 1; k <= messages.size(); ++k)
-            ends.push_back(encode(format_.render(std::vector<chat::Message>(messages.begin(), messages.begin() + (std::ptrdiff_t)k), false, vars)).size());
-        return ends;
+    // Where each message of a conversation ends in the prompt's `ids`: the end tokens, where they number the messages and the template's own, else each part asked about rendered as text.
+    // A rendered part takes the ids whose text lies within it, and one the template refuses is placed by the end tokens (MessageEnds, docs/SERVER.md, A prompt larger than the context).
+    MessageEnds message_ends(const std::vector<chat::Message>& messages, const std::vector<chat::TemplateVar>& vars, const std::vector<uint32_t>& ids) const {
+        std::vector<size_t> points = cut_points(ids.data(), ids.size(), [this](uint32_t id) { return tok_.is_eos(id); });
+        // The end tokens a template writes before its messages, such as a system block it adds where the conversation has none, from the leading system message and one user message alone.
+        std::vector<chat::Message> probe(messages.begin(), messages.begin() + (messages[0].role == "system" ? 1 : 0));
+        probe.push_back({"user", "x", std::nullopt});
+        size_t own = 0;
+        try {
+            const std::vector<uint32_t> p = tok_.encode(format_.render(probe, false, vars));
+            const size_t found = (size_t)std::count_if(p.begin(), p.end(), [this](uint32_t id) { return tok_.is_eos(id); });
+            own = found > probe.size() ? found - probe.size() : 0;
+        } catch (const std::exception&) {
+        }
+        if (points.size() == messages.size() + own) return MessageEnds(std::vector<size_t>(points.begin() + (std::ptrdiff_t)own, points.end()));
+        auto bytes = std::make_shared<std::vector<size_t>>();
+        return MessageEnds(messages.size(), ids.size(), std::move(points), [this, &messages, &vars, &ids, bytes](size_t k) -> std::optional<size_t> {
+            std::string text;
+            try { text = format_.render(std::vector<chat::Message>(messages.begin(), messages.begin() + (std::ptrdiff_t)k), false, vars); }
+            catch (const chat::TemplateError&) { return std::nullopt; }
+            if (bytes->empty()) {
+                size_t at = 0;
+                for (uint32_t id : ids) bytes->push_back(at += tok_.decode({id}).size());
+            }
+            return (size_t)(std::upper_bound(bytes->begin(), bytes->end(), text.size()) - bytes->begin());
+        });
     }
 
     // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
@@ -660,10 +678,12 @@ private:
         f.cut = true;
         if (route == Route::chat || route == Route::chat_completions) {
             const std::vector<chat::Message> messages = messages_of(body);
-            const std::vector<size_t> ends = message_ends(messages, template_vars(body), ids);
+            const std::vector<chat::TemplateVar> vars = template_vars(body);
+            MessageEnds ends = message_ends(messages, vars, ids);
             std::vector<char> starts;
             for (const chat::Message& m : messages) starts.push_back(m.role == "user");
             const size_t lead = messages[0].role == "system" ? 1 : 0, k = first_kept(ends, starts, lead, n, room, step);
+            f.renders = ends.renders() + 1;
             if (k == messages.size()) refuse("its newest turns alone do not fit, so no cut helps");
             for (auto& member : body.obj)
                 if (member.first == "messages") member.second.arr.erase(member.second.arr.begin() + (std::ptrdiff_t)lead, member.second.arr.begin() + (std::ptrdiff_t)k);
@@ -681,8 +701,10 @@ private:
         if (!fits(ids.size())) refuse("cut to " + std::to_string(ids.size()) + " it still does not fit with what it asks for");
         ++shifts_;
         shifted_tokens_ += f.tokens;
-        std::fprintf(stderr, "server: a prompt of %zu tokens cut to %zu to fit %zu, %zu tokens dropped%s%s\n", n, ids.size(), limit, f.tokens,
-                     f.messages ? (", " + std::to_string(f.messages) + " messages").c_str() : "", f.at_marker ? "" : ", not at a turn's end");
+        const std::string messages = f.messages ? ", " + std::to_string(f.messages) + " messages" : std::string();
+        const std::string renders = f.renders ? ", its messages' ends found in " + std::to_string(f.renders) + " render" + (f.renders == 1 ? "" : "s") : std::string();
+        std::fprintf(stderr, "server: a prompt of %zu tokens cut to %zu to fit %zu, %zu tokens dropped%s%s%s\n", n, ids.size(), limit, f.tokens,
+                     messages.c_str(), renders.c_str(), f.at_marker ? "" : ", not at a turn's end");
         return f;
     }
 
@@ -697,6 +719,8 @@ private:
     }
 
     void generate(http::Connection& c, const http::Request& req, Route route) {
+        // The time to first token counts from here, so the render, the tokenizer and a cut are in it.
+        const Request::Clock::time_point received = Request::Clock::now();
         jmini::Value body = body_of(req);
         std::string prompt = prompt_of(body, route);
         const SampleParams params = params_of(body, route);
@@ -708,7 +732,7 @@ private:
         std::vector<uint32_t> ids = encode(prompt);
         const Fitted fitted = fit(body, route, params, prompt, ids);
         const size_t stable = stable_of(body, route, ids), start = message_start_of(body, route, prompt, ids);
-        try { r = sched_.submit(std::move(ids), params, stable, start); }
+        try { r = sched_.submit(std::move(ids), params, stable, start, received); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }

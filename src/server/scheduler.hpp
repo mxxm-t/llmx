@@ -50,9 +50,10 @@ public:
     using Clock = std::chrono::steady_clock;
 
     // `stable` is how much of the prompt a follow-up turn would begin with, the whole prompt for a text, and `message` where its last user message starts, 0 where that is not known (docs/SPECULATIVE.md, section 2).
-    Request(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0)
+    // `received` is when its connection read it, before the prompt was rendered, tokenized and cut.
+    Request(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0, Clock::time_point received = Clock::now())
         : prompt_(std::move(prompt)), params_(std::move(params)), stable_(std::min(stable, prompt_.size())), message_(std::min(message, prompt_.size())),
-          submitted_(Clock::now()) {}
+          received_(std::min(received, Clock::now())), submitted_(Clock::now()) {}
 
     // A sampled token as the channel delivers it; with logprobs asked, its log-probability and the most likely tokens at its position, most likely first.
     struct Token {
@@ -108,9 +109,11 @@ public:
     size_t prompt_tokens() const { return prompt_.size(); }
     // Prompt tokens taken from a donor's cache rather than prefilled.
     size_t reused() const { return reused_.load(); }
-    // Milliseconds from admission to the first token, and from the first token to the end; read once the request has ended.
+    // Milliseconds from its reading to its submission (the prompt rendered, tokenized and cut), from submission to admission, from admission to the first token, and from the first token to the end; read once the request has ended.
     struct Timings {
-        double queued_ms = 0, prompt_ms = 0, predicted_ms = 0;
+        double prepared_ms = 0, queued_ms = 0, prompt_ms = 0, predicted_ms = 0;
+        // What the client waits for its first token, from the request's reading.
+        double first_token_ms() const { return prepared_ms + queued_ms + prompt_ms; }
         // The tokens predicted_ms covers: those after the first, which came with the prompt's pass.
         static size_t predicted(size_t tokens) { return tokens > 1 ? tokens - 1 : 0; }
         static double per_second(size_t n, double ms) { return ms > 0 ? 1000.0 * (double)n / ms : 0.0; }
@@ -120,6 +123,7 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
         Timings t;
+        t.prepared_ms = ms(received_, submitted_);
         if (admitted_ != Clock::time_point{}) t.queued_ms = ms(submitted_, admitted_);
         if (first_ != Clock::time_point{}) t.prompt_ms = ms(admitted_, first_), t.predicted_ms = ms(first_, ended_);
         return t;
@@ -167,7 +171,7 @@ private:
     std::string finish_, error_;
     std::atomic<bool> cancel_{false};
     std::atomic<size_t> reused_{0};
-    Clock::time_point submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
+    Clock::time_point received_, submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
 
     // Scheduler state.
     // The history is the prompt then the generated tokens, neither ever rewritten; the cache holds its first seq_.length(), which is all the progress there is.
@@ -340,12 +344,13 @@ public:
 
     // Queue a request; the handle's channel delivers its tokens.
     // A prompt that leaves its reply no room is refused here, before it waits (prompt_room), and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
-    std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0) {
+    std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0,
+                                    Request::Clock::time_point received = Request::Clock::now()) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (!params.until_limit && params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() > prompt_room(params)) throw TooLong(too_long(prompt.size(), params));
         if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
-        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message);
+        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message, received);
         {
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
@@ -2318,8 +2323,8 @@ private:
             std::snprintf(paused, sizeof paused, ", paused %zu time%s, %zu taken back, %zu tokens recomputed", r->pauses_, r->pauses_ == 1 ? "" : "s",
                           r->taken_back_, r->recomputed_);
         if (r->stalls_) std::snprintf(stalled, sizeof stalled, ", sat out %zu pass%s", r->stalls_, r->stalls_ == 1 ? "" : "es");
-        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s\n",
-                     r->prompt_tokens(), r->reused(), r->gen_.size(), t.queued_ms, t.prompt_ms,
+        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s\n",
+                     r->prompt_tokens(), r->reused(), r->gen_.size(), t.prepared_ms, t.queued_ms, t.first_token_ms(),
                      t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled);
     }
 

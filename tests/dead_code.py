@@ -540,6 +540,11 @@ def find(text, what, path, start=0):
     return i
 
 
+def cmake_text(texts):
+    """The CMake registrations: the root file and the tests' and tools' (cmake/tests.cmake)."""
+    return texts["CMakeLists.txt"] + "\n" + texts.get("cmake/tests.cmake", "")
+
+
 def cmake_list(cmake, name):
     m = re.search(r"set\(" + name + r"\s+(.*?)\)", cmake, re.S)
     if not m:
@@ -549,7 +554,7 @@ def cmake_list(cmake, name):
 
 def shader_findings(texts):
     """`shader`: a source no CMake entry compiles, an include nothing includes, a module never embedded or tabled, a kernel id no dispatch names, a variant's define its source never tests, a tested define nothing sets, and an #ifndef default nothing overrides."""
-    cmake, vk = texts["CMakeLists.txt"], texts[VK]
+    cmake, vk = cmake_text(texts), texts[VK]
     found = {}
 
     def add(path, name, why):
@@ -1042,7 +1047,7 @@ HAND_BUILT = {"tools/compare_cpu.cpp": "llmx-compare-cpu"}
 
 def file_findings(texts):
     """`file`: a src/ file no translation unit CMake builds includes, a test or tool source neither CMake nor the linked check builds, and a test or tool header nothing includes."""
-    cmake = texts["CMakeLists.txt"]
+    cmake = cmake_text(texts)
     built = set(re.findall(r"\b((?:src|tests|tools)/[\w/]+\.cpp)\b", cmake)) | set(HAND_BUILT)
     reached, work = set(), sorted(built)
     while work:
@@ -1262,7 +1267,7 @@ def linked_build(root, build, jobs):
 def linked_findings(texts, build):
     """`linked-unreached`: a src/ function no executable keeps; `linked-test-only`: one only test executables keep.
     Functions are their demangled signatures without template arguments; lambdas, function-local classes, special members nobody wrote or that are defaulted, constexpr functions and functions whose name only code a Linux build leaves out calls are left out, as are functions the name check already reports."""
-    cmake = texts["CMakeLists.txt"]
+    cmake = cmake_text(texts)
     kinds = dict({"llmx": "product"}, **{exe: "product" for exe in HAND_BUILT.values()})
     for target, source in re.findall(r"add_executable\(([\w-]+)\s+([\w/.]+)", cmake):
         kinds[target] = "product" if source.startswith(("src/", "tools/")) else "test"

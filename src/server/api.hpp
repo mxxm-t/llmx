@@ -257,17 +257,21 @@ private:
                   ",\"unproved\":" + n(s.disk_unproved) + ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) +
                   "},\"since_start\":{\"hits\":" + n(s.disk_hits) + ",\"bytes_read\":" + n(s.disk_bytes_read) + ",\"bytes_written\":" + n(s.disk_bytes_written) +
                   ",\"waits\":" + n(s.disk_waits) + ",\"wait_ms\":" + n((uint64_t)s.disk_wait_ms) + ",\"errors\":" + n(s.disk_errors) +
-                  ",\"refused\":" + n(s.disk_refused) + ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.lost_before_written) + "}}" +
+                  ",\"refused\":" + n(s.disk_refused) + ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.lost_before_written) + ",\"refused_directories\":" + n(s.disk_refused_dirs) +
+                  ",\"room_waits\":" + n(s.room_waits) + ",\"room_wait_timeouts\":" + n(s.room_wait_timeouts) + ",\"room_wait_ms\":" + n((uint64_t)s.room_wait_ms) +
+                  ",\"room_wait_longest_ms\":" + n((uint64_t)s.room_wait_longest_ms) + "}}" +
                   ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}},\"moves\":{\"since_start\":{" + moves(s) + "}}}" +
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + "}}" +
-                  ",\"reread\":{\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
+                  ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
                   ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + "}}" +
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +
                   ",\"since_start\":{\"gaps\":" + n(s.gaps) + ",\"gaps_above_target\":" + n(s.gaps_late) + ",\"deferred_by_floor\":" + n(s.floor_deferred) +
-                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "}}" +
+                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"background\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"job_rows_left\":" + n(s.job_rows_left) +
+                  "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"ms\":" + jmini::number((float)s.background_ms) +
+                  ",\"largest_ms\":" + jmini::number((float)s.background_largest_ms) + "}}}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
     // The run's request and resolved dtype, including each device's emulation or wider fallback.
@@ -1182,6 +1186,7 @@ inline void resolve_pacing(Config& cfg, const std::string& unpaced) {
     if (cfg.generating_share > 0 && !unpaced.empty()) throw std::runtime_error("--generating-share: " + unpaced);
     cfg.unpaced = cfg.no_pacing ? "--no-pacing" : unpaced;
     cfg.pacing = cfg.no_pacing ? Pacing{} : cfg.generating_share > 0 ? Pacing::fixed(cfg.generating_share) : unpaced.empty() ? Pacing::automatic() : Pacing{};
+    cfg.pacing.refused = cfg.no_pacing;
 }
 // The start line that says which.
 inline std::string pacing_line(const Config& cfg) {

@@ -887,8 +887,8 @@ enum class When { idle, writing, at_once };
 
 void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t interrupt, When when, const std::string& what, bool small = false) {
     const bool writing = when != When::idle;
-    const Req first{prompt_of(5, 300, vocab), writing ? 400 : 100}, other{prompt_of(9, small ? 40 : 440, vocab), 20};
-    // Answered at once, the follow-up must fit beside the job and the donor it forked, or the job gives way to it.
+    const Req first{prompt_of(5, 300, vocab), writing ? 400 : 100}, other{prompt_of(9, small ? 40 : 700, vocab), 20};
+    // Answered at once, the follow-up must fit beside the job and the donor it forked, or the job gives way to it; the other request, but a small one, cannot be admitted beside the job.
     const size_t pool = when == When::at_once ? 4096 : writing || !interrupt ? 2048 : 1024;
     std::vector<uint32_t> early = first.prompt, later = first.prompt;
     if (writing) {
@@ -1002,11 +1002,11 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     }
 }
 
-// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage and a pass budget past a job's chunk (Scheduler, kJobChunk).
-// `idle`: a job begun once the reply has ended takes no pass from that request's first pass to its last, while otherwise a job begun mid-reply reads beside its decode rows, at most a chunk a pass.
+// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage: its rows are background work, read beside the decode rows within the background budget (BackgroundGrant).
+// `idle`: a job begun once the reply has ended, beside another request; otherwise a job begun mid-reply, beside its own.
 void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool idle) {
     const std::string what = idle ? "a job begun at idle beside a decoding request over a two-CPU split" : "a job begun while its reply is written over a two-CPU split";
-    const size_t kJobChunk = 64, ubatch = 256;
+    const size_t ubatch = 256;
     const Make make = on(weights, [] { return cpus(2); });
     const Req first{prompt_of(5, 300, vocab), idle ? 100 : 400}, other{prompt_of(9, 40, vocab), 200};
     Reply alone;
@@ -1024,6 +1024,7 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
     Reply reply;
     std::vector<std::pair<bool, size_t>> passes;   // per retired pass, whether it held the decoding request and the job's rows in it
     size_t followed_at = 0;                        // the passes retired when the job's ids were given
+    server::Scheduler::Stats stats;
     {
         server::Scheduler sched(*model, tok, 3, 64);
         require(sched.stats().passes == 2, what + ": the scheduler keeps " + std::to_string(sched.stats().passes) + " passes in flight, against 2");
@@ -1072,6 +1073,7 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
             } else {
                 reply = drain(*h);
             }
+            stats = sched.stats();
         } catch (...) {
             sched.stop();
             runner.join();
@@ -1092,12 +1094,10 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
         most = std::max(most, passes[i].second);
         read += passes[i].second;
     }
-    if (idle) {
-        require(most == 0, what + ": a pass carried " + std::to_string(most) + " rows of the job while the request decoded, against none");
-    } else {
-        require(most <= kJobChunk, what + ": a pass carried " + std::to_string(most) + " rows of the job beside the reply it follows, against at most " + std::to_string(kJobChunk));
-        require(read > 0, what + ": the job read nothing while its reply was written");
-    }
+    // The job read beside the decoding request, each such pass's rows a grant of background time, the longest well inside a service gap (on these CPUs a grant buys the whole budget, a row costing little).
+    require(read > 0 && stats.background_grants > 0 && stats.background_largest_ms < server::kServiceGapMs,
+            what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, in " + std::to_string(stats.background_grants) + " grants, the longest " +
+                std::to_string(stats.background_largest_ms) + " ms, against some, some and under the gap");
 }
 
 // A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.
@@ -1814,8 +1814,8 @@ void renewed_copy_current(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     same(serve(*fresh, tok, 3, {{Req{follow, 32}}})[0], follow_reply, what + ", the follow-up");
 }
 
-// A promotion that fails after evicting the device donor a request would otherwise fork: with host memory for one copy, making room for a host copy evicts the second request's donor, whose copy takes the memory the first held.
-// The promotion fails, and the request runs from what is left with its reply alone.
+// A promotion that evicts the device donor a request would otherwise fork: with host memory for one copy, making room for a host copy evicts the second request's donor, whose copy wants the memory the first holds.
+// The copy being promoted keeps it (A18 in docs/CACHE-PLAN.md), so the promotion succeeds, the evicted donor is not kept, and every request gives its reply alone.
 void failed_promotion(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Req a{prompt_of(5, 300, vocab), 40};
     std::vector<uint32_t> fork = a.prompt;
@@ -1831,10 +1831,10 @@ void failed_promotion(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     const std::vector<Reply> got = serve(*model, tok, 1, {{reqs[0]}, {reqs[1]}, {reqs[2]}}, &stats, 0, (size_t)64 << 20);
     for (size_t i = 0; i < reqs.size(); ++i) {
         auto fresh = make(1024, 0);
-        same(serve(*fresh, tok, 1, {{reqs[i]}})[0], got[i], "a failed promotion, request " + std::to_string(i));
+        same(serve(*fresh, tok, 1, {{reqs[i]}})[0], got[i], "a promotion beside the donor it evicts, request " + std::to_string(i));
     }
-    require(stats.host_hits == 0 && stats.host_donors == 1, "a failed promotion: " + std::to_string(stats.host_hits) + " promotions and " +
-                                                            std::to_string(stats.host_donors) + " donors in host memory");
+    require(stats.host_hits == 1 && stats.host_donors == 1, "a promotion beside the donor it evicts: " + std::to_string(stats.host_hits) + " promotions and " +
+                                                            std::to_string(stats.host_donors) + " donors in host memory, against 1 and 1");
 }
 
 void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -2982,6 +2982,7 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
     DiskRoot disk("kept");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
+    // Beyond the host tier each conversation is written as its turn ends, but one the donor count gives up for the next before its write is whole is not waited for (it did not come back), so at least the last is kept.
     const size_t kept = beyond ? 1 : 3;
     std::vector<Req> turns;
     std::vector<Reply> replies;
@@ -2993,7 +2994,8 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
         std::thread runner([&] { sched.run(); });
         try {
             for (const Req& r : turns) replies.push_back(drain(*sched.submit(r.prompt, params_of(r))));
-            within_a_minute([&] { return sched.stats().disk_entries == kept && !sched.stats().disk_in_flight; }, what + ": the idle server's entries written");
+            // Beyond the host tier a conversation may be written as more than one segment, each a file.
+            within_a_minute([&] { const auto st = sched.stats(); return (beyond ? st.disk_entries >= kept : st.disk_entries == kept) && !st.disk_in_flight; }, what + ": the idle server's entries written");
             first = sched.stats();
         } catch (...) {
             sched.stop();
@@ -3003,11 +3005,12 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
         sched.stop();
         runner.join();
     }
-    require(first.disk_entries == kept && (!beyond || first.host_bytes <= first_host),
+    require((beyond ? first.disk_entries >= kept : first.disk_entries == kept) && (!beyond || first.host_bytes <= first_host),
             what + ": " + std::to_string(first.disk_entries) + " entries on disk before the stop, " + std::to_string(first.host_bytes) + " bytes in host memory");
     const std::vector<fs::path> servers = disk.servers();
-    require(servers.size() == 1 && fs::exists(servers[0] / "kept") && disk.files(".kv").size() == kept,
-            what + ": " + std::to_string(servers.size()) + " directories and " + std::to_string(disk.files(".kv").size()) + " entry files left, against 1 and " + std::to_string(kept));
+    const size_t left = disk.files(".kv").size();
+    require(servers.size() == 1 && fs::exists(servers[0] / "kept") && (beyond ? left >= kept : left == kept),
+            what + ": " + std::to_string(servers.size()) + " directories and " + std::to_string(left) + " entry files left, against 1 and " + std::to_string(kept));
     if (beyond) return;
     std::vector<Req> follows;
     for (const size_t k : {(size_t)0, (size_t)2}) {
@@ -3032,6 +3035,8 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
                 got.push_back(drain(*h));
                 reused.push_back(h->reused());
             }
+            // The job that reads the first follow-up's history back, once room is spare, has run.
+            within_a_minute([&] { return !sched.stats().jobs && !sched.stats().disk_in_flight; }, what + ": no job left");
             second = sched.stats();
             ledger(second, *model, what);
         } catch (...) {
@@ -3043,8 +3048,10 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
         runner.join();
         slabs = model->host_allocated();
     }
-    require(second.disk_hits == 2 && reused == std::vector<size_t>{2 * kBlock, 2 * kBlock},
-            what + ": " + std::to_string(second.disk_hits) + " entries read back, the follow-ups reusing " + std::to_string(reused[0]) + " and " + std::to_string(reused[1]) + " tokens");
+    // Read through host memory beyond the tier, the first follow-up's history leaves the devices for the second's room with no copy, and a job reads it back from disk once room is spare: a third read.
+    const size_t reads = through ? 3 : 2;
+    require(second.disk_hits == reads && reused == std::vector<size_t>{2 * kBlock, 2 * kBlock},
+            what + ": " + std::to_string(second.disk_hits) + " entries read back, the follow-ups reusing " + std::to_string(reused[0]) + " and " + std::to_string(reused[1]) + " tokens, against " + std::to_string(reads) + ", 256 and 256");
     for (size_t i = 0; i < follows.size(); ++i) {
         auto fresh = make(2048, 16);
         same(serve(*fresh, tok, 1, {{follows[i]}})[0], got[i], what + ", follow-up " + std::to_string(i));
@@ -3818,10 +3825,10 @@ void host_pool_shortest_copy() {
 }
 
 // A conversation larger than the host tier, on disk, behind its message boundary in host memory (docs/DISK-TIER.md, Restore): a turn and its job on the hybrid model over four CPUs, then another conversation's request that takes its room.
-// The follow-up turn must read the history back from disk, the boundary being a state alone; where the host has no memory for that read it is refused and counted, and a history taken before any file held it is counted lost.
+// The follow-up turn must read the history back from disk, the boundary a state alone; with no host memory for that read it is refused and counted, and a request taking the room before any file holds the history waits for its write.
 enum class Behind { read, refused, at_once };
 void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
-    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::refused ? ", no memory for its read" : arm == Behind::at_once ? ", taken before it was written" : "");
+    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::refused ? ", no memory for its read" : arm == Behind::at_once ? ", its room asked before it was written" : "");
     const uint32_t v = (uint32_t)kHybrid.vocab;
     const bpe::Tokenizer tok(mixed);
     const size_t slab = infer::Model::host_slab_bytes(), cap = 3 * slab;
@@ -3890,7 +3897,9 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
     else if (arm == Behind::refused)
         require(!reused && !after.disk_hits && after.disk_refused == 1, what + ": " + seen + ", against nothing reused or read and one read refused");
     else
-        require(!reused && !after.disk_hits && taken.lost_before_written >= 1 && !written.disk_entries, what + ": " + seen + ", against nothing reused and a history counted lost");
+        // The other request waits for the history's write before it takes the room, so nothing is lost and the turn reads the prompt's 640 whole-block rows back, no job having read the reply.
+        require(reused == 640 && after.disk_hits == 1 && !taken.lost_before_written && !written.disk_entries && taken.room_waits >= 1,
+                what + ": " + seen + ", " + std::to_string(taken.room_waits) + " waits, against 640 reused from one history read, nothing lost and the other request waiting");
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
@@ -3955,8 +3964,8 @@ void request_takes_job(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             got = drain(*mine);
             reused = mine->reused();
             if (first) collect(*first);
-            // Another conversation's request leaves the job to start again and finish.
-            if (arm == Take::unrelated) within_a_minute([&] { return sched.stats().reprefills == 1; }, what + ": the job finishing after it gave way");
+            // Another conversation's request leaves the job no spare room to start again in, its donor holding the pool, so the job is dropped (docs/CACHE-PLAN.md, question 2).
+            if (arm == Take::unrelated) within_a_minute([&] { return !sched.stats().jobs; }, what + ": no job left after it gave way");
             after = sched.stats();
         } catch (...) {
             sched.stop();
@@ -3980,7 +3989,7 @@ void request_takes_job(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     else if (arm == Take::edited)
         require(reused == (state ? 256 : 384) && after.reprefill_handed == (state ? 0 : 1), what + ": " + seen + ", against " + (state ? "the turn's own 256 and no job handed over, its state being kept past the edit" : "the 384 the job's rows share with it"));
     else
-        require(!reused && !after.reprefill_handed && after.reprefill_cancels >= 1 && after.reprefills == 1, what + ": " + seen + ", against nothing reused, the job giving way and finishing after");
+        require(!reused && !after.reprefill_handed && after.reprefill_cancels >= 1 && !after.reprefills, what + ": " + seen + ", against nothing reused, the job giving way and not starting again without spare room");
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 

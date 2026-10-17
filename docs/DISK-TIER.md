@@ -68,7 +68,7 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
   2. the host tier's ranking among the rest, each chosen entry dropped as without a disk tier, the entry whose write is in flight last among those the step may take (`Scheduler::written_soon`): the writer writes what the ranking would take next, so taking it first cancelled every write once the writer had fallen behind, and nothing reached the disk again;
   3. that entry, dropped when no other is left, cancels its write: the writer stops at its current chunk, removes the temporary file, and the entry is not kept, as an entry dropped without a disk tier is not. Its slabs return as the chunk in flight ends, at most 4 MiB, a few milliseconds at the measured rates; the room is counted free at once, and the copy that needed it may take new slabs past the host tier's cap by the dropped entry's until they return, so nothing waits on the scheduler thread.
   A demotion that is still writing never delays an admission: the worst it costs is an entry not kept, which is what the host tier does without a disk tier.
-- **A donor larger than the host tier** has no copy there, so it is kept only where its files are already whole on disk; taken for another request's room before an idle moment wrote it, it is lost, which the server says in a line and counts in `lost_before_written`.
+- **A donor larger than the host tier** has no copy there, so it is written from its turn's end on, while requests run, a segment at a time within the background budget (`BackgroundGrant`), each segment a file; a request whose room would take it before its files are whole waits for them, its write then in whole segments, at least `kWaitBound` (15 s) and, while its own write is in flight, at most the time waited and the write's remaining bytes at its measured rate, the write's own once it has run a second or written 256 MiB and the store's before, 1.5 times and 2 s more, never longer than computing the rows again (`write_wait_ms`, `in_flight_rate`), and only past that bound is it lost, which the server says in a line, names to `Scheduler::on_move` and counts in `lost_before_written`.
 - **Write failure** (disk full, I/O error, file system read-only): the entry is dropped as today, the tier stops writing (below), and serving goes on.
 
 ## Disk eviction and room
@@ -109,6 +109,7 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 ## Keeping entries across a restart
 
 With `--disk-cache-keep`, a restart of the same model on a build of the same numerics (Identity, above) should find the conversations it was serving, the newest included, which until then live only on the devices and in host memory.
+A request a restarted server takes before its disk tier has taken in what the server before kept waits for it, at most `kWaitBound` (15 s) from the server's start, so a turn sent as the server listens reads its history back rather than computing it.
 
 **Clean exit.** Today `serve` has no handler for SIGTERM or SIGINT, so either ends the process at once; the plan adds one (on Windows the console's control events), which makes a clean exit:
 1. stop accepting connections and admitting requests;
@@ -146,6 +147,8 @@ Two servers starting together under one root each adopt only directories whose l
 ## Adopting another build's entries
 
 A new build whose numerics fingerprint differs adopts nothing by default, so an upgrade empties the cache although most upgrades change no bit of what a history holds.
+The directory it refuses stays until its age limit, so a server of the build that wrote it, a rollback, adopts it, and `/v1/health` counts it (`reuse.disk.since_start.refused_directories`).
+The tests' and tools' registrations live in `cmake/tests.cmake`, outside the fingerprint, so a change to them alone keeps every kept file.
 `--disk-cache-adopt proved` lets a server take such entries over and prove them, a conversation at a time, as each comes back; `exact`, the default, takes only its own build's.
 Entries are adopted only under `--disk-cache-keep`, so `proved` without it is refused.
 

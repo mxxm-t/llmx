@@ -53,7 +53,7 @@ public:
         bool proved = false;         // adopt, unproved, the entries of a build other than this one whose model, layout and entry version are this store's (--disk-cache-adopt proved)
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
         std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
-        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), for tests
+        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), or the start's probe (probe), for tests
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -211,6 +211,14 @@ public:
     // The bytes a second the store has written of late, flushed: the start's probe, then each entry written, half and half; 0 where the probe failed.
     double write_rate() const { return rate_.load(); }
 
+    // The write in flight: the payload bytes it has handed to the file and the seconds since it began; zeros with none.
+    std::pair<uint64_t, double> write_progress() const {
+        const int64_t began = put_began_.load();
+        if (!began) return {0, 0.0};
+        const auto since = std::chrono::steady_clock::now().time_since_epoch() - std::chrono::steady_clock::duration(began);
+        return {put_bytes_.load(), std::chrono::duration<double>(since).count()};
+    }
+
     // What the file system has free for this process.
     std::optional<uint64_t> free_bytes() const {
         std::error_code ec;
@@ -236,9 +244,10 @@ public:
             Lock held = lock(other);
             if (!held.held()) continue;
             const bool kept = std::filesystem::exists(other / "kept", ec);
-            // A directory an adoption could not finish with keeps what a later start can still recover, until its age limit.
+            // A directory an adoption could not finish with keeps what a later start can still recover, until its age limit, and so does one refused for its identity, which a server of the build that wrote it, a rollback, adopts.
             if (adopt && options_.keep) {
-                if (adopt_from(other) && kept && !expired(other / "kept")) continue;
+                const size_t refused = refused_.size();
+                if ((adopt_from(other) || refused_.size() > refused) && kept && !expired(other / "kept")) continue;
             } else if (kept && !expired(other / "kept")) continue;
             held = Lock{};
             std::filesystem::remove_all(other, ec);
@@ -534,6 +543,7 @@ private:
 
     // Direct writes where the file system takes them and a short probe finds them no slower than writes through the file cache, which on some file systems write several times faster.
     void probe() {
+        if (options_.fault && options_.fault("probe")) return;
         const size_t bytes = size_t(32) << 20;
         core::HostPages data(bytes);
         std::memset(data.data(), 0x5a, bytes);
@@ -655,6 +665,12 @@ private:
         const auto tmp = path(j.key, ".tmp");
         std::vector<uint32_t> crcs(chunk_count);
         const auto began = std::chrono::steady_clock::now();
+        put_bytes_.store(0);
+        put_began_.store(began.time_since_epoch().count());
+        struct Ended {
+            std::atomic<int64_t>& began;
+            ~Ended() { began.store(0); }
+        } ended{put_began_};
         try {
             format::FileWriter w(tmp.u8string(), direct_);
             for (uint64_t c = 0; c < chunk_count; ++c) {
@@ -664,6 +680,7 @@ private:
                 std::memset(staging_.data() + n, 0, padded - n);
                 crcs[c] = core::crc32c(0, staging_.data(), n);
                 w.write(head + c * kChunk, staging_.data(), padded);
+                put_bytes_.fetch_add(n);
                 serve_reads();
                 if (options_.pace.count()) {
                     std::unique_lock<std::mutex> lk(m_);
@@ -891,6 +908,8 @@ private:
 
     Options options_;
     std::atomic<double> rate_{0};
+    std::atomic<uint64_t> put_bytes_{0};   // the write in flight's payload bytes handed to its file (write_progress)
+    std::atomic<int64_t> put_began_{0};    // when it began, in steady clock ticks; 0 with none
     std::array<uint8_t, 32> identity_;
     std::filesystem::path dir_;
     Lock lock_;

@@ -1121,6 +1121,69 @@ void automatic_by_hand() {
         held.end(250);
         require(held.take() == 0, "a hold with no pass parked was charged");
     }
+    {
+        // A wait for a donor's write (server::write_wait_ms): the time waited, then the remaining bytes at the measured rate, half as long again and 2 s more, never past recomputing, and nothing to go by with no rate.
+        require(server::write_wait_ms(1e9, 0, 0, 1e9) == 0 && server::write_wait_ms(1e9, 1e9, 0, 0) == 0, "a write's wait was bounded with no rate or no measure of recomputing");
+        require(server::write_wait_ms(1e9, 1e9, 0, 1e9) == 3500 && server::write_wait_ms(0, 1e9, 0, 1e9) == 2000 && server::write_wait_ms(-5, 1e9, 0, 1e9) == 2000,
+                "a write's wait was not 1.5 times its remaining time at the rate and 2 s more");
+        require(server::write_wait_ms(1e9, 1e9, 12000, 1e9) == 15500 && server::write_wait_ms(1e9, 1e9, -1, 1e9) == 3500, "a write's wait did not count the time already waited");
+        require(server::write_wait_ms(10e9, 0.5e9, 0, 1e9) == 32000 && server::write_wait_ms(10e9, 0.5e9, 0, 20000) == 20000 && server::write_wait_ms(1e9, 1e9, 0, 60000) == 3500 &&
+                    server::write_wait_ms(1e9, 1e9, 19000, 20000) == 20000,
+                "a write's wait was longer than recomputing the rows, or capped below its time");
+        // The write in flight's own rate (server::in_flight_rate): none before a second or 256 MiB, then its bytes over its time.
+        require(server::in_flight_rate(100 << 20, 0.5) == 0 && server::in_flight_rate(0, 0) == 0 && server::in_flight_rate(uint64_t(512) << 20, 0) == 0 &&
+                    server::in_flight_rate(100 << 20, 2.0) == double(50 << 20) && server::in_flight_rate(uint64_t(512) << 20, 0.5) == double(uint64_t(1) << 30) && server::in_flight_rate(0, 3.0) == 0,
+                "a write in flight's rate was not its bytes over its time past its minimum");
+    }
+    {
+        // The background budget (server::BackgroundGrant): a quarter of the target a service interval, in time.
+        using Demand = server::BackgroundGrant::Demand;
+        const double B = server::kBackgroundShare * G;
+        server::BackgroundGrant grant;
+        server::ServiceClock clock;
+        // No foreground work waits: nothing to delay, the caller's own bound.
+        require(server::BackgroundGrant::units(grant.left_ms(Demand::none, true, clock, true, 0), 64, 5) == 64 && server::BackgroundGrant::units(grant.left_ms(Demand::none, false, clock, false, 0), 64, 0) == 64, "background work with nothing waiting was held back");
+        // Pacing off: nothing while any foreground work waits.
+        require(grant.left_ms(Demand::prompts, false, clock, true, 0) == 0 && grant.left_ms(Demand::replies, false, clock, true, 0) == 0, "background work took time from waiting work with pacing off");
+        // Replies never served yet are due first; a prompt's floor owed comes first too.
+        require(grant.left_ms(Demand::replies, true, clock, true, 50) == 0, "background work went ahead of a reply's first service");
+        clock.began(1000);
+        require(grant.left_ms(Demand::replies, true, clock, false, 1010) == 0 && grant.left_ms(Demand::prompts, true, clock, false, 1010) == 0, "background work went ahead of a prompt's floor");
+        // Beside a reply and no prompt: the allowance, in units of the consumer's own cost, a smaller piece where a pass does not fit, one unit as the probe where no cost is measured.
+        require(grant.left_ms(Demand::replies, true, clock, true, 1010) == B && server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1010), 64, 2) == (size_t)(B / 2) &&
+                    server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1010), 4, 2) == 4 && server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1010), 64, 0) == 1 &&
+                    server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1010), 64, 2 * B) == 0,
+                "the background allowance beside a reply was not what fits it");
+        // No more than the time to the next service: ten ms before it is due, ten ms; once it is due, none.
+        require(grant.left_ms(Demand::replies, true, clock, true, 1000 + G - 10) == 10 && grant.left_ms(Demand::replies, true, clock, true, 1000 + G) == 0 &&
+                    grant.left_ms(Demand::replies, true, clock, true, 1000 + G + 40) == 0,
+                "background work was granted past the next reply service");
+        // Prompts alone wait on no service: the allowance whatever the clock says.
+        require(grant.left_ms(Demand::prompts, true, clock, true, 1000 + 3 * G) == B, "background work beside prompts alone followed the reply clock");
+        // Whose demand background work gives way to: nothing else, or one asker alone, none, paced or not; beside a request queued, paused for room or reading its prompt, a prompt's, which pacing off grants nothing beside.
+        // A second asker or a generating request is a reply's.
+        require(server::demand_beside(0, 0, 0, 0) == Demand::none && server::demand_beside(1, 0, 0, 0) == Demand::none && grant.left_ms(Demand::none, false, clock, true, 1010) == server::BackgroundGrant::kUnbounded,
+                "background work alone was held back");
+        require(server::demand_beside(0, 0, 0, 1) == Demand::prompts && server::demand_beside(0, 0, 1, 0) == Demand::prompts &&
+                    grant.left_ms(server::demand_beside(0, 0, 0, 1), false, clock, true, 1010) == 0 && grant.left_ms(server::demand_beside(0, 0, 0, 1), true, clock, true, 1010) == B,
+                "background work beside a waiting request was not given the prompts' rule");
+        require(server::demand_beside(2, 0, 0, 0) == Demand::replies && server::demand_beside(0, 1, 0, 0) == Demand::replies &&
+                    grant.left_ms(server::demand_beside(0, 1, 0, 0), false, clock, true, 1010) == 0 && grant.left_ms(server::demand_beside(0, 1, 0, 0), true, clock, true, 1010) == B,
+                "background work beside a reply was not given the replies' rule");
+        // The aggregate over several consumers of one interval: each spends from the same allowance, a probe included, until a service makes it whole.
+        double left = grant.left_ms(Demand::replies, true, clock, true, 1010);
+        grant.spent(10, left, clock);
+        require(grant.left_ms(Demand::replies, true, clock, true, 1020) == B - 10 && server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1020), 64, 0) == 1, "a second consumer of one interval was given a whole allowance");
+        left = grant.left_ms(Demand::replies, true, clock, true, 1020);
+        grant.spent(20, left, clock);
+        require(grant.left_ms(Demand::replies, true, clock, true, 1040) == 0 && server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1040), 64, 0) == 0 && grant.overruns == 1 && grant.grants == 2 &&
+                    grant.largest_ms == 20 && grant.total_ms == 30,
+                "a grant that cost more than was left was not counted, or left an allowance behind");
+        // A failed grant is charged as any other; the next service gives the allowance back.
+        grant.spent(5, 0, clock);
+        clock.began(1100);
+        require(grant.left_ms(Demand::replies, true, clock, true, 1105) == B && grant.overruns == 2 && grant.total_ms == 35, "a service did not make the background allowance whole");
+    }
     // A request is a prompt's before its first token and while its cache lacks more than its last token, as a resumed one's does; a reply's rows in a pass in flight, its cache one short or whole, keep it a reply.
     require(server::reads_prompt(0, 0, 40) && server::reads_prompt(0, 40, 40) && server::reads_prompt(30, 0, 70) && server::reads_prompt(30, 68, 70) && !server::reads_prompt(30, 69, 70) &&
                 !server::reads_prompt(30, 70, 70),

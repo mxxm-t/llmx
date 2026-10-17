@@ -88,9 +88,9 @@ struct Expectation {
 };
 
 // A turn adds one block, its reply crossing the block's end, so every read-ahead job has rows to read and a pass to be met at.
-// What a placement shows today where the placements differ: the jobs that gave way below half the pool, and what the two edits reused.
+// What a placement shows today where the placements differ: what the two edits reused.
 struct Witness {
-    size_t gave_way, edit_reused, older_reused, after_edit;
+    size_t edit_reused, older_reused, after_edit;
     // Whether a state is kept at a message boundary at all: over two devices the host tier's whole slabs, one a device, hold none, so below a history's newest point nothing was ever prepared there.
     bool boundaries;
 };
@@ -220,13 +220,15 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
     auto& at_that_pass = watch.at_that_pass;
     auto& at_pass_of = watch.at_pass_of;
     std::thread runner([&] { sched.run(); });
-    Ledger book{on_what, state};
+    Ledger book;
+    book.on_what = on_what;
+    book.state = state;
     std::vector<Row>& report = book.report;
     Conversation chat;
     chat.seed = 7;
     chat.history = prompt_of(5, 400, v);
     uint32_t other_seed = 33;
-    size_t cuts = 0, follows = 0, since1 = 0, since3 = 0;
+    size_t cuts = 0, since1 = 0, since3 = 0;
     std::vector<uint32_t> after3, after1;
     std::vector<Expectation> table;
     const auto submit = [&](const Req& r, size_t message) { return watch.submit(r, message); };
@@ -259,7 +261,6 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
                 };
             }
             sched.follow(h, chat.history, true);
-            ++follows;
             within_a_minute([&] { return sched.stats().reprefills == jobs + 1; }, "leg A: the job done");
             {
                 std::lock_guard<std::mutex> lk(handles);
@@ -275,8 +276,7 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
         }
         // Below half the pool no turn lost a row, but jobs gave way to requests that fit once a donor is evicted, and read their rows again.
         const size_t a_gave_way = sched.stats().reprefill_cancels;
-        table.push_back({"a job gives way only to a request that cannot be admitted beside it", "P7", false, !a_gave_way});
-        require(a_gave_way == w.gave_way, "leg A's witness: " + std::to_string(a_gave_way) + " jobs gave way below half the pool, against " + std::to_string(w.gave_way));
+        table.push_back({"a job gives way only to a request that cannot be admitted beside it", "P7", true, !a_gave_way});
         // Leg B, past half the pool: the turn's donor and its job cannot both be reserved, so the job holds the chat's rows alone.
         // Another conversation's request that does not fit beside the job arrives at the job's pass, and the chat's next turn while that request runs.
         Stats mark = sched.stats();
@@ -307,13 +307,12 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
                 };
             }
             sched.follow(h, chat.history, true);
-            ++follows;
             within_a_minute([&] { std::lock_guard<std::mutex> lk(handles); return after != nullptr; }, "leg B: the arrivals at the job's pass and at the other request's");
             drain(*other);
             h = after;
         }
-        // Quiescence: the job that gave way has started again and finished, so what follows meets no job; then one plain turn.
-        within_a_minute([&] { return sched.stats().reprefills == follows; }, "leg B: the job that gave way finished");
+        // Quiescence: the job that gave way has finished or been dropped as stale, so what follows meets no job; then one plain turn.
+        within_a_minute([&] { return !sched.stats().jobs; }, "leg B: no job left");
         if (chat.history.size() / bt * bt - bt > chat.prepared) {
             chat.prepared = chat.history.size() / bt * bt - bt;
             chat.since = lost_so_far();
@@ -327,8 +326,11 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
         }
         const size_t b_evicted = report[5].evicted, b_gave_way = report[5].gave_way;
         table.push_back({"past half the pool a turn's donor stays beside its job", "P3", false, !report[5].consumed});
-        table.push_back({"a job that gives way to another conversation's request loses no row a later turn needs", "P1, P7", false, !b_evicted});
-        require(b_gave_way == 1 && b_evicted == 896 && !report[5].reused, "leg B's witness: " + std::to_string(b_gave_way) + " jobs gave way, " + std::to_string(report[5].reused) + " rows reused and " + std::to_string(b_evicted) + " evicted, against 1, 0 and 896");
+        table.push_back({"a job that gives way to another conversation's request loses no row a later turn needs", "P1, P7", true, !b_evicted});
+        // The job's rows kept as a donor when it gives way (S8), so the next turn forks them while the other request runs.
+        require(b_gave_way == 1 && b_evicted == 0 && report[5].reused == 896 && !sched.stats().moves[(size_t)server::Move::job_lost],
+                "leg B's witness: " + std::to_string(b_gave_way) + " jobs gave way, " + std::to_string(report[5].reused) + " rows reused, " + std::to_string(b_evicted) + " evicted and " +
+                std::to_string(sched.stats().moves[(size_t)server::Move::job_lost]) + " job losses, against 1, 896, 0 and 0");
         // Leg C, an edit: turn 4's user message replaced, so the prompt agrees with the chat through turn 3's reply.
         {
             Conversation edit;
@@ -427,8 +429,9 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
 }
 
 // Production's proportions (docs/CACHE-PLAN.md, Production since 2026-10-11): a chat past half the pool, after every reply an unrelated request that does not fit beside the reply's job, and the next turn while it runs.
-// The host tier holds less than one history and a disk tier keeps files, with no idle moment for its idle writes; the chat passes the context and is cut, and the server restarts over its kept files.
-void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std::string& on_what, const Witness& w) {
+// No history fits its host tier, its disk tier is never idle, the chat is cut and the server restarted; with `late` the request comes once the job has read the reply (the 27B's shape), else at its pass.
+void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std::string& name, bool late) {
+    const std::string on_what = name + (late ? ", the request after the job" : ", the request at the job's pass");
     const size_t bt = kBlock;
     DiskRoot disk("cache-scenario");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
@@ -436,18 +439,20 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
     options.idle = std::chrono::hours(1);
     auto model = make(kPool, 64);
     const bool state = model->keeps_state();
-    // A host tier of 1024 rows: the chat's history passes it from the first turn, the unrelated request's fits.
-    const size_t host = model->host_bytes(1024);
+    // A host tier a byte short of the copy of any history, which host memory takes in whole slabs: the disk is every donor's only save, as it is a long chat's on production.
+    const size_t host = model->host_bytes(kBlock) - 1;
     auto sched = std::make_unique<server::Scheduler>(*model, tok, 4, 64, 0, false, host, nullptr, 0, true, options);
     auto watch = std::make_unique<Watch>(*sched);
     std::thread runner([&] { sched->run(); });
-    Ledger book{on_what + ", production's proportions", state};
+    Ledger book;
+    book.on_what = on_what + ", production's proportions";
+    book.state = state;
     Conversation chat;
     chat.seed = 70;
     chat.history = prompt_of(5, 400, v);
     std::vector<Expectation> table;
     std::vector<size_t> cut_turns, restart_turns;
-    size_t released = 0, job_lost = 0, consumed_lost = 0, not_to_host = 0, host_lost = 0, written = 0, read = 0, tasks = 0;
+    size_t released = 0, job_lost = 0, consumed_lost = 0, not_to_host = 0, host_lost = 0, lost_before_written = 0, written = 0, read = 0, tasks = 0;
     uint32_t other_seed = 90;
     const auto tally = [&] {
         const Stats s = sched->stats();
@@ -456,6 +461,7 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
         consumed_lost += s.moves[(size_t)server::Move::consumed_lost];
         not_to_host += s.moves[(size_t)server::Move::not_to_host];
         host_lost += s.moves[(size_t)server::Move::host_lost];
+        lost_before_written += s.lost_before_written;
         written += s.moves[(size_t)server::Move::write_whole];
         read += s.moves[(size_t)server::Move::read_done];
     };
@@ -488,29 +494,42 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
             Handle other, after;
             const Req o{prompt_of(other_seed++ % v, 700, v), (int)kOtherReply};
             const bool restart = k + 1 == kRestartAfter;
-            {
-                std::lock_guard<std::mutex> lk(watch->handles);
-                watch->at_job_pass = [&, o, next, message, restart] {
-                    std::lock_guard<std::mutex> lk2(watch->handles);
-                    other = sched->submit(o.prompt, params_of(o));
-                    watch->known.push_back(other);
-                    if (restart) return;
-                    watch->at_pass_of = other.get();
-                    watch->at_that_pass = [&, next, message] {
-                        std::lock_guard<std::mutex> lk3(watch->handles);
-                        after = sched->submit(next.prompt, params_of(next), std::numeric_limits<size_t>::max(), message);
-                        watch->known.push_back(after);
-                    };
+            // The unrelated request and, at its pass, the chat's next turn, unless the server restarts first.
+            const auto arrive = [&, o, next, message, restart] {
+                other = sched->submit(o.prompt, params_of(o));
+                watch->known.push_back(other);
+                if (restart) return;
+                watch->at_pass_of = other.get();
+                watch->at_that_pass = [&, next, message] {
+                    std::lock_guard<std::mutex> lk3(watch->handles);
+                    after = sched->submit(next.prompt, params_of(next), std::numeric_limits<size_t>::max(), message);
+                    watch->known.push_back(after);
                 };
-            }
+            };
             mark = sched->stats();
             const size_t jobs = mark.reprefills;
-            sched->follow(h, chat.history, true);
-            within_a_minute([&] { std::lock_guard<std::mutex> lk(watch->handles); return other != nullptr && (restart || after != nullptr); }, "production: the arrivals at the job's pass and at the other request's");
+            if (late) {
+                // The request after the job has read the reply, so its room takes the job's donor rather than the job.
+                sched->follow(h, chat.history, true);
+                within_a_minute([&] { return sched->stats().reprefills > jobs; }, "production: the job done");
+                std::lock_guard<std::mutex> lk(watch->handles);
+                arrive();
+            } else {
+                {
+                    std::lock_guard<std::mutex> lk(watch->handles);
+                    watch->at_job_pass = [&, arrive] {
+                        std::lock_guard<std::mutex> lk2(watch->handles);
+                        arrive();
+                    };
+                }
+                sched->follow(h, chat.history, true);
+            }
+            within_a_minute([&] { std::lock_guard<std::mutex> lk(watch->handles); return other != nullptr && (restart || after != nullptr); }, "production: the arrivals of the other request and of the next turn");
             drain(*other);
             ++tasks;
             if (cut) {
-                chat.prepared = w.boundaries ? 400 / bt * bt : 0;
+                // A model that keeps a state reuses the system message only through the state at its end, which a host tier short of one slab cannot hold.
+                chat.prepared = state ? 0 : 400 / bt * bt;
                 chat.since = 0;
                 cut_turns.push_back(book.report.size() + 1);
             }
@@ -529,7 +548,7 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
                 watch = std::make_unique<Watch>(*sched);
                 watch->losses = std::move(losses);
                 runner = std::thread([&] { sched->run(); });
-                within_a_minute([&] { return sched->stats().disk_ready; }, "production: the disk tier made again");
+                // The turn is sent as the new server starts, before its disk tier has taken in what the stop kept, which the turn waits for.
                 mark = sched->stats();
                 after = watch->submit(next, message);
                 restart_turns.push_back(book.report.size() + 1);
@@ -547,20 +566,16 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
         }
         const Row &cut = book.report[cut_turns.front() - 1], &restarted = book.report[restart_turns.front() - 1];
         std::cout << "cache-scenario" << on_what << ", production's proportions: " << tasks << " unrelated requests; rows evicted " << evicted << " on the plain turns, " << cut.evicted << " on the cut turn and " << restarted.evicted
-                  << " after the restart, unexplained " << unexplained << "; moves: job_lost " << job_lost << ", consumed_lost " << consumed_lost << ", not_to_host " << not_to_host << ", host_lost " << host_lost
+                  << " after the restart, unexplained " << unexplained << "; moves: job_lost " << job_lost << ", consumed_lost " << consumed_lost << ", not_to_host " << not_to_host << ", host_lost " << host_lost << ", lost before written " << lost_before_written
                   << ", rows jobs released " << released << ", files written whole " << written << ", reads " << read << "\n";
-        table.push_back({"past half the pool, with a host tier smaller than a history, a turn after an unrelated request loses no row its history held", "P1, P3", false, !evicted});
-        table.push_back({"a job that gives way releases no row it read", "P7", false, !released});
-        // Over two devices no state is kept at the system message (Witness::boundaries), so a cut turn has nothing to reuse and loses nothing.
-        table.push_back({"a cut turn reuses its leading message's rows beside an unrelated request", "P5", !w.boundaries, !cut.evicted});
-        // What the turn after the restart falls short by was lost before the stop; everything else it reads back.
-        table.push_back({"a restart over kept files of this build costs the next turn a read, not a recompute", "P4", true, read && restarted.reused + restarted.evicted == restarted.expected});
+        size_t short_turns = 0;
+        for (const Row& row : book.report) short_turns += row.turn > 1 && row.reused < row.expected;
+        table.push_back({"past half the pool, with a host tier smaller than a history, a turn after an unrelated request loses no row its history held", "P1, P3", true, !evicted});
+        table.push_back({"a job that gives way loses no row it read", "P7", true, !job_lost});
+        table.push_back({"a cut turn reuses its leading message's rows beside an unrelated request", "P5", true, !cut.evicted && cut.reused >= cut.expected});
+        table.push_back({"a restart over kept files of this build costs the next turn a read, not a recompute", "P4", true, read && restarted.reused >= restarted.expected});
+        table.push_back({"every turn computes only the rows its history did not hold", "P1", true, !short_turns});
         table.push_back({"every row a turn falls short by is a loss the server reported with its history", "P8", true, !unexplained});
-        // Today each job gives way to the unrelated request and releases the chat's rows, which it alone held (S8): every plain turn from the third reads its history again, and so do the cut turn and the turn after the restart.
-        const size_t plain = state ? 7296 : 5888, at_cut = w.boundaries ? 384 : 0;
-        require(evicted == plain && cut.evicted == at_cut && restarted.evicted == 512 && job_lost == (state ? 7u : 6u),
-                "production's witness: " + std::to_string(evicted) + ", " + std::to_string(cut.evicted) + " and " + std::to_string(restarted.evicted) + " rows evicted, " + std::to_string(job_lost) + " job losses, against " +
-                    std::to_string(plain) + ", " + std::to_string(at_cut) + ", 512 and " + std::to_string(state ? 7 : 6));
     } catch (...) {
         sched->stop();
         runner.join();
@@ -579,22 +594,238 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
     }
 }
 
+// Two conversations under one system prompt of more than two blocks, each read again while two other requests hold both seats: the second's job must not drop the first's, which shares only that start (Scheduler::stale), so both wait.
+void shared_system_prompt(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
+    auto model = make(kPool, 64);
+    server::Scheduler sched(*model, tok, 2, 64, 0, false, (size_t)1 << 30);
+    const std::vector<uint32_t> system = prompt_of(5, 300, v);
+    std::vector<Req> turns;
+    for (const uint32_t seed : {11u, 12u}) {
+        Req r{system, (int)kReply};
+        const std::vector<uint32_t> user = prompt_of(seed, 100, v);
+        r.prompt.insert(r.prompt.end(), user.begin(), user.end());
+        turns.push_back(r);
+    }
+    const Req other{prompt_of(20, 200, v), (int)kReply}, another{prompt_of(21, 200, v), (int)kReply};
+    std::mutex handles;
+    std::vector<Handle> hs;
+    std::vector<std::vector<uint32_t>> histories;
+    Handle busy, also;
+    size_t busy_passes = 0, waiting = 0;
+    // At the third request's first pass both conversations' next turns are given, and at its second, the round between having taken them in, both jobs wait for the seat.
+    sched.on_retire = [&](const server::Scheduler::Retired& t) {
+        std::lock_guard<std::mutex> lk(handles);
+        if (!busy || std::find(t.requests.begin(), t.requests.end(), busy.get()) == t.requests.end()) return;
+        if (++busy_passes == 1)
+            for (size_t i = 0; i < hs.size(); ++i) sched.follow(hs[i], histories[i], true);
+        if (busy_passes == 2) waiting = sched.stats().jobs;
+    };
+    std::thread runner([&] { sched.run(); });
+    try {
+        for (const Req& r : turns) {
+            Handle h = sched.submit(r.prompt, params_of(r));
+            std::vector<uint32_t> history = r.prompt;
+            for (uint32_t id : ids_of(drain(*h))) history.push_back(id);
+            std::lock_guard<std::mutex> lk(handles);
+            hs.push_back(h);
+            histories.push_back(history);
+        }
+        {
+            std::lock_guard<std::mutex> lk(handles);
+            also = sched.submit(another.prompt, params_of(another));
+            busy = sched.submit(other.prompt, params_of(other));
+        }
+        drain(*busy);
+        drain(*also);
+        std::lock_guard<std::mutex> lk(handles);
+        require(busy_passes >= 2 && waiting == 2, "two conversations under one system prompt: " + std::to_string(waiting) + " of their jobs waiting, against 2");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
+// A restore from disk the turn then reuses (production, 2026-10-16 17:56): a conversation kept across a restart is read back into a host tier of one copy while a conversation that came back holds the devices.
+// Promoting it evicts that donor, whose copy wants the host tier's one room: it must not take the copy being promoted, or the read is lost and the turn computes all its rows.
+void restore_beside_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
+    DiskRoot disk("restore-beside");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::hours(1);
+    const Req first{prompt_of(5, 1100, v), (int)kReply}, other{prompt_of(9, 900, v), (int)kOtherReply};
+    std::vector<uint32_t> next = first.prompt;
+    size_t reused = 0;
+    Reply got;
+    for (const bool restarted : {false, true}) {
+        auto model = make(kPool, 64);
+        const size_t host = model->host_bytes(kBlock);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, host, nullptr, 0, true, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            if (!restarted) {
+                for (uint32_t id : ids_of(drain(*sched.submit(first.prompt, params_of(first))))) next.push_back(id);
+                const std::vector<uint32_t> user = prompt_of(30, kUser, v);
+                next.insert(next.end(), user.begin(), user.end());
+            } else {
+                within_a_minute([&] { return sched.stats().disk_ready && sched.stats().disk_entries > 0; }, "restore beside a donor: the kept files adopted");
+                // The other conversation comes back, so its donor is one the host tier keeps first.
+                std::vector<uint32_t> again = other.prompt;
+                for (uint32_t id : ids_of(drain(*sched.submit(other.prompt, params_of(other))))) again.push_back(id);
+                const std::vector<uint32_t> more = prompt_of(31, kUser, v);
+                again.insert(again.end(), more.begin(), more.end());
+                drain(*sched.submit(again, params_of(Req{again, (int)kOtherReply})));
+                const Req turn{next, (int)kReply};
+                const auto h = sched.submit(turn.prompt, params_of(turn));
+                got = drain(*h);
+                reused = h->reused();
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 1024, "a turn restored from disk beside another conversation's donor reused " + std::to_string(reused) + " tokens, against the 1024 its kept history holds");
+    auto fresh = make(kPool, 64);
+    same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "restore beside a donor, the turn's reply");
+}
+
+// A donor's write slower than the wait's constant (production, 2026-10-17 run D): a history no host memory holds is written as its turn ends, each 4 MiB of it held 200 ms by the store, and another request needs its room at once.
+// The constant here is 100 ms; the wait is the write's remaining time at the measured rate, 1.5 times and 2 s more, capped by recomputing, about 0.5 s on a CPU slowed to 30 ms a submission, so the next turn reads it back.
+void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
+    DiskRoot disk("slow-write");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(200));
+    options.idle = std::chrono::hours(1);
+    options.wait = std::chrono::milliseconds(100);
+    const auto slow = hooked(1);
+    slow[0]->hook = [] { std::this_thread::sleep_for(std::chrono::milliseconds(30)); };
+    const Make make = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; }), plain = on(weights, [] { return cpus(1); });
+    auto model = make(kPool, 64);
+    server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, options);
+    std::thread runner([&] { sched.run(); });
+    const Req first{prompt_of(5, 1100, v), (int)kReply}, other{prompt_of(9, 1000, v), (int)kOtherReply};
+    size_t reused = 0;
+    Stats st;
+    std::vector<uint32_t> next;
+    Reply got;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, "slow write: the disk tier made");
+        next = first.prompt;
+        for (uint32_t id : ids_of(drain(*sched.submit(first.prompt, params_of(first))))) next.push_back(id);
+        drain(*sched.submit(other.prompt, params_of(other)));
+        const std::vector<uint32_t> user = prompt_of(30, kUser, v);
+        next.insert(next.end(), user.begin(), user.end());
+        const auto h = sched.submit(next, params_of(Req{next, (int)kReply}));
+        got = drain(*h);
+        reused = h->reused();
+        st = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(st.room_waits >= 1 && !st.room_wait_timeouts && reused == 1024,
+            "a write slower than the wait's constant: " + std::to_string(st.room_waits) + " waits, " + std::to_string(st.room_wait_timeouts) + " at their bound, the next turn reusing " + std::to_string(reused) +
+                ", against some, none and 1024");
+    auto fresh = plain(kPool, 64);
+    same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "slow write, the next turn's reply");
+}
+
+// A server's first write, with no rate measured before it (production, 2026-10-17 run D at 90e20b26d): the store's probe fails, so the wait has only its constant, here 1500 ms, until the write in flight gives its own rate.
+// Each history's 2 MiB go in one 4 MiB piece the store holds 3 s, written or read, longer than the constant and than 2 s past what a probe's rate would give; recomputing it is about 5 s on a CPU slowed to 300 ms a submission.
+void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
+    DiskRoot disk("first-write");
+    const auto slow = hooked(1);
+    auto slowed = std::make_shared<std::atomic<bool>>(false);
+    slow[0]->hook = [slowed] {
+        if (slowed->load()) std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    };
+    const Make make = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; }), plain = on(weights, [] { return cpus(1); });
+    auto model = make(kPool, 64);
+    const Req first{prompt_of(5, 1100, v), 4}, other{prompt_of(9, 1000, v), 4};
+    server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(3000));
+    options.idle = std::chrono::hours(1);
+    options.wait = std::chrono::milliseconds(1500);
+    options.fault = [](const char* step) { return std::string(step) == "probe"; };
+    server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, options);
+    std::thread runner([&] { sched.run(); });
+    size_t reused = 0;
+    Stats st;
+    std::vector<uint32_t> next;
+    Reply got;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, "first write: the disk tier made");
+        next = first.prompt;
+        slowed->store(true);
+        for (uint32_t id : ids_of(drain(*sched.submit(first.prompt, params_of(first))))) next.push_back(id);
+        drain(*sched.submit(other.prompt, params_of(other)));
+        slowed->store(false);
+        // The other request's history, as long in whole blocks, lands too, so the next turn's read waits on no write of it.
+        const uint64_t one = sched.stats().disk_bytes_written;
+        within_a_minute([&] { return sched.stats().disk_bytes_written >= 2 * one; }, "first write: the other request's history written");
+        const std::vector<uint32_t> user = prompt_of(30, kUser, v);
+        next.insert(next.end(), user.begin(), user.end());
+        const auto h = sched.submit(next, params_of(Req{next, (int)kReply}));
+        got = drain(*h);
+        reused = h->reused();
+        st = sched.stats();
+    } catch (...) {
+        slowed->store(false);
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(st.room_waits >= 1 && !st.room_wait_timeouts && reused == 1024,
+            "a first write with no rate before it: " + std::to_string(st.room_waits) + " waits of " + std::to_string((long long)st.room_wait_ms) + " ms, " + std::to_string(st.room_wait_timeouts) +
+                " at their bound, the next turn reusing " + std::to_string(reused) + ", against some, none and 1024");
+    auto fresh = plain(kPool, 64);
+    same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "first write, the next turn's reply");
+}
+
 } // namespace
 
-int main() {
+// `legs` runs the scripted conversation and its cases, `production` the production-shaped script; with no argument, both.
+int main(int argc, char** argv) {
+    const std::string only = argc > 1 ? argv[1] : "";
+    if (!only.empty() && only != "legs" && only != "production") {
+        std::cerr << "usage: llmx-cache-scenario-test [legs|production]\n";
+        return 2;
+    }
+    const bool legs = only != "production", shaped = only != "legs";
     try {
-        attribution();
-        const gguf::GGUFModel weights = served(kCpu);
-        scenario(on(weights, [] { return cpus(1); }), bpe::Tokenizer(weights), (uint32_t)kCpu.vocab, "", {3, 768, 512, 768, true});
-        production(on(weights, [] { return cpus(1); }), bpe::Tokenizer(weights), (uint32_t)kCpu.vocab, "", {3, 768, 512, 768, true});
-        const gguf::GGUFModel deep = served(kSplit);
-        scenario(on(deep, [] { return cpus(2); }), bpe::Tokenizer(deep), (uint32_t)kSplit.vocab, ", a split over two CPUs", {3, 768, 512, 768, true});
-        production(on(deep, [] { return cpus(2); }), bpe::Tokenizer(deep), (uint32_t)kSplit.vocab, ", a split over two CPUs", {3, 768, 512, 768, true});
-        const gguf::GGUFModel mixed = served_hybrid(kHybrid);
-        scenario(on(mixed, [] { return cpus(1); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model", {1, 640, 384, 768, true});
-        production(on(mixed, [] { return cpus(1); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model", {1, 640, 384, 768, true});
-        scenario(on(mixed, [] { return cpus(2); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {1, 0, 0, 1152, false});
-        production(on(mixed, [] { return cpus(2); }, 4, 6), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {1, 0, 0, 1152, false});
+        if (legs) attribution();
+        const gguf::GGUFModel weights = served(kCpu), deep = served(kSplit), mixed = served_hybrid(kHybrid);
+        const Make one = on(weights, [] { return cpus(1); }), split = on(deep, [] { return cpus(2); });
+        const Make hybrid = on(mixed, [] { return cpus(1); }, 4, 6), hybrid_split = on(mixed, [] { return cpus(2); }, 4, 6);
+        const bpe::Tokenizer tok(weights), deep_tok(deep), mixed_tok(mixed);
+        if (legs) {
+            scenario(one, tok, (uint32_t)kCpu.vocab, "", {768, 512, 896, true});
+            shared_system_prompt(one, tok, (uint32_t)kCpu.vocab);
+            restore_beside_donor(one, tok, (uint32_t)kCpu.vocab);
+            slow_write_wait(weights, tok, (uint32_t)kCpu.vocab);
+            first_write_wait(weights, tok, (uint32_t)kCpu.vocab);
+            scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 896, true});
+            scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 768, true});
+            scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});
+        }
+        // The request after the job takes the same paths on a split as on one CPU, so it runs on one CPU of each model alone.
+        if (shaped)
+            for (const bool late : {false, true}) {
+                production(one, tok, (uint32_t)kCpu.vocab, "", late);
+                production(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", late);
+                if (late) continue;
+                production(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", late);
+                production(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", late);
+            }
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";
         return 1;

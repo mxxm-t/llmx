@@ -388,6 +388,11 @@ int main(int argc, char** argv) {
                 auto s = open(after, false);
                 require(s->adopted().empty() && s->refused().size() == 1 && s->refused()[0].find("numerics") != std::string::npos, "a build that did not ask adopted another build's entry, or did not say what differs");
             }
+            {
+                // The refused directory stays until its age limit, so a server of the build that wrote it, a rollback, adopts its entry.
+                auto s = open(before, false);
+                require(s->adopted().size() == 1 && !s->adopted()[0].unproved, "a directory refused for its numerics was deleted, so a rollback to the build that wrote it found nothing");
+            }
             leave();
             require(open(other, true)->adopted().empty(), "another model's entry was adopted unproved");
             leave();

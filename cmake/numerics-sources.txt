@@ -8,6 +8,7 @@ in CMakeLists.txt
 in cmake
 in build.bat
 
+out cmake/tests.cmake | registers the tests and the tools, building no source of the product
 out src/cli | reads flags and prints, calls down
 out src/hub | fetches model files, whose bytes the model digest covers
 out src/server | decides which rows run in which class, which an entry records, never a matched entry's bits

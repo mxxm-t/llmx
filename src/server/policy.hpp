@@ -2,6 +2,7 @@
 // The scheduler's policy core (docs/SERVER.md, the round): pool blocks, reservation growth, who gives up blocks, which stages a round records, decode entries per pass and logits rows, as free functions over plain data.
 // The scheduler calls them with its requests and passes, and the server-passes CTest with a simulated executor's.
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -320,6 +321,7 @@ struct Pacing {
     enum class Mode { off, fixed, automatic };
     Mode mode = Mode::off;
     double share = 0;   // the fixed share
+    bool refused = false;   // off because the operator said so (--no-pacing), not because the placement feeds no stage in pieces; background work is then given no time beside waiting work
     static Pacing fixed(double share) { return share > 0 ? Pacing{Mode::fixed, share} : Pacing{}; }
     static Pacing automatic() { return {Mode::automatic, 0}; }
 };
@@ -410,6 +412,73 @@ struct HeldTime {
         return ms;
     }
 };
+
+// How long a request waits at most for a restore or a save it needs, until the server has measured the whole path (step 8 of docs/CACHE-PLAN.md): past it the request goes on and computes, or takes the room, said and counted.
+// Production read 9.9 GiB back in 10 s; the bound leaves a write of that size its time too.
+inline constexpr std::chrono::seconds kWaitBound{15};
+
+// How long a request waits for a donor's write to disk in all, `elapsed_ms` into its wait, before it takes the donor's room (step 8 of docs/CACHE-PLAN.md): the write's remaining bytes at its measured rate, half as long again and 2 s more.
+// Never longer than computing the rows again (`recompute_ms`); no rate, or no measure of recomputing, gives no bound, the caller keeping kWaitBound.
+inline double write_wait_ms(double remaining_bytes, double bytes_per_s, double elapsed_ms, double recompute_ms) {
+    if (bytes_per_s <= 0 || recompute_ms <= 0) return 0;
+    return std::min(std::max(0.0, elapsed_ms) + 1.5 * 1000.0 * std::max(0.0, remaining_bytes) / bytes_per_s + 2000.0, recompute_ms);
+}
+
+// A write in flight gives its own rate once it has run a second or written 256 MiB, so a server's first write is not left to the start's probe; 0 before that.
+inline double in_flight_rate(uint64_t bytes, double seconds) {
+    if (seconds <= 0 || (seconds < 1.0 && bytes < (uint64_t(256) << 20))) return 0;
+    return (double)bytes / seconds;
+}
+
+// What a measured cost a row keeps of its old value at each new measurement, a forgetting mean (forget); spec::PassCost weighs its passes by its own kForget.
+inline constexpr double kCostKeep = 0.75;
+inline double forget(double old, double now) { return old > 0 ? kCostKeep * old + (1 - kCostKeep) * now : now; }
+
+// The part of the target gap background work may add to a reply's gap (promise P6 in docs/CACHE-PLAN.md).
+inline constexpr double kBackgroundShare = 0.25;
+
+// The time background work may still take of a stage in this service interval: work that reaches the device and is no request's own, as a read-ahead job's rows.
+// A file read or write on a thread of its own touches no stage and takes none of it, and a read for a waiting request is foreground, as its request is.
+struct BackgroundGrant {
+    double used_ms = 0, since_ms = 0;   // spent in the service interval that began at since_ms by the stage's clock; a later service makes the allowance whole
+    uint64_t grants = 0, overruns = 0;  // grants spent, and those whose cost passed what was left
+    double total_ms = 0, largest_ms = 0;
+    enum class Demand { none, prompts, replies };   // the foreground work that waits: none, prompts alone, or generated rows
+    static constexpr double kUnbounded = 1e300;
+    // What is left, in ms: unbounded with no foreground work waiting, where the caller bounds a call's work itself.
+    // Nothing with pacing off while any waits, while the prompt floor is owed, and while generated rows wait unserved or with a service due; else the allowance unspent, and under replies no more than the time to the next service.
+    double left_ms(Demand demand, bool paced, const ServiceClock& clock, bool floor_clear, double now_ms) const {
+        if (demand == Demand::none) return kUnbounded;
+        if (!paced || !floor_clear) return 0;
+        const double allowance = kBackgroundShare * kServiceGapMs - (clock.last_ms == since_ms ? used_ms : 0);
+        if (demand == Demand::prompts) return std::max(0.0, allowance);
+        return std::max(0.0, std::min(allowance, kServiceGapMs - (now_ms - clock.last_ms)));
+    }
+    // The units of a consumer's work that fit `left` ms (Scheduler::background_left), at most `at_most`: `left` over the consumer's measured cost a unit.
+    // One, its probe, where it has measured none and anything is left.
+    static size_t units(double left, size_t at_most, double unit_ms) {
+        if (left <= 0 || !at_most) return 0;
+        if (left >= kUnbounded) return at_most;
+        if (unit_ms <= 0) return 1;
+        return (size_t)std::min((double)at_most, left / unit_ms);
+    }
+    // What granted work cost, whatever its unit, once: `left` is what left_ms gave when it was granted, and the clock says which service interval pays.
+    void spent(double ms, double left, const ServiceClock& clock) {
+        ++grants;
+        if (ms > left) ++overruns;
+        if (clock.last_ms != since_ms) used_ms = 0, since_ms = clock.last_ms;
+        used_ms += ms;
+        total_ms += ms;
+        largest_ms = std::max(largest_ms, ms);
+    }
+};
+
+// The foreground demand background work gives way to (promise P6 in docs/CACHE-PLAN.md): none only where at most one request asks and no other is active, queued or paused.
+// A second asking request or another generating one is a reply's demand, and others reading their prompts or waiting for a seat or for room a prompt's.
+inline BackgroundGrant::Demand demand_beside(size_t askers, size_t other_replies, size_t other_prompts, size_t waiting) {
+    if (askers > 1 || other_replies) return BackgroundGrant::Demand::replies;
+    return other_prompts || waiting ? BackgroundGrant::Demand::prompts : BackgroundGrant::Demand::none;
+}
 
 // Whether generated rows ride the pass that reads prompt rows under the automatic rule: where that pass, of a measured `prompt_ms`, takes no longer than the target gap.
 inline bool rides_within_gap(double prompt_ms) { return prompt_ms > 0 && prompt_ms <= kServiceGapMs; }

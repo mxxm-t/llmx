@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -89,6 +90,8 @@ struct DiskOptions {
     std::optional<BuildFacts> build;     // the build's facts in place of build_facts(), for tests
     bool adopt_proved = false;           // adopt another build's entries unproved and prove each at its first use (--disk-cache-adopt proved)
     std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
+    std::optional<std::chrono::milliseconds> wait;   // the bound of a wait for a restore or a save, kWaitBound where none is given, shorter in tests
+    std::function<bool(const char* step)> fault;   // DiskStore::Options::fault, for tests
 };
 
 // Before the server listens: makes the directory, takes the default floor, prints the directory, the file system's free space and the floor, and refuses a tier the host tier does not feed or whose cap and floor together exceed the free space.
@@ -137,12 +140,14 @@ public:
                 o.keep = options_.keep;
                 o.max_age = options_.max_age;
                 o.pace = options_.pace;
+                o.fault = options_.fault;
                 o.proved = options_.adopt_proved;
                 o.identity = text;
                 store = std::make_unique<DiskStore>(o, identity);
                 std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache, numerics %.16s, %zu entries adopted\n", store->directory().u8string().c_str(),
                              store->direct() ? "around" : "through", LLMX_NUMERICS, store->adopted().size());
-                for (const std::string& why : store->refused()) std::fprintf(stderr, "server: a kept directory was not adopted, %s\n", why.c_str());
+                for (const std::string& why : store->refused()) std::fprintf(stderr, "server: a kept directory was not adopted, %s; it is kept until its age limit\n", why.c_str());
+                refused_dirs_ = store->refused().size();
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "server: no disk cache (%s)\n", e.what());
             }
@@ -202,6 +207,18 @@ public:
         return store_ ? store_->write_rate() : 0.0;
     }
 
+    // The write in flight, if it is a file of history `d` in blocks of `block` tokens: its payload bytes written and the seconds since it began; zeros otherwise.
+    std::pair<uint64_t, double> writing_of(const std::vector<std::string>& d, size_t block) const {
+        std::lock_guard<std::mutex> lk(m_);
+        if (!store_ || !key_ || pending_.first / block >= d.size() || d[pending_.first / block] != pending_.below) return {0, 0.0};
+        return store_->write_progress();
+    }
+
+    // Whether what servers before left is in the index (adopt has taken it), or the store's start failed.
+    bool settled() const {
+        std::lock_guard<std::mutex> lk(m_);
+        return adopted_taken_ || (ready_ && !store_);
+    }
     // Whether reads may start: the store made.
     bool readable() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -249,6 +266,8 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return !ready_ || writing_;
     }
+    // The kept directories of another identity this server's start did not adopt (DiskStore::refused).
+    size_t refused_dirs() const { return refused_dirs_; }
     size_t errors() const {
         std::lock_guard<std::mutex> lk(m_);
         return errors_;
@@ -470,9 +489,10 @@ public:
     }
 
     enum class Wrote { nothing, started, refused };
-    // Starts the write of the next file a history of `n` tokens lacks on disk, a segment and then its state, out of `held` or off the devices from `seq`.
+    // Starts the write of the next file a history of `n` tokens lacks on disk, a segment and then its state, out of `held` or off the devices from `seq`, a segment of at most `most` rows from `seq`.
     // `source` and `bound` name the host entry whose slabs the store reads, 0 for slabs of its own (docs/src/server.md, the disk tier).
-    Wrote write_next(infer::Model& model, const std::vector<std::string>& d, size_t n, bool back, DiskIndex::Time used, const infer::HostHistory* held, infer::Sequence* seq, uint64_t source, bool bound) {
+    Wrote write_next(infer::Model& model, const std::vector<std::string>& d, size_t n, bool back, DiskIndex::Time used, const infer::HostHistory* held, infer::Sequence* seq, uint64_t source, bool bound,
+                     size_t most = std::numeric_limits<size_t>::max()) {
         const size_t block = model.kv_block_tokens();
         const bool state = model.keeps_state();
         const auto missing = index_.missing(d, block, n);
@@ -485,6 +505,7 @@ public:
             if (!missing.empty() && (!held || held->blocks)) {
                 f.first = missing.front().first;
                 f.end = missing.front().second;
+                if (!held && most < f.end - f.first) f.end = f.first + std::max(block, most / block * block);
                 f.below = d[f.first / block];
                 f.ends.assign(d.begin() + (std::ptrdiff_t)(f.first / block) + 1, d.begin() + (std::ptrdiff_t)(f.end / block) + 1);
                 if (!held) {
@@ -538,6 +559,8 @@ public:
         pending_ = std::move(f);
         return Wrote::started;
     }
+    // The rows of the write in flight, a state's none.
+    size_t pending_rows() const { return pending_.end - pending_.first; }
     // Whether the write in flight reads host entry `source`'s slabs and has not been stopped.
     bool writing_from(uint64_t source, bool bound) const { return key_ && source_ && source_ == source && bound_ == bound; }
     bool write_stopped() const { return cancelled_; }
@@ -899,6 +922,7 @@ private:
     mutable std::mutex m_;
     std::unique_ptr<DiskStore> store_;   // under m_, once made
     bool ready_ = false, writing_ = false, adopted_taken_ = false;   // under m_
+    std::atomic<size_t> refused_dirs_{0};   // set once as the store is made
     uint64_t in_flight_ = 0;             // under m_, the key of the write in flight
     size_t errors_ = 0;                  // under m_
     std::chrono::steady_clock::time_point stopped_;   // under m_, when writing stopped or was last checked

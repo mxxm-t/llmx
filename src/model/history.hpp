@@ -380,7 +380,7 @@ inline std::vector<HostRange> Model::host_state_ranges(const HostHistory& h) con
 }
 
 // A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model at h.length, so a fork or the history itself continues with the bits of the history it was copied from.
-// The copies are enqueued ahead of any pass of the history, whose tickets cover them, and a throw leaves nothing held.
+// The copies are enqueued ahead of any pass of the history, whose tickets cover them; a pool, slot, copy or submission failure leaves nothing held and retires queued work before storage is released.
 inline Sequence Model::restore_host(HostHistory& h) {
     if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
     if (h.slabs.size() != devices_.size() || !h.blocks || h.first || (state_layers_ && !h.state)) throw std::logic_error("inference: a host history of another layout");
@@ -411,14 +411,14 @@ inline Sequence Model::restore_host(HostHistory& h) {
             if (d.states) span.slot(*d.states, slot);
             if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
         }
+        for (size_t i = 0; i < devices_.size(); ++i)
+            if (!h.slabs[i].empty()) h.tickets[i] = s.last_[i] = devices_[i]->b->submit();
     } catch (...) {
         // Copies out of h's slabs may be enqueued past its tickets, so they retire before h can be released.
         for (auto& d : devices_) d->b->sync();
         throw;
     }
     std::fill(s.length_.begin(), s.length_.end(), h.length);
-    for (size_t i = 0; i < devices_.size(); ++i)
-        if (!h.slabs[i].empty()) h.tickets[i] = s.last_[i] = devices_[i]->b->submit();
     return s;
 }
 

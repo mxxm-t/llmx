@@ -60,8 +60,11 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   release allocates nothing.
   A restore makes a fresh history over new blocks and, on such a model, a
   checkpoint slot of its own, its copies ahead of the history's first
-  pass, and only the model that wrote the copy restores it; a throw from a
-  pool, a slot or a copy leaves nothing held. `host_bytes(length)` gives
+  pass, and only the model that wrote the copy restores it. If reserving a
+  pool block or state slot, queuing a copy or submitting on any device
+  throws, the restore synchronizes every backend before returning the error
+  and releasing its checkpoint slot; the host slabs remain safe to retry or
+  release. `host_bytes(length)` gives
   the slabs a copy of `length` tokens takes.
   `alloc_host(length, out, limit)` takes the slabs a copy of `length`
   tokens takes, holding nothing yet, as `save_host` takes them before its

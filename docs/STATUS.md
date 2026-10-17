@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## The cache plan, revision 7: what landed, the device pool apart from the context, and the order of what remains (2026-10-17, branch docs/cache-plan-revision, docs only, lands by fast-forward)
+
+- **What changed:** docs/CACHE-PLAN.md gains section 0 (steps 0 to 2 and the S8 fix set landed, its gate and the conditions on production), S9 (the pool is one context), section 7 (serve's `--ctx-size` as the request limit, `--kv-tokens` for the pool, the automatic default sized from free device memory with the drafter in the fit on every model, a finite checked search bound, one owner of the request limit, the full-load gate) and section 8 (what remains, ordered by gain on production, each with its size and gate, A20's design with its lifetime points); docs/DISK-TIER.md's read bound corrected to the 15 s fallback.
+- **Reviewed:** F2DEV (devlog 07:07, approved 07:32) and XDEV (10:10, 10:13, 10:16 and accepted 10:32 on its clock), each correction in the text; `docs` and `dead-code` pass.
+- **Next:** section 8's item 1, the pool flags and the automatic default, with the gate runner's no-code measurement.
+
 ## The cache audit's fix set for S8: no row lost where the tiers allow, at production's proportions (2026-10-16, branch fix/cache-audit-s8, steps 4, 5, 6, 7, 8 and 9 of docs/CACHE-PLAN.md in part, lands by fast-forward as two commits)
 
 - **Why:** production lost the owner's long chat after a client's task (S8, docs/CACHE-PLAN.md, Production since 2026-10-11); the audit of 2026-10-16 found every path where rows leave the devices with no restore point (A1 to A19 in the plan). The design was approved by F2DEV (15:30) and the coordinator (15:40).

@@ -753,6 +753,7 @@ struct Room : backend::CpuBackend {
     std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? early : room; }
     bool reads_in_place() const override { return false; }
     bool is_cpu() const override { return !device; }
+    bool memory_is_host() const override { return !device; }
 };
 
 // The automatic checkpoint count is tried through the fit itself (infer::fitted_kv): a device with room for its live states only gets no checkpoint slot, roomy ones get the slots asked for, and counts whose sum a size cannot hold are refused.
@@ -1245,6 +1246,38 @@ void drafting_fit() {
     require(split_with.model->kv_tokens_total() == split_without.model->kv_tokens_total() &&
                 split_with.model->checkpoint_slots() == split_without.model->checkpoint_slots() && split_with.model->checkpoint_slots() == 4,
             "a split with the drafter took another budget or other checkpoints than without");
+
+    // The automatic budget (PlacementRequest::kv_auto) is sized with the drafter and its first mark in the fit (docs/CACHE-PLAN.md, section 7), checkpoints given by number.
+    // The budget the fit gives without drafts is refused when passed explicitly with the drafter; the automatic budget with it loads at fewer tokens, and so does that number passed.
+    const size_t wide = 2 * least(true, 1);
+    // A device, not the CPU, whose free memory the automatic budget reads; the CPU's is the host's and keeps the context.
+    const auto device_alone = [](size_t room) {
+        auto d = std::make_shared<Room>();
+        d->room = room;
+        d->device = true;
+        return std::vector<backend::BackendPtr>{d};
+    };
+    infer::PlacementRequest auto_plain = lookup;
+    auto_plain.fit_marks = false;
+    auto_plain.kv_auto = true;
+    infer::ModelOptions no_marks = options;
+    no_marks.mark_slots = 0;
+    const size_t old_budget = infer::place_model(w, device_alone(wide), auto_plain, no_marks).model->kv_tokens_total();
+    require(old_budget > 512, "the automatic budget without drafts on a roomy device stayed at the context: " + std::to_string(old_budget));
+    infer::ModelOptions explicit_old = options;
+    explicit_old.kv_tokens = old_budget;
+    refuses("the drafter beside the budget the automatic fit gives without drafts, passed explicitly", "drafting needs room beyond the KV budget of " + std::to_string(old_budget) + " tokens",
+            [&] { infer::place_model(w, device_alone(wide), request, explicit_old); });
+    infer::PlacementRequest auto_drafting = request;
+    auto_drafting.kv_auto = true;
+    const infer::PlacedModel drafting = infer::place_model(w, device_alone(wide), auto_drafting, options);
+    const size_t new_budget = drafting.model->kv_tokens_total();
+    require(new_budget < old_budget && new_budget > 512 && drafting.model->mark_slots() >= 1,
+            "the automatic budget with the drafter took " + std::to_string(new_budget) + " tokens and " + std::to_string(drafting.model->mark_slots()) + " marks, against fewer than " +
+                std::to_string(old_budget) + " and one at least");
+    infer::ModelOptions explicit_new = options;
+    explicit_new.kv_tokens = new_budget;
+    require(infer::place_model(w, device_alone(wide), request, explicit_new).model->kv_tokens_total() == new_budget, "the automatic budget with the drafter, passed explicitly, did not load");
 }
 
 // A draft's ids and every draft row's logits.

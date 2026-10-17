@@ -1110,8 +1110,16 @@ def check_tool_messages(model):
 TOP = 5
 
 
+def check_ctx_past_context(model):
+    """A request limit past the model's context (--ctx-size 1024 on a context of 512) is refused at start, once the file is read, with both numbers and the pool's flag, and the server never listens."""
+    f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
+    got = subprocess.run([common.exe_path()] + common.device_args(["serve", model, "--port", "0", "--ctx-size", "1024"], "f32"), capture_output=True, timeout=300)
+    err = got.stderr.decode("utf-8", "replace")
+    assert got.returncode == 1 and "--ctx-size 1024 is past the model's context of 512 tokens" in err and "--kv-tokens" in err and "serving" not in err, (got.returncode, err)
+
+
 def check_context_overflow(model):
-    """A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context), on the synthetic chat model under a template without end tokens and a pool of 128 tokens, so a cut drops in steps of 64.
+    """A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context), on the synthetic chat model under a template without end tokens and a request limit of 128 tokens (--ctx-size, then a pool of 128, --kv-tokens), so a cut drops in steps of 64.
     By default every route refuses it with a 413 that gives the prompt's tokens, the limit and the flag; with --context-overflow shift a conversation that grows past the pool keeps answering, each cut dropping whole messages after the system message so that the kept window starts at a user message, at the same place while the conversation grows within a step, the reply and its prompt those of a client that sent the kept messages itself; and a text prompt keeps its first rows and loses whole steps after them, saying the cut was not at a turn's end."""
     f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
     system = {"role": "system", "content": "s"}
@@ -1126,8 +1134,11 @@ def check_context_overflow(model):
         return messages
 
     text = "".join(chr(97 + i % 26) for i in range(150))
+    # A request's limit of 128 (--ctx-size) beside a pool of at least the model's context of 512 (the context on the CPU, what a device holds there): requests are held to the limit, which /v1/health gives beside the pool.
     srv = Server(model, "--ctx-size", "128")
     try:
+        info = srv.get("/v1/health")["server"]
+        assert info["request_tokens"] == 128 and info["kv_tokens"] >= 512 and info["context_tokens"] == 512, info
         for path, body in (("/v1/generate", {"prompt": text, "max_tokens": 4}), ("/v1/completions", {"prompt": text, "max_tokens": 4}),
                            ("/v1/chat", {"messages": conversation(3), "max_tokens": 16}), ("/v1/chat/completions", {"messages": conversation(3), "max_tokens": 16})):
             status, err = srv.post(path, body)
@@ -1147,7 +1158,7 @@ def check_context_overflow(model):
         return messages
 
     edge = near_edge(119)
-    srv = Server(model, "--ctx-size", "128")
+    srv = Server(model, "--kv-tokens", "128")
     try:
         # Without the flag it is refused with its numbers and the way out, where it was answered with a clipped reply; a cap that fits is served as before.
         status, err = srv.post("/v1/chat/completions", {"messages": edge, "temperature": 0})
@@ -1161,7 +1172,7 @@ def check_context_overflow(model):
         assert status == 200 and got["choices"][0]["finish_reason"] == "stop" and "dropped_tokens" not in got["context"], (status, got)
     finally:
         srv.close()
-    srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")
+    srv = Server(model, "--kv-tokens", "128", "--context-overflow", "shift")
     try:
         # With the flag it is cut now, at a message, and the reply runs whole, past the 9 rows that were left; health counts the shift, and a stream reports the same context.
         status, got = srv.post("/v1/chat/completions", {"messages": edge, "temperature": 0})
@@ -1179,7 +1190,7 @@ def check_context_overflow(model):
         assert status == 200 and "dropped_tokens" not in got["context"], (status, got)
     finally:
         srv.close()
-    srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")
+    srv = Server(model, "--kv-tokens", "128", "--context-overflow", "shift")
     cuts = []
     try:
         for turns in range(1, 7):
@@ -1229,7 +1240,7 @@ def check_tool_calls_real(model):
               "parameters": {"type": "object", "properties": {"city": {"type": "string", "description": "The city"}}, "required": ["city"]}}}]
     ask = [{"role": "user", "content": "What is the weather in Paris right now?"}]
     body = {"messages": ask, "tools": tools, "temperature": 0, "max_tokens": 400}
-    srv = Server(model, "--ctx-size", "4096")
+    srv = Server(model, "--kv-tokens", "4096")
     try:
         status, got = srv.post("/v1/chat/completions", body)
         choice = got["choices"][0]
@@ -1252,7 +1263,7 @@ def check_tool_calls_real(model):
 def check_context_overflow_real(model, excerpt):
     """The same on the real model, whose template ends every turn with the tokenizer's end token, on a pool of 2048 tokens: a chat that grows past it keeps answering, its cuts at turn ends, and the turn after a cut reuses what the cut turn read, the cut being at the same message; a text prompt in the chat format is cut at a turn end with its leading turn kept.
     The pool is that large so that a kept window is past 449 tokens, where a device's tile takes one split whatever the length and a follow-up may fork the rows."""
-    srv = Server(model, "--ctx-size", "2048", "--max-seqs", "2", "--context-overflow", "shift")
+    srv = Server(model, "--kv-tokens", "2048", "--max-seqs", "2", "--context-overflow", "shift")
     try:
         messages = [{"role": "system", "content": "You answer in a few words."}]
         cuts, reused = [], []
@@ -1345,7 +1356,7 @@ def check_message_ends(model):
     def chat(template, tools, lead=True, turns=6):
         f32.write_model(model, reasoning_tensors(), template, f32.VOCAB - 1, config=REASONING_CONFIG, control=(f32.VOCAB - 1,))
         messages, cuts, prompts, renders = [system] if lead else [], [], [], []
-        srv = Server(model, "--ctx-size", "128", "--context-overflow", "shift")
+        srv = Server(model, "--kv-tokens", "128", "--context-overflow", "shift")
         try:
             for turn in range(turns):
                 if turn:
@@ -1398,7 +1409,7 @@ def check_message_ends(model):
 def check_no_turns_whole_block(model):
     """On a model whose 512-token context and 128-token pool hold one whole block, a tier of 1 MiB holds no copy of it (a copy is whole 64 MiB slabs), so the line says turns are off and names both sizes; one of 64 MiB holds it and says nothing."""
     def lines(size):
-        srv = Server(model, "--ctx-size", "128", "--host-cache-bytes", str(size))
+        srv = Server(model, "--kv-tokens", "128", "--host-cache-bytes", str(size))
         try:
             srv.log.seek(0)
             return [line for line in srv.log.read().splitlines() if "take turns" in line]
@@ -1733,7 +1744,7 @@ def check_stream_reuse(directory):
 
 def check_limits(model):
     """The serving limits: a KV budget below the context bounds a request, and a full queue refuses with 503 rather than waiting, while the tokenize routes, which pass no queue, still answer and count a text past the context."""
-    srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--ctx-size", "512")
+    srv = Server(model, "--max-seqs", "1", "--max-queue", "1", "--kv-tokens", "512")
     try:
         assert srv.post("/v1/generate", {"prompt": "a", "max_tokens": 600})[0] == 413
         long_text = " ".join(["the"] * 600)
@@ -1793,7 +1804,7 @@ def same_choice(alone, got, what):
 
 def check_uncapped(model):
     """Uncapped requests share a small pool: each reserves its prompt and grows, a request is paused when the pool runs out and resumes from its history, and every one runs to its own end with the tokens and log-probabilities it gives alone, where it never pauses."""
-    srv = Server(model, "--max-seqs", "4", "--ctx-size", "1024")
+    srv = Server(model, "--max-seqs", "4", "--kv-tokens", "1024")
     try:
         prompts = ["The capital of France is", "Once upon a time", "def fib(n):"]
         body = lambda p: {"prompt": p, "temperature": 0, "logprobs": TOP}
@@ -1835,13 +1846,13 @@ def check_paused_prefill(model):
     # A stop string ends the long request a few tokens in, enough to tell which prompt it resumed from.
     body = {"prompt": long_prompt, "temperature": 0, "stop": [" ."], "logprobs": TOP}
     # Alone on a server of its own, so no donor of this run's is there for the paused request to fork.
-    srv = Server(model, "--ctx-size", "1280", *flags)
+    srv = Server(model, "--kv-tokens", "1280", *flags)
     try:
         status, alone = srv.post("/v1/completions", body, timeout=900)
         assert status == 200, alone
     finally:
         srv.close()
-    srv = Server(model, "--ctx-size", "1280", *flags)
+    srv = Server(model, "--kv-tokens", "1280", *flags)
     try:
         # The short request streams and is queued first, so the long one is the latest admitted and the one paused.
         s = srv.open("/v1/completions", {"prompt": "Once upon a time", "temperature": 0, "stream": True})
@@ -1879,7 +1890,7 @@ def check_paused_prefill(model):
 def check_conversation(model, text):
     """A conversation whose history grows past half of a small pool: each follow-up repeats the last turn's prompt and reply and adds half of `text`, and forks the last turn's prompt however full the pool is but never its reply, whose rows decode computed, so its `reused_tokens` stays within the last turn's prompt and, once the last turn's prompt passes 512 tokens, where a device's tile takes one split whatever the length, grows with the server's `prefix_tokens` on every follow-up, and it gives the CLI's greedy text for its whole prompt."""
     pool, n, turns = 1024, 16, 6
-    srv = Server(model, "--ctx-size", str(pool))
+    srv = Server(model, "--kv-tokens", str(pool))
     try:
         words = text.split(" ")
         halves = [" ".join(words[:len(words) // 2]), " ".join(words[len(words) // 2:])]
@@ -1904,7 +1915,7 @@ def check_conversation(model, text):
 def check_unrelated_donor(model):
     """A follow-up turn beside an unrelated donor, on a pool with room for the follow-up once the turn it repeats is consumed but not beside both donors: the follow-up consumes that turn's history rather than evicting the unrelated donor, so a later prompt repeating the unrelated request's history still reuses it, with the CLI's greedy text."""
     pool, n = 1344, 16
-    srv = Server(model, "--ctx-size", str(pool))
+    srv = Server(model, "--kv-tokens", str(pool))
     try:
         with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
             text = f.read()
@@ -1963,7 +1974,7 @@ def check_host_tier(model):
     n = 16
     reused = {}
     for host in ("1073741824", "0"):
-        srv = Server(model, "--ctx-size", "1024", "--host-cache-bytes", host)
+        srv = Server(model, "--kv-tokens", "1024", "--host-cache-bytes", host)
         try:
             first = {}
             for key, part in (("a", text[:2000]), ("b", text[4000:6000])):
@@ -2074,7 +2085,7 @@ def check_disk_keep(model):
     n = 16
     with tempfile.TemporaryDirectory(prefix="llmx_keep_") as root:
         # Prompts read in passes of 16 rows measure no prompt rate, so a follow-up waits for its read however fast the device computes; read whole, a fast device would compute 448 tokens before the adopted file is read and reuse nothing.
-        flags = ("--ctx-size", "1024", "--max-seqs", "1", "--ubatch", "16") + disk_flags(root, "--disk-cache-keep", host=1 << 30, disk=4 << 30)
+        flags = ("--kv-tokens", "1024", "--max-seqs", "1", "--ubatch", "16") + disk_flags(root, "--disk-cache-keep", host=1 << 30, disk=4 << 30)
         srv = Server(model, *flags)
         first = []
         try:
@@ -2191,7 +2202,7 @@ def settled(srv, what):
 
 
 def check_departed(model):
-    srv = Server(model, "--max-seqs", "1", "--ctx-size", str(POOL), "--ubatch", "1")
+    srv = Server(model, "--max-seqs", "1", "--kv-tokens", str(POOL), "--ubatch", "1")
     try:
         for leave in (leave_whole, leave_prefill, leave_queued, leave_half):
             settled(srv, leave(srv))
@@ -2264,6 +2275,8 @@ def run():
                 print("server: synthetic MoE model, experts on the host and long prompts streamed, a prompt forking a finished prompt's block giving its values alone  [ok]")
         check_no_turns_line(model)
         print("server: a server without host memory for evicted prefixes says at its start that uncapped requests filling the pool do not take turns, with the flag and both sizes, and one given a tier that holds a history, or on the CPU at its default, says nothing  [ok]")
+        check_ctx_past_context(os.path.join(directory, "overflow.gguf"))
+        print("server: a request limit past the model's context refused at start with both numbers and the pool's flag  [ok]")
         cuts = check_context_overflow(os.path.join(directory, "overflow.gguf"))
         check_no_turns_whole_block(os.path.join(directory, "overflow.gguf"))
         print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "

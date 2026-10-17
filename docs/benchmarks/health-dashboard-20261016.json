@@ -2111,5 +2111,710 @@
       "all_32_blocks_results_flags_preserved": true,
       "assigned_core_residual_and_disk_flags_independent_of_roles": true
     }
+  },
+  "topology_landing_20261018": {
+    "scope": "Topology integration landing evidence; metadata/API/dashboard change. No model arithmetic change. Timing is a single monitored ABBA regression screen, not a hot-path isolation or acceptance threshold.",
+    "revision": {
+      "base": "25a5428562fcfdeb7f85ea9666a7a879dce303f0",
+      "candidate": "f0d8266e65382fcdcacf8d2234f0cba5b2af8cdd"
+    },
+    "builds": {
+      "base": {
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "gpu_exposed_to_builder": false,
+        "binary_sha256": "c97fa8d399a5cceaeabad70a814788511f04dbb555651a7e8638a9d81bd3d395",
+        "version": "llmx 0.1.0+g25a5428562fc numerics 888d8972bfd4898b",
+        "vulkan_library_sha256": "44078f06a6083805ca17fbdfd7fa4876a4928664b42789b33dfa3a33a152cf08"
+      },
+      "candidate": {
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "gpu_exposed_to_builder": false,
+        "binary_sha256": "8988d2acd19682c24b76f5cec43dda5eaee0e4653241ad17fa8b33ddfdeaa57a",
+        "version": "llmx 0.1.0+gf0d8266e6538 numerics 6439d0f46e37628e",
+        "vulkan_library_sha256": "44078f06a6083805ca17fbdfd7fa4876a4928664b42789b33dfa3a33a152cf08"
+      }
+    },
+    "identity": {
+      "checks": [
+        {
+          "model": "dense",
+          "device": "cpu",
+          "metadata_equal_except_build_version": true,
+          "payload_hashes_equal": true,
+          "base_payload_sha256": {
+            "batched": "c5abc6916ec0e4619fdad09c3ecab6c82f21a546eca7349d1ec1ebdc8d09309e",
+            "decode": "01ba0509d628ee8c0641d19a7fd8b4799a0775459ef44fef14ca3d90babf40a9",
+            "greedy": "481f1bd5b47f974e5457a55a2e469acad3ce506c111ef49b0051bb6c10f59a0b"
+          },
+          "candidate_payload_sha256": {
+            "batched": "c5abc6916ec0e4619fdad09c3ecab6c82f21a546eca7349d1ec1ebdc8d09309e",
+            "decode": "01ba0509d628ee8c0641d19a7fd8b4799a0775459ef44fef14ca3d90babf40a9",
+            "greedy": "481f1bd5b47f974e5457a55a2e469acad3ce506c111ef49b0051bb6c10f59a0b"
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "metadata_equal_except_build_version": true,
+          "payload_hashes_equal": true,
+          "base_payload_sha256": {
+            "batched": "cd0640f2697401ff147444822f53d09e8dc85999d9f085e633f1c36af62a27ae",
+            "decode": "b14323e842d9bd4a73230cf91cd6f13dae590e02ee5832fed10d936ed5480ed5",
+            "greedy": "f196794e59934c1a31a6db332f5066d9568b3ad620176c168b0633d8c54cf2c0"
+          },
+          "candidate_payload_sha256": {
+            "batched": "cd0640f2697401ff147444822f53d09e8dc85999d9f085e633f1c36af62a27ae",
+            "decode": "b14323e842d9bd4a73230cf91cd6f13dae590e02ee5832fed10d936ed5480ed5",
+            "greedy": "f196794e59934c1a31a6db332f5066d9568b3ad620176c168b0633d8c54cf2c0"
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "metadata_equal_except_build_version": true,
+          "payload_hashes_equal": true,
+          "base_payload_sha256": {
+            "batched": "1a21fb54bb1d275905ce158b562f99abc10d77c787a886c01bf4c59a803c02d7",
+            "decode": "7f4b9f792e4d7cb8451c5c11fb5e198999541a0c7ae2c696d559f3b6bc42b384",
+            "greedy": "545c688ab3ad524b7a7610640f3f6593323b9acea6320b8ce2c30a5fa141a3b5"
+          },
+          "candidate_payload_sha256": {
+            "batched": "1a21fb54bb1d275905ce158b562f99abc10d77c787a886c01bf4c59a803c02d7",
+            "decode": "7f4b9f792e4d7cb8451c5c11fb5e198999541a0c7ae2c696d559f3b6bc42b384",
+            "greedy": "545c688ab3ad524b7a7610640f3f6593323b9acea6320b8ce2c30a5fa141a3b5"
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "metadata_equal_except_build_version": true,
+          "payload_hashes_equal": true,
+          "base_payload_sha256": {
+            "batched": "5c68020aa09e99610a3fa89726b881dfbe06de870a8b8272bb676d6f7a8fe671",
+            "decode": "6ca44a39756dfe954595291acf7ad8b6d88fa3bef95c5b4dd07b198441db078a",
+            "greedy": "6a0cf4459006535b5bd086229fe2158de7e4551d16e37c4f1e94f6e5de7508e8"
+          },
+          "candidate_payload_sha256": {
+            "batched": "5c68020aa09e99610a3fa89726b881dfbe06de870a8b8272bb676d6f7a8fe671",
+            "decode": "6ca44a39756dfe954595291acf7ad8b6d88fa3bef95c5b4dd07b198441db078a",
+            "greedy": "6a0cf4459006535b5bd086229fe2158de7e4551d16e37c4f1e94f6e5de7508e8"
+          }
+        }
+      ],
+      "all_four_backend_model_payloads_and_metadata_match": true
+    },
+    "timing": {
+      "models": {
+        "dense": "Qwen3-0.6B Q8_0",
+        "hybrid": "Qwen3.5-0.8B Q4_K_M"
+      },
+      "configuration": {
+        "device": [
+          "cpu",
+          "vulkan:0"
+        ],
+        "cache": "f32",
+        "prompt_tokens": 512,
+        "decode_tokens": 64,
+        "threads": 2,
+        "ubatch": 128,
+        "order_per_model_backend": [
+          "base",
+          "candidate",
+          "candidate",
+          "base"
+        ],
+        "calls": 16
+      },
+      "raw_calls": [
+        {
+          "model": "dense",
+          "device": "cpu",
+          "abba_index": 0,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 127.31,
+          "tg64_tokens_per_second": 34.61,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 37,
+              "disk_mb_s": 388.9,
+              "system_cpu_percent": 19.2,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": true,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "cpu",
+          "abba_index": 1,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 129.32,
+          "tg64_tokens_per_second": 33.74,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 245,
+              "disk_mb_s": 38.2,
+              "system_cpu_percent": 30.1,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": true,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "cpu",
+          "abba_index": 2,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 130.24,
+          "tg64_tokens_per_second": 34.41,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 245,
+              "disk_mb_s": 4.8,
+              "system_cpu_percent": 30.1,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": true,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "cpu",
+          "abba_index": 3,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 129.05,
+          "tg64_tokens_per_second": 34.31,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 30,
+              "disk_mb_s": 4.8,
+              "system_cpu_percent": 19.2,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "abba_index": 0,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 5616.75,
+          "tg64_tokens_per_second": 411.77,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 28,
+              "disk_mb_s": 0.0,
+              "system_cpu_percent": 18.1,
+              "other_gpu_percent": 99.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "abba_index": 1,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 5616.89,
+          "tg64_tokens_per_second": 410.64,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 27,
+              "disk_mb_s": 3.4,
+              "system_cpu_percent": 15.9,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "abba_index": 2,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 5619.18,
+          "tg64_tokens_per_second": 413.97,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 20,
+              "disk_mb_s": 3.4,
+              "system_cpu_percent": 9.1,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": false,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "abba_index": 3,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 5619.12,
+          "tg64_tokens_per_second": 413.13,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 28,
+              "disk_mb_s": 3.4,
+              "system_cpu_percent": 13.4,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "abba_index": 0,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 115.08,
+          "tg64_tokens_per_second": 24.77,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 32,
+              "disk_mb_s": 3.6,
+              "system_cpu_percent": 19.3,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "abba_index": 1,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 114.28,
+          "tg64_tokens_per_second": 25.07,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 32,
+              "disk_mb_s": 4.1,
+              "system_cpu_percent": 20.0,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": true,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "abba_index": 2,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 113.98,
+          "tg64_tokens_per_second": 25.17,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 29,
+              "disk_mb_s": 4.1,
+              "system_cpu_percent": 19.3,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "abba_index": 3,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 112.25,
+          "tg64_tokens_per_second": 25.16,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 28,
+              "disk_mb_s": 3.0,
+              "system_cpu_percent": 19.2,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "abba_index": 0,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 4683.96,
+          "tg64_tokens_per_second": 318.13,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 25,
+              "disk_mb_s": 2.7,
+              "system_cpu_percent": 14.7,
+              "other_gpu_percent": 99.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "abba_index": 1,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 4696.17,
+          "tg64_tokens_per_second": 317.97,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 25,
+              "disk_mb_s": 2.7,
+              "system_cpu_percent": 8.8,
+              "other_gpu_percent": 99.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "abba_index": 2,
+          "arm": "candidate",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 4686.63,
+          "tg64_tokens_per_second": 318.32,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 27,
+              "disk_mb_s": 0.0,
+              "system_cpu_percent": 12.7,
+              "other_gpu_percent": 99.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "abba_index": 3,
+          "arm": "base",
+          "exit_code": 0,
+          "pp512_tokens_per_second": 4672.64,
+          "tg64_tokens_per_second": 316.07,
+          "activity": {
+            "peaks": {
+              "unrelated_top10_cpu_percent": 46,
+              "disk_mb_s": 6.6,
+              "system_cpu_percent": 12.7,
+              "other_gpu_percent": 100.0
+            },
+            "threshold_flags": {
+              "unrelated_top10_cpu_percent": true,
+              "disk_mb_s": false,
+              "system_cpu_percent": false,
+              "other_gpu_percent": true
+            }
+          }
+        }
+      ],
+      "paired_candidate_over_base_ratios": [
+        {
+          "model": "dense",
+          "device": "cpu",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 0,
+          "candidate_index": 1,
+          "candidate_over_base": {
+            "pp512_ratio": 1.0157882334459194,
+            "tg64_ratio": 0.9748627564287778
+          }
+        },
+        {
+          "model": "dense",
+          "device": "cpu",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 3,
+          "candidate_index": 2,
+          "candidate_over_base": {
+            "pp512_ratio": 1.009221232080589,
+            "tg64_ratio": 1.0029146021568054
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 0,
+          "candidate_index": 1,
+          "candidate_over_base": {
+            "pp512_ratio": 1.0000249254462101,
+            "tg64_ratio": 0.9972557495689341
+          }
+        },
+        {
+          "model": "dense",
+          "device": "vulkan:0",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 3,
+          "candidate_index": 2,
+          "candidate_over_base": {
+            "pp512_ratio": 1.000010677828557,
+            "tg64_ratio": 1.00203325829642
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 0,
+          "candidate_index": 1,
+          "candidate_over_base": {
+            "pp512_ratio": 0.9930483142161974,
+            "tg64_ratio": 1.0121114251110215
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "cpu",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 3,
+          "candidate_index": 2,
+          "candidate_over_base": {
+            "pp512_ratio": 1.015412026726058,
+            "tg64_ratio": 1.0003974562798092
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 0,
+          "candidate_index": 1,
+          "candidate_over_base": {
+            "pp512_ratio": 1.0026067686316706,
+            "tg64_ratio": 0.9994970609499262
+          }
+        },
+        {
+          "model": "hybrid",
+          "device": "vulkan:0",
+          "pairs": {
+            "base_index_0_vs_candidate_1": [
+              0,
+              1
+            ],
+            "candidate_index_2_vs_base_index_3": [
+              3,
+              2
+            ]
+          },
+          "base_index": 3,
+          "candidate_index": 2,
+          "candidate_over_base": {
+            "pp512_ratio": 1.0029940247911244,
+            "tg64_ratio": 1.0071186762426045
+          }
+        }
+      ],
+      "interpretation": "Retain all 16 calls and all eight PP/TG ratio pairs. One ABBA block per model/backend is insufficient to claim zero overhead, a strict bound, or a statistically established nonregression. Do not infer a hot-path cost from this metadata-only change.",
+      "monitor": {
+        "samples": 124,
+        "max_sample_gap_seconds": 1.2515152839478105,
+        "nominal_period_seconds": 1,
+        "activity_thresholds": {
+          "unrelated_top10_cpu_percent": 25,
+          "disk_mb_s": 50,
+          "system_cpu_percent": 20,
+          "other_gpu_percent": 5
+        },
+        "calls_flagged_at_threshold": {
+          "unrelated_top10_cpu_percent": 15,
+          "disk_mb_s": 1,
+          "system_cpu_percent": 3,
+          "other_gpu_percent": 16
+        },
+        "max_observed_activity": {
+          "unrelated_top10_cpu_percent": 245,
+          "disk_mb_s": 388.9,
+          "system_cpu_percent": 30.1,
+          "other_gpu_percent": 100.0
+        },
+        "limits": [
+          "Exact reused Linux monitor:1s nominal period, full-host CPU/disk/top10 processes with>=5% CPU and all-card GPU activity.",
+          "Top10/truncated process enumeration, PID reuse and transient/low-CPU tasks can hide contention. Missing observations are unknown, not idle.",
+          "Benchmark container name and owned driver/monitor PIDs separated where observed; short rocm-smi helper subprocesses may appear as unrelated activity.",
+          "Disk activity includes own model loads/captures; no separate per-process disk attribution. GPU polling overhead and monitor activity occur in every arm.",
+          "Host monitor runs outside benchmark CPU cgroup; timestamps indicate intervals approximately, not per-kernel contention. max observed gap and missing fields reported."
+        ],
+        "run_notes": "All calls retained; activity flags did not trigger reruns or exclusions. The monitor ran outside the benchmark CPU cgroup; short rocm-smi helpers may appear as unrelated process activity."
+      },
+      "evidence_sha256": {
+        "annotated_summary": "a0c512f8e5904bca2918273d75db3850ddb1345948c59c94a3c7251d14b127f0",
+        "result": "e420f92969d87ac09b0781ba1e0e04c4bc3b93bebd320e04c37cd70e8c153fd7"
+      }
+    },
+    "device_suite": {
+      "exit_code": 0,
+      "components_passed": 28,
+      "components_total": 28,
+      "required_gate_fixtures": "all six pinned models present; Qwen3-0.6B and Qwen3.5-0.8B quantizations",
+      "optional_numpy": "Not required on this image; retain the suite skip. Strict Windows and hosted suites cover it.",
+      "gpu_exposed": true,
+      "device": "vulkan:0",
+      "source_fixtures_binary_unchanged": true,
+      "owned_containers_removed": true,
+      "manifest_sha256": "3bfc1da8d51fe75965a0da656fdd3ea5a390d7e215a9125269bd1dd1c328a2b7"
+    },
+    "other_gates": {
+      "windows_ctest": "49/49 passed",
+      "windows_cpu_suite": "all 28 components passed on clean binary; initial sandboxed cli and roundtrip failures were due native filesystem error 5 resolving relative output paths. Authorized focused reruns of only cli and roundtrip from writable scratch passed both. No full-suite rerun.",
+      "hosted_ci": {
+        "run": "39071415930",
+        "jobs": "7/7 green"
+      }
+    },
+    "deployment": "Not deployed. Production health still does not expose topology; dashboard panel therefore remains unavailable there until a future rollout."
   }
 }

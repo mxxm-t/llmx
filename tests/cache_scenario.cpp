@@ -791,6 +791,76 @@ void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok,
     same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "first write, the next turn's reply");
 }
 
+// A pool sized apart from a request's limit (docs/CACHE-PLAN.md, section 7): a limit below the context beside a larger pool holds requests to it with unchanged replies, and a pool below the limit holds them to the pool.
+// A history kept at a pool of one context is read back at a pool of two, since a kept entry's identity reads the model's own limit.
+void pool_past_context(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
+    {
+        auto model = make(2 * kPool, 64);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, 0, nullptr, 0, true, {}, {}, 512);
+        require(sched.token_limit() == 512, "a request limit of 512 beside a pool of " + std::to_string(model->kv_tokens_total()) + " gave requests " + std::to_string(sched.token_limit()));
+        bool refused = false;
+        try {
+            sched.submit(prompt_of(3, 600, v), params_of(Req{prompt_of(3, 600, v), 8}));
+        } catch (const server::TooLong&) {
+            refused = true;
+        }
+        require(refused, "a 600-token prompt was taken under a request limit of 512");
+        const Req fits{prompt_of(4, 300, v), (int)kReply};
+        std::thread runner([&] { sched.run(); });
+        Reply got;
+        try {
+            got = drain(*sched.submit(fits.prompt, params_of(fits)));
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        auto one = make(kPool, 64);
+        same(serve(*one, tok, 2, {{fits}})[0], got, "a request under a limit below the context beside a larger pool");
+    }
+    {
+        auto model = make(2 * kBlock, 64);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, 0, nullptr, 0, true, {}, {}, 512);
+        require(sched.token_limit() == 2 * kBlock, "a pool of 256 tokens below a request limit of 512 gave requests " + std::to_string(sched.token_limit()));
+    }
+    DiskRoot disk("pool-past-context");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::hours(1);
+    const Req first{prompt_of(5, 1100, v), (int)kReply};
+    std::vector<uint32_t> next = first.prompt;
+    size_t reused = 0;
+    Reply got;
+    for (const size_t pool : {kPool, 2 * kPool}) {
+        auto model = make(pool, 64);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock), nullptr, 0, true, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            if (pool == kPool) {
+                for (uint32_t id : ids_of(drain(*sched.submit(first.prompt, params_of(first))))) next.push_back(id);
+                const std::vector<uint32_t> user = prompt_of(30, kUser, v);
+                next.insert(next.end(), user.begin(), user.end());
+            } else {
+                within_a_minute([&] { return sched.stats().disk_ready && sched.stats().disk_entries > 0; }, "a pool past the context: the kept files adopted");
+                const auto h = sched.submit(next, params_of(Req{next, (int)kReply}));
+                got = drain(*h);
+                reused = h->reused();
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 1024, "a history kept at a pool of one context and read back at a pool of two reused " + std::to_string(reused) + " tokens, against 1024");
+    auto fresh = make(kPool, 64);
+    same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "a pool past the context, the turn after the restart");
+}
+
 } // namespace
 
 // `legs` runs the scripted conversation and its cases, `production` the production-shaped script; with no argument, both.
@@ -813,6 +883,7 @@ int main(int argc, char** argv) {
             restore_beside_donor(one, tok, (uint32_t)kCpu.vocab);
             slow_write_wait(weights, tok, (uint32_t)kCpu.vocab);
             first_write_wait(weights, tok, (uint32_t)kCpu.vocab);
+            pool_past_context(one, tok, (uint32_t)kCpu.vocab);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 896, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 768, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});

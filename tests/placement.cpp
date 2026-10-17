@@ -674,9 +674,13 @@ void histories_fit_the_pool() {
 // With `rise_after`, it reports one byte free for that many reads before `room`, as a device does while it reclaims the memory of a process that has just ended.
 struct SizedDevice : HostMemoryDevice {
     size_t room = 0;
-    bool copying = false;
+    bool copying = false, unknown = false;
     mutable int rise_after = 0;
-    std::optional<size_t> memory_available() const override { return rise_after-- > 0 ? 1 : room; }
+    bool memory_is_host() const override { return false; }
+    std::optional<size_t> memory_available() const override {
+        if (unknown) return std::nullopt;
+        return rise_after-- > 0 ? 1 : room;
+    }
     bool reads_in_place() const override { return !copying; }
 };
 
@@ -768,6 +772,64 @@ void kv_fitted() {
     const size_t without = place(8 << 20, size_t(1) << 20, true, moe, -1, true)->kv_tokens_total();
     require(without > with_experts, "a device beside experts on the CPU was charged for their weights");
     checked += 6;
+
+    // The automatic budget (PlacementRequest::kv_auto): every whole block the device's free memory holds, past the context of 256, the blocks an explicit budget past it is cut to.
+    // The model has no embedded drafter, so nothing is reserved for one; a device of unknown free memory keeps the context.
+    const auto automatic = [&](size_t room, bool unknown) {
+        auto device = std::make_shared<SizedDevice>();
+        device->room = room;
+        device->unknown = unknown;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.fit_kv = request.kv_auto = true;
+        return infer::place_model(infer::gguf_weights(weights), {device}, request, infer::ModelOptions{}).model->kv_tokens_total();
+    };
+    const size_t filled = automatic(8 << 20, false);
+    require(filled == cut && filled > 256, ("the automatic budget on 8 MiB took " + std::to_string(filled) + " tokens, against the " + std::to_string(cut) + " an explicit budget past the device is cut to").c_str());
+    require(automatic(8 << 20, true) == 256, "the automatic budget on a device of unknown free memory was not the model's context");
+    {
+        // The CPU's free memory is the host's (Backend::memory_is_host), shared with the host tier and the rest of the host, so on the CPU, and on a split with a CPU stage, the automatic budget keeps the context and says why.
+        auto cpu = std::make_shared<backend::CpuBackend>();
+        cpu->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"cpu"};
+        request.fit_kv = request.kv_auto = true;
+        const infer::PlacedModel on_cpu = infer::place_model(infer::gguf_weights(weights), {cpu}, request, infer::ModelOptions{});
+        require(on_cpu.model->kv_tokens_total() == 256 && on_cpu.kv_kept_context.find("the host's") != std::string::npos,
+                "the automatic budget on the CPU took the host's memory past the model's context, or did not say why it kept the context");
+        // Over a split the stage whose free memory is the host's is a device reporting a steady figure, as the CPU's host memory, which moves between reads, would keep the split's level reading waiting.
+        struct HostLike : SizedDevice {
+            bool memory_is_host() const override { return true; }
+        };
+        auto device = std::make_shared<SizedDevice>();
+        device->room = 8 << 20;
+        device->set_threads(1);
+        auto other = std::make_shared<HostLike>();
+        other->room = 8 << 20;
+        other->set_threads(1);
+        infer::PlacementRequest split = request;
+        split.names = {"device", "host"};
+        split.shares = {1, 1};
+        const infer::PlacedModel beside = infer::place_model(infer::gguf_weights(weights), {device, other}, split, infer::ModelOptions{});
+        require(beside.model->kv_tokens_total() == 256 && !beside.kv_kept_context.empty(), "the automatic budget over a device and a CPU stage did not keep the model's context");
+        const infer::PlacedModel unknown = [&] {
+            auto d = std::make_shared<SizedDevice>();
+            d->unknown = true;
+            d->set_threads(1);
+            return infer::place_model(infer::gguf_weights(weights), {d}, request, infer::ModelOptions{});
+        }();
+        require(unknown.kv_kept_context.find("no free memory") != std::string::npos, "the automatic budget on a device of unknown memory did not say why it kept the context");
+    }
+    // Its search bound: the context where the memory is unknown, a token costs no KV bytes (states alone) or the memory holds less, else the whole blocks the memory holds.
+    // At the edge of a size_t it is never a number whose product with a token's bytes passes the free memory, nor more blocks than an int32 block id names.
+    require(infer::kv_search_bound(256, std::nullopt, 100, 128) == 256 && infer::kv_search_bound(256, size_t(1) << 20, 0, 128) == 256 &&
+                infer::kv_search_bound(256, 1000, 100, 128) == 256 && infer::kv_search_bound(256, size_t(1) << 20, 64, 128) == 16384,
+            "the automatic budget's search bound was not the context or the whole blocks the memory holds");
+    const size_t per = SIZE_MAX / (size_t(1) << 30), edge = infer::kv_search_bound(256, SIZE_MAX, per, 128);
+    require(edge % 128 == 0 && edge <= SIZE_MAX / per && edge + 128 > SIZE_MAX / per, "the search bound at the edge of a size_t was not the most whole blocks whose bytes it states");
+    require(infer::kv_search_bound(256, SIZE_MAX, 1, 128) == size_t(std::numeric_limits<int32_t>::max()) * 128, "the search bound passed the blocks an int32 block id names");
+    checked += 3;
 }
 
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.

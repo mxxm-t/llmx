@@ -84,7 +84,7 @@ class ServerMixTool(unittest.TestCase):
 
     def test_phase_lifetimes_and_results(self):
         ordinary = self.exercise()
-        fresh = self.exercise(["--fresh-phases", "--ctx-size", "8192"])
+        fresh = self.exercise(["--fresh-phases", "--kv-tokens", "8192"])
         self.assertEqual(ordinary[0], 0)
         self.assertEqual(fresh[0], 0)
         self.assertEqual(len(ordinary[1]), 1)
@@ -96,7 +96,7 @@ class ServerMixTool(unittest.TestCase):
         self.assertEqual(fresh[4], dict(alone=[[0], [1], [2], [3]], together=[[0], [1], [2], [3]],
                                        skewed=[[0], [1], [2], None]))
         for command in fresh[1]:
-            self.assertEqual(command[command.index("--ctx-size") + 1], "8192")
+            self.assertEqual(command[command.index("--kv-tokens") + 1], "8192")
 
     def test_fresh_phase_refuses_reuse_and_pauses(self):
         for counter in ("forks", "tokens", "pauses"):
@@ -119,14 +119,14 @@ class ServerMixTool(unittest.TestCase):
     def test_logprobs_and_passes_with_both_lifetimes(self):
         for fresh in ([], ["--fresh-phases"]):
             with self.subTest(fresh=fresh):
-                flags = fresh + ["--logprobs", "--passes", "3", "--ctx-size", "8192"]
+                flags = fresh + ["--logprobs", "--passes", "3", "--kv-tokens", "8192"]
                 result = self.exercise(flags)
                 self.assertEqual(result[0], 0)
                 self.assertEqual(result[4]["alone"][0], [[0], [-0.5], [{"p0": -0.5}]])
                 self.assertEqual(result[4]["alone"], result[4]["together"])
                 for command in result[1]:
                     self.assertEqual(command[command.index("--passes") + 1], "3")
-                    self.assertEqual(command[command.index("--ctx-size") + 1], "8192")
+                    self.assertEqual(command[command.index("--kv-tokens") + 1], "8192")
                 self.assertEqual(self.exercise(flags, change_logprob=True)[0], 1)
 
     def test_failed_disconnect_fails_both_lifetimes(self):

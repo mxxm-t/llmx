@@ -742,6 +742,9 @@ const size_t kF32Pad = 32;   // floats after each row of a padded F32 matrix (pa
 // F32 rows a multiple of 256 floats wide would otherwise all read the same memory channel (docs/VULKAN.md).
 static bool pads_f32(uint32_t type, size_t nin) { return type == quant::GGML_TYPE_F32 && nin && nin % 256 == 0; }
 
+// Whether a device of this type allocates from the host's memory, which the host tier shares: an integrated GPU or a CPU device; a discrete GPU's memory is its own, whatever window the host can map.
+inline bool host_memory_device(VkPhysicalDeviceType type) { return type == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU || type == VK_PHYSICAL_DEVICE_TYPE_CPU; }
+
 // What the kernels need of a device beyond Vulkan 1.2's core, the first one missing as the refusal names it, or empty.
 inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties& sg, const VkPhysicalDeviceFeatures2& f2,
                                        const VkPhysicalDeviceVulkan11Features& f11, const VkPhysicalDeviceVulkan12Features& f12) {
@@ -1623,6 +1626,7 @@ public:
         }
         return free;
     }
+    bool memory_is_host() const override { return host_memory_device(dev_->props.deviceType); }
 
     // The upload staging and each ring slot's argument arena, host-visible memory held for the backend's life.
     size_t host_resident() const override { return kStagingBytes + kRing * kArenaBytes; }

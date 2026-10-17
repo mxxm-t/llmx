@@ -196,6 +196,43 @@ def check_device_greedy(cpu_rows, device_rows, cpu_ids, device_ids, *, calibrati
                 agrees_until_tie=first_divergence is None or (first_tie is not None and first_divergence >= first_tie))
 
 
+def gguf_context(path):
+    """The context length a GGUF file's metadata gives (`<arch>.context_length`), or None where it gives none."""
+    import struct
+    sizes = {0: 1, 1: 1, 2: 2, 3: 2, 4: 4, 5: 4, 6: 4, 7: 1, 10: 8, 11: 8, 12: 8}
+    with open(path, "rb") as f:
+        if f.read(4) != b"GGUF":
+            return None
+        _, _, count = struct.unpack("<IQQ", f.read(20))
+
+        def skip(t):
+            if t == 8:
+                f.seek(struct.unpack("<Q", f.read(8))[0], 1)
+            elif t == 9:
+                et, n = struct.unpack("<IQ", f.read(12))
+                if et in sizes:
+                    f.seek(sizes[et] * n, 1)
+                else:
+                    for _ in range(n):
+                        skip(et)
+            else:
+                f.seek(sizes[t], 1)
+
+        for _ in range(count):
+            key = f.read(struct.unpack("<Q", f.read(8))[0]).decode("utf-8", "replace")
+            t = struct.unpack("<I", f.read(4))[0]
+            if key.endswith(".context_length") and t in (4, 5, 10, 11):
+                return struct.unpack({4: "<I", 5: "<i", 10: "<Q", 11: "<q"}[t], f.read(sizes[t]))[0]
+            skip(t)
+    return None
+
+
+def pool_args(model):
+    """`--kv-tokens` at the model's context, so a server a check starts takes the pool it took before the automatic default and backs no whole card (docs/USAGE.md, serve)."""
+    context = gguf_context(model)
+    return ["--kv-tokens", str(context)] if context else []
+
+
 def run_process(args, input=None, cache=None, text=False, timeout=None):
     """Run the llmx CLI from the repository root with the configured device flags and `input` on stdin, returning the finished process; its output is bytes unless `text`."""
     return subprocess.run([exe_path()] + device_args(args, cache), input=input, capture_output=True,

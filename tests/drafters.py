@@ -157,7 +157,7 @@ def check_draft_models(directory):
     refused(target, no_eos, "tokenizer.ggml.eos_token_id is none where the model has %d" % qwen35.EOS, "a draft model without the target's end of text")
     rc, out = cli(["bench", "--model", target, "--p", "4", "--n", "2", "--r", "1", "--drafter", plain])
     assert rc != 0 and "is a draft model" in out, "bench took a draft model: " + out
-    rc, out = cli(["serve", target, "--port", "0", "--drafter", plain])
+    rc, out = cli(["serve", target, "--port", "0", "--drafter", plain] + common.pool_args(target))
     assert rc != 0 and "is a draft model, which drafts in generate and chat" in out, "serve took a draft model: " + out
 
 

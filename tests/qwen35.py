@@ -408,7 +408,7 @@ def check_serve(directory):
     # Uncapped, each request runs to the context the pool holds, so four together pause and resume with the text each gives alone, with checkpoints and without, where each recomputes its history from its start.
     uncapped = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
     for kept in (["--state-checkpoints", "0"], []):
-        srv = server.Server(model, "--max-seqs", "4", "--ctx-size", "1024", *kept)
+        srv = server.Server(model, "--max-seqs", "4", "--kv-tokens", "1024", *kept)
         try:
             alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0]["text"] for body in uncapped]
             # A request here can run in under 100 ms, and the first admits no other once its first growth step holds the room, so the four must arrive at once to be admitted together and pause.
@@ -466,7 +466,7 @@ def check_resume_drafts(directory, spec):
     import server
     model = write_model(os.path.join(directory, "tiny-qwen35-resume-mtp.gguf"), gguf_tensors(spec, raw_weights(spec)), eos_id=EOS,
                         config=dict(gguf_config(spec), context_length=8192), arch="qwen35")
-    flags = ("--max-seqs", "4", "--ctx-size", "8192", "--drafter", "lookup,embedded", "--host-cache-bytes", str(1 << 28))
+    flags = ("--max-seqs", "4", "--kv-tokens", "8192", "--drafter", "lookup,embedded", "--host-cache-bytes", str(1 << 28))
     prompts = ["".join(chr(97 + (i * 7) % 26) for i in range(5762)), "".join(chr(97 + (i * 5) % 26) for i in range(1281))]
     bodies = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
     srv = server.Server(model, *flags)

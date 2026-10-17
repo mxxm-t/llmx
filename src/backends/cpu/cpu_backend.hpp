@@ -132,6 +132,7 @@ public:
 
     // Weights on the host read the mapped file in place, so what counts against this is caches, activations and whatever a loader materializes.
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
+    bool memory_is_host() const override { return true; }
     // Page tables, allocator overhead and kernel workspaces need room beyond the fitted buffers; host memory taken after the fit leaves it too (Model::save_host).
     static size_t host_reserve(size_t free) { return free / 20; }
     size_t scratch_reserve(size_t free) const override { return host_reserve(free); }

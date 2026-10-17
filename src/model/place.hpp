@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <chrono>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -210,6 +211,8 @@ struct PlacementRequest {
     size_t histories = 0, history_tokens = 0;
     // The KV budget fitted to what the devices hold beside everything else, at most the options' budget, and backed whole at load (fitted_kv); a server's.
     bool fit_kv = false;
+    // With fit_kv, the budget is every whole block the devices' free memory holds, the drafter and its first mark in the fit, rather than the options' (a server without --kv-tokens).
+    bool kv_auto = false;
     // With fit_kv, the options' checkpoint slots are the most the fit gives rather than a number it must hold (fitted_kv).
     bool fit_checkpoints = false;
     // With fit_kv, the options' mark slots past the first are the most the fit gives, only in the room the KV budget and the checkpoint slots leave (fitted_kv).
@@ -289,6 +292,7 @@ struct PlacedModel {
     std::string plan;
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0;   // the KV tokens the fitted checkpoint slots took from the budget (fitted_kv)
+    std::string kv_kept_context;       // why an automatic budget (PlacementRequest::kv_auto) kept the model's context, empty where it read the devices
     std::string unpaced;               // why no stage of it is fed in pieces (unpaced), empty where one is
 };
 
@@ -370,11 +374,19 @@ inline void settle(std::vector<DeviceBudget>& budgets, const std::vector<backend
     if (level) settled();
 }
 
+// The automatic budget's search bound (PlacementRequest::kv_auto): the larger of the context and the whole blocks `free` bytes hold at `per_token` bytes a token, as many as an int32 id names at most.
+// The context alone where the free memory is unknown or a token costs no KV bytes (a plan of states alone); never a number whose product with a layer's bytes a position passes what free memory states.
+inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t per_token, size_t block) {
+    if (!free || !per_token || !block) return context;
+    const size_t blocks = std::min({*free / per_token / block, (size_t)std::numeric_limits<int32_t>::max(), SIZE_MAX / block});
+    return std::max(context, blocks * block);
+}
+
 // The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest size, at most the options' budget, at which the fit of model/layer_split.hpp places the model, refused when not one block fits.
 // Drafting never lowers it: the drafter, the marks (fit_marks) and then the checkpoint slots (fit_checkpoints, `given_up`, `read`) are fitted beside that budget as docs/SPECULATIVE.md, sections 2 and 3 give.
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
-                              std::vector<DeviceBudget>* read = nullptr) {
+                              std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr) {
     size_t block = 1;
     for (const auto& b : backends) {
         if (!b) throw std::runtime_error("inference: missing backend");
@@ -410,7 +422,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             return false;
         }
     };
-    const size_t want = kv_tokens(plan, options);
+    size_t want = kv_tokens(plan, options);
     // The options' budget where it fits, else the most whole blocks that fit, by bisection, since each more block only adds to what the devices hold; 0 when none does.
     const auto most = [&] {
         if (fits(want)) return want;
@@ -432,9 +444,16 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     options.mark_slots = 0;
     const size_t most_kept = kept;
     if (choose) kept = 0;
+    // The automatic budget reads the devices' free memory, and keeps the model's context where one's is the host's (Backend::memory_is_host), which the host tier shares.
+    const bool host_memory = std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b->memory_is_host(); });
+    const bool unknown = std::any_of(budgets.begin(), budgets.end(), [](const DeviceBudget& b) { return !b.bytes; });
+    const bool fills = request.kv_auto && !host_memory && !unknown;
+    if (request.kv_auto && !fills && kept_context) *kept_context = host_memory ? "a device's free memory is the host's, which the host tier shares" : "a device reports no free memory";
     // Whether the devices hold the whole request: the options' budget beside every checkpoint and mark asked for and the embedded drafter.
     // Only then is there nothing a later reading could add, so a reading short of it waits for the free memory to settle, as a card giving back an ended process's memory may hold the budget alone and not what goes beside it.
     const auto whole = [&] {
+        // An automatic budget over devices asks for more than they hold, so its reading always waits for their free memory to stay level.
+        if (fills) return false;
         const ModelPlan* was = fitting;
         const size_t was_kept = kept, was_marks = options.mark_slots;
         fitting = &held;
@@ -447,6 +466,27 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         return ok;
     };
     settle(budgets, backends, request.names, whole, level_first(backends, request));
+    // The automatic budget: searched up to what the settled free memory holds at a token's KV bytes, with the drafter and its first mark in the fit (docs/CACHE-PLAN.md, section 7), so it never leaves the drafter no room.
+    if (fills) {
+        if (drafter || most_marks) {
+            fitting = &held;
+            options.mark_slots = marks ? 1 : most_marks;
+        }
+        const auto kv_bytes = [&](size_t tokens) {
+            ModelOptions o = options;
+            o.kv_tokens = tokens;
+            o.checkpoint_slots = kept;
+            const Footprint fp = footprint(weights, *fitting, o, request.width);
+            size_t bytes = fp.drafter_cache;
+            for (size_t c : fp.cache) bytes = backend::size_add(bytes, c);
+            return bytes;
+        };
+        std::optional<size_t> free = size_t(0);
+        for (const DeviceBudget& b : budgets) free = free && b.bytes ? std::optional<size_t>(*free > SIZE_MAX - *b.bytes ? SIZE_MAX : *free + *b.bytes) : std::nullopt;
+        const size_t per_token = (kv_bytes(2 * block) - kv_bytes(block) + block - 1) / block;
+        want = kv_search_bound(plan.context_length, free, per_token, block);
+        if (kept_context && !per_token) *kept_context = "the model keeps no KV that grows with the pool";
+    }
     size_t tokens = most();
     // Then the checkpoint slots, by bisection, since each more slot only adds to what a device holds: the most at which the placement holds three quarters of the blocks it holds without them, none where even one does not fit.
     const size_t bare = tokens;
@@ -539,7 +579,7 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     PlacedModel placed;
     // A fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
     std::vector<DeviceBudget> budgets;
-    if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets);
+    if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets, &placed.kv_kept_context);
     backend::BackendPtr host;
     std::vector<backend::BackendPtr> all = backends;
     std::vector<std::string> names = request.names;

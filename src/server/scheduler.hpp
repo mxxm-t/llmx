@@ -256,8 +256,9 @@ public:
     // The model's context is reserved here for `passes` passes in flight (the stage count on a pipelined layer split and one elsewhere when none is given; passes that do not fit run fewer, and stderr says so).
     // With `pacing` on, where a stage is fed in pieces (Model::paces), generating requests are served between a prompt pass's pieces (docs/SERVER.md, A generating request beside a prompt).
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
-              size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {})
-        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
+              size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {},
+              size_t ctx_size = 0)
+        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), background_paced_(!pacing.refused),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
@@ -325,10 +326,12 @@ public:
         }
     }
 
-    // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
-    size_t token_limit() const {
-        return std::min((size_t)model_.context_length(), model_.kv_tokens_total());
+    // Tokens one request may hold, prompt and reply together, the one figure admission, the cut, jobs and the host tier read: the smallest of what the caller asks (`asked`, 0 for none), the model's context and the KV pool.
+    static size_t request_limit(const infer::Model& model, size_t asked) {
+        const size_t limit = std::min((size_t)model.context_length(), model.kv_tokens_total());
+        return asked ? std::min(asked, limit) : limit;
     }
+    size_t token_limit() const { return limit_; }
 
     // The part of what a request may hold that a reply without a cap is given room for: an eighth.
     // With cuts of half the limit (kCutTo) a conversation then runs from about three eighths of the limit to seven between two cuts, so a cut reads three eighths again to buy half; a fraction, so it is the same at any context.
@@ -2870,6 +2873,7 @@ private:
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
+    const size_t limit_;                  // the tokens a request may hold (request_limit)
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
     bool host_growing_ = true;            // its slabs are not all taken yet (grow_host), under the lock

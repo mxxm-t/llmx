@@ -40,7 +40,7 @@ def check_share_refused(model):
     if device.startswith("vulkan:") and "," not in device:
         with tempfile.TemporaryDirectory() as directory:
             routed = f32.write_model(os.path.join(directory, "tiny-moe.gguf"), moe.tensors(), config=moe.CONFIG, arch="qwen3moe")
-            p = common.run_process(["serve", routed, "--port", "0", "--generating-share", "0.5", "--device", device, "--cpu-moe"], input="", text=True, timeout=300)
+            p = common.run_process(["serve", routed, "--port", "0", "--generating-share", "0.5", "--device", device, "--cpu-moe"] + common.pool_args(routed), input="", text=True, timeout=300)
         expected = ("error: --generating-share: a stage is fed in pieces only with every part of it on its device, and here experts, the embedding or the head run elsewhere; "
                     "serve the model whole on one device or one tensor group\n")
         assert p.returncode == 1 and p.stderr.endswith(expected), (p.returncode, p.stdout, p.stderr)

@@ -120,8 +120,8 @@ A failed step restores history and length; capacity the backend grew for the att
 keeps one `Sequence` per request. The budget is a token count that
 the backend rounds up to whole blocks of every KV layer's K and V, the
 model context by default; a device whose layers keep only a recurrent
-state has no KV storage. The CLI exposes it only as `llmx serve --ctx-size`,
-the pool's total token budget, whose exhaustion behaviour is admission and growth: a
+state has no KV storage. The CLI exposes it only as `llmx serve --kv-tokens`,
+the pool's total token budget, by default what the devices' free memory holds, whose exhaustion behaviour is admission and growth: a
 request that does not fit waits or is refused, and an uncapped request's growth can pause an uncapped request admitted after it, which later resumes from its history (`docs/SERVER.md`).
 
 `length` is the logically committed history: the model advances it after

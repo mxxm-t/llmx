@@ -37,7 +37,8 @@ backends its caller made. It reads the plan
   fit says, and asks the fit of that reading alone,
   since there a fit that holds does not show a card has given its memory
   back: the other devices would take the layers it would hold.
-- `fitted_kv(weights, plan, backends, request, options, given_up = nullptr, read = nullptr)`: the options with
+- `kv_search_bound(context, free, per_token, block)`: the automatic budget's search bound, the larger of the context and the whole blocks `free` bytes hold at `per_token` KV bytes a token, at most as many blocks as an int32 block id names (`BlockPool::alloc`), the context alone where the free memory is unknown or a token costs no KV bytes, so the footprint is never asked of a number whose product with a layer's bytes a position passes the free memory.
+- `fitted_kv(weights, plan, backends, request, options, given_up = nullptr, read = nullptr, kept_context = nullptr)`: the options with
   the KV budget fitted, which `place_model` takes when `request.fit_kv` is
   set, as `serve` sets it: the options' budget where the fit of
   `split_layers` places the model on the backends given, one included, and
@@ -65,7 +66,7 @@ backends its caller made. It reads the plan
   slots (`fit_checkpoints`) give way, the most of them that still fit, and
   checkpoints asked for by number do not, so it refuses, naming the
   budget and the checkpoints that left no room (docs/SPECULATIVE.md,
-  section 3). With
+  section 3). With `kv_auto` (serve without `--kv-tokens`) over devices none of whose free memory is the host's (`Backend::memory_is_host`), the budget is searched up to `kv_search_bound` over the settled reading with the drafter and its first mark in the fit from the start, so the checkpoint rule applies to that budget and the drafter always has its room (docs/CACHE-PLAN.md, section 7); its reading always waits for the free memory to stay level, since it asks for more than the devices hold; where a device's memory is the host's or unknown, or the model keeps no KV that grows, it keeps the context and `kept_context` says why. With
   `fit_marks`, on a model that keeps a state, it then takes as mark slots
   the most, up to the options', at which that budget and those
   checkpoints still fit, so marks past the first take only the room left

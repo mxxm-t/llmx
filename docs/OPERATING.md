@@ -83,12 +83,12 @@ llmx serve model.gguf --device vulkan:0,vulkan:1 --tensor-width 2 --generating-s
 ```
 
 **Many users.**
-`--max-seqs` is how many requests run at once, `--max-queue` how many wait for a place before a new one gets a 503, and `--ctx-size` the conversation memory (KV cache) they all share.
-More requests at once need a larger `--ctx-size`: a request that sets a token limit waits in the queue until the pool can hold it, and one without a limit is paused when the pool runs out and reads its history again when room returns (`pressure` in health).
-The server fits the budget to the devices at load and prints what it took.
+`--max-seqs` is how many requests run at once, `--max-queue` how many wait for a place before a new one gets a 503, `--kv-tokens` the conversation memory (KV cache) they all share, by default all the devices' free memory holds, and `--ctx-size` the most one request may hold, the model's context by default.
+More requests at once need a larger pool: a request that sets a token limit waits in the queue until the pool can hold it, and one without a limit is paused when the pool runs out and reads its history again when room returns (`pressure` in health).
+The server fits the budget to the devices at load and prints what it took; the default follows the free memory at start, so a server sharing its devices, or a production start that should take the same pool each time, gives `--kv-tokens`.
 
 ```
-llmx serve model.gguf --device vulkan:0,vulkan:1 --max-seqs 32 --max-queue 128 --ctx-size 65536
+llmx serve model.gguf --device vulkan:0,vulkan:1 --max-seqs 32 --max-queue 128 --kv-tokens 65536
 ```
 
 ## Reading health
@@ -100,7 +100,7 @@ Look at these five first:
 1. `requests.now.queued` against `requests.limits.queued`, and `requests.now.active` against `requests.limits.active`.
    A server with `active` at its limit and `queued` above 0 is full; when `queued` reaches its limit, new requests get a 503.
 2. `requests.now.paused` and `pressure.since_start.pauses`.
-   A paused request ran out of KV memory and waits to resume; pauses that keep rising mean the load needs more `--ctx-size` or fewer `--max-seqs`.
+   A paused request ran out of KV memory and waits to resume; pauses that keep rising mean the load needs more `--kv-tokens` or fewer `--max-seqs`.
 3. `reuse.since_start.forks` and `.tokens` against `requests.since_start.finished` and `.prompt_tokens`.
    `forks` is how many requests started from a shared history and `tokens` how many prompt tokens that saved; if your clients send conversations, `forks` close to zero means the prefixes are not being found (Troubleshooting).
 4. `reuse.host.now.bytes` against `reuse.host.now.limit_bytes`, and the same for `reuse.disk.now`.
@@ -127,7 +127,7 @@ A server that answers `/v1/live` and not `/v1/health` within a long timeout has 
    The start line `disk cache in DIR, ..., N entries adopted` says how many; a line `a kept directory was not adopted, its X differing from this server's` names what differed, among `model`, `numerics`, `compiler`, `flags`, `shaders`, `libm` and `layout`.
    With `--disk-cache-adopt proved` a difference in `numerics`, `compiler`, `flags`, `shaders` or `libm` alone does not stop adoption: the start line then says how many of the entries are another build's, and `reuse.disk.now.unproved` counts them down as conversations come back, but does not fall to zero on its own: a file a path uses in part is not claimed and stays unproved until it ages out.
    `layout` covers the devices, precision, cache types, KV block sizes and placement, so a different `--device`, `--dtype`, `--layer-shares`, `--cache-type-k` or `--cache-type-v` stops adoption.
-   A different `--ctx-size` changes it only when the new budget crosses a point where the server's row classes change, so raising a budget usually keeps the cache.
+   A different `--ctx-size`, or a pool below the model's context, changes it only when what a request may hold crosses a point where the server's row classes change, so raising a budget usually keeps the cache, and a pool past the context always does.
    Other reasons for adopting nothing: the previous server did not run with `--disk-cache-keep`, it was killed before it finished writing, or its entries were older than `--disk-cache-max-age`.
    A disk cache is also not used until `reuse.disk.now.ready` is true.
 
@@ -135,7 +135,7 @@ A server that answers `/v1/live` and not `/v1/health` within a long timeout has 
 A decoding request's row rides the same pass as the prompt slice, and its token comes when that pass has left the last stage, so the longest gap between its tokens is about one pass of `--ubatch` prompt rows.
 A smaller `--ubatch` shortens the gap and reads prompts slower; USAGE (Physical batch) has the measured trade.
 Check `requests.now.active` to see how many are sharing the pass.
-If `pressure.since_start.stalls` or `pauses` rise too, requests are also waiting for KV room, and the cure is `--ctx-size`.
+If `pressure.since_start.stalls` or `pauses` rise too, requests are also waiting for KV room, and the cure is `--kv-tokens`.
 
 **Memory or disk is filling.**
 The KV cache is fitted and backed whole at load, so a request does not grow it.
@@ -150,8 +150,8 @@ A server without `--disk-cache-keep` removes its directory when it exits and the
 - 503: the queue is full.
   `requests.now.queued` equals `requests.limits.queued`.
   Raise `--max-queue`, raise `--max-seqs` if the devices have the room, or send fewer requests.
-- 413: the prompt plus `max_tokens` is more than the smaller of the model's context (`server.context_tokens`) and the KV budget (`--ctx-size`), or a prompt sent without `max_tokens` leaves its reply less than an eighth of that; the message gives the prompt's tokens and the limit. For a chat front end that sends the whole conversation every turn and does not trim it, start the server with `--context-overflow shift`: it drops the oldest turns in steps of half the limit, before a reply would run out of room and not only when the prompt overflows, says so in each reply's `context` object and counts it in health (`requests.since_start.shifts`), and the turn that drops them waits for the kept window to be read again.
-  Shorten the prompt, lower `max_tokens`, or raise `--ctx-size`.
+- 413: the prompt plus `max_tokens` is more than what a request may hold (`server.request_tokens`: the smallest of `--ctx-size`, the model's context and the pool), or a prompt sent without `max_tokens` leaves its reply less than an eighth of that; the message gives the prompt's tokens and the limit. For a chat front end that sends the whole conversation every turn and does not trim it, start the server with `--context-overflow shift`: it drops the oldest turns in steps of half the limit, before a reply would run out of room and not only when the prompt overflows, says so in each reply's `context` object and counts it in health (`requests.since_start.shifts`), and the turn that drops them waits for the kept window to be read again.
+  Shorten the prompt, lower `max_tokens`, or raise `--ctx-size` up to the model's context.
 - 400: the body is not valid; the reply's `error` names the problem.
 - No answer at all: `GET /v1/live`.
   If that fails the process is down or the listener is gone; if it answers and `/v1/health` does not, the scheduler is busy or stuck.

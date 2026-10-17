@@ -11,7 +11,7 @@ namespace server {
 inline bool Scheduler::grow_host() {
     const size_t slab = infer::Model::host_slab_bytes(), alive = model_.host_allocated(), in_use = host_held_ + parked_held();
     if (alive + slab > host_cap_ || in_use > alive) return false;
-    const size_t bt = model_.kv_block_tokens(), limit = std::min((size_t)model_.context_length(), model_.kv_tokens_total());
+    const size_t bt = model_.kv_block_tokens(), limit = token_limit();
     std::vector<infer::HostHistory> probes;
     try {
         // The round's fresh slabs are those the pool admits as growth nothing waits for, and each copy is asked for by the slabs it would itself take anew, the shortest copy's included.

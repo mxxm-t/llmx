@@ -352,6 +352,9 @@ public:
     // Host memory the backend holds for its own use, such as staging for uploads, which counts against the host rather than against memory_available().
     virtual size_t host_resident() const { return 0; }
 
+    // Whether memory_available() is the host's free memory, which the host tier and the rest of the host share, as the CPU's is.
+    virtual bool memory_is_host() const { return false; }
+
     // Whether adopt() reads the caller's memory in place rather than copying it into the backend's own, so weights placed here cost no memory of this backend.
     virtual bool reads_in_place() const { return false; }
 

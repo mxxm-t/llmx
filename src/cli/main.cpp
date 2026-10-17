@@ -82,7 +82,7 @@ struct ExecOptions {
     int ubatch = 0;               // prompt tokens a pass takes; 0 is infer::kDefaultUbatch
     std::string cache_type_k;     // each cache side's type as its flag gives it; empty keeps the model's default (ModelOptions)
     std::string cache_type_v;
-    int kv_tokens = 0;            // the KV pool's total token budget, serve's --ctx-size; 0 is the model context
+    int kv_tokens = 0;            // the KV pool's total token budget, serve's --kv-tokens; 0 is the model context, or for serve what the devices hold
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // prompt length from which those experts are copied to the device for a pass; 0 never
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
@@ -517,6 +517,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         request.logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(decode_rows, mark_rows > 0)).size;
     }
     request.fit_kv = slots > 0;
+    request.kv_auto = slots > 0 && exec.kv_tokens <= 0;
     if (history_tokens) {
         request.histories = decode_rows;
         request.history_tokens = history_tokens;
@@ -1201,9 +1202,14 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
+    // A request's limit is at most the model's context, which only the file gives.
+    if (c.ctx_size > (size_t)model.context_length())
+        throw std::runtime_error("--ctx-size " + std::to_string(c.ctx_size) + " is past the model's context of " + std::to_string(model.context_length()) +
+                                 " tokens; the pool shared by every request is --kv-tokens");
+    const size_t limit = server::Scheduler::request_limit(model, c.ctx_size);
     // Read once the model and its caches are in memory, so the default takes what they leave.
     const bool host_given = c.host_cache_bytes.has_value();
-    if (!host_given) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs);
+    if (!host_given) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs, limit);
     if (c.disk.bytes) {
         c.disk.model_path = model_path;
         if (c.disk.dir.empty()) c.disk.dir = (hub::default_cache("--disk-cache-dir") / "kv").u8string();
@@ -1217,12 +1223,17 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     std::cerr << loaded->plan;
     std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
-              << model.kv_tokens_total() << " KV tokens" << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
+              << model.kv_tokens_total() << " KV tokens, a request holding up to " << limit << " tokens"
+              << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
               << (drafts.sources.empty() ? std::string() : ", drafting " + join_sources(drafts.sources))
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";
-    if (const std::string why = server::no_turns(model, *c.host_cache_bytes, host_given); !why.empty())
+    if (!loaded->kv_kept_context.empty()) std::cerr << "server: the KV pool is the model's context, without --kv-tokens: " << loaded->kv_kept_context << "\n";
+    if (limit < (c.ctx_size ? c.ctx_size : (size_t)model.context_length()))
+        std::cerr << "server: a request holds at most the pool's " << limit << " tokens, fewer than the " << (c.ctx_size ? "--ctx-size" : "model's context") << " of "
+                  << (c.ctx_size ? c.ctx_size : (size_t)model.context_length()) << "\n";
+    if (const std::string why = server::no_turns(model, *c.host_cache_bytes, host_given, limit); !why.empty())
         std::cerr << "server: " << why << "\n";
     server::serve(model, tok, loaded->chat, c, listener);
     return 0;
@@ -1341,8 +1352,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Server:\n"
             << "  --host H                Listen address (default: " << cfg.host << ")\n"
             << "  --port N                Listen port; 0 picks a free one (default: " << cfg.port << ")\n"
-            << "  --ctx-size N, -c        Tokens of conversation memory (KV cache) shared by all requests,\n"
-            << "                          fitted to the devices at load (default: model context)\n"
+            << "  --ctx-size N, -c        Tokens one request may hold, prompt and reply, at most the\n"
+            << "                          model's context (default: model context)\n"
+            << "  --kv-tokens N           Tokens of conversation memory (KV cache) shared by all requests,\n"
+            << "                          fitted to the devices at load (default: what their free memory holds)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
             << "\nLimits:\n"
             << "  --max-seqs N            Requests served at once (default: " << cfg.max_seqs << ")\n"
@@ -1722,7 +1735,8 @@ int main(int argc, char** argv) {
                     if (v != "refuse" && v != "shift") throw UsageError("--context-overflow takes refuse or shift, not " + v);
                     cfg.context_shift = v == "shift";
                 }
-                else if (f == "--ctx-size") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
+                else if (f == "--ctx-size") cfg.ctx_size = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--kv-tokens") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);

@@ -166,6 +166,9 @@ Split a single model across several devices on one machine, designed in `docs/MU
 - **Tensor split**: every layer on a tensor group of 2 to 4 devices at once, for per-request decode speed; built after the layer split.
 - **Staged tensor split**: stages of tensor groups.
 - **Replicas**: several copies of a model that fits one card or group, behind one scheduler.
+- **Prompt and decode on separate devices** (one possibility, not chosen): some devices read prompts while others only generate, the new rows of a prompt copied to the generating devices as each layer finishes, so a prompt arriving never slows the replies being written.
+  It needs at least two placements of the model, so four devices for a model that takes two; on devices without a direct link the copy goes through host memory (a 20k-token prompt of a 27B model is about 1.4 GB, a 200k-token history about 14 GB), and a long chat's follow-up needs its whole history on the prompt devices too.
+  Weighed against the cheaper measures first: prompt pieces cut by time and decode attention at depth (`docs/CACHE-PLAN.md`, section 8).
 - The embedding table and the output head are placed as roles with their own cost.
 - Flags are named for what fits best and mean the same on every backend.
 

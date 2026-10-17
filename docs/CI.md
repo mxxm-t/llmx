@@ -1,5 +1,13 @@
 # Continuous integration
 
+## Choosing checks by impact
+
+For a push containing only documentation or static dashboard presentation, after its focused checks pass, include `[skip ci]` in the commit message to avoid starting the unrelated inference matrix. Do not use this for runtime, API, test or workflow changes. This uses [GitHub's commit-message skip mechanism](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs); it changes no workflow configuration.
+
+The workflow below continues to run on its configured events; this section does not change CI configuration. During development, select checks by the behavior and inputs touched, and avoid rerunning unrelated gates merely because a commit or rebase changed Git metadata. Carry prior evidence only when the relevant source, tests, fixtures, configuration and build inputs are unchanged; record its tested revision, binary identity and the exact delta. See [AGENTS.md, Merge gates](../AGENTS.md#merge-gates) for landing policy.
+
+A static dashboard presentation change confined to browser HTML, CSS and JavaScript gets syntax checks and focused browser checks for the changed states and responsive layout, plus the `docs` and `dead-code` components. It does not require HF, CPU/device numerical correctness, inference performance gates, or waiting for unrelated hosted inference jobs. A standalone Python collector change gets focused collection, schema and security tests; run protocol integration checks when its health contract changes. It does not require runtime CTest or HF/GPU inference gates. Changes to the health API, server, scheduler or llmx runtime retain applicable host CTest, CPU/server/thread and hosted checks. Model, kernel, device, loader or placement changes retain their correctness and performance gates. Test-only changes rerun the affected tests and checks for changed coverage.
+
 `.github/workflows/ci.yml` runs on pull requests, pushes to `main`, pushes to `gate/<name>` branches, and manual dispatch.
 A stack of branches about to merge is pushed as `gate/<name>` so these checks run before the merge, and that branch is deleted after it.
 Branches are merged locally, so no pull request reaches the workflow, and the gates a branch passes before it merges are run locally and recorded in `docs/STATUS.md`.

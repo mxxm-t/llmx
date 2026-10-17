@@ -1077,18 +1077,20 @@ When you start (or pick up) a feature:
 
 ## Merge gates
 
-A branch runs the checks of what it can break, once, when it is complete; between its commits only the builds, CTest and a quick Qwen3-0.6B identity on the CPU run.
+Choose checks by the changed paths and behavior, not by the number or metadata of commits. Do not repeat the full gates during development: run focused checks for the changed coverage, then the applicable landing checks once the change is complete. After a failure or fix, rerun the checks that cover the failure and the changed code.
 
-- Docs only: the suite's `docs` and `dead-code` components, run on the tree that lands; the hosted run is not waited for, since only those two components read the Markdown.
-- Tests or tools only: CTest and the suite components they touch, on the CPU, and the hosted run.
-- CLI, server or other host logic: CTest, the CPU suite, Qwen3-0.6B byte identity against main, and the hosted run; host code specific to Windows also runs CTest and the suite on Windows.
+- Static dashboard presentation changes confined to HTML, CSS and browser JavaScript, with no collector, health API, server or runtime change: run syntax checks and focused browser checks for the changed states and responsive layout, plus the `docs` and `dead-code` components. Do not require HF, CPU/device numerical correctness or inference performance gates, or wait for unrelated hosted inference jobs. A workflow may still start automatically; that does not make its unrelated jobs a gate for this scope.
+- Docs only: the suite's `docs` and `dead-code` components on the tree that lands; unrelated hosted inference jobs are not waited for.
+- Tests or tools only: rerun the tests and checks affected by the change; apply the relevant hosted checks for its scope, without requiring unrelated inference gates for static tools.
+- Standalone Python collector changes: focused Python tests for collection, schema and security behavior, plus protocol integration checks when the health contract changes. A collector-only change does not require runtime CTest, HF numerical or GPU inference gates.
+- CLI, server, health API, scheduler or other llmx host/runtime logic: CTest, the CPU suite, Qwen3-0.6B byte identity against main, and the hosted run; host code specific to Windows also runs CTest and the suite on Windows.
   A change to the server, the scheduler or the suite's `server` component also runs that component on an MI50 (`--device vulkan:0 --only server`): its checks that send signals do not run on Windows, so the Radeon VII does not cover them, and no hosted job has a device.
 - Model, kernel, device, loader or placement code: byte identity against main on the CPU and a device for the models the change reaches, the suite on a device, the Radeon VII check on Windows for device code, one timing round against main, and the hosted run.
   A change of numerics also records its error against the HF reference and the headroom to its bound.
-- A rebase without a conflict in code reruns the builds, CTest and the hosted run; a fix after review reruns what it touches.
+- Carry forward prior evidence only when the checked source, tests, fixtures, configuration and relevant build inputs are unchanged. Record the exact tested revision and binary identity, then state the intervening delta; rerun checks when that delta changes their coverage or inputs. Commit hashes alone do not invalidate evidence.
 
-A branch lands when its checks pass at the head that lands (the hosted run green, but for docs only) and main has not moved since: main is fast-forwarded to it.
-The landing commit's own STATUS entry is the record: it gives what the gates measured and says the change lands by fast-forward, and the merge adds no commit of its own; the commit's hash is in git, and its hosted run is found on GitHub by that commit.
+A branch lands when its applicable checks pass for the tree that lands and main has not moved since: main is fast-forwarded to it. The hosted workflow policy remains as listed above for runtime and numerical changes; static UI-only changes do not wait for unrelated hosted inference jobs.
+The landing commit's own STATUS entry is the record: it gives what the applicable gates measured and says the change lands by fast-forward, and the merge adds no commit of its own. Where a hosted run is part of the applicable gate, its commit hash identifies it on GitHub.
 Comparisons against the reference runtimes belong to the phase's final gate, not to each branch.
 
 ### Traps the gates exist for

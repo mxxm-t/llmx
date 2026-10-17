@@ -1,5 +1,9 @@
 # llmx - Development Status
 
+## Validation follows the changed behavior (2026-10-17, lands by fast-forward)
+
+Static dashboard changes use focused browser checks; documentation changes use the docs and dead-code checks. Neither requires unrelated HF or inference performance runs. Runtime and numerical changes retain their applicable gates. Follow-up fixes rerun affected checks and record retained evidence with its revision and intervening delta. AGENTS.md owns the gate policy; docs/CI.md explains the existing hosted workflow and skipping its unrelated matrix for documentation/static-UI-only pushes.
+
 ## Restore-host submission failures drain borrowed copies (2026-10-17, branch fix/restore-submit-final, lands by fast-forward after final-head gates)
 
 - **Goal:** A `restore_host` submission could throw after one or more devices had queued copies from `HostHistory` slabs. Because submission was outside the existing failure handler, those queues could still borrow slabs after the failed restore released its checkpoint slot.

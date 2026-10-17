@@ -2377,7 +2377,7 @@ private:
             if (shared && state) {
                 // A fork with a state whose copy fails reads the history from the start: the room admission made holds the whole history either way.
                 try {
-                    r.seq_ = model_.fork(donors_[d].seq, shared, *state);
+                    r.seq_ = quieted()->fork(donors_[d].seq, shared, *state);
                     ++bound_hits_;
                 } catch (const std::exception& e) {
                     std::fprintf(stderr, "server: a message boundary of %zu tokens was not forked (%s)\n", shared, e.what());

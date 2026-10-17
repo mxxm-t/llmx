@@ -90,7 +90,7 @@ def run():
         p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
         refusal = b"error: the model's chat template is refused: the tag 'filter' is not supported"
         assert p.returncode == 1 and refusal in p.stderr and not p.stdout, (p.returncode, p.stderr, p.stdout)
-        p = common.run_process(["serve", str(model), "--host", "127.0.0.1", "--port", str(common.free_port())], timeout=60)
+        p = common.run_process(["serve", str(model), "--host", "127.0.0.1", "--port", str(common.free_port())] + common.pool_args(str(model)), timeout=60)
         assert p.returncode == 1 and refusal in p.stderr and b"serving" not in p.stderr, (p.returncode, p.stderr)
         p = common.run_process(["generate", str(model), "a", "-n", "2", "--temp", "0"], timeout=30)
         assert p.returncode == 0, (p.returncode, p.stderr)

@@ -953,6 +953,11 @@ int main(int argc, char** argv) {
         if (calls.buffers || calls.memory || calls.maps || calls.bad_release) ++failures;
         failures += device_need_checks();
         cases += 14;
+        // A device whose memory is the host's (Backend::memory_is_host) by its type alone: an integrated GPU and a CPU device are, a discrete and a virtual GPU are not.
+        if (!backend::host_memory_device(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) || !backend::host_memory_device(VK_PHYSICAL_DEVICE_TYPE_CPU) ||
+            backend::host_memory_device(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) || backend::host_memory_device(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU))
+            ++failures;
+        ++cases;
         failures += share_checks();
         ++cases;
         std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";

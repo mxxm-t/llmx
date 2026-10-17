@@ -109,6 +109,8 @@ public:
     size_t prompt_tokens() const { return prompt_.size(); }
     // Prompt tokens taken from a donor's cache rather than prefilled.
     size_t reused() const { return reused_.load(); }
+    // The rows of its history a read from disk it waited for covered, where the wait reached its bound and it computed them instead; 0 otherwise.
+    size_t restore_late() const { return restore_late_.load(); }
     // Milliseconds from its reading to its submission (the prompt rendered, tokenized and cut), from submission to admission, from admission to the first token, and from the first token to the end; read once the request has ended.
     struct Timings {
         double prepared_ms = 0, queued_ms = 0, prompt_ms = 0, predicted_ms = 0;
@@ -171,6 +173,8 @@ private:
     std::string finish_, error_;
     std::atomic<bool> cancel_{false};
     std::atomic<size_t> reused_{0};
+    std::atomic<size_t> restore_late_{0};
+    size_t disk_rows_ = 0;         // the rows of its history the read or proof it waits for covers
     Clock::time_point received_, submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
 
     // Scheduler state.
@@ -257,8 +261,9 @@ public:
     // The model's context is reserved here for `passes` passes in flight (the stage count on a pipelined layer split and one elsewhere when none is given; passes that do not fit run fewer, and stderr says so).
     // With `pacing` on, where a stage is fed in pieces (Model::paces), generating requests are served between a prompt pass's pieces (docs/SERVER.md, A generating request beside a prompt).
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
-              size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {})
-        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
+              size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {},
+              size_t ctx_size = 0)
+        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms), background_paced_(!pacing.refused),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
@@ -326,10 +331,12 @@ public:
         }
     }
 
-    // Tokens one request may hold, prompt and reply together: the model context or the KV pool, whichever is smaller.
-    size_t token_limit() const {
-        return std::min((size_t)model_.context_length(), model_.kv_tokens_total());
+    // Tokens one request may hold, prompt and reply together, the one figure admission, the cut, jobs and the host tier read: the smallest of what the caller asks (`asked`, 0 for none), the model's context and the KV pool.
+    static size_t request_limit(const infer::Model& model, size_t asked) {
+        const size_t limit = std::min((size_t)model.context_length(), model.kv_tokens_total());
+        return asked ? std::min(asked, limit) : limit;
     }
+    size_t token_limit() const { return limit_; }
 
     // The part of what a request may hold that a reply without a cap is given room for: an eighth.
     // With cuts of half the limit (kCutTo) a conversation then runs from about three eighths of the limit to seven between two cuts, so a cut reads three eighths again to buy half; a fraction, so it is the same at any context.
@@ -442,6 +449,7 @@ public:
         size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed
         size_t disk_states = 0;                   // those of them that are states, the rest being segments
         size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read
+        size_t disk_wait_timeouts = 0;            // of those waits, the ones that reached their bound, the request computing what the read would have given
         size_t disk_unproved = 0;                 // another build's files on disk now, not yet proved this build's (--disk-cache-adopt proved)
         size_t disk_proved = 0, disk_disproved = 0;   // such files proofs made this build's, and those deleted with a build one of whose entries failed its proof
         size_t disk_refused = 0;                  // reads of a history on disk not started for want of host room or memory, the request reading its prompt
@@ -525,6 +533,7 @@ public:
         s.disk_writing = disk_ && disk_->writing();
         s.disk_hits = disk_hits_;
         s.disk_waits = disk_waits_;
+        s.disk_wait_timeouts = disk_wait_timeouts_;
         s.disk_bytes_read = disk_read_bytes_;
         s.disk_wait_ms = disk_wait_ms_;
         s.disk_in_flight = disk_ ? disk_->calls() : 0;
@@ -2496,14 +2505,15 @@ private:
         prompt_total_ += r->prompt_tokens();
         generated_total_ += r->gen_.size();
         const Request::Timings t = r->timings();
-        char paused[128] = "", stalled[48] = "";
+        char paused[128] = "", stalled[48] = "", late[64] = "";
         if (r->pauses_)
             std::snprintf(paused, sizeof paused, ", paused %zu time%s, %zu taken back, %zu tokens recomputed", r->pauses_, r->pauses_ == 1 ? "" : "s",
                           r->taken_back_, r->recomputed_);
         if (r->stalls_) std::snprintf(stalled, sizeof stalled, ", sat out %zu pass%s", r->stalls_, r->stalls_ == 1 ? "" : "es");
-        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s\n",
+        if (r->restore_late()) std::snprintf(late, sizeof late, ", a read of %zu tokens past its bound", r->restore_late());
+        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s%s\n",
                      r->prompt_tokens(), r->reused(), r->gen_.size(), t.prepared_ms, t.queued_ms, t.first_token_ms(),
-                     t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled);
+                     t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled, late);
     }
 
     // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
@@ -2919,6 +2929,7 @@ private:
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
     size_t max_seqs_, ubatch_, max_queue_;
+    const size_t limit_;                  // the tokens a request may hold (request_limit)
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
     bool host_growing_ = true;            // its slabs are not all taken yet (grow_host), under the lock
@@ -3044,7 +3055,7 @@ private:
     std::array<std::atomic<size_t>, (size_t)Move::count> moves_{};   // Stats::moves
     std::atomic<size_t> reprefill_released_{0};   // Stats::reprefill_released
     size_t disk_refused_ = 0;   // Stats::disk_refused, under the lock
-    size_t disk_hits_ = 0, disk_waits_ = 0;
+    size_t disk_hits_ = 0, disk_waits_ = 0, disk_wait_timeouts_ = 0;
     uint64_t disk_read_bytes_ = 0;
     double disk_wait_ms_ = 0;
     double copy_block_ms_ = 0;         // under the lock, a forgetting mean of the milliseconds a block of a donor's copy off the devices for its write took (flush_one)

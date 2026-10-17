@@ -20,9 +20,9 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --drafter lookup|embedded|PATH, or lookup,embedded and lookup,PATH, serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts.
 It prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
---ctx-size sets the server pool; leave enough room for every active request in this mode.
+--kv-tokens sets the server pool; leave enough room for every active request in this mode.
 
---uncapped runs other phases on a pool too small for its requests: 12 uncapped greedy requests through /v1/completions, streamed with logprobs 5, with --max-seqs 6 and --ctx-size 4096 unless given.
+--uncapped runs other phases on a pool too small for its requests: 12 uncapped greedy requests through /v1/completions, streamed with logprobs 5, with --max-seqs 6 and --kv-tokens 4096 unless given.
 Each runs alone, where it never pauses, then all at once, where requests are paused and resumed; each must give its tokens and every log-probability alone.
 It reports the pauses, the tokens resumes recomputed, the wall time of the run together and its inter-token p50 and p99.
 
@@ -142,7 +142,7 @@ def uncapped(args, text, flags):
         start = rng.randrange(0, max(1, len(text) - chars))
         prompts.append(text[start:start + chars].lstrip("-"))
     proc, port, log = common.start_server([common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 6),
-                                           "--ctx-size", str(args.ctx_size or 4096)] + flags, wait=1800)
+                                           "--kv-tokens", str(args.kv_tokens or 4096)] + flags, wait=1800)
     try:
         alone = [stream_logprobs(port, p)[0] for p in prompts]
         before = health(port)
@@ -183,8 +183,8 @@ def uncapped(args, text, flags):
 def serving(args, flags):
     """One capped-phase server, drained by the caller and always stopped on exit."""
     command = [common.EXE, "serve", args.model, "--max-seqs", str(args.max_seqs or 8)] + flags
-    if args.ctx_size is not None:
-        command += ["--ctx-size", str(args.ctx_size)]
+    if args.kv_tokens is not None:
+        command += ["--kv-tokens", str(args.kv_tokens)]
     proc, port, log = common.start_server(command, wait=1800)
     try:
         yield port
@@ -218,7 +218,7 @@ def main():
     p.add_argument("--cache-type", choices=["f16", "f32"], help="KV cache type for both sides, on every server and CLI comparison; omitted uses the runtime default")
     p.add_argument("--requests", type=int, help="16, or 12 with --uncapped")
     p.add_argument("--max-seqs", type=int, help="8, or 6 with --uncapped")
-    p.add_argument("--ctx-size", type=int, help="server KV pool; 4096 with --uncapped, otherwise the model default")
+    p.add_argument("--kv-tokens", type=int, help="server KV pool; 4096 with --uncapped, otherwise the model default")
     p.add_argument("--seed", type=int, help="1, or 7 with --uncapped")
     p.add_argument("--uncapped", action="store_true", help="the uncapped phases in place of the others")
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")

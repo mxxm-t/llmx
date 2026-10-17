@@ -647,7 +647,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--kv-tokens N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -661,19 +661,33 @@ queue of 64. `--max-seqs` is how many requests decode at once, the rest
 wait in the queue, and past `--max-queue` queued requests a new one is
 refused with 503.
 Paused requests wait apart and are not counted.
-`--ctx-size` (`-c`) is the most the KV pool's total token budget, shared
-by every request, may take, the model context by default, rounded up to
-whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device).
-The server fits the budget as it loads: where the devices cannot hold it
-beside the weights, a pass's activations and a recurrent state for each of
-the `--max-seqs` requests, it takes the most whole blocks they hold, and it
-backs the whole budget at load, so no request grows the cache; a model that
+`--ctx-size` (`-c`) is the most tokens one request may hold, prompt and
+reply together: at most the model's context, which is its default, and a
+value past it is refused as the server starts, once the file has been read.
+`--kv-tokens` is the KV pool's total token budget, shared by every request,
+rounded up to whole KV blocks (128 tokens on the CPU, 64 on a Vulkan device).
+Without it the pool is every whole block the devices' free memory holds
+beside the weights, a pass's activations, a recurrent state for each of the
+`--max-seqs` requests, the state checkpoints and an embedded drafter with its
+first mark; on the CPU, or over devices among which one's free memory is the
+host's or unknown, it is the model's context, and the start line says why.
+The default follows the free memory at start, so a server beside other work
+on its devices gets another pool at each start; `--kv-tokens` fixes it.
+It also waits at start, about 5 s, for that memory to stay level, which a
+server given `--kv-tokens` the devices hold does not.
+The server fits the budget as it loads: where the devices cannot hold a given
+`--kv-tokens` beside all that, it takes the most whole blocks they hold, and
+it backs the whole budget at load, so no request grows the cache; a model that
 leaves no room for one block is refused before the server listens.
+A request holds at most the smallest of `--ctx-size`, the model's context and
+the pool, which `/v1/health` gives as `server.request_tokens`.
+`--ctx-size` reads differently for `perplexity`, where it is the scoring window,
+and `generate`, `chat`, `logits` and `bench` take none.
 Over several devices the server first prints what each device was given, as `bench --model` does, and the fit reads the devices' free memory only once it has risen no further for five seconds, or after thirty, so a server restarted on cards its predecessor held places its layers as on idle cards; every command placing a split by free memory, without `--layer-shares`, waits the same.
-The line the server prints as it starts gives the budget it took: with 16
-sequences over a 40k-token budget that is 2.5k tokens each on average, and
-a request whose prompt plus `max_tokens` exceeds the budget or the model
-context, whichever is smaller, is refused with 413, or cut under `--context-overflow shift` (below).
+The line the server prints as it starts gives the budget it took and what a
+request may hold: with 16 sequences over a 40k-token budget that is 2.5k
+tokens each on average, and a request whose prompt plus `max_tokens` exceeds
+what a request may hold is refused with 413, or cut under `--context-overflow shift` (below).
 
 The flags, in the groups of the help page (`llmx serve --help`); the paragraphs below explain each, and [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
 
@@ -681,7 +695,8 @@ The flags, in the groups of the help page (`llmx serve --help`); the paragraphs 
 |---|---|---|---|
 | Server | `--host H` | `127.0.0.1` | The listen address |
 | Server | `--port N` | `8080` | The listen port; 0 picks a free one |
-| Server | `--ctx-size N`, `-c` | model context | Tokens of conversation memory (KV cache) shared by all requests |
+| Server | `--ctx-size N`, `-c` | model context | Tokens one request may hold, at most the model's context |
+| Server | `--kv-tokens N` | what the devices' free memory holds | Tokens of conversation memory (KV cache) shared by all requests |
 | Server | `--timing` | off | Times the rounds and each device's work for `/v1/health` |
 | Limits | `--max-seqs N` | `16` | Requests served at once |
 | Limits | `--max-queue N` | `64` | Requests waiting for a place; more get a 503 |
@@ -701,7 +716,7 @@ The flags, in the groups of the help page (`llmx serve --help`); the paragraphs 
 | Speculative decoding | `--draft-max N` | `3` | Most drafted tokens checked at once |
 | Execution | `--device D`, `--dtype T`, `--layer-shares A,B`, `--tensor-width N`, `--threads N`, `--ubatch N`, `--cache-type-k T`, `--cache-type-v T`, `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N`, `--load-mode M` | | Where and how the model runs, as for every model command |
 
-`--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes` and `--ctx-size` are at least 1.
+`--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes`, `--ctx-size` and `--kv-tokens` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
 Pacing is how a request already generating is served while a prompt is read.
@@ -845,7 +860,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 
 ```
 {"status": "ok",
- "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "kv_tokens": 40960, "devices": ["vulkan:0"]},
+ "server": {"version": "0.1.0+g1234567", "numerics": "0123456789abcdef", "uptime_s": 8123, "model": "Qwen3-8B-Q8_0.gguf", "context_tokens": 40960, "request_tokens": 40960, "kv_tokens": 40960, "devices": ["vulkan:0"]},
  "precision": {"requested": "auto", "declared": "bf16", "effective": "f16", "devices": [{"device": "vulkan:0", "how": "native", "paths": "...", "effective": "f16"}]},
  "requests": {"now": {"active": 3, "queued": 0, "paused": 0, "kv_tokens": 9216}, "limits": {"active": 16, "queued": 64},
               "since_start": {"finished": 912, "prompt_tokens": 481203, "generated_tokens": 90112}},
@@ -854,7 +869,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
            "device": {"now": {"entries": 4, "state_checkpoints": 0, "kv_tokens": 6144}},
            "host": {"now": {"entries": 12, "bytes": 913047552, "limit_bytes": 17179869184, "allocated_bytes": 17179869184}, "since_start": {"promotions": 40, "yielded_bytes": 0, "bytes_moved": 4093640704}},
            "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
-                    "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412, "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0,
+                    "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_timeouts": 0, "wait_ms": 412, "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0,
                                     "refused_directories": 0, "room_waits": 2, "room_wait_timeouts": 0, "room_wait_ms": 3100, "room_wait_longest_ms": 2900}},
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0}},
@@ -868,7 +883,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `server.version`, `server.numerics` | text | fixed | The build, as `--version` prints it, and the first 16 characters of the fingerprint of the sources that decide a result's bits; the disk cache adopts entries only of its own fingerprint, or under `--disk-cache-adopt proved` another's, unproved | two servers of one deployment differ |
 | `server.uptime_s` | seconds | now | Since the server started | it is small and you did not restart it |
 | `server.model`, `server.context_tokens`, `server.devices` | text, tokens, names | fixed | The model file's name, its context length, and the devices it runs on | |
-| `server.kv_tokens` | tokens | fixed | The KV pool every request and kept conversation shares (`--ctx-size`, or what the devices' memory gave) | |
+| `server.kv_tokens` | tokens | fixed | The KV pool every request and kept conversation shares (`--kv-tokens`, or what the devices' memory gave) | |
+| `server.request_tokens` | tokens | fixed | What one request may hold: the smallest of `--ctx-size`, the model's context and the pool | |
 | `precision` | | fixed | The activation precision requested and the one each device runs, with `how` it runs (`native`, `emulated` or `fallback`) | a device shows `fallback` |
 | `topology` | indices, layer ranges | fixed | The realized `mode` (`single`, `layer`, `tensor`, `staged_tensor`), `tensor_width`, `mixed_roles`, backend `devices`, mixer `stages`, `embedding_members`, `head_members` and per-layer mixer, feed-forward and eligible expert-stream groups; layer ranges are half-open and device indices refer to this model's backend list | the actual placement differs from the intended layout |
 | `requests.now.active` | requests | now | Requests running in passes | it sits at `requests.limits.active` |
@@ -903,6 +919,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reuse.disk.since_start.hits`, `.bytes_read` | entries, bytes | since start | Entries read back for a request, and their bytes | |
 | `reuse.disk.since_start.bytes_written` | bytes | since start | Every finished write's bytes | rising fast with a small cap |
 | `reuse.disk.since_start.waits`, `.wait_ms` | requests, milliseconds | since start | Requests that waited for a read, and the time they waited | `wait_ms` grows far faster than `waits` |
+| `reuse.disk.since_start.wait_timeouts` | requests | since start | Of those, the ones whose wait reached its bound (the time to compute the rows, or 15 s before a prompt rate is measured), which then computed what the read would have given | rising: reads slower than computing; the disk or its contention is worth a look |
 | `reuse.disk.since_start.errors` | operations | since start | Writes and reads that failed | above 0 |
 | `reuse.disk.since_start.dropped_for_cap` | entries | since start | Entries deleted to stay under the disk cap | rising: the cap is small for the load |
 | `reuse.disk.now.unproved` | entries | now | Another build's entries not yet proved this build's (`--disk-cache-adopt proved`) | |
@@ -913,7 +930,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reuse.disk.since_start.room_waits`, `.room_wait_timeouts` | admissions | since start | Requests that waited before admission for a history the host tier cannot hold to be whole on disk before taking its room, or for room to restore a copy from host memory, and those whose wait reached its bound (15 s, or for a write the time waited and its remaining time at its measured rate, 1.5 times and 2 s more, never past recomputing) and went on | `room_wait_timeouts` above 0: rows were lost or computed again, said in the log |
 | `reuse.disk.since_start.room_wait_ms`, `.room_wait_longest_ms` | milliseconds | since start | The time those requests waited, in all and the longest | |
 | `reuse.boundaries.now.entries`, `.since_start.hits` | states, requests | now, since start | Message boundaries' states held in host memory, and requests that forked one | |
-| `pressure.since_start.pauses` | pauses | since start | Times a request was paused to give blocks to another | rising: the pool is small for the load (`--ctx-size`, `--max-seqs`) |
+| `pressure.since_start.pauses` | pauses | since start | Times a request was paused to give blocks to another | rising: the pool is small for the load (`--kv-tokens`, `--max-seqs`) |
 | `pressure.since_start.stalls` | passes | since start | Passes a request sat out, unable to grow | rising with pauses |
 | `pressure.since_start.waits` | passes | since start | Of those, the ones whose room waited on a request in flight | |
 | `pressure.since_start.recomputed_tokens` | tokens | since start | Rows resumes computed again | the cost of the pauses |
@@ -1048,7 +1065,7 @@ accepted range is 1-64. See [ASSETS.md](ASSETS.md#matched-external-cpu-benchmark
 for wrapper builds, pinned inputs and measurement scope.
 
 
-For request consistency checks, `python tools/server_mix_check.py --model MODEL.gguf --text corpus.txt --device cpu --requests 4 --max-seqs 4 --fresh-phases --ctx-size 8192 --logprobs --cache-type f32` compares requests alone, concurrent and staggered, then against the CLI.
+For request consistency checks, `python tools/server_mix_check.py --model MODEL.gguf --text corpus.txt --device cpu --requests 4 --max-seqs 4 --fresh-phases --kv-tokens 8192 --logprobs --cache-type f32` compares requests alone, concurrent and staggered, then against the CLI.
 The tool's `--cache-type f16|f32` selects both cache sides for every server and CLI call; omit it to test the runtime default.
 `--fresh-phases` starts each capped phase on a fresh server and refuses prefix reuse or pauses, so the pool must hold the requests at once; it cannot be combined with `--uncapped`.
 These are validation-tool options; the runtime itself selects sides with `--cache-type-k` and `--cache-type-v`.

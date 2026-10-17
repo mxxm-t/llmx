@@ -113,7 +113,7 @@ def build_prompt(port, want_tokens):
 
 def serve(exe, model, device, ctx, extra):
     """(process, port, log) of `llmx serve` on `device`, once it answers."""
-    cmd = [exe, "serve", model, "--ctx-size", str(ctx)] + extra
+    cmd = [exe, "serve", model, "--kv-tokens", str(ctx)] + extra
     if device:
         cmd += ["--device", device]
     return common.start_server(cmd, wait=600)
@@ -221,7 +221,7 @@ def main():
     ap.add_argument("--max-tokens", type=int, default=512, help="tokens the device generates")
     ap.add_argument("--margin", type=float, default=0.5,
                     help="how far below the baseline's top logit a generated token may sit")
-    ap.add_argument("--ctx-size", type=int, default=0,
+    ap.add_argument("--kv-tokens", type=int, default=0,
                     help="KV budget; 0 uses the prompt plus the generation plus a margin")
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--timeout", type=float, default=0, help="seconds to wait for each reply; 0 waits as long as it takes")
@@ -234,7 +234,7 @@ def main():
     extra = ["--dtype", args.dtype]
     if args.threads:
         extra += ["--threads", str(args.threads)]
-    ctx = args.ctx_size or (args.tokens + args.max_tokens + 512)
+    ctx = args.kv_tokens or (args.tokens + args.max_tokens + 512)
     # The device under test's flags: the baseline reads on one device.
     device_extra = extra + (["--tensor-width", str(args.tensor_width)] if args.tensor_width > 1 else [])
 

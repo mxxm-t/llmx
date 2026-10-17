@@ -2523,7 +2523,7 @@ void disk_read_waits(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     }
 }
 
-// A read past its bound (docs/DISK-TIER.md, Restore): prompts read in passes of the default size measure the prompt rate, by which recomputing the follow-up's 256 tokens takes far less than a read held two seconds a chunk.
+// A read past its bound (docs/DISK-TIER.md, Restore): the read's bound is 100 ms (DiskOptions::read_wait), far less than a read held two seconds a chunk, whatever the runner computes a row in.
 // So the follow-up is admitted without the read, computes its history and ends before the read could, with its reply alone; the read is seen still in flight at the follow-up's last sampled pass, from the scheduler's thread.
 void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a read past its bound";
@@ -2531,11 +2531,13 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     auto model = make(2048, 0);
     Demoted d;
     Reply got;
-    size_t reused = 0;
+    size_t reused = 0, late = 0;
     server::Scheduler::Stats stats, at_end;
     bool ended = false;
     {
-        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30, std::chrono::milliseconds(2000)));
+        server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(2000));
+        options.read_wait = std::chrono::milliseconds(100);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
         std::mutex m;
         std::shared_ptr<server::Request> h;
         size_t sampled = 0;
@@ -2556,6 +2558,7 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
             }
             got = drain(*h);
             reused = h->reused();
+            late = h->restore_late();
             stats = sched.stats();
             ledger(stats, *model, what);
         } catch (...) {
@@ -2569,6 +2572,8 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     require(reused == 0 && ended && at_end.disk_hits == 0 && at_end.disk_in_flight > 0 && stats.disk_waits == 1,
             what + ": the follow-up reused " + std::to_string(reused) + " tokens, with " + std::to_string(at_end.disk_hits) + " entries read and " + std::to_string(at_end.disk_in_flight) +
                 " reads in flight at its last token, after " + std::to_string(stats.disk_waits) + " waits");
+    // The wait that reached its bound is counted, and the request keeps the rows its read covered, which the cache scenario counts as a failed restore (P2).
+    require(stats.disk_wait_timeouts == 1 && late == 2 * kBlock, what + ": " + std::to_string(stats.disk_wait_timeouts) + " waits at their bound and a read of " + std::to_string(late) + " rows past its bound, against 1 and " + std::to_string(2 * kBlock));
     auto fresh = make(2048, 0);
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }

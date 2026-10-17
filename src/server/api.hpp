@@ -23,20 +23,20 @@
 
 namespace server {
 
-// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): what `max_seqs` conversations take at the most one request may hold, within half of what is free.
+// The host memory for donors the devices evict when the server is given none (--host-cache-bytes): what `max_seqs` conversations take at the most one request may hold (`limit`, Scheduler::request_limit), within half of what is free.
 // Each copy still leaves the host the pool's fixed reserve (Model::host_admits).
-inline size_t default_host_cache(const infer::Model& model, size_t max_seqs) {
+inline size_t default_host_cache(const infer::Model& model, size_t max_seqs, size_t limit) {
     if (!model.caches_on_devices()) return 0;
-    const size_t bt = model.kv_block_tokens(), limit = std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt;
-    return host_cache_default(model.host_bytes(limit), max_seqs, core::host_memory_available());
+    const size_t bt = model.kv_block_tokens();
+    return host_cache_default(model.host_bytes(limit / bt * bt), max_seqs, core::host_memory_available());
 }
 
 // The start line for uncapped requests that fill the pool and will not take turns here, or not all of them, though turns were possible or asked for; empty where they will, and on the CPU with no host memory given.
 // The host memory is asked first: given enough, a server takes turns wherever its caches are (docs/SERVER.md, turns at the pool's edge).
-inline std::string no_turns(const infer::Model& model, size_t host_cap, bool given) {
-    const size_t bt = model.kv_block_tokens(), need = model.host_bytes(std::min((size_t)model.context_length(), model.kv_tokens_total()) / bt * bt);
+inline std::string no_turns(const infer::Model& model, size_t host_cap, bool given, size_t limit) {
+    const size_t bt = model.kv_block_tokens(), need = model.host_bytes(limit / bt * bt);
     if (!given && !model.caches_on_devices()) return "";
-    const size_t tokens = host_cap ? turn_tokens(host_cap, bt, std::min((size_t)model.context_length(), model.kv_tokens_total()), [&](size_t n) { return model.host_bytes(n); }) : 0;
+    const size_t tokens = host_cap ? turn_tokens(host_cap, bt, limit, [&](size_t n) { return model.host_bytes(n); }) : 0;
     return turns_line(host_cap, need, tokens, model.keeps_state(), model.checkpoint_slots());
 }
 
@@ -61,6 +61,7 @@ struct Config {
     std::vector<std::string> drafter_sources;   // the sources `--drafter` listed in the order tried, which /v1/health names
     size_t draft_max = 0;
     bool context_shift = false;   // a prompt that does not fit is cut at a turn's end (--context-overflow shift) and not refused
+    size_t ctx_size = 0;          // the tokens a request may hold that serve's --ctx-size asks, 0 for the model's context (Scheduler::request_limit)
 };
 
 // The longest prefix of `bytes` that ends on a complete UTF-8 character, so a token whose text ends mid-character is held until the rest comes.
@@ -250,7 +251,7 @@ private:
         c.respond(200, "application/json",
                   "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
                   ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
-                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" +
+                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"request_tokens\":" + n(sched_.token_limit()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" +
                   ",\"topology\":" + cached_topology_json_ + ",\"precision\":" + dtype_json(cfg_.dtype) +
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
@@ -266,7 +267,7 @@ private:
                   ",\"disk\":{\"now\":{\"entries\":" + n(s.disk_entries) + ",\"segments\":" + n(s.disk_entries - s.disk_states) + ",\"states\":" + n(s.disk_states) + ",\"bytes\":" + n(s.disk_bytes) + ",\"limit_bytes\":" + n(s.disk_limit) +
                   ",\"unproved\":" + n(s.disk_unproved) + ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) +
                   "},\"since_start\":{\"hits\":" + n(s.disk_hits) + ",\"bytes_read\":" + n(s.disk_bytes_read) + ",\"bytes_written\":" + n(s.disk_bytes_written) +
-                  ",\"waits\":" + n(s.disk_waits) + ",\"wait_ms\":" + n((uint64_t)s.disk_wait_ms) + ",\"errors\":" + n(s.disk_errors) +
+                  ",\"waits\":" + n(s.disk_waits) + ",\"wait_timeouts\":" + n(s.disk_wait_timeouts) + ",\"wait_ms\":" + n((uint64_t)s.disk_wait_ms) + ",\"errors\":" + n(s.disk_errors) +
                   ",\"refused\":" + n(s.disk_refused) + ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.lost_before_written) + ",\"refused_directories\":" + n(s.disk_refused_dirs) +
                   ",\"room_waits\":" + n(s.room_waits) + ",\"room_wait_timeouts\":" + n(s.room_wait_timeouts) + ",\"room_wait_ms\":" + n((uint64_t)s.room_wait_ms) +
                   ",\"room_wait_longest_ms\":" + n((uint64_t)s.room_wait_longest_ms) + "}}" +
@@ -1240,8 +1241,9 @@ inline std::string pacing_line(const Config& cfg) {
 // Serve until the listener is closed, or a signal stops it (detail::StopOnSignal): the scheduler on its own thread, the accept loop here, one detached thread per connection.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
                   const Config& cfg, http::Listener& listener) {
-    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing, cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs)), cfg.proposer,
-                    cfg.draft_max, true, cfg.disk, cfg.pacing);
+    Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing,
+                    cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs, Scheduler::request_limit(model, cfg.ctx_size))), cfg.proposer, cfg.draft_max, true, cfg.disk,
+                    cfg.pacing, cfg.ctx_size);
     const Scheduler::Stats started = sched.stats();
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,

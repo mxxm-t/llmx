@@ -33,9 +33,9 @@ struct Loss {
     std::vector<uint32_t> history;
 };
 
-// The rows of a prompt's shortfall [reused, expected) that the losses reported from `since` on explain: a loss counts only where its history is the prompt's own over the rows they share, and its rows or its state lie in the shortfall.
-// So another history's loss, one of other rows, or one reported before the restore point was last prepared explains nothing.
-size_t explained(const std::vector<uint32_t>& prompt, size_t reused, size_t expected, const std::vector<Loss>& losses, size_t since = 0) {
+// The rows of a prompt's shortfall [reused, expected) that the losses reported from `since` on explain, one mark a row.
+// A loss counts only where its history is the prompt's own over the rows they share, its rows or its state lie in the shortfall, and it came after the point was last prepared.
+std::vector<char> lost_rows(const std::vector<uint32_t>& prompt, size_t reused, size_t expected, const std::vector<Loss>& losses, size_t since = 0) {
     std::vector<char> covered(expected > reused ? expected - reused : 0, 0);
     for (size_t i = since; i < losses.size(); ++i) {
         const Loss& l = losses[i];
@@ -48,13 +48,36 @@ size_t explained(const std::vector<uint32_t>& prompt, size_t reused, size_t expe
         if (state && (l.tokens <= reused || l.tokens > expected)) continue;
         for (size_t k = from; k < to; ++k) covered[k - reused] = 1;
     }
+    return covered;
+}
+
+// How many of those rows the losses explain.
+size_t explained(const std::vector<uint32_t>& prompt, size_t reused, size_t expected, const std::vector<Loss>& losses, size_t since = 0) {
+    const std::vector<char> covered = lost_rows(prompt, reused, expected, losses, since);
     return (size_t)std::count(covered.begin(), covered.end(), (char)1);
+}
+
+// The rows of a turn's shortfall [reused, expected) that its own read covered where that read reached its bound (Request::restore_late), up to the read's end, less the rows a loss already explains (`lost`, lost_rows).
+size_t failed_rows(const std::vector<char>& lost, size_t reused, size_t expected, size_t late) {
+    size_t n = 0;
+    for (size_t k = reused; k < std::min(late, expected); ++k) n += !lost[k - reused];
+    return n;
 }
 
 // The classifier held to its own rule on made-up losses: the right loss explains a shortfall, and another history's, other rows' or none does not.
 void attribution() {
+    // A failed restore is the turn's own read's: a timeout of another request's read explains none of its rows, and its own read explains only the rows it covered.
     const std::vector<uint32_t> mine = prompt_of(3, 1200, 64), theirs = prompt_of(4, 1200, 64);
     const Loss right{server::Move::job_lost, 0, 896, mine}, other{server::Move::job_lost, 0, 896, theirs}, elsewhere{server::Move::consumed_lost, 896, 1152, mine}, state{server::Move::boundary_dropped, 768, 768, mine};
+    const std::vector<char> none(384, 0);
+    require(failed_rows(none, 0, 384, 0) == 0, "attribution: another request's read that reached its bound explains a turn's rows");
+    require(failed_rows(none, 0, 384, 128) == 128 && failed_rows(none, 0, 384, 384) == 384 && failed_rows(none, 256, 640, 512) == 256, "attribution: a read that reached its bound did not explain exactly the rows it covered");
+    // Rows a loss explains are not the read's too: with [0, 128) lost and the read reaching its bound at 256, 128 rows are evicted, 128 a failed restore and 128 unexplained.
+    const Loss head{server::Move::job_lost, 0, 128, mine};
+    const std::vector<char> lost = lost_rows(mine, 0, 384, {head});
+    const size_t evicted = explained(mine, 0, 384, {head}), failed = failed_rows(lost, 0, 384, 256);
+    require(evicted == 128 && failed == 128 && 384 - evicted - failed == 128, "attribution: a read that reached its bound explained rows a loss already explains: " + std::to_string(evicted) + " evicted, " + std::to_string(failed) + " failed");
+    require(failed_rows(lost_rows(mine, 0, 384, {Loss{server::Move::job_lost, 100, 384, mine}}), 0, 384, 384) == 100, "attribution: a read past the rows a later loss explains claimed them");
     require(explained(mine, 0, 896, {right}) == 896, "attribution: a history's own loss of the rows explains them");
     require(explained(mine, 0, 896, {other}) == 0, "attribution: another history's loss explains nothing");
     require(explained(mine, 0, 896, {elsewhere}) == 0, "attribution: a loss of other rows explains nothing");
@@ -166,11 +189,15 @@ struct Ledger {
         row.handed = after.reprefill_handed - before.reprefill_handed;
         row.consumed = after.moves[(size_t)server::Move::consumed] - before.moves[(size_t)server::Move::consumed];
         const size_t shortfall = row.expected > row.reused ? row.expected - row.reused : 0;
+        std::vector<char> lost;
         {
             std::lock_guard<std::mutex> lk(w.losing);
-            row.evicted = explained(r.prompt, row.reused, row.expected, w.losses, c.since);
+            lost = lost_rows(r.prompt, row.reused, row.expected, w.losses, c.since);
         }
-        row.unexplained = shortfall - row.evicted;
+        row.evicted = (size_t)std::count(lost.begin(), lost.end(), (char)1);
+        // The turn's own read that reached its bound before it ended leaves the rows it covered to be computed, a failed restore (P2), as a slow runner meets where the tiny model computes faster than the disk reads.
+        row.failed_restore = failed_rows(lost, row.reused, row.expected, h->restore_late());
+        row.unexplained = shortfall - row.evicted - row.failed_restore;
         row.new_work = row.prompt - row.reused - shortfall;
         c.said.push_back({r, reply});
         if (chat) {
@@ -840,6 +867,8 @@ void pool_past_context(const Make& make, const bpe::Tokenizer& tok, uint32_t v) 
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.idle = std::chrono::hours(1);
+    // A read is waited for whatever this runner computes a row in, so a slow runner computes no row a read gives; the bound itself is disk_read_bound's case in server-resume.
+    options.read_wait = std::chrono::seconds(60);
     const Req first{prompt_of(5, 1100, v), (int)kReply};
     std::vector<uint32_t> next = first.prompt;
     size_t reused = 0;

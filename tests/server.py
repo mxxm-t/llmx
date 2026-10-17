@@ -30,10 +30,11 @@ import server_load  # noqa: E402
 
 
 class Server:
-    def __init__(self, model, *extra):
+    def __init__(self, model, *extra, automatic=False):
         # The device and cache flags go on the command, not the executable path, which device_args would not recognise; the server then runs where the CLI it is compared with runs.
-        # Eight sequences unless the check names its own count, since a flag given twice is refused.
-        args = ["serve", model] + ([] if "--max-seqs" in extra else ["--max-seqs", "8"]) + list(extra)
+        # Eight sequences and a pool of the model's context unless the check names its own, since a flag given twice is refused; `automatic` keeps the default pool.
+        pool = [] if automatic or "--kv-tokens" in extra else common.pool_args(model)
+        args = ["serve", model] + ([] if "--max-seqs" in extra else ["--max-seqs", "8"]) + pool + list(extra)
         command = common.device_args(args, "f32")
         self.requested_dtype = command[command.index("--dtype") + 1] if "--dtype" in command else "auto"
         self.proc, self.port, self.log = common.start_server([common.exe_path()] + command)
@@ -1113,7 +1114,7 @@ TOP = 5
 def check_ctx_past_context(model):
     """A request limit past the model's context (--ctx-size 1024 on a context of 512) is refused at start, once the file is read, with both numbers and the pool's flag, and the server never listens."""
     f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
-    got = subprocess.run([common.exe_path()] + common.device_args(["serve", model, "--port", "0", "--ctx-size", "1024"], "f32"), capture_output=True, timeout=300)
+    got = subprocess.run([common.exe_path()] + common.device_args(["serve", model, "--port", "0", "--ctx-size", "1024"] + common.pool_args(model), "f32"), capture_output=True, timeout=300)
     err = got.stderr.decode("utf-8", "replace")
     assert got.returncode == 1 and "--ctx-size 1024 is past the model's context of 512 tokens" in err and "--kv-tokens" in err and "serving" not in err, (got.returncode, err)
 
@@ -1135,7 +1136,7 @@ def check_context_overflow(model):
 
     text = "".join(chr(97 + i % 26) for i in range(150))
     # A request's limit of 128 (--ctx-size) beside a pool of at least the model's context of 512 (the context on the CPU, what a device holds there): requests are held to the limit, which /v1/health gives beside the pool.
-    srv = Server(model, "--ctx-size", "128")
+    srv = Server(model, "--ctx-size", "128", automatic=True)
     try:
         info = srv.get("/v1/health")["server"]
         assert info["request_tokens"] == 128 and info["kv_tokens"] >= 512 and info["context_tokens"] == 512, info
@@ -2070,7 +2071,7 @@ def check_disk_exit(model):
         srv.close()
         for flags, reason in ((disk_flags(root)[:2] + ("--disk-cache-bytes", str(1 << 62), "--disk-cache-dir", root), "free in"),
                               (("--host-cache-bytes", "0", "--disk-cache-bytes", str(256 << 20), "--disk-cache-dir", root), "host cache holds none")):
-            p = subprocess.run([common.exe_path()] + common.device_args(["serve", model] + list(flags) + ["--port", "0"], "f32"),
+            p = subprocess.run([common.exe_path()] + common.device_args(["serve", model] + list(flags) + ["--port", "0"] + common.pool_args(model), "f32"),
                                capture_output=True, text=True, errors="replace", timeout=120)
             assert p.returncode != 0 and reason in p.stderr, (flags, p.returncode, p.stderr[-400:])
     return True

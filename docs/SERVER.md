@@ -40,7 +40,7 @@ is measured against the single-sequence path and the reference.
   refuses block sizes that do not nest. A live request's growing history
   is never shared.
   Only rows computed in the classes the request computes them in are shared (`Model::row_class`, [SPECULATIVE](SPECULATIVE.md), section 1): at a first admission its prompt at the prompt's extent, so a follow-up turn shares the previous turn's prompt blocks and computes the previous reply, which decode computed, as rows of its own prompt, and every reply equals the CLI's for the same prompt.
-- **A memory budget that admits, not crashes.** The KV pool holds `--ctx-size` tokens in total, the model context by default, or the most whole blocks the devices hold beside the weights, a pass's activations and the recurrent states where they cannot hold that, fitted and backed whole as the server loads (`fitted_kv`), so no pass grows the cache and an admitted request never meets a device out of memory; a model that leaves no room for one block is refused before the server listens.
+- **A memory budget that admits, not crashes.** The KV pool holds `--kv-tokens` tokens in total, by default every whole block the devices' free memory holds beside everything else (the model's context on the CPU, or where a device's free memory is the host's or unknown), or the most whole blocks the devices hold beside the weights, a pass's activations and the recurrent states where they cannot hold a given one; a request holds at most the smallest of `--ctx-size`, the model's context and the pool (`Scheduler::request_limit`), fitted and backed whole as the server loads (`fitted_kv`), so no pass grows the cache and an admitted request never meets a device out of memory; a model that leaves no room for one block is refused before the server listens.
   A capped request is admitted when the pool can hold its prompt and its `max_tokens`, an uncapped one (a compatible route without `max_tokens`) when it can hold its prompt and a growth step, reserving more as it generates; otherwise it waits in the queue, and past `--max-queue` queued requests a new one is refused with 503, paused requests not counted.
   A request's donor is chosen before room is made for it, and the other donors are evicted, oldest first, when it needs their blocks.
   If the pool is still short, its donor is consumed: the request forks it and the donor goes, so the blocks they share are reserved once rather than for each, and a follow-up turn keeps the history it repeats however many donors fill the pool.
@@ -93,7 +93,7 @@ server/
                  /v1/tokenize, /v1/detokenize, /v1/health, /v1/models,
                  /v1/chat/completions, /v1/completions
 cli/main.cpp     `llmx serve <model.gguf> [--host H] [--port N] [--device D]
-                 [--max-seqs N] [--max-queue N] [--ctx-size N] [--ubatch N]
+                 [--max-seqs N] [--max-queue N] [--ctx-size N] [--kv-tokens N] [--ubatch N]
                  [--cache-type-k T] [--cache-type-v T] [--threads N]
                  [--layer-shares A,B] [--n-cpu-moe N] [--cpu-moe]
                  [--moe-stream-from N] [--load-mode M] [--passes N] [--timing]`

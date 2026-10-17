@@ -11,7 +11,7 @@ namespace server {
 inline bool Scheduler::grow_host() {
     const size_t slab = infer::Model::host_slab_bytes(), alive = model_.host_allocated(), in_use = host_held_ + parked_held();
     if (alive + slab > host_cap_ || in_use > alive) return false;
-    const size_t bt = model_.kv_block_tokens(), limit = std::min((size_t)model_.context_length(), model_.kv_tokens_total());
+    const size_t bt = model_.kv_block_tokens(), limit = token_limit();
     std::vector<infer::HostHistory> probes;
     try {
         // The round's fresh slabs are those the pool admits as growth nothing waits for, and each copy is asked for by the slabs it would itself take anew, the shortest copy's included.
@@ -720,6 +720,8 @@ inline bool Scheduler::reading(Request& r) {
     if (disk_ && disk_->keeps() && r.classes_.empty() && !disk_->settled() && Clock::now() - epoch_ < wait_bound_) return true;
     if (!r.disk_wait_) return false;
     if (std::chrono::steady_clock::now() < r.disk_until_) return true;
+    ++disk_wait_timeouts_;
+    r.restore_late_.store(std::max(r.restore_late_.load(), r.disk_rows_));
     end_wait(r);
     return false;
 }
@@ -936,6 +938,7 @@ inline void Scheduler::prefetch() {
                 if (!plan->busy) r->proof_ = id;
                 const auto now = std::chrono::steady_clock::now();
                 r->disk_wait_ = id;
+                r->disk_rows_ = plan->end;
                 r->disk_since_ = now;
                 r->disk_until_ = read_until(plan->end, now);
                 ++disk_waits_;
@@ -953,10 +956,13 @@ inline void Scheduler::prefetch() {
             r->disk_checked_ = true;
             const uint64_t id = start_read(path, state_only, tokens, own, source, state_only && whole.length > shared ? &whole : nullptr);
             if (!id) continue;
+            // The read started may be the shorter whole path start_read fell back to, so the wait is for that read's rows.
+            const size_t rows = disk_reads_.back().tokens.size();
             const auto now = std::chrono::steady_clock::now();
             r->disk_wait_ = id;
+            r->disk_rows_ = rows;
             r->disk_since_ = now;
-            r->disk_until_ = read_until(path.length, now);
+            r->disk_until_ = read_until(rows, now);
             ++disk_waits_;
             ++waiting;
         }

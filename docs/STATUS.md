@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## A waiting read-ahead job says it waits for spare room once (2026-10-17, branch fix/job-wait-line, lands by fast-forward as two commits)
+
+- **Why:** production's log repeated "a job of N ids waits for spare room" every one to four seconds for each conversation whose reply was being written (2026-10-17, 10:06 to 10:16 UTC): every follow-up of the reply's ids, each 32 generated tokens, replaced the waiting job with a new one, which said the line again.
+- **The change:** a job replacing a waiting job of the same conversation keeps its having said so (`Request::no_room_`), so the line comes once until the job starts; a job that started and gave way says it again when it waits again.
+- **Tests:** `server` with the Q8_0 fixture: a second conversation's 600-token reply beside the first's donor on a pool of 2304 tokens, its job waiting throughout; on main the line came 18 times, now once. The first commit adds the check, failing on main.
+- **Checked, Windows, MSVC, on the CPU:** see the REVIEW-REQUEST; the gate is CTest and the server component.
+
 ## The cache plan, revision 7: what landed, the device pool apart from the context, and the order of what remains (2026-10-17, branch docs/cache-plan-revision, docs only, lands by fast-forward)
 
 - **What changed:** docs/CACHE-PLAN.md gains section 0 (steps 0 to 2 and the S8 fix set landed, its gate and the conditions on production), S9 (the pool is one context), section 7 (serve's `--ctx-size` as the request limit, `--kv-tokens` for the pool, the automatic default sized from free device memory with the drafter in the fit on every model, a finite checked search bound, one owner of the request limit, the full-load gate) and section 8 (what remains, ordered by gain on production, each with its size and gate, A20's design with its lifetime points); docs/DISK-TIER.md's read bound corrected to the 15 s fallback.

@@ -2716,6 +2716,8 @@ private:
             n->job_ = true;
             n->whole_ = f.whole;
             n->of_ = f.of;
+            // A waiting job its longer ids replace has said it waits for spare room, which the replacement does not say again until it has started.
+            n->no_room_ = j && at.second != npos && j->no_room_;
             // A job per conversation: one waiting that the new one's ids extend, or that reads for the same request, is that conversation's older read, and goes; at most max_seqs wait, the oldest dropped.
             stale(n->prompt_, n->of_.get(), "a newer job of the same conversation replaces it");
             if (jobs_.size() >= max_seqs_) jobs_.pop_front();

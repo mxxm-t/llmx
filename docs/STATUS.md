@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## A message boundary's state is forked under the stages' hold (2026-10-17, branch fix/boundary-fork-hold, lands by fast-forward as two commits)
+
+- **Why:** production (2a0221627, Qwen3.8-27B Q8_0 over a tensor group of two MI50s, automatic pacing) lost its device at 11:15:54 UTC and was restarted: an edit forked a message boundary whose state was read from disk while a prompt was read in pieces on the stage's thread; `admit` called `Model::fork` with the state outside `quieted()`, its copy met the Vulkan guard ("a call on a backend whose queue a submission holds"), and the fork's failure path synced every device from the scheduler's thread, flushing the command buffer the stage's thread was recording and submitting on a queue another thread used, so the context was lost.
+- **The change:** `admit` forks with a state through `quieted()` (`scheduler.hpp`), so the copy, and a failed copy's drain, run with every recorder at a piece boundary. Every other call the scheduler's thread makes on the stages' devices was checked: the copies to and from host memory, the disk tier's reads, writes and proofs, keep, retract, mark, the drafter's chain and the device timings already go through the hold; `reset`, `release_host`, `wait_host`, the disk tier's settling and writes of host copies only wait for tickets or touch host memory; the fork without a state and `make_sequence` record nothing; the pass calls are the recorders' protocol. XDEV's b6ef3ad85 (a failed host restore drains its copies) is the same drain, which is safe only under the hold, as `promote` calls it.
+- **Tests:** `server-passes-cpu`'s boundary fork beside a paced prompt, on a device that counts a call meeting a queue a submission holds: one such call in each of three runs on main, none in five with the change. The first commit adds it, failing on main.
+- **Checked:** see the REVIEW-REQUEST; the gate is the server host tier and the case on two MI50s as a tensor group with automatic pacing.
+
 ## Restore-host submission failures drain borrowed copies (2026-10-17, branch fix/restore-submit-final, lands by fast-forward after final-head gates)
 
 - **Goal:** A `restore_host` submission could throw after one or more devices had queued copies from `HostHistory` slabs. Because submission was outside the existing failure handler, those queues could still borrow slabs after the failed restore released its checkpoint slot.

@@ -1891,6 +1891,29 @@ def check_unrelated_donor(model):
         srv.close()
 
 
+def check_job_wait_said_once(model):
+    """A read-ahead job that waits for spare room says so once until it starts (production, 2026-10-17): a conversation's donor fills the pool beside a second conversation's 600-token reply, whose job would take that donor's room, so it waits while the reply grows.
+    Each growth of its ids replaces the waiting job, every 32 generated tokens, and the line must not come again with each; returns the times the server said it."""
+    with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
+        text = f.read()
+
+    def body(i):
+        return {"messages": [{"role": "user", "content": text[i * 3000:i * 3000 + 2000] + "\n\nSummarize this."}], "max_tokens": 600, "temperature": 0,
+                "ignore_eos": True, "chat_template_kwargs": {"enable_thinking": False}}
+
+    srv = Server(model, "--ctx-size", "2304", "--max-seqs", "4")
+    try:
+        post_ok(srv, "/v1/chat/completions", body(0))
+        srv.wait(lambda h: h["reread"]["now"]["jobs"] == 0 and h["reread"]["since_start"]["jobs"] >= 1, "the first reply was not read again", 60)
+        post_ok(srv, "/v1/chat/completions", body(1))
+        srv.log.seek(0)
+        said = [line for line in srv.log.read().splitlines() if "waits for spare room" in line]
+    finally:
+        srv.close()
+    assert len(said) == 1, said
+    return len(said)
+
+
 def check_reprefill(model):
     """A chat reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): after a first turn of about 500 tokens and a 160-token reply without reasoning, the server reads what the next turn begins with while idle, so a follow-up turn on /v1/chat/completions reuses tokens past the first turn's prompt, into its reply, and gives the reply the same request gives on a fresh server; returns the tokens it reused and the first turn's prompt."""
     with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
@@ -2272,6 +2295,8 @@ def run():
         else:
             print("server: %s, three conversations written to disk at SIGTERM under --disk-cache-keep, adopted by the next server and read back (%d tokens reused) with the CLI's greedy text, and a server killed during its flush leaving only whole entries  [ok]"
                   % (os.path.basename(real), kept))
+        check_job_wait_said_once(real)
+        print("server: %s, a read-ahead job waiting for spare room while its reply grows says so once  [ok]" % os.path.basename(real))
         reused, first = check_reprefill(real)
         print("server: %s, a chat follow-up reusing %d tokens of a %d-token first turn and its reply, read again while idle, with its reply on a fresh server  [ok]"
               % (os.path.basename(real), reused, first))

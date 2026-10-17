@@ -5,7 +5,7 @@
   <meta content="width=device-width,initial-scale=1" name="viewport"/>
   <meta content="dark" name="color-scheme"/>
   <title>
-   llmx / Observatory
+   llmx monitor
   </title>
   <style>
 
@@ -317,7 +317,7 @@ p {
   gap: 12px
 }
 .card-head p {
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 5px
 }
 .legend {
@@ -403,7 +403,7 @@ p {
   padding: 3px 0
 }
 .chart-summary {
-  font-size: 10px;
+  font-size: 12px;
   color: #74869c;
   padding: 0 22px 16px;
   line-height: 1.5
@@ -417,7 +417,7 @@ p {
 }
 .stat-label {
   color: var(--muted);
-  font-size: 10px
+  font-size: 12px
 }
 .stat-value {
   font-size: 16px;
@@ -467,7 +467,7 @@ p {
 }
 .section-title>span {
   color: #617388;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: .06em
 }
 .section-title h2 {
@@ -583,8 +583,15 @@ p {
   line-height: 1.5
 }
 .secondary {
-  grid-template-columns: 1.2fr 1fr 1fr;
-  margin-top: 18px
+  grid-template-columns: minmax(0,1.2fr) minmax(0,1fr);
+  margin-top: 18px;
+  align-items: start
+}
+.secondary-side {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  min-width: 0
 }
 .pad {
   padding: 21px 22px
@@ -626,7 +633,7 @@ p {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   padding: 9px 0;
   border-top: 1px solid #22304080;
@@ -639,7 +646,7 @@ p {
   overflow-wrap: anywhere
 }
 .position-title {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin: 17px 0 8px
 }
@@ -655,7 +662,7 @@ p {
   max-width: 64px;
   text-align: center;
   color: var(--muted);
-  font-size: 9px
+  font-size: 11px
 }
 .position-track {
   height: 34px;
@@ -672,12 +679,171 @@ p {
   background: #5bc5ba;
   border-radius: 3px
 }
+.own-history-chart {
+  padding: 8px 0 2px
+}
+.own-history-readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px
+}
+.own-history-readout strong {
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums
+}
+.own-history-track {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #263544
+}
+.own-history-track .kept {
+  background: var(--cyan)
+}
+.own-history-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  color: #77899f;
+  font-size: 11px
+}
+.own-history-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 11px
+}
+.own-history-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px
+}
+.own-history-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px
+}
 .position strong {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 400;
   color: #b4c9d4;
   margin-bottom: 5px
+}
+.live-requests-card {
+  margin: 18px 0
+}
+.live-request-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0 12px
+}
+.live-request-summary {
+  color: #a9b8ca;
+  font-size: 12px;
+  margin: 0 0 10px
+}
+.live-request-list {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 3px
+}
+#live-requests-rows {
+  display: grid;
+  gap: 8px
+}
+.live-request-row {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0e151e
+}
+.live-request-head {
+  display: flex;
+  align-items: center;
+  gap: 9px
+}
+.live-request-id {
+  font: 600 12px ui-monospace,SFMono-Regular,Consolas,monospace;
+  color: #e4edf8
+}
+.live-request-elapsed {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums
+}
+.live-request-rates {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+  margin-top: 10px
+}
+.live-request-rate {
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: #151f2c
+}
+.live-request-rate span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em
+}
+.live-request-rate strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--cyan);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums
+}
+.live-request-rate strong.live-rate-unavailable {
+  color: var(--muted);
+  font-size: 14px
+}
+.live-request-details {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px
+}
+.live-request-details summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 3px 0
+}
+.live-request-details[open] summary {
+  color: var(--cyan)
+}
+.live-request-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding-top: 5px
+}
+.live-request-counters span strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums
+}
+.live-phase {
+  color: #b9c8d9;
+  background: #202d3b;
+  border-radius: 4px;
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 12px;
+  text-transform: capitalize
+}
+.live-rate-unavailable {
+  color: var(--muted)
 }
 .muted {
   color: var(--muted)
@@ -904,15 +1070,6 @@ td:last-child {
   .secondary {
     grid-template-columns: 1fr 1fr
   }
-  .secondary>.card:first-child {
-    grid-column: 1/-1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 30px
-  }
-  .draft-overview {
-    grid-row: 1/4
-  }
   .moves {
     grid-template-columns: repeat(2,1fr)
   }
@@ -931,7 +1088,22 @@ td:last-child {
 }
 @media(max-width:760px) {
   main {
+    width: 100%;
+    min-width: 0;
     padding: 24px 16px
+  }
+  main > *, .grid, .grid > *, .card {
+    min-width: 0;
+    max-width: 100%
+  }
+  .trend-grid {
+    grid-template-columns: minmax(0,1fr) !important
+  }
+  .live-request-row {
+    padding: 11px
+  }
+  .live-request-rate strong {
+    font-size: 16px
   }
   header .inner {
     padding: 16px
@@ -984,11 +1156,11 @@ td:last-child {
     margin-top: 14px
   }
   .secondary {
+    grid-template-columns: 1fr;
     gap: 12px
   }
-  .secondary>.card:first-child {
-    display: block;
-    grid-column: 1/-1
+  .secondary-side {
+    gap: 12px
   }
   .draft-overview {
     display: grid;
@@ -1098,12 +1270,12 @@ td:last-child {
   padding: 19px 22px 0;
 }
 .range-heading p {
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 5px;
 }
 .window-chip {
   color: var(--cyan);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: .08em;
   padding: 6px 9px;
   border: 1px solid #2b484b;
@@ -1125,7 +1297,7 @@ td:last-child {
 }
 .range-total {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .pressure-summary {
   display: flex;
@@ -1135,7 +1307,7 @@ td:last-child {
   background: #15202b;
   border-top: 1px solid var(--line);
   color: #adbed0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 .pressure-indicator {
@@ -1267,12 +1439,19 @@ button[hidden] {
     padding: 12px 18px;
   }
   .controls {
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
   .controls .segmented {
-    margin-right: auto;
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: space-between;
+    margin: 0;
+  }
+  .controls .pause {
+    width: 100%;
+    justify-content: center;
   }
   .range-value {
     font-size: 21px;
@@ -1291,11 +1470,8 @@ button[hidden] {
   .range-metrics {
     grid-template-columns: repeat(2,minmax(0,1fr));
   }
-  .controls .density {
-    margin-left: auto;
-  }
   .window-chip {
-    font-size: 8px;
+    font-size: 10px;
   }
 }
 
@@ -1304,10 +1480,10 @@ button[hidden] {
 }
 .rate-card .card-head {
   align-items: flex-start;
-  min-height: 108px;
+  min-height: 0;
 }
 .rate-eyebrow {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: .11em;
   color: var(--cyan);
@@ -1338,17 +1514,27 @@ button[hidden] {
   display: block;
   min-height: 16px;
   margin-top: 5px;
-  font-size: 10px;
+  font-size: 12px;
   color: #8ba2b9;
 }
 .rate-card .under-chart {
   grid-template-columns: 1fr 1fr;
 }
-.rate-explainer {
-  font-size: 10px;
-  color: #8094aa;
-  margin-top: -7px;
-  line-height: 1.6;
+.rate-help {
+  margin: 10px 0 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5
+}
+.rate-help summary {
+  cursor: pointer;
+  width: fit-content;
+  padding: 5px 0
+}
+.rate-help p {
+  max-width: 900px;
+  padding: 5px 0 0;
+  font-size: 12px
 }
 @media (max-width: 1100px) {
   .primary {
@@ -1400,7 +1586,7 @@ button[hidden] {
  <body>
   <header>
    <div class="inner">
-    <a aria-label="llmx Observatory home" class="brand" href="/">
+    <a aria-label="llmx monitor home" class="brand" href="/">
      <span class="mark">
       <svg aria-hidden="true" fill="none" height="22" stroke="currentColor" stroke-width="1.6" viewbox="0 0 24 24" width="22">
        <path d="M4 16V8m5 11V5m5 12V7m5 7v-4">
@@ -1414,7 +1600,7 @@ button[hidden] {
       /
      </span>
      <span class="sub">
-      Observatory
+      Monitor
      </span>
     </a>
     <div class="header-right">
@@ -1442,7 +1628,7 @@ button[hidden] {
       Inference telemetry
      </div>
      <h1>
-      Production overview
+      llmx monitor
      </h1>
      <p>
       Request activity, memory reuse, and scheduler health.
@@ -1570,30 +1756,6 @@ button[hidden] {
      </div>
     </div>
    </div>
-   <section aria-labelledby="range-title" class="range-overview card">
-    <div class="range-heading">
-     <div>
-      <h2 id="range-title">
-       Selected-range changes
-      </h2>
-      <p id="range-coverage">
-       Waiting for history coverage.
-      </p>
-     </div>
-     <span class="window-chip" id="range-window">
-      15 MIN WINDOW
-     </span>
-    </div>
-    <div class="range-metrics" id="range-metrics">
-    </div>
-    <div class="pressure-summary">
-     <span aria-hidden="true" class="pressure-indicator">
-     </span>
-     <span id="pressure-overview">
-      Pressure measurements will appear after two samples.
-     </span>
-    </div>
-   </section>
    <div class="inspection-toolbar">
     <div>
      <strong id="inspection-time">
@@ -1635,7 +1797,7 @@ button[hidden] {
       <div aria-label="Completed prompt work rate chart. Use arrow keys to inspect all charts." class="chart" id="prompt-chart" role="img" tabindex="0">
       </div>
      </div>
-     <p class="chart-summary" id="prompt-summary">
+     <p class="chart-summary sr-only" id="prompt-summary">
       Waiting for two successful samples to calculate rates.
      </p>
      <div class="under-chart">
@@ -1682,7 +1844,7 @@ button[hidden] {
       <div aria-label="Completed generated work rate chart. Use arrow keys to inspect all charts." class="chart" id="throughput-chart" role="img" tabindex="0">
       </div>
      </div>
-     <p class="chart-summary" id="throughput-summary">
+     <p class="chart-summary sr-only" id="throughput-summary">
       Waiting for two successful samples to calculate rates.
      </p>
      <div class="under-chart">
@@ -1797,9 +1959,35 @@ button[hidden] {
      </div>
     </section>
    </div>
-   <p class="rate-explainer" id="rate-explainer">
-    PP and TG above describe completed-request work. Health telemetry does not report live prefill or generation engine speed. Zero means no tokens were counted in that interval.
-   </p>
+   <section class="card pad live-requests-card" id="live-requests-card" aria-labelledby="live-requests-title">
+    <div class="card-label">
+     <h2 id="live-requests-title">Live requests</h2>
+     <span class="muted" id="live-requests-count" style="font-size:12px">--</span>
+    </div>
+    <p class="live-request-note">PP = prompt processing / TG = token generation</p>
+    <p class="live-request-summary no-data" id="live-requests-summary">Waiting for live request metrics.</p>
+    <div class="live-request-list" id="live-requests-table-wrap" hidden aria-label="Current live requests">
+     <div id="live-requests-rows"></div>
+    </div>
+   </section>
+   <section aria-labelledby="range-title" class="range-overview card">
+    <div class="range-heading">
+     <div>
+      <h2 id="range-title">Selected-range changes</h2>
+      <p id="range-coverage">Waiting for history coverage.</p>
+     </div>
+     <span class="window-chip" id="range-window">15 MIN WINDOW</span>
+    </div>
+    <div class="range-metrics" id="range-metrics"></div>
+    <div class="pressure-summary">
+     <span aria-hidden="true" class="pressure-indicator"></span>
+     <span id="pressure-overview">Pressure measurements will appear after two samples.</span>
+    </div>
+   </section>
+   <details class="rate-help">
+    <summary>About throughput rates</summary>
+    <p id="rate-explainer">PP and TG above describe completed-request work. Health telemetry does not report live prefill or generation engine speed. Zero means no tokens were counted in that interval.</p>
+   </details>
    <div class="section-title">
     <h2>Model placement</h2>
     <span>REALIZED BACKEND TOPOLOGY</span>
@@ -2214,26 +2402,15 @@ button[hidden] {
           No position data available
          </p>
         </div>
-        <div class="detail-line" style="margin-top:15px">
-         <span>
-          Own-history acceptance
-         </span>
-         <span id="own-acceptance">
-          --
-         </span>
-        </div>
-        <div class="detail-line">
-         <span>
-          Own-history kept / drafted
-         </span>
-         <span id="own-counts">
-          -- / --
-         </span>
+        <div class="position-title">Own-history acceptance</div>
+        <div class="own-history-chart" id="own-history-chart">
+         <p class="no-data">No own-history data available</p>
         </div>
        </div>
       </div>
      </details>
     </section>
+    <div class="secondary-side">
     <section class="card pad">
      <h2>
       Scheduler pacing
@@ -2416,6 +2593,7 @@ button[hidden] {
       </div>
      </details>
     </section>
+    </div>
    </div>
    <details class="card fold movement-fold" id="movement-details">
     <summary>
@@ -2546,6 +2724,9 @@ const state = {
   polling: false,
   received: false
 };
+let liveRequestSample = null;
+let liveRequestUptime = null;
+state.liveRequests = {available: null, items: [], total: null, omitted: null};
 const nf = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1
 });
@@ -2595,6 +2776,140 @@ function ratio(a, b) {
 function percentage(a, b) {
   const v = ratio(a, b);
   return v === null ? '--': fmt(v * 100) + '%'
+}
+function resetLiveRequestSample() {
+  liveRequestSample = null;
+  liveRequestUptime = null
+}
+function updateLiveRequests(raw) {
+  const live = get(raw, 'requests.live');
+  const uptime = get(raw, 'server.uptime_s');
+  if (number(liveRequestUptime) && number(uptime) && uptime < liveRequestUptime) resetLiveRequestSample();
+  if (number(uptime)) liveRequestUptime = uptime;
+  if (!live || typeof live !== 'object' || Array.isArray(live)) {
+    resetLiveRequestSample();
+    state.liveRequests = {available: false, items: [], total: null, omitted: null};
+    return
+  }
+  const timestamp = live.sample_elapsed_ms;
+  if (!Number.isSafeInteger(timestamp) || timestamp < 0 || !Array.isArray(live.items)) {
+    liveRequestSample = null;
+    state.liveRequests = {available: true, items: [], total: live.total, omitted: live.omitted, invalid: true};
+    return
+  }
+  if (liveRequestSample && timestamp === liveRequestSample.timestamp) return;
+  if (liveRequestSample && timestamp < liveRequestSample.timestamp) resetLiveRequestSample();
+  const cap = Number.isInteger(live.limit) ? Math.max(0, Math.min(64, live.limit)) : 64;
+  const items = live.items.slice(0, cap).filter(item => item && typeof item === 'object' && typeof item.id === 'string');
+  const previous = liveRequestSample;
+  const sampleIntervalMs = previous ? timestamp - previous.timestamp : null;
+  const elapsed = sampleIntervalMs === null ? 0 : sampleIntervalMs / 1000;
+  const rows = items.map(item => {
+    const old = previous && previous.items.get(item.id);
+    const rate = key => {
+      const current = item[key];
+      const before = old && old[key];
+      return old && elapsed > 0 && number(current) && number(before) && current >= before ? (current - before) / elapsed : null
+    };
+    return {
+      id: item.id,
+      phase: ['queued', 'paused', 'prefill', 'generate'].includes(item.phase) ? item.phase : 'unknown',
+      prompt: item.prompt_tokens,
+      reused: item.reused_tokens,
+      prefilled: item.prefilled_tokens,
+      published: item.published_tokens,
+      elapsed: item.elapsed_ms,
+      pp: rate('prefilled_tokens'),
+      tg: rate('published_tokens')
+    }
+  });
+  const previousItems = new Map(items.map(item => [item.id, {
+    prefilled_tokens: item.prefilled_tokens,
+    published_tokens: item.published_tokens
+  }]));
+  liveRequestSample = {timestamp, items: previousItems};
+  state.liveRequests = {available: true, items: rows, total: live.total, omitted: live.omitted, sampleIntervalMs, invalid: false}
+}
+function drawLiveRequests(view) {
+  const summary = $('live-requests-summary');
+  const count = $('live-requests-count');
+  const wrap = $('live-requests-table-wrap');
+  const body = $('live-requests-rows');
+  const live = view || {available: false, items: []};
+  const openIds = new Set(Array.from(body.querySelectorAll('.live-request-details[open]'), details => details.closest('.live-request-row')?.dataset.requestId).filter(Boolean));
+  const activeSummary = document.activeElement?.matches('.live-request-details > summary') ? document.activeElement.closest('.live-request-row')?.dataset.requestId : null;
+  const scrollTop = wrap.scrollTop;
+  body.replaceChildren();
+  wrap.hidden = true;
+  if (live.available === null) {
+    txt('live-requests-count', '--');
+    summary.className = 'live-request-summary no-data';
+    summary.textContent = 'Waiting for live request metrics.';
+    return
+  }
+  if (!live.available) {
+    txt('live-requests-count', 'Unavailable');
+    summary.className = 'live-request-summary no-data';
+    summary.textContent = 'Per-request live metrics are unavailable from this server version.';
+    return
+  }
+  const omitted = number(live.omitted) ? live.omitted : 0;
+  txt('live-requests-count', number(live.total) ? fmt(live.total) + ' live' : fmt(live.items.length) + ' shown');
+  if (live.invalid) {
+    summary.className = 'live-request-summary no-data';
+    summary.textContent = 'Waiting for a valid runtime sample timestamp.';
+    return
+  }
+  if (!live.items.length) {
+    summary.className = 'live-request-summary no-data';
+    summary.textContent = omitted > 0 ? fmt(omitted) + ' live requests omitted by the API limit.' : 'No live requests in the latest runtime sample.';
+    return
+  }
+  summary.className = 'live-request-summary';
+  const intervalText = number(live.sampleIntervalMs) ? ' Rates use ' + fmt(live.sampleIntervalMs) + ' ms between runtime samples.' : ' Rates become available after the next distinct runtime sample.';
+  summary.textContent = 'Showing ' + fmt(live.items.length) + (number(live.total) ? ' of ' + fmt(live.total) : '') + ' live requests' + (omitted > 0 ? '; ' + fmt(omitted) + ' omitted by the API limit.' : '.') + intervalText;
+  const fragment = document.createDocumentFragment();
+  const valueText = value => number(value) ? fmt(value) : value === undefined || value === null ? '--' : String(value);
+  const counter = (label, value) => {
+    const span = element('span');
+    span.append(document.createTextNode(label + ' '));
+    span.append(element('strong', '', valueText(value)));
+    return span
+  };
+  for (const item of live.items) {
+    const row = element('article', 'live-request-row');
+    row.dataset.requestId = item.id;
+    const head = element('div', 'live-request-head');
+    head.append(element('strong', 'live-request-id', item.id));
+    head.append(element('span', 'live-phase', item.phase));
+    head.append(element('span', 'live-request-elapsed', number(item.elapsed) && item.elapsed >= 0 ? fmt(item.elapsed) + ' ms' : 'Elapsed --'));
+    const rates = element('div', 'live-request-rates');
+    for (const [label, value] of [['PP tok/s', item.pp], ['TG tok/s', item.tg]]) {
+      const metric = element('div', 'live-request-rate');
+      metric.append(element('span', '', label));
+      metric.append(element('strong', number(value) ? '' : 'live-rate-unavailable', number(value) ? formatRate(value) : 'Waiting'));
+      rates.append(metric)
+    }
+    const details = document.createElement('details');
+    details.className = 'live-request-details';
+    const detailSummary = document.createElement('summary');
+    detailSummary.textContent = 'Token counters';
+    const counters = element('div', 'live-request-counters');
+    counters.append(counter('Prompt', item.prompt), counter('Reused', item.reused), counter('Prefilled', item.prefilled), counter('Published', item.published));
+    details.append(detailSummary, counters);
+    row.append(head, rates, details);
+    fragment.append(row)
+  }
+  body.append(fragment);
+  wrap.hidden = false;
+  for (const row of body.querySelectorAll('.live-request-row')) {
+    if (openIds.has(row.dataset.requestId)) row.querySelector('.live-request-details').open = true
+  }
+  wrap.scrollTop = scrollTop;
+  if (activeSummary) {
+    const current = Array.from(body.querySelectorAll('.live-request-row')).find(row => row.dataset.requestId === activeSummary);
+    current?.querySelector('.live-request-details > summary')?.focus({preventScroll: true})
+  }
 }
 function fill(id, a, b) {
   const v = ratio(a, b);
@@ -2752,9 +3067,44 @@ function snapshot() {
   return {
     samples: state.samples.slice(),
     latest: state.latest,
+    liveRequests: state.liveRequests,
     events: state.events.slice(),
     lastSuccess: state.lastSuccess
   }
+}
+function drawOwnHistory(raw) {
+  const target = $('own-history-chart');
+  target.replaceChildren();
+  const drafted = get(raw, 'drafting.since_start.own_history.drafted');
+  const kept = get(raw, 'drafting.since_start.own_history.kept');
+  if (!number(drafted) || !number(kept) || drafted <= 0 || kept < 0 || kept > drafted) {
+    target.append(element('p', 'no-data', 'No own-history data available'));
+    return
+  }
+  const ratio = kept / drafted;
+  const readout = element('div', 'own-history-readout');
+  readout.append(element('span', '', 'Lifetime'));
+  readout.append(element('strong', '', percentage(kept, drafted)));
+  const track = element('div', 'own-history-track');
+  track.setAttribute('role', 'img');
+  track.setAttribute('aria-label', fmt(kept) + ' kept and ' + fmt(drafted - kept) + ' not kept out of ' + fmt(drafted) + ' own-history drafted tokens');
+  const keptBar = element('i', 'kept');
+  keptBar.style.width = (ratio * 100) + '%';
+  const missedBar = element('i', 'missed');
+  missedBar.style.flex = '1';
+  track.append(keptBar, missedBar);
+  const scale = element('div', 'own-history-scale');
+  scale.append(element('span', '', '0%'), element('span', '', '100%'));
+  target.append(readout, track, scale);
+  const legend = element('div', 'own-history-legend');
+  const keptLabel = element('span');
+  const keptSwatch = element('i'); keptSwatch.style.background = 'var(--cyan)';
+  keptLabel.append(keptSwatch, document.createTextNode('Kept ' + fmt(kept)));
+  const missedLabel = element('span');
+  const missedSwatch = element('i'); missedSwatch.style.background = '#354657';
+  missedLabel.append(missedSwatch, document.createTextNode('Not kept ' + fmt(drafted - kept)));
+  legend.append(keptLabel, missedLabel);
+  target.append(legend)
 }
 function drawPositions(raw) {
   const target = $('positions');
@@ -3015,9 +3365,9 @@ function configureWorkRates(raw) {
   const work = get(raw, 'work');
   const legacy = number(get(raw, 'requests.since_start.prompt_tokens')) && number(get(raw, 'requests.since_start.generated_tokens'));
   const mode = work !== undefined ? 'live' : legacy ? 'completed' : 'unavailable';
-  for (const [id, counter, legacyCounter, name, detail] of [
-    ['prompt', 'prefilled_tokens', 'prompt_tokens', 'Prompt', 'Client prompt rows retired; excludes cache hits and background/draft work, includes recovery re-prefill.'],
-    ['throughput', 'generated_tokens', 'generated_tokens', 'Output', 'Tokens published to request channels, including the first token and accepted speculative output.']
+  for (const [id, counter, legacyCounter, name] of [
+    ['prompt', 'prefilled_tokens', 'prompt_tokens', 'Prompt processing'],
+    ['throughput', 'generated_tokens', 'generated_tokens', 'Token generation']
   ]) {
     const config = chartConfigurations.find(chart => chart.id === id);
     const prefix = mode === 'completed' ? 'requests.since_start.' : 'work.since_start.';
@@ -3033,10 +3383,9 @@ function configureWorkRates(raw) {
       id === 'prompt' ? 'No client prompt rows retired in the latest interval' : 'No output tokens published in the latest interval';
     txt(id + '-mode', (id === 'prompt' ? 'PP' : 'TG') + (mode === 'live' && !missing ? ' / LIVE AGGREGATE THROUGHPUT' :
       mode === 'completed' ? ' / COMPLETED-WORK FALLBACK' : ' / LIVE COUNTERS UNAVAILABLE'));
-    txt(id + '-title', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' work' : name + ' throughput');
-    txt(id + '-description', missing ? 'This live counter is missing. Its rate stays unavailable; completed totals are not substituted.' : mode === 'live' ? detail : mode === 'completed' ?
-      (id === 'prompt' ? 'Includes cached tokens; counted at request completion. ' : 'Counted at request completion. ') + 'Live throughput is unavailable from this API.' :
-      'Waiting for health data with compatible live work counters.');
+    txt(id + '-title', name);
+    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'live' ? 'Live aggregate rate' : mode === 'completed' ? 'Completed-work fallback' :
+      'Waiting for compatible health data');
     $(id + '-total').dataset.m = config.fields[0];
     txt(id + '-total-label', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' tokens / lifetime' :
       (id === 'prompt' ? 'Client prompt rows retired' : 'Output tokens published') + ' / lifetime');
@@ -3264,6 +3613,7 @@ function render() {
   const view = state.paused && state.view ? state.view: snapshot();
   const raw = view.latest || {
   };
+  drawLiveRequests(view.liveRequests);
   const m = p => get(raw, p);
   const workMode = configureWorkRates(raw);
   document.querySelectorAll('[data-m]').forEach(e => {
@@ -3300,8 +3650,7 @@ function render() {
   $('accept-ring').style.strokeDasharray = (r === null ? 0: Math.max(0, Math.min(1, r)) * 176) + ' 176';
   const sources = m('drafting.sources');
   txt('draft-sources', Array.isArray(sources) ? sources.join(' + '): 'Unavailable');
-  txt('own-acceptance', percentage(m('drafting.since_start.own_history.kept'), m('drafting.since_start.own_history.drafted')));
-  txt('own-counts', fmt(m('drafting.since_start.own_history.kept')) + ' / ' + fmt(m('drafting.since_start.own_history.drafted')));
+  drawOwnHistory(raw);
   const mode = m('pacing.mode'),
   automatic = m('pacing.automatic');
   txt('pacing-mode', mode === undefined ? 'Mode unavailable': String(mode) + (typeof automatic === 'boolean' ? ' / ' + (automatic ? 'automatic': 'manual'): ''));
@@ -3352,6 +3701,8 @@ async function poll() {
       state.samples = [];
       state.events = [];
       state.seq = 0;
+      resetLiveRequestSample();
+      state.liveRequests = {available: null, items: [], total: null, omitted: null};
     }
     state.collector = data.collector_id;
     state.interval = number(data.interval_s) && data.interval_s > 0 ? data.interval_s: 2;
@@ -3360,6 +3711,7 @@ async function poll() {
     state.received = true;
     state.lastSuccess = number(data.last_success) ? data.last_success: null;
     state.latest = data.latest && typeof data.latest === 'object' ? data.latest: null;
+    updateLiveRequests(state.latest || {});
     const fresh = Array.isArray(data.samples) ? data.samples: [];
     for (const s of fresh) {
       if (Number.isInteger(s.seq) && s.seq > state.seq && number(s.t) && s.metrics && typeof s.metrics === 'object') {

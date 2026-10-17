@@ -24,3 +24,6 @@ info_out.txt
 # archive with a hash-indexed summary committed, not in the repository.
 hf-8b-*/
 hf-8b-review/
+
+# Local dashboard review screenshots
+/build-dashboard-review/

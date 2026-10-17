@@ -40,6 +40,16 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
   not per-request or per-kernel speeds. Long passes reveal prompt work only at
   retirement; zero does not establish that the engine was idle. Collection
   remains shared, every two seconds by default, without per-token polling.
+- When `requests.live` is present, the live-request cards show the capped
+  request IDs, phase, elapsed time and prominent PP/TG rates. Expand a card's
+  token-counter details for prompt/reused/prefilled/published counts.
+  Rates use counter changes across distinct runtime samples and their
+  `sample_elapsed_ms` timestamps, not browser poll timing. A new or reset
+  request has unavailable rates until its next sample; unchanged counters
+  produce a real zero rate. The card list shows how many live requests the API
+  omitted. Requests that start and finish between polls may not appear because
+  the endpoint exposes current live rows, not completed request history. It
+  contains no prompt text or token IDs.
 - Active and reusable device KV tokens are separate reservations reported by
   llmx. They are not measured GPU memory usage; the endpoint has no GPU
   utilization, physical VRAM use or per-request latency distribution.
@@ -59,8 +69,8 @@ The model placement panel shows the runtime-reported split mode, tensor width,
 layer stages and the backend names assigned to each stage. Expand per-layer
 details for mixer/feed-forward placement and routed-expert streaming eligibility.
 Those are realized backend assignments, not inferred GPU numbers or physical
-VRAM telemetry. Older health APIs without `topology` show placement as
-unavailable; the dashboard does not infer it from the device count.
+VRAM telemetry. The current health API does not expose `topology`, so placement
+is unavailable; the dashboard does not infer it from the device count.
 
 Hover a chart to inspect the same timestamp across all four charts. Click to
 hold it, use the arrow keys to move it, or return to the latest sample. The
@@ -84,3 +94,13 @@ These local mock-endpoint tests do not need a model or contact production.
 Browser checks cover desktop/mobile rendering, range selection, pause/resume,
 metrics search, stale data and recovery. They are recorded at the feature
 checkpoint; the native runtime is unchanged.
+
+The Python collector owns upstream polling, health-response validation, the shared
+bounded sample/event history, and the small browser-facing history endpoint. It
+also serves this static page; the browser draws charts and reads the snapshot.
+A lean future option is to let the C++ server serve the same static page and
+provide its health data directly. Static hosting alone would not replace the
+collector's shared polling, bounded history and event tracking. Preserving that
+behavior requires either a native shared collector in llmx, or browser-local
+polling and history, which is per-tab and lost on reload. This is a design
+option, not a current capability or planned rewrite.

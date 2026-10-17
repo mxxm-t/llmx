@@ -1247,6 +1247,13 @@ Evidence is in `docs/benchmarks/ci-portability-20260920.json`; prior four-check
 passes at `b266650` and `9511a4a` cover those smaller releases.
 See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 
+## Health dashboard request view (2026-10-17)
+
+- Goal: Polish the dashboard title, visualize own-history acceptance, and show per-request live rates from runtime counters.
+- Done: Title is `llmx monitor`; own-history kept/not-kept totals use a compact labeled bar. Live-request cards put runtime phase, elapsed time and PP/TG rates first, with token counters collapsed per request. The throughput charts and lower secondary panels have a tighter hierarchy; range changes follow the primary throughput and request views. Thirteen focused browser assertions pass, including redraw interaction preservation. Parent's synthetic full-page Chromium review passed at 1440px desktop and 390px mobile with no horizontal overflow. Evidence is in ignored `build-dashboard-review/cdp-review.json` and `cdp-{desktop,mobile}-{top,requests,lower}.png`; source SHA256 `0c3d2bdbc80e4405f782aae550bfbfd398dd11bda223dd2dc0ee81a342a08689`.
+- Deployment: This static UI lands separately by fast-forward. Its HTML is the tested dashboard artifact; the collector and inference runtime are unchanged. Aggregate live throughput remains available on the current API. Per-request cards require the separate `requests.live` API change and show unavailable until that runtime is deployed.
+- Gotchas: Own-history provides lifetime drafted and kept totals only; its bar does not imply position, time-series or per-request data. Live rates are unavailable for first samples, resets and older APIs; requests can start and finish between polls without appearing, and the endpoint may omit rows above its cap. Replacing the Python collector requires browser-local polling/history (per-tab and lost on reload) or a native shared collector; serving only the static page is insufficient.
+
 ## Active feature blocks
 
 ### Scoped correctness coverage and remaining HF work

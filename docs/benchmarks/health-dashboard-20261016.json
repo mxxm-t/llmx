@@ -2815,6 +2815,54 @@
         "jobs": "7/7 green"
       }
     },
-    "deployment": "Not deployed. Production health still does not expose topology; dashboard panel therefore remains unavailable there until a future rollout."
+    "deployment": {
+      "verified_utc": "2026-10-17T22:47:00Z",
+      "merged_main": "f055717f676abe9ae35c36fd70026626a37a2521",
+      "tested_code": "f0d8266e65382fcdcacf8d2234f0cba5b2af8cdd",
+      "temporary_ci_branch_deleted": "gate/health-topology",
+      "result": {
+        "disk_cache_expected": "candidate starts cold; the original kept cache is retained untouched for rollback",
+        "health_topology": {
+          "devices": [
+            "vulkan:0",
+            "vulkan:1"
+          ],
+          "mode": "tensor",
+          "stage_count": 1,
+          "tensor_width": 2
+        },
+        "new_binary_sha256": "8988d2acd19682c24b76f5cec43dda5eaee0e4653241ad17fa8b33ddfdeaa57a",
+        "new_container_id": "c48f4888161d2026dfc9c0b95ab2849654d36a14616151848e81c7562c3ad84b",
+        "new_disk_cache_directory": "/zpool1/llmx-serve/disk-cache",
+        "new_version": "llmx 0.1.0+gf0d8266e6538 numerics 6439d0f46e37628e",
+        "ok": true,
+        "old_container_id": "6f0a25644c4e57e6b724923508c9589b4e483bbb57ac86d851fa8818de15e439",
+        "old_disk_cache_backup": "/zpool1/llmx-serve/disk-cache-before-topology-f0d8266e",
+        "old_rollback_name": "llmx-serve-rollback-3b2a701b-topology",
+        "real_completion": {
+          "completion_tokens": 4,
+          "http_status": 200
+        },
+        "requests_live": {
+          "item_count": 0,
+          "limit": 64,
+          "omitted": 0,
+          "sample_elapsed_ms": 0,
+          "total": 0
+        }
+      },
+      "result_file_sha256": "7352e21d5c1e719d4487adbcfe03ebbc5bfee0bae17ae058d47e6bbeacdeb534",
+      "dashboard": {
+        "url": "http://11.10.10.13:8182",
+        "collector_id": "096f5315-b8bd-43d5-9aef-dd9aed438331",
+        "interval_s": 2,
+        "ok": true,
+        "error": null,
+        "topology_mode": "tensor",
+        "requests_live_present": true
+      },
+      "initial_attempt": "Docker rejected the helper mount option rw before candidate startup. Original container and cache were restored and a real completion passed. Retry omitted rw (the bind default); runtime binary unchanged.",
+      "limits": "Operational readiness only. No new correctness or performance claim. Cache starts cold under the changed numerics fingerprint; old cache retained without forced adoption."
+    }
   }
 }

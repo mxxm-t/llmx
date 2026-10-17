@@ -225,7 +225,14 @@ private:
             return out;
         };
         const auto yes = [](bool v) { return std::string(v ? "true" : "false"); };
-        std::string devices, positions, sources;
+        std::string devices, positions, sources, live;
+        for (size_t i = 0; i < s.live.count; ++i) {
+            const auto& r = s.live.items[i];
+            live += (i ? "," : "") + std::string("{\"id\":") + jmini::quote("r-" + n(r.id)) +
+                    ",\"phase\":" + jmini::quote(r.phase) + ",\"prompt_tokens\":" + n(r.prompt_tokens) +
+                    ",\"reused_tokens\":" + n(r.reused_tokens) + ",\"prefilled_tokens\":" + n(r.prefilled_tokens) +
+                    ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) + "}";
+        }
         size_t drafted = 0, kept = 0, own_drafted = 0, own_kept = 0;
         for (size_t x : s.own_drafted) own_drafted += x;
         for (size_t x : s.own_kept) own_kept += x;
@@ -247,7 +254,9 @@ private:
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
-                  ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) + "}}" +
+                  ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) +
+                  "},\"live\":{\"sample_elapsed_ms\":" + n(s.live.sample_elapsed_ms) + ",\"limit\":" + n(Scheduler::LiveRequests::limit) +
+                  ",\"total\":" + n(s.live.total) + ",\"omitted\":" + n(s.live.total - s.live.count) + ",\"items\":[" + live + "]}}" +
                   ",\"work\":{\"since_start\":{\"prefilled_tokens\":" + n(s.prefilled_tokens) + ",\"generated_tokens\":" + n(s.published_tokens) + "}}" +
                   ",\"reuse\":{\"since_start\":{\"forks\":" + n(s.prefix_hits) + ",\"tokens\":" + n(s.prefix_tokens) +
                   "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + ",\"kv_tokens\":" + n(s.kv_donor_tokens) + "}}" +

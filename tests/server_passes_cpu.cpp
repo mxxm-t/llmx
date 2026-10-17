@@ -409,12 +409,22 @@ void stopped(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t
 
 // Work advances while requests are running, cached rows are skipped, and a split counts each row and published token once.
 void live_work(const Make& one, const std::function<Make(size_t)>& split, const bpe::Tokenizer& tok, uint32_t vocab) {
+    size_t callback_checks = 0;
+    std::string callback_error;
+    const auto callback_require = [&](bool ok, const std::string& what) {
+        ++callback_checks;
+        if (!ok && callback_error.empty()) callback_error = what;
+        return ok;
+    };
     for (const Run run : {Run{1, 1}, Run{2, 2}}) {
         auto model = run.stages == 1 ? one(32 * kBlock, kUbatch) : split(run.stages)(32 * kBlock, kUbatch);
         server::Scheduler sched(*model, tok, kSeqs, 64, run.passes);
         const auto empty = sched.stats();
         require(empty.prefilled_tokens == 0 && empty.published_tokens == 0, "new scheduler has nonzero work");
         bool prompt_running = false, output_running = false, monotonic = true;
+        bool live_prompt = false, live_output = false, live_reuse = false;
+        std::map<uint64_t, server::Scheduler::RequestView> observed;
+        uint64_t sampled = 0;
         uint64_t last_prompt = 0, last_output = 0;
         sched.on_retire = [&](const server::Scheduler::Retired&) {
             const auto s = sched.stats();
@@ -423,10 +433,42 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
             last_output = s.published_tokens;
             prompt_running = prompt_running || (s.finished == 0 && s.prefilled_tokens > 0);
             output_running = output_running || (s.finished == 0 && s.published_tokens > 0);
+            if (!callback_require(s.live.count <= s.live.limit && s.live.count <= s.live.total, "live request snapshot exceeds its bound")) return;
+            callback_require(s.live.sample_elapsed_ms >= sampled, "live request sample time decreased");
+            sampled = s.live.sample_elapsed_ms;
+            std::set<uint64_t> ids;
+            for (size_t i = 0; i < s.live.count; ++i) {
+                const auto& r = s.live.items[i];
+                callback_require(r.id && ids.insert(r.id).second, "live requests have invalid or repeated identities");
+                const auto before = observed.find(r.id);
+                if (before != observed.end()) {
+                    const auto& old = before->second;
+                    callback_require(r.prefilled_tokens >= old.prefilled_tokens && r.published_tokens >= old.published_tokens &&
+                            r.elapsed_ms >= old.elapsed_ms && r.prompt_tokens == old.prompt_tokens, "live request counters decreased or identity changed");
+                }
+                observed[r.id] = r;
+                live_prompt = live_prompt || (std::string(r.phase) == "prefill" && r.prefilled_tokens > 0);
+                live_output = live_output || (std::string(r.phase) == "generate" && r.published_tokens > 0);
+                live_reuse = live_reuse || r.reused_tokens > 0;
+                callback_require(r.reused_tokens <= r.prompt_tokens && r.prefilled_tokens <= r.prompt_tokens - r.reused_tokens,
+                        "live prompt work includes reused or generated rows on an unpaused request");
+                callback_require(r.prefilled_tokens <= s.prefilled_tokens && r.published_tokens <= s.published_tokens,
+                        "live request work exceeds aggregate work");
+            }
         };
         const Req first{prompt_of(5, 513, vocab), 8};
         std::vector<std::shared_ptr<server::Request>> handles;
         uint64_t expected_prompt = 0, expected_output = 0;
+        std::atomic<bool> polling{true}, poll_ok{true};
+        std::thread poller([&] {
+            uint64_t last_sample = 0;
+            while (polling.load()) {
+                const auto s = sched.stats();
+                if (s.live.count > s.live.limit || s.live.count > s.live.total || s.live.sample_elapsed_ms < last_sample) poll_ok.store(false);
+                last_sample = s.live.sample_elapsed_ms;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        });
         std::thread runner([&] { sched.run(); });
         try {
             handles.push_back(sched.submit(first.prompt, params_of(first)));
@@ -440,18 +482,70 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
         } catch (...) {
             sched.stop();
             runner.join();
+            polling.store(false);
+            poller.join();
             throw;
         }
+        const auto idle_until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (sched.stats().live.total && std::chrono::steady_clock::now() < idle_until) std::this_thread::yield();
+        const auto idle = sched.stats().live;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        const auto idle_again = sched.stats().live;
+        const bool idle_ok = !idle.total && !idle.count && !idle_again.total && idle.sample_elapsed_ms == idle_again.sample_elapsed_ms;
         sched.stop();
         runner.join();
+        polling.store(false);
+        poller.join();
         for (const auto& r : handles) expected_prompt += r->prompt_tokens() - r->reused();
         const auto done = sched.stats();
         require(monotonic, "work counters decreased");
         require(prompt_running && output_running, "work did not advance before the first request finished");
+        require(poll_ok.load() && live_prompt && live_output && observed.size() == 3, "live requests did not advance safely through their phases");
+        require(done.live.count == 0 && done.live.total == 0, "ended requests remain in the live snapshot");
+        require(idle_ok, "idle polling advanced the cached snapshot or retained ended requests");
         require(done.prefilled_tokens == expected_prompt, "retired prompt work includes cached, generated or duplicate stage rows");
         require(done.published_tokens == expected_output, "published work differs from the channels' tokens");
-        if (!model->keeps_state()) require(handles[1]->reused() > 0, "the work check did not exercise a cached prompt");
+        if (!model->keeps_state()) require(handles[1]->reused() > 0 && live_reuse, "the work check did not exercise a cached prompt");
     }
+    auto model = one(32 * kBlock, kUbatch);
+    server::Scheduler bounded(*model, tok, 1, 70);
+    const Req request{prompt_of(9, 513, vocab), 2};
+    std::vector<std::shared_ptr<server::Request>> waiting;
+    for (size_t i = 0; i < 70; ++i) waiting.push_back(bounded.submit(request.prompt, params_of(request)));
+    bool saw_bound = false, first_poll = true;
+    bounded.on_retire = [&](const server::Scheduler::Retired&) {
+        const auto s = bounded.stats();
+        if (first_poll) {
+            callback_require(!s.live.total && !s.live.count && !s.live.sample_elapsed_ms, "an unrequested snapshot was collected");
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            const auto repeated = bounded.stats();
+            callback_require(repeated.live.sample_elapsed_ms == s.live.sample_elapsed_ms && repeated.live.total == s.live.total,
+                    "polls changed a snapshot before a scheduler boundary");
+            first_poll = false;
+        }
+        if (saw_bound || !s.live.count) return;
+        callback_require(s.live.total == 70 && s.live.count == 64 && s.live.total - s.live.count == 6, "live request truncation lost its total or cap");
+        callback_require(s.live.items[0].id == 1 && std::string(s.live.items[0].phase) == "prefill", "queued requests hid the active request");
+        saw_bound = true;
+        for (size_t i = 1; i < waiting.size(); ++i) waiting[i]->cancel();
+    };
+    std::thread runner([&] { bounded.run(); });
+    try {
+        drain(*waiting[0]);
+        for (size_t i = 1; i < waiting.size(); ++i) {
+            require(collect(*waiting[i]).empty() && waiting[i]->finish() == "cancel", "a queued cancelled request published tokens");
+        }
+    } catch (...) {
+        bounded.stop(); runner.join(); throw;
+    }
+    const auto cancel_until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (bounded.stats().live.total && std::chrono::steady_clock::now() < cancel_until) std::this_thread::yield();
+    const bool cleared = !bounded.stats().live.total;
+    bounded.stop();
+    runner.join();
+    require(saw_bound && cleared && bounded.stats().live.count == 0, "bounded snapshot or cancellation cleanup was not observed");
+    checks += callback_checks;
+    require(callback_error.empty(), callback_error);
 }
 
 // Every case over `weights`, served one pass at a time on one CPU and with passes in flight on splits.

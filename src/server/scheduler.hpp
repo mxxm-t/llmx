@@ -174,6 +174,7 @@ private:
     Clock::time_point received_, submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
 
     // Scheduler state.
+    uint64_t id_ = 0, prefilled_ = 0;
     // The history is the prompt then the generated tokens, neither ever rewritten; the cache holds its first seq_.length(), which is all the progress there is.
     infer::Sequence seq_;
     std::string finish_pending_;   // set by a sampled end, acted on after the pass
@@ -362,6 +363,7 @@ public:
             if (queue_.size() >= max_queue_)
                 throw QueueFull("server: the queue holds " + std::to_string(max_queue_) + " requests; try again later");
             r->line_ = ++lines_;
+            r->id_ = ++request_ids_;
             queue_.push_back(r);
             ++arrivals_;
         }
@@ -399,6 +401,17 @@ public:
         size_t rows = 0;
     };
 
+    struct RequestView {
+        uint64_t id = 0, prefilled_tokens = 0, published_tokens = 0, elapsed_ms = 0;
+        size_t prompt_tokens = 0, reused_tokens = 0;
+        const char* phase = "queued";
+    };
+    struct LiveRequests {
+        static constexpr size_t limit = 64;
+        uint64_t sample_elapsed_ms = 0;
+        size_t total = 0, count = 0;
+        std::array<RequestView, limit> items{};
+    };
     struct Stats {
         size_t active = 0, queued = 0, donors = 0, prefix_hits = 0, prefix_tokens = 0, pauses = 0;
         size_t paused = 0;       // requests paused now, waiting to resume
@@ -460,6 +473,7 @@ public:
         uint64_t gaps = 0, gaps_late = 0;         // since start, the gaps between services of generated rows that ended while replies and prompts both waited, and those above the target
         uint64_t floor_deferred = 0;              // the passes apart that were due and waited for the prompts' floor
         double longest_piece_ms = 0;              // the longest piece of a prompt's pass fed in pieces
+        LiveRequests live{};
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
@@ -553,6 +567,8 @@ public:
         s.kept = tally_[infer::spec::Source::proposer].kept();
         if (s.drafted.size() < s.own_drafted.size()) s.drafted.resize(s.own_drafted.size()), s.kept.resize(s.own_drafted.size());
         for (size_t i = 0; i < s.own_drafted.size(); ++i) s.drafted[i] += s.own_drafted[i], s.kept[i] += s.own_kept[i];
+        s.live = live_;
+        live_requested_ = true;
         return s;
     }
 
@@ -563,6 +579,7 @@ public:
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
+                if (live_requested_ || (live_.total && !active_count_.load() && queue_.empty() && paused_.empty())) snapshot_requests(active);
                 // A pass being recorded gives the round nothing to do until its recorder is done, which wakes it.
                 const auto due = [&] {
                     return stopping_ || disk_wake_ || ended() || acting() || ready(queue_) || ready(paused_) || !follows_.empty() || !restores_.empty() || (active.size() < max_seqs_ && ready(jobs_)) ||
@@ -733,6 +750,7 @@ public:
             for (auto& r : *waiting) r->end("cancel");
             waiting->clear();
         }
+        live_.count = live_.total = 0;
         jobs_.clear();
         follows_.clear();
         while (!donors_.empty()) drop_donor();
@@ -1250,8 +1268,12 @@ private:
         model_.end_pass(ctx_, k);
         uint64_t prefilled = 0;
         for (size_t e = f.decoders; e < f.members.size(); ++e) {
-            const Request& r = *f.members[e];
-            if (!r.job_) prefilled += std::min(f.rows[e], r.prompt_.size() - std::min(f.from[e], r.prompt_.size()));
+            Request& r = *f.members[e];
+            if (!r.job_) {
+                const size_t n = std::min(f.rows[e], r.prompt_.size() - std::min(f.from[e], r.prompt_.size()));
+                r.prefilled_ += n;
+                prefilled += n;
+            }
         }
         if (prefilled) prefilled_total_ += prefilled;
         settle_verifies(k);
@@ -2768,6 +2790,32 @@ private:
     }
 
 
+    // At a round boundary with m_ held: sampling has joined, publication has finished, and failed requests have left active.
+    void snapshot_requests(const std::vector<std::shared_ptr<Request>>& active) {
+        live_requested_ = false;
+        const size_t total = active_count_.load() + paused_.size() + queue_.size();
+        if (!total && !live_.total) return;
+        const auto now = Clock::now();
+        live_.count = 0;
+        live_.total = total;
+        live_.sample_elapsed_ms = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - live_started_).count();
+        const auto append = [&](const Request& r, const char* phase) {
+            if (live_.count == LiveRequests::limit) return;
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - r.received_).count();
+            live_.items[live_.count++] = {r.id_, r.prefilled_, r.gen_.size(), (uint64_t)std::max<int64_t>(0, elapsed),
+                                        r.prompt_.size(), r.reused_.load(), phase};
+        };
+        for (const auto& r : active) {
+            if (live_.count == LiveRequests::limit) break;
+            if (!r->job_) append(*r, r->gen_.empty() ? "prefill" : "generate");
+        }
+        for (const auto* waiting : {&paused_, &queue_})
+            for (const auto& r : *waiting) {
+                if (live_.count == LiveRequests::limit) break;
+                append(*r, waiting == &paused_ ? "paused" : "queued");
+            }
+    }
+
     // The jobs running and waiting, and the ids they have yet to read, for the server's figures.
     void count_jobs(const std::vector<std::shared_ptr<Request>>& active) {
         size_t n = 0, left = 0;
@@ -2919,6 +2967,10 @@ private:
     core::JobThreads samplers_;
     std::vector<Draw> draws_;                  // the retiring pass's rows the pool draws
     mutable std::mutex m_;
+    const Clock::time_point live_started_ = Clock::now();
+    uint64_t request_ids_ = 0;
+    LiveRequests live_;   // last requested boundary snapshot, under m_
+    mutable bool live_requested_ = false;   // polls coalesce; analytics never wakes the scheduler
     std::condition_variable cv_;
     std::deque<std::shared_ptr<Request>> queue_;
     // Paused requests in order of first admission, the scheduler thread's; they hold nothing but a donor, and do not count against max_queue.

@@ -40,7 +40,21 @@ class Server:
 
     def get(self, path):
         with urllib.request.urlopen("http://127.0.0.1:%d%s" % (self.port, path), timeout=30) as r:
-            return json.loads(r.read().decode("utf-8"))
+            result = json.loads(r.read().decode("utf-8"))
+        if path == "/v1/health":
+            live = result["requests"]["live"]
+            assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items"}, live
+            assert live["limit"] == 64 and len(live["items"]) <= 64, live
+            assert live["total"] == len(live["items"]) + live["omitted"], live
+            assert len({item["id"] for item in live["items"]}) == len(live["items"]), live
+            for item in live["items"]:
+                assert set(item) == {"id", "phase", "prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms"}, item
+                assert isinstance(item["id"], str) and re.fullmatch(r"r-[1-9][0-9]*", item["id"]), item
+                assert item["phase"] in ("queued", "paused", "prefill", "generate"), item
+                assert all(isinstance(item[key], int) and item[key] >= 0 for key in
+                           ("prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms")), item
+                assert item["reused_tokens"] <= item["prompt_tokens"], item
+        return result
 
     def post(self, path, body, timeout=300):
         """`body` as JSON, or as it is when it is bytes."""
@@ -417,6 +431,12 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
         assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "shifts", "shifted_tokens"}, health["requests"]
+        live = health["requests"]["live"]
+        assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items"}, live
+        assert live["limit"] == 64 and live["total"] == live["omitted"] == 0 and live["items"] == [], live
+        assert isinstance(live["sample_elapsed_ms"], int) and live["sample_elapsed_ms"] >= 0, live
+        time.sleep(0.02)
+        assert srv.get("/v1/health")["requests"]["live"] == live, "idle polling refreshed the cached snapshot"
         assert health["work"] == {"since_start": {"prefilled_tokens": 0, "generated_tokens": 0}}, health
         assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "moves"}, health["reuse"]
         moves = health["reuse"]["moves"]["since_start"]
@@ -499,7 +519,10 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
 
         # A client that leaves mid-stream once its reply has begun, and the server ends with nothing active.
         common.leave_mid_stream(srv.port, {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0}, 64)
-        srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "a cancelled request stayed active", 60)
+        cleared = srv.wait(lambda h: h["requests"]["now"]["active"] == 0 and h["requests"]["live"]["total"] == 0,
+                           "a cancelled request stayed active or cached", 60)["requests"]["live"]
+        time.sleep(0.02)
+        assert srv.get("/v1/health")["requests"]["live"] == cleared, "idle cancellation polling refreshed the sample"
 
         # /v1/chat renders through the template and answers; the synthetic model's 16-token context has no room for a rendered turn.
         if chat:

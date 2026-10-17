@@ -519,6 +519,98 @@ void host_round_trip() {
     require(model.checkpoints_free() == 1, "a restored history's reset kept its checkpoint slot");
 }
 
+// Restore copies borrow their host buffers until retirement; a failed submit leaves its open copies pending too.
+struct RestoreSubmitBackend : backend::CpuBackend {
+    struct Copy { backend::Buffer* dst; size_t to; const backend::Buffer* src; size_t from, bytes; };
+    struct Batch { backend::Ticket ticket; std::vector<Copy> copies; };
+    std::vector<Copy> open;
+    std::vector<Batch> submitted;
+    backend::Ticket last = 0;
+    bool defer = false, fail_submit = false;
+    size_t drains = 0, failures = 0;
+    void copy(backend::Buffer& dst, size_t to, const backend::Buffer& src, size_t from, size_t bytes) override {
+        if (defer) open.push_back({&dst, to, &src, from, bytes});
+        else backend::CpuBackend::copy(dst, to, src, from, bytes);
+    }
+    backend::Ticket submit() override {
+        if (fail_submit) {
+            fail_submit = false;
+            ++failures;
+            throw std::runtime_error("injected restore submission failure");
+        }
+        submitted.push_back({++last, std::move(open)});
+        open.clear();
+        return last;
+    }
+    void finish(std::vector<Copy>& copies) noexcept {
+        for (const Copy& c : copies) backend::CpuBackend::copy(*c.dst, c.to, *c.src, c.from, c.bytes);
+        copies.clear();
+    }
+    void wait(backend::Ticket ticket) noexcept override {
+        for (Batch& batch : submitted) if (batch.ticket <= ticket) finish(batch.copies);
+    }
+    void sync() noexcept override {
+        ++drains;
+        wait(last);
+        finish(open);
+    }
+    bool pending() const {
+        if (!open.empty()) return true;
+        for (const Batch& batch : submitted) if (!batch.copies.empty()) return true;
+        return false;
+    }
+};
+
+void host_restore_submit_failure() {
+    const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelOptions options;
+    options.state_slots = options.checkpoint_slots = 1;
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 7 + 3) % VOCAB);
+    infer::Model fresh(weights, backend::make_cpu_backend(), options);
+    const std::vector<float> want = fresh.prefill(ids);
+    for (size_t failing : {size_t(0), size_t(1)}) {
+        auto first = std::make_shared<RestoreSubmitBackend>(), second = std::make_shared<RestoreSubmitBackend>();
+        first->set_threads(1); second->set_threads(1);
+        infer::Placement placement;
+        placement.mixer_device = placement.ffn_device = {0, 0, 1, 1};
+        infer::Model model(weights, {first, second}, placement, options);
+        infer::Sequence source = model.make_sequence();
+        infer::ExecContext ctx;
+        infer::BatchEntry head{&source, ids.data(), 128, false};
+        head.keep = true; head.extent = ids.size();
+        model.forward(ctx, &head, 1);
+        infer::HostHistory host;
+        model.save_host(source, 128, host, std::numeric_limits<size_t>::max());
+        model.reset(source);
+        first->defer = second->defer = true;
+        auto failed = failing ? second : first;
+        failed->fail_submit = true;
+        const size_t first_drains = first->drains, second_drains = second->drains;
+        const backend::Ticket first_ticket = first->last;
+        refuses("restore submission", "injected restore submission failure", [&] { model.restore_host(host); });
+        const bool drained = !first->pending() && !second->pending() && first->drains > first_drains && second->drains > second_drains;
+        // Keep the borrowed slabs alive while cleaning up even when testing the broken implementation.
+        if (!drained) { first->sync(); second->sync(); }
+        require(drained, "a failed restore submission did not drain borrowed host copies before returning its slot");
+        require(failed->failures == 1 && first->last == first_ticket + failing, "restore did not fail at the intended device submission");
+        require(model.checkpoints_free() == 1, "a failed restore submission kept its checkpoint slot");
+        infer::Sequence restored = model.restore_host(host);
+        require(restored.length() == 128 && model.checkpoints_free() == 0, "restore retry did not reuse the returned checkpoint slot");
+        model.release_host(host);
+        model.trim_host(0);
+        require(!model.host_allocated() && !first->pending() && !second->pending(), "host slabs released before restore copies retired");
+        first->defer = second->defer = false;
+        infer::BatchEntry tail{&restored, ids.data() + 128, ids.size() - 128, true};
+        tail.extent = ids.size();
+        model.forward(ctx, &tail, 1);
+        require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "restore retry continuation differs from a fresh prompt");
+        model.reset(restored);
+        require(model.checkpoints_free() == 1, "restore retry reset kept a checkpoint slot");
+    }
+}
+
 // A state alone copied to host memory (Model::save_host without blocks) at a history's checkpoint at 128, which the history then replaces with one at 200.
 // A fork at 128 with that state (Model::fork with a state) continues the prompt with the bits of the prompt read in one; a fork or restore the state cannot serve is refused and holds nothing.
 void host_state_fork() {
@@ -1639,6 +1731,7 @@ int main(int argc, char** argv) {
             state_rules();
             checkpoints();
             host_round_trip();
+            host_restore_submit_failure();
             host_state_fork();
             refused_passes_take_no_slot();
             failed_admission_takes_no_slot();

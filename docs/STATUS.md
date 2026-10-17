@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Restore-host submission failure regression (2026-10-17, branch fix/restore-submit-drain)
+
+- **Goal:** A failed restore submission must drain borrowed host copies before its sequence storage or host slabs can be reused.
+- **Done:** A new `arch-qwen35` regression injects failure on the first device and on the second after the first submitted. The unfixed build fails with "a failed restore submission did not drain borrowed host copies before returning its slot". This commit intentionally records the failing regression before the runtime fix.
+- **Left:** Move submissions under the existing cleanup handler, verify the retry and resource lifetime, then run the applicable merge gates.
+- **Gotchas:** A backend may retain unticketed copies when submission throws. No fix, gate pass or merge is claimed by this test commit.
+
 ## The cache plan, revision 7: what landed, the device pool apart from the context, and the order of what remains (2026-10-17, branch docs/cache-plan-revision, docs only, lands by fast-forward)
 
 - **What changed:** docs/CACHE-PLAN.md gains section 0 (steps 0 to 2 and the S8 fix set landed, its gate and the conditions on production), S9 (the pool is one context), section 7 (serve's `--ctx-size` as the request limit, `--kv-tokens` for the pool, the automatic default sized from free device memory with the drafter in the fit on every model, a finite checked search bound, one owner of the request limit, the full-load gate) and section 8 (what remains, ordered by gain on production, each with its size and gate, A20's design with its lifetime points); docs/DISK-TIER.md's read bound corrected to the 15 s fallback.

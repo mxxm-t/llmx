@@ -3702,6 +3702,11 @@ void host_pool_pressure(const gguf::GGUFModel& weights, const bpe::Tokenizer& to
             s = sched.stats();
             given = s.host_yielded;
             require(given == slab && slabs.load() == taken, what + ": " + std::to_string(given / slab) + " slabs given back and " + std::to_string(slabs.load() - taken) + " taken again under the same pressure, against one and none");
+            // The host has room again at once, as when another process's file cache shrinks: the pool takes no slab ahead for a while after giving one back, so slabs are not taken and given back in turn while something else takes the host's memory.
+            base = 2 * reserve + 12 * slab;
+            std::this_thread::sleep_for(std::chrono::seconds(3));
+            looks(sched, "the scheduler looking after the host had room again");
+            require(slabs.load() == taken, what + ": " + std::to_string(slabs.load() - taken) + " slabs taken ahead within seconds of one given back, against none");
             // The histories held through it still serve: the first follow-up again forks what its conversation left.
             const auto h = sched.submit(turns[2].prompt, params_of(turns[2]));
             same(alone[2], drain(*h), what + ", a follow-up after the pressure");

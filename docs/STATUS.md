@@ -1,5 +1,10 @@
 # llmx - Development Status
 
+## The cache scenario's write waits bounded only against a hang (2026-10-18, branch test/first-write-hang, tests only, lands by fast-forward as one commit)
+
+- **Why:** feat/kv-pool's hosted run 39135787656 failed on macOS in `cache-scenario` with "first write: the other request's history written within a minute": the first-write case's store holds each 4 MiB 3 s, and a slow runner's queue of writes passed the minute the test gave it, though the case asserts counts and not time.
+- **The change:** the first write's and the slow write's waits for the disk tier and for the other request's history go through `within` with ten minutes, a bound only a hang reaches; `within_a_minute` is `within` at a minute. Nothing they assert changes.
+- **Held by:** the legs five copies at once on Windows, every run passing; CTest; the hosted run of github gate/first-write-hang.
 ## A failed host copy drains only what it recorded (2026-10-18, branch fix/fork-own-tickets, lands by fast-forward as two commits)
 
 - **Why:** `Model::fork` with a state and `Model::restore_host` synced every device on a failure, safe only while no other thread records on any of them; the server's hold gives that, but nothing in the model says so, and a future caller has the same trap (F2DEV's follow-up to the boundary fork, devlog 2026-10-18 06:10).

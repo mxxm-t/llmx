@@ -439,14 +439,16 @@ inline std::vector<std::shared_ptr<Hooked>> hooked(size_t n, bool device = false
 // The CPU's 128-token blocks, of which a case's pool holds a given number.
 inline constexpr size_t kBlock = 128;
 
-// Polls `done` for up to a minute.
-inline void within_a_minute(const std::function<bool()>& done, const std::string& what) {
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+// Polls `done` for up to `limit`, a bound only a hang should reach, said as `in` where it is.
+inline void within(std::chrono::seconds limit, const std::function<bool()>& done, const std::string& what, const std::string& in) {
+    const auto until = std::chrono::steady_clock::now() + limit;
     while (!done()) {
-        require(std::chrono::steady_clock::now() < until, what + " within a minute");
+        require(std::chrono::steady_clock::now() < until, what + " " + in);
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }
+// Polls `done` for up to a minute.
+inline void within_a_minute(const std::function<bool()>& done, const std::string& what) { within(std::chrono::seconds(60), done, what, "within a minute"); }
 
 // A disk tier's root for one case, removed after it, with a small file standing for the model, whose digest the entries' identity carries.
 struct DiskRoot {

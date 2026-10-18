@@ -561,6 +561,51 @@ struct RestoreSubmitBackend : backend::CpuBackend {
     }
 };
 
+// A fork with a state whose submission fails drains only what it recorded: the devices it copied the state to retire those copies before its slot comes back, and a device it never touched is not synced, which another thread may be recording on.
+// Three devices, the mixers on the first two and every feed-forward part on the third, which holds no state; each fails its submission in turn.
+void fork_submit_failure() {
+    const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelOptions options;
+    options.state_slots = options.checkpoint_slots = 2;
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 7 + 3) % VOCAB);
+    for (size_t failing : {size_t(0), size_t(1)}) {
+        std::vector<std::shared_ptr<RestoreSubmitBackend>> b;
+        for (int k = 0; k < 3; ++k) {
+            b.push_back(std::make_shared<RestoreSubmitBackend>());
+            b.back()->set_threads(1);
+        }
+        infer::Placement placement;
+        placement.mixer_device = {0, 0, 1, 1};
+        placement.ffn_device = {2, 2, 2, 2};
+        infer::Model model(weights, {b[0], b[1], b[2]}, placement, options);
+        infer::Sequence source = model.make_sequence();
+        infer::ExecContext ctx;
+        infer::BatchEntry head{&source, ids.data(), 128, false};
+        head.keep = true;
+        head.extent = ids.size();
+        model.forward(ctx, &head, 1);
+        infer::HostHistory state;
+        model.save_host(source, 128, state, std::numeric_limits<size_t>::max(), false);
+        for (auto& d : b) d->defer = true;
+        b[failing]->fail_submit = true;
+        const size_t slots = model.checkpoints_free(), untouched = b[2]->drains;
+        refuses("fork submission", "injected restore submission failure", [&] { model.fork(source, 128, state); });
+        const bool drained = !b[0]->pending() && !b[1]->pending();
+        if (!drained) for (auto& d : b) d->sync();
+        require(drained, "a failed fork with a state did not retire the copies it recorded");
+        require(b[2]->drains == untouched, "a failed fork with a state synced a device it never copied to");
+        require(model.checkpoints_free() == slots, "a failed fork with a state kept its checkpoint slot");
+        for (auto& d : b) d->defer = false;
+        infer::Sequence f = model.fork(source, 128, state);
+        require(f.length() == 128 && model.checkpoints_free() == slots - 1, "a fork with a state after a failed one did not take the slot back");
+        model.reset(f);
+        model.reset(source);
+        model.release_host(state);
+    }
+}
+
 void host_restore_submit_failure() {
     const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     const infer::ModelWeights weights = infer::gguf_weights(file);
@@ -1732,6 +1777,7 @@ int main(int argc, char** argv) {
             checkpoints();
             host_round_trip();
             host_restore_submit_failure();
+            fork_submit_failure();
             host_state_fork();
             refused_passes_take_no_slot();
             failed_admission_takes_no_slot();

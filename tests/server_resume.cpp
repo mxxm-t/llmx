@@ -1473,6 +1473,48 @@ void arrives_during_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     std::cout << "server-resume: " << what << ": submitted at pass " << sent << ", in a pass at " << first << " after " << turns[first] - turns_sent << " changes of turn, the two ending at passes " << last_a << " and " << last_b << "\n";
 }
 
+// Turns at the pool's edge are given up only where the history left behind is kept (production, 2026-10-17: a reply paused 20 times, nothing taken back, 67456 tokens recomputed).
+// Two uncapped replies on a pool too small for both, turns every two growth steps, a host tier of 1 GiB and the host's free memory, which its slabs come from, enough for every copy or 1 MiB.
+// Without the memory no history can be kept, so no turn is given up and the rows recomputed are at most one growth pause's history; with it, turns go on and recompute nothing but a partial block.
+void turns_need_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool hybrid, bool memory) {
+    const std::string what = std::string("turns at the pool's edge on a ") + (hybrid ? "hybrid" : "Q8_0") + " model, " + (memory ? "the host's memory for every copy" : "1 MiB of host memory free");
+    const size_t room = memory ? (size_t)1 << 32 : (size_t)1 << 20;
+    const Make make = on(weights, [] { return cpus(1); }, 8, hybrid ? 4 : 0, 0, 0, false, 1, [room]() -> std::optional<size_t> { return room; });
+    const size_t pool = (hybrid ? 24 : 16) * kBlock, host = (size_t)1 << 30;
+    const size_t older = hybrid ? 2500 : 1500, newer = hybrid ? 2300 : 1400;
+    const std::vector<Req> reqs = {stopping(make, tok, pool, {}, Req{prompt_of(1, 200, vocab)}, older), stopping(make, tok, pool, {}, Req{prompt_of(2, 300, vocab)}, newer)};
+    std::vector<Reply> alone, got;
+    for (const Req& r : reqs) {
+        auto model = make(pool, 0);
+        alone.push_back(serve(*model, tok, 2, {{r}}, nullptr, 0, host)[0]);
+    }
+    auto model = make(pool, 0);
+    server::Scheduler::Stats s;
+    {
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, host);
+        sched.turn_steps = 2;
+        std::vector<std::shared_ptr<server::Request>> h;
+        for (const Req& r : reqs) h.push_back(sched.submit(r.prompt, params_of(r)));
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (auto& x : h) got.push_back(drain(*x));
+            s = sched.stats();
+            ledger(s, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], got[i], what + ", request " + std::to_string(i));
+    const std::string seen = std::to_string(s.yields) + " turns given up, " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.host_hits) + " restored from host memory, " + std::to_string(s.recomputed) + " rows recomputed";
+    std::cout << "server-resume: " << what << ": " << seen << "\n";
+    if (memory) require(s.yields >= 2 && s.recomputed < kBlock, what + ": " + seen + ", against two turns at least and less than a block recomputed");
+    else require(s.yields == 0 && s.recomputed <= 300 + newer, what + ": " + seen + ", against no turn and at most one history of " + std::to_string(300 + newer) + " rows recomputed");
+}
+
 // Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, so each turn's admission evicts the other conversation's donor.
 // With a host tier each follow-up promotes its conversation's donor back and forks its 256 tokens, without one it reuses nothing, and with `fail` a failing copy to or from host memory loses only the copy; every reply is its reply alone.
 enum class HostFault { none, write_back, promotion };
@@ -4206,6 +4248,10 @@ int main(int argc, char** argv) {
             turns_keep_others(one, tok, vocab, "a kept conversation beside turns of a long and a short request", 500);
             turn_receiver_leaves(one, tok, vocab);
             arrives_during_turns(one, tok, vocab);
+            for (const bool memory : {true, false}) {
+                turns_need_host_memory(weights, tok, vocab, false, memory);
+                turns_need_host_memory(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, true, memory);
+            }
             take_back_follow_up(one, tok, vocab);
             partial_eviction(one, tok, vocab);
             fork_within_class(one, tok, vocab);

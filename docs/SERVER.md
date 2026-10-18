@@ -565,6 +565,7 @@ Beside the spans, overlapping them and so not addends:
 - `copies_ms`, from the enqueue to the first round boundary at which every ticket of the promotion has retired, asked once a round through `Backend::done` (`copies_retired`, `Model::copies_retired`) while such copies are outstanding; a device backend answers without waiting, as `stage_ready` relies on, and the CPU's copies have retired at submission; it overlaps the first pass.
 
 A read that several requests wait on is shared: each request's record carries its latency, and the server counts it once.
+A history streamed from disk straight to the devices (`start_stream`, docs/DISK-TIER.md) is a read with no slabs and no promotion: its `read_ms` runs from its start until its last copy has retired (`stream_round`), on each request waiting for it and once in the server's totals, and it completes a restore from disk for each of those requests; `hold_ms`, `enqueue_ms` and `copies_ms` stay with promotions, and its first pass is timed as a promotion's.
 `/v1/health`'s `reuse.restore.since_start` counts each physical read and promotion once: `reads`, `promotions`, `copies` (promotions whose copies were seen retired), `from_host` and `from_disk` (restores requests completed), `timeouts`, and each part's sum and largest (`read_ms`, `slabs_ms`, `hold_ms`, `enqueue_ms`, `copies_ms` and their `_largest_ms`).
 A message boundary's state forked with a request (`Model::fork` with a state) is not timed here; its copies are a state's, small beside a history's.
 

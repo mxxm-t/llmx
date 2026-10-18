@@ -323,14 +323,14 @@ inline Scheduler::HostRoom Scheduler::host_room(size_t n, bool back) const {
     for (size_t i = 0; i < bounds_.size() && short_of(); ++i)
         if (bounds_[i].disk && bounds_[i].id != pinned_bound_) bound(i);
     for (size_t i = 0; i < host_.size() && short_of(); ++i)
-        if (!gone_copy[i] && host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id) && !host_[i].through) copy(i);
+        if (!gone_copy[i] && host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id)) copy(i);
     for (const bool writing : {false, true})
         for (size_t i = 0; i < bounds_.size() && short_of(); ++i)
             if (!gone_bound[i] && bounds_[i].id != pinned_bound_ && written_soon(true, bounds_[i].id) == writing) bound(i);
     if (!back) {
         size_t room = host_cap_ - std::min(host_cap_, held);
         for (size_t i = 0; i < host_.size(); ++i)
-            if (!gone_copy[i] && (host_[i].superseded || !host_[i].back) && !host_[i].through) room += host_[i].history.held;
+            if (!gone_copy[i] && (host_[i].superseded || !host_[i].back)) room += host_[i].history.held;
         if (room < bytes && host_refused_ < left) {
             plan.why = HostRoom::Why::unreturned;
             return plan;
@@ -341,7 +341,7 @@ inline Scheduler::HostRoom Scheduler::host_room(size_t n, bool back) const {
     }
     for (const bool writing : {false, true})
         for (size_t i = 0; i < host_.size() && short_of(); ++i)
-            if (!gone_copy[i] && !host_[i].through && host_[i].id != promoting_ && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) copy(i);
+            if (!gone_copy[i] && host_[i].id != promoting_ && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) copy(i);
     // Still short once every entry it may release is gone (a pinned boundary, the copy being promoted and a disk read's source stay), the copy would fail its slabs' limit.
     if (short_of()) {
         plan.why = HostRoom::Why::room;
@@ -441,9 +441,10 @@ inline void Scheduler::write_back(Donor& d) {
     }
 }
 
-// A job for the first `n` of `tokens`, which forks what holds them and reads the rest from disk, starting only into spare room (enter); under the lock.
-// follow_up takes it in with the round's other new jobs, since a donor leaves the devices while jobs_ is being walked.
+// A job for the first `n` of `tokens`, which forks what holds them and reads the rest from disk into spare room (enter), none while a restore job's donor takes the slot (restoring_).
+// follow_up takes it in with the round's other new jobs, since a donor leaves the devices while jobs_ is being walked; under the lock.
 inline void Scheduler::restore_later(const std::vector<uint32_t>& tokens, size_t n) {
+    if (restoring_) return;
     auto j = std::make_shared<Request>(std::vector<uint32_t>(tokens.begin(), tokens.begin() + (std::ptrdiff_t)n), SampleParams{});
     j->job_ = true;
     j->whole_ = true;
@@ -454,11 +455,11 @@ inline void Scheduler::restore_later(const std::vector<uint32_t>& tokens, size_t
 inline bool Scheduler::written_soon(bool boundary, uint64_t id) const { return disk_ && disk_->writing_from(id, boundary) && !disk_->write_stopped(); }
 
 // The oldest host donor out of host memory, the one being written to disk only when it is the last; false when no other is left.
-// A read through host memory beyond the tier frees none of the tier's room, so room passes it by, and so does the copy being promoted, whose evictions make this room; under the lock.
+// Room passes by the copy being promoted, whose evictions make this room; under the lock.
 inline bool Scheduler::drop_oldest_host() {
     for (const bool writing : {false, true})
         for (size_t i = 0; i < host_.size(); ++i)
-            if (!host_[i].through && host_[i].id != promoting_ && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) {
+            if (host_[i].id != promoting_ && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) {
                 drop_host(i);
                 return true;
             }
@@ -468,17 +469,14 @@ inline bool Scheduler::drop_oldest_host() {
 // Host donor i out of host memory.
 // Under the lock.
 inline void Scheduler::drop_host(size_t i) {
-    const bool through = host_[i].through;
-    // A superseded copy is no loss, a newer one of its conversation standing for it, nor is a read through host memory, whose files are on disk.
-    const bool gone = !through && !host_[i].disk && !host_[i].superseded;
+    // A superseded copy is no loss, a newer one of its conversation standing for it.
+    const bool gone = !host_[i].disk && !host_[i].superseded;
     if (gone) lost();
     if (gone && disk_ && !stopping_) this->gone(host_[i].tokens, Move::host_lost, 0, host_[i].history.length, "server: cache: a copy of %zu tokens left host memory with no file\n", host_[i].history.length);
     else moved(Move::host_dropped);
-    if (!through) host_held_ -= host_[i].history.held;
+    host_held_ -= host_[i].history.held;
     release_entry(false, host_[i].id, host_[i].history);
     host_.erase(host_.begin() + (std::ptrdiff_t)i);
-    // The slabs of a copy held beyond the tier go back to the host, not to the pool the tier's copies reuse.
-    if (through) quieted()->trim_host(host_cap_ + parked_held());
 }
 
 // The one place a move of the cache between its places is said and counted (docs/SERVER.md, the cache's moves): `kind`, with its line, or none for a move its request's own line says.
@@ -527,14 +525,10 @@ inline void Scheduler::release_entry(bool boundary, uint64_t id, infer::HostHist
     model_.release_host(h);
 }
 
-// The slabs held beside the host tier's copies, which leave its limit for them: an entry's dropped while its write stops, which count free, and a copy's read through host memory beyond the tier (HostDonor::through).
+// The slabs held beside the host tier's copies, which leave its limit for them: an entry's dropped while its write stops, which count free.
 inline size_t Scheduler::parked_held() const {
     size_t n = 0;
     for (const infer::HostHistory& h : disk_parked_) n += h.held;
-    for (const HostDonor& h : host_)
-        if (h.through) n += h.history.held;
-    for (const DiskRead& rd : disk_reads_)
-        if (rd.through) n += rd.history.held;
     if (disk_) n += disk_->held();
     return n;
 }
@@ -547,7 +541,7 @@ inline void Scheduler::release_written(size_t bytes) {
         else ++i;
     }
     for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
-        if (host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id) && !host_[i].through) drop_host(i);
+        if (host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id)) drop_host(i);
         else ++i;
     }
 }
@@ -622,17 +616,13 @@ inline void Scheduler::disk_round(bool idle) {
         disk_->expire();
     }
     sync_disk();
+    stream_round();
     prefetch();
     write_ahead();
     // A donor the host tier cannot keep is written from its turn's end on, with or without --disk-cache-keep and while requests run, a piece at a time (docs/DISK-TIER.md, Demotion).
     if (disk_->can_write()) flush_one(turn_tried_, true);
     // Under --disk-cache-keep a server idle for kDiskIdle (`idle`, from run) writes what a stop would have to, one file at a time, so a stop finds little left (docs/DISK-TIER.md, Keeping entries across a restart).
     if (idle && queue_.empty() && paused_.empty() && disk_->can_write() && !flush_one(idle_tried_)) disk_->say_written();
-    // A copy read through host memory beyond the tier goes once no request or job waits that could still promote it; its files stay.
-    for (size_t i = 0; queue_.empty() && paused_.empty() && jobs_.empty() && i < host_.size();) {
-        if (host_[i].through && host_[i].id != promoting_) drop_host(i);
-        else ++i;
-    }
     sync_disk();
 }
 
@@ -761,7 +751,9 @@ inline bool Scheduler::ready(const std::deque<std::shared_ptr<Request>>& q) {
 // When the loop must wake for the disk tier: the earliest bound of a request waiting for a read, the next check of the entries' age, and the start of an idle server's writes.
 inline std::optional<std::chrono::steady_clock::time_point> Scheduler::next_disk_bound() const {
     std::optional<std::chrono::steady_clock::time_point> t;
-    if (disk_ && disk_->max_age() && disk_now_.files) t = next_expiry_;
+    // A streamed read's copies retire with no event, so the loop looks again a millisecond on while one runs (stream_round).
+    if (!streams_.empty()) t = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+    if (disk_ && disk_->max_age() && disk_now_.files && (!t || next_expiry_ < *t)) t = next_expiry_;
     for (const auto* q : {&queue_, &paused_, &jobs_})
         for (const auto& r : *q)
             if (r->disk_wait_ && r->disk_until_ != std::chrono::steady_clock::time_point::max() && (!t || r->disk_until_ < *t)) t = r->disk_until_;
@@ -794,7 +786,17 @@ inline bool Scheduler::reading(Request& r) {
         std::lock_guard<std::mutex> lk(r.m_);
         ++r.restore_.timeouts;
     }
+    const uint64_t id = r.disk_wait_;
     end_wait(r);
+    // A streamed read past the bound of every request waiting for it is cancelled: its room and slot come back once its readers and copies have ended (stream_round).
+    const auto waits = [&] {
+        for (auto* q : {&queue_, &paused_, &jobs_})
+            for (const auto& o : *q)
+                if (o->disk_wait_ == id) return true;
+        return false;
+    };
+    for (Streaming& s : streams_)
+        if (s.id == id && !s.ended && !waits()) s.read->cancel();
     return false;
 }
 
@@ -864,7 +866,6 @@ inline void Scheduler::finish_read(uint64_t id, bool ok) {
             d.classes = std::move(rd.classes);
             d.history = std::move(rd.history);
             d.back = true;
-            d.through = rd.through;
             d.from_disk = true;
             key = &d.disk;
         }
@@ -873,7 +874,7 @@ inline void Scheduler::finish_read(uint64_t id, bool ok) {
         moved(Move::read_done, "server: %s of %zu tokens read from disk, %.1f MiB\n", rd.state_only ? "a state" : "a history", length, mib);
     } else {
         moved(Move::read_failed, "server: cache: the read of %zu tokens from disk failed; its request reads its prompt\n", rd.history.length);
-        if (!rd.through) host_held_ -= rd.history.held;
+        host_held_ -= rd.history.held;
         model_.release_host(rd.history);
     }
     wake_readers(id);
@@ -994,7 +995,7 @@ inline void Scheduler::prefetch() {
     for (auto* q : {&paused_, &queue_, &jobs_})
         for (auto& r : *q) {
             if (r->disk_checked_ || r->disk_wait_ || r->cancel_.load() || waiting >= max_seqs_) continue;
-            // A job reads only where it could start: into free blocks, so what it reads through host memory is promoted at once and not held while it waits.
+            // A job reads only where it could start: into free blocks, so what it reads is on the devices at once and not held while it waits.
             if (r->job_) {
                 const std::vector<size_t> need = pools_.blocks_for(r->prompt_.size());
                 bool spare = true;
@@ -1050,12 +1051,23 @@ inline void Scheduler::prefetch() {
             // A state alone is read for rows in memory; the path's blocks, where they share more than memory does, are what is read should the host tier have no room for that state beside a host copy holding them.
             uint64_t source = 0;
             const bool state_only = model_.keeps_state() && rows_held(tokens, own, path.length, &source);
-            if (disk_reads_.size() + 1 > kDiskReads) continue;
+            // A history larger than the host tier is read straight into the devices, with no whole copy in host memory (start_read), and a stream already reading the same rows serves this request too.
+            const bool streams = !state_only && beyond_host(path.length);
+            uint64_t id = 0;
+            for (const Streaming& s : streams_)
+                if (streams && !s.ended && s.tokens.size() == path.length && std::equal(s.tokens.begin(), s.tokens.end(), tokens.begin()) && alike(s.classes, own, path.length) == path.length) id = s.id;
+            size_t reads = disk_reads_.size();
+            for (const Streaming& s : streams_) reads += !s.ended;
+            if (!id && reads + 1 > kDiskReads) continue;
+            // A stream takes its room on the devices as it starts, so one without that room now is looked at again next round, as the request's admission would be.
+            if (!id && streams && !stream_room(path.length, r->job_)) continue;
             r->disk_checked_ = true;
-            const uint64_t id = start_read(path, state_only, tokens, own, source, state_only && whole.length > shared ? &whole : nullptr);
+            if (!id) id = start_read(path, state_only, tokens, own, *r, source, state_only && whole.length > shared ? &whole : nullptr);
             if (!id) continue;
-            // The read started may be the shorter whole path start_read fell back to, so the wait is for that read's rows.
-            const size_t rows = disk_reads_.back().tokens.size();
+            // The read started may be the shorter whole path start_read fell back to, or a stream, so the wait is for that read's rows.
+            size_t rows = disk_reads_.empty() ? 0 : disk_reads_.back().tokens.size();
+            for (const Streaming& s : streams_)
+                if (s.id == id) rows = s.tokens.size();
             const auto now = std::chrono::steady_clock::now();
             r->disk_wait_ = id;
             r->disk_rows_ = rows;
@@ -1072,6 +1084,136 @@ inline Scheduler::Clock::time_point Scheduler::read_until(size_t rows, Clock::ti
     if (read_wait_) return now + std::chrono::duration_cast<Clock::duration>(*read_wait_);
     if (prompt_ms_row_ > 0) return now + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>((double)rows * prompt_ms_row_));
     return now + wait_bound_;
+}
+
+// Starts the read of a path larger than the host tier straight into a history on the devices, with no whole copy in host memory (A20, docs/DISK-TIER.md, Restore): its room taken as a promotion's is, a job's from free blocks alone.
+// Its id, 0 where the room, a checkpoint slot or the history is not to be had, which is counted and said as a refused read; under the lock.
+inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r) {
+    const size_t length = path.length;
+    const bool spare = r.job_;
+    const auto refused = [&](const char* why) {
+        ++disk_refused_;
+        moved(Move::read_refused, "server: a history of %zu tokens on disk was not read back (%s); its request reads its prompt\n", length, why);
+        return uint64_t(0);
+    };
+    if (!stream_room(length, spare)) return refused("the devices have no room for it");
+    // The checkpoint slot its state takes comes first, so no donor goes for its blocks where the slot is not to be had.
+    if (model_.keeps_state() && !checkpoint_room_held(0)) return refused("no checkpoint slot for its state");
+    std::vector<size_t> need = pools_.blocks_for(length);
+    const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, {}, 0, false, need);
+    if (!t.enough || (spare && !t.donors.empty())) return refused("the devices have no room for it");
+    std::vector<size_t> gone = t.donors;
+    std::sort(gone.begin(), gone.end(), std::greater<size_t>());
+    for (size_t g : gone) drop_donor(g, true);
+    // Whatever can throw comes before the read pins its files, so nothing after it needs undoing.
+    Streaming s;
+    s.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)length);
+    s.classes = clip(classes, length);
+    s.need = std::move(need);
+    s.restore = r.job_ && !r.of_;
+    streams_.reserve(streams_.size() + 1);
+    try {
+        // The read's views of its slots (Backend::wrap_host) are made under the same hold as the history it fills.
+        auto held = quieted();
+        s.into = std::make_unique<infer::RestoreInto>(held->restore_into(length));
+        s.read = disk_->stream(model_, path, *s.into, s.id);
+    } catch (const std::exception& e) {
+        if (s.into) quieted()->reset(s.into->seq);
+        return refused(e.what());
+    }
+    s.started = Clock::now();
+    add(reserved_, s.need);
+    moved(Move::read_started, "server: a history of %zu tokens read from disk straight into the devices\n", length);
+    streams_.push_back(std::move(s));
+    return streams_.back().id;
+}
+
+// Whether a stream of `length` tokens has its room on the devices now, a job's (`spare`) from free blocks alone; under the lock.
+inline bool Scheduler::stream_room(size_t length, bool spare) const {
+    const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, {}, 0, false, pools_.blocks_for(length));
+    return t.enough && (!spare || t.donors.empty());
+}
+
+// The streamed reads stepped once a round, the stages held only while full slots are sent: one whose copies have all retired becomes a donor its request forks, as a promoted one does.
+// One that failed or was cancelled lets its waiters go at once and gives its room and slot back only once its readers and copies have ended, so nothing reuses blocks still being written; under the lock.
+inline void Scheduler::stream_round() {
+    // A stream's outcome for the server and for each request waiting for it (Request::Restore): its time from start to its last copy retired is its read, and a whole one completes a restore from disk.
+    const auto record = [&](const Streaming& s, bool ok) {
+        const double ms = ms_since(s.started);
+        if (ok) {
+            ++restore_totals_.reads;
+            Stats::RestoreTotals::add(restore_totals_.read_ms, restore_totals_.read_largest_ms, ms);
+        }
+        for (auto* q : {&queue_, &paused_, &jobs_})
+            for (auto& r : *q) {
+                if (r->disk_wait_ != s.id) continue;
+                if (ok && !r->job_) ++restore_totals_.from_disk;
+                if (ok) r->first_pass_ = true;
+                std::lock_guard<std::mutex> lk(r->m_);
+                Request::Restore& x = r->restore_;
+                x.read_ms += ms;
+                x.failed += !ok;
+                if (!ok) continue;
+                ++x.restores;
+                x.kind = "disk";
+                x.tokens += s.into->length;
+                x.bytes += s.read->bytes();
+                r->first_before_ = r->first_;
+            }
+    };
+    for (size_t i = 0; i < streams_.size();) {
+        Streaming& s = streams_[i];
+        // The stages are held only to send full slots; giving slots back and asking the state take no hold.
+        StreamedRead::State state = s.read->poll();
+        if (state == StreamedRead::State::running && s.read->ready()) {
+            {
+                auto held = quieted();
+                s.read->send();
+            }
+            state = s.read->poll();
+        }
+        if (state == StreamedRead::State::running) {
+            ++i;
+            continue;
+        }
+        if (state == StreamedRead::State::done) {
+            quieted()->restored(*s.into, s.read->last());
+            record(s, true);
+            restoring_ = s.restore;
+            while (donors_.size() >= max_seqs_) drop_donor(0, true);
+            restoring_ = false;
+            Donor d;
+            d.id = ++donor_ids_;
+            d.seq = std::move(s.into->seq);
+            d.tokens = std::move(s.tokens);
+            d.classes = std::move(s.classes);
+            d.blocks = std::move(s.need);
+            d.back = true;
+            ++disk_hits_;
+            disk_read_bytes_ += s.read->bytes();
+            disk_->end_stream(s.id, 0);
+            moved(Move::read_done, "server: a history of %zu tokens read from disk into the devices, %.1f MiB in %.0f ms\n", d.seq.length(), (double)s.read->bytes() / (1 << 20), ms_since(s.started));
+            donors_.push_back(std::move(d));
+            const uint64_t id = s.id;
+            streams_.erase(streams_.begin() + (std::ptrdiff_t)i);
+            wake_readers(id);
+            continue;
+        }
+        if (!s.ended) {
+            s.ended = true;
+            disk_->end_stream(s.id, s.read->failed_key());
+            if (!s.read->why().empty()) moved(Move::read_failed, "server: cache: the read of %zu tokens from disk failed (%s); its request reads its prompt\n", s.into->length, s.read->why().c_str());
+            if (!s.read->why().empty()) record(s, false);
+            wake_readers(s.id);
+        }
+        if (!s.read->idle()) {
+            ++i;
+            continue;
+        }
+        quieted()->reset(s.into->seq);
+        sub(reserved_, s.need);
+        streams_.erase(streams_.begin() + (std::ptrdiff_t)i);
+    }
 }
 
 // Whether a history on the devices or in host memory holds the first `n` rows of `tokens` computed as `classes` record, so a state alone at `n` can be forked.
@@ -1091,15 +1233,14 @@ inline bool Scheduler::rows_held(const std::vector<uint32_t>& tokens, const std:
     return false;
 }
 
-// Starts the read of a path into slabs it takes host room for as a write-back does, a history of `tokens` computed as `classes` record; the read's id, or 0 where the room or the memory is not to be had.
-// Under the lock.
-inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, uint64_t source, const DiskIndex::Path* whole) {
+// Starts the read of a path into slabs it takes host room for as a write-back does, a history of `tokens` computed as `classes` record, for request r; the read's id, or 0 where the room or the memory is not to be had.
+// A history larger than the whole host tier is streamed to the devices instead (start_stream); under the lock.
+inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r, uint64_t source, const DiskIndex::Path* whole) {
     const size_t length = path.length;
     const bool blocks = !state_only;
     const size_t bytes = model_.host_bytes(length, blocks);
-    // A copy larger than the whole host tier is read through host memory beyond the tier: nothing is dropped for it, the host's own free memory decides, and it is kept only until its request has promoted it (disk_round).
+    if (blocks && bytes > host_cap_) return start_stream(path, tokens, classes, r);
     DiskRead rd;
-    rd.through = blocks && bytes > host_cap_;
     rd.state_only = state_only;
     // A state alone is read for the rows host entry `source` holds, 0 for a device donor's: the room it takes is never that entry's, and where there is no other the blocks of `whole` are read with their state instead.
     rd.source = state_only ? source : 0;
@@ -1109,20 +1250,18 @@ inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_on
         moved(Move::read_refused, "server: a history of %zu tokens on disk was not read back (%s); its request reads its prompt\n", length, why);
         return uint64_t(0);
     };
-    if (!rd.through) {
-        if (bytes > host_cap_) return refused("its state is larger than the host tier");
-        reading_for_ = rd.source;
-        while (!host_.empty() && host_.front().superseded && host_.front().id != rd.source && host_held_ + bytes > host_cap_) drop_host(0);
-        release_written(bytes);
-        while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
-        while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
-        reading_for_ = 0;
-        if (host_held_ + bytes > host_cap_ && rd.source && whole) return start_read(*whole, false, tokens, classes);
-        if (host_held_ + bytes > host_cap_) return refused("the host tier has no room it may give");
-    }
+    if (bytes > host_cap_) return refused("its state is larger than the host tier");
+    reading_for_ = rd.source;
+    while (!host_.empty() && host_.front().superseded && host_.front().id != rd.source && host_held_ + bytes > host_cap_) drop_host(0);
+    release_written(bytes);
+    while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
+    while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
+    reading_for_ = 0;
+    if (host_held_ + bytes > host_cap_ && rd.source && whole) return start_read(*whole, false, tokens, classes, r);
+    if (host_held_ + bytes > host_cap_) return refused("the host tier has no room it may give");
     const Clock::time_point slabs = Clock::now();
     try {
-        quieted()->alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
+        quieted()->alloc_host(length, rd.history, host_cap_ + parked_held(), blocks);
     } catch (const std::exception& x) {
         return refused(x.what());
     }
@@ -1133,8 +1272,7 @@ inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_on
         model_.release_host(rd.history);
         return refused("host memory for a part of a file was not to be had");
     }
-    if (rd.through) std::fprintf(stderr, "server: reading a history of %zu tokens from disk through %.1f MiB of host memory beyond the host tier\n", length, (double)rd.history.held / (1 << 20));
-    if (!rd.through) host_held_ += rd.history.held;
+    host_held_ += rd.history.held;
     rd.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)length);
     rd.classes = clip(classes, length);
     const uint64_t id = rd.id;

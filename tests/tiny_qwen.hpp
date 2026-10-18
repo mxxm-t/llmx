@@ -7,6 +7,7 @@
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
 #include "format/gguf.hpp"
+#include "model/runtime.hpp"
 
 // A Qwen3-shaped F32 model with deterministic weights, 8 wide with two query heads over one KV head, for the native tests that run a forward pass.
 // Without `tied` it has an output projection of its own.
@@ -121,3 +122,22 @@ struct FailingCpu : backend::CpuBackend {
         backend::CpuBackend::read(src, off, dst, bytes);
     }
 };
+
+// A host copy's image copied into a restore (Model::restore_into) run by run, in pieces of at most `piece` bytes as a streamed restore's ring gives them, on each device's backend (`devices`, in the model's order), then published.
+inline void copy_image(infer::Model& model, infer::HostHistory& h, infer::RestoreInto& into, const std::vector<backend::Backend*>& devices, size_t piece) {
+    model.wait_host(h);
+    const size_t slab = infer::Model::host_slab_bytes();
+    std::vector<backend::Ticket> last(devices.size(), 0);
+    for (size_t i = 0; i < devices.size(); ++i) {
+        size_t at = 0;
+        for (const infer::RestoreInto::Run& run : into.runs[i])
+            for (size_t done = 0; done < run.bytes;) {
+                const size_t n = std::min({piece, run.bytes - done, slab - at % slab});
+                devices[i]->copy(run.target(), run.offset + done, *h.slabs[i][at / slab], at % slab, n);
+                at += n;
+                done += n;
+            }
+        if (!into.runs[i].empty()) last[i] = devices[i]->submit();
+    }
+    model.restored(into, last);
+}

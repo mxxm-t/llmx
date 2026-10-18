@@ -39,7 +39,7 @@ for /f "delims=" %%R in ('powershell -NoProfile -ExecutionPolicy Bypass -File cm
     echo #define LLMX_BUILD_FLAGS "build.bat"
     echo #define LLMX_GLSLC_VERSION ""
 ) || ( echo [build] cannot write version header & popd & exit /b 1 )
-cl /nologo /std:c++17 /O2 /EHsc /W4 /we4505 /we4101 /we4189 /arch:AVX2 /I build\plain-generated /I src /Fe:llmx.exe src\cli\main.cpp /link /MANIFEST:EMBED /MANIFESTINPUT:cmake\windows.manifest
+cl /nologo /std:c++17 /O2 /EHsc /bigobj /W4 /we4505 /we4101 /we4189 /arch:AVX2 /I build\plain-generated /I src /Fe:llmx.exe src\cli\main.cpp /link /MANIFEST:EMBED /MANIFESTINPUT:cmake\windows.manifest
 set "LLMX_BUILD_EXIT=%errorlevel%"
 popd
 exit /b %LLMX_BUILD_EXIT%

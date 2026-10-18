@@ -1,0 +1,10 @@
+# `src/inference/read_ring.hpp` - the ring a file is streamed through
+
+`ReadRing` reads a sequence of pieces, in order, on up to two reader threads into up to four slots of host pages (`core::HostPages`), a piece a slot, and gives each full slot to its one consumer in piece order. It is the one owner of reading a file into host memory on its way to device storage: the loader drives it blocking (`detail::stream` in [load](inference-load.md)), and the server's streamed restore steps it on its own thread without waiting.
+- The constructor makes the slots' pages and `start()` the readers, so a caller makes its views of the pages, which may fail, before any fill runs: the server makes its stream under the scheduler's lock, which a reader's wake takes, so a reader joined there would never end.
+- The readers run only the caller's `fill(piece, into)`: a file read into the slot, or into the caller's own memory for a direct load, and whatever check of the bytes the caller makes; its return is the bytes read, and a throw fails the stream.
+- `next(wait)` gives the next piece once its slot is full, with its slot and bytes, waiting for it or, stepped, nothing while it is not read; a reader's failure is thrown there. `ready()` says, without taking anything, whether `next(false)` has something to give, so a caller takes a hold only when it has.
+- `free(piece)` gives back every slot up to that piece's, once the consumer's copies out of them have retired, and the readers fill them again; a slot is never refilled before.
+- `stop()` asks the readers to stop after the fill each is in, without waiting, and `idle()` says when every reader has ended, so a caller that must not wait keeps the ring until then; the destructor stops and joins them.
+- `reading()` is the busiest reader's time in reads, which the loader reports.
+`load-progress` holds the loader's stream to it and the ring itself stepped: nothing for a piece not read, the pieces in order, no refill before a slot is given back, a fill's throw out of the step, a stopped ring idle once its readers' fills end, and a ring not started idle, its fill never run.

@@ -177,8 +177,9 @@ endif()
 find_package(Threads REQUIRED)
 foreach(target IN LISTS LLMX_TARGETS)
     # The x86 build requires AVX2/FMA/F16C, which the CPU kernels use with no runtime check; without them cpu_backend.hpp stops the compile.
+    # /bigobj lifts COFF's section count for the one translation unit the runtime compiles in, changing the object format and not the code.
     if(MSVC)
-        target_compile_options(${target} PRIVATE /std:c++17 /O2 /arch:AVX2)
+        target_compile_options(${target} PRIVATE /std:c++17 /O2 /arch:AVX2 /bigobj)
         get_target_property(target_kind ${target} TYPE)
         if(target_kind STREQUAL "EXECUTABLE")
             target_sources(${target} PRIVATE cmake/windows.manifest)

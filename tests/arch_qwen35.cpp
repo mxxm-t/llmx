@@ -514,9 +514,58 @@ void host_round_trip() {
     rest.extent = ids.size();
     model.forward(ctx, &rest, 1);
     require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a hybrid history restored from host memory differs from the prompt in one");
-    model.release_host(h);
     model.reset(r);
     require(model.checkpoints_free() == 1, "a restored history's reset kept its checkpoint slot");
+    // The same copy restored piece by piece (Model::restore_into), its blocks and state copied run by run in pieces of 1 KiB, continues with the same bits, and its reset gives the slot back.
+    {
+        infer::RestoreInto into = model.restore_into(128);
+        require(model.checkpoints_free() == 0, "a restore piece by piece did not take its slot");
+        copy_image(model, h, into, {&model.stage_backend(0)}, 1024);
+        require(model.checkpoint(into.seq) == std::optional<size_t>(128) && into.seq.length() == 128, "a hybrid history restored piece by piece has another checkpoint");
+        infer::BatchEntry more{&into.seq, tail.data(), tail.size(), true};
+        more.extent = ids.size();
+        model.forward(ctx, &more, 1);
+        require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a hybrid history restored piece by piece differs from the prompt in one");
+        model.reset(into.seq);
+        require(model.checkpoints_free() == 1, "a history restored piece by piece kept its slot");
+    }
+    model.release_host(h);
+}
+
+// A hybrid history restored piece by piece over two CPU stages (Model::restore_into), each device's image copied run by run in pieces of 1 KiB, continues the prompt with the bits of the prompt read in one.
+void split_restore_into() {
+    const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelOptions options;
+    options.state_slots = options.checkpoint_slots = 1;
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 7 + 3) % VOCAB);
+    infer::Model fresh(weights, backend::make_cpu_backend(), options);
+    const std::vector<float> want = fresh.prefill(ids);
+    auto first = std::make_shared<backend::CpuBackend>(), second = std::make_shared<backend::CpuBackend>();
+    first->set_threads(1);
+    second->set_threads(1);
+    infer::Placement placement;
+    placement.mixer_device = placement.ffn_device = {0, 0, 1, 1};
+    infer::Model model(weights, {first, second}, placement, options);
+    infer::Sequence source = model.make_sequence();
+    infer::ExecContext ctx;
+    infer::BatchEntry head{&source, ids.data(), 128, false};
+    head.keep = true;
+    head.extent = ids.size();
+    model.forward(ctx, &head, 1);
+    infer::HostHistory host;
+    model.save_host(source, 128, host, std::numeric_limits<size_t>::max());
+    model.reset(source);
+    infer::RestoreInto into = model.restore_into(128);
+    require(!into.runs[0].empty() && !into.runs[1].empty(), "a restore over two stages gave a device no runs");
+    copy_image(model, host, into, {first.get(), second.get()}, 1024);
+    infer::BatchEntry tail{&into.seq, ids.data() + 128, ids.size() - 128, true};
+    tail.extent = ids.size();
+    model.forward(ctx, &tail, 1);
+    require(!std::memcmp(ctx.logits(0), want.data(), VOCAB * sizeof(float)), "a hybrid history restored piece by piece over two stages differs from the prompt in one");
+    model.reset(into.seq);
+    model.release_host(host);
 }
 
 // Restore copies borrow their host buffers until retirement; a failed submit leaves its open copies pending too.
@@ -1811,6 +1860,7 @@ int main(int argc, char** argv) {
             host_round_trip();
             host_restore_submit_failure();
             fork_submit_failure();
+            split_restore_into();
             host_state_fork();
             refused_passes_take_no_slot();
             failed_admission_takes_no_slot();

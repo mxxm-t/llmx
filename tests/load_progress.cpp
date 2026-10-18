@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -557,6 +559,81 @@ void stream_checks(const std::string& path) {
             "a stream over a file cut after its header was read did not say where it ended");
 }
 
+// The read ring stepped without waiting, as the server drives it (ReadRing), its cases listed in AGENTS.md, Tests.
+void ring_checks() {
+    // A ring not started has no reader, so its pages can be set up, and fail to be, before any fill runs, and it goes with nothing to join.
+    {
+        std::atomic<size_t> unstarted{0};
+        {
+            infer::ReadRing ring(3, 16, [&](size_t, uint8_t*) -> size_t { return ++unstarted, 16; }, 2, 2);
+            require(ring.idle() && !ring.next(false) && ring.pages(0).data(), "a ring not started was not idle with its pages");
+        }
+        require(unstarted.load() == 0, "a ring not started ran its fill");
+    }
+    std::mutex m;
+    std::condition_variable cv;
+    bool open = false;   // the first fill waits until the test opens it
+    size_t fills = 0;
+    {
+        infer::ReadRing ring(6, 64, [&](size_t k, uint8_t* into) {
+            std::unique_lock<std::mutex> lk(m);
+            cv.wait(lk, [&] { return open || k > 0; });
+            ++fills;
+            std::fill(into, into + 64, uint8_t(k + 1));
+            return size_t(k + 1);
+        }, 2, 1);
+        ring.start();
+        require(!ring.next(false), "a ring gave a piece not yet read");
+        {
+            std::lock_guard<std::mutex> lk(m);
+            open = true;
+        }
+        cv.notify_all();
+        std::optional<infer::ReadRing::Full> first;
+        while (!(first = ring.next(false))) std::this_thread::yield();
+        require(first->piece == 0 && first->bytes == 1 && ring.pages(first->slot).data()[0] == 1, "a ring gave the wrong piece first");
+        const auto second = ring.next(true);
+        require(second && second->piece == 1 && second->bytes == 2, "a ring gave the wrong piece second");
+        // Two slots are full and neither given back, so the third piece is not read.
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        {
+            std::lock_guard<std::mutex> lk(m);
+            require(fills == 2, "a ring refilled a slot not given back");
+        }
+        ring.free(0);
+        const auto third = ring.next(true);
+        require(third && third->piece == 2 && third->slot == first->slot && ring.pages(third->slot).data()[0] == 3, "a ring did not refill the slot given back");
+    }
+    {
+        infer::ReadRing failing(3, 16, [](size_t k, uint8_t*) -> size_t {
+            if (k == 1) throw std::runtime_error("a chunk that fails its check");
+            return 16;
+        }, 2, 1);
+        failing.start();
+        require(failing.next(true)->piece == 0, "a failing ring lost its first piece");
+        failing.free(0);
+        bool thrown = false;
+        try { failing.next(true); } catch (const std::runtime_error& e) { thrown = std::string(e.what()) == "a chunk that fails its check"; }
+        require(thrown, "a fill's throw did not come out of the step");
+    }
+    {
+        std::atomic<bool> release{false};
+        infer::ReadRing held(4, 16, [&](size_t, uint8_t*) -> size_t {
+            while (!release.load()) std::this_thread::yield();
+            return 16;
+        }, 2, 1);
+        held.start();
+        held.stop();
+        require(!held.idle(), "a ring was idle while a reader was in a fill");
+        release.store(true);
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!held.idle()) {
+            require(std::chrono::steady_clock::now() < until, "a stopped ring never went idle");
+            std::this_thread::yield();
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) return 2;
     const std::string path = argv[1];
@@ -691,6 +768,7 @@ int main(int argc, char** argv) {
         require(empty_calls == 1, "empty model completion missing");
         loader_checks(path);
         stream_checks(path);
+        ring_checks();
         experts_checks(path);
         split_checks(path);
         shard_checks(std::filesystem::u8path(path).parent_path());

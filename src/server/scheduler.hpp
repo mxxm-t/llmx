@@ -454,7 +454,7 @@ public:
         size_t checkpoints = 0;  // states kept as checkpoints now, on a model whose layers keep one
         size_t passes = 0, in_flight = 0;   // the passes the context keeps in flight at most, and those in flight now
         size_t samplers = 0;                // the threads that sample beside the scheduler thread
-        std::vector<size_t> reserved, donor_blocks;   // per cache pool, the blocks the ledger holds reserved and those the donors hold
+        std::vector<size_t> reserved, donor_blocks;   // per cache pool, the blocks the ledger holds reserved and those the donors hold, those being streamed in among them
         bool timed = false;
         Timing timing;   // a timed scheduler's, as of its last round
         size_t reprefills = 0;         // jobs that kept a reply's next turn as a donor
@@ -524,6 +524,8 @@ public:
                 paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), reserved_,
                 std::vector<size_t>(reserved_.size(), 0), timed_, timing_};
         for (const Donor& d : donors_) add(s.donor_blocks, d.blocks);
+        // A history being streamed from disk is a donor being filled (start_stream).
+        for (const Streaming& st : streams_) add(s.donor_blocks, st.need);
         for (size_t p = 0; p < s.reserved.size(); ++p) {
             const size_t held = p < s.donor_blocks.size() ? s.donor_blocks[p] : 0;
             s.kv_tokens = std::max(s.kv_tokens, (s.reserved[p] - held) * pools_.block_tokens[p]);
@@ -775,6 +777,13 @@ public:
         for (auto& r : active) { release(*r); r->end("cancel"); }
         // With --disk-cache-keep what memory holds goes to disk first; then the tier goes, its write in flight cancelled, so no write reads a slab released below; its thread calls back under the lock.
         if (disk_ && disk_->keeps()) flush_disk();
+        // Streamed reads stop and are waited for before the tier goes, since their readers read its files and their copies write the devices.
+        for (Streaming& s : streams_) s.read->cancel();
+        for (Streaming& s : streams_) {
+            while (!s.read->idle()) std::this_thread::yield();
+            model_.reset(s.into->seq);
+        }
+        streams_.clear();
         std::unique_ptr<DiskTier> disk;
         {
             std::lock_guard<std::mutex> lk(m_);
@@ -790,7 +799,7 @@ public:
         for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
         disk_parked_.clear();
         for (DiskRead& rd : disk_reads_) {
-            if (!rd.through) host_held_ -= rd.history.held;
+            host_held_ -= rd.history.held;
             model_.release_host(rd.history);
         }
         disk_reads_.clear();
@@ -2300,7 +2309,6 @@ private:
         bool back = false;         // as Donor::back
         uint64_t disk = 0;         // the file that makes the same history whole on disk (DiskTier::on_disk), 0 while part of it is not there
         mutable std::vector<std::string> digests;   // its whole blocks' digests, once asked for (digests_of)
-        bool through = false;      // read back from an entry larger than the host tier: held beyond the tier's bytes, for its request to promote, and kept no longer (start_read)
         bool from_disk = false;    // read back from disk, so a promotion of it completes a restore from disk
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: made, renewed or promoted, which its file keeps
     };
@@ -2426,9 +2434,12 @@ private:
     void prove(Request& r);
     void unprove(Request& r);
     void prefetch();
+    uint64_t start_stream(const DiskIndex::Path& path, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r);
+    void stream_round();
+    bool stream_room(size_t length, bool spare) const;
     Clock::time_point read_until(size_t rows, Clock::time_point now) const;
     bool rows_held(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t* source = nullptr);
-    uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, uint64_t source = 0, const DiskIndex::Path* whole = nullptr);
+    uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r, uint64_t source = 0, const DiskIndex::Path* whole = nullptr);
 
     // A pass of prompt rows measures the prompt rate a read's bound takes, a moving mean over passes of 64 rows or more.
     void measure_prompt(const Slot& f, double since_retired) {
@@ -2634,7 +2645,9 @@ private:
                 for (size_t d = 0; d < donors_.size() && v == donors_.size(); ++d)
                     if (kept_elsewhere(donors_[d])) v = d;
                 if (v == donors_.size() && !back) break;
+                restoring_ = r->job_ && !r->of_;
                 drop_donor(v == donors_.size() ? 0 : v, true);
+                restoring_ = false;
             }
         }
         if (lk.owns_lock() && donors_.size() < max_seqs_) {
@@ -3095,6 +3108,7 @@ private:
     size_t host_refused_ = 0;             // donors write_back refused in a row for want of room the tier keeps for conversations that came back, under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::vector<std::shared_ptr<Request>> restores_;   // under the lock, jobs restore_later made since follow_up last took them in
+    bool restoring_ = false;   // under the lock: a donor a restore job read takes its slot, so the donor it evicts gets no restore job (restore_later)
     std::deque<std::shared_ptr<Request>> jobs_;   // under the lock, jobs waiting for a seat, oldest first
     size_t steady_from_ = 0;                      // the least extent from which rows are one class up to the limit
     size_t reprefills_ = 0, reprefill_rows_ = 0, reprefill_cancels_ = 0, reprefill_handed_ = 0;   // under the lock
@@ -3137,7 +3151,6 @@ private:
     struct DiskRead {
         uint64_t id = 0;
         infer::HostHistory history;
-        bool through = false;      // as HostDonor::through
         bool state_only = false;   // a state alone, for blocks a history on the devices or in host memory holds
         uint64_t source = 0;       // the host entry holding those blocks, which no room releases while the read runs, 0 for a history on the devices
         std::vector<uint32_t> tokens;
@@ -3146,6 +3159,20 @@ private:
         double slabs_ms = 0;           // its slabs taken and zero-filled (alloc_host)
     };
     std::deque<DiskRead> disk_reads_;
+    // A history read from disk straight into the devices (start_stream): the read, the history it fills, its tokens, classes, blocks reserved and start.
+    // `ended` once its outcome is taken; it is kept until its readers and copies have ended.
+    struct Streaming {
+        uint64_t id = 0;
+        std::unique_ptr<infer::RestoreInto> into;
+        std::unique_ptr<StreamedRead> read;   // after `into`, which it fills, so it goes first
+        std::vector<uint32_t> tokens;
+        std::vector<RowClass> classes;
+        std::vector<size_t> need;
+        Clock::time_point started;
+        bool ended = false;
+        bool restore = false;   // read for a job restore_later made
+    };
+    std::vector<Streaming> streams_;   // under the lock
     size_t lost_before_written_ = 0;   // Stats::lost_before_written, under the lock
     std::array<std::atomic<size_t>, (size_t)Move::count> moves_{};   // Stats::moves
     std::atomic<size_t> reprefill_released_{0};   // Stats::reprefill_released

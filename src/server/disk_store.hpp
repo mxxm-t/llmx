@@ -254,6 +254,61 @@ public:
         }
     }
 
+    // An entry opened for a read outside the store's thread (DiskTier::stream, the streamed restore): its reader, its chunks' CRCs, where its payload starts and its bytes.
+    struct Opened {
+        std::unique_ptr<format::FileReader> reader;
+        std::vector<uint32_t> crcs;
+        uint64_t head = 0, payload = 0;
+        std::chrono::milliseconds pace{0};   // DiskOptions::pace, a pause after each chunk
+    };
+    // Entry `key` opened and its header checked against this store's identity and `layout`, as the store's own read checks it; nothing, with `why`, where it is not.
+    // Called on a reader thread; it touches no state of the store's but the entry's file.
+    std::optional<Opened> open_entry(uint64_t key, const std::vector<size_t>& layout, std::string& why) const {
+        try {
+            const auto file = path(key, ".kv");
+            Opened o;
+            try {
+                o.reader = std::make_unique<format::FileReader>(file.u8string(), true);
+                if (kAlign % o.reader->granule()) o.reader.reset();
+            } catch (const format::DirectUnavailable&) {}
+            if (!o.reader) o.reader = std::make_unique<format::FileReader>(file.u8string(), false);
+            const std::optional<Header> h = read_header(*o.reader, written_as(key));
+            if (!h) {
+                why = "an entry whose header is not this server's or fails its checksum";
+                return std::nullopt;
+            }
+            if (h->run_bytes != layout) {
+                why = "an entry of another layout";
+                return std::nullopt;
+            }
+            for (size_t b : h->run_bytes) o.payload += b;
+            o.crcs = h->crcs;
+            o.head = h->size;
+            o.pace = options_.pace;
+            return o;
+        } catch (const std::exception& e) {
+            why = std::string("an entry not read: ") + e.what();
+            return std::nullopt;
+        }
+    }
+    // The payload bytes of chunk `c` of an opened entry, read into `into` (kChunk bytes and aligned for a direct read) and checked against its CRC; a throw says why it is not.
+    static size_t read_chunk(const Opened& o, uint64_t c, uint8_t* into) {
+        const size_t n = (size_t)std::min<uint64_t>(kChunk, o.payload - c * kChunk), padded = (size_t)round_up(n, kAlign);
+        if (o.reader->read(o.head + c * kChunk, into, padded) < n) throw std::runtime_error("an entry shorter than its header says");
+        if (core::crc32c(0, into, n) != o.crcs[c]) throw std::runtime_error("an entry that fails its checksum");
+        if (o.pace.count()) std::this_thread::sleep_for(o.pace);
+        return n;
+    }
+    // An entry a read outside the store's thread found bad goes, as one its own read finds bad does.
+    void drop_entry(uint64_t key) {
+        std::lock_guard<std::mutex> lk(m_);
+        sizes_.erase(key);
+        foreign_.erase(key);
+        std::error_code ec;
+        std::filesystem::remove(path(key, ".kv"), ec);
+        std::filesystem::remove(path(key, ".from"), ec);
+    }
+
 private:
     // A call's layout: the one given, which its runs must add up to, or the runs' own sizes.
     static std::vector<size_t> layout_of(const std::vector<StoreRun>& runs, std::vector<size_t> layout) {

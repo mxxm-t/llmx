@@ -17,6 +17,7 @@
 #include "core/host_memory.hpp"
 #include "format/file_reader.hpp"
 #include "format/gguf.hpp"
+#include "inference/read_ring.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
 #include "inference/pair.hpp"
@@ -216,18 +217,19 @@ inline std::vector<Piece> plan_pieces(const std::vector<size_t>& tensors, const 
     return pieces;
 }
 
-// Read `pieces` on up to two reader threads into up to four slots and, on this thread, send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
-// A backend that reads a slot in place (Backend::wrap_host) takes a part as a device copy out of it and the slot goes back once the copies retire; whatever fails, the readers are joined and the copies retired before the ring is freed.
+// Read `pieces` through the read ring (ReadRing) and, on this thread, send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
+// A backend that reads a slot in place (Backend::wrap_host) takes a part as a device copy out of it and the slot goes back once the copies retire; whatever fails, the copies are retired and the readers joined before the ring is freed.
 inline void stream(const std::vector<Piece>& pieces, const std::vector<std::unique_ptr<format::FileReader>>& readers,
                    const std::vector<std::vector<const Upload*>>& destinations, const std::function<void(size_t)>& streamed,
                    LoadTimes& times) {
     if (pieces.empty()) return;
-    constexpr size_t kSlots = 4, kReaders = 2;
     size_t slot_bytes = 0;
     for (const Piece& p : pieces) slot_bytes = std::max(slot_bytes, p.bytes);
-    std::vector<core::HostPages> ring;
-    for (size_t i = 0; i < std::min(kSlots, pieces.size()); ++i) ring.emplace_back(slot_bytes);
-    const size_t slots = ring.size(), threads = std::min(kReaders, slots);
+    ReadRing ring(pieces.size(), slot_bytes, [&](size_t k, uint8_t* into) {
+        const Piece& p = pieces[k];
+        return readers[p.file]->read(p.offset, p.into ? p.into : into, p.bytes);
+    });
+    const size_t slots = ring.slots();
 
     // The backends the parts go to, each with its view of every slot where it reads them in place, and per slot the ticket of its last copies out of it.
     // The views are declared after the ring, so they go before it.
@@ -237,14 +239,15 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
             if (std::find(targets.begin(), targets.end(), u->backend) == targets.end()) targets.push_back(u->backend);
     std::vector<std::vector<backend::BufferPtr>> views(targets.size());
     for (size_t t = 0; t < targets.size(); ++t)
-        for (core::HostPages& slot : ring) {
-            backend::BufferPtr v = targets[t]->wrap_host(slot.data(), slot.size());
+        for (size_t i = 0; i < slots; ++i) {
+            backend::BufferPtr v = targets[t]->wrap_host(ring.pages(i).data(), ring.pages(i).size());
             if (!v) {
                 views[t].clear();
                 break;
             }
             views[t].push_back(std::move(v));
         }
+    ring.start();
     std::vector<std::vector<backend::Ticket>> copying(slots, std::vector<backend::Ticket>(targets.size(), 0));
     auto target_of = [&](const backend::Backend* b) { return size_t(std::find(targets.begin(), targets.end(), b) - targets.begin()); };
     // Retire the copies out of `slot`, after which the readers may refill it.
@@ -256,69 +259,15 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
             }
     };
 
-    std::mutex mu;
-    std::condition_variable cv;
-    size_t consumed = 0;                    // pieces whose slots are free again
-    std::vector<size_t> ready(slots, 0);    // per slot, 1 + the piece read into it, 0 while none is
-    std::vector<size_t> got(slots, 0);
-    std::vector<double> reading(threads, 0);
-    bool stop = false;
-    std::exception_ptr failed;
-
-    std::vector<std::thread> pool;
-    auto halt = [&] {
-        {
-            std::lock_guard<std::mutex> lock(mu);
-            stop = true;
-        }
-        cv.notify_all();
-        for (std::thread& t : pool) t.join();
-    };
     try {
-        for (size_t j = 0; j < threads; ++j) {
-            pool.emplace_back([&, j] {
-                try {
-                    for (size_t k = j; k < pieces.size(); k += threads) {
-                        {
-                            std::unique_lock<std::mutex> lock(mu);
-                            cv.wait(lock, [&] { return stop || k < consumed + slots; });
-                            if (stop) return;
-                        }
-                        const Piece& p = pieces[k];
-                        const auto t0 = std::chrono::steady_clock::now();
-                        const size_t n = readers[p.file]->read(p.offset, p.into ? p.into : ring[k % slots].data(), p.bytes);
-                        const double dt = seconds_since(t0);
-                        {
-                            std::lock_guard<std::mutex> lock(mu);
-                            got[k % slots] = n;
-                            ready[k % slots] = k + 1;
-                            reading[j] += dt;
-                        }
-                        cv.notify_all();
-                    }
-                } catch (...) {
-                    {
-                        std::lock_guard<std::mutex> lock(mu);
-                        if (!failed) failed = std::current_exception();
-                    }
-                    cv.notify_all();
-                }
-            });
-        }
         std::vector<uint8_t> packed;
         for (size_t k = 0; k < pieces.size(); ++k) {
-            size_t n = 0;
-            {
-                const auto t0 = std::chrono::steady_clock::now();
-                std::unique_lock<std::mutex> lock(mu);
-                cv.wait(lock, [&] { return failed || ready[k % slots] == k + 1; });
-                times.wait += seconds_since(t0);
-                if (ready[k % slots] != k + 1) std::rethrow_exception(failed);
-                n = got[k % slots];
-            }
+            const auto w0 = std::chrono::steady_clock::now();
+            const ReadRing::Full full = *ring.next(true);
+            times.wait += seconds_since(w0);
+            const size_t n = full.bytes, slot = full.slot;
             const Piece& p = pieces[k];
-            const size_t slot = k % slots;
-            const uint8_t* data = p.into ? p.into : ring[slot].data();
+            const uint8_t* data = p.into ? p.into : ring.pages(slot).data();
             static constexpr size_t kPackedRun = 4096;
             const auto t0 = std::chrono::steady_clock::now();
             size_t bytes = 0;
@@ -369,23 +318,20 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::uniq
             const bool held = std::any_of(copying[slot].begin(), copying[slot].end(), [](backend::Ticket x) { return x != 0; });
             times.upload += seconds_since(t0);
             times.streamed += p.bytes;
-            {
-                std::lock_guard<std::mutex> lock(mu);
-                consumed = held ? k : k + 1;
-            }
-            cv.notify_all();
+            if (k) ring.free(k - 1);
+            if (!held) ring.free(k);
             if (streamed) streamed(bytes);
         }
         const auto t0 = std::chrono::steady_clock::now();
         retire((pieces.size() - 1) % slots);
         times.upload += seconds_since(t0);
     } catch (...) {
-        halt();
+        ring.stop();
         for (backend::Backend* b : targets) b->sync();
         throw;
     }
-    halt();
-    times.read = *std::max_element(reading.begin(), reading.end());
+    ring.stop();
+    times.read = ring.reading();
 }
 
 } // namespace detail

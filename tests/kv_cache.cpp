@@ -761,6 +761,41 @@ void host_round_trip() {
     model.reset(a);
     infer::Sequence other = model.make_sequence();
     run(model, other, history.data(), bt, false);
+    // The same copy restored piece by piece (Model::restore_into), its image copied run by run in pieces of 4 KiB as a streamed restore's ring gives them, continues with the same bits.
+    {
+        infer::RestoreInto into = model.restore_into(2 * bt);
+        copy_image(model, h, into, {cpu.get()}, 4096);
+        require(into.seq.length() == 2 * bt, "a restore copied into whole does not hold its rows");
+        run(model, into.seq, history.data() + 2 * bt, 5, false);
+        require(run(model, into.seq, &six, 1, true) == want, "a history restored piece by piece differs from one never copied");
+        model.reset(into.seq);
+    }
+    // A restore whose storage grows before its copies are made, as another history's pass grows it between a streamed restore's chunks, copies into the storage's new buffers.
+    {
+        infer::Model grown(infer::gguf_weights(weights), cpu);
+        infer::Sequence x = grown.make_sequence();
+        run(grown, x, history.data(), 2 * bt, false);
+        infer::HostHistory hx;
+        grown.save_host(x, 2 * bt, hx, any);
+        grown.reset(x);
+        // Its blocks first hold other rows, so a copy into the storage's old buffers leaves them there.
+        std::vector<uint32_t> others(2 * bt);
+        for (size_t i = 0; i < others.size(); ++i) others[i] = (uint32_t)(1 + (i * 5 + 3) % 15);
+        infer::Sequence z = grown.make_sequence();
+        run(grown, z, others.data(), 2 * bt, false);
+        grown.reset(z);
+        infer::RestoreInto into = grown.restore_into(2 * bt);
+        const size_t before = grown.kv_allocated_bytes();
+        infer::Sequence y = grown.make_sequence();
+        run(grown, y, history.data(), 3, false);
+        require(grown.kv_allocated_bytes() > before, "the storage did not grow between a restore and its copies");
+        copy_image(grown, hx, into, {cpu.get()}, 4096);
+        run(grown, into.seq, history.data() + 2 * bt, 5, false);
+        require(run(grown, into.seq, &six, 1, true) == want, "a history restored into a storage that grew before its copies differs from one never copied");
+        grown.reset(into.seq);
+        grown.reset(y);
+        grown.release_host(hx);
+    }
     rejects([&] { fresh.restore_host(h); }, "a history copied by another model restored");
     require(!model.caches_on_devices(), "a model on the CPU alone counted a cache on a device");
     infer::Sequence r = model.restore_host(h);

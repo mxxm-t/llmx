@@ -2457,7 +2457,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         sched.stop();
         runner.join();
     }
-    // A read that has to allocate: a second scheduler with a host tier smaller than an entry adopts the entries, and a conversation read back goes through host memory beyond the tier, taking new slabs, a call on each device.
+    // A streamed read: a second scheduler with a host tier smaller than an entry adopts the entries, and a conversation read back streams to the devices, its storage grown and copied into from the stage's thread.
     {
         auto again = make(2048, 16);
         {
@@ -2475,7 +2475,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         });
         try {
             within_a_minute([&] { return sched.stats().disk_entries >= 2; }, what + ": the entries adopted after a restart");
-            first_read.name = "a conversation read back through host memory beyond the tier";
+            first_read.name = "a conversation streamed back to the devices";
             first_read.trigger = follow(1, 53);
             company(first_read, 9);
             hold(sched, first_read);
@@ -2507,9 +2507,9 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
             what + ", " + steps[2].name + ": its first call there was not the copy back from host memory, or it was read from disk (" + steps[2].calls + ", " +
                 std::to_string(steps[2].after.host_hits - steps[2].before.host_hits) + " promotions, " + std::to_string(steps[2].after.disk_hits - steps[2].before.disk_hits) + " reads from disk)");
     require(steps[3].after.disk_hits == steps[3].before.disk_hits + 1 && steps[3].after.host_hits == steps[3].before.host_hits + 1, what + ", " + steps[3].name + ": it was not read back from disk and promoted (" + steps[3].calls + ")");
-    require(steps[4].calls[0] == 'A' && steps[4].after.disk_hits == steps[4].before.disk_hits + 1,
-            what + ", " + steps[4].name + ": its first call there was not the allocation of the host memory it is read into, or it was not read back from disk (" + steps[4].calls + ")");
-    std::cout << "server-resume: " << what << ": a donor's copy to host memory, a promotion from it, a conversation read back from disk and one read back through host memory beyond the tier, which allocates it, each waited for a parked recording\n";
+    require(std::string("acw").find(steps[4].calls[0]) != std::string::npos && steps[4].after.disk_hits == steps[4].before.disk_hits + 1 && steps[4].after.host_hits == steps[4].before.host_hits,
+            what + ", " + steps[4].name + ": its first call there was not its storage's growth or a copy into it, or it was not read back from disk alone (" + steps[4].calls + ")");
+    std::cout << "server-resume: " << what << ": a donor's copy to host memory, a promotion from it, a conversation read back from disk and one streamed back to the devices, each waited for a parked recording\n";
 }
 
 // A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, a follow-up on disk has had no pass when a later unrelated request ends, then forks the copy read back.
@@ -2752,20 +2752,66 @@ void stream_end_seen(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
 }
 
 // A restart whose host memory cannot hold one whole copy of a kept conversation (A20, docs/CACHE-PLAN.md): its next turn must still reuse every row its files hold, read from disk straight to the devices, with its reply on a fresh model.
-// The first server keeps a 320-token conversation under keep; the second has a host tier of 64 KiB and 1 MiB of the host's memory free, where a whole copy takes a slab of 64 MiB.
-void restart_without_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
-    const std::string what = "a restart with host memory for no whole copy";
+// The second server has a host tier of 64 KiB and 1 MiB free, and the stream's faults are a flipped byte, a turn cancelled mid-read and a stop mid-read (AGENTS.md, Tests).
+enum class Streamed { whole, corrupt, cancelled, stopped, device_fails, shared, partial, group, setup_fails };
+// A CPU backend whose first submission after a copy out of a read ring's slot it imported (a streamed chunk's, kChunk bytes) throws.
+struct StreamFails : backend::CpuBackend {
+    std::mutex m;
+    std::set<const backend::Buffer*> views;
+    bool armed = false, copied = false, failed = false;
+    bool setup = false;   // the read's first view of a slot throws instead, so the stream fails as it is set up
+    backend::BufferPtr wrap_host(void* memory, size_t bytes) override {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            if (setup && armed && !failed && bytes == server::DiskStore::kChunk) {
+                failed = true;
+                throw std::runtime_error("injected stream setup failure");
+            }
+        }
+        backend::BufferPtr b = CpuBackend::wrap_host(memory, bytes);
+        std::lock_guard<std::mutex> lk(m);
+        if (b && bytes == server::DiskStore::kChunk) views.insert(b.get());
+        return b;
+    }
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            copied = copied || (armed && views.count(&src));
+        }
+        CpuBackend::copy(dst, dst_off, src, src_off, bytes);
+    }
+    backend::Ticket submit() override {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            if (copied && !failed) {
+                failed = true;
+                throw std::runtime_error("injected stream submission failure");
+            }
+        }
+        return CpuBackend::submit();
+    }
+};
+void restart_without_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, Streamed fault) {
+    const std::string what = std::string("a restart with host memory for no whole copy") +
+                             (fault == Streamed::corrupt ? ", its file corrupt" : fault == Streamed::cancelled ? ", its turn cancelled mid-read" : fault == Streamed::stopped ? ", stopped mid-read" :
+                              fault == Streamed::device_fails ? ", its copies' submission failing beside another reply" : fault == Streamed::shared ? ", two turns on one stream, one cancelled" :
+                              fault == Streamed::partial ? ", its file longer than the turn's use of it" : fault == Streamed::group ? ", over a tensor group of two" :
+                              fault == Streamed::setup_fails ? ", its stream failing as it is set up" : "");
+    // A tensor group restores each member's storage into the blocks its first member takes (Model::restore_into), on both servers alike, since a file's layout names the members.
+    const size_t width = fault == Streamed::group ? 2 : 1;
+    const Make whole = on(weights, [width] { return cpus(width); }, 8, 0, 0, 0, false, width);
     DiskRoot disk("streamed");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.read_wait = std::chrono::seconds(60);
-    const Req first{prompt_of(10, 300, vocab), 20};
+    // A file longer than the turn's use of it: the conversation keeps 384 rows, of which the turn shares 256, so the stream reads the rest of the file and sends none of it.
+    const Req first{prompt_of(10, fault == Streamed::partial ? 400 : 300, vocab), 20};
     Reply reply;
     {
         // The first server writes its turn as soon as it is idle, while the second keeps the default moment, so no idle write runs beside its read.
         server::DiskOptions writes_at_once = options;
         writes_at_once.idle = std::chrono::milliseconds(0);
-        auto model = on(weights, [] { return cpus(1); })(2048, 16);
+        auto model = whole(2048, 16);
         server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, writes_at_once);
         std::thread runner([&] { sched.run(); });
         try {
@@ -2783,20 +2829,83 @@ void restart_without_host_memory(const gguf::GGUFModel& weights, const bpe::Toke
     for (uint32_t id : ids_of(reply)) next.prompt.push_back(id);
     const std::vector<uint32_t> more = prompt_of(50, 30, vocab);
     next.prompt.insert(next.prompt.end(), more.begin(), more.end());
-    const Make short_of = on(weights, [] { return cpus(1); }, 8, 0, 0, 0, false, 1, []() -> std::optional<size_t> { return (size_t)1 << 20; });
-    Reply got;
-    size_t reused = 0;
+    if (fault == Streamed::partial) {
+        next.prompt.assign(first.prompt.begin(), first.prompt.begin() + 300);
+        next.prompt.insert(next.prompt.end(), more.begin(), more.end());
+    }
+    if (fault == Streamed::corrupt) {
+        const std::vector<fs::path> files = disk.files(".kv");
+        require(files.size() == 1, what + ": " + std::to_string(files.size()) + " entry files kept, against one");
+        std::fstream f(files[0], std::ios::in | std::ios::out | std::ios::binary);
+        f.seekg(-(std::streamoff)server::DiskStore::kAlign, std::ios::end);
+        const char byte = (char)f.peek();
+        f.seekp(-(std::streamoff)server::DiskStore::kAlign, std::ios::end);
+        f.put((char)(byte ^ 0x5a));
+    }
+    if (fault == Streamed::cancelled || fault == Streamed::stopped || fault == Streamed::shared) options.pace = std::chrono::milliseconds(2000);
+    auto failing = std::make_shared<StreamFails>();
+    failing->set_threads(1);
+    failing->setup = fault == Streamed::setup_fails;
+    const auto host_memory = []() -> std::optional<size_t> { return (size_t)1 << 20; };
+    const Make short_of = fault == Streamed::device_fails || fault == Streamed::setup_fails ? on(weights, [failing] { return std::vector<backend::BackendPtr>{failing}; }, 8, 0, 0, 0, false, 1, host_memory)
+                                                          : on(weights, [width] { return cpus(width); }, 8, 0, 0, 0, false, width, host_memory);
+    const Req other{prompt_of(33, 200, vocab), 64};
+    Reply got, other_got;
+    size_t reused = 0, file_bytes = 0;
     server::Scheduler::Stats st;
+    server::Request::Restore record;
     {
         auto model = short_of(2048, 16);
-        server::Scheduler sched(*model, tok, 1, 64, 0, false, (size_t)1 << 16, nullptr, 0, false, options);
+        for (size_t b : model->host_layout(3 * kBlock).device_bytes) file_bytes += b;
+        // Two turns wait for a read side by side only where two may wait.
+        server::Scheduler sched(*model, tok, fault == Streamed::shared ? 2 : 1, 64, 0, false, (size_t)1 << 16, nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
         try {
             within_a_minute([&] { return sched.stats().disk_entries >= 1; }, what + ": the kept entry adopted");
-            const auto h = sched.submit(next.prompt, params_of(next));
+            {
+                std::lock_guard<std::mutex> lk(failing->m);
+                failing->armed = true;
+            }
+            const auto o = fault == Streamed::device_fails ? sched.submit(other.prompt, params_of(other)) : nullptr;
+            auto h = sched.submit(next.prompt, params_of(next));
+            if (fault == Streamed::shared) {
+                // A second turn of the same length on the same history, its last words another's, waits for the same stream; the first is cancelled while both wait.
+                Req second = next;
+                const std::vector<uint32_t> tail = prompt_of(51, more.size(), vocab);
+                std::copy(tail.begin(), tail.end(), second.prompt.end() - (std::ptrdiff_t)tail.size());
+                const auto h2 = sched.submit(second.prompt, params_of(second));
+                within_a_minute([&] { return sched.stats().disk_waits >= 2; }, what + ": both turns waiting for the read");
+                h->cancel();
+                collect(*h);
+                require(h->finish() == "cancel", what + ": the cancelled turn ended with " + h->finish());
+                h = h2;
+                next = second;
+            }
+            if (fault == Streamed::cancelled || fault == Streamed::stopped) {
+                within_a_minute([&] { return sched.stats().disk_waits >= 1; }, what + ": the turn waiting for its read");
+                if (fault == Streamed::stopped) {
+                    sched.stop();
+                    runner.join();
+                    collect(*h);
+                    require(h->finish() == "cancel", what + ": the turn ended with " + h->finish() + " at the stop");
+                    std::cout << "server-resume: " << what << ": the stop ended the turn and the read" << std::endl;
+                    return;
+                }
+                h->cancel();
+                collect(*h);
+                require(h->finish() == "cancel", what + ": the cancelled turn ended with " + h->finish());
+                // A stream still running holds its blocks as a donor being filled, so the ledger adds up whether it has ended or not.
+                ledger(sched.stats(), *model, what + ", mid-read");
+                h = sched.submit(next.prompt, params_of(next));
+            }
             got = drain(*h);
+            if (o) other_got = drain(*o);
             reused = h->reused();
+            record = h->restore();
+            // A stream that failed as it was set up leaves no read in flight behind it, its files' pin given back.
+            if (fault == Streamed::setup_fails) within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": nothing left in flight");
             st = sched.stats();
+            ledger(st, *model, what);
         } catch (...) {
             sched.stop();
             runner.join();
@@ -2805,9 +2914,32 @@ void restart_without_host_memory(const gguf::GGUFModel& weights, const bpe::Toke
         sched.stop();
         runner.join();
     }
-    require(reused == 2 * kBlock && st.disk_hits == 1 && !st.disk_refused, what + ": the next turn reused " + std::to_string(reused) + " tokens, " + std::to_string(st.disk_hits) + " entries read and " +
-                                                                              std::to_string(st.disk_refused) + " reads refused, against 256, 1 and none");
-    auto fresh = on(weights, [] { return cpus(1); })(2048, 16);
+    if (fault == Streamed::device_fails) {
+        require(failing->failed && !reused && !st.disk_hits && !st.disk_errors && st.disk_entries == 1, what + ": the next turn reused " + std::to_string(reused) + " tokens, " + std::to_string(st.disk_hits) +
+                                                                     " entries read, " + std::to_string(st.disk_errors) + " reads failed and " + std::to_string(st.disk_entries) + " entries kept, against none, none, none and one");
+        auto alone = on(weights, [] { return cpus(1); })(2048, 16);
+        same(serve(*alone, tok, 1, {{other}})[0], other_got, what + ", the other reply");
+    } else if (fault == Streamed::setup_fails) {
+        require(failing->failed && !reused && !st.disk_hits && st.disk_refused == 1 && !st.disk_in_flight && st.disk_entries == 1,
+                what + ": the next turn reused " + std::to_string(reused) + " tokens, " + std::to_string(st.disk_hits) + " entries read, " + std::to_string(st.disk_refused) + " reads refused, " +
+                    std::to_string(st.disk_in_flight) + " in flight and " + std::to_string(st.disk_entries) + " entries kept, against none, none, one, none and one");
+    } else if (fault == Streamed::corrupt)
+        require(!reused && !st.disk_hits && st.disk_errors == 1, what + ": the next turn reused " + std::to_string(reused) + " tokens, " + std::to_string(st.disk_hits) + " entries read and " +
+                                                                     std::to_string(st.disk_errors) + " reads failed, against none, none and one");
+    else
+        require(reused == 2 * kBlock && st.disk_hits == 1 && !st.disk_refused && (fault != Streamed::shared || st.disk_waits == 2),
+                what + ": the next turn reused " + std::to_string(reused) + " tokens, " + std::to_string(st.disk_hits) + " entries read, " + std::to_string(st.disk_refused) + " reads refused and " +
+                    std::to_string(st.disk_waits) + " waits, against 256, 1, none and two on one read");
+    if (fault == Streamed::partial)
+        require(st.disk_bytes_read == file_bytes, what + ": " + std::to_string(st.disk_bytes_read) + " bytes read, against the 384-row file's " + std::to_string(file_bytes));
+    // The streamed read's record: one wait and one restore from disk of its 256 rows with its read's time on the request, and one read and one restore from disk in the server's totals, no promotion.
+    if (fault == Streamed::whole)
+        require(record.waits == 1 && record.restores == 1 && std::string(record.kind) == "disk" && record.tokens == 2 * kBlock && record.read_ms > 0 && record.first_passes == 1 &&
+                    st.restore.reads == 1 && st.restore.from_disk == 1 && st.restore.promotions == 0,
+                what + ": the turn's record holds " + std::to_string(record.waits) + " waits and " + std::to_string(record.restores) + " restores of " + std::to_string(record.tokens) +
+                    " tokens from " + record.kind + ", the server's " + std::to_string(st.restore.reads) + " reads, " + std::to_string(st.restore.from_disk) + " from disk and " +
+                    std::to_string(st.restore.promotions) + " promotions");
+    auto fresh = whole(2048, 16);
     same(serve(*fresh, tok, 1, {{next}})[0], got, what + ", the next turn");
     std::cout << "server-resume: " << what << ": the next turn reused " << reused << " tokens" << std::endl;
 }
@@ -3221,6 +3353,8 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
     DiskRoot disk("kept");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
+    // Its reads are waited for whatever this runner computes a row in: a read beyond the host tier streams to the devices, slower on the tiny model than computing its rows.
+    options.read_wait = std::chrono::seconds(60);
     // Beyond the host tier each conversation is written as its turn ends, but one the donor count gives up for the next before its write is whole is not waited for (it did not come back), so at least the last is kept.
     const size_t kept = beyond ? 1 : 3;
     std::vector<Req> turns;
@@ -3287,7 +3421,8 @@ void disk_kept(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size
         runner.join();
         slabs = model->host_allocated();
     }
-    // Read through host memory beyond the tier, the first follow-up's history leaves the devices for the second's room with no copy, and a job reads it back from disk once room is spare: a third read.
+    // Beyond the tier each history streams to the devices, the first follow-up's leaves them for the second's room with no copy, and a job reads it back once room is spare.
+    // That third read's donor takes the one slot with no job to read the second's back in turn.
     const size_t reads = through ? 3 : 2;
     require(second.disk_hits == reads && reused == std::vector<size_t>{2 * kBlock, 2 * kBlock},
             what + ": " + std::to_string(second.disk_hits) + " entries read back, the follow-ups reusing " + std::to_string(reused[0]) + " and " + std::to_string(reused[1]) + " tokens, against " + std::to_string(reads) + ", 256 and 256");
@@ -4069,10 +4204,10 @@ void host_pool_shortest_copy() {
 }
 
 // A conversation larger than the host tier, on disk, behind its message boundary in host memory (docs/DISK-TIER.md, Restore): a turn and its job on the hybrid model over four CPUs, then another conversation's request that takes its room.
-// The follow-up turn must read the history back from disk, the boundary a state alone; with no host memory for that read it is refused and counted, and a request taking the room before any file holds the history waits for its write.
-enum class Behind { read, refused, at_once };
+// The follow-up turn must read the history back from disk, streamed also with no host memory free (A20), and a request taking the room before any file holds it waits for its write.
+enum class Behind { read, no_memory, at_once };
 void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
-    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::refused ? ", no memory for its read" : arm == Behind::at_once ? ", its room asked before it was written" : "");
+    const std::string what = std::string("a history larger than the host tier behind its boundary") + (arm == Behind::no_memory ? ", no host memory free for its read" : arm == Behind::at_once ? ", its room asked before it was written" : "");
     const uint32_t v = (uint32_t)kHybrid.vocab;
     const bpe::Tokenizer tok(mixed);
     const size_t slab = infer::Model::host_slab_bytes(), cap = 3 * slab;
@@ -4117,7 +4252,7 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
             const std::vector<uint32_t> tail = prompt_of(7, 30, v);
             t2.prompt.insert(t2.prompt.end(), tail.begin(), tail.end());
             t2.cap = 20;
-            if (arm == Behind::refused) base = 0;
+            if (arm == Behind::no_memory) base = 0;
             const auto h2 = sched.submit(t2.prompt, params_of(t2));
             got = drain(*h2);
             reused = h2->reused();
@@ -4136,10 +4271,8 @@ void boundary_is_not_a_history(const gguf::GGUFModel& mixed, Behind arm) {
     same(serve(*fresh, tok, 2, {{t2}})[0], got, what + ", the follow-up turn");
     const std::string seen = "reused " + std::to_string(reused) + " tokens, " + std::to_string(after.disk_hits) + " histories read from disk, " + std::to_string(after.disk_refused) + " reads refused, " +
                              std::to_string(taken.lost_before_written) + " histories lost before any file held them";
-    if (arm == Behind::read)
+    if (arm != Behind::at_once)
         require(reused == 768 && after.disk_hits == 1 && !after.disk_refused && !taken.lost_before_written && written.boundaries == 1, what + ": " + seen + ", against 768 reused from one history read and nothing refused or lost");
-    else if (arm == Behind::refused)
-        require(!reused && !after.disk_hits && after.disk_refused == 1, what + ": " + seen + ", against nothing reused or read and one read refused");
     else
         // The other request waits for the history's write before it takes the room, so nothing is lost and the turn reads the prompt's 640 whole-block rows back, no job having read the reply.
         require(reused == 640 && after.disk_hits == 1 && !taken.lost_before_written && !written.disk_entries && taken.room_waits >= 1,
@@ -4495,7 +4628,9 @@ int main(int argc, char** argv) {
             disk_cap_base(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
-            restart_without_host_memory(weights, tok, vocab);
+            for (const Streamed fault : {Streamed::whole, Streamed::corrupt, Streamed::cancelled, Streamed::stopped, Streamed::device_fails, Streamed::shared, Streamed::partial, Streamed::group,
+                                          Streamed::setup_fails})
+                restart_without_host_memory(weights, tok, vocab, fault);
             stream_end_seen(weights, tok, vocab);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);
             disk_age(one, tok, vocab);
@@ -4504,7 +4639,7 @@ int main(int argc, char** argv) {
             host_growth(weights, tok, vocab);
             host_pool_pressure(weights, tok, vocab);
             host_pool_shortest_copy();
-            for (const Behind arm : {Behind::read, Behind::refused, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
+            for (const Behind arm : {Behind::read, Behind::no_memory, Behind::at_once}) boundary_is_not_a_history(mixed, arm);
             shorter_boundary_with_rows(mixed);
             for (const bool spare : {true, false}) state_read_keeps_its_rows(mixed, spare);
             for (const bool no_memory : {false, true}) lost_restore_points(mixed, no_memory);

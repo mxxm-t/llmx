@@ -484,6 +484,70 @@ inline Sequence Model::restore_host(HostHistory& h) {
     return s;
 }
 
+// A fresh history for a restore of `length` tokens copied in piece by piece, its blocks and checkpoint slot taken as restore_host takes them, and per device where each byte of the image goes.
+// The runs follow HostSpan's walk, so a host copy's bytes copied run by run give restore_host's bits (docs/src/model-history.md).
+inline RestoreInto Model::restore_into(size_t length) {
+    RestoreInto r;
+    r.length = length;
+    r.seq = make_sequence();
+    r.runs.resize(devices_.size());
+    for (const auto& d : devices_) r.backends.push_back(d->b.get());
+    size_t slot = 0;
+    if (state_layers_) {
+        slot = slots_.acquire_kept();
+        r.seq.kept_ = Checkpoint(slots_, slot, length);
+        std::fill(r.seq.from_.begin(), r.seq.from_.end(), slot);
+    }
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        Device& d = *devices_[i];
+        auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+        if (d.storage && !st) throw std::runtime_error("inference: a KV storage that cannot be copied from host memory");
+        std::vector<RestoreInto::Run>& runs = r.runs[i];
+        if (st) {
+            if (length % st->block_tokens()) throw std::logic_error("inference: a restore takes whole blocks");
+            // A tensor group's members copy into the blocks its first member, before them, took from the pool they share.
+            const size_t n = length / st->block_tokens();
+            KVSequence& kv = r.seq.kv_[(size_t)d.storage_index];
+            if (!d.member) kv.prepare(length);
+            const int32_t* blocks = kv.view(nullptr).blocks;
+            if (n) st->ensure((size_t)*std::max_element(blocks, blocks + n));
+            for (size_t l = 0; l < st->layers(); ++l)
+                for (const bool v : {false, true}) {
+                    const size_t block = v ? st->v_block_bytes() : st->k_block_bytes();
+                    for (size_t b = 0; b < n;) {
+                        size_t e = b + 1;
+                        while (e < n && blocks[e] == blocks[e - 1] + 1) ++e;
+                        runs.push_back({nullptr, st, l, v, (size_t)blocks[b] * block, (e - b) * block});
+                        b = e;
+                    }
+                }
+            if (!d.member) kv.commit();
+        }
+        if (d.states) {
+            const size_t bytes = d.states->shape().slot_floats() * sizeof(float);
+            for (size_t l = 0; l < d.states->layers(); ++l) runs.push_back({&d.states->layer(l), nullptr, 0, false, slot * bytes, bytes});
+        }
+        if (d.carry && state_layers_) runs.push_back({d.carry.get(), nullptr, 0, false, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float)});
+    }
+    return r;
+}
+
+// The layout of a whole copy of `length` tokens with no memory behind it, which host_ranges and host_state_ranges read to say where an image's bytes lie (a streamed restore's files).
+inline HostHistory Model::host_layout(size_t length) const {
+    HostHistory h;
+    h.owner = this;
+    h.length = length;
+    h.device_bytes = host_copy_bytes(length, true, 0, true);
+    return h;
+}
+
+// A restore copied into whole: its stages without KV hold its length from here, and its passes go behind `last`, each device's ticket of its last copy into it.
+inline void Model::restored(RestoreInto& r, const std::vector<backend::Ticket>& last) {
+    for (size_t i = 0; i < devices_.size() && i < last.size(); ++i)
+        if (last[i]) r.seq.last_[i] = last[i];
+    std::fill(r.seq.length_.begin(), r.seq.length_.end(), r.length);
+}
+
 // A second history holding the first `length` tokens of `src`, whose blocks it shares as fork does, and the state at `length` that `state` holds (Model::save_host without blocks, docs/SPECULATIVE.md, section 2, Host tier).
 // The state is copied back into a checkpoint slot of its own, which the fork's first pass reads in place, enqueued behind the passes that wrote what it shares; a throw leaves nothing held.
 inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& state) {

@@ -136,6 +136,24 @@ struct HostHistory {
     std::vector<backend::Ticket> tickets;
 };
 
+// A history being restored from an image laid out as a whole host copy (Model::restore_into): its sequence, whose blocks and checkpoint slot are taken, and per device where each byte of that device's image goes, in the image's order.
+// Its blocks hold rows from the start, so nothing reads or forks it until every copy into it has retired, which its caller holds to; Model::restored then gives its passes the copies' tickets.
+struct RestoreInto {
+    // `bytes` at `offset` of a fixed buffer, or of a KV storage's layer side, looked up as each copy is made since a growth replaces those buffers.
+    struct Run {
+        backend::Buffer* buffer = nullptr;
+        const backend::BlockKVStorage* kv = nullptr;
+        size_t layer = 0;
+        bool v = false;
+        size_t offset = 0, bytes = 0;
+        backend::Buffer& target() const { return kv ? *(v ? kv->v_buffer(layer) : kv->k_buffer(layer)) : *buffer; }
+    };
+    Sequence seq;
+    size_t length = 0;
+    std::vector<std::vector<Run>> runs;
+    std::vector<backend::Backend*> backends;   // per device, the backend its runs are copied on
+};
+
 // A stretch of a host history on one device: `bytes` at `offset` of that device's slabs taken end to end.
 struct HostRange {
     size_t device = 0, offset = 0, bytes = 0;
@@ -688,6 +706,9 @@ public:
     size_t host_allocated() const;
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);
+    RestoreInto restore_into(size_t length);
+    HostHistory host_layout(size_t length) const;
+    void restored(RestoreInto& r, const std::vector<backend::Ticket>& last);
     void release_host(HostHistory& h) noexcept;
     bool copies_retired(const std::vector<backend::Ticket>& tickets) const noexcept;
     void trim_host(size_t limit) noexcept;

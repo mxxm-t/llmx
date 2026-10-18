@@ -21,6 +21,7 @@
 #include "core/sha.hpp"
 #include "format/file_digest.hpp"
 #include "format/gguf.hpp"
+#include "inference/read_ring.hpp"
 #include "model/runtime.hpp"
 #include "server/disk_index.hpp"
 #include "server/disk_store.hpp"
@@ -113,6 +114,220 @@ inline void check_disk_cache(DiskOptions& o, size_t host_cap) {
 
 // How long a clean exit under --disk-cache-keep spends writing what memory holds to disk (docs/DISK-TIER.md, Keeping entries across a restart).
 constexpr std::chrono::seconds kDiskFlush{20};
+
+// A history read from disk straight into its device storage through the read ring, with no whole copy in host memory, stepped by the scheduler (docs/DISK-TIER.md, Restore).
+// The store owns the files' format and checks, the model where each byte goes (Model::restore_into); a failure leaves the copies made charged until they retire.
+class StreamedRead {
+public:
+    enum class State { running, done, failed };
+    // One file of the path: its key, the layout its header must carry, and its payload as segments of a device's image, `skip` for the bytes a path does not use.
+    struct File {
+        uint64_t key = 0;
+        std::vector<size_t> layout;
+        struct Segment {
+            size_t device = 0, image = 0, bytes = 0;
+            bool skip = false;
+        };
+        std::vector<Segment> segments;
+        uint64_t payload = 0;
+    };
+
+    StreamedRead(const DiskStore& store, std::vector<File> files, infer::RestoreInto& into, std::function<void()> wake)
+        : store_(store), files_(std::move(files)), into_(into), wake_(std::move(wake)), opened_(files_.size()) {
+        for (size_t f = 0; f < files_.size(); ++f)
+            for (uint64_t c = 0; c * DiskStore::kChunk < files_[f].payload; ++c) chunks_.push_back({f, c});
+        // Each device's image offsets where its runs start, so an image byte finds its run.
+        starts_.resize(into_.runs.size());
+        for (size_t d = 0; d < into_.runs.size(); ++d) {
+            size_t at = 0;
+            for (const infer::RestoreInto::Run& r : into_.runs[d]) {
+                starts_[d].push_back(at);
+                at += r.bytes;
+            }
+        }
+        ring_ = std::make_unique<infer::ReadRing>(chunks_.size(), DiskStore::kChunk, [this](size_t k, uint8_t* slot) { return fill(k, slot); });
+        // Each device's view of every slot where it copies out of host pages in place; a write where it does not.
+        views_.resize(into_.backends.size());
+        for (size_t d = 0; d < into_.backends.size(); ++d)
+            for (size_t i = 0; i < ring_->slots(); ++i) {
+                backend::BufferPtr v = into_.backends[d]->wrap_host(ring_->pages(i).data(), ring_->pages(i).size());
+                if (!v) {
+                    views_[d].clear();
+                    break;
+                }
+                views_[d].push_back(std::move(v));
+            }
+        last_.assign(into_.backends.size(), 0);
+        // The readers start only now: a view that throws above leaves no reader to join, one of which could be waking the scheduler whose lock the caller holds.
+        ring_->start();
+    }
+    StreamedRead(const StreamedRead&) = delete;
+    StreamedRead& operator=(const StreamedRead&) = delete;
+
+    // The slots whose copies have retired given back, and the read's state; it takes no hold and never waits, since Backend::done records nothing and a device backend's does not wait.
+    State poll() {
+        if (state_ != State::running) return state_;
+        retire();
+        if (taken_ == chunks_.size() && pending_.empty()) state_ = State::done;
+        return state_;
+    }
+    // Whether a full slot waits to be sent, or a reader's failure to be taken, either of which needs send().
+    bool ready() const { return state_ == State::running && ring_->ready(); }
+    // Every full slot's bytes copied to where they go and submitted, under the caller's hold of the devices; it never waits but on a failed submission.
+    void send() {
+        if (state_ != State::running) return;
+        try {
+            while (const std::optional<infer::ReadRing::Full> full = ring_->next(false)) send(*full);
+        } catch (const Failure& e) {
+            failed_key_ = e.key;
+            failed(e.what());
+        } catch (const std::exception& e) {
+            failed(e.what());
+        }
+    }
+    // Asks the readers to stop: a cancel, or a timeout at the read's bound; what is in flight stays charged until idle().
+    void cancel() {
+        ring_->stop();
+        if (state_ == State::running) state_ = State::failed;
+    }
+    // Whether the readers have ended and every copy has retired, so the ring, its pages and the history's blocks can go with no wait.
+    bool idle() {
+        retire();
+        return ring_->idle() && pending_.empty();
+    }
+    // Where a failure came from: the file whose read failed, 0 for a cancel, and why.
+    uint64_t failed_key() const { return failed_key_; }
+    const std::string& why() const { return why_; }
+    // Each device's ticket of its last copy, which the restored history's passes go behind (Model::restored).
+    const std::vector<backend::Ticket>& last() const { return last_; }
+    uint64_t bytes() const { return bytes_; }
+
+private:
+    struct Chunk {
+        size_t file;
+        uint64_t index;
+    };
+    struct Pending {
+        size_t piece;
+        std::vector<backend::Ticket> tickets;
+    };
+
+    // On a reader thread: chunk k's file opened once, its header checked, and the chunk read and checked against its CRC.
+    size_t fill(size_t k, uint8_t* slot) {
+        const Chunk& c = chunks_[k];
+        const DiskStore::Opened* o = nullptr;
+        {
+            std::lock_guard<std::mutex> lk(open_);
+            if (!opened_[c.file]) {
+                std::string why;
+                std::optional<DiskStore::Opened> got = store_.open_entry(files_[c.file].key, files_[c.file].layout, why);
+                if (!got) throw Failure{files_[c.file].key, why};
+                opened_[c.file] = std::make_unique<DiskStore::Opened>(std::move(*got));
+            }
+            o = opened_[c.file].get();
+        }
+        size_t n = 0;
+        try {
+            n = DiskStore::read_chunk(*o, c.index, slot);
+        } catch (const std::exception& e) {
+            throw Failure{files_[c.file].key, e.what()};
+        }
+        if (wake_) wake_();
+        return n;
+    }
+    struct Failure : std::runtime_error {
+        uint64_t key;
+        Failure(uint64_t k, const std::string& why) : std::runtime_error(why), key(k) {}
+    };
+    void failed(const char* why) {
+        why_ = why;
+        ring_->stop();
+        state_ = State::failed;
+    }
+
+    // A full slot's chunk sent: each used segment it holds mapped through its device's runs, a copy out of the slot where the device reads it in place and a write otherwise.
+    void send(const infer::ReadRing::Full& full) {
+        const Chunk& c = chunks_[full.piece];
+        const File& f = files_[c.file];
+        const uint64_t from = c.index * DiskStore::kChunk, to = from + full.bytes;
+        const uint8_t* data = ring_->pages(full.slot).data();
+        std::vector<char> used(into_.backends.size(), 0);
+        Pending p{full.piece, std::vector<backend::Ticket>(into_.backends.size(), 0)};
+        try {
+            uint64_t at = 0;
+            for (const File::Segment& s : f.segments) {
+                const uint64_t lo = std::max(at, from), hi = std::min(at + s.bytes, to);
+                if (!s.skip && lo < hi) {
+                    used[s.device] = 1;
+                    put(s.device, s.image + (size_t)(lo - at), data + (lo - from), full.slot, (size_t)(lo - from), (size_t)(hi - lo));
+                }
+                at += s.bytes;
+            }
+            for (size_t d = 0; d < used.size(); ++d)
+                if (used[d]) p.tickets[d] = last_[d] = into_.backends[d]->submit();
+        } catch (...) {
+            // The chunk's copies retire before the slot they read can go: a device that submitted waits on its ticket, one that only recorded submits and waits, under the caller's hold.
+            for (size_t d = 0; d < used.size(); ++d) {
+                if (!used[d]) continue;
+                backend::Backend& b = *into_.backends[d];
+                try {
+                    b.wait(p.tickets[d] ? p.tickets[d] : b.submit());
+                } catch (...) {
+                    // This sync assumes no other thread records on the device, which the caller's hold of the stages gives (the server's quieted()).
+                    b.sync();
+                }
+            }
+            throw;
+        }
+        pending_.push_back(std::move(p));
+        bytes_ += full.bytes;
+        ++taken_;
+    }
+    // `n` bytes of device d's image from `image` on, which are at `in_slot` of the slot, to the runs they fall in.
+    void put(size_t d, size_t image, const uint8_t* src, size_t slot, size_t in_slot, size_t n) {
+        const std::vector<infer::RestoreInto::Run>& runs = into_.runs[d];
+        size_t r = (size_t)(std::upper_bound(starts_[d].begin(), starts_[d].end(), image) - starts_[d].begin()) - 1;
+        while (n) {
+            const infer::RestoreInto::Run& run = runs[r];
+            const size_t off = image - starts_[d][r], k = std::min(n, run.bytes - off);
+            backend::Backend& b = *into_.backends[d];
+            if (!views_[d].empty()) b.copy(run.target(), run.offset + off, *views_[d][slot], in_slot, k);
+            else b.write(run.target(), run.offset + off, src, k);
+            image += k;
+            src += k;
+            in_slot += k;
+            n -= k;
+            ++r;
+        }
+    }
+    // The slots whose copies have retired given back, in order.
+    void retire() {
+        while (!pending_.empty()) {
+            const Pending& p = pending_.front();
+            for (size_t d = 0; d < p.tickets.size(); ++d)
+                if (p.tickets[d] && !into_.backends[d]->done(p.tickets[d])) return;
+            ring_->free(p.piece);
+            pending_.erase(pending_.begin());
+        }
+    }
+
+    const DiskStore& store_;
+    std::vector<File> files_;
+    infer::RestoreInto& into_;
+    const std::function<void()> wake_;
+    std::vector<Chunk> chunks_;
+    std::vector<std::vector<size_t>> starts_;
+    std::mutex open_;
+    std::vector<std::unique_ptr<DiskStore::Opened>> opened_;
+    std::vector<backend::Ticket> last_;
+    std::vector<Pending> pending_;
+    size_t taken_ = 0;
+    uint64_t bytes_ = 0, failed_key_ = 0;
+    std::string why_;
+    State state_ = State::running;
+    std::unique_ptr<infer::ReadRing> ring_;            // after what its readers read, so they stop first
+    std::vector<std::vector<backend::BufferPtr>> views_;   // after the ring, so they go before its pages
+};
 
 class DiskTier {
 public:
@@ -306,7 +521,7 @@ public:
         std::fprintf(stderr, "server: %.1f MiB written to disk since the idle writes last ended; %zu files on disk, %zu of them states\n", (double)(written_ - said_) / (1 << 20), index_.files().size(), index_.states());
         said_ = written_;
     }
-    size_t calls() const { return (key_ ? 1 : 0) + reads_.size(); }
+    size_t calls() const { return (key_ ? 1 : 0) + reads_.size() + streams_.size(); }
     // The host memory the tier's own calls hold beyond the host tier: the slabs a write off the devices is read from, and those for the part of a file a read does not want.
     size_t held() const {
         size_t n = staging_.held;
@@ -587,6 +802,62 @@ public:
             return 0;
         }
         return send(std::move(r), calls);
+    }
+
+    // The read of path `p` streamed straight into `into`'s device storage (StreamedRead), its files pinned until end_stream; nothing where the model lays the path out otherwise than its files.
+    std::unique_ptr<StreamedRead> stream(infer::Model& model, const DiskIndex::Path& p, infer::RestoreInto& into, uint64_t& id) {
+        const infer::HostHistory image = model.host_layout(p.length);
+        std::vector<StreamedRead::File> files;
+        const auto segments = [&](StreamedRead::File& f, const std::vector<infer::HostRange>& ranges, const std::vector<infer::HostRange>& skip) {
+            for (size_t i = 0; i < ranges.size(); ++i) {
+                f.segments.push_back({ranges[i].device, ranges[i].offset, ranges[i].bytes, false});
+                if (i < skip.size()) f.segments.push_back({skip[i].device, 0, skip[i].bytes, true});
+            }
+            f.layout.assign(image.device_bytes.size(), 0);
+            for (const StreamedRead::File::Segment& s : f.segments) {
+                f.layout[s.device] += s.bytes;
+                f.payload += s.bytes;
+            }
+        };
+        for (const DiskIndex::Piece& piece : p.pieces) {
+            StreamedRead::File f;
+            f.key = piece.key;
+            std::vector<infer::HostRange> rest;
+            // A file longer than the path's use of it: the rows past it, in its layout's order, are read and not sent.
+            if (piece.use < piece.end) {
+                const infer::HostHistory longer = model.host_layout(piece.end);
+                for (const infer::HostRange& r : model.host_ranges(longer, piece.use, piece.end)) rest.push_back(r);
+            }
+            segments(f, model.host_ranges(image, piece.first, piece.use), rest);
+            files.push_back(std::move(f));
+        }
+        if (p.state) {
+            StreamedRead::File f;
+            f.key = *p.state;
+            segments(f, model.host_state_ranges(image), {});
+            files.push_back(std::move(f));
+        }
+        std::vector<uint64_t> keys;
+        for (const StreamedRead::File& f : files) keys.push_back(f.key);
+        // The files are pinned only once the read exists, so a read that fails as it is made leaves no pin.
+        std::unique_ptr<StreamedRead> read = std::make_unique<StreamedRead>(*store_, std::move(files), into, wake_);
+        streams_.push_back({read_ids_ + 1, std::move(keys)});
+        id = ++read_ids_;
+        return read;
+    }
+    // A streamed read ended: its files unpinned, and the one whose read failed (`failed`, 0 for none) gone, as a read that fails takes its file.
+    void end_stream(uint64_t id, uint64_t failed) {
+        streams_.erase(std::remove_if(streams_.begin(), streams_.end(), [&](const Stream& s) { return s.id == id; }), streams_.end());
+        if (!failed) return;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            ++errors_;
+        }
+        if (index_.remove(failed)) {
+            changed_ = true;
+            ++gone_[(size_t)Gone::read_failed];
+        }
+        store_->drop_entry(failed);
     }
 
     // ---- Another build's entries, adopted unproved and proved at their first use (docs/DISK-TIER.md, Adopting another build's entries). ----
@@ -885,6 +1156,7 @@ private:
     std::vector<uint64_t> pinned() const {
         std::vector<uint64_t> keys = pins_;
         for (const Reading& r : reads_) keys.insert(keys.end(), r.keys.begin(), r.keys.end());
+        for (const Stream& s : streams_) keys.insert(keys.end(), s.keys.begin(), s.keys.end());
         return keys;
     }
     void forget(uint64_t key, Gone why) {
@@ -939,6 +1211,12 @@ private:
     infer::HostHistory staging_;
     std::vector<uint64_t> pins_;
     std::vector<Reading> reads_;
+    // A streamed read's files, pinned until it ends (end_stream).
+    struct Stream {
+        uint64_t id;
+        std::vector<uint64_t> keys;
+    };
+    std::vector<Stream> streams_;
     std::vector<Proof> proofs_;
     std::vector<uint64_t> condemned_;    // the builds one of whose entries failed its proof
     std::vector<uint64_t> unclaimed_;    // under m_, the proved files the store could not make this build's

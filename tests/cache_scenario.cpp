@@ -726,12 +726,12 @@ void restore_beside_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "restore beside a donor, the turn's reply");
 }
 
-// A donor's write slower than the wait's constant (production, 2026-10-17 run D): a history no host memory holds is written as its turn ends, each 4 MiB of it held 200 ms by the store, and another request needs its room at once.
-// The constant is 100 ms and the wait the write's remaining time at the measured rate, 1.5 times and 2 s more, capped by recomputing at 50 ms a row, so the next turn reads it back; `capped` at 1 us a row, it reaches its bound and is counted.
+// A donor's write slower than the wait's constant (production, 2026-10-17 run D), each 4 MiB held five seconds, whose room another request needs once the write is under way.
+// The wait lets the next turn read it back; `capped` at 1 us a row of recomputing, each piece held five minutes, it reaches its bound and is counted (AGENTS.md, Tests).
 void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v, bool capped) {
     const std::string what = capped ? "a write slower than a wait capped by recomputing" : "a write slower than the wait's constant";
     DiskRoot disk(capped ? "slow-write-capped" : "slow-write");
-    server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(200));
+    server::DiskOptions options = disk.options(uint64_t(1) << 30, capped ? std::chrono::milliseconds(std::chrono::minutes(5)) : std::chrono::milliseconds(5000));
     options.idle = std::chrono::hours(1);
     options.read_wait = std::chrono::seconds(60);
     options.wait = std::chrono::milliseconds(100);
@@ -752,6 +752,8 @@ void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
         within(std::chrono::minutes(10), [&] { return sched.stats().disk_ready; }, "slow write: the disk tier made", "within ten minutes");
         next = first.prompt;
         for (uint32_t id : ids_of(drain(*sched.submit(first.prompt, params_of(first))))) next.push_back(id);
+        // A write not yet begun gives the wait only its constant, so the other request comes once the history's write is under way, whenever this runner starts it.
+        within(std::chrono::minutes(10), [&] { return sched.stats().disk_in_flight > 0; }, "slow write: the history's write under way", "within ten minutes");
         drain(*sched.submit(other.prompt, params_of(other)));
         const std::vector<uint32_t> user = prompt_of(30, kUser, v);
         next.insert(next.end(), user.begin(), user.end());

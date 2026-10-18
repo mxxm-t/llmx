@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The host pool gives idle memory back in runs said once, and takes none ahead in between (2026-10-18, branch fix/host-give-back-line, lands by fast-forward as two commits)
+
+- **Why:** after production's restart at 11:16 on 2026-10-17 the server said "N MiB of idle host memory given back, the host being short of memory" every second (64 to 832 MiB a time): the host's free memory fell below the pool's reserve while it adopted 1302 kept entries through the file cache, and between two looks the idle growth took slabs again (it was armed again at the first look that gave nothing back), which the next look gave back.
+- **The change:** after idle slabs go back the pool takes none ahead until the host has gone `kHostQuiet` (30 s) without a give-back, and a run of give-backs is said once as it starts and once with its total and length as it ends (`host_pressure`).
+- **Tests:** `server-resume`'s host pool under pressure: after one slab went back the host has room again at once, and no slab may be taken ahead within three seconds; on main three were. The first commit adds the check, failing on main.
+- **Checked:** see the REVIEW-REQUEST; the gate is CTest and the server component.
+
 ## Main's tests made deterministic and the hosted limits raised (2026-10-18, branch test/stabilize-main, tests, a test-only option and the workflow, lands by fast-forward as one commit)
 
 - **Why:** ci/vulkan-job-limit's hosted run 39110189068, whose change only raised limits, failed on main's tests in two places. The Vulkan job's `server-passes-cpu`: the boundary fork beside a paced prompt waited for a pass taken between a prompt's pieces, which the automatic rule, deciding by this runner's times, never took in 60 seconds. The ubuntu and UBSan jobs' `cache-scenario-production`: the cut turn's read reached its bound, the tiny model's recompute time of 384 rows, a few milliseconds, before the runner's disk gave it, so P5 broke. Before that, the landing run of main 185e64592 (run 39103232546) had its Vulkan job ended at 25 min 3 s by its 25-minute limit with every step already passed (build 6.7 min, backend tests 11.2, test on the CPU 2.3, linked dead code 4.5), its Linux CPU job took 19 min 48 s of its 20, and fix/host-give-back-line's run 39106474409 had that job ended at 20 minutes in its suite.
@@ -16,6 +23,7 @@
 - **Tests:** `server-passes-cpu`'s boundary fork beside a paced prompt, on a device that counts a call meeting a queue a submission holds: one such call in each of three runs on main, none in five with the change. The first commit adds it, failing on main.
 - **Reviewed:** XDEV approved the runtime change (devlog 2026-10-17 14:56 and 14:58 on its clock); at its suggestion the test takes the passes between a prompt's pieces as a growth since the long prompt came, not the counter since start.
 - **Checked:** see the REVIEW-REQUEST; the gate is the server host tier and the case on two MI50s as a tensor group with automatic pacing.
+
 ## Health device topology integration (2026-10-18, branch feat/health-topology-land-20261018; lands by fast-forward)
 
 - **Goal:** Integrate the realized model placement health payload so the dashboard can show actual backend groups and layer stages.

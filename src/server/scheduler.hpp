@@ -2925,6 +2925,11 @@ private:
     // How often the host's memory is looked at (host_pressure): pressure builds over seconds and the look is one small file read, so idle slabs outstay it by a second at most.
     static constexpr std::chrono::seconds kHostCheck{1};
     Clock::time_point host_check_{};      // the next look, under the lock
+    // How long after idle slabs went back the pool takes none ahead: a host short again a second later means something else is taking memory, and slabs taken in between only go back again.
+    static constexpr std::chrono::seconds kHostQuiet{30};
+    Clock::time_point host_quiet_{};      // when idle growth may start again after the last give-back, under the lock
+    size_t host_run_bytes_ = 0;           // the bytes given back since a run of give-backs began, said once it has ended
+    Clock::time_point host_run_since_{};
     size_t host_alive_ = 0, host_yielded_ = 0;   // the pool's slabs alive at the last look and the bytes given back since the start, under the lock
     static constexpr size_t kHostGrow = 4;   // the fresh slabs an idle round takes, more only where the shortest copy needs more; a slab took about 21 ms on an MI50 host (docs/STATUS.md)
     const double share_;                  // of each device's time, what generating requests keep while prompts are read; 0 for none

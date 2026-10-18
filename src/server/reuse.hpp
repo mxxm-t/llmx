@@ -39,9 +39,21 @@ inline void Scheduler::host_pressure() {
     host_check_ = now + kHostCheck;
     const size_t freed = model_.host_short() ? quieted()->host_yield() : 0;
     host_yielded_ += freed;
-    host_growing_ = !freed;
     host_alive_ = model_.host_allocated();
-    if (freed) std::fprintf(stderr, "server: %.0f MiB of idle host memory given back, the host being short of memory\n", (double)freed / (1 << 20));
+    // A run of give-backs is said as it starts and, once the host has gone kHostQuiet without one, with what it gave back; growth waits for that quiet too.
+    if (freed) {
+        if (!host_run_bytes_) {
+            host_run_since_ = now;
+            std::fprintf(stderr, "server: giving idle host memory back, the host being short of memory\n");
+        }
+        host_run_bytes_ += freed;
+        host_quiet_ = now + kHostQuiet;
+    } else if (host_run_bytes_ && now >= host_quiet_) {
+        std::fprintf(stderr, "server: %.0f MiB of idle host memory given back over %.0f s, the host being short of memory\n", (double)host_run_bytes_ / (1 << 20),
+                     std::chrono::duration<double>(host_quiet_ - kHostQuiet - host_run_since_).count());
+        host_run_bytes_ = 0;
+    }
+    host_growing_ = !freed && now >= host_quiet_;
 }
 
 // A resumed request's own donor, the one its pause left, when nothing has evicted it; donors_.size() when there is none.

@@ -810,6 +810,10 @@ p {
   color: var(--muted);
   font-size: 14px
 }
+.live-request-rate strong.live-rate-stale {
+  color: #f3c17e;
+  font-size: 14px
+}
 .live-request-details {
   margin-top: 8px;
   color: var(--muted);
@@ -2725,6 +2729,7 @@ const state = {
   received: false
 };
 let liveRequestSample = null;
+let liveRequestHistory = [];
 let liveRequestUptime = null;
 state.liveRequests = {available: null, items: [], total: null, omitted: null};
 const nf = new Intl.NumberFormat(undefined, {
@@ -2779,9 +2784,10 @@ function percentage(a, b) {
 }
 function resetLiveRequestSample() {
   liveRequestSample = null;
+  liveRequestHistory = [];
   liveRequestUptime = null
 }
-function updateLiveRequests(raw) {
+function updateLiveRequests(raw, alignedWindows = null, alignWindows = false) {
   const live = get(raw, 'requests.live');
   const uptime = get(raw, 'server.uptime_s');
   if (number(liveRequestUptime) && number(uptime) && uptime < liveRequestUptime) resetLiveRequestSample();
@@ -2794,23 +2800,42 @@ function updateLiveRequests(raw) {
   const timestamp = live.sample_elapsed_ms;
   if (!Number.isSafeInteger(timestamp) || timestamp < 0 || !Array.isArray(live.items)) {
     liveRequestSample = null;
+    liveRequestHistory = [];
     state.liveRequests = {available: true, items: [], total: live.total, omitted: live.omitted, invalid: true};
     return
   }
-  if (liveRequestSample && timestamp === liveRequestSample.timestamp) return;
+  if (liveRequestSample && timestamp === liveRequestSample.timestamp) {
+    const observedAt = performance.now() / 1000;
+    const sampleAgeMs = Math.max(0, (observedAt - liveRequestSample.observedAt) * 1000);
+    const expired = sampleAgeMs > Math.max(15, state.interval * 3) * 1000;
+    const lastObservedAt = liveRequestHistory.length ? liveRequestHistory.at(-1).observedAt : liveRequestSample.observedAt;
+    if (observedAt - lastObservedAt > Math.max(15, state.interval * 3)) liveRequestHistory = [];
+    else {
+      liveRequestHistory.push({timestamp, observedAt, items: liveRequestSample.items});
+      liveRequestHistory = liveRequestHistory.slice(-64)
+    }
+    state.liveRequests = {...state.liveRequests, stale: true, sampleAgeMs,
+      items: state.liveRequests.items.map(item => ({...item, pp: expired ? null : item.pp, tg: expired ? null : item.tg}))};
+    return
+  }
   if (liveRequestSample && timestamp < liveRequestSample.timestamp) resetLiveRequestSample();
   const cap = Number.isInteger(live.limit) ? Math.max(0, Math.min(64, live.limit)) : 64;
   const items = live.items.slice(0, cap).filter(item => item && typeof item === 'object' && typeof item.id === 'string');
   const previous = liveRequestSample;
-  const sampleIntervalMs = previous ? timestamp - previous.timestamp : null;
-  const elapsed = sampleIntervalMs === null ? 0 : sampleIntervalMs / 1000;
+  const observedAt = performance.now() / 1000;
+  const lastObservedAt = liveRequestHistory.length ? liveRequestHistory.at(-1).observedAt : previous?.observedAt;
+  if (previous && observedAt - lastObservedAt > Math.max(15, state.interval * 3)) liveRequestHistory = [];
+  const snapshot = {
+    timestamp,
+    observedAt,
+    items: new Map(items.map(item => [item.id, {
+      prefilled_tokens: item.prefilled_tokens,
+      published_tokens: item.published_tokens
+    }]))
+  };
+  liveRequestHistory.push(snapshot);
+  liveRequestHistory = liveRequestHistory.slice(-64);
   const rows = items.map(item => {
-    const old = previous && previous.items.get(item.id);
-    const rate = key => {
-      const current = item[key];
-      const before = old && old[key];
-      return old && elapsed > 0 && number(current) && number(before) && current >= before ? (current - before) / elapsed : null
-    };
     return {
       id: item.id,
       phase: ['queued', 'paused', 'prefill', 'generate'].includes(item.phase) ? item.phase : 'unknown',
@@ -2819,16 +2844,14 @@ function updateLiveRequests(raw) {
       prefilled: item.prefilled_tokens,
       published: item.published_tokens,
       elapsed: item.elapsed_ms,
-      pp: rate('prefilled_tokens'),
-      tg: rate('published_tokens')
+      pp: requestWindowRate(liveRequestHistory, item.id, 'prefilled_tokens', state.interval,
+        alignWindows ? (alignedWindows?.prefilled_tokens || {}) : null),
+      tg: requestWindowRate(liveRequestHistory, item.id, 'published_tokens', state.interval,
+        alignWindows ? (alignedWindows?.generated_tokens || {}) : null)
     }
   });
-  const previousItems = new Map(items.map(item => [item.id, {
-    prefilled_tokens: item.prefilled_tokens,
-    published_tokens: item.published_tokens
-  }]));
-  liveRequestSample = {timestamp, items: previousItems};
-  state.liveRequests = {available: true, items: rows, total: live.total, omitted: live.omitted, sampleIntervalMs, invalid: false}
+  liveRequestSample = snapshot;
+  state.liveRequests = {available: true, items: rows, total: live.total, omitted: live.omitted, stale: false, sampleAgeMs: 0, invalid: false}
 }
 function drawLiveRequests(view) {
   const summary = $('live-requests-summary');
@@ -2866,7 +2889,8 @@ function drawLiveRequests(view) {
     return
   }
   summary.className = 'live-request-summary';
-  const intervalText = number(live.sampleIntervalMs) ? ' Rates use ' + fmt(live.sampleIntervalMs) + ' ms between runtime samples.' : ' Rates become available after the next distinct runtime sample.';
+  const ageText = number(live.sampleAgeMs) ? 'Runtime snapshot unchanged for ' + fmt(live.sampleAgeMs / 1000) + ' s.' : '';
+  const intervalText = live.stale ? ' ' + ageText + (live.items.every(item => item.pp === null && item.tg === null) ? ' Rates unavailable.' : ' Showing last measured rates as stale.') : ' Rates use a 10 s rolling window; actual duration follows snapshot times.';
   summary.textContent = 'Showing ' + fmt(live.items.length) + (number(live.total) ? ' of ' + fmt(live.total) : '') + ' live requests' + (omitted > 0 ? '; ' + fmt(omitted) + ' omitted by the API limit.' : '.') + intervalText;
   const fragment = document.createDocumentFragment();
   const valueText = value => number(value) ? fmt(value) : value === undefined || value === null ? '--' : String(value);
@@ -2881,13 +2905,15 @@ function drawLiveRequests(view) {
     row.dataset.requestId = item.id;
     const head = element('div', 'live-request-head');
     head.append(element('strong', 'live-request-id', item.id));
-    head.append(element('span', 'live-phase', item.phase));
+    const phase = element('span', 'live-phase', item.phase);
+    if (item.phase === 'prefill') phase.title = 'No output has been generated yet; the scheduler may be between work passes.';
+    head.append(phase);
     head.append(element('span', 'live-request-elapsed', number(item.elapsed) && item.elapsed >= 0 ? fmt(item.elapsed) + ' ms' : 'Elapsed --'));
     const rates = element('div', 'live-request-rates');
     for (const [label, value] of [['PP tok/s', item.pp], ['TG tok/s', item.tg]]) {
       const metric = element('div', 'live-request-rate');
       metric.append(element('span', '', label));
-      metric.append(element('strong', number(value) ? '' : 'live-rate-unavailable', number(value) ? formatRate(value) : 'Waiting'));
+      metric.append(element('strong', live.stale && number(value) ? 'live-rate-stale' : number(value) ? '' : 'live-rate-unavailable', number(value) ? formatRate(value) : live.stale ? 'Unavailable' : 'Warming'));
       rates.append(metric)
     }
     const details = document.createElement('details');
@@ -2916,15 +2942,126 @@ function fill(id, a, b) {
   $(id).style.width = v === null ? '0%': Math.min(100, Math.max(0, v * 100)) + '%';
   $(id).parentElement.setAttribute('aria-label', v === null ? 'Occupancy unavailable': fmt(a) + ' of ' + fmt(b));
 }
+function rollingCounterRate(samples, endIndex, options) {
+  const clockAt = options.clock;
+  const wallAt = options.wall;
+  const valueAt = options.value;
+  const resetAt = options.reset || (sample => sample.reset === true);
+  const scale = options.scale || 1;
+  const windowMs = options.windowMs || 10000;
+  const maxGap = options.maxGap;
+  const staleAfter = options.staleAfter;
+  const requireFullWindow = options.requireFullWindow === true;
+  if (endIndex < 1) return null;
+  const observedClock = clockAt(samples[endIndex]);
+  if (!number(observedClock) || resetAt(samples[endIndex])) return null;
+  let end = endIndex;
+  while (end > 0 && clockAt(samples[end - 1]) === observedClock) end--;
+  if (end < 1) return null;
+  const endSample = samples[end];
+  const endClock = clockAt(endSample);
+  if (!number(endClock)) return null;
+  if (wallAt(samples[endIndex]) - wallAt(endSample) > staleAfter) return null;
+  const targetClock = endClock - windowMs;
+  let base = end - 1;
+  for (let i = end - 1; i >= 0; i--) {
+    const sample = samples[i];
+    const clock = clockAt(sample);
+    const gap = wallAt(samples[i + 1]) - wallAt(sample);
+    if (resetAt(sample) || !number(clock) || gap < 0 || gap > maxGap || clock > endClock) return null;
+    if (clock === endClock) continue;
+    base = i;
+    if (clock <= targetClock) break
+  }
+  const startClock = clockAt(samples[base]);
+  if (!number(startClock) || (requireFullWindow && startClock > targetClock)) return null;
+  const elapsed = (endClock - startClock) * scale;
+  const firstValue = valueAt(samples[base]);
+  const lastValue = valueAt(endSample);
+  if (elapsed <= 0 || !number(firstValue) || !number(lastValue) || lastValue < firstValue) return null;
+  let previousClock = startClock;
+  let previousValue = firstValue;
+  for (let i = base + 1; i <= end; i++) {
+    const sample = samples[i];
+    const clock = clockAt(sample);
+    const value = valueAt(sample);
+    const gap = wallAt(sample) - wallAt(samples[i - 1]);
+    if (resetAt(sample) || !number(clock) || gap < 0 || gap > maxGap || clock < previousClock) return null;
+    if (clock === previousClock) continue;
+    if (!number(value) || value < previousValue) return null;
+    previousClock = clock;
+    previousValue = value
+  }
+  return {rate: (lastValue - firstValue) / elapsed, elapsed, age: wallAt(samples[endIndex]) - wallAt(endSample),
+    startClock, endClock}
+}
+function rollingRate(samples, i, path, clockField, requireFullWindow = false) {
+  const result = rollingRateMeasurement(samples, i, path, clockField, requireFullWindow);
+  return result ? result.rate : null
+}
+function rollingRateMeasurement(samples, i, path, clockField, requireFullWindow = false) {
+  const gapLimit = Math.max(15, state.interval * 3);
+  const metric = sample => sample.metrics[path];
+  return rollingCounterRate(samples, i, {
+    clock: sample => clockField ? sample.metrics[clockField] : sample.t,
+    wall: sample => sample.t,
+    value: metric,
+    scale: clockField ? 0.001 : 1,
+    windowMs: clockField ? 10000 : 10,
+    maxGap: gapLimit,
+    staleAfter: gapLimit,
+    requireFullWindow
+  })
+}
+function requestWindowRate(history, id, key, interval, alignedWindow = null) {
+  let startIndex = history.length - 1;
+  while (startIndex > 0 && history[startIndex - 1].items.has(id)) startIndex--;
+  if (startIndex === history.length - 1 || !history[startIndex].items.has(id)) return null;
+  let requestHistory = history.slice(startIndex);
+  let windowMs = 10000;
+  if (alignedWindow) {
+    if (!number(alignedWindow.startClock) || !number(alignedWindow.endClock) || alignedWindow.endClock <= alignedWindow.startClock) return null;
+    if (alignedWindow.endClock - alignedWindow.startClock < 10000) return null;
+    const exactStart = requestHistory.findIndex(sample => sample.timestamp === alignedWindow.startClock);
+    const exactEnd = requestHistory.findIndex(sample => sample.timestamp === alignedWindow.endClock);
+    if (exactStart < 0 || exactEnd <= exactStart) return null;
+    requestHistory = requestHistory.slice(exactStart, exactEnd + 1);
+    windowMs = alignedWindow.endClock - alignedWindow.startClock
+  }
+  const gapLimit = Math.max(15, interval * 3);
+  const measured = rollingCounterRate(requestHistory, requestHistory.length - 1, {
+    clock: sample => sample.timestamp,
+    wall: sample => sample.observedAt,
+    value: sample => sample.items.get(id)?.[key],
+    scale: 0.001,
+    windowMs,
+    maxGap: gapLimit,
+    staleAfter: gapLimit,
+    requireFullWindow: true,
+    reset: () => false
+  });
+  if (!measured) return null;
+  if (alignedWindow && (measured.startClock !== alignedWindow.startClock || measured.endClock !== alignedWindow.endClock)) return null;
+  return measured.rate
+}
+function runtimeSampleAge(samples, clockField) {
+  if (!clockField || !samples.length) return null;
+  const latestIndex = samples.length - 1;
+  const latestClock = samples[latestIndex].metrics[clockField];
+  if (!number(latestClock)) return null;
+  let measuredIndex = latestIndex;
+  while (measuredIndex > 0 && samples[measuredIndex - 1].metrics[clockField] === latestClock) measuredIndex--;
+  return Math.max(0, samples[latestIndex].t - samples[measuredIndex].t)
+}
 function rate(samples, i, path) {
   if (i < 1) return null;
-  const a = samples[i - 1],
-  b = samples[i],
-  dt = b.t - a.t;
-  const av = a.metrics[path],
-  bv = b.metrics[path];
+  const a = samples[i - 1];
+  const b = samples[i];
+  const dt = b.t - a.t;
+  const av = a.metrics[path];
+  const bv = b.metrics[path];
   if (b.reset || dt <= 0 || dt > Math.max(15, state.interval * 3) || !number(av) || !number(bv) || bv < av) return null;
-  return(bv - av) / dt
+  return (bv - av) / dt
 }
 function latestRate(samples, path) {
   return rate(samples, samples.length - 1, path)
@@ -3323,7 +3460,7 @@ const chartConfigurations = [{
   fields: ['requests.since_start.prompt_tokens'],
   labels: ['Completed prompt tok/s'],
   colors: ['#7aa9ff'],
-  values: (samples, i, config) => config.fields.map(path => rate(samples, i, path)),
+  values: (samples, i, config) => config.fields.map(path => rollingRate(samples, i, path, config.clockField)),
   note: 'Includes cached prompt tokens; counted at request completion. Gaps indicate unavailable rates.'
 },
 {
@@ -3334,7 +3471,7 @@ const chartConfigurations = [{
   fields: ['requests.since_start.generated_tokens'],
   labels: ['Completed generated tok/s'],
   colors: ['#66dfd1'],
-  values: (samples, i, config) => config.fields.map(path => rate(samples, i, path)),
+  values: (samples, i, config) => config.fields.map(path => rollingRate(samples, i, path, config.clockField)),
   note: 'Completed-request counter deltas; gaps mark missing samples or counter resets.'
 },
 {
@@ -3364,40 +3501,48 @@ const chartConfigurations = [{
 function configureWorkRates(raw) {
   const work = get(raw, 'work');
   const legacy = number(get(raw, 'requests.since_start.prompt_tokens')) && number(get(raw, 'requests.since_start.generated_tokens'));
-  const mode = work !== undefined ? 'live' : legacy ? 'completed' : 'unavailable';
+  const runtimeWork = get(raw, 'requests.live.work');
+  const runtimeClock = get(raw, 'requests.live.sample_elapsed_ms');
+  const aligned = number(runtimeClock) && number(get(runtimeWork, 'prefilled_tokens')) && number(get(runtimeWork, 'generated_tokens'));
+  const mode = aligned ? 'runtime' : work !== undefined ? 'live' : legacy ? 'completed' : 'unavailable';
   for (const [id, counter, legacyCounter, name] of [
     ['prompt', 'prefilled_tokens', 'prompt_tokens', 'Prompt processing'],
     ['throughput', 'generated_tokens', 'generated_tokens', 'Token generation']
   ]) {
     const config = chartConfigurations.find(chart => chart.id === id);
-    const prefix = mode === 'completed' ? 'requests.since_start.' : 'work.since_start.';
+    const prefix = mode === 'completed' ? 'requests.since_start.' : mode === 'runtime' ? 'requests.live.work.' : 'work.since_start.';
     config.fields = [prefix + (mode === 'completed' ? legacyCounter : counter)];
+    config.clockField = mode === 'runtime' ? 'requests.live.sample_elapsed_ms' : null;
     const missing = mode === 'live' && !number(get(raw, config.fields[0]));
     config.mode = mode;
     config.title = mode === 'completed' ? 'Completed-request ' + name.toLowerCase() + ' rate' : 'Live aggregate ' + name.toLowerCase() + ' throughput';
     config.labels = [mode === 'completed' ? 'Completed ' + name.toLowerCase() + ' tok/s' : name + ' throughput tok/s'];
     config.note = mode === 'completed' ? 'Old API fallback: counters advance at request completion, not during ongoing work.' :
       mode === 'unavailable' ? 'Compatible live work counters are unavailable.' :
-      'Sampled aggregate wall-clock throughput; prompt work appears at pass retirement, output at publication.';
+      mode === 'runtime' ? '10 s rolling window from runtime snapshots; actual duration follows sample times. Prompt work appears at pass retirement, output at publication.' :
+      '10 s rolling window from collector samples; actual duration follows sample times. This legacy aggregate window differs from per-request runtime rates.';
     config.zeroHint = mode === 'completed' ? 'No completed tokens counted in the latest interval' :
       id === 'prompt' ? 'No client prompt rows retired in the latest interval' : 'No output tokens published in the latest interval';
-    txt(id + '-mode', (id === 'prompt' ? 'PP' : 'TG') + (mode === 'live' && !missing ? ' / LIVE AGGREGATE THROUGHPUT' :
+    txt(id + '-mode', (id === 'prompt' ? 'PP' : 'TG') + (mode === 'runtime' ? ' / 10 S ROLLING RUNTIME' : mode === 'live' && !missing ? ' / COLLECTOR WINDOW' :
       mode === 'completed' ? ' / COMPLETED-WORK FALLBACK' : ' / LIVE COUNTERS UNAVAILABLE'));
     txt(id + '-title', name);
-    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'live' ? 'Live aggregate rate' : mode === 'completed' ? 'Completed-work fallback' :
+    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'runtime' ? '10 s rolling runtime window' : mode === 'live' ? '10 s rolling collector window' : mode === 'completed' ? 'Completed-work fallback' :
       'Waiting for compatible health data');
     $(id + '-total').dataset.m = config.fields[0];
     txt(id + '-total-label', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' tokens / lifetime' :
       (id === 'prompt' ? 'Client prompt rows retired' : 'Output tokens published') + ' / lifetime');
   }
   txt('token-rate-label', mode === 'completed' ? 'Completed token rate' : 'Live output throughput');
-  txt('token-rate-note', mode === 'completed' ? 'Old API / completed requests only' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
-    'Published output / sampled wall-clock rate' : 'Live counters unavailable');
+  txt('token-rate-note', mode === 'completed' ? 'Old API / completed requests only' : mode === 'runtime' ?
+    'Runtime snapshots / 10 s rolling' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
+    'Collector samples / 10 s rolling; legacy window' : 'Live counters unavailable');
   txt('rate-explainer', mode === 'completed' ?
-    'Live PP/TG throughput is unavailable from this API. These fallback charts use completed-request counters; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
-    'PP/TG panels show aggregate work over actual elapsed sample time (' + fmt(state.interval) + 's collection target), not per-request or per-kernel speeds. A long pass stays unobserved until retirement; zero does not establish idle hardware. Missing live counters remain unavailable.');
-  txt('rate-footer', mode === 'completed' ? 'Old API: completed-work fallback, not live throughput.' :
-    mode === 'unavailable' ? 'Live throughput unavailable / waiting for health counters.' : 'Live rates use work counters / aggregate wall-clock throughput.');
+    'Live PP/TG throughput is unavailable from this API. These fallback charts use completed-request counters over a 10 s collector-time window; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
+    mode === 'unavailable' ? 'Live throughput unavailable until compatible health counters arrive.' :
+    mode === 'runtime' ? 'PP/TG and per-request rates use the same cumulative runtime counters over a 10 s rolling window; actual duration follows snapshot times. Per-request rates require exact aggregate window endpoints; otherwise they remain unavailable. Gaps are unavailable. Repeated snapshots show the last measured rate as stale, then become unavailable after the freshness window. Prompt work appears at pass retirement, and zero does not establish idle hardware.' :
+    'Legacy live PP/TG uses collector-time samples over a 10 s rolling window; actual duration follows sample times. Per-request rates use runtime snapshots and can differ. Gaps are unavailable. Repeated snapshots show the last measured rate as stale, then become unavailable after the freshness window.');
+  txt('rate-footer', mode === 'completed' ? 'Old API: completed-work fallback, not live throughput.' : mode === 'runtime' ? 'Shared runtime window: 10 s rolling; actual duration follows snapshots.' :
+    mode === 'unavailable' ? 'Live throughput unavailable / waiting for health counters.' : 'Legacy aggregate uses collector time; per-request rates use runtime time.');
   return mode;
 }
 const chartViews = {};
@@ -3630,7 +3775,15 @@ function render() {
   queued = m('requests.now.queued');
   txt('capacity-status', !view.latest ? 'WAITING': number(paused) && paused > 0 ? 'PAUSED WORK': number(queued) && queued > 0 ? 'QUEUED WORK': 'CURRENT STATE');
   const outputField = chartConfigurations.find(config => config.id === 'throughput').fields[0];
-  txt('token-rate', workMode === 'unavailable' ? '--' : formatRate(latestRate(view.samples, outputField)));
+  const throughputConfig = chartConfigurations.find(config => config.id === 'throughput');
+  txt('token-rate', workMode === 'unavailable' ? '--' : formatRate(rollingRate(view.samples, view.samples.length - 1, outputField, throughputConfig.clockField)));
+  const sampleAge = runtimeSampleAge(view.samples, throughputConfig.clockField);
+  if (workMode === 'runtime' && number(sampleAge) && sampleAge > 0) {
+    const stale = sampleAge > Math.max(15, state.interval * 3);
+    const status = stale ? 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; rate unavailable.' : 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; showing last measured rate as stale.';
+    txt('token-rate-note', status);
+    txt('rate-explainer', $('rate-explainer').textContent + ' ' + status)
+  }
   const req = latestRate(view.samples, 'requests.since_start.finished');
   txt('request-rate', number(req) ? fmt(req * 60): '--');
   txt('device-description', 'Server KV pool: ' + fmt(m('server.kv_tokens')) + ' tokens');
@@ -3711,7 +3864,6 @@ async function poll() {
     state.received = true;
     state.lastSuccess = number(data.last_success) ? data.last_success: null;
     state.latest = data.latest && typeof data.latest === 'object' ? data.latest: null;
-    updateLiveRequests(state.latest || {});
     const fresh = Array.isArray(data.samples) ? data.samples: [];
     for (const s of fresh) {
       if (Number.isInteger(s.seq) && s.seq > state.seq && number(s.t) && s.metrics && typeof s.metrics === 'object') {
@@ -3722,6 +3874,14 @@ async function poll() {
     state.samples.sort((a, b) => a.seq - b.seq);
     const newest = state.samples.at( - 1);
     if (newest) state.samples = state.samples.filter(s => s.t >= newest.t - 3600);
+    const workMode = configureWorkRates(state.latest || {});
+    const alignedWindows = workMode === 'runtime' && state.samples.length ? {
+      prefilled_tokens: rollingRateMeasurement(state.samples, state.samples.length - 1,
+        'requests.live.work.prefilled_tokens', 'requests.live.sample_elapsed_ms'),
+      generated_tokens: rollingRateMeasurement(state.samples, state.samples.length - 1,
+        'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')
+    } : null;
+    updateLiveRequests(state.latest || {}, alignedWindows, workMode === 'runtime');
     if (Array.isArray(data.events)) {
       const seen = new Set(state.events.map(e => e.t + '|' + e.kind + '|' + e.message));
       for (const e of data.events) {

@@ -1,0 +1,169 @@
+{
+  "feature": "dashboard-rate-windows",
+  "date": "2026-10-18",
+  "source": {
+    "base": "30baef845416066ea777a0653cd3ac0f70bbb961",
+    "candidate": "b96ceefb2fdba281abe673c0be8acffd67d8a242",
+    "feature_commit": "87ac368c6",
+    "stabilization_commit": "30baef845416066ea777a0653cd3ac0f70bbb961",
+    "runtime_source_delta_from_feature_commit": "The integrated tree includes runtime and test stabilization changes from 30baef845; tools/health_dashboard files are unchanged from 87ac368c6."
+  },
+  "windows_build": {
+    "compiler": "MSVC 19.50.35728.0, VS18 Community",
+    "generator": "Ninja",
+    "configuration": "Release CPU, Vulkan off",
+    "workers": 1,
+    "all_targets": true,
+    "version": "llmx 0.1.0+gb96ceefb2fdb numerics 6439d0f46e37628e",
+    "binary_sha256": "CC24AF0035ABD16BA50ECD0AD8D1355A197534BB7B28F533AE63DE2F1C0ABED1",
+    "artifact_root_from_repository_root": ".tmp-dashboard-rate-landing-20261018/build-dashboard-rate-landing-20261018",
+    "compile_log": "compile.log",
+    "ctest_log": "ctest.log"
+  },
+  "native_tests": {
+    "ctest": "49/49 passed",
+    "duration_seconds": 769.6,
+    "log_relative_to_windows_build_artifact_root": "ctest.log"
+  },
+  "python_suite": {
+    "command": "python tests/run_tests.py --exe build-dashboard-rate-landing-20261018/ninja-release-cpu/llmx.exe --no-perf-floor --require-baseline --require-tools",
+    "exit": 1,
+    "passed": 26,
+    "failed": [
+      {
+        "component": "cli",
+        "cause": "Sandbox denied temporary output creation (filesystem error 5)."
+      },
+      {
+        "component": "roundtrip",
+        "cause": "Dequantize output failure under sandbox."
+      }
+    ],
+    "focused_retry": {
+      "components": [
+        "cli",
+        "roundtrip"
+      ],
+      "result": "both passed outside sandbox using the same binary",
+      "posix_file_size_limit_checks": "unavailable on Windows; explicitly skipped",
+      "log_sha256": "7406D5FAA3E3FFA66A9559CB2AE021A2B6334A45742D0B0CE4B24B2BA3086A65"
+    },
+    "windows_skips": [
+      "server disk-tier exit and keep checks require SIGTERM"
+    ],
+    "full_suite_log_sha256": {
+      "stdout": "397512F5C12391F36ED25BE2FC631D01CD7483E691E352CF6DA91E3F16DC3EE1",
+      "stderr": "776FA5CB636DD4D57CA3784CD36736148591029F39CA4D1F9393C48752B22D81"
+    },
+    "final_docs_dead_code": {
+      "result": "passed",
+      "docs_findings": 0,
+      "dead_code_findings": 5,
+      "log_sha256": "c23ce9425f19e6d3640b471c554b32c618a00d27b3f461dccda2dcfde54d623e"
+    }
+  },
+  "dashboard_checks_carried_forward": {
+    "source_identity": "tools/health_dashboard files byte-identical to 87ac368c6",
+    "tests": "7 tests, 32 browser assertions passed",
+    "rendering": "Desktop and mobile viewport checks passed without page overflow."
+  },
+  "linux_vulkan_identity": {
+    "candidate_version": "llmx 0.1.0+gb96ceefb2fdb numerics 6439d0f46e37628e",
+    "candidate_binary_sha256": "272401a9a944753626644eb16a7882c431ecdb2cf8b4ac3b22d7521d538e7128",
+    "current_main": "30baef845416066ea777a0653cd3ac0f70bbb961",
+    "main_version": "llmx 0.1.0+g30baef845416 numerics 6439d0f46e37628e",
+    "cells": {
+      "raw": "64 generated tokens; output bytes and token IDs identical",
+      "chat": "64 generated tokens; output bytes and token IDs identical"
+    },
+    "terminal": 0,
+    "source_clean_and_binary_unchanged": true,
+    "artifact_root_from_repository_root": "build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation",
+    "identity_result_path": "identity-main30/result.json",
+    "identity_cells_path": "identity-main30/identity.json",
+    "identity_cells_sha256": "cc7ff489ae7b92ca841b6ad2d88d2e3b0899673f4f6ae721d087785f42803f50",
+    "identity_result_sha256": "6def80ad3fb920cf2788eb9086a17fada9166fbbf1383ec9763ae1652ab65318"
+  },
+  "mi50_server": {
+    "result": "PASS",
+    "scope": "Synthetic and real Qwen3-0.6B server checks",
+    "source_clean_and_binary_unchanged": true,
+    "owned_container_removed": true,
+    "result_path_relative_to_rig_artifact_root": "server-v2/result.json",
+    "run_log_relative_to_rig_artifact_root": "server-v2/run.log",
+    "result_sha256": "547cc4aa47b2f245e56b7696ec5274bdf089d92fa22297fbe06e8fc877b5118b",
+    "run_log_sha256": "d4b3e16dc0ac6dd251841f7773021639b602fb502d135dbe55e1880c9ffe8985"
+  },
+  "hosted_ci": {
+    "stabilization_run_39118360150": "success",
+    "combined_feature_branch": "pending for the final docs-updated landing head; rebase build and CTest covered code head 26d4741a5 before this evidence-only documentation amendment."
+  },
+  "limitations": [
+    "No inference performance qualification was run or claimed; shared-host Linux build activity was concurrent as documented.",
+    "No merge or production deployment is included in this rehearsal."
+  ],
+  "pre_rebase_evidence_note": "The original Windows build, CTest, Python suite, UI checks, Linux identity and MI50 server checks refer to the b96ceefb2 rehearsal and remain historical. Dashboard feature patches are verified equal after rebase; only CTest and the requested product build were repeated for the rebased candidate.",
+  "rebase_validation": {
+    "branch": "integrate/dashboard-rate-main3cf",
+    "head": "26d4741a5adf55628bd2a4f0c02e81c750a2bd56",
+    "base": "3cfb0ed70fc54da3e4a64c96345fb703e05fdbe8",
+    "feature_patch_equality": "Verified against a1d0c4b58 before the build; two equal feature commits retained.",
+    "source_clean_before_build": true,
+    "windows_build": {
+      "artifact_root_from_repository_root": ".tmp-dashboard-rate-landing-20261018/build-dashboard-rate-landing-20261018",
+      "method": "Existing Ninja directory, clean-first, MSVC 19.50.35728.0, Release CPU, Vulkan off, one worker.",
+      "free_ram_gib_at_start": 5.64,
+      "compile_exit": 0,
+      "steps": "103/103",
+      "version": "llmx 0.1.0+g26d4741a5adf numerics 6439d0f46e37628e",
+      "binary_sha256": "3E6E33F34BBAC59C688B5CEE97CC353C7A335A00776CBBFD94421540F189E48D",
+      "compile_log": "rebase-build.log",
+      "compile_log_sha256": "FAD64D94171EB4C6E1BA9756667D43BDED35090A4A09AF187D082BF50DE1D406",
+      "version_log_sha256": "467854D85D82D42FF057685FBB595F20B989D904FA3E660937663095DAE32AD1"
+    },
+    "ctest": {
+      "command": "ctest --test-dir build-dashboard-rate-landing-20261018/ninja-release-cpu -C Release --output-on-failure",
+      "result": "49/49 passed",
+      "exit": 0,
+      "duration_seconds": 790.58,
+      "log": "rebase-ctest.log",
+      "log_sha256": "FE197E4D1082061CA591CBEB7DE3BAECD5C2C6F58B115DB51D0C82710CB80362"
+    }
+  },
+  "linux_vulkan_rebase_build": {
+    "artifact_root_from_repository_root": "build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main3cf/rig-logs",
+    "source_revision": "26d4741a5adf55628bd2a4f0c02e81c750a2bd56",
+    "result": "Release Vulkan llmx build passed; exit 0; source clean; exact owned container removed.",
+    "version": "llmx 0.1.0+g26d4741a5adf numerics 6439d0f46e37628e",
+    "binary_sha256": "36bbc6091486ff51e60db775dd87757d86339c1038ccb9bc6bf87536523a54b4",
+    "container_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "resource_limits": "CPUs 4,5; quota 2; memory and swap 4 GiB; one compiler; no GPU devices; network disabled.",
+    "concurrent_activity": "Preflight recorded active large C++ compiler processes, inference servers, and a model test process on the shared host. This was a product build check, not an isolated performance measurement.",
+    "logs_sha256": {
+      "configure": "cb28ff6f3a6dc99ca0c19ba64d42323471eb6836fe4f134d2bcff9664884eee5",
+      "build": "2a239d12ed07f541356b86b6260b89a7e1addbb5b3362424a0dd05d82168aa34",
+      "version": "e54310da8c1cd6384291ea02e6feb023af295f14d6c5b357405d7275c3e129c0",
+      "binary_hash_file": "a9fa0c6f901c15f2cc0e42eecbeb188c9661135eed320cdad6cf9fd09876c7c0",
+      "terminal": "40fe0e4b71e42899fa8f294ed3ab9b17e9d7d8ed13967b9c866b2648010f252a",
+      "host_processes_preflight": "20a7fe33122a5fece17968e324a0ad9ba5994d067b4438fa98be3a91599ec2e9"
+    }
+  },
+  "markdown_review_rebase": {
+    "comparison": "Tracked Git Markdown blobs at HEAD versus base 3cfb0ed70, plus the current working-tree diff.",
+    "tracked_pages": 110,
+    "feature_changed_pages": 5,
+    "unchanged_pages": 105,
+    "changed_pages": [
+      "docs/SERVER.md",
+      "docs/STATUS.md",
+      "docs/USAGE.md",
+      "docs/src/server.md",
+      "tools/health_dashboard/README.md"
+    ],
+    "working_tree_markdown_delta": [
+      "docs/STATUS.md"
+    ],
+    "review_scope": "Previously reviewed API/UI owner pages were carried forward; this checkpoint adds only STATUS evidence. No new manual review of the 105 unchanged pages is claimed.",
+    "focused_docs_dead_code": "Passed after the final documentation edits: 0 docs findings and 5 listed code findings."
+  }
+}

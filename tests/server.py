@@ -417,6 +417,15 @@ def check_dtype(model):
 
 def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
     srv = Server(model, *flags)
+    def check_idle(before):
+        time.sleep(0.02)
+        after = srv.get("/v1/health")["requests"]["live"]
+        assert after["total"] == 0 and after["items"] == [], after
+        assert after["sample_elapsed_ms"] >= before["sample_elapsed_ms"], (before, after)
+        assert all(after["work"][k] >= v for k, v in before["work"].items()), (before, after)
+        # A pending natural boundary may publish final work; idle polling cannot refresh an unchanged snapshot.
+        if after["work"] == before["work"]:
+            assert after == before, ("idle polling refreshed unchanged work", before, after)
     try:
         health = srv.get("/v1/health")
         assert health["status"] == "ok" and health["requests"]["now"]["active"] == 0, health
@@ -486,15 +495,14 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             expected[prompt] = reply["ids"]
             replies[prompt] = reply
             published += len(reply["ids"])
-            finished = srv.wait(lambda h: not h["requests"]["now"]["active"] and not h["requests"]["live"]["total"] and
-                                h["requests"]["live"]["work"] == h["work"]["since_start"], "completed work did not reach the final live sample")
+            finished = srv.wait(lambda h: not h["requests"]["now"]["active"] and not h["requests"]["live"]["total"],
+                                "completed request remained active or cached")
             work = finished["work"]["since_start"]
             assert set(work) == {"prefilled_tokens", "generated_tokens"} and work["generated_tokens"] == published, work
             assert isinstance(work["prefilled_tokens"], int) and work["prefilled_tokens"] > 0, work
             final_live = finished["requests"]["live"]
-            assert final_live["items"] == [] and final_live["work"] == work, final_live
-            time.sleep(0.02)
-            assert srv.get("/v1/health")["requests"]["live"] == final_live, "idle polls changed final work or its sample time"
+            assert final_live["items"] == [], final_live
+            check_idle(final_live)
 
         # The same requests four at a time give the same ids each.
         results = {}
@@ -548,8 +556,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         common.leave_mid_stream(srv.port, {"prompt": prompts[0], "max_tokens": long_n, "temperature": 0}, 64)
         cleared = srv.wait(lambda h: h["requests"]["now"]["active"] == 0 and h["requests"]["live"]["total"] == 0,
                            "a cancelled request stayed active or cached", 60)["requests"]["live"]
-        time.sleep(0.02)
-        assert srv.get("/v1/health")["requests"]["live"] == cleared, "idle cancellation polling refreshed the sample"
+        check_idle(cleared)
 
         # /v1/chat renders through the template and answers; the synthetic model's 16-token context has no room for a rendered turn.
         if chat:

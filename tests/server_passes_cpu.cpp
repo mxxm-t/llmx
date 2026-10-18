@@ -417,11 +417,48 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
         if (!ok && callback_error.empty()) callback_error = what;
         return ok;
     };
+    {
+        auto model = one(32 * kBlock, kUbatch);
+        server::Scheduler sched(*model, tok, 1, 64);
+        const Req request{prompt_of(3, 5, vocab), 1};
+        const auto h = sched.submit(request.prompt, params_of(request));
+        size_t retired = 0;
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            ++retired;
+            const auto s = sched.stats();
+            callback_require(!s.live.total && !s.live.count && !s.live.sample_elapsed_ms &&
+                             !s.live.prefilled_tokens && !s.live.published_tokens, "short request was sampled before demand");
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        };
+        std::thread runner([&] { sched.run(); });
+        server::Scheduler::LiveRequests final, repeated;
+        try {
+            drain(*h);
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            do {
+                final = sched.stats().live;
+                if (final.published_tokens == 1) break;
+                require(std::chrono::steady_clock::now() < until, "short completed request never reached its empty live snapshot");
+                std::this_thread::yield();
+            } while (true);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            repeated = sched.stats().live;
+        } catch (...) {
+            sched.stop(); runner.join(); throw;
+        }
+        sched.stop(); runner.join();
+        require(retired == 1 && !final.total && !final.count && final.sample_elapsed_ms > 0 &&
+                final.prefilled_tokens == request.prompt.size() && final.published_tokens == 1,
+                "short request's final snapshot lost completed work or its sample time");
+        require(final.sample_elapsed_ms == repeated.sample_elapsed_ms && final.prefilled_tokens == repeated.prefilled_tokens &&
+                final.published_tokens == repeated.published_tokens, "idle polls changed the short request's final sample");
+    }
     for (const Run run : {Run{1, 1}, Run{2, 2}}) {
         auto model = run.stages == 1 ? one(32 * kBlock, kUbatch) : split(run.stages)(32 * kBlock, kUbatch);
         server::Scheduler sched(*model, tok, kSeqs, 64, run.passes);
         const auto empty = sched.stats();
-        require(empty.prefilled_tokens == 0 && empty.published_tokens == 0, "new scheduler has nonzero work");
+        require(empty.prefilled_tokens == 0 && empty.published_tokens == 0 &&
+                empty.live.prefilled_tokens == 0 && empty.live.published_tokens == 0, "new scheduler has nonzero work");
         bool prompt_running = false, output_running = false, monotonic = true;
         bool live_prompt = false, live_output = false, live_reuse = false;
         std::map<uint64_t, server::Scheduler::RequestView> observed;
@@ -435,6 +472,11 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
             prompt_running = prompt_running || (s.finished == 0 && s.prefilled_tokens > 0);
             output_running = output_running || (s.finished == 0 && s.published_tokens > 0);
             if (!callback_require(s.live.count <= s.live.limit && s.live.count <= s.live.total, "live request snapshot exceeds its bound")) return;
+            callback_require(s.live.prefilled_tokens <= s.prefilled_tokens && s.live.published_tokens <= s.published_tokens,
+                    "snapshot work is ahead of current cumulative work");
+            const auto repeated = sched.stats().live;
+            callback_require(repeated.sample_elapsed_ms == s.live.sample_elapsed_ms && repeated.prefilled_tokens == s.live.prefilled_tokens &&
+                    repeated.published_tokens == s.live.published_tokens, "polls changed work before a scheduler boundary");
             callback_require(s.live.sample_elapsed_ms >= sampled, "live request sample time decreased");
             sampled = s.live.sample_elapsed_ms;
             std::set<uint64_t> ids;
@@ -453,8 +495,8 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
                 live_reuse = live_reuse || r.reused_tokens > 0;
                 callback_require(r.reused_tokens <= r.prompt_tokens && r.prefilled_tokens <= r.prompt_tokens - r.reused_tokens,
                         "live prompt work includes reused or generated rows on an unpaused request");
-                callback_require(r.prefilled_tokens <= s.prefilled_tokens && r.published_tokens <= s.published_tokens,
-                        "live request work exceeds aggregate work");
+                callback_require(r.prefilled_tokens <= s.live.prefilled_tokens && r.published_tokens <= s.live.published_tokens,
+                        "live request work exceeds its snapshot's aggregate work");
             }
         };
         const Req first{prompt_of(5, 513, vocab), 8};
@@ -492,7 +534,8 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
         const auto idle = sched.stats().live;
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         const auto idle_again = sched.stats().live;
-        const bool idle_ok = !idle.total && !idle.count && !idle_again.total && idle.sample_elapsed_ms == idle_again.sample_elapsed_ms;
+        const bool idle_ok = !idle.total && !idle.count && !idle_again.total && idle.sample_elapsed_ms == idle_again.sample_elapsed_ms &&
+                             idle.prefilled_tokens == idle_again.prefilled_tokens && idle.published_tokens == idle_again.published_tokens;
         sched.stop();
         runner.join();
         polling.store(false);
@@ -506,6 +549,8 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
         require(idle_ok, "idle polling advanced the cached snapshot or retained ended requests");
         require(done.prefilled_tokens == expected_prompt, "retired prompt work includes cached, generated or duplicate stage rows");
         require(done.published_tokens == expected_output, "published work differs from the channels' tokens");
+        require(done.live.prefilled_tokens == expected_prompt && done.live.published_tokens == expected_output,
+                "final empty snapshot lost cumulative work of completed requests");
         if (!model->keeps_state()) require(handles[1]->reused() > 0 && live_reuse, "the work check did not exercise a cached prompt");
     }
     auto model = one(32 * kBlock, kUbatch);
@@ -517,10 +562,12 @@ void live_work(const Make& one, const std::function<Make(size_t)>& split, const 
     bounded.on_retire = [&](const server::Scheduler::Retired&) {
         const auto s = bounded.stats();
         if (first_poll) {
-            callback_require(!s.live.total && !s.live.count && !s.live.sample_elapsed_ms, "an unrequested snapshot was collected");
+            callback_require(!s.live.total && !s.live.count && !s.live.sample_elapsed_ms &&
+                             !s.live.prefilled_tokens && !s.live.published_tokens, "an unrequested snapshot was collected");
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
             const auto repeated = bounded.stats();
-            callback_require(repeated.live.sample_elapsed_ms == s.live.sample_elapsed_ms && repeated.live.total == s.live.total,
+            callback_require(repeated.live.sample_elapsed_ms == s.live.sample_elapsed_ms && repeated.live.total == s.live.total &&
+                    repeated.live.prefilled_tokens == s.live.prefilled_tokens && repeated.live.published_tokens == s.live.published_tokens,
                     "polls changed a snapshot before a scheduler boundary");
             first_poll = false;
         }

@@ -556,19 +556,23 @@ Counter differences divided by the actual time between health samples give live 
 
 `requests.live` gives a cached per-request snapshot collected on demand at a scheduler round boundary: at most 64 records, active requests first, then paused and queued requests, with `total` and `omitted` preserving how many are not shown. Each record has an opaque server-local string ID, its phase, prompt and reused-token counts, retired prompt work, published-token count and elapsed milliseconds since receipt. No text or token IDs are exposed, and completed requests leave the snapshot. For one ID, pp/s and tg/s are the respective counter changes times 1000 divided by the change in `sample_elapsed_ms`, the monotonic snapshot time since scheduler creation. A new ID or a repeated timestamp supplies no rate observation; recovery prefill counts work again and pauses contribute elapsed time. Each health poll requests a refresh and returns the previous sample; concurrent polls coalesce, and polling never wakes the scheduler. A busy or waiting scheduler can therefore return stale samples, and the first poll may return an empty cache. Emptying the client request set clears cached records before the scheduler waits, while idle polls preserve the sample time. These are observed request work rates, with long passes visible on retirement, rather than kernel timings.
 
+`requests.live.work` contains cumulative `prefilled_tokens` and `generated_tokens` with the same meaning as `work.since_start`, sampled at that request snapshot's `sample_elapsed_ms`. Differences between these totals divided by the snapshot time difference give aggregate rates over the same interval as the request rows. The totals include completed requests and requests omitted by the record cap; summing visible rows cannot recover them. Top-level `work.since_start` remains available at health-read time, which can describe a different interval. A requested boundary updates completed work even when no request row was ever sampled; once idle work is unchanged, its counters and timestamp stay fixed. If no natural scheduler boundary follows a poll, the older cached sample can persist until work resumes, so a repeated timestamp still supplies no new rate observation.
+
 ## Health dashboard
 
 The separate [health dashboard](../tools/health_dashboard/README.md) collects
 `/v1/health` and serves charts on its own port. It uses the Python standard
 library, keeps bounded history in memory and sends no inference requests.
-When the API exposes `work.since_start`, sampled changes show live aggregate
-client prompt retirement and output publication per wall-clock second. A long
-pass is unobserved until retirement; zero does not establish idle hardware.
-Older APIs show an explicitly labeled completed-work fallback, whose prompt
-totals include cached tokens and advance at request completion. Missing live
-fields remain unavailable. Neither mode measures per-request or per-kernel
-speed. Runtime-reported topology describes backend assignments when available;
-neither placement nor cache reservations are physical GPU memory telemetry.
+When the API exposes `requests.live.work`, sampled changes show live aggregate
+client prompt retirement and output publication using totals captured beside
+the per-request snapshot. Rates use actual snapshot times over a rolling window;
+a long pass is unobserved until retirement, and zero does not establish idle
+hardware. Older live APIs with `work.since_start` use collector-time samples;
+the oldest APIs show a completed-work fallback whose prompt totals include
+cached tokens and advance at request completion. Missing live fields remain
+unavailable. Neither mode measures per-request or per-kernel speed.
+Runtime-reported topology describes backend assignments when available; neither
+placement nor cache reservations are physical GPU memory telemetry.
 
 
 ## The grouped `/v1/health` and help pages (2026-10-07)

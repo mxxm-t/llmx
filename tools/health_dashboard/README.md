@@ -25,31 +25,44 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
 
 ## Reading the charts
 
-- When health exposes `work.since_start`, prompt and output panels use its
-  `prefilled_tokens` and `generated_tokens` counters for live aggregate
-  wall-clock throughput over the actual interval between shared samples.
+- With `requests.live.work`, prompt and output panels use its
+  `prefilled_tokens` and `generated_tokens` counters for aggregate runtime rates.
   Prompt work excludes cache hits, background jobs and speculative work, but
   includes recovery re-prefill. Output counts tokens published to request
-  channels, including the first and accepted speculative tokens.
-- Older APIs use an explicitly labeled completed-work fallback. Those request
-  counters advance at request completion, and their prompt totals include cached
-  tokens. Missing live metrics remain unavailable. Lifetime totals beneath each
-  rate panel follow that panel's counter; the selected-window summary continues
-  to label completed-request counters separately.
-- Both rate panels have independent scales. Live rates are aggregate throughput,
-  not per-request or per-kernel speeds. Long passes reveal prompt work only at
-  retirement; zero does not establish that the engine was idle. Collection
-  remains shared, every two seconds by default, without per-token polling.
+  channels, including the first and accepted speculative tokens. Older live
+  APIs with `work.since_start` use the explicitly labeled collector-time
+  aggregate fallback. The oldest APIs use completed-request counters, which
+  advance at request completion and include cached prompt tokens. Missing live
+  metrics remain unavailable. Lifetime totals beneath each rate panel follow
+  that panel's counter; the selected-window summary continues to label
+  completed-request counters separately.
+- Both rate panels have independent scales. With `requests.live.work`, aggregate
+  PP/TG and per-request PP/TG use cumulative counters from the same runtime
+  snapshots over a 10-second rolling window; the actual denominator follows the
+  selected snapshot timestamps. Per-request rates require the same exact start
+  and end samples as the aggregate window and remain unavailable if either is
+  missing or the request is absent between observed samples. The dashboard
+  does not interpolate or poll more often. Repeated snapshots retain the last
+  measured rate as stale briefly, then become unavailable; counter resets and
+  collector gaps are unavailable rather than zero. A new per-request rate warms
+  until it has a full ~10-second runtime window. Old APIs retain the
+  collector-time aggregate fallback, which can differ from per-request runtime
+  rates. Long passes reveal prompt work only at retirement; zero does not
+  establish that the engine was idle. Collection remains shared, every two
+  seconds by default, without per-token polling.
 - When `requests.live` is present, the live-request cards show the capped
   request IDs, phase, elapsed time and prominent PP/TG rates. Expand a card's
   token-counter details for prompt/reused/prefilled/published counts.
   Rates use counter changes across distinct runtime samples and their
   `sample_elapsed_ms` timestamps, not browser poll timing. A new or reset
-  request has unavailable rates until its next sample; unchanged counters
-  produce a real zero rate. The card list shows how many live requests the API
-  omitted. Requests that start and finish between polls may not appear because
-  the endpoint exposes current live rows, not completed request history. It
-  contains no prompt text or token IDs.
+  request has unavailable rates until a full ~10-second window is available;
+  unchanged counters across a fresh window produce a real zero rate. A repeated
+  runtime snapshot is shown as stale. The `prefill` phase means no output has
+  been generated yet; it does not prove the scheduler is currently executing
+  that request. The card list shows how many live requests the API omitted.
+  Requests that start and finish between polls may not appear because the
+  endpoint exposes current live rows, not completed request history. It contains
+  no prompt text or token IDs.
 - Active and reusable device KV tokens are separate reservations reported by
   llmx. They are not measured GPU memory usage; the endpoint has no GPU
   utilization, physical VRAM use or per-request latency distribution.
@@ -64,6 +77,12 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
 The dashboard groups requests, cache tiers, drafting, scheduling and recovery.
 The searchable metrics explorer exposes the complete latest health document,
 including fields introduced by newer server versions.
+
+Run the focused rate-window regression with
+`python -m unittest tools.health_dashboard.test_ui_rates`. When Chrome or Edge
+is installed, it uses a local headless browser to execute the dashboard's rate
+helpers; otherwise the browser check is skipped. This adds no runtime
+dependency.
 
 The model placement panel shows realized topology when `/v1/health` includes
 `topology`: split mode, tensor width, layer stages and backend names. Expand

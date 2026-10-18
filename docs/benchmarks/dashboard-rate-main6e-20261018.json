@@ -1,0 +1,170 @@
+{
+  "scope": "Current-main dashboard integration build, focused native server checks, CPU output identity and device server component. Hosted CI remains pending.",
+  "base": "6e5665951f4ccf9ec70bf2a1a1292a255ef2f094",
+  "source": "bf8e84747180393c68a156d6344cad6cc578e4ed",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "build": {
+    "result": "PASS",
+    "finished_utc": "2026-10-18T20:45:06Z",
+    "cpu_set": "14",
+    "memory_bytes": 4294967296,
+    "network": "none",
+    "gpu_devices": [],
+    "targets": [
+      "llmx",
+      "llmx-server-passes-cpu-test",
+      "llmx-server-spec-test"
+    ],
+    "version": "llmx 0.1.0+gbf8e84747180 numerics 1c17b28fd6f51d43",
+    "binaries": {
+      "llmx": "b09886429fb115520d430f19920bff4c3e665eb9f656f08ad7d8f0fe56f87ac8",
+      "llmx-server-passes-cpu-test": "04693c265cd1ac30875328036f08ead55e630286a1ac32fa51012a520fa6dad6",
+      "llmx-server-spec-test": "926959cce151088348974710239bd5f3a8c2e37162edca74f83573d0b51678b6"
+    },
+    "container_id": "01ec38fcfeb8413b30589fb75704654049afc1317731941cbafe240e0dd4bb8c",
+    "container_removed": true,
+    "cleanup_checker_correction": "Original checker rejected Docker stdout [] despite exact-ID no-such-container error. Retained original logs; this is a checker-format failure, not a build or cleanup failure."
+  },
+  "logs": {
+    "build-info.sha256": "7f0da00aecc8a18f02915f553b5743f9cf287e94a2afa2194aa8af2d680638ab",
+    "build-outcome.txt": "a6f4913e039831eb645327a164dd977fdad9edf7714235083dba041c31aced00",
+    "cleanup-inspect.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup-inspect.json": "a5d968e5def37a614463ff635688197ac15af69939ecb1244916f6eebde00ec7",
+    "cleanup-rm.err": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cleanup-rm.out": "55965b577fe4f119cfdd6c54e407fc083b3f3f946c41df71193f680b01289b53",
+    "cleanup-verify.err": "e90b09b2608552ec50a16e850c7a742dc8e84885d5c32b48427d76ed0515eb25",
+    "cleanup-verify.out": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "cmake-build.log": "03a27fa617bdd59b9887527a65da14267b0209bdb3794425e7116ec8af39eecd",
+    "cmake-cache.sha256": "e63f3af198f8cc8e213cd5ea9f8d32f28fed723166836b80c0b6715401c7be8e",
+    "cmake-configure.log": "02ef4cb11d0cb22152bf0ae5598f0bd1ec46f5cd16b71e7872bc25b476067772",
+    "cmake-version.txt": "b97b48bec889d6be2a4aab67c9624a4d8622c76d96c77dd892148e8a01980a6d",
+    "compiler-version.txt": "8054c6879046741744cebffe520ce8f1c8e09315d3d197a0fd9484307bce85ab",
+    "container-cpusets-preflight.txt": "821e8c04a5bf9e030bc87bebac5f163b0e90ad5d5da4a4f7496f9b15aa568732",
+    "container-create.txt": "55965b577fe4f119cfdd6c54e407fc083b3f3f946c41df71193f680b01289b53",
+    "container-inspect.json": "12f6071eca3a25d3780a269d8f5b47b1080ad72bbecd601a9632c88c829c7ea0",
+    "container-resources.txt": "dbacc5fa8c13310164322e7dcd20c78e18ccb164134eaad2d5daca65f7e014e0",
+    "container-run.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "container.cid": "260f5cc4565a772112677bb64bd9694eff1bbebea9cf865f30181aab14f95d68",
+    "generated-config.sha256": "1ccfbc8b0f4c79923766b26a973a4b9adf996e8d732375efc44720ca44d06b26",
+    "host-processes-preflight.txt": "9919ece61a6ea03d41357b1290226f44a4d2e5d28c28ef5f250ba73a811c0a6b",
+    "libllmx-vulkan.sha256": "2e7b16d15cd44c0b1f8169a2aedb8edb93c8f038a823289730419019ec9eaff7",
+    "llmx-server-passes-cpu-test.sha256": "4ebc29f8746a5e90af072ef02260edd7ddf85a6f57d748a9af134be415c66009",
+    "llmx-server-spec-test.sha256": "61748c47d0421e2af4569ba3033bcb3462a30dfa47ffe5e859980e3658f241ef",
+    "llmx.sha256": "305677c03479337e8012efa92aa900e6d83599b1f8242c81e7d6dbd68e60610a",
+    "resource-preflight.txt": "9548b687f01e906ebb6010fcf7728010cb53be302655a441e45a0515a1690466",
+    "source-revision.txt": "05f3ae98d35d1e4e4088b606ce6a3b3d23acf6abfd6575059e9c1c2483078184",
+    "source-status.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "terminal-result.txt": "99f5e722c0bac347bd55ee298e17c15c596b1992ab33e95528fe23b9b26d70c4",
+    "testing-config.txt": "323e45c92b578c4a27d1d13bf9d78ecc19339549de9430e530e0f259f15ee5d8",
+    "version.txt": "5edc3f257b69f901e97ff38d69bf910ab901fefe8c6dadc055365b3450758ece",
+    "vulkan-config.txt": "5a0c9bea1e0f3b82459f750268dc81e9bf98dd1b1073fa1033a5506c01f9a113"
+  },
+  "local_evidence_root": "C:/Users/Marko/Desktop/Projects/llmx/build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main6e/collected-build-logs",
+  "runtime_checks": {
+    "native": {
+      "result": "PASS",
+      "checks": [
+        {
+          "test": "server-passes-cpu",
+          "checks": 357742,
+          "exit": 0
+        },
+        {
+          "test": "server-spec",
+          "checks": 134195,
+          "exit": 0
+        }
+      ],
+      "exit_code": 0,
+      "oom": false,
+      "container_removed": true,
+      "binary_unchanged": true,
+      "cpu_set": "12,13",
+      "memory_bytes": 4294967296,
+      "started": "2026-10-18T20:51:48.415757+00:00",
+      "finished": "2026-10-18T20:56:20.232593+00:00",
+      "result_sha256": "3fefe7ddbf1bc33652501b016dffdc1599b99054063288c3f2937956d990bc13",
+      "logs": {
+        "server-spec.stderr": "63dd5c3c18fe7a224e5b797d37ee7e2e91240f12bd491ec54aebd482416bd2dd",
+        "server-passes-cpu.stdout": "500b540c0bb9be611fc31621c0b3fc211ffe66509e4015ecdf346f5be6945605",
+        "run.log": "e4493ca6709f8f0091317e1fc77986ec55e21d72573fbbf4591defb066bc52fe",
+        "server-spec.stdout": "3d2d8247a5bafbf2a0ea1dfe8c4f2a8ab9afa9e0a35924119cefc18c6bfc40e3",
+        "server-passes-cpu.stderr": "200e3444d5001c1dbf562a6c724467bba98a26bd1201824b0536e97b559da513"
+      },
+      "evidence": "C:/Users/Marko/Desktop/Projects/llmx/build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main6e/focused-validation/collected-native"
+    },
+    "identity": {
+      "result": "PASS",
+      "versions": {
+        "before": "llmx 0.1.0+unknown numerics 1c17b28fd6f51d43",
+        "after": "llmx 0.1.0+gbf8e84747180 numerics 1c17b28fd6f51d43"
+      },
+      "results": [
+        {
+          "cell": "raw",
+          "byte_identical_text_and_ids": true,
+          "generated_ids": 64
+        },
+        {
+          "cell": "chat",
+          "byte_identical_text_and_ids": true,
+          "generated_ids": 64
+        }
+      ],
+      "exit_code": 0,
+      "oom": false,
+      "container_removed": true,
+      "binaries_and_baseline_build_unchanged": true,
+      "result_sha256": "c59193ad15eed773f114ab2b5dd46a27e9aa026f27bfa1a870b158d4fb3bde47",
+      "logs": {
+        "run.log": "cc8662882da9a06126a263570519e76dd5eef4a18b91c24c9d81a902376c21b4",
+        "chat-before.stdout": "2a3ad1b816cc0979829756f5c9b08401c14c20bd21e81697c2ac8dbc760b0987",
+        "raw-before.stdout": "4ec6a9792b47f0a80fad9c91f34c55961cb0a7771c7b428ca9681c87530d7824",
+        "raw-after.stderr": "beb7f1d4590749886341d87c2b67eec15497baf7b3d5d0e39e52a58a56b3c986",
+        "chat-after.stdout": "610187a6693ebf293079a9f72de516eaa6166606a5ce83f2d5f3f428e84f7d02",
+        "chat-before.stderr": "3f437392664d53ddce2553853acafa773bc56e718ddf9c70da84d36393a7c0ea",
+        "raw-before.stderr": "beb7f1d4590749886341d87c2b67eec15497baf7b3d5d0e39e52a58a56b3c986",
+        "chat-after.stderr": "979d5ff96e8d8ccef9a9ef484b434b769a112f0602f9b36e5a5a075eb4ec08d5",
+        "raw-after.stdout": "bf5779798fffa3e5c83a6bd898245dda22afeb6d0fb459035ab010ea0dc01949"
+      },
+      "evidence": "C:/Users/Marko/Desktop/Projects/llmx/build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main6e/focused-validation/collected-identity"
+    },
+    "gpu_server": {
+      "result": "PASS",
+      "exit_code": 0,
+      "oom": false,
+      "container_removed": true,
+      "binary_unchanged": true,
+      "physical_gpu": 0,
+      "cpu_set": "12,13",
+      "required_fixtures": true,
+      "started": "2026-10-18T20:58:42.145146+00:00",
+      "finished": "2026-10-18T21:01:17.755623+00:00",
+      "result_sha256": "f1ea084a741f681a9d87e6fba98529cf2b8cbd163532ec5054a43111379fff38",
+      "logs": {
+        "run.log": "a093c53709afcaf7da3a3944f82766bef47d5e3b86265dc12d2ef5c8ed1ae68e"
+      },
+      "evidence": "C:/Users/Marko/Desktop/Projects/llmx/build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main6e/focused-validation/collected-gpu-server"
+    }
+  },
+  "documentation": {
+    "docs": {
+      "result": "PASS",
+      "findings": 0,
+      "planted_faults": 21,
+      "exit_code": 0,
+      "command": "python -X utf8 tests/docs_check.py --exe ../.tmp-vulkan-ownership-landing-20261018/build-landing-vulkan-win/Release/llmx.exe",
+      "cli_sha256": "ae4f307b02ea304ebc1f59fd7af8accbd5f3b929c9fe71038bbc2d08a9140f65",
+      "cli_version": "llmx 0.1.0+g2d85bfc12858.dirty numerics a95f456bdd930fa2",
+      "scope": "Existing local binary used only for its help pages. src/cli, src/config.hpp and cmake/llmx-config.hpp.in are unchanged from 2d85bfc12858 and b50af594c to bf8e84747. No current-candidate Windows runtime claim."
+    },
+    "dead_code": {
+      "result": "PASS",
+      "listed_findings": 5,
+      "planted_faults": 18,
+      "exit_code": 0
+    },
+    "review": "Reviewed feature documentation against snapshot ownership, rate windows, freshness and update behavior; no stale feature behavior claim found.",
+    "remote_attempt": "Isolated docs-check upload rejected by automatic approval review before transfer or execution. Resolved with the existing local help-equivalent binary; no remote test result claimed."
+  }
+}

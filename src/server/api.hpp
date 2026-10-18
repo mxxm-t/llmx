@@ -266,7 +266,8 @@ private:
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
                   ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) +
                   "},\"live\":{\"sample_elapsed_ms\":" + n(s.live.sample_elapsed_ms) + ",\"limit\":" + n(Scheduler::LiveRequests::limit) +
-                  ",\"total\":" + n(s.live.total) + ",\"omitted\":" + n(s.live.total - s.live.count) + ",\"items\":[" + live + "]}}" +
+                  ",\"total\":" + n(s.live.total) + ",\"omitted\":" + n(s.live.total - s.live.count) +
+                  ",\"work\":{\"prefilled_tokens\":" + n(s.live.prefilled_tokens) + ",\"generated_tokens\":" + n(s.live.published_tokens) + "},\"items\":[" + live + "]}}" +
                   ",\"work\":{\"since_start\":{\"prefilled_tokens\":" + n(s.prefilled_tokens) + ",\"generated_tokens\":" + n(s.published_tokens) + "}}" +
                   ",\"reuse\":{\"since_start\":{\"forks\":" + n(s.prefix_hits) + ",\"tokens\":" + n(s.prefix_tokens) +
                   "},\"device\":{\"now\":{\"entries\":" + n(s.donors) + ",\"state_checkpoints\":" + n(s.checkpoints) + ",\"kv_tokens\":" + n(s.kv_donor_tokens) + "}}" +

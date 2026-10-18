@@ -1,0 +1,250 @@
+{
+  "schema": "dashboard-rate-current-main-integration-v1",
+  "scope": "Evidence for the dashboard rate fix rebased onto landed Vulkan ownership main, plus a separately pinned pre-landing checkpoint. No performance or numerical-kernel qualification is claimed.",
+  "source": {
+    "base": "92acbfb9d35f18097edfa9435ad52007d87d2f4e",
+    "head": "42bc9aff546946f5f8843ab31461d763e84703cd",
+    "branch": "integrate/dashboard-rate-main92ac-20261019",
+    "feature_commits": [
+      "70cb209d78ee39abab3d30854db3612a7e60bd4e",
+      "42bc9aff546946f5f8843ab31461d763e84703cd"
+    ],
+    "source_clean_before_build_and_after_checks": true,
+    "later_main_head": "5665bc8eb0484c527c3084f450ddcf04b46f7cea",
+    "later_main_note": "This source/build/CTest/Python server data is the historical 92ac checkpoint and excludes ownership, but its binary pins remain unchanged."
+  },
+  "windows_build": {
+    "result": "PASS",
+    "generator": "Visual Studio 18 2026",
+    "compiler": "MSVC 19.50.35728.0",
+    "configuration": "Release, Vulkan ON, BUILD_TESTING ON",
+    "workers": 2,
+    "targets": [
+      "llmx",
+      "llmx-server-passes-cpu-test",
+      "llmx-cache-scenario-test"
+    ],
+    "version": "llmx 0.1.0+g42bc9aff5469 numerics cf061fcd11e03d94",
+    "binary_sha256": "144a0a9cfc453ce7a72a6ed447c763cfe7018d28a8d0baf17f737def3a3770ca",
+    "server_passes_cpu_sha256": "53d16eee82535352dd92abdda6d2fae2cdeb7b7c85048cfd6fd360387056a628",
+    "cache_scenario_sha256": "4bbfc68d487c827337147e598b9e1bea62e495451d4212bb469e6b384b8771ae",
+    "log": "../../build-dashboard-rate-main92ac-20261019/integration-build.log",
+    "log_sha256": "193127bb392d83a0ecf7e85736728791bfb58aa139b7777bc13ffafe2ae2fa88",
+    "warnings": [
+      "C4457: scheduler local h shadows function parameter",
+      "C4456: cache_scenario local h shadows prior local"
+    ]
+  },
+  "focused_native_ctest": {
+    "command": "ctest --test-dir build-dashboard-rate-main92ac-20261019 -C Release -R ^(server-passes-cpu|cache-scenario|cache-scenario-production)$ --output-on-failure",
+    "result": "3/3 passed",
+    "tests": {
+      "cache-scenario": 58.69,
+      "cache-scenario-production": 14.76,
+      "server-passes-cpu": 201.74
+    },
+    "elapsed_seconds": 275.2,
+    "log": "../../build-dashboard-rate-main92ac-20261019/focused-native-ctest.log",
+    "log_sha256": "eebf94596ab33b93ebaf8357e627a6290004b6054959343bbc1052484e51dcdf"
+  },
+  "python_server": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-dashboard-rate-main92ac-20261019/Release/llmx.exe --only server --no-perf-floor",
+    "result": "PASS",
+    "fixture": "Qwen3-0.6B-Q8_0.gguf",
+    "fixture_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "coverage": "Synthetic server checks and real-model server checks, including the live work snapshot fields, concurrent/follow-up requests, cancellation, host-tier reuse and context shift.",
+    "expected_windows_skips": [
+      "Disk-tier exit checks require SIGTERM.",
+      "Disk-tier keep check requires SIGTERM."
+    ],
+    "log": "../../build-dashboard-rate-main92ac-20261019/python-server.log",
+    "log_sha256": "95e859cb17fe695556cc2039550c47be296446b333e9e8dadf800a9d6194ebc4"
+  },
+  "docs_dead_code": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-dashboard-rate-main92ac-20261019/Release/llmx.exe --only docs,dead-code",
+    "result": "PASS",
+    "docs_findings": 0,
+    "docs_planted_faults": 21,
+    "dead_code_findings": 5,
+    "dead_code_planted_faults": 18,
+    "log": "../../build-dashboard-rate-main92ac-20261019/docs-dead-code-final.log",
+    "log_sha256": "a175079774d43f0ad1ce58062d7f35224a8f08e4faafc6069a232715730cc722"
+  },
+  "carried_forward": {
+    "dashboard_assets": "No HTML, CSS or dashboard test asset changed while rebasing onto 92acbfb9d; prior focused browser evidence remains applicable.",
+    "prior_evidence": "dashboard-rate-main6e-20261018.json remains historical evidence for its pinned source and was not rewritten."
+  },
+  "post_ownership_rebase": {
+    "base": "5665bc8eb0484c527c3084f450ddcf04b46f7cea",
+    "head": "112161de0f560173eef9be7fb8e56e71ddd2094c",
+    "feature_commits": [
+      "8e4829631 test: require work totals in request snapshots",
+      "112161de0 Align dashboard throughput with request snapshots"
+    ],
+    "windows_build": {
+      "result": "PASS",
+      "configuration": "VS18 2026 Release, Vulkan ON, BUILD_TESTING ON, 2 workers",
+      "cli_version": "llmx 0.1.0+g112161de0f56 numerics a9d578d000982124",
+      "cli_sha256": "bab02f906829234a838cf8d9109cdae2e6f7118d77836111c870128557899c4f",
+      "build_log": "../../build-dashboard-rate-main5665-20261019/full-build.log",
+      "build_log_sha256": "41581cad5effcffd41c1209304eb1363dce43510a7eb4d81be17df9b066a7a1a"
+    },
+    "host_ctest": {
+      "result": "48/48 passed",
+      "elapsed_seconds": 827.89,
+      "workers": 1,
+      "excluded_device_tests": [
+        "mxfp4-vulkan",
+        "backend-vulkan",
+        "vulkan-buffer",
+        "vulkan-lifetime",
+        "vulkan-quantization",
+        "server-resume-device"
+      ],
+      "last_test_log": "../../build-dashboard-rate-main5665-20261019/Testing/Temporary/LastTest.log",
+      "last_test_log_sha256": "8ae007977fef1b147798df99c5830c792982bca678c59d31c1eeee782c1267fa"
+    },
+    "cpu_identity": {
+      "result": "PASS",
+      "baseline_revision": "5665bc8eb0484c527c3084f450ddcf04b46f7cea",
+      "baseline_binary_sha256": "660b0b5452d6654356274bd34f9f4b808584ae1be3c337046149a9e9b4410ceb",
+      "candidate_binary_sha256": "bab02f906829234a838cf8d9109cdae2e6f7118d77836111c870128557899c4f",
+      "numerics": "a9d578d000982124",
+      "cells": "Raw and chat prompts each generated 64 tokens; text bytes and exact token-ID lines matched.",
+      "evidence": "../../../build-live-dashboard-final-rig-20261017/dashboard-identity-main5665-result/result.json",
+      "evidence_sha256": "df5b2310b172529781ae3b089442db7837fbaeab957408b2b8d2bb86b695083f"
+    },
+    "dashboard_unit_browser": {
+      "result": "7/7 passed",
+      "sandbox_attempt": "Chrome launch failed with exit 2147483651 before assertions; retained as an environment failure, not a test assertion failure.",
+      "passed_log": "../../build-dashboard-rate-main5665-20261019/dashboard-unit-unsandboxed.log",
+      "passed_log_sha256": "5faa002a8a01ee33093a97c7250b82bf29adc67cf1ebd216c9a150ec3584e4d4",
+      "sandbox_log": "../../build-dashboard-rate-main5665-20261019/dashboard-unit.log",
+      "sandbox_log_sha256": "7e9e8c0bf410eb9f44a510066696b656dd428219b6ea0aa49e5745d3437b3b01"
+    },
+    "linux_vulkan_build": {
+      "result": "PASS; its pinned Linux Vulkan binary passed the targeted MI50 server component below. This does not claim a production-model inference result.",
+      "cli_version": "llmx 0.1.0+g112161de0f56 numerics a9d578d000982124",
+      "cli_sha256": "952b864af0f1bc6ba36b9bbc0d9fb96f88b1da1e8d6fc70f1042733a4ca5bcc5",
+      "manifest": "../../../build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main5665/collected-evidence/build-evidence.json",
+      "manifest_sha256": "c5fa02da92447bf4087a507b9586c4fe632673bd6d6cd31713bd0454f6fe2ceb"
+    },
+    "markdown_scope_review": "Peer review inventoried 110 tracked Markdown files against the base, cross-scanned health/snapshot/rate/fallback claims and reread the relevant pages; no stale claim or link was found.",
+    "hosted_ci": {
+      "result": "PASS, 7/7 jobs",
+      "run_id": 39178938535,
+      "head": "112161de0f560173eef9be7fb8e56e71ddd2094c",
+      "url": "https://github.com/mxxm-t/llmx/actions/runs/39178938535",
+      "jobs": [
+        "CPU (Linux TSan)",
+        "CPU (macos-15-intel)",
+        "HF reference (CPU)",
+        "CPU (ubuntu-24.04)",
+        "Vulkan backend (build, Linux)",
+        "CPU (Linux UBSan)",
+        "CPU (windows-2022)"
+      ],
+      "relevant_steps": [
+        "macOS Backend tests passed",
+        "HF reference: Many users through the server passed"
+      ],
+      "historical_mac_failure": {
+        "run_id": 39128237604,
+        "head": "01023d401c79bb62f7adf0da855a21737872bfae",
+        "result": "macOS Backend tests failed with exit 8; exact test name was not available from retained logs.",
+        "disposition": "Retained as historical; the later macOS Backend tests passed in run 39178938535."
+      },
+      "terminal_evidence": "../../../build-live-dashboard-final-rig-20261017/dashboard-ci-39178938535-terminal.json",
+      "terminal_evidence_sha256": "09b8b0882fe820a2456bb4234014bf24fa83c9f2d53e4a7a65c1f6d7b6ad8fb3",
+      "cpu_suite": {
+        "result": "PASS in the successful hosted run",
+        "coverage": "The Windows, Ubuntu, macOS, Linux TSan, and Linux UBSan jobs ran CTest and tests/run_tests.py with --require-tools; the HF reference job ran the required-baseline CPU suite and its server mix check, including Many users through the server.",
+        "workflow": "../../.github/workflows/ci.yml"
+      }
+    },
+    "historical_mi50_server": {
+      "result": "PASS, but does not carry to the current source",
+      "tested_candidate": "b96ceefb2fdba281abe673c0be8acffd67d8a242",
+      "component": "--device vulkan:0 --only server",
+      "result_sha256": "547cc4aa47b2f245e56b7696ec5274bdf089d92fa22297fbe06e8fc877b5118b",
+      "run_log_sha256": "d4b3e16dc0ac6dd251841f7773021639b602fb502d135dbe55e1880c9ffe8985",
+      "inapplicability": "The b96ceefb2 result does not carry to current server/test inputs; current-head coverage is recorded separately in mi50_server.",
+      "disposition": "Historical on b96ceefb2; current-head 112161de0 MI50 server check is recorded in mi50_server above."
+    },
+    "docs_dead_code": {
+      "result": "PASS",
+      "docs_findings": 0,
+      "docs_planted_faults": 21,
+      "dead_code_findings": 5,
+      "dead_code_planted_faults": 18,
+      "command": "python -X utf8 tests/run_tests.py --exe build-dashboard-rate-main5665-20261019/Release/llmx.exe --only docs,dead-code --no-perf-floor",
+      "log": "build-dashboard-rate-main5665-20261019/docs-dead-code-after-mi50.log",
+      "log_sha256": "a43a5c9e18e76518f5fc88e8e57d0280ed958e17978b50e326cb3d8c973c9a7e"
+    },
+    "pending_required_gates": [
+      "After the docs-only final landing revision exists, verify runtime/test/build inputs remain identical to this tested head.",
+      "Confirm main has not moved before fast-forward landing."
+    ],
+    "out_of_scope_not_run": [
+      "The six excluded GPU/device CTest cases; the targeted MI50 Python server component passed separately.",
+      "Performance or numerical-kernel qualification; this change makes no such claim.",
+      "A production-model MI50 inference run; the target-head server check used the pinned Qwen3-0.6B fixture."
+    ],
+    "mi50_server": {
+      "result": "PASS, 23 checks, 0 skips",
+      "command": "python3 -B -u -X utf8 /source/tests/run_tests.py --exe /build/llmx --device vulkan:0 --only server",
+      "tested_head": "112161de0f560173eef9be7fb8e56e71ddd2094c",
+      "source_unchanged": true,
+      "binary_version": "llmx 0.1.0+g112161de0f56 numerics a9d578d000982124",
+      "binary_sha256": "952b864af0f1bc6ba36b9bbc0d9fb96f88b1da1e8d6fc70f1042733a4ca5bcc5",
+      "vulkan_library_sha256": "9f8a1d401885224b956c2585d3b55ecaa510b69c86ee85e6befc1dbeddc9fd15",
+      "model": "Qwen3-0.6B-Q8_0.gguf",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "gpu": {
+        "physical_index": 0,
+        "render": "/dev/dri/renderD136",
+        "pci": "0000:03:00.0",
+        "unique_id": "cdca890173497dd5"
+      },
+      "resources": {
+        "cpuset": "4,5",
+        "cpu_quota": 2,
+        "memory_bytes": 4294967296,
+        "memory_swap_bytes": 4294967296,
+        "pids_limit": 256,
+        "core_limit": 0,
+        "network": "none"
+      },
+      "container_id": "dc30572a2e8050c7dbfabaa967bfaac8597f593c9eaff68bb9900e30443b4ba6",
+      "container_exit": 0,
+      "oom_killed": false,
+      "container_removed": true,
+      "started_utc": "2026-10-19T05:16:53.568635Z",
+      "finished_utc": "2026-10-19T05:19:06.984714Z",
+      "result_sha256": "0c17a238a1fa45590ae1387ed918595f4975898c3fc4ed7a61f0e11a69bd5e5b",
+      "run_log_sha256": "277875b1dbf79c8250bb576ec7eefc4465f9a231251d09fbe51859fabcf0ed05",
+      "container_inspect_sha256": "e3970677c78c60e98039116e636f07c3ff810e00801ac88d1e625ab9b76a78a0",
+      "local_summary": "../../../build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main5665/mi50-server-result.json",
+      "local_summary_sha256": "7733936238e43913872af3ce45de224d2265692b0ed3c7e11ec9e51d6906202e",
+      "remote_artifacts": "/zpool1/llmx-xdev-dashboard-rate-main5665-20261019/server-validation-main5665/",
+      "local_raw_artifacts": {
+        "directory": "../../../build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main5665/mi50-server-raw/",
+        "result.json_sha256": "0c17a238a1fa45590ae1387ed918595f4975898c3fc4ed7a61f0e11a69bd5e5b",
+        "run.log_sha256": "277875b1dbf79c8250bb576ec7eefc4465f9a231251d09fbe51859fabcf0ed05",
+        "container-inspect.json_sha256": "e3970677c78c60e98039116e636f07c3ff810e00801ac88d1e625ab9b76a78a0",
+        "start.json_sha256": "b53bc23d6fac6b01bb174c5b907af7919a8ebe02b2c63d7ae44c7aa3311687a1"
+      }
+    }
+  },
+  "pending_required_gates": [
+    "Verify runtime/build identity after the final docs-only landing revision.",
+    "Confirm main has not moved before fast-forward landing."
+  ],
+  "out_of_scope_not_run": [
+    "The six excluded GPU/device CTest cases; the targeted MI50 Python server component is separately required and passed.",
+    "Performance or numerical-kernel qualification; this change makes no such claim.",
+    "A production-model MI50 inference run; the targeted test used the pinned Qwen3-0.6B fixture."
+  ],
+  "production_rollout": "Not performed; landing and review remain pending."
+}

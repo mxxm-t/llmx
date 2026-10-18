@@ -440,6 +440,7 @@ public:
     struct LiveRequests {
         static constexpr size_t limit = 64;
         uint64_t sample_elapsed_ms = 0;
+        uint64_t prefilled_tokens = 0, published_tokens = 0;
         size_t total = 0, count = 0;
         std::array<RequestView, limit> items{};
     };
@@ -2891,11 +2892,14 @@ private:
     void snapshot_requests(const std::vector<std::shared_ptr<Request>>& active) {
         live_requested_ = false;
         const size_t total = active_count_.load() + paused_.size() + queue_.size();
-        if (!total && !live_.total) return;
+        const uint64_t prefilled = prefilled_total_.load(), published = published_total_.load();
+        if (!total && !live_.total && live_.prefilled_tokens == prefilled && live_.published_tokens == published) return;
         const auto now = Clock::now();
         live_.count = 0;
         live_.total = total;
         live_.sample_elapsed_ms = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(now - live_started_).count();
+        live_.prefilled_tokens = prefilled;
+        live_.published_tokens = published;
         const auto append = [&](const Request& r, const char* phase) {
             if (live_.count == LiveRequests::limit) return;
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - r.received_).count();

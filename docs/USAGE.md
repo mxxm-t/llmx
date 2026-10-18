@@ -895,6 +895,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `requests.limits.active`, `.queued` | requests | fixed | `--max-seqs` and `--max-queue` | |
 | `requests.live` | | cached on demand | Up to 64 client requests, active first, then paused and queued; `total` counts all, `omitted` counts those past `limit`, and `items` contains the exported records | a growing `omitted` means some waiting requests are not listed |
 | `requests.live.sample_elapsed_ms` | milliseconds | monotonic sample | Actual snapshot time since scheduler creation; health requests a refresh at the next natural scheduler round boundary, so repeated polls can return the same sample | derive rates only between samples whose time increased |
+| `requests.live.work.prefilled_tokens`, `.generated_tokens` | tokens | cached cumulative totals | The `work.since_start` counters captured at `sample_elapsed_ms`, including completed requests and requests omitted from `items` | use changes over the same snapshot interval as request rates; visible rows need not sum to these totals |
 | `requests.live.items[]` | | cached on demand | Opaque server-local string `id`, `phase` (`queued`, `paused`, `prefill` or `generate`), `prompt_tokens`, `reused_tokens`, `prefilled_tokens`, `published_tokens` and `elapsed_ms` since receipt; no request text or token IDs | for one ID, live pp/s and tg/s are counter changes times 1000 divided by the sample-time change |
 | `requests.since_start.finished` | requests | since start | Clients' requests that were admitted and ended, by any cause, a read-again job not counted; a request is added just after its reply is complete, so a poll right after a reply may not show it yet | |
 | `requests.since_start.prompt_tokens`, `.generated_tokens` | tokens | since start | Prompt tokens and generated tokens of those requests | |
@@ -962,6 +963,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `timing` | milliseconds | since start | With `--timing` only: the means of the rounds' parts, `stage_idle_share` (a fraction of the span for each stage) and `device_bound_rows_per_s` | |
 
 The aggregate `work.since_start` counters are available without `--timing` and advance while requests are still running. Their sampled rates include concurrency and idle time; they are not per-request or per-kernel PP/TG speeds. A long pass contributes prompt rows only at retirement, so a zero change does not establish that the engine was idle. Keep gaps for missing samples or fields, counter decreases and restarts. The completed-request counters under `requests.since_start` remain separate and include reused prompt tokens.
+
+For aggregate and per-request rates over one interval, use `requests.live.work` and `requests.live.items` from the same two snapshots, divided by the change in `sample_elapsed_ms`. Top-level `work.since_start` is read at health-request time and may describe a different interval. Polling does not wake the scheduler: without a later natural round boundary, an older cached snapshot can persist even after work finishes. A repeated timestamp supplies no new rate observation.
 
 The flat field names this reply had before (`prefix_hits`, `host_donors`, `disk_ready`, `drafted` and the rest) are gone, and `docs/SERVER.md` (The grouped `/v1/health`) maps each to its place.
 

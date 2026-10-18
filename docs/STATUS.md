@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## CTest failure output annotations (2026-10-18, lands by fast-forward)
+
+- **Goal:** make a hosted CTest failure actionable from the public check-run annotations while preserving the original test result.
+- **Done:** builds on the existing annotation feature from `ci/failed-test-annotations` (`d34fca7`), whose hosted run 38847426644 passed on 2026-10-16. This local change adds escaped, bounded excerpts from matching CTest `Output:` blocks, explicit missing/truncated-log notes, and an outcome argument so a missing failure list on success is quiet. The timing notice retains every matching entry up to its message bound. The annotation step remains `continue-on-error`; CTest's result remains authoritative.
+- **Checked locally:** the focused fixture suite passes 7/7; `dead-code` passes (5 known findings, 18 planted faults) and `docs` passes (0 findings, 21 planted faults). The Markdown review inventoried 110 tracked pages against `3cfb0ed70`; only `docs/CI.md` and this entry changed, both reviewed against the helper and workflow, with no stale claims found. The previous hosted run validates the existing feature only, not these local additions.
+- **Landing checks:** hosted run [39131729156](https://github.com/mxxm-t/llmx/actions/runs/39131729156) passed all seven jobs at `6a483f68ff9a57ea13a54eab2386db849633b33d`, including the focused fixtures and the helper invocations in the CPU, UBSan and Vulkan jobs. This final update changes only this STATUS record; source, tests, workflow and build inputs are identical to that tested revision. Docs and dead-code checks pass on the landing tree. The branch lands as one commit by fast-forward from `3cfb0ed70`; the temporary CI branch is removed after remote verification. The separate dashboard run's macOS failure is not waived by this result.
+
 ## The host pool gives idle memory back in runs said once, and takes none ahead in between (2026-10-18, branch fix/host-give-back-line, lands by fast-forward as two commits)
 
 - **Why:** after production's restart at 11:16 on 2026-10-17 the server said "N MiB of idle host memory given back, the host being short of memory" every second (64 to 832 MiB a time): the host's free memory fell below the pool's reserve while it adopted 1302 kept entries through the file cache, and between two looks the idle growth took slabs again (it was armed again at the first look that gave nothing back), which the next look gave back.

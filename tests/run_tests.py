@@ -45,6 +45,7 @@ def main():
             stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description="Run llmx tests against the selected binary.")
     parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
+    parser.add_argument("--annotate", action="store_true", help="print the failed components as one GitHub workflow error annotation after the summary")
     parser.add_argument("--no-perf-floor", action="store_true", help="report timings without workstation-specific floors")
     parser.add_argument("--require-baseline", action="store_true", help="fail if any gate model pinned in tests/data/fixtures.json is absent")
     parser.add_argument("--require-tools", action="store_true",
@@ -141,6 +142,8 @@ def main():
     failed = [n for n, ok in results if not ok]
     for n, ok in results:
         print("  %-10s %s" % (n, "SKIP" if ok == common.SKIPPED else "PASS" if ok else "FAIL"))
+    if args.annotate and failed:
+        print("::error title=Suite components failed::%s" % ", ".join(failed))
     return 1 if failed else 0
 
 

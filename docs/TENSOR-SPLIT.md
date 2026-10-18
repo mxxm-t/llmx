@@ -241,6 +241,11 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
     It makes every group test runnable on the hosted runners.
   - **Vulkan:** each member's partial is written into every peer's inbox, device memory exported as dma-buf, and the member's submission signals a binary semaphore exported as a sync file; each member's sum runs in its next submission, which waits on its peers' semaphores, and reads its inbox.
     Inboxes alternate by parity, so a member writes an inbox only after every peer has read its previous contents, which the wait chain guarantees, as MULTI-DEVICE's exchange epochs require.
+    Each producer releases the copied buffer range from its queue family to `VK_QUEUE_FAMILY_FOREIGN_EXT` before signaling; the consumer acquires the same range after its semaphore wait and before reading it.
+    The devices are separate Vulkan instances on different physical devices, so `VK_EXT_queue_family_foreign` is required and enabled with the memory and semaphore extensions; `VK_QUEUE_FAMILY_EXTERNAL` does not describe this transfer.
+    The same rule covers both the inbox and gather ranges of a two-shot sum.
+    A producer's next copy discards the old contents and overwrites the entire range the next consumer reads, so no preserving return transfer is needed; the existing wait chain still orders the previous consumer before that overwrite.
+    Acquires are recorded only after a successful exchange. On failure the existing drain precedes semaphore recreation, and retry starts with new discard writes.
     It is Linux-only, as sync files and dma-buf are; on Windows a group of Vulkan devices is refused by name and the Radeon VII, a single device, is untouched.
   - **ROCm,** when that backend exists: peer stores into fine-grained memory with flags, the fork's measured path, behind the same call.
 - **The reference's mechanism against Vulkan:** the reference reaches visibility because its peer stores are write-through and its flags uncached in the writer's own mapping of the peer's memory, which HIP sets for fine-grained allocations.

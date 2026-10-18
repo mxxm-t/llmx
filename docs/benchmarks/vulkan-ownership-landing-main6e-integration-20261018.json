@@ -1,0 +1,161 @@
+{
+  "schema": "vulkan-ownership-landing-main-integration/v1",
+  "date": "2026-10-18",
+  "scope": "Current-main integration evidence for the Vulkan ownership candidate. No performance or hosted qualification claim.",
+  "source": {
+    "main": "6e5665951f4ccf9ec70bf2a1a1292a255ef2f094",
+    "candidate": "6762420d652f30ee18e0b0c986e798973960b0c1",
+    "before": "b8ca7c2dec9e2dc91e654dd84842ad3ab854a809",
+    "intervening_delta": {
+      "paths": [
+        "src/model/history.hpp",
+        "src/model/runtime.hpp",
+        "src/server/api.hpp",
+        "src/server/reuse.hpp",
+        "src/server/scheduler.hpp",
+        "tests/kv_cache.cpp",
+        "tests/server_resume.cpp"
+      ],
+      "vulkan_backend_or_kernel_changed": false,
+      "description": "Host-history slab fit/allocation and server/cache accounting and turn behavior changed."
+    }
+  },
+  "builds": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "constraints": {
+      "cpu_set": "14",
+      "memory_bytes": 4294967296,
+      "memory_swap_bytes": 4294967296,
+      "network": "none",
+      "gpu_devices": []
+    },
+    "generated_config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "before": {
+      "source_archive_sha256": "127b15652aa192913262751ab88cd3bb1abe30527f040abc924973165504c28e",
+      "build_record_sha256": "8220fea0aae2b0275a870f1e1d27c3682739ebd9b27183af7f49fe42e424c2f3",
+      "configure_log_sha256": "44d112629e1896f0760d33f629af2e5bedb8af2d90d5e5e50779484ae996c54d",
+      "build_log_sha256": "d13513ffbdbb659b4d2512adc472289e54d6c890785399806cb72eccca34347f",
+      "version": "llmx 0.1.0+unknown numerics 1c17b28fd6f51d43",
+      "binary_sha256": {
+        "llmx": "368d7211f391b2f33072cf2325aba534820561923d516cb9edc35121b7c8300c",
+        "llmx-model-logits": "226ba60372343eb7688ca4511fc17ff821e93f2856a910df11821767408bb8ef",
+        "llmx-decode-probe": "6d14a7404cbdd1029c19a5c3a9efeb2efb6fa574dab72a5f83bb89da7c09edff"
+      },
+      "container_removed_and_exact_id_absence_verified": true
+    },
+    "after": {
+      "source_archive_sha256": "deb43b5269ee11d687adbe4a89038771a7b21108c863108bc576fe5086ba29d7",
+      "build_record_sha256": "dd140d5daf53c170f481ad7afee1bdb9bb7a382e01536379c7fa2cf0c9b53690",
+      "configure_log_sha256": "3a97b9dc0ac0a6ec567e4925fb1c842a949c9d87890ce3196c13b084791f5224",
+      "build_log_sha256": "5345f001b92246c8db29cd24d1d68da15736cad3c9d73ceda06f8d6cd8e2d52b",
+      "version": "llmx 0.1.0+unknown numerics cbbb48e4ddb8ca5f",
+      "binary_sha256": {
+        "llmx": "ebe1a4b3a62b0c98e8312c36f5e43438610e62ac2aa5a10dd16dd64005eee1c4",
+        "llmx-model-logits": "dcce6893a8770fcbea5a1bd24fb60e1757fc36fff7f356eebf504d9b20c95107",
+        "llmx-decode-probe": "772247be56be667ff63870767de821b229b89a9bcc6aba424d8e95a414dfb9e4"
+      },
+      "focused_test_binaries_sha256": {
+        "llmx-kv-cache-test": "ae3fa000ab29c40e97ea0ed9cc13ec0923e76892e1ffd67fbe226a7524384450",
+        "llmx-arch-qwen35-test": "1e612bee4fd1861907ac749a221239a381300789afa7b4cec808b85774a97a22",
+        "llmx-server-resume-test": "8914ae0208b89984dd5888c099b543753d1d7140aa0a1c3513defbed5a9c55f0"
+      },
+      "container_removed_and_exact_id_absence_verified": true
+    },
+    "local_evidence_root": "build-live-dashboard-final-rig-20261017/ownership-landing-main2b-20261018/collected-integration-main6e"
+  },
+  "focused_cpu_integration": {
+    "source_commit": "6762420d652f30ee18e0b0c986e798973960b0c1",
+    "result": "PASS",
+    "checks": {
+      "kv_cache": "pass",
+      "arch_qwen35": "818 checks passed",
+      "server_resume_cpu_resume": "pass; 409139 checks passed",
+      "server_resume_cpu_cache": "pass; 101760 checks passed"
+    },
+    "binary_unchanged": true,
+    "container_removed": true,
+    "result_json_sha256": "8aa059b1cf79a02efd60e829418e2c57488d1d885d0e8e3d42cfa10beecb8c4b",
+    "stdout_sha256": "a267f2a4f05eba3f9b7a79e711054125864e62ffd0eb411443b642705b38753d",
+    "stderr_sha256": "9e398f4915de302d63aa5bc0206673f203b21b44facc30014dfd701ed1b3acee",
+    "evidence_path": "build-live-dashboard-final-rig-20261017/ownership-landing-main2b-20261018/collected-focused-cpu"
+  },
+  "focused_device_integration": {
+    "source_commit": "6762420d652f30ee18e0b0c986e798973960b0c1",
+    "result": "PASS",
+    "checks": {
+      "server_resume_vulkan": "11614 checks passed",
+      "python_server_component": "PASS"
+    },
+    "exit_code": 0,
+    "oom": false,
+    "binary_unchanged": true,
+    "container_removed": true,
+    "container_id_absent": true,
+    "container_id": "2b7b5aae21a78fdd5d002960ca98e094490fa8594bb9c968e5a2d6f573abc1cc",
+    "result_json_sha256": "75be09ed565835d88db2006ac818fcc05e81910e53d82e244f640d550854e437",
+    "stdout_sha256": "40b9ff3afed9d3ea485a2eb5b23a2c03c0b000224e778d9e844686ef490c45f2",
+    "stderr_sha256": "7ca1dc190287ba2e1674ac6213cefdfe974016736ee25ad8a25f68ad246b5e6f",
+    "evidence_path": "build-live-dashboard-final-rig-20261017/ownership-landing-main2b-20261018/collected-focused-device"
+  },
+  "identity": {
+    "result": "PASS",
+    "cells": 52,
+    "calls": 104,
+    "breakdown": {
+      "trunk_cases": 28,
+      "trunk_shapes": ["CPU", "width2", "width4", "staged-width2"],
+      "mtp_cases": 24,
+      "mtp_shapes": ["CPU", "width2", "width4"],
+      "staged_mtp_covered": false,
+      "mtp_scope": "single-group draft probe"
+    },
+    "models": ["dense", "Qwen3 untied", "Qwen3 tied", "Qwen3-MoE", "Qwen3-MoE Q8_0", "Qwen3.5", "Qwen3.5-MoE"],
+    "all_exit_zero": true,
+    "oom": false,
+    "binaries_unchanged_during_runs": true,
+    "all_containers_removed": true,
+    "per_call_logs_hash_verified": true,
+    "before": {
+      "source_commit": "b8ca7c2dec9e2dc91e654dd84842ad3ab854a809",
+      "llmx_sha256": "368d7211f391b2f33072cf2325aba534820561923d516cb9edc35121b7c8300c",
+      "model_logits_sha256": "226ba60372343eb7688ca4511fc17ff821e93f2856a910df11821767408bb8ef",
+      "decode_probe_sha256": "6d14a7404cbdd1029c19a5c3a9efeb2efb6fa574dab72a5f83bb89da7c09edff"
+    },
+    "after": {
+      "source_commit": "6762420d652f30ee18e0b0c986e798973960b0c1",
+      "llmx_sha256": "ebe1a4b3a62b0c98e8312c36f5e43438610e62ac2aa5a10dd16dd64005eee1c4",
+      "model_logits_sha256": "dcce6893a8770fcbea5a1bd24fb60e1757fc36fff7f356eebf504d9b20c95107",
+      "decode_probe_sha256": "772247be56be667ff63870767de821b229b89a9bcc6aba424d8e95a414dfb9e4"
+    },
+    "summary_sha256": "2b53363304cd74127741f194471d0aac4f619fabc257067e7b83545d46ec7ec9",
+    "plan_sha256": "106d55274e5867e9d454062381db70694d5cdae56cee622985dfcbfc6b0a9b65",
+    "collection_manifest_sha256": "def17a1e5b3118d6b0a045caa04c4187e4054acac08171e06b11abe8232738c2",
+    "remote_root": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/identity",
+    "local_evidence_root": "build-live-dashboard-final-rig-20261017/ownership-landing-main2b-20261018/collected-identity-main6e"
+  },
+  "carry_forward": {
+    "vulkan_source_unchanged_from_main2b": true,
+    "direct_inference_tool_hashes_match_between_arms": false,
+    "same_arm_helper_hashes_match_prior_main2b_builds": true,
+    "note": "The model-logits and decode-probe binaries match their corresponding previously tested main-2b arm, but the before and after hashes differ across arms. New 52-cell identity compares both current-base arms directly. Existing main-2b multi-device and Radeon VII evidence remains scoped to its recorded revisions; it does not validate the intervening host-history/server changes."
+  },
+  "historical_main2b_device_evidence": {
+    "scope": "Historical evidence only; source and runtime setup remain pinned in the existing device and suite records.",
+    "test_first_runtime": "red: missing-acquire checks fail on baseline; green: candidate passes 374 peer reads, 25 negative witnesses, mixed modes and failure recovery at widths 2/3/4.",
+    "device_suite": "27/27 available Linux components passed; raw-blocks passed separately on Windows with NumPy because the pinned Linux image lacks NumPy.",
+    "radeon_vii": "PASS in 38.69 seconds; single device, no collective coverage."
+  },
+  "pending": {
+    "hosted_ci": "pending",
+    "landing_audit": "pending"
+  },
+  "markdown_review": {
+    "base_head": "6762420d652f30ee18e0b0c986e798973960b0c1",
+    "tracked_markdown_pages": 110,
+    "changed_markdown_pages": ["docs/STATUS.md"],
+    "unchanged_markdown_pages": 109,
+    "review": "Compared this checkpoint's documentation delta with the prior 110-page inventory; only STATUS.md changed among tracked Markdown pages. Existing historical ownership, build, device and suite records were preserved."
+  },
+  "qualification": false,
+  "performance_claim": false
+}

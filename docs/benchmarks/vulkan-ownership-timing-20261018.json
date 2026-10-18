@@ -1,0 +1,130 @@
+{
+  "scope": "Matched descriptive timing screen for the Vulkan external-buffer ownership fix; not a performance qualification or Flash 16K causal result.",
+  "evidence_paths_base": "worktree root",
+  "base": "aa598d007",
+  "fix": "4a8958dac",
+  "linux_builds": {
+    "main_sha256": "93e1b324b7cc2bd2ad6dd7a4bf18e0d6b76756be8e8b951dbc2395f54618e584",
+    "fix_sha256": "e3f058f21557601077855faefa4e1fd172aafb7bc5477dd94ebd3bfc843e3edf",
+    "binary_identity_checks": "Completed separately within the bounded scope in vulkan-ownership-identity-20261018.json; this does not complete full qualification."
+  },
+  "settings": {
+    "prompt_tokens": 512,
+    "generation_tokens": 128,
+    "repetitions": 3,
+    "ubatch": 512,
+    "activation_type": "f32",
+    "cache_k": "f32",
+    "cache_v": "f32",
+    "threads": 2,
+    "order": "ABBA (main, fix, fix, main)",
+    "retention": "All planned successful blocks and the initial main refusal are retained; no timing sample was dropped."
+  },
+  "timings": [
+    {
+      "cell": "dense-width2",
+      "phase": "pp512 tok/s",
+      "main": 2647.43,
+      "fix": 2648.385,
+      "change_percent": 0.0361,
+      "main_samples": [2654.01, 2640.85],
+      "fix_samples": [2656.1, 2640.67]
+    },
+    {
+      "cell": "dense-width2",
+      "phase": "tg128 tok/s",
+      "main": 94.26,
+      "fix": 94.145,
+      "change_percent": -0.122,
+      "main_samples": [94.58, 93.94],
+      "fix_samples": [93.93, 94.36]
+    },
+    {
+      "cell": "dense-width4",
+      "phase": "pp512 tok/s",
+      "main": 4989.94,
+      "fix": 4947.385,
+      "change_percent": -0.8528,
+      "main_samples": [5002.05, 4977.83],
+      "fix_samples": [4955.94, 4938.83]
+    },
+    {
+      "cell": "dense-width4",
+      "phase": "tg128 tok/s",
+      "main": 54.915,
+      "fix": 54.365,
+      "change_percent": -1.0015,
+      "main_samples": [55.03, 54.8],
+      "fix_samples": [54.66, 54.07]
+    },
+    {
+      "cell": "dense-staged-width2",
+      "phase": "pp512 tok/s",
+      "main": 2509.295,
+      "fix": 2509.49,
+      "change_percent": 0.0078,
+      "main_samples": [2521.69, 2496.9],
+      "fix_samples": [2508.38, 2510.6]
+    },
+    {
+      "cell": "dense-staged-width2",
+      "phase": "tg128 tok/s",
+      "main": 83.01,
+      "fix": 82.7,
+      "change_percent": -0.3734,
+      "main_samples": [83.37, 82.65],
+      "fix_samples": [82.42, 82.98]
+    },
+    {
+      "cell": "hybrid4b-width4",
+      "phase": "pp512 tok/s",
+      "main": 824.46,
+      "fix": 825.935,
+      "change_percent": 0.1789,
+      "main_samples": [822.81, 826.11],
+      "fix_samples": [827.64, 824.23]
+    },
+    {
+      "cell": "hybrid4b-width4",
+      "phase": "tg128 tok/s",
+      "main": 27.42,
+      "fix": 27.51,
+      "change_percent": 0.3282,
+      "main_samples": [27.39, 27.45],
+      "fix_samples": [27.75, 27.27]
+    }
+  ],
+  "initial_refusal": {
+    "cell": "hybrid0.8b-width4-main",
+    "outcome": "The main arm refused before producing a timing sample because width 4 splits blk.0.ffn_down.weight off whole Q6_K blocks. Retained separately; it is not counted among successful blocks."
+  },
+  "activity": {
+    "monitor_errors": 0,
+    "activity_flags_recorded": true,
+    "background_activity_present": true,
+    "interpretation": "Activity flags and process, system CPU, disk, and other-GPU readings are in the source summaries. Small measured effects from -1.0015% to +0.3282% are descriptive; they do not prove a meaningful gain, regression, or no regression. No matching code-layout control has been run."
+  },
+  "windows_backend": {
+    "test": "backend-vulkan on Radeon VII",
+    "result": "passed",
+    "elapsed_seconds": 34.43,
+    "binary_version": "llmx 0.1.0+g4a8958dac521 numerics 9cb1b47024711ea3",
+    "binary_sha256": "00F867C301FF21360DA2BE77B7CBB2A2BBF2903F7C2F0AE16D6E6556B7A04082",
+    "compile_log": "build-ownership-win/landing-targets-build.log",
+    "test_log": "build-ownership-win/radeon-vii-backend.log"
+  },
+  "source_summaries": [
+    {
+      "path": "../build-live-dashboard-final-rig-20261017/vulkan-ownership-timing-summary-20261018.json",
+      "sha256": "3A72E30133E02A29752C884E2B76C351F45325175DDB66DECC63353FE29C7182"
+    },
+    {
+      "path": "../build-live-dashboard-final-rig-20261017/vulkan-ownership-timing-hybrid4b-summary-20261018.json",
+      "sha256": "9C5ABFD66F00A9111F37DAA5FB6A79B1F93EC55F4E07DBC733F3A24619945820"
+    }
+  ],
+  "left_open": [
+    "The full candidate build is still running; broader CTest/device coverage, hosted CI, applicable merge gates, and a matched layout control are not complete.",
+    "The original Flash 16K correctness issue remains unresolved; this timing screen does not establish its cause."
+  ]
+}

@@ -1,0 +1,743 @@
+{
+  "schema": "llmx-vulkan-ownership-batching-build-evidence-v1",
+  "scope": "Bounded Linux Vulkan-enabled build, focused Vulkan ownership trace, and exploratory matched timing screen; no accepted performance result.",
+  "source": {
+    "base": "185e645922fc3ecf9909b7f914fd5b3de5f687d6",
+    "head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+    "bundle_sha256": "645543ecf14cad131142455e2c02c6539db51e4a336e3fea6e629b6e30867701",
+    "clean_before_after": true,
+    "base_clean_and_unchanged": true,
+    "dependency": {
+      "base": "b93a89f0e",
+      "required_unmerged_external_buffer_ownership_fix": "4a8958dac"
+    }
+  },
+  "build": {
+    "started_utc": "2026-10-18T08:45:43.226705Z",
+    "finished_utc": "2026-10-18T08:47:45.552680Z",
+    "exit_code": 0,
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "container_name": "llmx-xdev-ownership-batch-v2-5a84735497b5",
+    "container_id": "1a04cf2541680abf4e7074b1f8e03a34e751360d38ad23a18f5d47351efa62a6",
+    "container_removed": true,
+    "cpus": "4,5",
+    "memory_and_swap": "4g",
+    "network": "none",
+    "gpu_devices_mounted": false,
+    "targets_built": [
+      "llmx",
+      "llmx-vulkan-lifetime-test"
+    ],
+    "runtime_invoked": "llmx --version only; lifetime-test executable was not run",
+    "llmx": {
+      "sha256": "534e06207e037ee3433cd602ad9cdac27165047ee793e50f23268b7d1173f99d",
+      "version": "llmx 0.1.0+ge2c3f3722830 numerics 7ad59e11b7e88cd6"
+    },
+    "llmx_vulkan_lifetime_test_sha256": "04b0f4c2a5a135a7e77fd39c8e81e711559d8ce80ee3cdda48aba0cf36becf10"
+  },
+  "evidence": {
+    "local_result": "build-live-dashboard-final-rig-20261017/ownership-batching-linux-build-result.json",
+    "local_result_sha256": "2587d287326914faded1b7d2b419c36129d0a1b871c415176e75260c5b3a2829",
+    "remote_build_log": "/zpool1/llmx-xdev-vulkan-ownership-20261018/batching-e2c3f372/evidence/build.log",
+    "remote_build_log_sha256": "7c299b33fecdc99acaa39734e55598334f05ac357f74835b0de229b1452dc30d",
+    "start_record_sha256": "79c7bbadebb3a5c21f3172f21d2914ec5adc38d9423edad457025290b22dbd31"
+  },
+  "markdown_review": {
+    "comparison_base": "b93a89f0e",
+    "tracked_files": 110,
+    "unchanged_git_blobs": 108,
+    "changed_files": [
+      "docs/STATUS.md",
+      "docs/src/backends-vulkan.md"
+    ]
+  },
+  "focused_checks": {
+    "command": "python tests/run_tests.py --exe build-batch-win/Release/llmx.exe --only docs,dead-code",
+    "scope_note": "Final-tree docs/dead-code checks after the timing and STATUS update; no runtime/build/test gates were run.",
+    "docs": {
+      "result": "pass",
+      "findings": 0,
+      "planted": 21
+    },
+    "dead_code": {
+      "result": "pass",
+      "findings": 5,
+      "listed": 5,
+      "planted": 18
+    },
+    "cli_sha256": "61d0ef13d64e25077706d328043fb74c43dc7f3851140fb7b7c26e27f49826c8",
+    "cli_version": "llmx 0.1.0+gb93a89f0ed07.dirty numerics 7ad59e11b7e88cd6",
+    "local_log": "build-live-dashboard-final-rig-20261017/batching-final-docs-dead-code.log",
+    "local_log_sha256": "c94ef2c1511404248a223c16068297f883a6e38f13389030133154559321f4e3"
+  },
+  "focused_collective_trace": {
+    "result": "pass",
+    "started_utc": "2026-10-18T08:52:21.945746Z",
+    "finished_utc": "2026-10-18T08:52:23.613220Z",
+    "exit_code": 0,
+    "coverage": "width 2 and width 3 only; width 3 exercises two-buffer acquire batches; no width-4 trace",
+    "aggregate_checks": {
+      "peer_reads": 134,
+      "deliberate_corruptions_rejected": 15,
+      "in_flight_sum_failure_drain_recovery": 7,
+      "second_exchange_failure_drain_recovery": 3,
+      "mixed_shot_unchanged_tails": true
+    },
+    "physical_gpu_pci_to_render": {
+      "0000:03:00.0": "/dev/dri/renderD136",
+      "0000:44:00.0": "/dev/dri/renderD137",
+      "0000:83:00.0": "/dev/dri/renderD132",
+      "0000:86:00.0": "/dev/dri/renderD133"
+    },
+    "source": {
+      "head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+      "clean_unchanged": true,
+      "build_result_sha256": "2587d287326914faded1b7d2b419c36129d0a1b871c415176e75260c5b3a2829"
+    },
+    "binary": {
+      "version": "llmx 0.1.0+ge2c3f3722830 numerics 7ad59e11b7e88cd6",
+      "llmx_sha256": "534e06207e037ee3433cd602ad9cdac27165047ee793e50f23268b7d1173f99d",
+      "llmx_vulkan_lifetime_test_sha256": "04b0f4c2a5a135a7e77fd39c8e81e711559d8ce80ee3cdda48aba0cf36becf10",
+      "unchanged": true
+    },
+    "container": {
+      "name": "llmx-xdev-ownership-batch-2f5cbb0065cb",
+      "run_id": "2f5cbb0065cb4bb5a2b71f6367465085",
+      "removed": true
+    },
+    "runner_sha256": "5ef395cfc66c15f2784be948a7a34c788da3d2507535bb1e96b2f473d2518643",
+    "inputs_sha256": "9610d05c498e38b5590db1280b77c66513c6a140804c35246f48e1b79046af15",
+    "stdout_sha256": "15220f119ab7b18e5c67ff8401dc0bfc9eea7417fd9c2decf823956ba71776c1",
+    "stderr_sha256": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "local_result": "build-live-dashboard-final-rig-20261017/ownership-batching-collective-result.json",
+    "local_result_sha256": "a39e784d29f02834dcd0f074e9db2c8fda7b14fd25439924771b6c052d9724b4"
+  },
+  "qualification": {
+    "width4_ownership_trace": "focused W2 and W4 ownership/failure-drain-recovery tests passed on physical GPUs 0-3; broader numerical and full-device qualification not established",
+    "matched_timing_and_layout_controls": "pending",
+    "performance_claim": "none"
+  },
+  "timing_screen": {
+    "result_sha256": "9d6fe033d7488528a9f21c2393a20669745c147fe94a6c4747d690d2048cdd8e",
+    "activity_summary_sha256": "64b1232f9409f838bc55c5fb8e367338619b874b5ebfd6fd05f683bc6f282c8f",
+    "inputs_sha256": "9610d05c498e38b5590db1280b77c66513c6a140804c35246f48e1b79046af15",
+    "runner_sha256": "5ef395cfc66c15f2784be948a7a34c788da3d2507535bb1e96b2f473d2518643",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "started_utc": "2026-10-18T08:52:46.405438+00:00",
+    "finished_utc": "2026-10-18T08:55:45.315839+00:00",
+    "order": [
+      "fixed",
+      "batching",
+      "batching",
+      "fixed",
+      "batching",
+      "fixed",
+      "fixed",
+      "batching"
+    ],
+    "measured_processes": 8,
+    "warmups": [
+      {
+        "label": "warmup-fixed",
+        "arm": "fixed",
+        "exit_code": 0,
+        "pp512_tok_s": 5005.63,
+        "tg128_tok_s": 53.69
+      },
+      {
+        "label": "warmup-batching",
+        "arm": "batching",
+        "exit_code": 0,
+        "pp512_tok_s": 4960.89,
+        "tg128_tok_s": 53.61
+      }
+    ],
+    "internal_repetitions": 3,
+    "all_measured_retained": true,
+    "measured_samples": [
+      {
+        "label": "0-fixed",
+        "arm": "fixed",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 5032.94,
+        "tg128_tok_s": 53.16,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "1-batching",
+        "arm": "batching",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 4972.59,
+        "tg128_tok_s": 53.92,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "2-batching",
+        "arm": "batching",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 5032.56,
+        "tg128_tok_s": 53.7,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "3-fixed",
+        "arm": "fixed",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 5036.11,
+        "tg128_tok_s": 53.3,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "4-batching",
+        "arm": "batching",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 5002.51,
+        "tg128_tok_s": 53.77,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "5-fixed",
+        "arm": "fixed",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 4995.79,
+        "tg128_tok_s": 51.48,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "6-fixed",
+        "arm": "fixed",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 5003.33,
+        "tg128_tok_s": 53.67,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      },
+      {
+        "label": "7-batching",
+        "arm": "batching",
+        "exit_code": 0,
+        "success": true,
+        "pp512_tok_s": 4962.89,
+        "tg128_tok_s": 53.1,
+        "source_unchanged": true,
+        "binary_unchanged": true
+      }
+    ],
+    "summary": {
+      "pp512": {
+        "samples": {
+          "fixed": [
+            5032.94,
+            5036.11,
+            4995.79,
+            5003.33
+          ],
+          "batching": [
+            4972.59,
+            5032.56,
+            5002.51,
+            4962.89
+          ]
+        },
+        "sample_counts": {
+          "fixed": 4,
+          "batching": 4
+        },
+        "means": {
+          "fixed": 5017.0425,
+          "batching": 4992.637500000001
+        },
+        "medians": {
+          "fixed": 5018.135,
+          "batching": 4987.55
+        },
+        "mean_change_percent": -0.4864419625705496,
+        "median_change_percent": -0.6094893820114411
+      },
+      "tg128": {
+        "samples": {
+          "fixed": [
+            53.16,
+            53.3,
+            51.48,
+            53.67
+          ],
+          "batching": [
+            53.92,
+            53.7,
+            53.77,
+            53.1
+          ]
+        },
+        "sample_counts": {
+          "fixed": 4,
+          "batching": 4
+        },
+        "means": {
+          "fixed": 52.902499999999996,
+          "batching": 53.6225
+        },
+        "medians": {
+          "fixed": 53.23,
+          "batching": 53.735
+        },
+        "mean_change_percent": 1.3609942819337473,
+        "median_change_percent": 0.9487131316926689
+      }
+    },
+    "activity_flags": [
+      {
+        "label": "0-fixed",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": true,
+        "process_cpu": null,
+        "monitor_errors": 0
+      },
+      {
+        "label": "1-batching",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": null,
+        "monitor_errors": 0
+      },
+      {
+        "label": "2-batching",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": null,
+        "monitor_errors": 0
+      },
+      {
+        "label": "3-fixed",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": true,
+        "monitor_errors": 0
+      },
+      {
+        "label": "4-batching",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": null,
+        "monitor_errors": 0
+      },
+      {
+        "label": "5-fixed",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": null,
+        "monitor_errors": 0
+      },
+      {
+        "label": "6-fixed",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": null,
+        "monitor_errors": 0
+      },
+      {
+        "label": "7-batching",
+        "system_cpu": false,
+        "other_gpu": false,
+        "disk": false,
+        "process_cpu": null,
+        "monitor_errors": 0
+      }
+    ],
+    "activity_totals": {
+      "system_cpu_flagged": "0/8",
+      "other_gpu_flagged": "0/8",
+      "disk_flagged": "1/8",
+      "process_cpu_flagged": "1 true, 7 unknown due unpaired process observations",
+      "monitor_errors": 0,
+      "before_launch_cpu_disk_interval_rates": "unavailable; one cumulative snapshot cannot establish interval rate"
+    },
+    "limits": [
+      "Exploratory screen only; no performance acceptance or no-regression claim.",
+      "No layout control or accepted noise bound.",
+      "All eight measured processes and two warmups retained; none replaced or discarded.",
+      "Unknown activity is not idle; no idle/noise conclusion."
+    ],
+    "arms": {
+      "fixed": {
+        "head": "235dbedeb216d689f747973520f9f585e4cef3e5",
+        "build_result_sha256": "8383cec1232e3ccf9d6ab4b8bcfce5801a4e83ed8ce6cf61c634e2eac11b339b",
+        "version": "llmx 0.1.0+g235dbedeb216 numerics 9cb1b47024711ea3"
+      },
+      "batching": {
+        "head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+        "build_result_sha256": "2587d287326914faded1b7d2b419c36129d0a1b871c415176e75260c5b3a2829",
+        "version": "llmx 0.1.0+ge2c3f3722830 numerics 7ad59e11b7e88cd6"
+      }
+    },
+    "qualification": {
+      "matched_timing_screen": "complete; exploratory only",
+      "matched_layout_controls": "pending",
+      "accepted_performance_result": "none"
+    }
+  },
+  "width4_linux_build_followup": {
+    "scope": "Pinned Linux test-overlay build followed by focused W2/W4 Vulkan ownership checks; no models, timing or broader device qualification.",
+    "source": {
+      "head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+      "clean_before_after": true,
+      "test_source_sha256": "0f19a07c835ba776f24010a7030b244f1d4fd0b7043f1d2f02ee8fdfa07d5bff",
+      "preparation_sha256": "3f89ac10b4eae562bd01c5b6655576e903a60378348393075c38c5468c8e9183",
+      "pins_unchanged": true
+    },
+    "build": {
+      "started_utc": "2026-10-18T14:51:44.789419Z",
+      "finished_utc": "2026-10-18T14:52:02.487277Z",
+      "exit_code": 0,
+      "elapsed_seconds": 17.698,
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "cpus": "12,13",
+      "memory_and_swap_bytes": 4294967296,
+      "network": "none",
+      "gpu_devices_mounted": false,
+      "binary_sha256": "75b119a74d97e245e99c7b657aa71fbfbb5907b0f5ad807b562fde0da3f49409",
+      "host_mem_available_bytes": 8702877696,
+      "host_disk_available_bytes": 407605608448,
+      "container_id": "e0f40e0cab21e3c222856589290b18fac309ebe31975f85da6f228e2f412b3ef",
+      "owner_label": "XDEV/ownership-batching",
+      "cleanup": {
+        "stop_exit_code": 0,
+        "remove_exit_code": 0,
+        "owned_container_remaining": false
+      }
+    },
+    "w2_preflight": {
+      "started_utc": "2026-10-18T14:53:20.998513Z",
+      "finished_utc": "2026-10-18T14:53:22.046934Z",
+      "result": "Initial attempt: resource guard refused before Docker container creation; pins unchanged; no inference or test ran",
+      "w4_attempted_in_that_refused_launch": false,
+      "raw_sha256": "57e518de1cf87a8c324e77898ac0a8412d9b8305b68e04c98b5450d848be6061"
+    },
+    "focused_gpu_tests": {
+      "binary_sha256": "75b119a74d97e245e99c7b657aa71fbfbb5907b0f5ad807b562fde0da3f49409",
+      "duration_note": "Reported durations are test-run wall times, not model or performance measurements.",
+      "w2": {
+        "started_utc": "2026-10-18T15:01:42.105589Z",
+        "elapsed_seconds": 2.728,
+        "exit_code": 0,
+        "result_sha256": "f265d1a60d592dfe2de60fda6c3ff1a68404654a69dffa44130726f713cd1670",
+        "container_id": "7f37a4314218709ca5a8e24f5d8f59c7cf92e0102278c3e536d52b00149ac4f8",
+        "physical_gpus": "0-1",
+        "pins_unchanged": true,
+        "witnesses_passed": true,
+        "coverage": "Seven width-2 sum failure/drain/recovery cases, join, in-flight sum, peer ownership reads, five negative ownership cases and capability/import refusals passed; only expected width-3/4-member cases skipped.",
+        "cleanup_exit_codes": [0, 0],
+        "artifact_sha256": {
+          "start.json": "4caf0974e9b09b4bff4ef2fd32aac54d01d974343f9e312db4bfe1ea58877a1d",
+          "container-inspect.json": "ebe2a572786619de0b887534a7bafd09dd370ea0a5ea43509534df6e6d8999c4",
+          "stdout.log": "db97a83a781627e257c8f47e0531afb9aad44c22e2d3ef50a9167cb872d96dbe",
+          "stderr.log": "4b8c5930827a2eb2967395308ec86550683cf54da302400b79a923d85c0ac5c9"
+        }
+      },
+      "w4": {
+        "started_utc": "2026-10-18T15:02:09.649010Z",
+        "elapsed_seconds": 3.208,
+        "exit_code": 0,
+        "result_sha256": "0d44f62c7808656ea1b9bda94d64bd371c431c18b15f09330de4f96ccd232a87",
+        "container_id": "43f28696a54a81ff992cc2d6299baeab4c5c34b75ddd74c10d06e1db4a6ef8e4",
+        "physical_gpus": "0-3",
+        "excluded_physical_gpus": "4-9",
+        "pins_unchanged": true,
+        "witnesses_passed": true,
+        "skips": 0,
+        "coverage": "Actual 3- and 4-member two-shot and mixed-shot ownership, three second-exchange failure/drain/recovery kinds per width, seven sum failure/recovery cases per width, peer ownership reads and five negative ownership cases passed.",
+        "cleanup_exit_codes": [0, 0],
+        "artifact_sha256": {
+          "start.json": "b8a8640ba071250a8b0fcad0564d81594d072fd4854662fef87cc4331a492dcf",
+          "container-inspect.json": "bbfbad089ad6d31ddbdcdc474ebbc2d707a0fe94c8d8b4acafe9092c3e47e0b4",
+          "stdout.log": "f9e25f8ae0b0e9e613309efdb8e0587fbdf311b223390580e8c98841234ea712",
+          "stderr.log": "13b632f24eb622a799ecd84ba2768f446356d6dfa9e6bdd2471e91c8c211c3cd"
+        }
+      },
+      "cleanup": "Both owned containers were removed; the final test results report pins unchanged and no owned container remaining.",
+      "post_cleanup_host_check": "Parent's fresh check found physical GPUs 0-3 at 0% busy with about 10.9 MB reported VRAM each, and no fuser owners on the four render nodes (exit 1); GPUs 4-9 were excluded.",
+      "scope_limit": "Focused ownership tests only; no model, numerical accuracy, performance, matched layout/noise or full-device-suite claim."
+    },
+    "artifact_sha256": {
+      "result.json": "6f4378175442504c6b2ed4d4f0c88c6a9af8351905408ca0e99759398f6adf0b",
+      "start.json": "871cfc53b2c06890af6967bf240b619d9ee068a020f034d28b21044d239a8a60",
+      "container-inspect.json": "57ea0211d46b7407ebdc5cd2902005752a1504104a45744766b323ef0f6ec10f",
+      "stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "local_evidence": "build-live-dashboard-final-rig-20261017/ownership-batching-width4-preparation-20261018/diagnostic-v3/",
+    "focused_checks": {
+      "command": "python tests/run_tests.py --exe build-batch-win/Release/llmx.exe --only docs,dead-code",
+      "cli_sha256": "61d0ef13d64e25077706d328043fb74c43dc7f3851140fb7b7c26e27f49826c8",
+      "docs": "PASS, 0 findings, 21 planted faults",
+      "dead_code": "PASS, 5 listed findings, 18 planted faults",
+      "log": "build-live-dashboard-final-rig-20261017/ownership-batching-width4-preparation-20261018/diagnostic-v3/focused-docs-dead-code-completed-gpu.log",
+      "log_sha256": "a506983376cdc4f6a492c319a4cdfeb8fe657442438f03cfbce49690f44e8f9e"
+    },
+    "historical_preparation_only": "Earlier v1 memory-inference and v2 embedded-label substitution defects were preparation issues, not runtime failures; the unstarted v2 container's exact-CID cleanup is recorded in diagnostic-v2/tui-correction.txt.",
+    "windows_evidence": "Existing windows_build section and its original logs remain unchanged."
+  },
+  "windows_build": {
+    "configuration": "Fresh Windows Visual Studio 18 2026 x64 CMake configuration, BUILD_TESTING=ON, Vulkan=ON.",
+    "cli": {
+      "sha256": "61d0ef13d64e25077706d328043fb74c43dc7f3851140fb7b7c26e27f49826c8",
+      "version": "llmx 0.1.0+gb93a89f0ed07.dirty numerics 7ad59e11b7e88cd6"
+    },
+    "lifetime_test_sha256": "4082ee4cb227337a42466c03036930997b0d4b6465a397ee7cd604575a43211a",
+    "lifetime_fake_api_cases": {
+      "passed": 23,
+      "device_used": false
+    },
+    "original_build_command_terminal_exit_code": "unavailable; the session handle was not retained. Build log and linked target binaries are preserved; follow-up target verification exited 0.",
+    "logs": [
+      "build-batch-win-configure.log",
+      "build-batch-win-build.log",
+      "build-batch-win-build-verify.log",
+      "build-batch-win-lifetime-test.log",
+      "build-batch-win-version.log"
+    ]
+  },
+  "identity_tool_builds": {
+    "scope": "Two isolated Vulkan-enabled builds for matched identity tools only. No model, identity, timing or performance run was performed.",
+    "source_heads_are_separate_from_test_docs_head": true,
+    "arms": {
+      "fixed": {
+        "source_head": "235dbedeb216d689f747973520f9f585e4cef3e5",
+        "build_complete": true,
+        "exit_code": 0,
+        "elapsed_seconds": 92.5656,
+        "source_unchanged": true,
+        "source_tracked_count": 1957,
+        "source_tracked_content_sha256": "ad111efa2b4df5537670646721f9fa42f563fa1d34d8a3d264b5b86dad3b46ff",
+        "source_pin_snapshot_sha256": "3e0d1d3c8f54b4ea087feeb063ce26c1f0954340a9eb7107e97246cc476515b9",
+        "source_pin_snapshot_after_sha256": "3e0d1d3c8f54b4ea087feeb063ce26c1f0954340a9eb7107e97246cc476515b9",
+        "original_build_unchanged": true,
+        "original_build_pin_snapshot_sha256": "369542e70164d59e57e949a741b8cc523ce656cac26d6e681f037ac630646689",
+        "original_build_pin_snapshot_after_sha256": "369542e70164d59e57e949a741b8cc523ce656cac26d6e681f037ac630646689",
+        "isolated_build_input_count": 126,
+        "isolated_build_inputs_unchanged": true,
+        "isolated_build_pin_snapshot_sha256": "369542e70164d59e57e949a741b8cc523ce656cac26d6e681f037ac630646689",
+        "isolated_build_pin_snapshot_after_sha256": "369542e70164d59e57e949a741b8cc523ce656cac26d6e681f037ac630646689",
+        "compiled_cpp": [
+          "tools/decode_probe.cpp",
+          "tools/model_logits.cpp"
+        ],
+        "build_log_sha256": "9338f154cd182dbe698431b386a2d070ec59b780aaca145324bc8bf656c8dfac",
+        "start_record_sha256": "7a00d0f716c47f8be83c7a32081d99b610a418c84e4670b364d7ba4317cbe806",
+        "result_sha256": "4871bb156d2390c67aa12bb31ee0a1bb360477ba2ba816a1f80fe7e85d0291a8",
+        "tools": {
+          "llmx-model-logits": {
+            "bytes": 5512904,
+            "sha256": "90a22c7dccb6ee63eed4f10567b390d26021e3f28c18e8a0915d3a47b498c4b4"
+          },
+          "llmx-decode-probe": {
+            "bytes": 5543288,
+            "sha256": "79902a1e10e4a46e4b990b8b458310c40f5ebc0fa94d4d36ab9a5228884bdd20"
+          }
+        },
+        "container_removed": true,
+        "cleanup_exit_codes": [
+          0
+        ],
+        "result_path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-tool-build-20261018/evidence/fixed/result.json",
+        "container_id": "1916c56ba288e2acb6d2d239b505ca22be838caf97d2b63101d89c70fcfe0ad6"
+      },
+      "batching": {
+        "source_head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+        "build_complete": true,
+        "exit_code": 0,
+        "elapsed_seconds": 83.5358,
+        "source_unchanged": true,
+        "source_tracked_count": 1959,
+        "source_tracked_content_sha256": "00b09b47a0cf10e1769016a1bb8ef03bc2d9415caf9748e2898dbe3cab757c52",
+        "source_pin_snapshot_sha256": "1e8d6e224556171619ebaeda19e69590ae6cf6580a8b1d638b4d5b4b8b0b3cda",
+        "source_pin_snapshot_after_sha256": "1e8d6e224556171619ebaeda19e69590ae6cf6580a8b1d638b4d5b4b8b0b3cda",
+        "original_build_unchanged": true,
+        "original_build_pin_snapshot_sha256": "fb1df59d3d0b25d181b1f6649862e2b2692989f15e01eaf6273839a8209c3e1e",
+        "original_build_pin_snapshot_after_sha256": "fb1df59d3d0b25d181b1f6649862e2b2692989f15e01eaf6273839a8209c3e1e",
+        "isolated_build_input_count": 127,
+        "isolated_build_inputs_unchanged": true,
+        "isolated_build_pin_snapshot_sha256": "fb1df59d3d0b25d181b1f6649862e2b2692989f15e01eaf6273839a8209c3e1e",
+        "isolated_build_pin_snapshot_after_sha256": "fb1df59d3d0b25d181b1f6649862e2b2692989f15e01eaf6273839a8209c3e1e",
+        "compiled_cpp": [
+          "tools/decode_probe.cpp",
+          "tools/model_logits.cpp"
+        ],
+        "build_log_sha256": "9338f154cd182dbe698431b386a2d070ec59b780aaca145324bc8bf656c8dfac",
+        "start_record_sha256": "bec3bb90c21bfde1b02286a2eb228583adbbf315c53962ec814a35381edf7f7d",
+        "result_sha256": "096370323cf9fe5cae3990230c493b01c8e22a575384e31905a10d8850472a91",
+        "tools": {
+          "llmx-model-logits": {
+            "bytes": 5512840,
+            "sha256": "47d399681a1027ad61c3511255c521ba6cf268f2f0a25971fecca7c34e771de7"
+          },
+          "llmx-decode-probe": {
+            "bytes": 5543224,
+            "sha256": "52dd8dbb8d8a304bb49f1a135456fa5c36bc7983efe98d80d24c7a586b0a4be7"
+          }
+        },
+        "container_removed": true,
+        "cleanup_exit_codes": [
+          0
+        ],
+        "result_path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-tool-build-20261018/evidence/batching/result.json",
+        "container_id": "fa284b2d065b7bcc9dcfdc30cb3d934db5a3bd35be65fda2b98c28ec0039ee88"
+      }
+    },
+    "compiled_sources_union": [
+      "tools/decode_probe.cpp",
+      "tools/model_logits.cpp"
+    ],
+    "summary": {
+      "path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-tool-build-20261018/evidence/summary.json",
+      "sha256": "e656bb14332175b5961f3da46a38a694c55a42958ffeea886557de22437944e0"
+    },
+    "owned_container_ids_absent_after_cleanup": "parent verified",
+    "tools_ready": true,
+    "tools_executed": false,
+    "limitations": "Build success and unchanged source/original/isolated input pins establish tool availability only. Existing exploratory timing limitations and earlier preflight/timing records remain unchanged.",
+    "test_docs_head": "d35cdf4d44bb20b7cf684ed99e159b300d52b67c",
+    "build_wrapper": {
+      "path": "build-live-dashboard-final-rig-20261017/build-ownership-batching-identity-tools.py",
+      "sha256": "cb16656bc5c0e250acb6b241fff0ca7e2e37668fe5a39fa61b1af286c65a4899"
+    },
+    "retained_remote_host_script": {
+      "path": "build-live-dashboard-final-rig-20261017/ownership-batching-checks/identity-tools-host.py",
+      "sha256": "704414e59608839a837748c6e57ae4fc2860ee6f9bcd57e007d23fea5d03235e"
+    },
+    "parent_verified": {
+      "remote_result_hashes_match_copies": true,
+      "container_inspect_result": "both owned CIDs returned no-such-object"
+    },
+    "markdown_review": {
+      "comparison_base": "d35cdf4d4",
+      "tracked_files": 110,
+      "unchanged_git_blobs": 109,
+      "changed_files": [
+        "docs/STATUS.md"
+      ]
+    },
+    "matrix_run": {
+      "scope": "Identity-only comparison between the fixed and batching tools; not a performance run or released Flash qualification.",
+      "remote_root": "/zpool1/llmx-xdev-vulkan-ownership-20261018/identity-batching-e2c3f372-20261018/identity",
+      "source_heads": {
+        "fixed": "235dbedeb216d689f747973520f9f585e4cef3e5",
+        "batching": "e2c3f372283088217bbe86e9d746e35c7e00c74d"
+      },
+      "docs_test_head": "de2684ed9436eac4f995c5fa695d4df6d2eb6823",
+      "summary": {
+        "path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-20261018/completed-evidence/summary.json",
+        "sha256": "7268ed7d2cd94d898f5692334540cfdab2f198c1a11184059d0f952e792728a2",
+        "complete": true,
+        "cells": 52,
+        "calls": 104,
+        "calls_by_tool": {
+          "llmx-model-logits": 56,
+          "llmx-decode-probe": 48
+        }
+      },
+      "matrix_evidence": {
+        "path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-20261018/completed-evidence/evidence-record.json",
+        "sha256": "677da9d8226ba7c690a83c482f3dd96eee01326ebe410c93977b786001c0c673",
+        "pass_classification": "pass",
+        "downloaded_files_sha_verified": 679,
+        "raw_matrix_files_retained_on_rig": 168,
+        "independent_container_inspects_absent": 104
+      },
+      "results": {
+        "path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-20261018/completed-evidence/results.json",
+        "sha256": "af9f5f5cb8501e9c4f5bf3890cb4e2b69b9a89b24dab9ca7157a55320fd57f14",
+        "model_cells": 28,
+        "model_cell_outputs_byte_identical": true,
+        "synthetic_mtp_draft_cells": 24,
+        "draft_text_exact_between_arms": true,
+        "draft_number_format": "9 significant digits",
+        "draft_values_per_row": 260,
+        "draft_values_all_finite": true,
+        "staged_mtp_covered": false
+      },
+      "first_launch_failure": {
+        "path": "build-live-dashboard-final-rig-20261017/ownership-batching-identity-20261018/completed-evidence/first-launch-failure.json",
+        "sha256": "1073b86203051995b3722e642647a1471a3ef634ac7b9dedf03933c9b97c4591",
+        "model_calls": 0,
+        "cause": "The initial input-pin verification raised KeyError for original_build before creating the output directory or launching a model call.",
+        "repair": "The retry reads original_build from the hash-verified retained build result; no model binary, fixture, test scope or acceptance criterion changed."
+      },
+      "cleanup_and_machine": "All 104 independent docker inspect checks reported no such object. After cleanup, the fresh GPU 0-3 sample reported 0% busy and approximately 10.9 MB VRAM used.",
+      "markdown_review": {
+        "comparison_base": "de2684ed9",
+        "tracked_markdown_files": 110,
+        "unchanged_git_blobs": 109,
+        "reread_changed_file": "docs/STATUS.md"
+      },
+      "focused_checks": {
+        "docs": "pass",
+        "dead_code": "pass",
+        "log": "build-batch-win/identity-docs-dead-code-20261018.log"
+      },
+      "limitations": "The 28 model cells establish byte identity between these two tool builds on this fixture set. The 24 MTP draft cases use synthetic fixtures and compare emitted text and finite rows only. No staged-MTP check, released-model qualification, performance result, or no-regression conclusion is established."
+    }
+  },
+  "alignment_control": {
+    "scope": "Private batching alignment build control only; not production code, a performance gate, or a no-regression result.",
+    "source_head": "63db195976dde65ecddfd6bacff233cfa6210d6d",
+    "parent_head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+    "source_change": "annotation only",
+    "source_tree_clean": true,
+    "build": {
+      "path": "build-live-dashboard-final-rig-20261017/ownership-batching-layout64-preparation-20261018/completed-evidence/batching-align64-build-result.json",
+      "sha256": "63a6674a1f70e7d3a177b1c9d7eae4c3d54aceda93a6107ac38c52bb3e393957",
+      "log_sha256": "8b06a52cba1f7c0bd5c8861790ef19edc36bcca3a8cd915afc0efb1a31ba0e41",
+      "binary_sha256": "115c4f86ae6b9a27cbdcb3a8a6735b71e233779ee99c85079581d9e1fa5653ef",
+      "version": "llmx 0.1.0+g63db195976dd numerics 6003827c2db486b3",
+      "machine": "CPUs 12/13, 4 GiB memory and swap, no GPU devices or network",
+      "remote_evidence_root": "/zpool1/llmx-xdev-vulkan-ownership-20261018/layout64",
+      "build_container_id": "c8f4b30dd102a72a0ccb0f78ac947adff0396d1628327f34b782e5fbe671eb67",
+      "container_absent_after_cleanup": true
+    },
+    "layout_audit": {
+      "path": "build-live-dashboard-final-rig-20261017/ownership-batching-layout64-preparation-20261018/completed-evidence/batching-layout-analysis.json",
+      "sha256": "cd9f5cef7089e29a7fa9cf6b1193ebad21a52af2dfe1bb23ad871cbbfe26ad51",
+      "audit_input_sha256": "afd591ce58fd11c1584778f56fcb7c75b0b83e02405e4da0543b0ee79f323f1d",
+      "operational_streams_equal": 2126,
+      "shader_payload_count": 118,
+      "shader_payloads_equal": true,
+      "compiler_flags_equal": true,
+      "compiled_difference": "sum_into NOP padding; entry moved from 0x22b830 to 0x22b880, a 64-byte boundary"
+    },
+    "markdown_review": {
+      "comparison_base": "638ab8eb5c8770d89c5033fde7ea407a03b246e0",
+      "tracked_markdown_files": 110,
+      "reviewed_scope": "Only docs/STATUS.md changed among tracked Markdown files; docs/benchmarks/vulkan-ownership-batching-20261018.json is the other changed file."
+    },
+    "focused_checks": {
+      "command": "python -B tests/run_tests.py --exe build-batch-win/Release/llmx.exe --only docs,dead-code",
+      "docs": "pass",
+      "dead_code": "pass",
+      "log": "build-batch-win/alignment-docs-dead-code-20261018.log",
+      "log_sha256": "6c0af0baf896a2d3a1437e1c3fa6ed024a3d39b339dd322932a81f93922434bd",
+      "binary": "build-batch-win/Release/llmx.exe",
+      "binary_sha256": "61d0ef13d64e25077706d328043fb74c43dc7f3851140fb7b7c26e27f49826c8"
+    }
+  }
+}

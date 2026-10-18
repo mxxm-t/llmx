@@ -1,0 +1,202 @@
+{
+  "scope": "Current-base Linux build identities and Windows raw-block decoder check. Device suite and model identity remain pending.",
+  "pins": {
+    "arms": {
+      "after": {
+        "commit": "b50af594cfa7f74f53739160372f11f6d5a0dc36",
+        "archive": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/source.tar",
+        "archive_sha256": "eaca1969d43ad240d961046b838f822b82c420851f8815fe3d0da006b18ba54c",
+        "source": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/src",
+        "build": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/build-all-targets",
+        "hashes": {
+          "llmx": "5f282582217c42ef7e69d5792240a12ea798e12f0e0a669bacf86e46bbf46e36",
+          "llmx-model-logits": "dcce6893a8770fcbea5a1bd24fb60e1757fc36fff7f356eebf504d9b20c95107",
+          "llmx-decode-probe": "772247be56be667ff63870767de821b229b89a9bcc6aba424d8e95a414dfb9e4"
+        },
+        "build_inputs": {
+          "CMakeCache.txt": "11536f97b05159103b307060bdb35d51b2030a6991e0dca387a4951d4f2dc8bb",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "build-result.json": "1a8629f89c66bc577ad35696dc4d7f6e0b56430dc7182dfeb410427f880674dd"
+        },
+        "version": "llmx 0.1.0+unknown numerics a95f456bdd930fa2"
+      },
+      "before": {
+        "commit": "2d85bfc12858e5be82a16bc6ac3344e4c2b7a1e3",
+        "archive": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/source.tar",
+        "archive_sha256": "52ee19b1d5b6ad73280835a6374b1af5167afb7940a6541fd85120c2030bf6e9",
+        "source": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/src",
+        "build": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/build-followup",
+        "hashes": {
+          "llmx": "30c319d1e19e5405fc7073d47ed4a296c7f481393b18f2dea1a8b501740d2dbe",
+          "llmx-model-logits": "226ba60372343eb7688ca4511fc17ff821e93f2856a910df11821767408bb8ef",
+          "llmx-decode-probe": "6d14a7404cbdd1029c19a5c3a9efeb2efb6fa574dab72a5f83bb89da7c09edff"
+        },
+        "build_inputs": {
+          "CMakeCache.txt": "1f4c39b17dbdfe5c770667b0fdeb3a41c54a9b38cd3d55c29f2df0d6df0779f1",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "build-result.json": "61cceec609dc359640f65a0a88a550ae8a06665aa19e7dda6f87c5a660fff839"
+        },
+        "version": "llmx 0.1.0+unknown numerics 511b2677dce59758"
+      }
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "builds": {
+    "kind": "isolated ownership landing build follow-up",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "limits": {
+      "cpu_set": "14",
+      "workers": 1,
+      "memory_bytes": 4294967296,
+      "memory_swap_bytes": 4294967296,
+      "minimum_memavailable_bytes": 6442450944,
+      "network": "none",
+      "gpu_devices": []
+    },
+    "candidate_all_targets": {
+      "source_commit": "b50af594cfa7f74f53739160372f11f6d5a0dc36",
+      "source_archive_sha256": "eaca1969d43ad240d961046b838f822b82c420851f8815fe3d0da006b18ba54c",
+      "output": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/build-all-targets",
+      "started_utc": "2026-10-18T19:23:40.158219+00:00",
+      "finished_utc": "2026-10-18T19:42:00.377504+00:00",
+      "state": "BUILT",
+      "exit_code": 0,
+      "log_sha256": "9e433d0a41a00cb19c04136ef157d6345f705fc873dc38c7d52184aaa3ac085a",
+      "container_name": "llmx-xdev-ownership-candidate-all-targets-20261018",
+      "container_id": "dd551e97bf12f601b1c9cc66def66fcc285da74a0a8172ef8d1f5b755e7e6467",
+      "container_removed_and_exact_id_absence_verified": true,
+      "binary_sha256": {
+        "llmx": "5f282582217c42ef7e69d5792240a12ea798e12f0e0a669bacf86e46bbf46e36",
+        "llmx-model-logits": "dcce6893a8770fcbea5a1bd24fb60e1757fc36fff7f356eebf504d9b20c95107",
+        "llmx-drafter-pack": "46e9d995c8feb3d93abb1f372f03089472c53e5f4664648d59bca8f6776fb6ab",
+        "llmx-vulkan-lifetime-test": "bd8f9f9353342af0ade582b4bdba4dffbd1bac698595e829768e8a11c85d89af"
+      }
+    },
+    "baseline_queued_targets": {
+      "source_commit": "2d85bfc12858e5be82a16bc6ac3344e4c2b7a1e3",
+      "source_archive_sha256": "52ee19b1d5b6ad73280835a6374b1af5167afb7940a6541fd85120c2030bf6e9",
+      "output": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/build-followup",
+      "started_utc": "2026-10-18T19:42:00.404324+00:00",
+      "finished_utc": "2026-10-18T19:44:24.198730+00:00",
+      "state": "BUILT",
+      "exit_code": 0,
+      "targets": [
+        "llmx",
+        "llmx-model-logits",
+        "llmx-drafter-pack"
+      ],
+      "note": "This queued target list predates correction of drafter-pack to llmx-decode-probe. The latter remains to be built incrementally in this same directory; no decode-probe result is claimed here.",
+      "log_sha256": "70bccb239f125d14a0863658e513d07a0bf593dccfd1b6614bfaad851ff8a01c",
+      "container_name": "llmx-xdev-ownership-baseline-required-tools-20261018",
+      "container_id": "6230d5e7fd127b84dbd22f035ac30887f32e77dee706cf8a637a0a176d9fde18",
+      "container_removed_and_exact_id_absence_verified": true,
+      "binary_sha256": {
+        "llmx": "30c319d1e19e5405fc7073d47ed4a296c7f481393b18f2dea1a8b501740d2dbe",
+        "llmx-model-logits": "226ba60372343eb7688ca4511fc17ff821e93f2856a910df11821767408bb8ef",
+        "llmx-drafter-pack": "46e9d995c8feb3d93abb1f372f03089472c53e5f4664648d59bca8f6776fb6ab"
+      }
+    },
+    "preflight_note": "Fresh memory was 19004096512 bytes before candidate build and 9092849664 bytes before baseline queued build. CPU 14 was online and had no overlap with explicit cpusets. Unrestricted services were recorded.",
+    "remaining": "Build llmx-decode-probe incrementally in baseline build-followup with separate log/result and fresh guards."
+  },
+  "baseline_incremental_decode_probe": {
+    "state": "BUILT",
+    "source_commit": "2d85bfc12858e5be82a16bc6ac3344e4c2b7a1e3",
+    "archive_sha256_expected": "52ee19b1d5b6ad73280835a6374b1af5167afb7940a6541fd85120c2030bf6e9",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "target": "llmx-decode-probe",
+    "cpu_set": "14",
+    "memory_bytes": 4294967296,
+    "memory_swap_bytes": 4294967296,
+    "minimum_memavailable_bytes": 6442450944,
+    "timeout_seconds": 1200,
+    "network": "none",
+    "gpu_devices": [],
+    "work_root": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018",
+    "output_dir": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/build-followup",
+    "started_utc": "2026-10-18T19:45:10.121096+00:00",
+    "preflight": {
+      "time_utc": "2026-10-18T19:45:10.272887+00:00",
+      "memavailable_bytes": 15686856704,
+      "minimum_bytes": 6442450944,
+      "cpu14_online": true,
+      "containers": [
+        {
+          "name": "llmx-xdev-main2b-device-suite-1792352615258363798",
+          "cpuset": "12,13",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "llmx-ldev-dms-27b-r4-A",
+          "cpuset": "8-11",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "llmx-xdev-hf-repeat-validation-chat-chunk64-r1",
+          "cpuset": "4,5",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "llmx-serve",
+          "cpuset": "",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "llmx-health-dashboard",
+          "cpuset": "",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "llmx-xdev-flash-ppl-native-20261016",
+          "cpuset": "2,3",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "llmx-xdev-flash-20261015",
+          "cpuset": "0-1",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "open-webui",
+          "cpuset": "",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "cdev-abc-run2",
+          "cpuset": "",
+          "overlap_cpu14": false
+        },
+        {
+          "name": "portainer",
+          "cpuset": "",
+          "overlap_cpu14": false
+        }
+      ],
+      "unrestricted": [
+        "llmx-serve",
+        "llmx-health-dashboard",
+        "open-webui",
+        "cdev-abc-run2",
+        "portainer"
+      ]
+    },
+    "container_name": "llmx-xdev-ownership-baseline-decode-probe-20261018",
+    "owner": "llmx-xdev-ownership-baseline-decode-probe-20261018",
+    "invocation": "d643d285-ad73-42b7-ba05-6ebcb8f33078",
+    "container_id": "8a076afe390268752322d3874cbbe06fee1bf7c88e0fab14ea0aca1729531c51",
+    "container_exit": 0,
+    "build_log_sha256": "8ef1b1102e48e505b5a1283a5f58268f244417d4b07500a8fa6b957053af6b13",
+    "cleanup_rm_exit": 0,
+    "cleanup_rm_stderr": "",
+    "cleanup_verified_absent": true,
+    "finished_utc": "2026-10-18T19:45:45.092979+00:00",
+    "decode_probe_sha256": "6d14a7404cbdd1029c19a5c3a9efeb2efb6fa574dab72a5f83bb89da7c09edff"
+  },
+  "raw_blocks": {
+    "result": "PASS",
+    "source": "b50af594cfa7f74f53739160372f11f6d5a0dc36",
+    "platform": "Windows",
+    "log_sha256": "0004d3f052248d8dbb07571b9384bb2546515d725924242c0a7323264a6e22c9",
+    "reason": "Pinned Linux image has no NumPy; this unchanged component checks CPU format decoders, not Vulkan execution."
+  }
+}

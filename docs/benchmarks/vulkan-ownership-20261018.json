@@ -1,0 +1,169 @@
+{
+  "scope": "Focused regression checkpoint; not merge qualification or Flash 16K causality.",
+  "base": "aa598d007cb95c293937064f0c7e47285637a53c",
+  "failing_test_commit": "d8dc5107e",
+  "candidate_inputs": {
+    "base": "d8dc5107e4268ba02fee5f6819bf304e4c939218",
+    "archive_sha256": "2161ca2df271dbc3e638329b417d779008372f03236fd3e8adb84c5b4ed0d7e5",
+    "changed": {
+      "tests/vulkan_buffer.cpp": "1a07251a0f732c2b4e83a562d3a06255fe2d909b11b79522a05fdf21e01bd82e",
+      "docs/STATUS.md": "356d110ef0934729168de95c9944f7ce61fb48e8263f48f82c8f05ac99641a60",
+      "src/backends/vulkan/vulkan_backend.cpp": "a3a0621d69060874868edb5eaf300884d7b7c46bca0846503abc33f2e3b35761",
+      "docs/TENSOR-SPLIT.md": "3763287827818254e97a8260135f80c776d0b54427180255c493a08f8d3b5d23",
+      "docs/MULTI-DEVICE.md": "a81d4cf44591815e2a3150b426f3f57b7bdbecf5fce5e2c31f53867ba87468f9"
+    }
+  },
+  "before": {
+    "started": "2026-10-18T06:54:04.982801+00:00",
+    "argv": [
+      "docker",
+      "run",
+      "--rm",
+      "--init",
+      "--network",
+      "none",
+      "--name",
+      "llmx-xdev-ownership-test-baseline-20261018",
+      "--cpuset-cpus",
+      "4,5",
+      "--memory",
+      "4g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "-v",
+      "/zpool1/llmx-xdev-vulkan-ownership-20261018/baseline/build:/build:ro",
+      "--device",
+      "/dev/dri/renderD136",
+      "--device",
+      "/dev/dri/renderD137",
+      "--device",
+      "/dev/dri/renderD132",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "timeout",
+      "240",
+      "/build/llmx-vulkan-lifetime-test",
+      "--collective"
+    ],
+    "devices": [
+      {
+        "pci": "0000:03:00.0",
+        "render": "renderD136",
+        "busy": 0,
+        "vram_used": 10932224
+      },
+      {
+        "pci": "0000:44:00.0",
+        "render": "renderD137",
+        "busy": 0,
+        "vram_used": 10919936
+      },
+      {
+        "pci": "0000:83:00.0",
+        "render": "renderD132",
+        "busy": 0,
+        "vram_used": 10932224
+      }
+    ],
+    "exit_code": 1,
+    "finished": "2026-10-18T06:54:05.694943+00:00",
+    "stdout": "collective_join_case=1 threw=1 clean=1 summed=1 PASS\ncollective_join_case=2 threw=1 clean=1 summed=1 PASS\ncollective_join_case=3 threw=1 clean=1 summed=1 PASS\ncollective_join_case=4 threw=1 clean=1 summed=1 PASS\ncollective_ownership payload=1 submission=6 consumer read lacks preceding matching acquire FAIL\ncollective_in_flight sums=7 FAIL\ncollective_capability_refused before_shared_allocation=1 PASS\ncollective_import_refused named=1 PASS\ncollective_ownership payload=1 submission=9 consumer read lacks preceding matching acquire FAIL\ncollective_two_shot_ownership sums=5 FAIL\ncollective_second_exchange_failure kind=0 drained=1 recovered=1 PASS\ncollective_second_exchange_failure kind=1 drained=1 recovered=1 PASS\ncollective_second_exchange_failure kind=2 drained=1 recovered=1 PASS\ncollective_sum_case=1 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=2 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=3 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=4 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=5 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=6 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=7 members=3 threw=1 drained=1 summed=1 closed=1 PASS\n",
+    "stderr": "",
+    "binary_unchanged": true,
+    "container_removed": true
+  },
+  "after": {
+    "started": "2026-10-18T07:00:47.816106+00:00",
+    "argv": [
+      "docker",
+      "run",
+      "--rm",
+      "--init",
+      "--network",
+      "none",
+      "--name",
+      "llmx-xdev-ownership-test-candidate-final-20261018",
+      "--cpuset-cpus",
+      "4,5",
+      "--memory",
+      "4g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "-v",
+      "/zpool1/llmx-xdev-vulkan-ownership-20261018/candidate-final/build:/build:ro",
+      "--device",
+      "/dev/dri/renderD136",
+      "--device",
+      "/dev/dri/renderD137",
+      "--device",
+      "/dev/dri/renderD132",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "timeout",
+      "240",
+      "/build/llmx-vulkan-lifetime-test",
+      "--collective"
+    ],
+    "devices": [
+      {
+        "pci": "0000:03:00.0",
+        "render": "renderD136",
+        "busy": 0,
+        "vram_used": 10932224
+      },
+      {
+        "pci": "0000:44:00.0",
+        "render": "renderD137",
+        "busy": 0,
+        "vram_used": 10919936
+      },
+      {
+        "pci": "0000:83:00.0",
+        "render": "renderD132",
+        "busy": 0,
+        "vram_used": 10932224
+      }
+    ],
+    "exit_code": 0,
+    "finished": "2026-10-18T07:00:48.745670+00:00",
+    "stdout": "collective_join_case=1 threw=1 clean=1 summed=1 PASS\ncollective_join_case=2 threw=1 clean=1 summed=1 PASS\ncollective_join_case=3 threw=1 clean=1 summed=1 PASS\ncollective_join_case=4 threw=1 clean=1 summed=1 PASS\ncollective_ownership payloads=4 peer_reads=14 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_in_flight sums=7 PASS\ncollective_capability_refused before_shared_allocation=1 PASS\ncollective_import_refused named=1 PASS\ncollective_ownership payloads=24 peer_reads=60 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_two_shot_ownership sums=5 PASS\ncollective_ownership payloads=24 peer_reads=60 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_mixed_shots_ownership rows=80,1,1,80,1,1,80 unchanged_tails=1 PASS\ncollective_second_exchange_failure kind=0 drained=1 recovered=1 PASS\ncollective_second_exchange_failure kind=1 drained=1 recovered=1 PASS\ncollective_second_exchange_failure kind=2 drained=1 recovered=1 PASS\ncollective_sum_case=1 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=2 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=3 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=4 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=5 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=6 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=7 members=3 threw=1 drained=1 summed=1 closed=1 PASS\n",
+    "stderr": "",
+    "binary_unchanged": true,
+    "container_removed": true
+  },
+  "limits": [
+    "Failure-injection checks establish draining and numerical recovery, not a complete ownership trace of failed submissions.",
+    "Capability refusal is checked. vkCreateDevice extension enabling is source-reviewed, not intercepted.",
+    "Tracing requires push descriptors; two-shot coverage requires three sharing-capable Vulkan devices.",
+    "No performance, HF or full merge gates claimed. The Flash 16K gate remains unresolved."
+  ],
+  "markdown_review": {
+    "tracked": 110,
+    "unchanged_from_base": 107,
+    "changed": [
+      "docs/STATUS.md",
+      "docs/TENSOR-SPLIT.md",
+      "docs/MULTI-DEVICE.md"
+    ]
+  },
+  "windows": {
+    "configuration": "Fresh VS18 Release, Vulkan SDK1.4.357.0",
+    "fake_api_cases": 23,
+    "failures": 0,
+    "binary_sha256": "01b16ce4d25726dc0c05fe6436f3f52263f68af5d6377cabecd7d649a166c7e6"
+  },
+  "source_checks": {
+    "docs": {
+      "findings": 0,
+      "planted_faults": 21,
+      "log_sha256": "4df0d14354f9012af21e7dc949cc7c30fa1da8c3da5ccc376e81a877fbd3d86c"
+    },
+    "dead_code": {
+      "listed_findings": 5,
+      "planted_faults": 18,
+      "log_sha256": "6eb8cef24e2dbbeddd92f8285be7c7ab887eed45748a051ea5ebaf68ce8dab91"
+    }
+  }
+}

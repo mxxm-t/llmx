@@ -514,7 +514,7 @@ int queue_checks() {
 }
 
 namespace {
-// A tensor group's collective over devices 0 and 1 (VulkanCollective): its semaphores freed when a join fails part way, its members drained before any goes, and a sum that fails part way leaving it as new with no file left open.
+// A tensor group's collective (VulkanCollective): its semaphores are freed when a join fails part way, members drain before any goes, and a partial sum failure leaves it reusable without open files.
 struct CollectiveCalls;
 CollectiveCalls* collective_calls = nullptr;
 struct CollectiveCalls {
@@ -799,15 +799,15 @@ struct CollectiveCalls {
         }
         return false;
     }
-    bool ownership_ok() const {
+    bool ownership_ok(bool quiet = false) const {
         struct State {
             Event write{Op::write, 0, 0, 0}, acquire{Op::barrier, 0, 0, 0};
             size_t writer = SIZE_MAX, release = SIZE_MAX, reader = SIZE_MAX, acquired = SIZE_MAX;
         };
         std::vector<State> state(payloads + 1);
         size_t reads = 0;
-        auto fail = [](const char* why, size_t payload, size_t submission) {
-            std::cout << "collective_ownership payload=" << payload << " submission=" << submission << " " << why << " FAIL\n";
+        auto fail = [quiet](const char* why, size_t payload, size_t submission) {
+            if (!quiet) std::cout << "collective_ownership payload=" << payload << " submission=" << submission << " " << why << " FAIL\n";
             return false;
         };
         if (bad_wait_stage) return fail("peer wait does not cover ownership acquire", 0, 0);
@@ -831,6 +831,7 @@ struct CollectiveCalls {
                     submitted[p.release].member == submitted[s].member)
                     return fail("acquire lacks matching release and semaphore dependency", e.payload, s);
                 p.acquire = e; p.acquired = s;
+                p.release = SIZE_MAX; // One preserving release permits one acquire, followed by any reads.
             } else if (e.op == Op::read) {
                 const VkAccessFlags access = e.dst_stage == VK_PIPELINE_STAGE_TRANSFER_BIT ? VK_ACCESS_TRANSFER_READ_BIT : VK_ACCESS_SHADER_READ_BIT;
                 if (p.acquired == SIZE_MAX || !ordered(p.acquired, s) || e.offset != p.acquire.offset || e.bytes != p.acquire.bytes ||
@@ -840,8 +841,48 @@ struct CollectiveCalls {
                 p.reader = s; ++reads;
             } else return fail("wrong ownership barrier direction or family", e.payload, s);
         }
-        std::cout << "collective_ownership payloads=" << payloads << " peer_reads=" << reads << (reads ? " PASS\n" : " FAIL\n");
+        if (!quiet) std::cout << "collective_ownership payloads=" << payloads << " peer_reads=" << reads << (reads ? " PASS\n" : " FAIL\n");
         return reads != 0;
+    }
+    // Mutate the actual successful trace in memory; no additional Vulkan calls.
+    bool ownership_mutations() {
+        size_t rs = SIZE_MAX, re = 0, as = SIZE_MAX, ae = 0, read = SIZE_MAX;
+        for (size_t s = 0; s < submitted.size(); ++s) for (size_t e = 0; e < submitted[s].events.size(); ++e) {
+            const auto& event = submitted[s].events[e];
+            if (rs == SIZE_MAX && event.op == Op::barrier && event.dst_family == VK_QUEUE_FAMILY_FOREIGN_EXT) { rs = s; re = e; }
+            if (rs != SIZE_MAX && as == SIZE_MAX && event.op == Op::barrier && event.src_family == VK_QUEUE_FAMILY_FOREIGN_EXT &&
+                event.payload == submitted[rs].events[re].payload) { as = s; ae = e; }
+            if (as == s && e > ae && event.op == Op::read && event.payload == submitted[as].events[ae].payload && read == SIZE_MAX) read = e;
+        }
+        if (rs == SIZE_MAX || as == SIZE_MAX || read == SIZE_MAX) {
+            std::cout << "collective_ownership_negative missing handoff/read witness FAIL\n";
+            return false;
+        }
+        size_t rejected = 0;
+        auto check = [&](const char* name, auto mutate) {
+            const auto saved = submitted;
+            mutate();
+            if (!ownership_ok(true)) ++rejected;
+            else std::cout << "collective_ownership_negative unexpectedly accepted " << name << '\n';
+            submitted = saved;
+        };
+        check("missing release", [&] { submitted[rs].events.erase(submitted[rs].events.begin() + re); });
+        check("reversed direction", [&] { auto& e = submitted[rs].events[re]; std::swap(e.src_family, e.dst_family); });
+        check("wrong size", [&] { submitted[as].events[ae].bytes += sizeof(float); });
+        check("acquire after read", [&] {
+            auto& events = submitted[as].events;
+            const auto acquire = events[ae];
+            events.erase(events.begin() + ae);
+            events.insert(events.begin() + read, acquire); // The original read shifted left by one.
+        });
+        check("duplicate acquire", [&] {
+            auto& events = submitted[as].events;
+            const auto acquire = events[ae];
+            events.insert(events.begin() + ae + 1, acquire);
+        });
+        const bool ok = rejected == 5;
+        std::cout << "collective_ownership_negative cases=5 rejected=" << rejected << (ok ? " PASS\n" : " FAIL\n");
+        return ok;
     }
 };
 
@@ -933,38 +974,43 @@ int collective_checks() {
     uint32_t seed = 3;
     auto value = [&] { seed = seed * 1664525u + 1013904223u; return float(int(seed >> 16) % 2001 - 1000) / 97.0f; };
     // Sums back to back on fresh residuals, each member's partial written before its sum and nothing read between, the collective destroyed before the residuals are read; true when every member's residual is the chain of sums in member order.
-    auto chain = [&](std::unique_ptr<backend::Collective>& sum, size_t sums, size_t active_rows = 0, size_t active_width = 0) {
+    auto chain = [&](const std::vector<backend::Backend*>& active_members,
+                     std::unique_ptr<backend::Collective>& sum, size_t sums, size_t active_rows = 0, size_t active_width = 0,
+                     std::initializer_list<size_t> row_counts = {}) {
         if (!active_rows) active_rows = rows;
         if (!active_width) active_width = width;
+        if (row_counts.size() && row_counts.size() != sums) throw std::logic_error("collective chain row counts differ from sum count");
+        for (size_t count : row_counts) if (count > active_rows) throw std::logic_error("collective chain exceeds reserved rows");
         const size_t n = active_rows * active_width;
         std::vector<float> want(n);
         for (float& v : want) v = value();
         std::vector<backend::BufferPtr> x;
         std::vector<backend::Slice> xs;
-        for (size_t m = 0; m < members.size(); ++m) {
-            x.push_back(members[m]->alloc(n * sizeof(float)));
-            members[m]->write(*x.back(), 0, want.data(), n * sizeof(float));
+        for (size_t m = 0; m < active_members.size(); ++m) {
+            x.push_back(active_members[m]->alloc(n * sizeof(float)));
+            active_members[m]->write(*x.back(), 0, want.data(), n * sizeof(float));
             xs.push_back({x.back().get(), 0});
         }
         for (size_t k = 0; k < sums; ++k) {
-            std::vector<std::vector<float>> partial(members.size(), std::vector<float>(n));
-            for (size_t m = 0; m < members.size(); ++m) {
+            const size_t sum_rows = row_counts.size() ? *(row_counts.begin() + k) : active_rows;
+            std::vector<std::vector<float>> partial(active_members.size(), std::vector<float>(n));
+            for (size_t m = 0; m < active_members.size(); ++m) {
                 for (float& v : partial[m]) v = value();
                 const backend::Slice p = sum->partial(m);
-                members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
+                active_members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
             }
-            sum->sum_into(xs, active_rows, active_width);
-            for (size_t i = 0; i < n; ++i) {
+            sum->sum_into(xs, sum_rows, active_width);
+            for (size_t i = 0; i < sum_rows * active_width; ++i) {
                 float p = partial[0][i];
-                for (size_t m = 1; m < members.size(); ++m) p = p + partial[m][i];
+                for (size_t m = 1; m < active_members.size(); ++m) p = p + partial[m][i];
                 want[i] = want[i] + p;
             }
         }
         sum.reset();
         bool same = true;
-        for (size_t m = 0; m < members.size(); ++m) {
+        for (size_t m = 0; m < active_members.size(); ++m) {
             std::vector<float> got(n);
-            members[m]->read(*x[m], 0, got.data(), n * sizeof(float));
+            active_members[m]->read(*x[m], 0, got.data(), n * sizeof(float));
             same = same && std::memcmp(got.data(), want.data(), n * sizeof(float)) == 0;
         }
         return same;
@@ -979,7 +1025,7 @@ int collective_checks() {
             clean = q.live == 0 && !q.premature;
             q.fail_create = 0;
             auto sum = first->join(members, rows, width);
-            summed = chain(sum, 3) && q.live == 0 && !q.premature;
+            summed = chain(members, sum, 3) && q.live == 0 && !q.premature;
         }
         const bool ok = threw && clean && summed;
         std::cout << "collective_join_case=" << kind << " threw=" << threw << " clean=" << clean << " summed=" << summed << (ok ? " PASS\n" : " FAIL\n");
@@ -988,9 +1034,10 @@ int collective_checks() {
     {
         CollectiveCalls q(vk, true);
         auto sum = first->join(members, rows, width);
-        const bool same = chain(sum, 7);
+        const bool same = chain(members, sum, 7);
         const bool ownership = q.ownership_ok();
-        const bool ok = same && ownership && q.live == 0 && !q.premature;
+        const bool negatives = ownership && q.ownership_mutations();
+        const bool ok = same && ownership && negatives && q.live == 0 && !q.premature;
         std::cout << "collective_in_flight sums=7" << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
     }
@@ -1020,86 +1067,126 @@ int collective_checks() {
             dev->memory_fd_props = original;
             const bool named = why.find("cannot share its memory and semaphores") != std::string::npos && why.find(backend::vulkan_device_name(*second)) != std::string::npos;
             auto sum = first->join(members, rows, width);
-            const bool ok = named && chain(sum, 3) && q.live == 0 && !q.premature;
+            const bool ok = named && chain(members, sum, 3) && q.live == 0 && !q.premature;
             std::cout << "collective_import_refused named=" << named << (ok ? " PASS\n" : " FAIL\n");
             if (!ok) ++failures;
         }
     }
-    // A sum's failures on a group of three where a third device opens, and on the two otherwise: exports and queue calls fail on whichever thread makes them, imports on the caller's; kind 7 destroys the collective right after the failed sum.
-    backend::BackendPtr third;
+    // Probe each additional width once, then reuse the same checks for all shareable groups.
+    backend::BackendPtr third, fourth;
+    bool width_three = false, width_four = false;
     try {
         third = backend::make_vulkan_backend(2);
-        members.push_back(third.get());
-        if (first->join(members, 1, 1)) vk.push_back(&dynamic_cast<backend::VulkanBackend&>(*third));
+        auto candidate = members;
+        candidate.push_back(third.get());
+        if (first->join(candidate, 1, 1)) {
+            members = std::move(candidate);
+            vk.push_back(&dynamic_cast<backend::VulkanBackend&>(*third));
+            width_three = true;
+        }
     } catch (const std::exception&) {}
-    if (members.size() > vk.size()) members.pop_back();
-    const int W = (int)members.size();
-    if (W == 3) {
-        // Both inbox and gather handoffs, with each parity reused. 4097*80 is
-        // just above the production two-shot crossover (327680 floats).
-        const size_t large_rows = 80, large_width = 4097;
-        {
-            CollectiveCalls q(vk, true);
-            auto sum = first->join(members, large_rows, large_width);
-            const bool same = chain(sum, 5, large_rows, large_width);
-            const bool ownership = q.ownership_ok();
-            const bool ok = same && ownership && q.live == 0 && !q.premature;
-            std::cout << "collective_two_shot_ownership sums=5" << (ok ? " PASS\n" : " FAIL\n");
-            if (!ok) ++failures;
-        }
-        for (int kind = 0; kind < 3; ++kind) {
-            const size_t files = open_files();
-            CollectiveCalls q(vk);
-            auto sum = first->join(members, large_rows, large_width);
-            const int live = q.live;
-            if (kind == 0) q.fail_get = W * (W - 1) + 1;
-            if (kind == 1) q.fail_import = W * (W - 1) + 1;
-            if (kind == 2) q.fail_submit_call = W + 1;
-            std::vector<backend::BufferPtr> x;
-            std::vector<backend::Slice> xs;
-            for (auto* b : members) {
-                x.push_back(b->alloc(large_rows * large_width * sizeof(float)));
-                xs.push_back({x.back().get(), 0});
+    if (width_three) {
+        try {
+            fourth = backend::make_vulkan_backend(3);
+            auto candidate = members;
+            candidate.push_back(fourth.get());
+            if (first->join(candidate, 1, 1)) {
+                members = std::move(candidate);
+                vk.push_back(&dynamic_cast<backend::VulkanBackend&>(*fourth));
+                width_four = true;
             }
-            bool threw = false;
-            try { sum->sum_into(xs, large_rows, large_width); }
-            catch (const std::exception&) { threw = true; }
-            bool drained = q.live == live && !q.premature;
-            for (auto* b : vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
-            q.fail_get = q.fail_import = q.fail_submit_call = 0;
-            const bool same = chain(sum, 3, large_rows, large_width);
-            const bool ok = threw && drained && same && q.live == 0 && !q.premature && open_files() == files;
-            std::cout << "collective_second_exchange_failure kind=" << kind << " drained=" << drained << " recovered=" << same << (ok ? " PASS\n" : " FAIL\n");
-            if (!ok) ++failures;
-        }
-    } else std::cout << "collective: no third device, two-shot ownership and second-exchange failures skipped\n";
-    for (int kind = 1; kind <= 7; ++kind) {
-        bool threw = false, drained = false, summed = false;
-        const size_t files = open_files();
-        {
-            CollectiveCalls q(vk);
-            auto sum = first->join(members, rows, width);
-            const int live = q.live;
-            if (kind <= 2) q.fail_get = kind; else if (kind <= 4) q.fail_import = kind - 2; else q.fail_submit = kind == 5 ? 1 : W;
-            std::vector<backend::BufferPtr> x;
-            std::vector<backend::Slice> xs;
-            for (size_t m = 0; m < members.size(); ++m) {
-                x.push_back(members[m]->alloc(n * sizeof(float)));
-                xs.push_back({x.back().get(), 0});
-            }
-            try { sum->sum_into(xs, rows, width); }
-            catch (const std::exception&) { threw = true; }
-            drained = q.live == live && !q.premature && q.fail_submit == 0;
-            for (auto* b : vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
-            q.fail_get = q.fail_import = 0;
-            if (kind == 7) sum.reset();
-            summed = (kind == 7 || chain(sum, 3)) && q.live == 0 && !q.premature;
-        }
-        const bool closed = open_files() == files;
-        const bool ok = threw && drained && summed && closed;
-        std::cout << "collective_sum_case=" << kind << " members=" << W << " threw=" << threw << " drained=" << drained << " summed=" << summed << " closed=" << closed << (ok ? " PASS\n" : " FAIL\n");
-        if (!ok) ++failures;
+        } catch (const std::exception&) {}
     }
+    if (!width_three) std::cout << "collective_width3 skipped: no third shareable device\n";
+    if (!width_four) std::cout << "collective_width4 skipped: no fourth shareable device\n";
+    if (!width_three) std::cout << "collective: two-shot ownership and second-exchange failure checks skipped\n";
+
+    auto member_width_checks = [&](size_t count) {
+        std::vector<backend::Backend*> group(members.begin(), members.begin() + count);
+        std::vector<backend::VulkanBackend*> group_vk(vk.begin(), vk.begin() + count);
+        const int W = (int)group.size();
+        if (W >= 3) {
+            // Both inbox and gather handoffs, with each parity reused. 4097*80 is
+            // just above the production two-shot crossover (327680 floats).
+            const size_t large_rows = 80, large_width = 4097;
+            {
+                CollectiveCalls q(group_vk, true);
+                auto sum = first->join(group, large_rows, large_width);
+                const bool same = chain(group, sum, 5, large_rows, large_width);
+                const bool ownership = q.ownership_ok();
+                const bool negatives = ownership && q.ownership_mutations();
+                const bool ok = same && ownership && negatives && q.live == 0 && !q.premature;
+                std::cout << "collective_two_shot_ownership members=" << W << " sums=5" << (ok ? " PASS\n" : " FAIL\n");
+                if (!ok) ++failures;
+            }
+            {
+                // Reuse the same collective while both parities change between
+                // one and two shots. Full residual tails must remain unchanged.
+                CollectiveCalls q(group_vk, true);
+                auto sum = first->join(group, large_rows, large_width);
+                const bool same = chain(group, sum, 7, large_rows, large_width, {80, 1, 1, 80, 1, 1, 80});
+                const bool ownership = q.ownership_ok();
+                const bool negatives = ownership && q.ownership_mutations();
+                const bool ok = same && ownership && negatives && q.live == 0 && !q.premature;
+                std::cout << "collective_mixed_shots_ownership members=" << W << " rows=80,1,1,80,1,1,80 unchanged_tails=" << same << (ok ? " PASS\n" : " FAIL\n");
+                if (!ok) ++failures;
+            }
+            for (int kind = 0; kind < 3; ++kind) {
+                const size_t files = open_files();
+                CollectiveCalls q(group_vk);
+                auto sum = first->join(group, large_rows, large_width);
+                const int live = q.live;
+                if (kind == 0) q.fail_get = W * (W - 1) + 1;
+                if (kind == 1) q.fail_import = W * (W - 1) + 1;
+                if (kind == 2) q.fail_submit_call = W + 1;
+                std::vector<backend::BufferPtr> x;
+                std::vector<backend::Slice> xs;
+                for (auto* b : group) {
+                    x.push_back(b->alloc(large_rows * large_width * sizeof(float)));
+                    xs.push_back({x.back().get(), 0});
+                }
+                bool threw = false;
+                try { sum->sum_into(xs, large_rows, large_width); }
+                catch (const std::exception&) { threw = true; }
+                bool drained = q.live == live && !q.premature;
+                for (auto* b : group_vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
+                q.fail_get = q.fail_import = q.fail_submit_call = 0;
+                const bool same = chain(group, sum, 3, large_rows, large_width);
+                const bool ok = threw && drained && same && q.live == 0 && !q.premature && open_files() == files;
+                std::cout << "collective_second_exchange_failure members=" << W << " kind=" << kind << " drained=" << drained << " recovered=" << same << (ok ? " PASS\n" : " FAIL\n");
+                if (!ok) ++failures;
+            }
+        }
+        for (int kind = 1; kind <= 7; ++kind) {
+            bool threw = false, drained = false, summed = false;
+            const size_t files = open_files();
+            {
+                CollectiveCalls q(group_vk);
+                auto sum = first->join(group, rows, width);
+                const int live = q.live;
+                if (kind <= 2) q.fail_get = kind; else if (kind <= 4) q.fail_import = kind - 2; else q.fail_submit = kind == 5 ? 1 : W;
+                std::vector<backend::BufferPtr> x;
+                std::vector<backend::Slice> xs;
+                for (size_t m = 0; m < group.size(); ++m) {
+                    x.push_back(group[m]->alloc(n * sizeof(float)));
+                    xs.push_back({x.back().get(), 0});
+                }
+                try { sum->sum_into(xs, rows, width); }
+                catch (const std::exception&) { threw = true; }
+                drained = q.live == live && !q.premature && q.fail_submit == 0;
+                for (auto* b : group_vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
+                q.fail_get = q.fail_import = 0;
+                if (kind == 7) sum.reset();
+                summed = (kind == 7 || chain(group, sum, 3)) && q.live == 0 && !q.premature;
+            }
+            const bool closed = open_files() == files;
+            const bool ok = threw && drained && summed && closed;
+            std::cout << "collective_sum_case=" << kind << " members=" << W << " threw=" << threw << " drained=" << drained << " summed=" << summed << " closed=" << closed << (ok ? " PASS\n" : " FAIL\n");
+            if (!ok) ++failures;
+        }
+    };
+    member_width_checks(width_three ? 3 : 2);
+    if (width_four) member_width_checks(4);
     return failures;
 }
 }

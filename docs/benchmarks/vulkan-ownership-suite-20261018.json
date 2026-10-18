@@ -1,0 +1,78 @@
+{
+  "scope": "Completed Linux suite results for frozen Vulkan ownership runtime and focused rebase integration checks; not a complete gate on integration head.",
+  "evidence_paths_base": "worktree root",
+  "source_artifact": {
+    "path": "../build-live-dashboard-final-rig-20261017/ownership-suite-artifacts.json",
+    "sha256": "434D44130FB11BDD4D087E66414AA12095BA06C7BD70D1F1ABA8E6C407C6F08D"
+  },
+  "frozen_ownership_source": {
+    "base": "aa598d007cb95c293937064f0c7e47285637a53c",
+    "runtime": "4a8958dac52157ac4f7cbd7b511402b166e7aff3",
+    "linux_full_target_build": {
+      "finished": "2026-10-18T07:45:42.058581+00:00",
+      "exit_code": 0,
+      "cli_hash_unchanged": true,
+      "artifact_sha256": "ada2fdd1b3e6bb6848ea8fa3c8db9c6ac4e9d88b80a85f074d0effd974d09939"
+    },
+    "native_ctest": {
+      "passed": 53,
+      "total": 53,
+      "exit_code": 0,
+      "artifact_sha256": "64fb8e642959a4778e47dbebd7b54a037120be04b1c990aa16b2bb4ac2242458"
+    },
+    "vulkan_required_tool_components": {
+      "device": "vulkan:0, PCI 0000:03:00.0",
+      "first_run": {
+        "passed": 24,
+        "components": [
+          "dead-code", "docs", "arch-boundary", "version", "cli",
+          "reference-generator", "reference-consumer", "device-reference",
+          "roundtrip", "perf", "tokenizer", "perplexity", "f32", "moe",
+          "int8", "qwen35", "tensor-split", "decode-probe", "shards",
+          "server", "server-load", "chat", "threads", "baseline"
+        ],
+        "exit_code": 0,
+        "artifact_sha256": "83ae980bf52bb35693ba5dbe0f00898ea6744ede05436a5f3be2de38f1a40104"
+      },
+      "remaining_run": {
+        "passed": ["mxfp4", "split", "drafters"],
+        "exit_code": 0,
+        "artifact_sha256": "db9587eb69804a7bd1bce69d4b73dbfed5ac0f10ad41885ed3c5453defa3be1f"
+      },
+      "cleanup": "Both device runner containers were removed; source and binaries remained unchanged."
+    }
+  },
+  "rebase_integration": {
+    "main": {
+      "revision": "185e645922fc3ecf9909b7f914fd5b3de5f687d6",
+      "build_exit_code": 0,
+      "cli_sha256": "a80bdf8c2fc22b7cb6364d12e72732c940feb65a9fa505da0b65717310f4c0d2",
+      "server_passes_cpu_exit_code": 0,
+      "server_passes_test_sha256": "827f16b182a5bdcd2ed482c9f65ed9220ec429c829a2f31676be970ae29426e5",
+      "server_passes_log_sha256": "7e0f3fa070f07dacb05f3298b36af70b5de5c99513172d520d08ba984fb04e0f"
+    },
+    "integration": {
+      "revision": "235dbedeb216d689f747973520f9f585e4cef3e5",
+      "build_exit_code": 0,
+      "cli_sha256": "10ef0bac34bb9f03a631357f8b84d819ea69404309d2bd79ad64845f4042361a",
+      "server_passes_cpu_exit_code": 0,
+      "server_passes_test_sha256": "cb40a3acbc18858af26f6b4a21d0213a873caee366a2285049d1e26b6a5af25a",
+      "server_passes_log_sha256": "5363b576cede20801557fe5ae4829b0529c13a2e490001300afc2f3b64a2dcbb"
+    },
+    "purpose": "The targeted server-passes-cpu test covers the inherited boundary-fork-under-quieted fix on both main and integration builds."
+  },
+  "unchanged_ownership_sources": {
+    "from": "4a8958dac",
+    "to": "235dbedeb",
+    "files": [
+      "src/backends/vulkan/vulkan_backend.cpp",
+      "tests/vulkan_buffer.cpp"
+    ],
+    "byte_identical": true
+  },
+  "still_open": [
+    "The full suite was not rerun on integration head 235dbedeb. The frozen 4a8958dac suite is carried because the Vulkan implementation, ownership tests, relevant fixtures and configuration are unchanged; the inherited scheduler fork-under-quieted change is separately covered by server-passes-cpu on main 185e64592 and integration 235dbedeb.",
+    "The remaining ownership-branch gates are the monitored layout-control timing assessment, still running, and hosted CI.",
+    "The original Flash 16K correctness issue remains unresolved; its cause is separate from this ownership result and is not established here."
+  ]
+}

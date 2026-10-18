@@ -1,0 +1,1450 @@
+{
+  "complete": true,
+  "measured_processes": 32,
+  "warmup_processes": 4,
+  "stats": {
+    "pp512": {
+      "before": {
+        "n": 8,
+        "mean": 4999.475,
+        "median": 5012.875,
+        "samples": [
+          5011.63,
+          4999.42,
+          5016.07,
+          5022.72,
+          5038.26,
+          4957.66,
+          5014.12,
+          4935.92
+        ]
+      },
+      "after": {
+        "n": 8,
+        "mean": 4985.2475,
+        "median": 4980.435,
+        "samples": [
+          5002.56,
+          4995.53,
+          4969.39,
+          4969.86,
+          5020.81,
+          4976.52,
+          4962.96,
+          4984.35
+        ]
+      },
+      "before-align64": {
+        "n": 8,
+        "mean": 4997.25375,
+        "median": 4996.4400000000005,
+        "samples": [
+          5014.99,
+          5002.17,
+          5040.13,
+          4990.71,
+          4965.15,
+          4988.19,
+          4960.02,
+          5016.67
+        ]
+      },
+      "after-align64": {
+        "n": 8,
+        "mean": 5006.29375,
+        "median": 5016.925,
+        "samples": [
+          5012.51,
+          5028.68,
+          4995.81,
+          4973.42,
+          5026.26,
+          5021.34,
+          5021.38,
+          4970.95
+        ]
+      }
+    },
+    "tg128": {
+      "before": {
+        "n": 8,
+        "mean": 53.9825,
+        "median": 53.65,
+        "samples": [
+          53.25,
+          52.76,
+          54.17,
+          53.75,
+          55.59,
+          53.55,
+          52.56,
+          56.23
+        ]
+      },
+      "after": {
+        "n": 8,
+        "mean": 52.71625,
+        "median": 53.015,
+        "samples": [
+          51.7,
+          52.68,
+          54.3,
+          54.68,
+          53.34,
+          52.9,
+          53.13,
+          49.0
+        ]
+      },
+      "before-align64": {
+        "n": 8,
+        "mean": 53.71125,
+        "median": 53.455,
+        "samples": [
+          52.54,
+          52.62,
+          53.42,
+          55.48,
+          53.86,
+          53.49,
+          52.72,
+          55.56
+        ]
+      },
+      "after-align64": {
+        "n": 8,
+        "mean": 52.00375,
+        "median": 52.96,
+        "samples": [
+          49.96,
+          51.41,
+          53.02,
+          53.53,
+          53.0,
+          53.55,
+          52.92,
+          48.64
+        ]
+      }
+    }
+  },
+  "comparisons": {
+    "pp512": {
+      "mean": {
+        "plain_candidate_percent": -0.2845798808874922,
+        "aligned_candidate_percent": 0.1808993589729191,
+        "difference_percentage_points": 0.4654792398604113,
+        "main_layout_percent": -0.044429665114842365,
+        "candidate_layout_percent": 0.4221706143977766
+      },
+      "median": {
+        "plain_candidate_percent": -0.6471336309004205,
+        "aligned_candidate_percent": 0.40999191424293535,
+        "difference_percentage_points": 1.0571255451433559,
+        "main_layout_percent": -0.3278557713886632,
+        "candidate_layout_percent": 0.7326669256801921
+      }
+    },
+    "tg128": {
+      "mean": {
+        "plain_candidate_percent": -2.345667577455657,
+        "aligned_candidate_percent": -3.17903604924481,
+        "difference_percentage_points": -0.8333684717891532,
+        "main_layout_percent": -0.5024776547955412,
+        "candidate_layout_percent": -1.3515756526687794
+      },
+      "median": {
+        "plain_candidate_percent": -1.18359739049394,
+        "aligned_candidate_percent": -0.9260125339070169,
+        "difference_percentage_points": 0.2575848565869232,
+        "main_layout_percent": -0.36346691519105745,
+        "candidate_layout_percent": -0.10374422333301325
+      }
+    }
+  },
+  "activity": [
+    {
+      "label": "warmup-00-before",
+      "metrics": {
+        "pp512": 4983.32,
+        "tg128": 55.38
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.088585796741951,
+      "system_cpu_max": 0.14783653846153844,
+      "physical_disk_busy_max": 0.04285797675204186,
+      "unrelated_cpu_mean_cores": 0.34086231995294997,
+      "benchmark_cpu_mean_cores": 0.8636603091025111,
+      "monitor_cpu_mean_cores": 0.04575259611891547,
+      "other_gpu_max_percent": 100,
+      "active_background": [],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": false,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "warmup-01-after",
+      "metrics": {
+        "pp512": 5016.02,
+        "tg128": 53.58
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.08694647561232062,
+      "system_cpu_max": 0.13443396226415094,
+      "physical_disk_busy_max": 0.2727411099128477,
+      "unrelated_cpu_mean_cores": 0.34007481071695916,
+      "benchmark_cpu_mean_cores": 0.8567562322719725,
+      "monitor_cpu_mean_cores": 0.06480349354151049,
+      "other_gpu_max_percent": 100,
+      "active_background": [],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": false,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "warmup-02-before-align64",
+      "metrics": {
+        "pp512": 5022.68,
+        "tg128": 50.59
+      },
+      "samples": 17,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11249619432805141,
+      "system_cpu_max": 0.15879574970484056,
+      "physical_disk_busy_max": 0.043394652259008175,
+      "unrelated_cpu_mean_cores": 0.7218168733369289,
+      "benchmark_cpu_mean_cores": 0.8330654908715542,
+      "monitor_cpu_mean_cores": 0.07144372204927912,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.4018658068934908
+        },
+        {
+          "pid": 2424,
+          "comm": "containerd",
+          "max_cpu_cores": 0.28950755808402273
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "warmup-03-after-align64",
+      "metrics": {
+        "pp512": 5034.15,
+        "tg128": 53.08
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11711967146996367,
+      "system_cpu_max": 0.17992874109263657,
+      "physical_disk_busy_max": 0.17163949072734927,
+      "unrelated_cpu_mean_cores": 0.748200082987067,
+      "benchmark_cpu_mean_cores": 0.8768750347492684,
+      "monitor_cpu_mean_cores": 0.07179602698107695,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.40112270851178106
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-04-before",
+      "metrics": {
+        "pp512": 5011.63,
+        "tg128": 53.25
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11443728110354696,
+      "system_cpu_max": 0.16418798334324802,
+      "physical_disk_busy_max": 0.04365744637526643,
+      "unrelated_cpu_mean_cores": 0.7426919846762889,
+      "benchmark_cpu_mean_cores": 0.8896829574448999,
+      "monitor_cpu_mean_cores": 0.06945858727800891,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.43924078278111434
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-05-after",
+      "metrics": {
+        "pp512": 5002.56,
+        "tg128": 51.7
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11503673966410899,
+      "system_cpu_max": 0.16888374783111626,
+      "physical_disk_busy_max": 0.04420111790729116,
+      "unrelated_cpu_mean_cores": 0.7654849506363196,
+      "benchmark_cpu_mean_cores": 0.8702821687713695,
+      "monitor_cpu_mean_cores": 0.07857116853970321,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.39740944344952617
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-06-after-align64",
+      "metrics": {
+        "pp512": 5012.51,
+        "tg128": 49.96
+      },
+      "samples": 17,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1483369329557937,
+      "system_cpu_max": 0.29569892473118276,
+      "physical_disk_busy_max": 0.13037885753157447,
+      "unrelated_cpu_mean_cores": 1.2383922255850952,
+      "benchmark_cpu_mean_cores": 0.8770765590147055,
+      "monitor_cpu_mean_cores": 0.0719605304571659,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.3731644485220117
+        },
+        {
+          "pid": 2424,
+          "comm": "containerd",
+          "max_cpu_cores": 1.1314529776159088
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 1.2340416460678652
+        },
+        {
+          "pid": 130,
+          "comm": "kcompactd0",
+          "max_cpu_cores": 0.2041271895751356
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-07-before-align64",
+      "metrics": {
+        "pp512": 5014.99,
+        "tg128": 52.54
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11105805658096807,
+      "system_cpu_max": 0.15869311551925325,
+      "physical_disk_busy_max": 0.04460923052610255,
+      "unrelated_cpu_mean_cores": 0.6508738287015572,
+      "benchmark_cpu_mean_cores": 0.8725061408609487,
+      "monitor_cpu_mean_cores": 0.07567946024434936,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.25022556859265344
+        },
+        {
+          "pid": 130,
+          "comm": "kcompactd0",
+          "max_cpu_cores": 0.2594931822442332
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-08-after",
+      "metrics": {
+        "pp512": 4995.53,
+        "tg128": 52.68
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10818017412503998,
+      "system_cpu_max": 0.14395734597156395,
+      "physical_disk_busy_max": 0.26325912781794003,
+      "unrelated_cpu_mean_cores": 0.6401201070042299,
+      "benchmark_cpu_mean_cores": 0.881664907201797,
+      "monitor_cpu_mean_cores": 0.0706281505795255,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2979471530501131
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-09-before-align64",
+      "metrics": {
+        "pp512": 5002.17,
+        "tg128": 52.62
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.12513662907826503,
+      "system_cpu_max": 0.27174565086982605,
+      "physical_disk_busy_max": 0.044648004160109896,
+      "unrelated_cpu_mean_cores": 0.9063744608307238,
+      "benchmark_cpu_mean_cores": 0.8603868386981834,
+      "monitor_cpu_mean_cores": 0.08068833389334643,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.31598334168232395
+        },
+        {
+          "pid": 2424,
+          "comm": "containerd",
+          "max_cpu_cores": 1.6929493346215392
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 1.8603838841994935
+        },
+        {
+          "pid": 3227,
+          "comm": "portainer",
+          "max_cpu_cores": 0.3906806156818936
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-10-before",
+      "metrics": {
+        "pp512": 4999.42,
+        "tg128": 52.76
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10970519680183367,
+      "system_cpu_max": 0.16085156712004733,
+      "physical_disk_busy_max": 0.04727183414513722,
+      "unrelated_cpu_mean_cores": 0.640039751322972,
+      "benchmark_cpu_mean_cores": 0.8761779990200717,
+      "monitor_cpu_mean_cores": 0.07119541512302308,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.3072594288528823
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-11-after-align64",
+      "metrics": {
+        "pp512": 5028.68,
+        "tg128": 51.41
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1083156995165479,
+      "system_cpu_max": 0.15663354763296322,
+      "physical_disk_busy_max": 0.04931454773871811,
+      "unrelated_cpu_mean_cores": 0.6327857424114638,
+      "benchmark_cpu_mean_cores": 0.8806115738646259,
+      "monitor_cpu_mean_cores": 0.08027574917106399,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.30279617260540126
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-12-before-align64",
+      "metrics": {
+        "pp512": 5040.13,
+        "tg128": 53.42
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1092216271340246,
+      "system_cpu_max": 0.16647058823529415,
+      "physical_disk_busy_max": 0.3592891409901777,
+      "unrelated_cpu_mean_cores": 0.6265560509470107,
+      "benchmark_cpu_mean_cores": 0.8729210907499529,
+      "monitor_cpu_mean_cores": 0.08023506325040233,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.26509424704595036
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-13-after-align64",
+      "metrics": {
+        "pp512": 4995.81,
+        "tg128": 53.02
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1066571949212503,
+      "system_cpu_max": 0.16414435389988358,
+      "physical_disk_busy_max": 0.04342848439139332,
+      "unrelated_cpu_mean_cores": 0.6275826668512489,
+      "benchmark_cpu_mean_cores": 0.8717064431531384,
+      "monitor_cpu_mean_cores": 0.07289350025012839,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2956832979839545
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-14-after",
+      "metrics": {
+        "pp512": 4969.39,
+        "tg128": 54.3
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10710685483503783,
+      "system_cpu_max": 0.16881594372801878,
+      "physical_disk_busy_max": 0.25367800313368294,
+      "unrelated_cpu_mean_cores": 0.626500957408273,
+      "benchmark_cpu_mean_cores": 0.8814976482179836,
+      "monitor_cpu_mean_cores": 0.07579492132137482,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.25842549725593006
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-15-before",
+      "metrics": {
+        "pp512": 5016.07,
+        "tg128": 54.17
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10758605403083128,
+      "system_cpu_max": 0.16410861865407322,
+      "physical_disk_busy_max": 0.042710682882708004,
+      "unrelated_cpu_mean_cores": 0.6523768969712042,
+      "benchmark_cpu_mean_cores": 0.8810459940783691,
+      "monitor_cpu_mean_cores": 0.07117883887015054,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.26884664808325687
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 0.32527544882849224
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-16-after-align64",
+      "metrics": {
+        "pp512": 4973.42,
+        "tg128": 53.53
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1100573867043962,
+      "system_cpu_max": 0.16627497062279673,
+      "physical_disk_busy_max": 0.04157722623522679,
+      "unrelated_cpu_mean_cores": 0.6300589336351123,
+      "benchmark_cpu_mean_cores": 0.8843815884143713,
+      "monitor_cpu_mean_cores": 0.07294943494752443,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2423111126212472
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-17-before",
+      "metrics": {
+        "pp512": 5022.72,
+        "tg128": 53.75
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10952520866994157,
+      "system_cpu_max": 0.15678214914856137,
+      "physical_disk_busy_max": 0.18338789598407115,
+      "unrelated_cpu_mean_cores": 0.6404027403554121,
+      "benchmark_cpu_mean_cores": 0.8813497838687787,
+      "monitor_cpu_mean_cores": 0.07574007262656528,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.23967139354729733
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-18-before-align64",
+      "metrics": {
+        "pp512": 4990.71,
+        "tg128": 55.48
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.09127359678044657,
+      "system_cpu_max": 0.14277286135693212,
+      "physical_disk_busy_max": 0.05154676283731055,
+      "unrelated_cpu_mean_cores": 0.37576908836223255,
+      "benchmark_cpu_mean_cores": 0.8747611452654397,
+      "monitor_cpu_mean_cores": 0.07231987828312574,
+      "other_gpu_max_percent": 100,
+      "active_background": [],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": false,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-19-after",
+      "metrics": {
+        "pp512": 4969.86,
+        "tg128": 54.68
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.0904190844888744,
+      "system_cpu_max": 0.1466587817859255,
+      "physical_disk_busy_max": 0.04898093750164111,
+      "unrelated_cpu_mean_cores": 0.34574005990587797,
+      "benchmark_cpu_mean_cores": 0.8712653202428573,
+      "monitor_cpu_mean_cores": 0.07002447304974815,
+      "other_gpu_max_percent": 100,
+      "active_background": [],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": false,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-20-before",
+      "metrics": {
+        "pp512": 5038.26,
+        "tg128": 55.59
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.08921834270028241,
+      "system_cpu_max": 0.15615792575132592,
+      "physical_disk_busy_max": 0.2893757759714376,
+      "unrelated_cpu_mean_cores": 0.34907908658073816,
+      "benchmark_cpu_mean_cores": 0.7926798590636397,
+      "monitor_cpu_mean_cores": 0.07687159577382799,
+      "other_gpu_max_percent": 100,
+      "active_background": [],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": false,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-21-after",
+      "metrics": {
+        "pp512": 5020.81,
+        "tg128": 53.34
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11140966326663455,
+      "system_cpu_max": 0.1743498817966903,
+      "physical_disk_busy_max": 0.044526384079821936,
+      "unrelated_cpu_mean_cores": 0.6938342881920105,
+      "benchmark_cpu_mean_cores": 0.8864443903617258,
+      "monitor_cpu_mean_cores": 0.07351246590577575,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.4162749123120478
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-22-after-align64",
+      "metrics": {
+        "pp512": 5026.26,
+        "tg128": 53.0
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1130327082034434,
+      "system_cpu_max": 0.18881118881118886,
+      "physical_disk_busy_max": 0.051041819828359224,
+      "unrelated_cpu_mean_cores": 0.6623344825960144,
+      "benchmark_cpu_mean_cores": 0.8814050636950236,
+      "monitor_cpu_mean_cores": 0.07747395520142523,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.24141200919001532
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 0.29673816609373427
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-23-before-align64",
+      "metrics": {
+        "pp512": 4965.15,
+        "tg128": 53.86
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11065787312906888,
+      "system_cpu_max": 0.16208308952603867,
+      "physical_disk_busy_max": 0.136867579043918,
+      "unrelated_cpu_mean_cores": 0.6396453043609338,
+      "benchmark_cpu_mean_cores": 0.8839122978651913,
+      "monitor_cpu_mean_cores": 0.07746728882415585,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2668787988712831
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-24-after",
+      "metrics": {
+        "pp512": 4976.52,
+        "tg128": 52.9
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10791189569935004,
+      "system_cpu_max": 0.16666666666666663,
+      "physical_disk_busy_max": 0.05099190335856012,
+      "unrelated_cpu_mean_cores": 0.6383736848213706,
+      "benchmark_cpu_mean_cores": 0.8779422228485724,
+      "monitor_cpu_mean_cores": 0.07805610004562538,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.28627445754929043
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-25-before-align64",
+      "metrics": {
+        "pp512": 4988.19,
+        "tg128": 53.49
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11941547287257467,
+      "system_cpu_max": 0.26862170087976545,
+      "physical_disk_busy_max": 0.23407337211649423,
+      "unrelated_cpu_mean_cores": 0.8400138664767944,
+      "benchmark_cpu_mean_cores": 0.8710525835628392,
+      "monitor_cpu_mean_cores": 0.07460287719742979,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2591544058587127
+        },
+        {
+          "pid": 2424,
+          "comm": "containerd",
+          "max_cpu_cores": 0.9364382132993964
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 0.6885575097789679
+        },
+        {
+          "pid": 3227,
+          "comm": "portainer",
+          "max_cpu_cores": 0.32936794727963825
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-26-before",
+      "metrics": {
+        "pp512": 4957.66,
+        "tg128": 53.55
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10805320976775064,
+      "system_cpu_max": 0.16443927948866943,
+      "physical_disk_busy_max": 0.04359033973850518,
+      "unrelated_cpu_mean_cores": 0.6203216444231497,
+      "benchmark_cpu_mean_cores": 0.8791916242993939,
+      "monitor_cpu_mean_cores": 0.08142568046467184,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.25592155544943057
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-27-after-align64",
+      "metrics": {
+        "pp512": 5021.34,
+        "tg128": 53.55
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11026203042748116,
+      "system_cpu_max": 0.15845070422535212,
+      "physical_disk_busy_max": 0.09259151381080308,
+      "unrelated_cpu_mean_cores": 0.6501304195505785,
+      "benchmark_cpu_mean_cores": 0.8799831346030325,
+      "monitor_cpu_mean_cores": 0.07291512242487037,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2696505484730942
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 0.4367674878490588
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-28-before-align64",
+      "metrics": {
+        "pp512": 4960.02,
+        "tg128": 52.72
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10647765966341281,
+      "system_cpu_max": 0.14909726266744316,
+      "physical_disk_busy_max": 0.03930526633039927,
+      "unrelated_cpu_mean_cores": 0.6069767491992978,
+      "benchmark_cpu_mean_cores": 0.8739878533859636,
+      "monitor_cpu_mean_cores": 0.08415097942426664,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2564659031463055
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-29-after-align64",
+      "metrics": {
+        "pp512": 5021.38,
+        "tg128": 52.92
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11125889810430818,
+      "system_cpu_max": 0.1635730858468677,
+      "physical_disk_busy_max": 0.048103613914272404,
+      "unrelated_cpu_mean_cores": 0.6359361595234,
+      "benchmark_cpu_mean_cores": 0.8814954079811211,
+      "monitor_cpu_mean_cores": 0.07951498813335645,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2776633329157491
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-30-after",
+      "metrics": {
+        "pp512": 4962.96,
+        "tg128": 53.13
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.10766416905454704,
+      "system_cpu_max": 0.15656268393172457,
+      "physical_disk_busy_max": 0.25496923755212625,
+      "unrelated_cpu_mean_cores": 0.6262325750284304,
+      "benchmark_cpu_mean_cores": 0.884623760489018,
+      "monitor_cpu_mean_cores": 0.07521124613795054,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2597000074547923
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-31-before",
+      "metrics": {
+        "pp512": 5014.12,
+        "tg128": 52.56
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.11017279235602324,
+      "system_cpu_max": 0.18871252204585542,
+      "physical_disk_busy_max": 0.188585393795915,
+      "unrelated_cpu_mean_cores": 0.6343131313640786,
+      "benchmark_cpu_mean_cores": 0.8846947266011993,
+      "monitor_cpu_mean_cores": 0.07232411923174588,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2878509497181052
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": false,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-32-after-align64",
+      "metrics": {
+        "pp512": 4970.95,
+        "tg128": 48.64
+      },
+      "samples": 17,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.1713516634503004,
+      "system_cpu_max": 0.22163433274544386,
+      "physical_disk_busy_max": 0.6512754167275869,
+      "unrelated_cpu_mean_cores": 1.5927754462480965,
+      "benchmark_cpu_mean_cores": 0.875618300085408,
+      "monitor_cpu_mean_cores": 0.07724547520125415,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2867893545990933
+        },
+        {
+          "pid": 3640332,
+          "comm": "grep",
+          "max_cpu_cores": 0.973698084247168
+        },
+        {
+          "pid": 130,
+          "comm": "kcompactd0",
+          "max_cpu_cores": 0.23182520270367135
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": true,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-33-before",
+      "metrics": {
+        "pp512": 4935.92,
+        "tg128": 56.23
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.18295060072697863,
+      "system_cpu_max": 0.25923753665689153,
+      "physical_disk_busy_max": 0.6559106301053501,
+      "unrelated_cpu_mean_cores": 1.7933774404198874,
+      "benchmark_cpu_mean_cores": 0.7900422967483961,
+      "monitor_cpu_mean_cores": 0.07637966578807619,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.2587797205501452
+        },
+        {
+          "pid": 3640332,
+          "comm": "grep",
+          "max_cpu_cores": 0.9731288899687268
+        },
+        {
+          "pid": 2598,
+          "comm": "dockerd",
+          "max_cpu_cores": 0.30420348962718613
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": true,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-34-before-align64",
+      "metrics": {
+        "pp512": 5016.67,
+        "tg128": 55.56
+      },
+      "samples": 16,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.18653093524508407,
+      "system_cpu_max": 0.2520710059171598,
+      "physical_disk_busy_max": 0.6742867064365048,
+      "unrelated_cpu_mean_cores": 1.8519653569438865,
+      "benchmark_cpu_mean_cores": 0.8657708366966828,
+      "monitor_cpu_mean_cores": 0.07571865417535233,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.277484241331895
+        },
+        {
+          "pid": 3640332,
+          "comm": "grep",
+          "max_cpu_cores": 0.9786837535819763
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": true,
+        "other_gpu": true
+      }
+    },
+    {
+      "label": "measured-35-after",
+      "metrics": {
+        "pp512": 4984.35,
+        "tg128": 49.0
+      },
+      "samples": 17,
+      "monitor_errors": 0,
+      "system_cpu_mean": 0.2325862681365439,
+      "system_cpu_max": 0.43247962747380675,
+      "physical_disk_busy_max": 0.9378617192701937,
+      "unrelated_cpu_mean_cores": 2.3906377362879097,
+      "benchmark_cpu_mean_cores": 0.7972900209866736,
+      "monitor_cpu_mean_cores": 0.08482947495277968,
+      "other_gpu_max_percent": 100,
+      "active_background": [
+        {
+          "pid": 2386969,
+          "comm": "llmx",
+          "max_cpu_cores": 0.3058828087796576
+        },
+        {
+          "pid": 3640332,
+          "comm": "grep",
+          "max_cpu_cores": 0.9760945237844543
+        },
+        {
+          "pid": 3643536,
+          "comm": "llmx",
+          "max_cpu_cores": 2.142969397201924
+        }
+      ],
+      "activity_flags": {
+        "system_cpu": false,
+        "process_cpu": true,
+        "disk": true,
+        "other_gpu": true
+      }
+    }
+  ],
+  "limits": [
+    "Eight independent processes per arm; r3 is retained inside each process, not counted as 24 independent samples.",
+    "Mean and median differences are descriptive; one alignment perturbation is not a universal layout bound.",
+    "All planned measurements and activity remain included. Warm-up exclusion was declared before launch.",
+    "Fresh integrated builds replace the old scheduler layout; earlier timing is context, not another matched block."
+  ],
+  "provenance": {
+    "source_summary_path": "../build-live-dashboard-final-rig-20261017/ownership-layout64-summary.json",
+    "source_summary_sha256": "8ac06c772eaa867d3ba16093a718c6fc6d6f500a8ed98614718781e69d4a0fc7",
+    "timing_runner_path": "../build-live-dashboard-final-rig-20261017/run-ownership-layout-timing.py",
+    "timing_runner_sha256": "fa3bdf2eb8a25e405106d21e4a243724dbd8040e6a0cf60a70fb6c75043ffe97",
+    "prepared_remote_runner_path": "../build-live-dashboard-final-rig-20261017/ownership-layout-timing.remote.py",
+    "prepared_remote_runner_sha256": "3e071e1712f5f57040bb5908a922c956432978232d3c0fa5b939974611162bb1",
+    "activity_summarizer_sha256": "b9a6d7ba3b0c4e6230a7438132b5367dd7e06d033a4134f3ee15ad48b69e6326",
+    "rig_path": "/zpool1/llmx-xdev-vulkan-ownership-20261018/layout64/timing",
+    "model": {
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    "devices_pci": [
+      "0000:03:00.0",
+      "0000:44:00.0",
+      "0000:83:00.0",
+      "0000:86:00.0"
+    ],
+    "arms": {
+      "before": "clean main revision 185e645922fc3ecf9909b7f914fd5b3de5f687d6",
+      "after": "clean integration revision 235dbedeb216d689f747973520f9f585e4cef3e5",
+      "before-align64": "private alignment variant of main, used only as a NOP/CFG layout witness",
+      "after-align64": "private alignment variant of fix, used only as a NOP/CFG layout witness"
+    },
+    "activity_flag_counts": {
+      "total": {
+        "system_cpu": 0,
+        "process_cpu": 29,
+        "disk": 4,
+        "other_gpu": 32
+      },
+      "by_arm": {
+        "before": {
+          "system_cpu": 0,
+          "process_cpu": 7,
+          "disk": 1,
+          "other_gpu": 8
+        },
+        "after": {
+          "system_cpu": 0,
+          "process_cpu": 7,
+          "disk": 1,
+          "other_gpu": 8
+        },
+        "before-align64": {
+          "system_cpu": 0,
+          "process_cpu": 7,
+          "disk": 1,
+          "other_gpu": 8
+        },
+        "after-align64": {
+          "system_cpu": 0,
+          "process_cpu": 8,
+          "disk": 1,
+          "other_gpu": 8
+        }
+      },
+      "by_round": [
+        {
+          "round": 0,
+          "system_cpu": 0,
+          "process_cpu": 4,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 1,
+          "system_cpu": 0,
+          "process_cpu": 4,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 2,
+          "system_cpu": 0,
+          "process_cpu": 4,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 3,
+          "system_cpu": 0,
+          "process_cpu": 2,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 4,
+          "system_cpu": 0,
+          "process_cpu": 3,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 5,
+          "system_cpu": 0,
+          "process_cpu": 4,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 6,
+          "system_cpu": 0,
+          "process_cpu": 4,
+          "disk": 0,
+          "other_gpu": 4
+        },
+        {
+          "round": 7,
+          "system_cpu": 0,
+          "process_cpu": 4,
+          "disk": 4,
+          "other_gpu": 4
+        }
+      ]
+    },
+    "interpretation": "Descriptive four-arm timing screen only. It did not establish a performance pass, a no-regression bound, or a cause for the Flash 16K correctness issue. The summary contains all per-process metrics, samples, comparisons, monitoring rows and limits. The rig plan pins all four source heads and binary hashes; aligned build version strings were not retained in the plan record.",
+    "plan_path": "../build-live-dashboard-final-rig-20261017/ownership-layout64-plan.json",
+    "plan_sha256": "903a20d9d017a21b63447f85df4befb80c340ca5b73de2afdc1b6fa910550f00",
+    "layout_analysis_sha256": "b397938d339e3196881131e45ebf94bddaf09edab060e97e716f820c87dd955b",
+    "build_pins": {
+      "before": {
+        "head": "185e645922fc3ecf9909b7f914fd5b3de5f687d6",
+        "binary_sha256": "a80bdf8c2fc22b7cb6364d12e72732c940feb65a9fa505da0b65717310f4c0d2",
+        "version": "llmx 0.1.0+g185e645922fc numerics 6439d0f46e37628e",
+        "source_archive_sha256": "7ab53f77f631a41e146c339aae9561e35404a19397af76464b64d43d6caf8635",
+        "alignment_annotation": null
+      },
+      "after": {
+        "head": "235dbedeb216d689f747973520f9f585e4cef3e5",
+        "binary_sha256": "10ef0bac34bb9f03a631357f8b84d819ea69404309d2bd79ad64845f4042361a",
+        "version": "llmx 0.1.0+g235dbedeb216 numerics 9cb1b47024711ea3",
+        "source_archive_sha256": "1df25d9254775e770233ddaf9e4b7efdce13ba998ed2b6db2776996432f99a0b",
+        "alignment_annotation": null
+      },
+      "before-align64": {
+        "head": "46f1e1e5798db226bb27adfbf131822bfb6a6414",
+        "binary_sha256": "c11ec6b9c3755269c2dfe1e08ce462681f69c05f36e65ad8f621d8507ba3114a",
+        "version": "llmx 0.1.0+g46f1e1e5798d numerics 6e63fd1ea946fe0e",
+        "source_archive_sha256": "2df8eb50566a314ef1a2e6cedcd128c09a09141c48682c836e9a3709b738d123",
+        "alignment_annotation": "__attribute__((aligned(64)))"
+      },
+      "after-align64": {
+        "head": "0118b19cce2e5e6dfa73c4a0a28b1e21e4c7f197",
+        "binary_sha256": "081acb579b42c165a330bebbdf552e9286b68af06f8a1d1b4c0df90e9279b2d9",
+        "version": "llmx 0.1.0+g0118b19cce2e numerics a06971994302b2d6",
+        "source_archive_sha256": "5ff81ae09c4a351bcf9647e3cd8f4d62bbf0aade4b1ba5318272059844456bca",
+        "alignment_annotation": "__attribute__((aligned(64)))"
+      }
+    },
+    "build_log_paths": {
+      "before": "/zpool1/llmx-xdev-vulkan-ownership-20261018/integrated/before-build.log",
+      "after": "/zpool1/llmx-xdev-vulkan-ownership-20261018/integrated/after-build.log",
+      "before-align64": "/zpool1/llmx-xdev-vulkan-ownership-20261018/layout64/before-align64-build.log",
+      "after-align64": "/zpool1/llmx-xdev-vulkan-ownership-20261018/layout64/after-align64-build.log"
+    }
+  }
+}

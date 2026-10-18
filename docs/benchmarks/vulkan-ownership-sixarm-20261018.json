@@ -1,0 +1,292 @@
+{
+  "schema": "llmx-vulkan-ownership-sixarm-screen-v1",
+  "scope": "Completed matched timing screen for separately pinned source builds; descriptive evidence only. No performance-gate pass, universal no-regression claim, or speedup claim.",
+  "integration": {
+    "head": "bb4371176d74be97263ef45644eb32a769f39671",
+    "runtime_source_matches_feature_source": "83b1064e6 (parent verified)",
+    "focused_windows_build": {
+      "scope": "MSVC Release build and fake API only; no device or landing qualification",
+      "result_path": "build-integration-win/focused-result.json",
+      "binary_sha256": "58e12733a9521d70cbc71a3ceb9be0b113023c0e132896ad10b64aa1c84e02e2",
+      "fake_api_cases": 23,
+      "passed": true,
+      "result_json_sha256": "c5e67c70437e640dfdef2367558fec8920bbeec881fbcc40a9a55da5c52d1249"
+    },
+    "not_measured": "This current integration tree was not one of the six timing arms. Main model-history/server changes still need integration checks."
+  },
+  "experiment": {
+    "run_id": "20261018T174955Z-f04321c7",
+    "workload": "Same pinned model bytes (SHA-256 9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031), Vulkan devices 0-3, tensor width 4, P512/TG128, ubatch 512, F32 activation and K/V cache, 2 threads.",
+    "warmups": 6,
+    "measured_processes": 36,
+    "total_processes": 42,
+    "arms": {
+      "main_185e64592": {
+        "head": "185e645922fc3ecf9909b7f914fd5b3de5f687d6",
+        "binary_sha256": "a80bdf8c2fc22b7cb6364d12e72732c940feb65a9fa505da0b65717310f4c0d2"
+      },
+      "fix_235dbedeb": {
+        "head": "235dbedeb216d689f747973520f9f585e4cef3e5",
+        "binary_sha256": "10ef0bac34bb9f03a631357f8b84d819ea69404309d2bd79ad64845f4042361a"
+      },
+      "main_align64_46f1e1e5": {
+        "head": "46f1e1e5798db226bb27adfbf131822bfb6a6414",
+        "binary_sha256": "c11ec6b9c3755269c2dfe1e08ce462681f69c05f36e65ad8f621d8507ba3114a"
+      },
+      "fix_align64_0118b19c": {
+        "head": "0118b19cce2e5e6dfa73c4a0a28b1e21e4c7f197",
+        "binary_sha256": "081acb579b42c165a330bebbdf552e9286b68af06f8a1d1b4c0df90e9279b2d9"
+      },
+      "batching_e2c3f3722": {
+        "head": "e2c3f372283088217bbe86e9d746e35c7e00c74d",
+        "binary_sha256": "534e06207e037ee3433cd602ad9cdac27165047ee793e50f23268b7d1173f99d"
+      },
+      "batching_align64_63db1959": {
+        "head": "63db195976dde65ecddfd6bacff233cfa6210d6d",
+        "binary_sha256": "115c4f86ae6b9a27cbdcb3a8a6735b71e233779ee99c85079581d9e1fa5653ef"
+      }
+    },
+    "per_arm": {
+      "measured_processes": 6,
+      "warmup_processes": 1
+    },
+    "sampling": "Each measured process includes three internal repetitions; process is the unit. Six rounds are paired across arms. All planned processes and samples are retained; none discarded or replaced.",
+    "align64_controls": "Private NOP/CFG layout witnesses, not production builds.",
+    "raw_arm_means_tok_s": {
+      "main_185e64592": {
+        "pp512": 4969.003333333333,
+        "tg128": 42.26166666666667
+      },
+      "fix_235dbedeb": {
+        "pp512": 4963.791666666667,
+        "tg128": 41.02166666666667
+      },
+      "batching_e2c3f3722": {
+        "pp512": 4943.468333333333,
+        "tg128": 42.045
+      },
+      "main_align64_46f1e1e5": {
+        "pp512": 4960.84,
+        "tg128": 42.0
+      },
+      "fix_align64_0118b19c": {
+        "pp512": 4963.75,
+        "tg128": 42.48
+      },
+      "batching_align64_63db1959": {
+        "pp512": 4948.453333333333,
+        "tg128": 42.093333333333334
+      }
+    },
+    "paired_round_percent": {
+      "pp512": {
+        "after_vs_before": {
+          "mean_percent": -0.10478823860104829,
+          "median_percent": -0.055907277073996564,
+          "min_percent": -0.5406122916892908,
+          "max_percent": 0.23702604867903432
+        },
+        "batching_vs_before": {
+          "mean_percent": -0.512620913545316,
+          "median_percent": -0.2857257424275672,
+          "min_percent": -1.406228384802155,
+          "max_percent": 0.05177983054240887
+        },
+        "batching_vs_after": {
+          "mean_percent": -0.4075897090181709,
+          "median_percent": -0.23665030035189272,
+          "min_percent": -1.3761734676482895,
+          "max_percent": 0.3180823657401133
+        },
+        "batching-align64_vs_before-align64": {
+          "mean_percent": -0.24864554570583897,
+          "median_percent": -0.31925202683874554,
+          "min_percent": -0.6248821450207998,
+          "max_percent": 0.3265942157701929
+        },
+        "batching-align64_vs_after-align64": {
+          "mean_percent": -0.3063865024442632,
+          "median_percent": -0.118949309527,
+          "min_percent": -1.7261665729660147,
+          "max_percent": 0.5327201808610349
+        },
+        "after-align64_vs_before-align64": {
+          "mean_percent": 0.06361314395455693,
+          "median_percent": -0.051458317626729144,
+          "min_percent": -1.1514682222855122,
+          "max_percent": 1.582769029942055
+        },
+        "before-align64_vs_before": {
+          "mean_percent": -0.16458057159609574,
+          "median_percent": -0.2616071741114778,
+          "min_percent": -0.8335339127550356,
+          "max_percent": 0.6042551819215314
+        },
+        "after-align64_vs_after": {
+          "mean_percent": 0.0001219879661877125,
+          "median_percent": -0.10905336201291749,
+          "min_percent": -0.5852046310984793,
+          "max_percent": 0.812915971693684
+        },
+        "batching-align64_vs_batching": {
+          "mean_percent": 0.10187332081095606,
+          "median_percent": 0.24670978941853106,
+          "min_percent": -1.0540637249649598,
+          "max_percent": 0.7690633979099859
+        }
+      },
+      "tg128": {
+        "after_vs_before": {
+          "mean_percent": -2.665069129568585,
+          "median_percent": -3.84513912339664,
+          "min_percent": -12.824042211516407,
+          "max_percent": 8.427958617209175
+        },
+        "batching_vs_before": {
+          "mean_percent": -0.38905458890336314,
+          "median_percent": -1.5168706516418717,
+          "min_percent": -4.651695692025671,
+          "max_percent": 8.099924299772908
+        },
+        "batching_vs_after": {
+          "mean_percent": 2.755264219077619,
+          "median_percent": 1.1178297511312996,
+          "min_percent": -5.53470919324578,
+          "max_percent": 12.684210526315788
+        },
+        "batching-align64_vs_before-align64": {
+          "mean_percent": 0.36624904203067143,
+          "median_percent": 1.8954730851382495,
+          "min_percent": -10.955764382305755,
+          "max_percent": 6.404549950544025
+        },
+        "batching-align64_vs_after-align64": {
+          "mean_percent": -0.8735205173883079,
+          "median_percent": 1.4737876515108606,
+          "min_percent": -8.80281690140845,
+          "max_percent": 3.2743148193063343
+        },
+        "after-align64_vs_before-align64": {
+          "mean_percent": 1.2128331948923265,
+          "median_percent": 2.1360585339264104,
+          "min_percent": -3.5555555555555673,
+          "max_percent": 4.544344001954559
+        },
+        "before-align64_vs_before": {
+          "mean_percent": -0.39823477328015566,
+          "median_percent": -2.4036496379742696,
+          "min_percent": -7.33272227314391,
+          "max_percent": 7.872823618470859
+        },
+        "after-align64_vs_after": {
+          "mean_percent": 3.7847156623223412,
+          "median_percent": 3.1153026755010416,
+          "min_percent": -4.049336746567378,
+          "max_percent": 12.236842105263147
+        },
+        "batching-align64_vs_batching": {
+          "mean_percent": 0.0892040673859229,
+          "median_percent": 0.12828390788442445,
+          "min_percent": -3.5501489572989042,
+          "max_percent": 3.4126411920211597
+        }
+      }
+    }
+  },
+  "layout_audit": {
+    "sha256": "cd9f5cef7089e29a7fa9cf6b1193ebad21a52af2dfe1bb23ad871cbbfe26ad51",
+    "operational_functions_equal": 2126,
+    "shader_payload_count": 118,
+    "shader_payloads_equal": true,
+    "flags_equal": true,
+    "only_compiled_difference": "NOP padding in sum_into; entry moved from 0x22b830 to 0x22b880."
+  },
+  "machine": {
+    "cgroup_memory_cap_bytes": 2147483648,
+    "cgroup_peak_bytes_min": 195960832,
+    "cgroup_peak_bytes_max": 206041088,
+    "cgroup_peak_bytes_mean": 201151634.2857143,
+    "accounted_processes": 42,
+    "memory_event_deltas": {},
+    "activity": {
+      "samples_per_cell_min": 18,
+      "samples_per_cell_max": 20,
+      "monitor_errors": 0,
+      "unknown_counts": {
+        "system_cpu_intervals": 0,
+        "physical_disk_intervals": 0,
+        "other_gpu_samples": 0
+      },
+      "flagged_cells": {
+        "system_cpu": 0,
+        "process_cpu": 42,
+        "disk": 5,
+        "other_gpu": 42
+      },
+      "max_other_gpu_busy_percent": 100,
+      "max_unrelated_cpu_mean_cores": 6.1456006634457365,
+      "max_system_cpu_fraction": 0.5455069124423964,
+      "max_disk_busy": 0.7187564061538781
+    },
+    "interpretation": "All planned cells completed and were retained. This is a matched screen under persistent unrelated CPU and other-GPU activity; treat small differences in light of the same-location align64 controls. No significance claim."
+  },
+  "retained_guard_attempt": {
+    "summary": "build-live-dashboard-final-rig-20261017/ownership-sixarm-timing-preparation-20261018/completed-evidence/attempt-20261018T174441Z-84795105/summary.json",
+    "summary_sha256": "b555f5054b6cf3bb651d89cbc21bfdf89aa16b5536eddfcd150d206b083387fa",
+    "error": "build-live-dashboard-final-rig-20261017/ownership-sixarm-timing-preparation-20261018/completed-evidence/attempt-20261018T174441Z-84795105/run-error.json",
+    "error_sha256": "c0314fcac80d4aa10a07395950de9537dbd6a6e27173242bd728d77ab5275896",
+    "warmups_completed": 5,
+    "measured_processes": 0,
+    "outcome": "Original 8 GiB host-memory guard attempt retained; it stopped after five warmups before any measured process. Separate from the completed six-arm screen."
+  },
+  "evidence": {
+    "root": "build-live-dashboard-final-rig-20261017/ownership-sixarm-timing-preparation-20261018/completed-evidence",
+    "screen_analysis": {
+      "path": "screen-analysis.json",
+      "sha256": "85c9836d586bd56ad9a4a08759fb74a738de0a2a2edd6bf374e7968a1ea64192"
+    },
+    "copy_verification": {
+      "path": "copy-verification.json",
+      "sha256": "3a79e962e8d823dcbb72dc7ce81ae77abab57639bcdef64f81b08a713b198b03",
+      "all_copied_artifact_hashes_match_remote": true
+    },
+    "run_start": {
+      "path": "v2-20261018T174955Z-f04321c7/run-start.json",
+      "sha256": "b8c350fad30e74d2447eac26c70d44c5cc02408374c5d3270970430c37539bca"
+    },
+    "summary": {
+      "path": "v2-20261018T174955Z-f04321c7/summary.json",
+      "sha256": "22f3b43b76dd68aee5030b76a01a70abd1e49e320fd31cd915fcd53a089450f5"
+    },
+    "raw_results": {
+      "path": "v2-20261018T174955Z-f04321c7/results.json",
+      "sha256": "5b8deeb8be65889665e36e35702158b63011070b82b08380e188ff2db2faf81c"
+    },
+    "all_pins_unchanged": true,
+    "model_unchanged": true,
+    "all_owned_containers_removed": true
+  },
+  "assessment": "Parent assessment accepts this completed matched round as sufficient timing investigation for this workload. Batching versus main ratio-of-means is -0.514% PP512/-0.513% TG128 in the original layout and -0.250%/+0.222% in the align64 controls. Treat this as a disclosed modest measured cost in the original build, not proof of zero regression or speedup. Required ownership correctness plus fewer adjacent acquire API calls justify continuing integration; no broad performance pass is claimed and no repeat matrix is required for these small differences. The controls and persistent background activity remain context for the measurements; no samples were removed for activity.",
+  "markdown_review": {
+    "base": "bb4371176d74be97263ef45644eb32a769f39671",
+    "tracked_markdown_files": 110,
+    "changed_markdown_files": [
+      "docs/MULTI-DEVICE.md",
+      "docs/STATUS.md",
+      "docs/TENSOR-SPLIT.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "unchanged_markdown_files": 106
+  },
+  "validation": {
+    "scope": "Focused docs and dead-code checks only; no GPU, model, native suite, or integration gate.",
+    "command": "python -B tests/run_tests.py --exe build-integration-win/Release/llmx.exe --only docs,dead-code",
+    "binary_sha256": "58e12733a9521d70cbc71a3ceb9be0b113023c0e132896ad10b64aa1c84e02e2",
+    "docs": "pass; 0 findings against 21 planted faults",
+    "dead_code": "pass; 5 listed findings (1 unused, 4 test-only) against 18 planted faults",
+    "log": "build-integration-win/final-docs-dead-code-20261018.log",
+    "log_sha256": "63ec33d98f635500b5866c8928973a22d2f1b59dd46395692c9477e6b0fb3a9b",
+    "diff_check": "pass",
+    "ascii_json_parse": "pass"
+  }
+}

@@ -1311,7 +1311,8 @@ public:
         for (const auto& e : exts)
             if (std::strcmp(e.extensionName, VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME) == 0 ||
                 std::strcmp(e.extensionName, VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME) == 0 ||
-                std::strcmp(e.extensionName, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME) == 0) {
+                std::strcmp(e.extensionName, VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME) == 0 ||
+                std::strcmp(e.extensionName, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME) == 0) {
                 ++exchange_exts;
             } else if (std::strcmp(e.extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
@@ -1339,10 +1340,11 @@ public:
                 }
             }
 #if !defined(_WIN32)
-        if (exchange_exts == 3) {
+        if (exchange_exts == 4) {
             enabled.push_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
             enabled.push_back(VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME);
             enabled.push_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
+            enabled.push_back(VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
             d.exchange = true;
         }
 #endif
@@ -2062,6 +2064,35 @@ public:
         VkBufferCopy region{src_off, dst_off, bytes};
         dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), dst.handle(), 1, &region);
         if (!unordered_) barrier(cmd);
+    }
+
+    // Preserve a copied peer range across the collective's semaphore exchange (docs/TENSOR-SPLIT.md, section 4.3).
+    VkBufferMemoryBarrier external_ownership_barrier(Buffer& buffer, size_t offset, size_t bytes, bool acquire) {
+        VulkanBuffer& b = as_vulkan(buffer);
+        span(b, offset, bytes);
+        VkBufferMemoryBarrier mb{};
+        mb.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        mb.srcAccessMask = acquire ? 0 : VK_ACCESS_TRANSFER_WRITE_BIT;
+        mb.dstAccessMask = acquire ? VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT : 0;
+        mb.srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_FOREIGN_EXT : dev_->queue_family;
+        mb.dstQueueFamilyIndex = acquire ? dev_->queue_family : VK_QUEUE_FAMILY_FOREIGN_EXT;
+        mb.buffer = b.handle();
+        mb.offset = offset;
+        mb.size = bytes;
+        return mb;
+    }
+
+    void external_ownership(const VkBufferMemoryBarrier* barriers, size_t count, bool acquire) {
+        if (!count) return;
+        const uint32_t n = u32(count);
+        const VkPipelineStageFlags src = acquire ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
+        const VkPipelineStageFlags dst = acquire ? VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        dev_->fn.vkCmdPipelineBarrier(open(), src, dst, 0, 0, nullptr, n, barriers, 0, nullptr);
+    }
+
+    void external_ownership(Buffer& buffer, size_t offset, size_t bytes, bool acquire) {
+        const VkBufferMemoryBarrier mb = external_ownership_barrier(buffer, offset, bytes, acquire);
+        if (bytes) external_ownership(&mb, 1, acquire);
     }
 
     // The narrower of the Q8_0 decode kernel's widest build and the other row kernels', each reading a weight once for its columns.
@@ -3601,7 +3632,7 @@ inline size_t share_begin(size_t k, size_t n, size_t members, size_t align) { re
 class VulkanCollective final : public Collective {
 public:
     VulkanCollective(const std::vector<VulkanBackend*>& members, size_t rows, size_t width)
-        : members_(members), rows_(rows), width_(width), taken_(members.size(), 0) {
+        : members_(members), rows_(rows), width_(width), taken_(members.size(), 0), acquires_(members.size()) {
         const size_t W = members.size(), bytes = size_mul(size_mul(rows, width), sizeof(float));
         try {
             threads_ = std::make_unique<core::JobThreads>(W < 3 ? 0 : W - 1);
@@ -3669,6 +3700,18 @@ public:
     }
 
 private:
+    // Adjacent inbox acquires share one command; all spans are checked before recording it.
+    void acquire_inboxes(size_t member, int parity, size_t offset, size_t bytes) {
+        VulkanBackend& b = *members_[member];
+        size_t count = 0;
+        for (size_t k = 0; k < members_.size(); ++k)
+            if (k != member) {
+                const auto mb = b.external_ownership_barrier(*inbox_[parity][member][k], offset, bytes, true);
+                if (bytes) acquires_[count++] = mb;
+            }
+        b.external_ownership(acquires_.data(), count, true);
+    }
+
     void sum(const std::vector<Slice>& residual, size_t rows, size_t width) {
         const size_t W = members_.size();
         const size_t n = rows * width, bytes = n * sizeof(float);
@@ -3679,10 +3722,14 @@ private:
         if (n >= VulkanBackend::two_shot_crossover(W)) return two_shots(residual, n, p);
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
-                if (t != m) members_[m]->copy(*imported_[p][t][m], 0, *partial_[m], 0, bytes);
+                if (t != m) {
+                    members_[m]->copy(*imported_[p][t][m], 0, *partial_[m], 0, bytes);
+                    members_[m]->external_ownership(*imported_[p][t][m], 0, bytes, false);
+                }
         exchange();
         for (size_t m = 0; m < W; ++m) {
             VulkanBackend& b = *members_[m];
+            acquire_inboxes(m, p, 0, bytes);
             auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
             const CSlice first = source(0);
             b.copy(*scratch_[m], 0, *first.buffer, first.offset * sizeof(float), bytes);
@@ -3697,24 +3744,34 @@ private:
         auto len = [&](size_t k) { return lo(k + 1) - lo(k); };
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
-                if (t != m && len(t)) members_[m]->copy(*imported_[p][t][m], lo(t) * f, *partial_[m], lo(t) * f, len(t) * f);
+                if (t != m && len(t)) {
+                    members_[m]->copy(*imported_[p][t][m], lo(t) * f, *partial_[m], lo(t) * f, len(t) * f);
+                    members_[m]->external_ownership(*imported_[p][t][m], lo(t) * f, len(t) * f, false);
+                }
         exchange();
         for (size_t k = 0; k < W; ++k) {
             if (!len(k)) continue;
             VulkanBackend& b = *members_[k];
+            acquire_inboxes(k, p, lo(k) * f, len(k) * f);
             auto source = [&](size_t j) { return CSlice{j == k ? partial_[k].get() : inbox_[p][k][j].get(), lo(k)}; };
             const CSlice first = source(0);
             const Slice share{scratch_[k].get(), lo(k)};
             b.copy(*scratch_[k], lo(k) * f, *first.buffer, first.offset * f, len(k) * f);
             for (size_t j = 1; j < W; ++j) b.add(share, source(j), len(k));
             for (size_t t = 0; t < W; ++t)
-                if (t != k) b.copy(*gathered_[p][t][k], 0, *scratch_[k], lo(k) * f, len(k) * f);
+                if (t != k) {
+                    b.copy(*gathered_[p][t][k], 0, *scratch_[k], lo(k) * f, len(k) * f);
+                    b.external_ownership(*gathered_[p][t][k], 0, len(k) * f, false);
+                }
             b.add(Slice{residual[k].buffer, residual[k].offset + lo(k)}, CSlice{scratch_[k].get(), lo(k)}, len(k));
         }
         exchange();
         for (size_t m = 0; m < W; ++m)
             for (size_t k = 0; k < W; ++k)
-                if (k != m && len(k)) members_[m]->add(Slice{residual[m].buffer, residual[m].offset + lo(k)}, CSlice{gather_[p][m][k].get(), 0}, len(k));
+                if (k != m && len(k)) {
+                    members_[m]->external_ownership(*gather_[p][m][k], 0, len(k) * f, true);
+                    members_[m]->add(Slice{residual[m].buffer, residual[m].offset + lo(k)}, CSlice{gather_[p][m][k].get(), 0}, len(k));
+                }
     }
 
     // Prepare every member on the recording thread, then queue and export concurrently before importing peer fences.
@@ -3820,6 +3877,7 @@ private:
     size_t rows_, width_;
     int parity_ = 0;
     std::vector<Ticket> taken_, last_, before_;   // per member, its submission of the last exchange, of the last sum and of the sum before it
+    std::vector<VkBufferMemoryBarrier> acquires_;   // recording-thread scratch, sized once for every peer
     std::unique_ptr<core::JobThreads> threads_;   // a thread a member but the first, asleep between exchanges, from three members on (docs/STATUS.md, a group's members submit side by side)
     std::vector<BufferPtr> partial_, scratch_;
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> inbox_[2];   // [parity][owner][sender]: the owner's inbox for that sender's partial rows

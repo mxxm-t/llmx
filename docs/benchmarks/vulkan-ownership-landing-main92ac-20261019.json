@@ -1,0 +1,184 @@
+{
+  "schema": "llmx-vulkan-ownership-landing-integration-v1",
+  "candidate": {
+    "head": "c34f8b2e130e41c9fc4a225799e7b0344d9608e8",
+    "tree": "35374835b798470cd09dca3ae892b8c4ecfc4078",
+    "base": "92acbfb9d",
+    "source_clean_before_and_after": true
+  },
+  "linux_build": {
+    "run_id": "c34f8b2e1-cpu4-r1",
+    "started_utc": "2026-10-18T22:32:29.545842Z",
+    "container_name": "llmx-xdev-ownership-main92ac-c34f8b2e1-cpu4-r1",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "container_id": "a2ec168d3e5a8913b1dc9566e60a3e01807ee34216b93bee1b961a5c17385601",
+    "cpuset": "4",
+    "memory_bytes": 4294967296,
+    "network": "none",
+    "gpu_devices": [],
+    "configure": "cmake -S /source -B /build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_VULKAN=ON -DBUILD_TESTING=ON",
+    "build": "cmake --build /build --config Release --parallel 1 --verbose --target llmx llmx-server-resume-test",
+    "exit_code": 0,
+    "oom_killed": false,
+    "container_removed": true,
+    "result_sha256": "3f5053ca5e9bd5f80f51d1a7ca282e12b163998d12180ffbf67070a32f8f1b92",
+    "configure_log_sha256": "9ccc428a4821f3d0679a837dcb58857df50bf5c0cb10b61dd98e10e845e5d124",
+    "build_log_sha256": "6ce2c5da9ee97aedfcd062f95f49f599b54d739f63ae147ba515b22d06c9bd1a",
+    "binary_manifest_sha256": "140c8aec0c96c75d0b7790bdef5d6f3a34252ab46b1a6225b60fadde265e1126",
+    "build_files_manifest_sha256": "324d90acbf14a6a14d10c695874b91696f2423ad5fa446f04a1297e0d70dd76b",
+    "binaries": {
+      "llmx": "fb22d588cf056a9a6407c773f93f330dbb6b5e90d6e6ac74708088875f2524d7",
+      "llmx-server-resume-test": "6b47c7a7d73b15b3923638dc70adc8616794f8c5d278191208e0fb7615d4b6e9"
+    },
+    "build_files": {
+      "CMakeCache.txt": "94c959a78d7d1a02ae2f68f536934539ac98178d7e9141f782d4bfa5873b626a",
+      "libllmx-vulkan.a": "9f8a1d401885224b956c2585d3b55ecaa510b69c86ee85e6befc1dbeddc9fd15",
+      "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "generated/llmx-build-info.hpp": "3da38513eb0e9536dcd96d5bb3211819aa5760ad7bd16241698af9f4f8ccfb3e"
+    },
+    "version": "llmx 0.1.0+gc34f8b2e130e numerics a9d578d000982124"
+  },
+  "linux_gpu_check": {
+    "run_id": "c34f8b2e1-gpu0-r2-20261019",
+    "started_utc": "2026-10-18T22:39:03.429068Z",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "owner": "XDEV/ownership-main92ac-server-resume",
+    "container_name": "llmx-xdev-server-resume-c34f8b2e1-gpu0-r2-20261019",
+    "command": "llmx-server-resume-test device",
+    "physical_gpu": 0,
+    "pci": "0000:03:00.0",
+    "render": "/dev/dri/renderD136",
+    "device_uuid": "00000000-0300-0000-0000-000000000000",
+    "vulkan_ordinal": 0,
+    "driver": "Mesa RADV 25.0.7",
+    "container_id": "09bf987cca47bc7b1f807b4b7943f5ca26adad0416e2a87e8c18ca52186ffbce",
+    "cpuset": "4,5",
+    "memory_bytes": 4294967296,
+    "network": "none",
+    "exit_code": 0,
+    "checks": 11598,
+    "elapsed_seconds": 10.731934680021368,
+    "device_cases_pass": true,
+    "oom_killed": false,
+    "container_removed": true,
+    "source_clean_after": true,
+    "binary_unchanged_after": true,
+    "host_preflight": {
+      "memory_available_bytes": 12733329408,
+      "disk_free_bytes": 380267134976,
+      "cpuset_overlap": [],
+      "selected_gpu_busy_percent": 0,
+      "selected_gpu_used_bytes": 10932224,
+      "render_fuser_exit_code": 1
+    },
+    "result_sha256": "1e2b0f0ebbbf036a75138669b4d5b2bbbd596aef851ceb984506479881c6512a",
+    "inside_result_sha256": "f47595934f759fc4bce52ecb40eee7cffd427f8d3441850fbd96f6bbfa787c3b",
+    "test_log_sha256": "208090b34eeb2fe5f7df0b69466c48d21636a2870c63e20ef0c816b3080fc1f0",
+    "vulkaninfo_log_sha256": "939f076660385567a9f3b782f1991d96f3702a11fef5db6183e4184a5cbcb5a6"
+  },
+  "startup_attempts_without_test_execution": [
+    {
+      "run_id": "c34f8b2e1-gpu0-r1-20261019",
+      "failure": "The launcher rejected a helper-file SHA mismatch before host preflight or container creation.",
+      "evidence_sha256": "a7306e44d209e2ae0c9c085c04f3845e3fb57f808a79cdd4a40237973de3056c",
+      "test_started": false
+    },
+    {
+      "run_id": "c34f8b2e1-gpu0-r1b-20261019",
+      "failure": "After container creation, config validation found the helper mount source did not match the staged helper path; the container was removed before start.",
+      "container_id": "ae29fae8d0a2f36abb3ce65859c35663702d9cbab3a1c7f9649dd2007edef3e7",
+      "evidence_sha256": "5d187f895a6a264be9f74a2155f685a59f3bd6cc136462de9c1e4d7116d10570",
+      "container_removed": true,
+      "test_started": false
+    }
+  ],
+  "hosted_ci": {
+    "run_id": 39172625397,
+    "status_at_recording": "failed_docs",
+    "jobs": {
+      "Ubuntu": "failed: docs component only",
+      "VulkanCPU": "failed: docs component only",
+      "HF": "failed: docs component only"
+    },
+    "log_download": "HTTP 403",
+    "green": false,
+    "correction_status": "line-pin corrected in working tree; hosted rerun pending"
+  },
+  "docs_check_reproduction": {
+    "checker_source_matches_candidate": true,
+    "baseline_view": "in-memory git show c34f8b2e1:docs/STATUS.md; new benchmark record omitted",
+    "baseline_exit_code": 1,
+    "baseline_finding": "line-pin | docs/STATUS.md | src/server/scheduler.hpp:2655",
+    "baseline_output_sha256": "2ffd4196023037678f525a145c051226655702583218bd02b4f67834a7c2f7e3",
+    "corrected_working_tree_exit_code": 0,
+    "corrected_working_tree_output_sha256": "eacd51b1707ac5d39bf8fd1dae78ae85c809acf63f4ca42413bfeda0b8491b1e",
+    "corrected_line_pin": "src/server/scheduler.hpp:2655 at c34f8b2e1",
+    "cli_used": {
+      "sha256": "f1edde2f2cf44ddf43d0aff18f7a10c7b5a1e57f6611decbcfc05f5d4df17000",
+      "version": "llmx 0.1.0+gfdd4311be3ef.dirty numerics a9d578d000982124",
+      "role": "CLI-help input to docs_check"
+    },
+    "prior_local_docs_check": {
+      "path": "build-ownership-main92ac/evidence/docs-check.log",
+      "sha256": "fc5d4ccd0c459ffa2df420d0e7dd93e5d97f372c2405274b2a9f5f0c41846c93",
+      "mtime_utc": "2026-10-18T22:30:22.216845Z",
+      "result": "0 findings; this check predates candidate c34f8b2e1",
+      "candidate_commit_time": "2026-10-19T01:31:11+03:00",
+      "unpinned_reference_introduced_in_candidate_status_diff": true
+    }
+  },
+  "evidence_local_root": "build-live-dashboard-final-rig-20261017/ownership-main92ac-preparation-20261019",
+  "corrected_hosted_ci": {
+    "run_id": 39174597692,
+    "tested_head": "d506edc56fbd2c452edd7edc4faed2923e0bc3eb",
+    "conclusion": "success",
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/39174597692",
+    "evidence_sha256": "10b4a5571bd0da5016f32a581bdc10460622604ebc553cc6d1a72d1d469957c4",
+    "jobs": [
+      {
+        "id": 117814575802,
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:21:43Z"
+      },
+      {
+        "id": 117814575865,
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:20:55Z"
+      },
+      {
+        "id": 117814575875,
+        "name": "CPU (Linux TSan)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:12:44Z"
+      },
+      {
+        "id": 117814575939,
+        "name": "CPU (windows-2022)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:34:45Z"
+      },
+      {
+        "id": 117814575999,
+        "name": "HF reference (CPU)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:46:30Z"
+      },
+      {
+        "id": 117814576034,
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:45:28Z"
+      },
+      {
+        "id": 117814576042,
+        "name": "Vulkan backend (build, Linux)",
+        "conclusion": "success",
+        "completed_at": "2026-10-18T23:30:16Z"
+      }
+    ],
+    "final_delta": "Only docs/STATUS.md, docs/MULTI-DEVICE.md and this evidence record change after the CI head; source, tests, fixtures and build inputs are unchanged.",
+    "landing": "Fast-forward from unchanged main 92acbfb9d after final docs and dead-code checks. No additional runtime rerun for the documentation-only delta."
+  }
+}

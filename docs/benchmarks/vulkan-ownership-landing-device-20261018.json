@@ -1,0 +1,481 @@
+{
+  "scope": "Current-base failing-first multi-device regression and Windows Radeon VII backend correctness; not full model identity, device-suite, hosted CI or Flash qualification.",
+  "base_main": "2b942cc2ba70da9472883548e0cdb1826206102f",
+  "candidate": "b50af594cfa7f74f53739160372f11f6d5a0dc36",
+  "arms": {
+    "baseline": {
+      "build": {
+        "source_commit": "2d85bfc12858e5be82a16bc6ac3344e4c2b7a1e3",
+        "base_commit": "2b942cc2ba70da9472883548e0cdb1826206102f",
+        "work_root": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018",
+        "container_name": "llmx-xdev-ownership-baseline-2d85bfc-20261018",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "archive_sha256_expected": "52ee19b1d5b6ad73280835a6374b1af5167afb7940a6541fd85120c2030bf6e9",
+        "cpu_set": "14",
+        "memory_bytes": 4294967296,
+        "memory_swap_bytes": 4294967296,
+        "build_target": "llmx-vulkan-lifetime-test",
+        "network": "none",
+        "gpu_devices": [],
+        "timeout_seconds": 900,
+        "started_utc": "2026-10-18T19:12:25.127931+00:00",
+        "state": "BUILT",
+        "preflight": {
+          "memavailable_bytes": 18500218880,
+          "minimum_bytes": 6442450944,
+          "cpu14_online": true,
+          "containers": [
+            {
+              "name": "llmx-ldev-dms-27b-r3-A",
+              "cpuset": "8-11",
+              "overlap": false
+            },
+            {
+              "name": "llmx-ldev-gate-gate-dms2-mix",
+              "cpuset": "2,3,6,7",
+              "overlap": false
+            },
+            {
+              "name": "llmx-xdev-hf-repeat-validation-chat-chunk64-r1",
+              "cpuset": "4,5",
+              "overlap": false
+            },
+            {
+              "name": "llmx-serve",
+              "cpuset": "",
+              "overlap": false
+            },
+            {
+              "name": "llmx-health-dashboard",
+              "cpuset": "",
+              "overlap": false
+            },
+            {
+              "name": "llmx-xdev-flash-ppl-native-20261016",
+              "cpuset": "2,3",
+              "overlap": false
+            },
+            {
+              "name": "llmx-xdev-flash-20261015",
+              "cpuset": "0-1",
+              "overlap": false
+            },
+            {
+              "name": "open-webui",
+              "cpuset": "",
+              "overlap": false
+            },
+            {
+              "name": "cdev-abc-run2",
+              "cpuset": "",
+              "overlap": false
+            },
+            {
+              "name": "portainer",
+              "cpuset": "",
+              "overlap": false
+            }
+          ],
+          "unrestricted": [
+            "llmx-serve",
+            "llmx-health-dashboard",
+            "open-webui",
+            "cdev-abc-run2",
+            "portainer"
+          ]
+        },
+        "container_id": "7dc9bb3ece0abb00f56043f0f960c36cc2c252c20e03bc4de1a0dff4e36b8c55",
+        "container_exit": 0,
+        "binary_sha256": "3f0a3e52e4f1a5f1e4a2e83ff2d421dfa895f0c4e5171b81aa6151e2401acc33",
+        "build_log_sha256": "d08f7fa44fa954b334a1c352719bb509c6a0180e512185f758062018546c604c",
+        "cleanup_attempted_id": "7dc9bb3ece0abb00f56043f0f960c36cc2c252c20e03bc4de1a0dff4e36b8c55",
+        "cleanup_verified_absent": true,
+        "finished_utc": "2026-10-18T19:13:14.032308+00:00"
+      },
+      "collective": {
+        "arm": "baseline",
+        "binary_sha256": "3f0a3e52e4f1a5f1e4a2e83ff2d421dfa895f0c4e5171b81aa6151e2401acc33",
+        "started": "2026-10-18T19:14:08.744275+00:00",
+        "scope": "Focused ownership regression, not performance or model correctness.",
+        "mem_available": 17672814592,
+        "containers": [
+          {
+            "name": "/llmx-ldev-dms-27b-r3-A",
+            "cpus": "8-11"
+          },
+          {
+            "name": "/llmx-ldev-gate-gate-dms2-mix",
+            "cpus": "2,3,6,7"
+          },
+          {
+            "name": "/llmx-xdev-hf-repeat-validation-chat-chunk64-r1",
+            "cpus": "4,5"
+          },
+          {
+            "name": "/llmx-serve",
+            "cpus": ""
+          },
+          {
+            "name": "/llmx-health-dashboard",
+            "cpus": ""
+          },
+          {
+            "name": "/llmx-xdev-flash-ppl-native-20261016",
+            "cpus": "2,3"
+          },
+          {
+            "name": "/llmx-xdev-flash-20261015",
+            "cpus": "0-1"
+          },
+          {
+            "name": "/open-webui",
+            "cpus": ""
+          },
+          {
+            "name": "/cdev-abc-run2",
+            "cpus": ""
+          },
+          {
+            "name": "/portainer",
+            "cpus": ""
+          }
+        ],
+        "devices": [
+          {
+            "pci": "0000:03:00.0",
+            "render": "renderD136",
+            "busy": 0,
+            "vram_used": 10932224
+          },
+          {
+            "pci": "0000:44:00.0",
+            "render": "renderD137",
+            "busy": 0,
+            "vram_used": 10919936
+          },
+          {
+            "pci": "0000:83:00.0",
+            "render": "renderD132",
+            "busy": 0,
+            "vram_used": 10932224
+          },
+          {
+            "pci": "0000:86:00.0",
+            "render": "renderD133",
+            "busy": 0,
+            "vram_used": 10932224
+          }
+        ],
+        "argv": [
+          "docker",
+          "create",
+          "--init",
+          "--network",
+          "none",
+          "--name",
+          "llmx-xdev-ownership-main2b-baseline-1792350849155897505",
+          "--cpuset-cpus",
+          "12,13",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "128",
+          "--ulimit",
+          "core=0",
+          "-v",
+          "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/build:/build:ro",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "--device",
+          "/dev/dri/renderD132",
+          "--device",
+          "/dev/dri/renderD133",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "timeout",
+          "240",
+          "/build/llmx-vulkan-lifetime-test",
+          "--collective"
+        ],
+        "cid": "14b0e0d333021eff95846258dfab78e5e4b6ab2cee5136c69e98df9919a85fd6",
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 1,
+          "Error": "",
+          "StartedAt": "2026-10-18T19:14:09.27733702Z",
+          "FinishedAt": "2026-10-18T19:14:10.063191772Z"
+        },
+        "attach_exit": 1,
+        "container_removed": true,
+        "binary_unchanged": true,
+        "finished": "2026-10-18T19:14:10.418579+00:00",
+        "stdout.log_sha256": "17884811650f79c1d896ee8b6bb019feada93fd4d517bbc8d6111d1f29a0707d",
+        "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remote_directory": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-baseline-20261018/collective-20261018T191408Z",
+        "stdout": "collective_join_case=1 threw=1 clean=1 summed=1 PASS\ncollective_join_case=2 threw=1 clean=1 summed=1 PASS\ncollective_join_case=3 threw=1 clean=1 summed=1 PASS\ncollective_join_case=4 threw=1 clean=1 summed=1 PASS\ncollective_ownership payload=1 submission=6 consumer read lacks preceding matching acquire FAIL\ncollective_in_flight sums=7 FAIL\ncollective_capability_refused before_shared_allocation=1 PASS\ncollective_import_refused named=1 PASS\ncollective_ownership payload=3 submission=9 consumer read lacks preceding matching acquire FAIL\ncollective_two_shot_ownership sums=5 FAIL\ncollective_second_exchange_failure kind=0 drained=1 recovered=1 PASS\ncollective_second_exchange_failure kind=1 drained=1 recovered=1 PASS\ncollective_second_exchange_failure kind=2 drained=1 recovered=1 PASS\ncollective_sum_case=1 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=2 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=3 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=4 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=5 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=6 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=7 members=3 threw=1 drained=1 summed=1 closed=1 PASS\n",
+        "stderr": "",
+        "expected_result": true
+      }
+    },
+    "candidate": {
+      "build": {
+        "source_commit": "b50af594cfa7f74f53739160372f11f6d5a0dc36",
+        "base_commit": "2b942cc2ba70da9472883548e0cdb1826206102f",
+        "work_root": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018",
+        "container_name": "llmx-xdev-ownership-candidate-b50af594-20261018",
+        "owner": "llmx-xdev-ownership-candidate-b50af594-20261018",
+        "invocation": "f1019fa2-2c36-4eda-9b32-c789149d15b1",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "archive_sha256_expected": "eaca1969d43ad240d961046b838f822b82c420851f8815fe3d0da006b18ba54c",
+        "cpu_set": "14",
+        "memory_bytes": 4294967296,
+        "memory_swap_bytes": 4294967296,
+        "build_target": "llmx-vulkan-lifetime-test",
+        "network": "none",
+        "gpu_devices": [],
+        "timeout_seconds": 900,
+        "started_utc": "2026-10-18T19:19:01.671939+00:00",
+        "state": "BUILT",
+        "preflight": {
+          "memavailable_bytes": 10347364352,
+          "minimum_bytes": 6442450944,
+          "cpu14_online": true,
+          "containers": [
+            {
+              "name": "llmx-ldev-dms-27b-r3-A",
+              "cpuset": "8-11",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "llmx-xdev-hf-repeat-validation-chat-chunk64-r1",
+              "cpuset": "4,5",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "llmx-serve",
+              "cpuset": "",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "llmx-health-dashboard",
+              "cpuset": "",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "llmx-xdev-flash-ppl-native-20261016",
+              "cpuset": "2,3",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "llmx-xdev-flash-20261015",
+              "cpuset": "0-1",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "open-webui",
+              "cpuset": "",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "cdev-abc-run2",
+              "cpuset": "",
+              "overlap_cpu14": false
+            },
+            {
+              "name": "portainer",
+              "cpuset": "",
+              "overlap_cpu14": false
+            }
+          ],
+          "unrestricted": [
+            "llmx-serve",
+            "llmx-health-dashboard",
+            "open-webui",
+            "cdev-abc-run2",
+            "portainer"
+          ]
+        },
+        "container_id": "d5d14d067e8fbaa108ec05b7016c6c38bc4c8a403dfa5248e1b91e1c2f80568c",
+        "container_exit": 0,
+        "cleanup_attempted_id": "d5d14d067e8fbaa108ec05b7016c6c38bc4c8a403dfa5248e1b91e1c2f80568c",
+        "log_collection_exit": 0,
+        "build_log_sha256": "4e51b3bdc92620737923af53549d0dc2beb4d407a544f0c22924de013c5b1895",
+        "binary_sha256": "bd8f9f9353342af0ade582b4bdba4dffbd1bac698595e829768e8a11c85d89af",
+        "cleanup_rm_exit": 0,
+        "cleanup_rm_stderr": "",
+        "cleanup_verified_absent": true,
+        "finished_utc": "2026-10-18T19:19:40.157263+00:00"
+      },
+      "collective": {
+        "arm": "candidate",
+        "binary_sha256": "bd8f9f9353342af0ade582b4bdba4dffbd1bac698595e829768e8a11c85d89af",
+        "started": "2026-10-18T19:21:03.098099+00:00",
+        "scope": "Focused ownership regression, not performance or model correctness.",
+        "mem_available": 7973834752,
+        "containers": [
+          {
+            "name": "/llmx-ldev-dms-27b-r3-A",
+            "cpus": "8-11"
+          },
+          {
+            "name": "/llmx-xdev-hf-repeat-validation-chat-chunk64-r1",
+            "cpus": "4,5"
+          },
+          {
+            "name": "/llmx-serve",
+            "cpus": ""
+          },
+          {
+            "name": "/llmx-health-dashboard",
+            "cpus": ""
+          },
+          {
+            "name": "/llmx-xdev-flash-ppl-native-20261016",
+            "cpus": "2,3"
+          },
+          {
+            "name": "/llmx-xdev-flash-20261015",
+            "cpus": "0-1"
+          },
+          {
+            "name": "/open-webui",
+            "cpus": ""
+          },
+          {
+            "name": "/cdev-abc-run2",
+            "cpus": ""
+          },
+          {
+            "name": "/portainer",
+            "cpus": ""
+          }
+        ],
+        "devices": [
+          {
+            "pci": "0000:03:00.0",
+            "render": "renderD136",
+            "busy": 0,
+            "vram_used": 10932224
+          },
+          {
+            "pci": "0000:44:00.0",
+            "render": "renderD137",
+            "busy": 0,
+            "vram_used": 10919936
+          },
+          {
+            "pci": "0000:83:00.0",
+            "render": "renderD132",
+            "busy": 0,
+            "vram_used": 10932224
+          },
+          {
+            "pci": "0000:86:00.0",
+            "render": "renderD133",
+            "busy": 0,
+            "vram_used": 10932224
+          }
+        ],
+        "argv": [
+          "docker",
+          "create",
+          "--init",
+          "--network",
+          "none",
+          "--name",
+          "llmx-xdev-ownership-main2b-candidate-1792351263529812137",
+          "--cpuset-cpus",
+          "12,13",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "128",
+          "--ulimit",
+          "core=0",
+          "-v",
+          "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/build:/build:ro",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "--device",
+          "/dev/dri/renderD132",
+          "--device",
+          "/dev/dri/renderD133",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "timeout",
+          "240",
+          "/build/llmx-vulkan-lifetime-test",
+          "--collective"
+        ],
+        "cid": "b564b25171af652be09b17407ec71df66615df29809f37eb41c08d52b819ecc1",
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-18T19:21:03.624095742Z",
+          "FinishedAt": "2026-10-18T19:21:04.914176049Z"
+        },
+        "attach_exit": 0,
+        "container_removed": true,
+        "binary_unchanged": true,
+        "finished": "2026-10-18T19:21:05.376556+00:00",
+        "stdout.log_sha256": "95fc00fa948ff472f74d178e25131bffd4955dadce4886d4af99d61ab04ff399",
+        "stderr.log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "remote_directory": "/zpool1/llmx-xdev-vulkan-ownership-20261018/landing-main2b-candidate-20261018/collective-20261018T192103Z",
+        "stdout": "collective_join_case=1 threw=1 clean=1 summed=1 PASS\ncollective_join_case=2 threw=1 clean=1 summed=1 PASS\ncollective_join_case=3 threw=1 clean=1 summed=1 PASS\ncollective_join_case=4 threw=1 clean=1 summed=1 PASS\ncollective_ownership payloads=4 peer_reads=14 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_in_flight sums=7 PASS\ncollective_capability_refused before_shared_allocation=1 PASS\ncollective_import_refused named=1 PASS\ncollective_ownership payloads=24 peer_reads=60 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_two_shot_ownership members=3 sums=5 PASS\ncollective_ownership payloads=24 peer_reads=60 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_mixed_shots_ownership members=3 rows=80,1,1,80,1,1,80 unchanged_tails=1 PASS\ncollective_second_exchange_failure members=3 kind=0 drained=1 recovered=1 PASS\ncollective_second_exchange_failure members=3 kind=1 drained=1 recovered=1 PASS\ncollective_second_exchange_failure members=3 kind=2 drained=1 recovered=1 PASS\ncollective_sum_case=1 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=2 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=3 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=4 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=5 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=6 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=7 members=3 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_ownership payloads=48 peer_reads=120 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_two_shot_ownership members=4 sums=5 PASS\ncollective_ownership payloads=48 peer_reads=120 PASS\ncollective_ownership_negative cases=5 rejected=5 PASS\ncollective_mixed_shots_ownership members=4 rows=80,1,1,80,1,1,80 unchanged_tails=1 PASS\ncollective_second_exchange_failure members=4 kind=0 drained=1 recovered=1 PASS\ncollective_second_exchange_failure members=4 kind=1 drained=1 recovered=1 PASS\ncollective_second_exchange_failure members=4 kind=2 drained=1 recovered=1 PASS\ncollective_sum_case=1 members=4 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=2 members=4 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=3 members=4 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=4 members=4 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=5 members=4 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=6 members=4 threw=1 drained=1 summed=1 closed=1 PASS\ncollective_sum_case=7 members=4 threw=1 drained=1 summed=1 closed=1 PASS\n",
+        "stderr": "",
+        "expected_result": true
+      }
+    }
+  },
+  "candidate_summary": {
+    "peer_reads": 374,
+    "negative_witnesses_rejected": 25,
+    "widths": [
+      2,
+      3,
+      4
+    ],
+    "second_exchange_recovery_cases": 6,
+    "sum_failure_recovery_cases": 14
+  },
+  "radeon": {
+    "result": "PASS",
+    "elapsed_seconds": 38.69,
+    "binary_sha256": "2c0c361736551546ffc4c257b76288c00ebb7c4b578425b8e92f14cdfebce835",
+    "build_log_sha256": "cac4c3e8fcfca15629aa990f680e8ab3f6fb0b0c7f9c569d22140808e30d7fc1",
+    "ctest_log_sha256": "96acf1b131466297180a3b9aa2ea302b92d3d197758c5b7cee8a0cb470e376d1",
+    "raw_test_log_sha256": "5eae93e9ae821777ac40a9e40bfa4d52d1705be51dc7b0c7079e4395b8f01a36",
+    "activity_snapshot_sha256": "a473f844e7212e83342111dd659c2aa93f5473500e8cb1714729111454c4bc7c",
+    "limits": "One Radeon VII; collective skipped for lack of a second device. int8 unavailable on this profile. Desktop/video activity present; timings are diagnostic only."
+  },
+  "remaining": [
+    "current-base model byte identity on CPU and width-4 Vulkan",
+    "current candidate device suite",
+    "hosted CI and final landing audit"
+  ],
+  "focused_checks": {
+    "docs": "PASS",
+    "dead_code": "PASS",
+    "log": "build-landing-vulkan-win\\docs-device-checkpoint.log",
+    "log_sha256": "387654d7cc0b538b0aace683ba75635d69020612f8a4c2adcfc0fa8c0d975f5d"
+  }
+}

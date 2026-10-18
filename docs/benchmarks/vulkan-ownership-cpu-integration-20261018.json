@@ -1,0 +1,83 @@
+{
+  "schema": "llmx-windows-cpu-integration-checkpoint/v1",
+  "date": "2026-10-18",
+  "scope": "Windows CPU-only native integration checkpoint on this older integration tree; no current-main, GPU, HF, or landing qualification.",
+  "checkout": {
+    "head": "b8e034eb83696345f23a8561c38f4f4592105e53",
+    "based_on": "bb4371176 (ownership plus batching integration)",
+    "public_main_context": "2b942cc2b is newer public main and was not tested by this checkpoint."
+  },
+  "build": {
+    "generator": "Visual Studio 18 2026 x64",
+    "configuration": "Release",
+    "backend": "CPU only; LLMX_HAS_BACKEND_VULKAN=OFF",
+    "parallelism": 1,
+    "available_memory_bytes": 3686363136,
+    "started": "2026-10-18T18:15:19.936732+00:00",
+    "ended": "2026-10-18T18:35:45.350846+00:00",
+    "all_steps_exit_zero": true,
+    "integration_result": {
+      "path": "build-integration-cpu-win/integration-result.json",
+      "sha256": "8e8266c278a9df769437c4e84739646ad7b64b3bcf1b5b65bdac0d72d2edb2c8"
+    },
+    "logs": {
+      "configure.log": {
+        "path": "build-integration-cpu-win/configure.log",
+        "sha256": "dc7d602b038808cda494d98da9abf2ebbf76311974ca10e2a0492f37b027ba4b"
+      },
+      "build.log": {
+        "path": "build-integration-cpu-win/build.log",
+        "sha256": "359c0dabc406fde3c9fe7a54771885631fb67d071a1e503157670abaeba6f385"
+      },
+      "version.log": {
+        "path": "build-integration-cpu-win/version.log",
+        "sha256": "c641fe2193b1e4a683a8a0c85f3556ed30cc430e8db847e6101f6e019c5cb1c2"
+      },
+      "ctest.log": {
+        "path": "build-integration-cpu-win/ctest.log",
+        "sha256": "ceebda994b7a4d329a6e158d8b426991f1b78c2bfcec9fee43fb84049965f34b"
+      }
+    }
+  },
+  "binary": {
+    "path": "build-integration-cpu-win/Release/llmx.exe",
+    "sha256": "2469215d6b330f528291e220ee27f8dae54fc4616e8e78b510a99ee0e4a9fb39",
+    "version": "llmx 0.1.0+gb8e034eb8369 numerics 7ce2e85eae55ab15"
+  },
+  "ctest": {
+    "passed": 49,
+    "total": 49,
+    "elapsed_seconds": 860.03,
+    "command": "ctest --test-dir build-integration-cpu-win -C Release --output-on-failure -j 1"
+  },
+  "warnings": {
+    "count": 9,
+    "code": "C4457",
+    "description": "Inherited shadow warning in src/server/scheduler.hpp:2559: declaration 'h' hides the function parameter declared at line 2511; appears in nine compiled targets. Source lines are at b8e034eb83696345f23a8561c38f4f4592105e53.",
+    "log": "build-integration-cpu-win/build.log"
+  },
+  "markdown_review": {
+    "base": "b8e034eb83696345f23a8561c38f4f4592105e53",
+    "tracked_markdown_files": 110,
+    "changed_pages": [
+      "docs/STATUS.md"
+    ],
+    "unchanged_markdown_files": 109,
+    "review": "Inventoried tracked Markdown against this integration HEAD; only STATUS is changed by this checkpoint."
+  },
+  "validation": {
+    "scope": "Focused docs and dead-code checks only using the fresh CPU integration executable; no build or runtime gate.",
+    "command": "python -B tests/run_tests.py --exe build-integration-cpu-win/Release/llmx.exe --only docs,dead-code",
+    "binary_sha256": "2469215d6b330f528291e220ee27f8dae54fc4616e8e78b510a99ee0e4a9fb39",
+    "result": "pass; docs 0 findings against 21 planted faults; dead-code 5 listed findings (1 unused, 4 test-only) against 18 planted faults.",
+    "log": "build-integration-cpu-win/docs-dead-code-cpu-integration-review2-20261018.log",
+    "log_sha256": "df82b4e212e3e95d5b6e1ad59409ad2ccf0d6fcd5279724e2bc9ba276869077d",
+    "initial_review": {
+      "result": "docs check initially flagged a bare source line reference in the new warning note; removed the line numbers and reran successfully.",
+      "log": "build-integration-cpu-win/docs-dead-code-cpu-integration-20261018.log",
+      "log_sha256": "1a44cfdfd2cdbcd5e94a71e5dcfe199103dbb50e5eca6486f541fdd51d955278"
+    },
+    "diff_check": "pass",
+    "ascii_json_parse": "pass"
+  }
+}

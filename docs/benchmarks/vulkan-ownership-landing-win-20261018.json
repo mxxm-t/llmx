@@ -1,0 +1,103 @@
+{
+  "head": "2d85bfc12858e5be82a16bc6ac3344e4c2b7a1e3",
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "01625da0b8cd9130c1ccac525651d5a13e23615160eb93a1e96872fba4e9d126",
+    "tests/vulkan_buffer.cpp": "3470ad01134e1aa8f95962ea0a3a81370cab3fe3baca2badde859aeecf7e6c72"
+  },
+  "steps": [
+    {
+      "name": "configure",
+      "argv": [
+        "cmake",
+        "-S",
+        ".",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-vulkan-ownership-landing-20261018\\build-landing-vulkan-win",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON",
+        "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include",
+        "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 6.192155838012695,
+      "log_sha256": "6c11fb478a9cc6c0ce6cf76cc40faf9f3d8a43f56ace9cf95c0d95b123594801"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-vulkan-ownership-landing-20261018\\build-landing-vulkan-win",
+        "--config",
+        "Release",
+        "--target",
+        "llmx",
+        "llmx-vulkan-lifetime-test",
+        "--parallel",
+        "1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 60.394699573516846,
+      "log_sha256": "036d33b1af44460fa96627222e038aa0f9bf3c8fac649349cb5eb904c5786001"
+    },
+    {
+      "name": "fake-api",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-vulkan-ownership-landing-20261018\\build-landing-vulkan-win",
+        "-C",
+        "Release",
+        "-R",
+        "^vulkan-buffer$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.7057104110717773,
+      "log_sha256": "d0bbccfe95f74b048d3a6f0fc610b8ba34e699fab031da24c3d8fbfc41c093a9"
+    },
+    {
+      "name": "version",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-vulkan-ownership-landing-20261018\\build-landing-vulkan-win\\Release\\llmx.exe",
+        "--version"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.045430898666381836,
+      "log_sha256": "5b5184ffece6781271e84fa4d6a235da4eda82d3f9680cc9abab05b5fb300e9c"
+    }
+  ],
+  "sources_unchanged": true,
+  "binaries": {
+    "llmx.exe": "ae4f307b02ea304ebc1f59fd7af8accbd5f3b929c9fe71038bbc2d08a9140f65",
+    "llmx-vulkan-lifetime-test.exe": "c5265b660944f686235ad6ac6eb02ca66102475495d69545464b67339c04a791"
+  },
+  "scope": "Fresh Windows Release Vulkan candidate build and fake-API buffer tests on main 2b942cc2b plus ownership fix. No GPU execution or full landing qualification.",
+  "version": "llmx 0.1.0+g2d85bfc12858.dirty numerics a95f456bdd930fa2",
+  "fake_api_cases": 24,
+  "fake_api_failures": 0,
+  "markdown_review": {
+    "tracked": 110,
+    "affected": [
+      "docs/STATUS.md",
+      "docs/MULTI-DEVICE.md",
+      "docs/TENSOR-SPLIT.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "unchanged": 106,
+    "scope": "Inventory and review of affected concern descriptions; unchanged pages are not newly behaviorally validated."
+  },
+  "focused_checks": {
+    "docs-dead-code-initial.log": {
+      "sha256": "3b9f6d580a81168eec910a4682395f1a6881e3fc842c1055552662d941fb2468",
+      "result": "PASS"
+    },
+    "docs-final.log": {
+      "sha256": "152bb86aab266b833b9ab0cf9f86c86f7efef552e330640c9671d31edaf103cb",
+      "result": "PASS"
+    }
+  }
+}

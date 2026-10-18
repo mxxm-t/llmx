@@ -47,7 +47,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   allocating and pinning host memory costs far more than copying into it;
   the slabs alive, idle or holding a copy (`host_allocated`), stay within
   `limit` (`trim_host` frees idle ones down to a limit after a copy allocated beyond it), a copy freeing idle slabs of other devices before it allocates
-  (`detail::slabs_to_free`) and being refused where they cannot make room,
+  (`detail::slabs_to_free`, and with the slabs it then allocates anew `detail::copy_slabs`) and being refused where they cannot make room,
   or where the slabs it allocates would leave the host less free memory
   than the pool's reserve.
   That reserve is `CpuBackend::host_reserve` of what the host had as the model was made, fixed then, so it does not shrink as memory falls; `host_admits(bytes, optional)` is the one rule every fresh slab passes, a copy's, a read's and an idle step's (`alloc_host`), with twice the reserve for growth nothing waits for, and it reads the host's memory at each call, so it is a sampled guard and no guarantee against another process.
@@ -73,6 +73,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   tokens takes, holding nothing yet, as `save_host` takes them before its
   copies, so the server's disk tier reads an entry back into them.
   `host_fresh(length)` counts the slabs such a copy would allocate anew now, each device's need past its own idle slabs, which is what the server bounds an idle step's allocations by.
+  `host_copy_fits(length, limit, freed)` says whether a copy would get its slabs now, as `alloc_host` takes them (`copy_slabs`), with `freed` idle slabs more on each device from the copies released first, its fresh slabs within the reserve read as if the idle slabs freed for the limit were given back: it fits, is past the limit, or the host lacks the memory; the server's `host_room` asks it before a copy is kept.
   `wait_host(host)` waits for the copies into and out of a copy's slabs, so
   the host can read its bytes, as the server's disk tier does before it
   writes them to a file.

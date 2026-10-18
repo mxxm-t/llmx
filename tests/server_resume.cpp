@@ -1474,8 +1474,7 @@ void arrives_during_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t 
 }
 
 // Turns at the pool's edge are given up only where the history left behind is kept (production, 2026-10-17: a reply paused 20 times, nothing taken back, 67456 tokens recomputed).
-// Two uncapped replies on a pool too small for both, turns every two growth steps, a host tier of 1 GiB and the host's free memory, which its slabs come from, enough for every copy or 1 MiB.
-// Without the memory no history can be kept, so no turn is given up and the rows recomputed are at most one growth pause's history; with it, turns go on and recompute nothing but a partial block.
+// Two uncapped replies on a pool too small for both, a host tier of 1 GiB and the host's free memory enough for every copy or 1 MiB, the expectations in AGENTS.md, Tests.
 void turns_need_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool hybrid, bool memory) {
     const std::string what = std::string("turns at the pool's edge on a ") + (hybrid ? "hybrid" : "Q8_0") + " model, " + (memory ? "the host's memory for every copy" : "1 MiB of host memory free");
     const size_t room = memory ? (size_t)1 << 32 : (size_t)1 << 20;
@@ -1509,10 +1508,10 @@ void turns_need_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer
         runner.join();
     }
     for (size_t i = 0; i < reqs.size(); ++i) same(alone[i], got[i], what + ", request " + std::to_string(i));
-    const std::string seen = std::to_string(s.yields) + " turns given up, " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.host_hits) + " restored from host memory, " + std::to_string(s.recomputed) + " rows recomputed";
+    const std::string seen = std::to_string(s.yields) + " turns given up, " + std::to_string(s.turns_without_memory) + " kept for want of memory, " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.host_hits) + " restored from host memory, " + std::to_string(s.recomputed) + " rows recomputed";
     std::cout << "server-resume: " << what << ": " << seen << "\n";
-    if (memory) require(s.yields >= 2 && s.recomputed < kBlock, what + ": " + seen + ", against two turns at least and less than a block recomputed");
-    else require(s.yields == 0 && s.recomputed <= 300 + newer, what + ": " + seen + ", against no turn and at most one history of " + std::to_string(300 + newer) + " rows recomputed");
+    if (memory) require(s.yields >= 2 && s.turns_without_memory == 0 && s.recomputed < kBlock, what + ": " + seen + ", against two turns at least, none kept for want of memory and less than a block recomputed");
+    else require(s.yields == 0 && s.turns_without_memory >= 1 && s.recomputed <= 300 + newer, what + ": " + seen + ", against no turn, one kept for want of memory at least and at most one history of " + std::to_string(300 + newer) + " rows recomputed");
 }
 
 // Donors kept in host memory (docs/SPECULATIVE.md, section 2, Host tier): two conversations of a 300-token prompt alternate on a pool of 4 blocks of 128, so each turn's admission evicts the other conversation's donor.

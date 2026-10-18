@@ -467,6 +467,7 @@ public:
         std::vector<size_t> own_drafted{}, own_kept{};   // those of them requests' own histories gave ahead of the proposer (spec::lookup_first)
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
         size_t yields = 0, kv_tokens = 0, kv_donor_tokens = 0;   // pauses that gave the pool's edge to a paused request (Growth::yields), and the pool's reserved blocks as tokens, each the largest over the pools: the running requests' part, and the donors'
+        size_t turns_without_memory = 0;          // turns at the pool's edge kept because the host had no memory for the copy the history would leave (host_room)
         uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
         uint64_t prefilled_tokens = 0, published_tokens = 0;   // client prompt rows retired and output tokens published, including requests still running
         uint64_t host_limit = 0, disk_limit = 0;  // the host tier's and the disk tier's byte caps, 0 for a tier that is off
@@ -567,6 +568,7 @@ public:
         s.published_tokens = published_total_.load();
         s.draft_failures = draft_failures_.load();
         s.yields = yields_.load();
+        s.turns_without_memory = turns_without_memory_.load();
         s.host_limit = host_cap_;
         s.disk_limit = disk_ ? disk_->cap() : 0;
         // Every source's by position, and the requests' own histories' apart.
@@ -1959,12 +1961,33 @@ private:
         return p == paused_.end() ? nullptr : p->get();
     }
     // Whether `r`, whose growth step is due, gives the pool's edge up (Growth::yields): its turn is over, its history can be kept whole, and the one waiting fits once `r` holds nothing.
-    // Kept whole means room in the host tier for that history alone, whatever the longest a request may have, and on a model that keeps a state a free checkpoint slot.
-    bool yields(const Request& r) const {
+    // Kept whole means the copy its history would leave is one write_back keeps (host_room), and on a model that keeps a state a free checkpoint slot; a turn kept for want of host memory is counted and said.
+    bool yields(const Request& r) {
         const Request* w = waiting();
-        if (!w || !host_cap_) return false;
-        if (!kGrowth.yields(r.edge_steps_, turn_steps ? turn_steps : kGrowth.turn(swap_ms_, ms_since(r.stepped_)), true, model_.host_bytes(r.seq_.length()) <= host_cap_ && (!model_.keeps_state() || model_.checkpoints_free()))) return false;
-        return make_room(pools_.blocks, less(reserved_, r.need_), donor_blocks(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size()))).enough;
+        if (!w || !host_cap_) {
+            end_memory_run();
+            return false;
+        }
+        if (!kGrowth.yields(r.edge_steps_, turn_steps ? turn_steps : kGrowth.turn(swap_ms_, ms_since(r.stepped_)), true, !model_.keeps_state() || model_.checkpoints_free())) return false;
+        if (!make_room(pools_.blocks, less(reserved_, r.need_), donor_blocks(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size()))).enough) return false;
+        const size_t bt = model_.kv_block_tokens(), n = r.seq_.length() / bt * bt;
+        const HostRoom::Why why = host_room(n, true).why;
+        if (why == HostRoom::Why::memory) {
+            ++turns_without_memory_;
+            if (!memory_run_++) {
+                memory_since_ = Clock::now();
+                std::fprintf(stderr, "server: a turn at the pool's edge kept: the host has no memory for the copy of %zu tokens it would leave\n", n);
+            }
+            return false;
+        }
+        if (why != HostRoom::Why::kept) return false;
+        end_memory_run();
+        return true;
+    }
+    // A run of turns kept for want of host memory ends at a turn given up or where none waits: its count and length are said, and the next run's first is said again.
+    void end_memory_run() {
+        if (memory_run_) std::fprintf(stderr, "server: %zu turns at the pool's edge kept for want of host memory over %.1f s\n", memory_run_, ms_since(memory_since_) / 1000.0);
+        memory_run_ = 0;
     }
 
     // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back whole, a fork of the donor best_donor found, or a fresh sequence.
@@ -2265,6 +2288,12 @@ private:
                size_t held) const;
     size_t best_host(const Request& r, size_t& tokens) const;
     size_t copy_length(const Donor& d) const;
+    // What write_back would do with a copy of `n` tokens of a donor that came back (`back`) or not: keep it after releasing `drops` ((a boundary, id), in order), or why not.
+    struct HostRoom {
+        enum class Why { kept, larger, unreturned, room, memory } why = Why::kept;
+        std::vector<std::pair<bool, uint64_t>> drops;
+    };
+    HostRoom host_room(size_t n, bool back) const;
     void write_back(Donor& d);
     bool written_soon(bool boundary, uint64_t id) const;
     bool drop_oldest_host();
@@ -2288,6 +2317,7 @@ private:
     template <class... A>
     void gone(const std::vector<uint32_t>& history, Move kind, size_t first, size_t tokens, const char* line = nullptr, A... a);
     void lost();
+    bool parks(bool boundary, uint64_t id) const;
     void release_entry(bool boundary, uint64_t id, infer::HostHistory& h);
     size_t parked_held() const;
     void release_written(size_t bytes);
@@ -3024,6 +3054,9 @@ private:
     Clock::time_point turned_{};
     uint64_t turn_to_ = 0;
     std::atomic<size_t> yields_{0};   // pauses that gave the pool's edge to a paused request
+    std::atomic<size_t> turns_without_memory_{0};   // Stats::turns_without_memory
+    size_t memory_run_ = 0;           // the scheduler thread's: turns kept for want of host memory since the last one given up, said as the run starts and ends
+    Clock::time_point memory_since_{};
     uint64_t pauses_ = 0;       // under the lock
     uint64_t donor_ids_ = 0;    // under the lock
     size_t stalls_ = 0;         // under the lock

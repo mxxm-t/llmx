@@ -946,6 +946,11 @@ void host_slab_limit() {
     require(drop({3, 1}, {2, 2}, 4, 5) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 0}), "a slab was freed within the limit");
     require(drop({4, 1}, {0, 3}, 5, 7) == std::optional<std::vector<size_t>>(std::vector<size_t>{0, 2}), "the second device's spare slabs were not freed");
     require(!drop({3, 1}, {0, 0}, 2, 4), "a copy past the limit was not refused");
+    // What the copy then allocates anew: one slab on each device, two idle on the second, under a limit of two, frees the second's spare one and allocates one (Model::host_copy_fits).
+    const auto take = infer::detail::copy_slabs({1, 1}, {0, 2}, 2, 2);
+    require(take && take->drop == std::vector<size_t>{0, 1} && take->dropped == 1 && take->fresh == 1, "a copy's slabs at the limit were not one freed and one fresh");
+    const auto within = infer::detail::copy_slabs({1, 1}, {0, 2}, 2, 3);
+    require(within && within->dropped == 0 && within->fresh == 1 && !infer::detail::copy_slabs({2, 1}, {0, 1}, 1, 2), "a copy's slabs within the limit, or past it, were taken otherwise");
     // New slabs leave the host a reserve given, not one taken from what is free now: 1900 bytes of 2000 leave 100, one more does not, and an unknown figure refuses nothing.
     require(infer::detail::host_room(2000, 1900, 100) && !infer::detail::host_room(2000, 1901, 100) && !infer::detail::host_room(2000, 2001, 100) && !infer::detail::host_room(160, 64, 100),
             "the host's reserve was not kept at its edge");

@@ -679,6 +679,8 @@ public:
     std::string host_identity() const;
     void alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks = true, size_t first = 0, bool state = true);
     size_t host_fresh(size_t length) const;
+    enum class HostFit { fits, limit, memory };
+    HostFit host_copy_fits(size_t length, size_t limit, const std::vector<size_t>& freed) const;
     void save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks = true);
     void save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit);
     std::vector<HostRange> host_ranges(const HostHistory& h, size_t first, size_t length) const;

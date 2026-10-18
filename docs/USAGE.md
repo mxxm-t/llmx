@@ -872,7 +872,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
                     "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_timeouts": 0, "wait_ms": 412, "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0,
                                     "refused_directories": 0, "room_waits": 2, "room_wait_timeouts": 0, "room_wait_ms": 3100, "room_wait_longest_ms": 2900}},
            "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
- "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0}},
+ "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0, "turns_without_memory": 0}},
  "reread": {"now": {"jobs": 1, "rows_left": 384}, "since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2, "rows_released": 0}},
  "drafting": {"sources": ["lookup", "embedded"], "since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}], "own_history": {"drafted": 512, "kept": 480}}},
  "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3, "since_start": {"apart": 0, "between_pieces": 0, "rode": 0}}}
@@ -936,6 +936,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `pressure.since_start.recomputed_tokens` | tokens | since start | Rows resumes computed again | the cost of the pauses |
 | `pressure.since_start.resumes_taking_history_back` | resumes | since start | Resumes that took their own kept history back whole, computing nothing | |
 | `pressure.since_start.turns` | pauses | since start | Of the pauses, those of a request that gave the last room to one that had waited a turn, uncapped requests sharing a pool neither can hold alone | rising: uncapped requests are larger together than `--ctx-size`; each turn costs two copies through host memory |
+| `pressure.since_start.turns_without_memory` | turns | since start | Turns at the pool's edge kept because the host had no memory for the copy the history would leave, so the request that waits waits for the other's end | rising: the host is short of memory beside the server; the log says each run of them |
 | `reread.now.jobs`, `.rows_left` | jobs, rows | now | Read-again jobs running or waiting to start, and the ids they have yet to read | |
 | `reread.since_start.jobs`, `.rows`, `.cancelled` | jobs, rows, jobs | since start | Background jobs that read a reply again so the next turn finds it kept, the rows they read, and the jobs that gave way to a request at a pass boundary | |
 | `reread.since_start.rows_released` | rows | since start | Rows jobs had read and released as they gave way to a request, where no donor could be kept of them (a job giving way keeps its rows as a donor) | rising with `reuse.moves.since_start.job_lost`: conversations are losing what was read ahead for them |

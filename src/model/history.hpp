@@ -175,6 +175,23 @@ inline std::optional<std::vector<size_t>> slabs_to_free(const std::vector<size_t
     return drop;
 }
 
+// What a copy needing `need` slabs on each device takes, as alloc_host takes it: the idle slabs it frees first (slabs_to_free), how many those are, and the slabs it then allocates anew; nullopt past the limit.
+struct CopySlabs {
+    std::vector<size_t> drop;
+    size_t dropped = 0, fresh = 0;
+};
+inline std::optional<CopySlabs> copy_slabs(const std::vector<size_t>& need, const std::vector<size_t>& idle, size_t alive, size_t limit) {
+    const auto drop = slabs_to_free(need, idle, alive, limit);
+    if (!drop) return std::nullopt;
+    CopySlabs c{*drop};
+    for (size_t i = 0; i < need.size(); ++i) {
+        c.dropped += c.drop[i];
+        const size_t left = idle[i] - c.drop[i];
+        c.fresh += need[i] > left ? need[i] - left : 0;
+    }
+    return c;
+}
+
 // Whether `bytes` more of host memory leave the host `reserve` out of `free`, what it has free now; an unknown figure refuses nothing.
 inline bool host_room(std::optional<size_t> free, size_t bytes, size_t reserve) {
     return !free || (bytes <= *free && *free - bytes >= reserve);
@@ -219,6 +236,23 @@ inline size_t Model::host_fresh(size_t length) const {
     return fresh;
 }
 
+// Whether a whole copy of `length` tokens would get its slabs now, as alloc_host takes them under `limit`, with `freed` idle slabs more on each device.
+// Fresh slabs must leave the host's reserve, read as if the idle slabs freed for the limit were given back.
+inline Model::HostFit Model::host_copy_fits(size_t length, size_t limit, const std::vector<size_t>& freed) const {
+    const std::vector<size_t> bytes = host_copy_bytes(length, true, 0, true);
+    std::vector<size_t> need(devices_.size(), 0), idle(devices_.size(), 0);
+    size_t alive = host_allocated() / kHostSlab;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        need[i] = backend::blocks_for(bytes[i], kHostSlab);
+        idle[i] = (i < host_slabs_.size() ? host_slabs_[i].size() : 0) + (i < freed.size() ? freed[i] : 0);
+    }
+    const auto take = detail::copy_slabs(need, idle, alive, limit / kHostSlab);
+    if (!take) return HostFit::limit;
+    if (!take->fresh) return HostFit::fits;
+    const std::optional<size_t> free = host_available();
+    return detail::host_room(free ? std::optional<size_t>(*free + take->dropped * kHostSlab) : std::nullopt, take->fresh * kHostSlab, host_reserve_) ? HostFit::fits : HostFit::memory;
+}
+
 // Slabs for a copy of `length` tokens of this model's layout (HostHistory), as save_host takes them, holding nothing yet: within `limit` and the host reserve, idle slabs reused and those of other devices freed first.
 // From `first` on and without `state` they are for the blocks of a range alone (save_host_blocks), and `out` is whole or, on a throw, released.
 inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks, size_t first, bool state) {
@@ -233,16 +267,14 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
         idle[i] = host_slabs_[i].size();
     }
     // Idle slabs are retired (release_host), so freeing them waits for nothing.
-    const auto drop = detail::slabs_to_free(need, idle, host_allocated() / kHostSlab, limit / kHostSlab);
-    if (!drop) throw std::runtime_error("inference: no host memory for the copy within its limit");
-    size_t fresh = 0;
-    for (size_t i = 0; i < devices_.size(); ++i) {
-        for (size_t k = 0; k < (*drop)[i]; ++k) {
+    const auto take = detail::copy_slabs(need, idle, host_allocated() / kHostSlab, limit / kHostSlab);
+    if (!take) throw std::runtime_error("inference: no host memory for the copy within its limit");
+    for (size_t i = 0; i < devices_.size(); ++i)
+        for (size_t k = 0; k < take->drop[i]; ++k) {
             host_slabs_[i].pop_back();
             --host_allocated_[i];
         }
-        fresh += need[i] > host_slabs_[i].size() ? need[i] - host_slabs_[i].size() : 0;
-    }
+    const size_t fresh = take->fresh;
     // The slabs it allocates must leave the host the reserve the fit kept on it, read once the idle slabs above are freed.
     if (fresh && !host_admits(fresh * kHostSlab))
         throw std::runtime_error("inference: no host memory for the copy beside the reserve the host keeps");

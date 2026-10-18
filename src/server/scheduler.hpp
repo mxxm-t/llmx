@@ -121,6 +121,27 @@ public:
         static double per_second(size_t n, double ms) { return ms > 0 ? 1000.0 * (double)n / ms : 0.0; }
         double predicted_per_second(size_t tokens) const { return per_second(predicted(tokens), predicted_ms); }
     };
+    // What its restores from host memory or disk cost, read once the request has ended: restores, waits and each part (docs/SERVER.md, What a restore cost).
+    // wait_ms, hold_ms and enqueue_ms fall in queued_ms and first_pass_ms in prompt_ms; a part that ends after the first token (a resume's) is after_first_ms; read_ms, slabs_ms and copies_ms overlap them, so they are not addends.
+    struct Restore {
+        const char* kind = "none";
+        size_t restores = 0, tokens = 0, waits = 0, timeouts = 0, failed = 0, copies = 0, first_passes = 0, after_first = 0;
+        uint64_t bytes = 0;
+        double wait_ms = 0, read_ms = 0, slabs_ms = 0, hold_ms = 0, enqueue_ms = 0, copies_ms = 0, first_pass_ms = 0, after_first_ms = 0;
+        // A part of `ms` ending now goes to `span` before the first token and to after_first_ms after it; under the request's lock, which first_ is set under.
+        void part(double& span, double ms, Clock::time_point first) {
+            if (first == Clock::time_point{}) {
+                span += ms;
+                return;
+            }
+            ++after_first;
+            after_first_ms += ms;
+        }
+    };
+    Restore restore() const {
+        std::lock_guard<std::mutex> lk(m_);
+        return restore_;
+    }
     Timings timings() const {
         std::lock_guard<std::mutex> lk(m_);
         auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
@@ -176,6 +197,7 @@ private:
     std::atomic<size_t> restore_late_{0};
     size_t disk_rows_ = 0;         // the rows of its history the read or proof it waits for covers
     Clock::time_point received_, submitted_, admitted_, first_, ended_;   // admitted_ is set once, under m_
+    Restore restore_;   // under m_, written by the scheduler's thread at each part (Scheduler::promote, finish_read, end_wait)
 
     // Scheduler state.
     uint64_t id_ = 0, prefilled_ = 0;
@@ -207,6 +229,8 @@ private:
     size_t taken_back_ = 0;        // resumes that took its donor back
     size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
     size_t recomputed_ = 0;        // rows its resumes computed again
+    bool first_pass_ = false;      // a promotion it took waits for its next pass to retire, whose time is Restore::first_pass_ms
+    Clock::time_point first_before_{};   // first_ as that promotion found it: unset where the pass gives the first token, so the pass is in prompt_ms
     size_t boundary_at_ = 0;       // on a model that keeps a state, where the slice that reaches it keeps the state as a message boundary; 0 once kept or skipped
     bool boundary_kept_ = false;   // its pass in flight keeps that state, which goes to host memory once the pass retires
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
@@ -459,6 +483,15 @@ public:
         size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, histories and boundaries' states released while no file held them (lost), and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
+        // Each read and promotion once, where Request::Restore attributes them to requests: counts, and each part's sum and largest (docs/SERVER.md, What a restore cost).
+        struct RestoreTotals {
+            size_t reads = 0, promotions = 0, copies = 0, from_host = 0, from_disk = 0, timeouts = 0;
+            double read_ms = 0, read_largest_ms = 0, slabs_ms = 0, slabs_largest_ms = 0, hold_ms = 0, hold_largest_ms = 0, enqueue_ms = 0, enqueue_largest_ms = 0, copies_ms = 0, copies_largest_ms = 0;
+            static void add(double& sum, double& largest, double ms) {
+                sum += ms;
+                largest = std::max(largest, ms);
+            }
+        } restore{};
         size_t disk_in_flight = 0;                // the write and the reads the disk tier has in flight now
         bool disk_ready = false;                  // the disk tier's store made, once the model file's digest is known
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
@@ -537,6 +570,8 @@ public:
         s.disk_wait_timeouts = disk_wait_timeouts_;
         s.disk_bytes_read = disk_read_bytes_;
         s.disk_wait_ms = disk_wait_ms_;
+        s.restore = restore_totals_;
+        s.restore.timeouts = disk_wait_timeouts_;
         s.disk_in_flight = disk_ ? disk_->calls() : 0;
         s.disk_ready = disk_ && disk_->readable();
         s.finished = finished_.load();
@@ -623,6 +658,7 @@ public:
             const Clock::time_point round_start = timed_ ? Clock::now() : Clock::time_point{};
             acted_ = false;
             collect(active);
+            copies_retired();
             // Stages on the host compute as they are recorded, so they wait until every device stage of the round is on its way.
             std::vector<std::pair<size_t, size_t>> host;
             const Steps steps = round_steps(flights(), model_.stage_count());
@@ -1306,6 +1342,12 @@ private:
             again += n;
             r.reached_ = std::max(r.reached_, to);
             r.landed_ = f.formed;
+            if (r.first_pass_) {
+                r.first_pass_ = false;
+                std::lock_guard<std::mutex> lk(r.m_);
+                ++r.restore_.first_passes;
+                r.restore_.part(r.restore_.first_pass_ms, std::chrono::duration<double, std::milli>(Clock::now() - f.begun).count(), r.first_before_);
+            }
             if (r.job_) job_rows += f.rows[e];
             if (r.boundary_kept_) {
                 // A state computed over rows restored from unproved files is kept by no one: prove keeps the one at its path's end once the proof has ended equal.
@@ -2010,7 +2052,7 @@ private:
             if (h < host_.size() && more > shared) {
                 // A request whose restore from host memory finds no room for it waits for the room, at most kWaitBound, rather than computing rows a copy holds (promise P2 in docs/CACHE-PLAN.md); a job does not wait.
                 bool room = true;
-                if (!promote(h, r->job_, &room) && !room && !r->job_ && waits_for_room(*r, more, "a copy in host memory")) return false;
+                if (!promote(h, r->job_, &room, r) && !room && !r->job_ && waits_for_room(*r, more, "a copy in host memory")) return false;
                 d = best_donor(*r, shared);
             }
         }
@@ -2036,7 +2078,7 @@ private:
                     for (size_t h = 0; h < host_.size(); ++h)
                         if (holds(*find_bound(pinned_bound_), host_[h].tokens, host_[h].classes, host_[h].history.length)) {
                             bool room = true;
-                            if (promote(h, r->job_, &room)) k = source();
+                            if (promote(h, r->job_, &room, r)) k = source();
                             else if (!room && !r->job_ && waits_for_room(*r, bp, "a copy in host memory under a message boundary")) return false;
                             break;
                         }
@@ -2258,6 +2300,7 @@ private:
         uint64_t disk = 0;         // the file that makes the same history whole on disk (DiskTier::on_disk), 0 while part of it is not there
         mutable std::vector<std::string> digests;   // its whole blocks' digests, once asked for (digests_of)
         bool through = false;      // read back from an entry larger than the host tier: held beyond the tier's bytes, for its request to promote, and kept no longer (start_read)
+        bool from_disk = false;    // read back from disk, so a promotion of it completes a restore from disk
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: made, renewed or promoted, which its file keeps
     };
 
@@ -2374,6 +2417,7 @@ private:
     static bool ready(const std::deque<std::shared_ptr<Request>>& q);
     std::optional<std::chrono::steady_clock::time_point> next_disk_bound() const;
     bool reading(Request& r);
+    void count_wait(Request& r);
     void end_wait(Request& r);
     void finish_read(uint64_t id, bool ok);
     void wake_readers(uint64_t id);
@@ -2396,7 +2440,8 @@ private:
 
     // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
     void write_ahead();
-    bool promote(size_t i, bool spare = false, bool* room = nullptr);
+    bool promote(size_t i, bool spare = false, bool* room = nullptr, const std::shared_ptr<Request>& r = nullptr);
+    void copies_retired();
 
     // A history for an admitted request: its own donor `d` taken back whole (`take`), a fork at `shared` tokens of donor `d` or of the running request `from`, or a fresh sequence.
     // A first admission records its rows: a forked prefix as its source recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1 (a job's all at its prompt's extent); under the lock.
@@ -2541,9 +2586,20 @@ private:
                           r->taken_back_, r->recomputed_);
         if (r->stalls_) std::snprintf(stalled, sizeof stalled, ", sat out %zu pass%s", r->stalls_, r->stalls_ == 1 ? "" : "es");
         if (r->restore_late()) std::snprintf(late, sizeof late, ", a read of %zu tokens past its bound", r->restore_late());
-        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s%s\n",
+        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s%s%s\n",
                      r->prompt_tokens(), r->reused(), r->gen_.size(), t.prepared_ms, t.queued_ms, t.first_token_ms(),
-                     t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled, late);
+                     t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled, late, restore_line(r->restore(), t).c_str());
+    }
+
+    // What a request's restores cost, for its line: the spans as their parts and remainders, adding to its time to first token, and the figures that overlap them; empty where it neither waited for a read nor restored.
+    static std::string restore_line(const Request::Restore& x, const Request::Timings& t) {
+        if (!x.restores && !x.waits) return {};
+        char s[512];
+        std::snprintf(s, sizeof s, ", restored %zu tokens from %s (%.1f MiB, %zu restore%s, %zu wait%s, %zu at the bound, %zu failed): queued %.0f ms of waiting %.0f, holding %.0f, enqueuing %.0f, rest %.0f;"
+                      " prompt %.0f ms of first pass %.0f, rest %.0f; beside them read %.0f ms, slabs %.0f ms, copies %.0f ms; after the first token %.0f ms",
+                      x.tokens, x.kind, (double)x.bytes / (1 << 20), x.restores, x.restores == 1 ? "" : "s", x.waits, x.waits == 1 ? "" : "s", x.timeouts, x.failed, t.queued_ms, x.wait_ms, x.hold_ms,
+                      x.enqueue_ms, t.queued_ms - x.wait_ms - x.hold_ms - x.enqueue_ms, t.prompt_ms, x.first_pass_ms, t.prompt_ms - x.first_pass_ms, x.read_ms, x.slabs_ms, x.copies_ms, x.after_first_ms);
+        return s;
     }
 
     // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
@@ -3082,6 +3138,8 @@ private:
         uint64_t source = 0;       // the host entry holding those blocks, which no room releases while the read runs, 0 for a history on the devices
         std::vector<uint32_t> tokens;
         std::vector<RowClass> classes;
+        Clock::time_point started{};   // the store's call made, from which its read-ready latency runs (Request::Restore::read_ms)
+        double slabs_ms = 0;           // its slabs taken and zero-filled (alloc_host)
     };
     std::deque<DiskRead> disk_reads_;
     size_t lost_before_written_ = 0;   // Stats::lost_before_written, under the lock
@@ -3091,6 +3149,14 @@ private:
     size_t disk_hits_ = 0, disk_waits_ = 0, disk_wait_timeouts_ = 0;
     uint64_t disk_read_bytes_ = 0;
     double disk_wait_ms_ = 0;
+    Stats::RestoreTotals restore_totals_;   // under the lock
+    // A promotion's copies not yet seen retired, asked once a round (copies_retired): their tickets, their enqueue and the request that took them, if any.
+    struct Copies {
+        std::vector<backend::Ticket> tickets;
+        Clock::time_point at;
+        std::shared_ptr<Request> r;
+    };
+    std::vector<Copies> copies_;   // the scheduler thread's
     double copy_block_ms_ = 0;         // under the lock, a forgetting mean of the milliseconds a block of a donor's copy off the devices for its write took (flush_one)
     BackgroundGrant::Demand demand_ = BackgroundGrant::Demand::none;   // under the lock, the foreground work the round found waiting, which a write's pieces give way to
     double write_left_ = 0;            // under the lock, the background time the round left a write's pieces (BackgroundGrant::left_ms), less what they took since

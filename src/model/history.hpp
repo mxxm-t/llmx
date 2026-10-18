@@ -430,6 +430,13 @@ inline void Model::drain_recorded(const HostHistory& h, size_t submitted, size_t
     }
 }
 
+// Whether every device's ticket of `tickets` (a host history's, HostHistory::tickets) has retired, asked through Backend::done, which a device backend answers without waiting.
+inline bool Model::copies_retired(const std::vector<backend::Ticket>& tickets) const noexcept {
+    for (size_t i = 0; i < devices_.size() && i < tickets.size(); ++i)
+        if (tickets[i] && !devices_[i]->b->done(tickets[i])) return false;
+    return true;
+}
+
 // A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model at h.length, so a fork or the history itself continues with the bits of the history it was copied from.
 // The copies are enqueued ahead of any pass of the history, whose tickets cover them; a pool, slot, copy or submission failure leaves nothing held and retires queued work before storage is released.
 inline Sequence Model::restore_host(HostHistory& h) {

@@ -227,6 +227,14 @@ private:
             return out;
         };
         const auto yes = [](bool v) { return std::string(v ? "true" : "false"); };
+        // What restores cost, each read and promotion once (Scheduler::Stats::RestoreTotals): counts, and each part's sum and largest in whole milliseconds.
+        const auto restore_json = [&](const Scheduler::Stats::RestoreTotals& x) {
+            const auto ms = [&](double v) { return n((uint64_t)v); };
+            return ",\"restore\":{\"since_start\":{\"reads\":" + n(x.reads) + ",\"promotions\":" + n(x.promotions) + ",\"copies\":" + n(x.copies) + ",\"from_host\":" + n(x.from_host) +
+                   ",\"from_disk\":" + n(x.from_disk) + ",\"timeouts\":" + n(x.timeouts) + ",\"read_ms\":" + ms(x.read_ms) + ",\"read_largest_ms\":" + ms(x.read_largest_ms) +
+                   ",\"slabs_ms\":" + ms(x.slabs_ms) + ",\"slabs_largest_ms\":" + ms(x.slabs_largest_ms) + ",\"hold_ms\":" + ms(x.hold_ms) + ",\"hold_largest_ms\":" + ms(x.hold_largest_ms) +
+                   ",\"enqueue_ms\":" + ms(x.enqueue_ms) + ",\"enqueue_largest_ms\":" + ms(x.enqueue_largest_ms) + ",\"copies_ms\":" + ms(x.copies_ms) + ",\"copies_largest_ms\":" + ms(x.copies_largest_ms) + "}}";
+        };
         std::string devices, positions, sources, live;
         for (size_t i = 0; i < s.live.count; ++i) {
             const auto& r = s.live.items[i];
@@ -271,7 +279,7 @@ private:
                   ",\"refused\":" + n(s.disk_refused) + ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.lost_before_written) + ",\"refused_directories\":" + n(s.disk_refused_dirs) +
                   ",\"room_waits\":" + n(s.room_waits) + ",\"room_wait_timeouts\":" + n(s.room_wait_timeouts) + ",\"room_wait_ms\":" + n((uint64_t)s.room_wait_ms) +
                   ",\"room_wait_longest_ms\":" + n((uint64_t)s.room_wait_longest_ms) + "}}" +
-                  ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}},\"moves\":{\"since_start\":{" + moves(s) + "}}}" +
+                  ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}" + restore_json(s.restore) + ",\"moves\":{\"since_start\":{" + moves(s) + "}}}" +
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + ",\"turns_without_memory\":" + n(s.turns_without_memory) + "}}" +
                   ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +

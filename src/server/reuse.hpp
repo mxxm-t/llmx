@@ -790,13 +790,26 @@ inline bool Scheduler::reading(Request& r) {
     if (std::chrono::steady_clock::now() < r.disk_until_) return true;
     ++disk_wait_timeouts_;
     r.restore_late_.store(std::max(r.restore_late_.load(), r.disk_rows_));
+    {
+        std::lock_guard<std::mutex> lk(r.m_);
+        ++r.restore_.timeouts;
+    }
     end_wait(r);
     return false;
 }
 
+// A request's wait for a read ends: its time summed for the server and on the request (Request::Restore::wait_ms).
 inline void Scheduler::end_wait(Request& r) {
-    disk_wait_ms_ += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r.disk_since_).count();
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r.disk_since_).count();
+    disk_wait_ms_ += ms;
     r.disk_wait_ = 0;
+    std::lock_guard<std::mutex> lk(r.m_);
+    r.restore_.part(r.restore_.wait_ms, ms, r.first_);
+}
+
+inline void Scheduler::count_wait(Request& r) {
+    std::lock_guard<std::mutex> lk(r.m_);
+    ++r.restore_.waits;
 }
 
 // Read `id` finished: a history read whole becomes a host entry of a conversation that came back, its files kept and renewed, and anything else releases its slabs; the requests waiting for it go on.
@@ -808,6 +821,21 @@ inline void Scheduler::finish_read(uint64_t id, bool ok) {
     if (i == disk_reads_.size()) return wake_readers(id);
     DiskRead rd = std::move(disk_reads_[i]);
     disk_reads_.erase(disk_reads_.begin() + (std::ptrdiff_t)i);
+    // The read once for the server, and its latency to every request waiting for it, which may share it.
+    const double read_ms = ms_since(rd.started);
+    if (ok) {
+        ++restore_totals_.reads;
+        Stats::RestoreTotals::add(restore_totals_.read_ms, restore_totals_.read_largest_ms, read_ms);
+        Stats::RestoreTotals::add(restore_totals_.slabs_ms, restore_totals_.slabs_largest_ms, rd.slabs_ms);
+    }
+    for (auto* q : {&queue_, &paused_, &jobs_})
+        for (auto& r : *q)
+            if (r->disk_wait_ == id) {
+                std::lock_guard<std::mutex> lk(r->m_);
+                r->restore_.read_ms += read_ms;
+                r->restore_.slabs_ms += rd.slabs_ms;
+                r->restore_.failed += !ok;
+            }
     if (ok) {
         const size_t length = rd.history.length;
         const double mib = (double)rd.history.bytes / (1 << 20);
@@ -837,6 +865,7 @@ inline void Scheduler::finish_read(uint64_t id, bool ok) {
             d.history = std::move(rd.history);
             d.back = true;
             d.through = rd.through;
+            d.from_disk = true;
             key = &d.disk;
         }
         refresh_disk();
@@ -1008,6 +1037,7 @@ inline void Scheduler::prefetch() {
                 r->disk_wait_ = id;
                 r->disk_rows_ = plan->end;
                 r->disk_since_ = now;
+                count_wait(*r);
                 r->disk_until_ = read_until(plan->end, now);
                 ++disk_waits_;
                 ++waiting;
@@ -1030,6 +1060,7 @@ inline void Scheduler::prefetch() {
             r->disk_wait_ = id;
             r->disk_rows_ = rows;
             r->disk_since_ = now;
+            count_wait(*r);
             r->disk_until_ = read_until(rows, now);
             ++disk_waits_;
             ++waiting;
@@ -1089,11 +1120,14 @@ inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_on
         if (host_held_ + bytes > host_cap_ && rd.source && whole) return start_read(*whole, false, tokens, classes);
         if (host_held_ + bytes > host_cap_) return refused("the host tier has no room it may give");
     }
+    const Clock::time_point slabs = Clock::now();
     try {
         quieted()->alloc_host(length, rd.history, rd.through ? std::numeric_limits<size_t>::max() : host_cap_ + parked_held(), blocks);
     } catch (const std::exception& x) {
         return refused(x.what());
     }
+    rd.slabs_ms = ms_since(slabs);
+    rd.started = Clock::now();
     rd.id = disk_->read(*quieted(), path, rd.history, state_only);
     if (!rd.id) {
         model_.release_host(rd.history);
@@ -1128,7 +1162,7 @@ inline void Scheduler::write_ahead() {
 
 // Host donor i back on the devices as a donor of its own, its blocks and, on a model that keeps a state, its checkpoint slot taken as a first admission takes room, evicting older device donors to host memory; the host entry stays, renewed.
 // With `spare`, for a job, only into room no donor gives up; false, the devices as they were but for donors evicted, where the room or a slot is not there or the copy fails, with `room` false where the room was what lacked; under the lock.
-inline bool Scheduler::promote(size_t i, bool spare, bool* room) {
+inline bool Scheduler::promote(size_t i, bool spare, bool* room, const std::shared_ptr<Request>& r) {
     const uint64_t id = host_[i].id;
     // The device donors it evicts to host memory never take its room for theirs (release_written).
     struct Unpromote {
@@ -1166,11 +1200,34 @@ inline bool Scheduler::promote(size_t i, bool spare, bool* room) {
     }
     Donor d;
     const Clock::time_point start = Clock::now();
+    Clock::time_point held = start;
     try {
-        d.seq = quieted()->restore_host(h->history);
+        auto quiet = quieted();
+        held = Clock::now();
+        d.seq = quiet->restore_host(h->history);
     } catch (const std::exception& e) {
         moved(Move::promote_failed, "server: a donor of %zu tokens was not promoted from host memory (%s)\n", h->history.length, e.what());
         return false;
+    }
+    // The hold's wait for the recorders and the copies' enqueue, once for the server and on the request that took them; the copies' retirement is asked once a round (copies_retired).
+    const Clock::time_point enqueued = Clock::now();
+    const double hold_ms = std::chrono::duration<double, std::milli>(held - start).count(), enqueue_ms = std::chrono::duration<double, std::milli>(enqueued - held).count();
+    ++restore_totals_.promotions;
+    Stats::RestoreTotals::add(restore_totals_.hold_ms, restore_totals_.hold_largest_ms, hold_ms);
+    Stats::RestoreTotals::add(restore_totals_.enqueue_ms, restore_totals_.enqueue_largest_ms, enqueue_ms);
+    copies_.push_back(Copies{h->history.tickets, enqueued, r});
+    if (r) {
+        if (!r->job_) ++(h->from_disk ? restore_totals_.from_disk : restore_totals_.from_host);
+        r->first_pass_ = true;
+        std::lock_guard<std::mutex> lk(r->m_);
+        Request::Restore& x = r->restore_;
+        ++x.restores;
+        x.kind = h->from_disk ? "disk" : "host";
+        x.tokens += h->history.length;
+        x.bytes += h->history.bytes;
+        x.part(x.hold_ms, hold_ms, r->first_);
+        x.part(x.enqueue_ms, enqueue_ms, r->first_);
+        r->first_before_ = r->first_;
     }
     d.id = ++donor_ids_;
     d.on_host = h->id;
@@ -1184,6 +1241,29 @@ inline bool Scheduler::promote(size_t i, bool spare, bool* room) {
     moved(Move::promoted, "server: a donor of %zu tokens promoted from host memory, %.1f MiB, its copy enqueued in %.1f ms\n", h->history.length, (double)h->history.bytes / (1 << 20), ms_since(start));
     donors_.push_back(std::move(d));
     return true;
+}
+
+// The promotions whose copies have all retired since the last round: their time from the enqueue, once for the server and on the request that took them.
+// Asked once a round without waiting, as stage_ready asks a pass (Backend::done), and only while copies are outstanding.
+inline void Scheduler::copies_retired() {
+    for (size_t i = 0; i < copies_.size();) {
+        if (!model_.copies_retired(copies_[i].tickets)) {
+            ++i;
+            continue;
+        }
+        const double ms = ms_since(copies_[i].at);
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            ++restore_totals_.copies;
+            Stats::RestoreTotals::add(restore_totals_.copies_ms, restore_totals_.copies_largest_ms, ms);
+        }
+        if (copies_[i].r) {
+            std::lock_guard<std::mutex> lk(copies_[i].r->m_);
+            ++copies_[i].r->restore_.copies;
+            copies_[i].r->restore_.copies_ms += ms;
+        }
+        copies_.erase(copies_.begin() + (std::ptrdiff_t)i);
+    }
 }
 
 // A donor's blocks back to the pool, the oldest donor's unless another is named; one the device tier evicts (`evicted`) is copied to host memory first.

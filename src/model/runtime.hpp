@@ -689,6 +689,7 @@ public:
     bool caches_on_devices() const;
     Sequence restore_host(HostHistory& h);
     void release_host(HostHistory& h) noexcept;
+    bool copies_retired(const std::vector<backend::Ticket>& tickets) const noexcept;
     void trim_host(size_t limit) noexcept;
     bool host_admits(size_t bytes, bool optional = false) const;
     bool host_short() const;

@@ -53,6 +53,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   That reserve is `CpuBackend::host_reserve` of what the host had as the model was made, fixed then, so it does not shrink as memory falls; `host_admits(bytes, optional)` is the one rule every fresh slab passes, a copy's, a read's and an idle step's (`alloc_host`), with twice the reserve for growth nothing waits for, and it reads the host's memory at each call, so it is a sampled guard and no guarantee against another process.
   `host_short()` says the host is below the reserve while idle slabs exist, and `host_yield()` then frees idle slabs, as many as cover what the host is short by, and no slab a copy holds.
   `ModelOptions::host_memory` gives the host's free memory in tests.
+  `copies_retired(tickets)` says whether a host history's copies have all retired, asked through each device's `Backend::done`, which a device backend answers without waiting; the server asks it once a round to time a promotion's copies.
   `caches_on_devices` says whether some KV or
   state storage sits off the CPU, without which a copy gains nothing.
   A copy that fails part way retires every device's stream before its slabs

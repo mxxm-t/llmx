@@ -546,6 +546,28 @@ A kind whose move the request's own line already says, or that loses nothing, is
 The disk tier's outcomes are taken where the scheduler takes in the tier's completions (`Scheduler::sync_disk` from `DiskTier::figures`), never on an I/O thread.
 
 
+## What a restore cost
+
+A request that waits for a read from disk, or takes a copy back from host memory (`promote`), keeps what that cost on itself (`Request::Restore`, filled where each part happens, in `server/reuse.hpp`) and says it at the end of its line.
+- Its completed restores, with the tokens and bytes they gave it and the last one's kind, `host` or `disk` (a host copy read back from disk).
+- Its waits for reads, with those that reached their bound (`timeouts`) and those whose read failed. A wait that reaches its bound or a read that fails completes no restore: no tokens, no bytes, no promotion.
+- A request that waits or restores more than once sums its parts.
+
+The parts sit in two spans of the request.
+- In `queued_ms`: `wait_ms`, its wait for the read, from its start to its end (`end_wait`); `hold_ms`, the promotion's wait for every recorder to stand at a piece boundary (`quieted`); and `enqueue_ms`, the copies' enqueue (`Model::restore_host`).
+- In `prompt_ms`: `first_pass_ms`, the request's next pass after a promotion, which waits for the copies on the device and does its own work beside other requests; it is first-pass latency, never copy time.
+- A part that ends after the request's first token, as a resume's promotion and its next pass do, belongs to neither span: it is `after_first_ms`, said on its own.
+- The line gives each span as those parts and its remainder, so a restored turn adds up to its time to first token; a remainder below 0 is printed as it is, and would be a fault of the record.
+
+Beside the spans, overlapping them and so not addends:
+- `read_ms`, the read-ready latency from the store's call to `finish_read`, the store's queue and the scheduler's observation included; it overlaps the wait.
+- `slabs_ms`, the read's slabs taken and zero-filled (`alloc_host`) before that call.
+- `copies_ms`, from the enqueue to the first round boundary at which every ticket of the promotion has retired, asked once a round through `Backend::done` (`copies_retired`, `Model::copies_retired`) while such copies are outstanding; a device backend answers without waiting, as `stage_ready` relies on, and the CPU's copies have retired at submission; it overlaps the first pass.
+
+A read that several requests wait on is shared: each request's record carries its latency, and the server counts it once.
+`/v1/health`'s `reuse.restore.since_start` counts each physical read and promotion once: `reads`, `promotions`, `copies` (promotions whose copies were seen retired), `from_host` and `from_disk` (restores requests completed), `timeouts`, and each part's sum and largest (`read_ms`, `slabs_ms`, `hold_ms`, `enqueue_ms`, `copies_ms` and their `_largest_ms`).
+A message boundary's state forked with a request (`Model::fork` with a state) is not timed here; its copies are a state's, small beside a history's.
+
 ## Live work counters
 
 `work.since_start.prefilled_tokens` counts client prompt positions in successfully retired passes, including prompt rows recomputed after a pause. A cached prefix contributes no rows; background read-again jobs, generated history replay, drafter calls and speculative verification rows contribute none. `work.since_start.generated_tokens` counts output tokens successfully pushed to clients' request channels, including the first output token and accepted speculative tokens, each once. EOS and rejected drafts contribute none; output already published before a later error stays counted. Both counters start at zero with each scheduler and are available without `--timing`.

@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## What a restore cost, said by the server (2026-10-18, branch feat/restore-ms, step 8's restore timing, the cache plan's next item, lands by fast-forward as two commits)
+
+- **Why:** the restart fix's gate takes the server's own restore timing as its bound, and the server said only a read's MiB, a promotion's enqueue time and the summed read waits, none tied to the request.
+- **The change (F2DEV's review of 14:27, XDEV's of 14:28):** each request keeps `Request::Restore`, filled where each part happens (`server/reuse.hpp`): completed restores with their tokens, bytes and kind, waits with those at their bound and failed, and the parts, `wait_ms`, `hold_ms`, `enqueue_ms` in `queued_ms` and `first_pass_ms` in `prompt_ms`, with `read_ms`, `slabs_ms` and `copies_ms` beside them, overlapping and so not addends (docs/SERVER.md, What a restore cost). `copies_ms` is asked once a round through `Backend::done` while a promotion's copies are outstanding (`Model::copies_retired`). A part ending after the first token, a resume's promotion and its next pass, is `after_first_ms` and in neither span (F2DEV, 15:07), so no remainder is clamped. The request line gives each span as its parts and remainder; `/v1/health`'s `reuse.restore.since_start` counts each read and promotion once.
+- **Tests:** `server-resume`'s turns at the pool's edge (a resume's restore from host memory after the first token, each span's remainder at least 0), its read back from disk (a disk restore's record and the server's totals, and a prompt nothing holds with none), host tier (promotions and restores from host memory counted with their copies) and read past its bound (a wait at its bound and no restore). The first commit holds the tests, which cannot build on main, the record being new.
+- **Not cased:** a read two requests wait on, which no path gives today (each follower starts its own read; one read shared by two followers is the plan's later item), and a first pass that is not the next pass after the enqueue, which on the CPU, whose copies retire at submission, no fixture parts from the copies; the device gate shows it.
+- **Left:** the gate (host logic: CTest, the CPU suite, Qwen3-0.6B identity against main, the hosted run; the 27B's restart over kept files at production's flags, its turn's parts beside the gate runner's reading of the log), reviews.
+
 ## The slow write's two arms independent of the runner (2026-10-18, branch test/capped-write-wait, tests only, lands by fast-forward as one commit)
 
 - **Why:** both arms of `cache-scenario`'s slow write failed on macOS. The capped arm (fix/turns-kept's run 39135787891, "1 waits, 0 at their bound"): its 100 ms bound is seen only at the scheduler's next look, which on a slow runner came after the write, whose pieces the store held 200 ms each, had ended. The uncapped arm (feat/restore-ms's run 39156576100, "1 waits, 1 at their bound"): a wait for a donor's write follows the write's rate only once that write has begun (`waits_for_room` reads the write in flight); the other request arrived before this runner had begun it, so the wait had only its 100 ms constant, as the line "left the devices with no copy ... not yet whole on disk" 154 ms in shows.
@@ -16,6 +24,7 @@
 - **Not cased:** the answer "room" needs entries the plan may not release to hold the tier during a turn: a boundary is pinned only inside an admission and a copy is promoted only inside `promote`, neither of which spans `grow`, and a disk read's source is pinned while a state read alone runs, which a case would have to hold in flight across a turn; no cheap case reaches it, so it is held by `host_room`'s one rule for `write_back` and `yields`.
 - **Follow-up (F2DEV, 10:16):** one shared eligibility predicate for `host_room` and `release_written`, `drop_oldest_bound` and `drop_oldest_host`, which today restate who may be released.
 - **Left:** the gate (host logic and its hosted run; the 27B leg of the plan's gate, the waiting reply's time to first token beside the older's tokens a second, turns, pauses and recompute with the host's free memory below one copy, by the gate runner), F2DEV's review.
+
 
 ## The device pool apart from the request limit (2026-10-17, branch feat/kv-pool, item 1 of docs/CACHE-PLAN.md section 8, in progress)
 
@@ -47,6 +56,7 @@
 - **Why:** `cache-scenario`'s write slower than the wait's constant failed on hosted Windows and macOS runners (runs 39120957649 and 39124055276, "1 waits, 1 at their bound, the next turn reusing 1024"): a wait for a save is capped by recomputing its rows at the measured prompt rate, about 0.5 s on the test's slowed CPU, which a slow runner's write of the history could pass.
 - **The change:** `DiskOptions::recompute_row_ms`, for tests, replaces the measured prompt rate where it caps a wait for a save (`waits_for_room`); the slow write and the first write cap it at 50 ms a row, about a minute, so the wait follows the write's rate whatever the runner, and a second arm of the slow write caps it at 1 us a row, so the same wait reaches its bound, is counted and the reply is still the fresh model's.
 - **Held by:** `cache-scenario` (the legs) five times at once on Windows, every run passing; CTest; the hosted run of github gate/stable-write-wait.
+
 ## CTest failure output annotations (2026-10-18, lands by fast-forward)
 
 - **Goal:** make a hosted CTest failure actionable from the public check-run annotations while preserving the original test result.

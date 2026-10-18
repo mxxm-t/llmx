@@ -871,7 +871,9 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
            "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
                     "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_timeouts": 0, "wait_ms": 412, "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0,
                                     "refused_directories": 0, "room_waits": 2, "room_wait_timeouts": 0, "room_wait_ms": 3100, "room_wait_longest_ms": 2900}},
-           "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}},
+           "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}},
+           "restore": {"since_start": {"reads": 7, "promotions": 40, "copies": 40, "from_host": 33, "from_disk": 7, "timeouts": 0, "read_ms": 380, "read_largest_ms": 120, "slabs_ms": 40,
+                                       "slabs_largest_ms": 12, "hold_ms": 90, "hold_largest_ms": 30, "enqueue_ms": 25, "enqueue_largest_ms": 4, "copies_ms": 600, "copies_largest_ms": 80}}},
  "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0, "turns": 0, "turns_without_memory": 0}},
  "reread": {"now": {"jobs": 1, "rows_left": 384}, "since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2, "rows_released": 0}},
  "drafting": {"sources": ["lookup", "embedded"], "since_start": {"drafted": 4096, "kept": 2780, "failed": 0, "by_position": [{"position": 1, "drafted": 1024, "kept": 901}], "own_history": {"drafted": 512, "kept": 480}}},
@@ -930,6 +932,9 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `reuse.disk.since_start.room_waits`, `.room_wait_timeouts` | admissions | since start | Requests that waited before admission for a history the host tier cannot hold to be whole on disk before taking its room, or for room to restore a copy from host memory, and those whose wait reached its bound (15 s, or for a write the time waited and its remaining time at its measured rate, 1.5 times and 2 s more, never past recomputing) and went on | `room_wait_timeouts` above 0: rows were lost or computed again, said in the log |
 | `reuse.disk.since_start.room_wait_ms`, `.room_wait_longest_ms` | milliseconds | since start | The time those requests waited, in all and the longest | |
 | `reuse.boundaries.now.entries`, `.since_start.hits` | states, requests | now, since start | Message boundaries' states held in host memory, and requests that forked one | |
+| `reuse.restore.since_start.reads`, `.promotions`, `.copies` | reads, promotions | since start | Each read from disk done and each promotion from host memory once, and the promotions whose copies were seen retired (docs/SERVER.md, What a restore cost) | |
+| `reuse.restore.since_start.from_host`, `.from_disk`, `.timeouts` | requests | since start | Restores requests completed from a host copy and from one read back from disk, and waits for a read that reached their bound | rising timeouts: reads slower than recomputing |
+| `reuse.restore.since_start.read_ms`, `.slabs_ms`, `.hold_ms`, `.enqueue_ms`, `.copies_ms` and each `_largest_ms` | milliseconds | since start | A read's latency from the store's call until the scheduler took it, its slabs taken, a promotion's wait for the recorders, its copies' enqueue, and its copies until seen retired, in all and the largest; overlapping parts, not a sum | |
 | `pressure.since_start.pauses` | pauses | since start | Times a request was paused to give blocks to another | rising: the pool is small for the load (`--kv-tokens`, `--max-seqs`) |
 | `pressure.since_start.stalls` | passes | since start | Passes a request sat out, unable to grow | rising with pauses |
 | `pressure.since_start.waits` | passes | since start | Of those, the ones whose room waited on a request in flight | |

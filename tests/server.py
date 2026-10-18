@@ -44,10 +44,15 @@ class Server:
             result = json.loads(r.read().decode("utf-8"))
         if path == "/v1/health":
             live = result["requests"]["live"]
-            assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items"}, live
+            assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items", "work"}, live
             assert live["limit"] == 64 and len(live["items"]) <= 64, live
             assert live["total"] == len(live["items"]) + live["omitted"], live
             assert len({item["id"] for item in live["items"]}) == len(live["items"]), live
+            work = live["work"]
+            assert set(work) == {"prefilled_tokens", "generated_tokens"}, live
+            assert all(isinstance(value, int) and value >= 0 for value in work.values()), live
+            for field, item_field in (("prefilled_tokens", "prefilled_tokens"), ("generated_tokens", "published_tokens")):
+                assert sum(item[item_field] for item in live["items"]) <= work[field] <= result["work"]["since_start"][field], live
             for item in live["items"]:
                 assert set(item) == {"id", "phase", "prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms"}, item
                 assert isinstance(item["id"], str) and re.fullmatch(r"r-[1-9][0-9]*", item["id"]), item
@@ -448,9 +453,10 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
         assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "shifts", "shifted_tokens"}, health["requests"]
         live = health["requests"]["live"]
-        assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items"}, live
+        assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items", "work"}, live
         assert live["limit"] == 64 and live["total"] == live["omitted"] == 0 and live["items"] == [], live
         assert isinstance(live["sample_elapsed_ms"], int) and live["sample_elapsed_ms"] >= 0, live
+        assert live["work"] == {"prefilled_tokens": 0, "generated_tokens": 0}, live
         time.sleep(0.02)
         assert srv.get("/v1/health")["requests"]["live"] == live, "idle polling refreshed the cached snapshot"
         assert health["work"] == {"since_start": {"prefilled_tokens": 0, "generated_tokens": 0}}, health
@@ -483,9 +489,15 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             expected[prompt] = reply["ids"]
             replies[prompt] = reply
             published += len(reply["ids"])
-            work = srv.get("/v1/health")["work"]["since_start"]
+            finished = srv.wait(lambda h: not h["requests"]["now"]["active"] and not h["requests"]["live"]["total"] and
+                                h["requests"]["live"]["work"] == h["work"]["since_start"], "completed work did not reach the final live sample")
+            work = finished["work"]["since_start"]
             assert set(work) == {"prefilled_tokens", "generated_tokens"} and work["generated_tokens"] == published, work
             assert isinstance(work["prefilled_tokens"], int) and work["prefilled_tokens"] > 0, work
+            final_live = finished["requests"]["live"]
+            assert final_live["items"] == [] and final_live["work"] == work, final_live
+            time.sleep(0.02)
+            assert srv.get("/v1/health")["requests"]["live"] == final_live, "idle polls changed final work or its sample time"
 
         # The same requests four at a time give the same ids each.
         results = {}

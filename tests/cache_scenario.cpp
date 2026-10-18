@@ -700,13 +700,16 @@ void restore_beside_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t 
 }
 
 // A donor's write slower than the wait's constant (production, 2026-10-17 run D): a history no host memory holds is written as its turn ends, each 4 MiB of it held 200 ms by the store, and another request needs its room at once.
-// The constant here is 100 ms; the wait is the write's remaining time at the measured rate, 1.5 times and 2 s more, capped by recomputing, about 0.5 s on a CPU slowed to 30 ms a submission, so the next turn reads it back.
-void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
-    DiskRoot disk("slow-write");
+// The constant is 100 ms and the wait the write's remaining time at the measured rate, 1.5 times and 2 s more, capped by recomputing at 50 ms a row, so the next turn reads it back; `capped` at 1 us a row, it reaches its bound and is counted.
+void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v, bool capped) {
+    const std::string what = capped ? "a write slower than a wait capped by recomputing" : "a write slower than the wait's constant";
+    DiskRoot disk(capped ? "slow-write-capped" : "slow-write");
     server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(200));
     options.idle = std::chrono::hours(1);
     options.read_wait = std::chrono::seconds(60);
     options.wait = std::chrono::milliseconds(100);
+    // The cap by recomputing is the test's, so this runner's speed cannot reach it, or reaches it at once.
+    options.recompute_row_ms = capped ? 0.001 : 50.0;
     const auto slow = hooked(1);
     slow[0]->hook = [] { std::this_thread::sleep_for(std::chrono::milliseconds(30)); };
     const Make make = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; }), plain = on(weights, [] { return cpus(1); });
@@ -736,15 +739,15 @@ void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
     }
     sched.stop();
     runner.join();
-    require(st.room_waits >= 1 && !st.room_wait_timeouts && reused == 1024,
-            "a write slower than the wait's constant: " + std::to_string(st.room_waits) + " waits, " + std::to_string(st.room_wait_timeouts) + " at their bound, the next turn reusing " + std::to_string(reused) +
-                ", against some, none and 1024");
+    const std::string seen = std::to_string(st.room_waits) + " waits, " + std::to_string(st.room_wait_timeouts) + " at their bound, the next turn reusing " + std::to_string(reused);
+    if (capped) require(st.room_waits >= 1 && st.room_wait_timeouts >= 1, what + ": " + seen + ", against some and one at least");
+    else require(st.room_waits >= 1 && !st.room_wait_timeouts && reused == 1024, what + ": " + seen + ", against some, none and 1024");
     auto fresh = plain(kPool, 64);
-    same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "slow write, the next turn's reply");
+    same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, what + ", the next turn's reply");
 }
 
 // A server's first write, with no rate measured before it (production, 2026-10-17 run D at 90e20b26d): the store's probe fails, so the wait has only its constant, here 1500 ms, until the write in flight gives its own rate.
-// Each history's 2 MiB go in one 4 MiB piece the store holds 3 s, written or read, longer than the constant and than 2 s past what a probe's rate would give; recomputing it is about 5 s on a CPU slowed to 300 ms a submission.
+// Each history's 2 MiB go in one 4 MiB piece the store holds 3 s, written or read, longer than the constant and than 2 s past what a probe's rate would give; recomputing it is capped at 50 ms a row, about a minute.
 void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
     DiskRoot disk("first-write");
     const auto slow = hooked(1);
@@ -759,6 +762,7 @@ void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok,
     options.idle = std::chrono::hours(1);
     options.read_wait = std::chrono::seconds(60);
     options.wait = std::chrono::milliseconds(1500);
+    options.recompute_row_ms = 50.0;
     options.fault = [](const char* step) { return std::string(step) == "probe"; };
     server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, options);
     std::thread runner([&] { sched.run(); });
@@ -817,7 +821,7 @@ int main(int argc, char** argv) {
             scenario(one, tok, (uint32_t)kCpu.vocab, "", {768, 512, 896, true});
             shared_system_prompt(one, tok, (uint32_t)kCpu.vocab);
             restore_beside_donor(one, tok, (uint32_t)kCpu.vocab);
-            slow_write_wait(weights, tok, (uint32_t)kCpu.vocab);
+            for (const bool capped : {false, true}) slow_write_wait(weights, tok, (uint32_t)kCpu.vocab, capped);
             first_write_wait(weights, tok, (uint32_t)kCpu.vocab);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 896, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 768, true});

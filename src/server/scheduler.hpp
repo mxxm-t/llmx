@@ -259,7 +259,7 @@ public:
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
               size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {})
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
-          wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), background_paced_(!pacing.refused),
+          wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms), background_paced_(!pacing.refused),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
@@ -2311,7 +2311,7 @@ private:
             std::fprintf(stderr, "server: cache: a request waits for %s of %zu tokens before it is admitted\n", what, n);
         }
         if (remaining >= 0 && rate > 0) {
-            const double ms = write_wait_ms(remaining, rate, std::chrono::duration<double, std::milli>(now - r.room_since_).count(), prompt_ms_row_ * (double)n);
+            const double ms = write_wait_ms(remaining, rate, std::chrono::duration<double, std::milli>(now - r.room_since_).count(), recompute_row_ms_.value_or(prompt_ms_row_) * (double)n);
             r.room_until_ = std::max(r.room_until_, r.room_since_ + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>(ms)));
         }
         if (now < r.room_until_) return true;
@@ -2936,6 +2936,7 @@ private:
     const bool auto_;                     // generated rows are served by the automatic rule (Pacing)
     const Clock::duration wait_bound_;    // the bound of a wait for a restore or a save while nothing better is measured: kWaitBound, or DiskOptions::wait in tests
     const std::optional<std::chrono::milliseconds> read_wait_;   // DiskOptions::read_wait
+    const std::optional<double> recompute_row_ms_;   // DiskOptions::recompute_row_ms
     const bool background_paced_;         // background work has a budget beside waiting work: always but under --no-pacing (Pacing::refused)
     std::atomic<bool> overlap_{false};    // written by the scheduler thread: replies and prompts both wait (demand)
     const Clock::time_point epoch_ = Clock::now();   // the stages' clocks count from here

@@ -92,6 +92,7 @@ struct DiskOptions {
     std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
     std::optional<std::chrono::milliseconds> wait;   // the bound of a wait for a restore or a save, kWaitBound where none is given, shorter in tests
     std::optional<std::chrono::milliseconds> read_wait;   // a read's bound in place of the time its rows take to compute, for tests a slow runner must not time out
+    std::optional<double> recompute_row_ms;   // a row's time to compute in place of the measured prompt rate where it caps a wait for a save, for tests
     std::function<bool(const char* step)> fault;   // DiskStore::Options::fault, for tests
 };
 

@@ -1,5 +1,10 @@
 # llmx - Development Status
 
+## The write waits' cap by recomputing made the test's (2026-10-18, branch test/stable-write-wait, tests and a test-only option, lands by fast-forward as one commit)
+
+- **Why:** `cache-scenario`'s write slower than the wait's constant failed on hosted Windows and macOS runners (runs 39120957649 and 39124055276, "1 waits, 1 at their bound, the next turn reusing 1024"): a wait for a save is capped by recomputing its rows at the measured prompt rate, about 0.5 s on the test's slowed CPU, which a slow runner's write of the history could pass.
+- **The change:** `DiskOptions::recompute_row_ms`, for tests, replaces the measured prompt rate where it caps a wait for a save (`waits_for_room`); the slow write and the first write cap it at 50 ms a row, about a minute, so the wait follows the write's rate whatever the runner, and a second arm of the slow write caps it at 1 us a row, so the same wait reaches its bound, is counted and the reply is still the fresh model's.
+- **Held by:** `cache-scenario` (the legs) five times at once on Windows, every run passing; CTest; the hosted run of github gate/stable-write-wait.
 ## CTest failure output annotations (2026-10-18, lands by fast-forward)
 
 - **Goal:** make a hosted CTest failure actionable from the public check-run annotations while preserving the original test result.

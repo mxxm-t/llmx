@@ -1234,6 +1234,7 @@ void turns_at_edge(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
     const server::Request* older = nullptr;
     const server::Request* newer = nullptr;
     server::Scheduler::Stats stats;
+    size_t late = 0;   // requests whose restore came after their first token
     {
         server::Scheduler sched(*model, tok, 2, 64, 0, false, host);
         sched.on_retire = [&](const server::Scheduler::Retired& p) {
@@ -1255,6 +1256,14 @@ void turns_at_edge(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
             got.push_back(drain(*a));
             got.push_back(drain(*b));
             stats = sched.stats();
+            // A promotion a resume takes comes after the request's first token: its parts are after_first_ms, so no span's remainder falls below 0.
+            for (const auto& h : {a, b}) {
+                const server::Request::Restore x = h->restore();
+                const server::Request::Timings t = h->timings();
+                const double queued_rest = t.queued_ms - x.wait_ms - x.hold_ms - x.enqueue_ms, prompt_rest = t.prompt_ms - x.first_pass_ms;
+                require(queued_rest >= 0 && prompt_rest >= 0, what + ": a span's remainder below 0: queued " + std::to_string(queued_rest) + " ms, prompt " + std::to_string(prompt_rest) + " ms");
+                late += x.restores && x.after_first ? 1 : 0;
+            }
             ledger(stats, *model, what);
         } catch (...) {
             sched.stop();
@@ -1277,6 +1286,7 @@ void turns_at_edge(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
     }
     require(waits != n, what + ": the newer request never waited for the older one");
     require(stats.yields >= 1, what + ": no turn at the pool's edge was given up");
+    require(late >= 1, what + ": no request restored after its first token, which a resume from host memory does");
     require(back < last, what + ": the newer request, waiting from pass " + std::to_string(waits) + ", decoded again at pass " + std::to_string(back) + " of " + std::to_string(n) +
                              ", after the older one's last pass " + std::to_string(last) + " (" + std::to_string(stats.pauses) + " pauses)");
     std::cout << "server-resume: " << what << ": the newer request waited from pass " << waits << ", decoded again at pass " << back << " and the older one ended at pass " << last << ", " << stats.pauses << " pauses\n";
@@ -1555,6 +1565,9 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
         const bool hits = host && fault == HostFault::none;
         require(stats.host_hits == (hits ? 2u : 0u) && stats.prefix_tokens == (hits ? 4 * kBlock : 0u),
                 arm + ": " + std::to_string(stats.host_hits) + " promotions and " + std::to_string(stats.prefix_tokens) + " tokens reused");
+        // Each promotion a restore from host memory the follow-up took, its copies seen retired; a failed copy back restores nothing.
+        require(stats.restore.promotions == stats.host_hits && stats.restore.from_host == (hits ? 2u : 0u) && !stats.restore.from_disk && stats.restore.copies == stats.restore.promotions && !stats.restore.reads,
+                arm + ": " + std::to_string(stats.restore.promotions) + " promotions timed, " + std::to_string(stats.restore.from_host) + " restores from host memory and " + std::to_string(stats.restore.copies) + " copies seen");
         // The second follow-up evicts the first's donor too: on the dense model its 384 tokens are a third entry, and on the hybrid one its checkpoint is at the first turn's 256, whose entry it renews; a failed write-back keeps nothing.
         const size_t held = !host || fault == HostFault::write_back ? 0 : checkpoints ? 2 : 3;
         require(stats.host_donors == held && (stats.host_bytes == 0) == (held == 0),
@@ -2179,6 +2192,7 @@ void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, s
     Demoted d;
     Reply got;
     size_t reused = 0;
+    server::Request::Restore restored, none;
     server::Scheduler::Stats stats;
     {
         server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * devices * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30));
@@ -2188,6 +2202,12 @@ void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, s
             const auto h = sched.submit(d.follow.prompt, params_of(d.follow));
             got = drain(*h);
             reused = h->reused();
+            restored = h->restore();
+            // A prompt nothing holds restores nothing and waits for no read.
+            const Req fresh_prompt{prompt_of(11, 100, vocab), 4};
+            const auto n = sched.submit(fresh_prompt.prompt, params_of(fresh_prompt));
+            drain(*n);
+            none = n->restore();
             stats = sched.stats();
             ledger(stats, *model, what);
         } catch (...) {
@@ -2202,6 +2222,16 @@ void disk_restore(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, s
     require(stats.disk_hits == 1 && stats.disk_waits == 1 && stats.disk_bytes_read > 0 && stats.host_hits == 1,
             what + ": " + std::to_string(stats.disk_hits) + " entries read from disk for " + std::to_string(stats.disk_waits) + " waits and " + std::to_string(stats.host_hits) +
                 " promotions, against 1, 1 and 1");
+    // What the restore cost (Request::Restore): the follow-up waited for one read, completed one restore from disk, and its copies and its first pass after them were seen; the server counted the read and the promotion once.
+    const std::string seen = std::string(restored.kind) + ", " + std::to_string(restored.restores) + " restores of " + std::to_string(restored.tokens) + " tokens, " + std::to_string(restored.waits) + " waits, " +
+                             std::to_string(restored.timeouts) + " at the bound, " + std::to_string(restored.failed) + " failed, " + std::to_string(restored.copies) + " copies seen and " + std::to_string(restored.first_passes) + " first passes";
+    require(std::string(restored.kind) == "disk" && restored.restores == 1 && restored.tokens >= 2 * kBlock && restored.bytes > 0 && restored.waits == 1 && !restored.timeouts && !restored.failed &&
+                restored.copies == 1 && restored.first_passes == 1,
+            what + ": the follow-up's restore: " + seen + ", against disk, 1 of 256 or more, 1 wait, none at the bound or failed, 1 copy and 1 first pass");
+    require(stats.restore.reads == 1 && stats.restore.promotions == 1 && stats.restore.from_disk == 1 && !stats.restore.from_host && stats.restore.copies == 1 && !stats.restore.timeouts,
+            what + ": the server counted " + std::to_string(stats.restore.reads) + " reads, " + std::to_string(stats.restore.promotions) + " promotions and " + std::to_string(stats.restore.from_disk) +
+                " restores from disk, against 1 each");
+    require(std::string(none.kind) == "none" && !none.restores && !none.waits && !none.tokens, what + ": a prompt nothing holds recorded a restore or a wait");
     auto fresh = make(2048, 16);
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
@@ -2572,7 +2602,8 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     auto model = make(2048, 0);
     Demoted d;
     Reply got;
-    size_t reused = 0, late = 0;
+    size_t reused = 0, late_rows = 0;
+    server::Request::Restore late;
     server::Scheduler::Stats stats, at_end;
     bool ended = false;
     {
@@ -2599,7 +2630,8 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
             }
             got = drain(*h);
             reused = h->reused();
-            late = h->restore_late();
+            late_rows = h->restore_late();
+            late = h->restore();
             stats = sched.stats();
             ledger(stats, *model, what);
         } catch (...) {
@@ -2614,7 +2646,11 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
             what + ": the follow-up reused " + std::to_string(reused) + " tokens, with " + std::to_string(at_end.disk_hits) + " entries read and " + std::to_string(at_end.disk_in_flight) +
                 " reads in flight at its last token, after " + std::to_string(stats.disk_waits) + " waits");
     // The wait that reached its bound is counted, and the request keeps the rows its read covered, which the cache scenario counts as a failed restore (P2).
-    require(stats.disk_wait_timeouts == 1 && late == 2 * kBlock, what + ": " + std::to_string(stats.disk_wait_timeouts) + " waits at their bound and a read of " + std::to_string(late) + " rows past its bound, against 1 and " + std::to_string(2 * kBlock));
+    require(stats.disk_wait_timeouts == 1 && late_rows == 2 * kBlock, what + ": " + std::to_string(stats.disk_wait_timeouts) + " waits at their bound and a read of " + std::to_string(late_rows) + " rows past its bound, against 1 and " + std::to_string(2 * kBlock));
+    // It is kept with its outcome, and no restore is counted as done: no tokens, no bytes, no promotion.
+    require(late.waits == 1 && late.timeouts == 1 && !late.restores && !late.tokens && !late.bytes && std::string(late.kind) == "none" && stats.restore.timeouts == 1 && !stats.restore.from_disk,
+            what + ": the follow-up's record holds " + std::to_string(late.waits) + " waits, " + std::to_string(late.timeouts) + " at the bound and " + std::to_string(late.restores) + " restores of " +
+                std::to_string(late.tokens) + " tokens, against 1, 1 and none");
     auto fresh = make(2048, 0);
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }

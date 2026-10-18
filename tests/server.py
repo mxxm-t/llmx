@@ -454,7 +454,9 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         time.sleep(0.02)
         assert srv.get("/v1/health")["requests"]["live"] == live, "idle polling refreshed the cached snapshot"
         assert health["work"] == {"since_start": {"prefilled_tokens": 0, "generated_tokens": 0}}, health
-        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "moves"}, health["reuse"]
+        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "restore", "moves"}, health["reuse"]
+        restore = health["reuse"]["restore"]["since_start"]
+        assert {"reads", "promotions", "copies", "from_host", "from_disk", "timeouts", "read_ms", "hold_ms", "enqueue_ms", "copies_ms"} <= set(restore) and all(v == 0 for v in restore.values()), restore
         moves = health["reuse"]["moves"]["since_start"]
         assert {"parked", "forked", "consumed", "job_gave_way", "job_lost", "to_host", "read_done", "write_whole", "disk_removed"} <= set(moves) and all(isinstance(v, int) for v in moves.values()), moves
         assert srv.get("/v1/live") == {"status": "ok"}

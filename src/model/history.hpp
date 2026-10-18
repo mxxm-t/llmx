@@ -379,6 +379,25 @@ inline std::vector<HostRange> Model::host_state_ranges(const HostHistory& h) con
     return out;
 }
 
+// Copies out of `h`'s slabs a failure stopped part way retire before they are released: devices before `submitted` wait on h's tickets, those up to `recorded` submit and wait.
+// A device the copy never touched is left alone, since another thread may be recording on it.
+inline void Model::drain_recorded(const HostHistory& h, size_t submitted, size_t recorded) noexcept {
+    for (size_t i = 0; i < devices_.size() && i < recorded; ++i) {
+        if (h.slabs[i].empty()) continue;
+        backend::Backend& b = *devices_[i]->b;
+        if (i < submitted) {
+            b.wait(h.tickets[i]);
+        } else {
+            try {
+                b.wait(b.submit());
+            } catch (...) {
+                // This sync assumes no other thread records on the device, which the caller's hold of it gives (the server's quieted()).
+                b.sync();
+            }
+        }
+    }
+}
+
 // A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model at h.length, so a fork or the history itself continues with the bits of the history it was copied from.
 // The copies are enqueued ahead of any pass of the history, whose tickets cover them; a pool, slot, copy or submission failure leaves nothing held and retires queued work before storage is released.
 inline Sequence Model::restore_host(HostHistory& h) {
@@ -391,12 +410,14 @@ inline Sequence Model::restore_host(HostHistory& h) {
         s.kept_ = Checkpoint(slots_, slot, h.length);
         std::fill(s.from_.begin(), s.from_.end(), slot);
     }
+    size_t submitted = 0, recorded = 0;
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
             Device& d = *devices_[i];
             auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
             if (d.storage && !st) throw std::runtime_error("inference: a KV storage that cannot be copied from host memory");
             if ((st || d.states) && h.slabs[i].empty()) throw std::logic_error("inference: a host history of another layout");
+            recorded = i + 1;
             detail::HostSpan span{*d.b, h.slabs[i], kHostSlab, false};
             if (st) {
                 // A tensor group's members copy into the blocks its first member, before them, took from the pool they share.
@@ -411,11 +432,13 @@ inline Sequence Model::restore_host(HostHistory& h) {
             if (d.states) span.slot(*d.states, slot);
             if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
         }
-        for (size_t i = 0; i < devices_.size(); ++i)
+        for (size_t i = 0; i < devices_.size(); ++i) {
             if (!h.slabs[i].empty()) h.tickets[i] = s.last_[i] = devices_[i]->b->submit();
+            submitted = i + 1;
+        }
     } catch (...) {
         // Copies out of h's slabs may be enqueued past its tickets, so they retire before h can be released.
-        for (auto& d : devices_) d->b->sync();
+        drain_recorded(h, submitted, recorded);
         throw;
     }
     std::fill(s.length_.begin(), s.length_.end(), h.length);
@@ -441,20 +464,23 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     const size_t slot = slots_.acquire_kept();
     f.kept_ = Checkpoint(slots_, slot, length);
     f.from_.assign(stages_.size(), slot);
+    size_t submitted = 0, recorded = 0;
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
             Device& d = *devices_[i];
             if (!d.states && !d.carry) continue;
             if (state.slabs[i].empty()) throw std::logic_error("inference: a host state of another layout");
+            recorded = i + 1;
             detail::HostSpan span{*d.b, state.slabs[i], kHostSlab, false};
             if (d.states) span.slot(*d.states, slot);
             // An embedded drafter's carried row comes back with the state it was saved beside, so the fork drafts as the history it was taken from did.
             if (d.carry) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
             state.tickets[i] = f.last_[i] = d.b->submit();
+            submitted = i + 1;
         }
     } catch (...) {
         // Copies out of the state's slabs may be enqueued past its tickets, so they retire before it can be released.
-        for (auto& d : devices_) d->b->sync();
+        drain_recorded(state, submitted, recorded);
         throw;
     }
     return f;

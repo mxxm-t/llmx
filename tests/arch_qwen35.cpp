@@ -561,7 +561,7 @@ struct RestoreSubmitBackend : backend::CpuBackend {
     }
 };
 
-// A fork with a state whose submission fails drains only what it recorded: the devices it copied the state to retire those copies before its slot comes back, and a device it never touched is not synced, which another thread may be recording on.
+// A fork with a state whose submission fails retires the copies it recorded before its slot comes back, and syncs no device it never touched.
 // Three devices, the mixers on the first two and every feed-forward part on the third, which holds no state; each fails its submission in turn.
 void fork_submit_failure() {
     const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
@@ -632,14 +632,14 @@ void host_restore_submit_failure() {
         first->defer = second->defer = true;
         auto failed = failing ? second : first;
         failed->fail_submit = true;
-        const size_t first_drains = first->drains, second_drains = second->drains;
         const backend::Ticket first_ticket = first->last;
         refuses("restore submission", "injected restore submission failure", [&] { model.restore_host(host); });
-        const bool drained = !first->pending() && !second->pending() && first->drains > first_drains && second->drains > second_drains;
+        const bool drained = !first->pending() && !second->pending();
         // Keep the borrowed slabs alive while cleaning up even when testing the broken implementation.
         if (!drained) { first->sync(); second->sync(); }
         require(drained, "a failed restore submission did not drain borrowed host copies before returning its slot");
-        require(failed->failures == 1 && first->last == first_ticket + failing, "restore did not fail at the intended device submission");
+        // The first device submits once either way: the restore's own submission, or the drain's of the copies it left open.
+        require(failed->failures == 1 && first->last == first_ticket + 1, "restore did not fail at the intended device submission");
         require(model.checkpoints_free() == 1, "a failed restore submission kept its checkpoint slot");
         infer::Sequence restored = model.restore_host(host);
         require(restored.length() == 128 && model.checkpoints_free() == 0, "restore retry did not reuse the returned checkpoint slot");

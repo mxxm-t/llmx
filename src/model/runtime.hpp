@@ -953,6 +953,7 @@ private:
     // Host-visible memory for copies of histories (Model::save_host), in slabs a released copy leaves per device for the next, since allocating and pinning host memory costs far more than copying into it.
     static constexpr size_t kHostSlab = size_t(64) << 20;
     std::vector<size_t> host_copy_bytes(size_t length, bool blocks, size_t first, bool state) const;
+    void drain_recorded(const HostHistory& h, size_t submitted, size_t recorded) noexcept;
     std::optional<size_t> host_available() const { return options_.host_memory ? options_.host_memory() : core::host_memory_available(); }
     size_t host_reserve_ = 0;                                   // host memory the pool's fresh slabs leave free, fixed as the model is made
     // Growth nothing waits for keeps twice the reserve, so slabs given back at the reserve are not taken again while the host stays that short.

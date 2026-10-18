@@ -62,9 +62,12 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   checkpoint slot of its own, its copies ahead of the history's first
   pass, and only the model that wrote the copy restores it. If reserving a
   pool block or state slot, queuing a copy or submitting on any device
-  throws, the restore synchronizes every backend before returning the error
-  and releasing its checkpoint slot; the host slabs remain safe to retry or
-  release. `host_bytes(length)` gives
+  throws, the restore retires what it recorded before returning the error
+  and releasing its checkpoint slot (`drain_recorded`: a device it submitted
+  on waits on that ticket, one it recorded on submits and waits, synced alone
+  should that fail, and a device it never touched is left alone, since
+  another thread may be recording on it); the host slabs remain safe to
+  retry or release. `host_bytes(length)` gives
   the slabs a copy of `length` tokens takes.
   `alloc_host(length, out, limit)` takes the slabs a copy of `length`
   tokens takes, holding nothing yet, as `save_host` takes them before its
@@ -75,7 +78,7 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   writes them to a file.
   Without `blocks`, `save_host` copies the checkpoint's state alone (`HostHistory::blocks` false), and `fork(sequence, length, state)` continues from it: a second history sharing the source's blocks below `length`, as `fork` does whatever checkpoint the source holds, with the state copied back into a checkpoint slot of its own at `length`, which its first pass reads in place; the server keeps a conversation's message boundaries this way, the source a later history of the same conversation whose rows below `length` are the ones the state was computed after.
   With an embedded drafter the state alone carries the drafter's carried row of its slot too, and the fork copies it into its own slot, so it drafts as the history it was taken from.
-  `restore_host` refuses a state alone, and a fork with a state refuses a whole history's copy or another length; a throw from the slot or a copy holds nothing.
+  `restore_host` refuses a state alone, and a fork with a state refuses a whole history's copy or another length; a throw from the slot or a copy holds nothing, its copies retired by `drain_recorded` as a restore's are.
   `save_host_blocks(sequence, first, length, out, limit)` copies the blocks of a token range alone, with no state and needing no checkpoint (`HostHistory::first`, `HostHistory::state` false): what a turn added to a history whose earlier blocks are kept elsewhere ([DISK-TIER](../DISK-TIER.md), Entries written as what changed). `host_ranges(host, first, length)` gives where a range's blocks lie in a host history that holds them, a layer's K and then its V on each device, in the order a copy of that range alone holds them end to end, so a range copy and the same range of a whole copy are the same bytes in the same order; `host_state_ranges(host)` gives where the state lies, after the blocks. `restore_host` takes a whole history only.
   A copy records its bytes per device (`HostHistory::device_bytes`), the run of each device's slabs.
 - `host_identity()`: what a copy to host memory holds and how, beyond the model file and the build, as text: every device's identity (`Backend::identity`) and effective dtype, the cache types, each device's runs (its KV storage's layers, block tokens and block bytes, its state layers and slot bytes, the carried row) and the placement, then the row classes from extent 1 to the most a history holds (the model context or the KV pool), given where they change; two models of one file and build with equal identities restore each other's copies (`docs/DISK-TIER.md`, The entry file).

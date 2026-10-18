@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## A failed host copy drains only what it recorded (2026-10-18, branch fix/fork-own-tickets, lands by fast-forward as two commits)
+
+- **Why:** `Model::fork` with a state and `Model::restore_host` synced every device on a failure, safe only while no other thread records on any of them; the server's hold gives that, but nothing in the model says so, and a future caller has the same trap (F2DEV's follow-up to the boundary fork, devlog 2026-10-18 06:10).
+- **The change:** one helper, `Model::drain_recorded`, which both call on a failure: a device they submitted on waits on that ticket, one they recorded on without submitting submits and waits, synced alone should that fail, and a device they never touched is left alone.
+- **Tests:** `arch-qwen35`'s failed fork with a state, the first commit, failing on main 30baef845 ("synced a device it never copied to"): three devices, the mixers on two and the feed-forward parts on the third, each mixer device failing its submission in turn; the copies retire, the third is not synced, the slot comes back and the fork then succeeds. The failed restore's case now holds the copies retired, not the syncs, the first device submitting once either way.
+- **Left:** the gate (model code: CTest, the suite on the CPU and a device, Qwen3-0.6B identity against main, the hosted run), a review.
+
 ## The write waits' cap by recomputing made the test's (2026-10-18, branch test/stable-write-wait, tests and a test-only option, lands by fast-forward as one commit)
 
 - **Why:** `cache-scenario`'s write slower than the wait's constant failed on hosted Windows and macOS runners (runs 39120957649 and 39124055276, "1 waits, 1 at their bound, the next turn reusing 1024"): a wait for a save is capped by recomputing its rows at the measured prompt rate, about 0.5 s on the test's slowed CPU, which a slow runner's write of the history could pass.
@@ -12,12 +19,14 @@
 - **Checked locally:** the focused fixture suite passes 7/7; `dead-code` passes (5 known findings, 18 planted faults) and `docs` passes (0 findings, 21 planted faults). The Markdown review inventoried 110 tracked pages against `3cfb0ed70`; only `docs/CI.md` and this entry changed, both reviewed against the helper and workflow, with no stale claims found. The previous hosted run validates the existing feature only, not these local additions.
 - **Landing checks:** hosted run [39131729156](https://github.com/mxxm-t/llmx/actions/runs/39131729156) passed all seven jobs at `6a483f68ff9a57ea13a54eab2386db849633b33d`, including the focused fixtures and the helper invocations in the CPU, UBSan and Vulkan jobs. This final update changes only this STATUS record; source, tests, workflow and build inputs are identical to that tested revision. Docs and dead-code checks pass on the landing tree. The branch lands as one commit by fast-forward from `3cfb0ed70`; the temporary CI branch is removed after remote verification. The separate dashboard run's macOS failure is not waived by this result.
 
+
 ## The host pool gives idle memory back in runs said once, and takes none ahead in between (2026-10-18, branch fix/host-give-back-line, lands by fast-forward as two commits)
 
 - **Why:** after production's restart at 11:16 on 2026-10-17 the server said "N MiB of idle host memory given back, the host being short of memory" every second (64 to 832 MiB a time): the host's free memory fell below the pool's reserve while it adopted 1302 kept entries through the file cache, and between two looks the idle growth took slabs again (it was armed again at the first look that gave nothing back), which the next look gave back.
 - **The change:** after idle slabs go back the pool takes none ahead until the host has gone `kHostQuiet` (30 s) without a give-back, and a run of give-backs is said once as it starts and once with its total and length as it ends (`host_pressure`).
 - **Tests:** `server-resume`'s host pool under pressure: after one slab went back the host has room again at once, and no slab may be taken ahead within three seconds; on main three were. The first commit adds the check, failing on main.
 - **Checked:** see the REVIEW-REQUEST; the gate is CTest and the server component.
+
 
 ## Main's tests made deterministic and the hosted limits raised (2026-10-18, branch test/stabilize-main, tests, a test-only option and the workflow, lands by fast-forward as one commit)
 

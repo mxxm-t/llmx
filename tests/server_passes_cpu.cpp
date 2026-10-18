@@ -7,6 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <condition_variable>
 #include <mutex>
 #include <set>
 
@@ -1235,20 +1236,36 @@ void reply_room(const gguf::GGUFModel& weights, uint32_t vocab) {
 }
 
 // A backend whose queue a submission holds for its whole nap, as a Vulkan member's is between prepare() and queued(): a copy, a write or a submission on it from another thread meanwhile is counted.
-// The scheduler's own work on the stages' devices goes through its hold of them (Scheduler::quieted), which waits for a stage's thread to stand at a piece boundary, so it never meets a held queue.
+// While `watching`, a stage's submission holds the queue for kSlow and a call of the scheduler's thread first waits up to kWindow for one, which only a call outside the stages' hold can meet.
 struct Owned : NoCpu {
+    static constexpr std::chrono::milliseconds kWindow{500}, kSlow{200};
     std::chrono::milliseconds nap;
-    std::atomic<std::thread::id> lent{};
-    std::atomic<size_t> crossed{0};
+    std::atomic<std::thread::id> lent{}, scheduler{}, stage{};
+    std::atomic<size_t> crossed{0}, waited{0};
+    std::atomic<bool> watching{false};
+    std::mutex m;
+    std::condition_variable lending;
     Owned(Submitters* s, int ms) : NoCpu(s), nap(ms) {}
     void check() {
+        const std::thread::id me = std::this_thread::get_id();
+        if (watching.load() && me == scheduler.load()) {
+            std::unique_lock<std::mutex> lk(m);
+            ++waited;
+            lending.wait_for(lk, kWindow, [&] { const std::thread::id h = lent.load(); return h != std::thread::id() && h != me; });
+        }
         const std::thread::id holder = lent.load();
-        if (holder != std::thread::id() && holder != std::this_thread::get_id()) ++crossed;
+        if (holder != std::thread::id() && holder != me) ++crossed;
     }
     backend::Ticket submit() override {
         check();
-        lent.store(std::this_thread::get_id());
-        std::this_thread::sleep_for(nap);
+        const std::thread::id me = std::this_thread::get_id();
+        if (me != scheduler.load()) stage.store(me);
+        {
+            std::lock_guard<std::mutex> lk(m);
+            lent.store(me);
+        }
+        lending.notify_all();
+        std::this_thread::sleep_for(watching.load() && me != scheduler.load() ? kSlow : nap);
         const backend::Ticket t = NoCpu::submit();
         lent.store(std::thread::id());
         return t;
@@ -1264,7 +1281,7 @@ struct Owned : NoCpu {
 };
 
 // A boundary's state forked from host memory while a prompt is fed in pieces beside a reply (production, 2026-10-17 11:15:54): its copies go through the scheduler's hold, never into a held queue.
-// On a hybrid model under the automatic rule, one device that is no CPU's: a turn read again keeps its boundary, then a reply runs, a long prompt is read beside it, and an edit of the turn forks the boundary meanwhile.
+// A hybrid model, a fixed share that feeds a pass beside another request in pieces whatever the runner's times, and one device that is no CPU's.
 void boundary_fork_held(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
     Submitters seen;
@@ -1279,8 +1296,9 @@ void boundary_fork_held(const gguf::GGUFModel& weights, uint32_t vocab) {
     Reply got;
     server::Scheduler::Stats stats;
     {
-        server::Scheduler sched(*model, tok, 4, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, {}, server::Pacing::automatic());
+        server::Scheduler sched(*model, tok, 4, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, {}, server::Pacing::fixed(0.5));
         std::thread runner([&] { sched.run(); });
+        device->scheduler = runner.get_id();
         try {
             // Two turns, each read again: the second's donor supersedes the first's, so an edit of the second turn forks the first turn's boundary with its state from host memory.
             std::vector<uint32_t> prompt = prompt_of(5, 300, vocab), first_next;
@@ -1310,15 +1328,21 @@ void boundary_fork_held(const gguf::GGUFModel& weights, uint32_t vocab) {
             const auto r = sched.submit(reply_prompt, params_of(Req{reply_prompt, 300}));
             server::Request::Token first;
             require(r->next(first, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, "a boundary fork beside a paced prompt: the reply gave no token");
-            // The edit comes once the long prompt is being read beside the reply, its pass fed in pieces on the stage's thread: a pass taken between its pieces since it came.
-            const uint64_t between = sched.stats().between;
+            // The long prompt is read in pieces on the stage's thread; once that thread has submitted, the edit comes, watched until its first token.
+            device->stage = std::thread::id();
             const auto l = sched.submit(long_prompt, params_of(Req{long_prompt, 8}));
-            for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60); sched.stats().between == between;) {
-                require(std::chrono::steady_clock::now() < until, "a boundary fork beside a paced prompt: no pass was taken between a prompt's pieces in 60 seconds");
+            for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60); device->stage.load() == std::thread::id();) {
+                require(std::chrono::steady_clock::now() < until, "a boundary fork beside a paced prompt: no stage's thread submitted in 60 seconds");
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
+            device->watching = true;
             const auto e = sched.submit(edit, params_of(Req{edit, 32}));
-            got = drain(*e);
+            server::Request::Token edited;
+            const bool came = e->next(edited, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id;
+            device->watching = false;
+            require(came, "a boundary fork beside a paced prompt: the edit gave no token");
+            got.push_back(edited);
+            for (const auto& t : drain(*e)) got.push_back(t);
             drain(*l);
             collect(*r);
             stats = sched.stats();
@@ -1331,6 +1355,8 @@ void boundary_fork_held(const gguf::GGUFModel& weights, uint32_t vocab) {
         runner.join();
     }
     require(stats.boundary_hits >= 1, "a boundary fork beside a paced prompt: " + std::to_string(stats.boundary_hits) + " requests forked a boundary, against one at least");
+    std::cout << "server-passes-cpu: a boundary fork beside a paced prompt: " << device->waited.load() << " calls of the scheduler's thread watched, " << device->crossed.load() << " met a held queue\n";
+    require(device->waited > 0, "a boundary fork beside a paced prompt: no call of the scheduler's thread was watched");
     require(device->crossed == 0, "a boundary fork beside a paced prompt: " + std::to_string(device->crossed.load()) + " calls met a queue a stage's submission held");
     const Make plain = on(weights, [] { return cpus(1); }, 3, 3);
     auto fresh = plain(4096, 0);

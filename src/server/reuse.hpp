@@ -925,8 +925,7 @@ inline void Scheduler::prefetch() {
                 const auto now = std::chrono::steady_clock::now();
                 r->disk_wait_ = id;
                 r->disk_since_ = now;
-                r->disk_until_ = prompt_ms_row_ > 0 ? now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double, std::milli>((double)plan->end * prompt_ms_row_))
-                                                    : now + wait_bound_;
+                r->disk_until_ = read_until(plan->end, now);
                 ++disk_waits_;
                 ++waiting;
                 continue;
@@ -945,11 +944,17 @@ inline void Scheduler::prefetch() {
             const auto now = std::chrono::steady_clock::now();
             r->disk_wait_ = id;
             r->disk_since_ = now;
-            r->disk_until_ = prompt_ms_row_ > 0 ? now + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double, std::milli>((double)path.length * prompt_ms_row_))
-                                                : now + wait_bound_;
+            r->disk_until_ = read_until(path.length, now);
             ++disk_waits_;
             ++waiting;
         }
+}
+
+// Until when a read of `rows` rows started at `now` is waited for: the time they take to compute at the measured prompt rate, the wait's constant before a rate is measured, or DiskOptions::read_wait.
+inline Scheduler::Clock::time_point Scheduler::read_until(size_t rows, Clock::time_point now) const {
+    if (read_wait_) return now + std::chrono::duration_cast<Clock::duration>(*read_wait_);
+    if (prompt_ms_row_ > 0) return now + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>((double)rows * prompt_ms_row_));
+    return now + wait_bound_;
 }
 
 // Whether a history on the devices or in host memory holds the first `n` rows of `tokens` computed as `classes` record, so a state alone at `n` can be forked.

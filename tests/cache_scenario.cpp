@@ -437,6 +437,8 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.idle = std::chrono::hours(1);
+    // A read is waited for whatever this runner computes a row in, so a slow runner computes no row a read gives; the bound itself is disk_read_bound's case in server-resume.
+    options.read_wait = std::chrono::seconds(60);
     auto model = make(kPool, 64);
     const bool state = model->keeps_state();
     // A host tier a byte short of the copy of any history, which host memory takes in whole slabs: the disk is every donor's only save, as it is a long chat's on production.
@@ -655,6 +657,8 @@ void restore_beside_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.idle = std::chrono::hours(1);
+    // A read is waited for whatever this runner computes a row in, so a slow runner computes no row a read gives; the bound itself is disk_read_bound's case in server-resume.
+    options.read_wait = std::chrono::seconds(60);
     const Req first{prompt_of(5, 1100, v), (int)kReply}, other{prompt_of(9, 900, v), (int)kOtherReply};
     std::vector<uint32_t> next = first.prompt;
     size_t reused = 0;
@@ -701,6 +705,7 @@ void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
     DiskRoot disk("slow-write");
     server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(200));
     options.idle = std::chrono::hours(1);
+    options.read_wait = std::chrono::seconds(60);
     options.wait = std::chrono::milliseconds(100);
     const auto slow = hooked(1);
     slow[0]->hook = [] { std::this_thread::sleep_for(std::chrono::milliseconds(30)); };
@@ -752,6 +757,7 @@ void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok,
     const Req first{prompt_of(5, 1100, v), 4}, other{prompt_of(9, 1000, v), 4};
     server::DiskOptions options = disk.options(uint64_t(1) << 30, std::chrono::milliseconds(3000));
     options.idle = std::chrono::hours(1);
+    options.read_wait = std::chrono::seconds(60);
     options.wait = std::chrono::milliseconds(1500);
     options.fault = [](const char* step) { return std::string(step) == "probe"; };
     server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, options);

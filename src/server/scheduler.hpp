@@ -259,7 +259,7 @@ public:
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
               size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {})
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
-          wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), background_paced_(!pacing.refused),
+          wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), background_paced_(!pacing.refused),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)), reserved_(model.kv_pools(), 0) {
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
@@ -2342,6 +2342,7 @@ private:
     void prove(Request& r);
     void unprove(Request& r);
     void prefetch();
+    Clock::time_point read_until(size_t rows, Clock::time_point now) const;
     bool rows_held(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t* source = nullptr);
     uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, uint64_t source = 0, const DiskIndex::Path* whole = nullptr);
 
@@ -2929,6 +2930,7 @@ private:
     const double share_;                  // of each device's time, what generating requests keep while prompts are read; 0 for none
     const bool auto_;                     // generated rows are served by the automatic rule (Pacing)
     const Clock::duration wait_bound_;    // the bound of a wait for a restore or a save while nothing better is measured: kWaitBound, or DiskOptions::wait in tests
+    const std::optional<std::chrono::milliseconds> read_wait_;   // DiskOptions::read_wait
     const bool background_paced_;         // background work has a budget beside waiting work: always but under --no-pacing (Pacing::refused)
     std::atomic<bool> overlap_{false};    // written by the scheduler thread: replies and prompts both wait (demand)
     const Clock::time_point epoch_ = Clock::now();   // the stages' clocks count from here

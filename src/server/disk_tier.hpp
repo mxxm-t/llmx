@@ -91,6 +91,7 @@ struct DiskOptions {
     bool adopt_proved = false;           // adopt another build's entries unproved and prove each at its first use (--disk-cache-adopt proved)
     std::chrono::milliseconds idle{kDiskIdle};   // how long nothing runs before the idle writes start, shorter in tests
     std::optional<std::chrono::milliseconds> wait;   // the bound of a wait for a restore or a save, kWaitBound where none is given, shorter in tests
+    std::optional<std::chrono::milliseconds> read_wait;   // a read's bound in place of the time its rows take to compute, for tests a slow runner must not time out
     std::function<bool(const char* step)> fault;   // DiskStore::Options::fault, for tests
 };
 

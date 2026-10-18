@@ -2655,6 +2655,163 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
 
+// A CPU backend whose `done` the test holds false while `held`, as a device's is until its copies retire, counting the asks the scheduler's loop makes meanwhile; its copies' bytes land at submission, so only the wake is in question.
+struct HeldDone : backend::CpuBackend {
+    std::mutex m;
+    bool held = false;
+    std::thread::id loop;
+    size_t asked = 0;
+    bool done(backend::Ticket t) noexcept override {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            if (held) {
+                asked += std::this_thread::get_id() == loop;
+                return false;
+            }
+        }
+        return CpuBackend::done(t);
+    }
+};
+// A streamed restore on a device whose copies retire after their submission (A20): nothing wakes the round for that retirement, so it must look again on its own while a stream runs.
+// The turn's wait bound is ten minutes, past the test's minute, so a loop that slept to its next bound looks at the held stream about once a second, the host check, and fails the count.
+void stream_end_seen(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a streamed restore on a device whose copies retire after their submission";
+    DiskRoot disk("held");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    const Req first{prompt_of(10, 300, vocab), 20};
+    Reply reply;
+    {
+        server::DiskOptions writes_at_once = options;
+        writes_at_once.idle = std::chrono::milliseconds(0);
+        auto model = on(weights, [] { return cpus(1); })(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, writes_at_once);
+        std::thread runner([&] { sched.run(); });
+        try {
+            reply = drain(*sched.submit(first.prompt, params_of(first)));
+            within_a_minute([&] { const auto st = sched.stats(); return st.disk_entries >= 1 && !st.disk_in_flight; }, what + ": the conversation written while idle");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    Req next{first.prompt, 32};
+    for (uint32_t id : ids_of(reply)) next.prompt.push_back(id);
+    const std::vector<uint32_t> more = prompt_of(50, 30, vocab);
+    next.prompt.insert(next.prompt.end(), more.begin(), more.end());
+    options.read_wait = std::chrono::minutes(10);
+    auto held = std::make_shared<HeldDone>();
+    held->set_threads(1);
+    const Make short_of = on(weights, [held] { return std::vector<backend::BackendPtr>{held}; }, 8, 0, 0, 0, false, 1, []() -> std::optional<size_t> { return (size_t)1 << 20; });
+    Reply got;
+    size_t reused = 0;
+    server::Scheduler::Stats st;
+    {
+        auto model = short_of(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, (size_t)1 << 16, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_entries >= 1; }, what + ": the kept entry adopted");
+            {
+                std::lock_guard<std::mutex> lk(held->m);
+                held->loop = runner.get_id();
+                held->held = true;
+            }
+            const auto h = sched.submit(next.prompt, params_of(next));
+            within_a_minute([&] {
+                std::lock_guard<std::mutex> lk(held->m);
+                return held->asked >= 200;
+            }, what + ": the round looking at the held stream 200 times");
+            {
+                std::lock_guard<std::mutex> lk(held->m);
+                held->held = false;
+            }
+            got = drain(*h);
+            reused = h->reused();
+            st = sched.stats();
+        } catch (...) {
+            // A stop waits for the stream's copies, so a failed case lets them go first.
+            {
+                std::lock_guard<std::mutex> lk(held->m);
+                held->held = false;
+            }
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 2 * kBlock && st.disk_hits == 1, what + ": the next turn reused " + std::to_string(reused) + " tokens and " + std::to_string(st.disk_hits) + " entries read, against 256 and 1");
+    auto fresh = on(weights, [] { return cpus(1); })(2048, 16);
+    same(serve(*fresh, tok, 1, {{next}})[0], got, what + ", the next turn");
+    std::cout << "server-resume: " << what << ": the round looked at the held stream 200 times, and the next turn reused " << reused << " tokens" << std::endl;
+}
+
+// A restart whose host memory cannot hold one whole copy of a kept conversation (A20, docs/CACHE-PLAN.md): its next turn must still reuse every row its files hold, read from disk straight to the devices, with its reply on a fresh model.
+// The first server keeps a 320-token conversation under keep; the second has a host tier of 64 KiB and 1 MiB of the host's memory free, where a whole copy takes a slab of 64 MiB.
+void restart_without_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a restart with host memory for no whole copy";
+    DiskRoot disk("streamed");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.read_wait = std::chrono::seconds(60);
+    const Req first{prompt_of(10, 300, vocab), 20};
+    Reply reply;
+    {
+        // The first server writes its turn as soon as it is idle, while the second keeps the default moment, so no idle write runs beside its read.
+        server::DiskOptions writes_at_once = options;
+        writes_at_once.idle = std::chrono::milliseconds(0);
+        auto model = on(weights, [] { return cpus(1); })(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, writes_at_once);
+        std::thread runner([&] { sched.run(); });
+        try {
+            reply = drain(*sched.submit(first.prompt, params_of(first)));
+            within_a_minute([&] { const auto st = sched.stats(); return st.disk_entries >= 1 && !st.disk_in_flight; }, what + ": the conversation written while idle");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    Req next{first.prompt, 32};
+    for (uint32_t id : ids_of(reply)) next.prompt.push_back(id);
+    const std::vector<uint32_t> more = prompt_of(50, 30, vocab);
+    next.prompt.insert(next.prompt.end(), more.begin(), more.end());
+    const Make short_of = on(weights, [] { return cpus(1); }, 8, 0, 0, 0, false, 1, []() -> std::optional<size_t> { return (size_t)1 << 20; });
+    Reply got;
+    size_t reused = 0;
+    server::Scheduler::Stats st;
+    {
+        auto model = short_of(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, (size_t)1 << 16, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_entries >= 1; }, what + ": the kept entry adopted");
+            const auto h = sched.submit(next.prompt, params_of(next));
+            got = drain(*h);
+            reused = h->reused();
+            st = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(reused == 2 * kBlock && st.disk_hits == 1 && !st.disk_refused, what + ": the next turn reused " + std::to_string(reused) + " tokens, " + std::to_string(st.disk_hits) + " entries read and " +
+                                                                              std::to_string(st.disk_refused) + " reads refused, against 256, 1 and none");
+    auto fresh = on(weights, [] { return cpus(1); })(2048, 16);
+    same(serve(*fresh, tok, 1, {{next}})[0], got, what + ", the next turn");
+    std::cout << "server-resume: " << what << ": the next turn reused " << reused << " tokens" << std::endl;
+}
+
 // Entries kept across a restart (docs/DISK-TIER.md, Keeping entries across a restart): under --disk-cache-keep three conversations leave three entry files at the stop, which a second scheduler on a fresh model adopts and forks from.
 // Variants: `restart_host` bytes for the second scheduler's host tier, `first_host` for the first's, a stop before the idle moment, a flush held to its 20 second bound, an entry past the age limit, and repeated idle periods.
 void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -4338,6 +4495,8 @@ int main(int argc, char** argv) {
             disk_cap_base(one, tok, vocab);
             disk_kept(one, tok, vocab);
             disk_kept(one, tok, vocab, (size_t)1 << 16);
+            restart_without_host_memory(weights, tok, vocab);
+            stream_end_seen(weights, tok, vocab);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);
             disk_age(one, tok, vocab);
             disk_age_restart(one, tok, vocab);

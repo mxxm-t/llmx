@@ -33,6 +33,10 @@ namespace backend {
 namespace {
 struct VulkanLifetimeTest {
     static std::shared_ptr<Device> device(VulkanBackend& b) { return b.dev_; }
+    static bool owns(VulkanBackend& b, VkCommandBuffer cmd) {
+        for (VkCommandBuffer c : b.ring_) if (c == cmd) return true;
+        return false;
+    }
     static VkDescriptorBufferInfo padded(VulkanBackend& b, CSlice data, size_t rows) {
         return b.padded_f32(data, quant::GGML_TYPE_F32, rows, 256);
     }
@@ -518,21 +522,72 @@ struct CollectiveCalls {
     std::vector<backend::Fn> original;
     std::vector<PFN_vkGetSemaphoreFdKHR> get_fd;
     std::vector<PFN_vkImportSemaphoreFdKHR> import_fd;
+    std::vector<PFN_vkGetMemoryFdKHR> memory_fd;
     int creates = 0, live = 0, fail_create = 0, fail_get = 0, fail_import = 0, imports = 0;
     std::atomic<int> gets{0}, fail_submit{0};   // reached from the members' threads; fail_submit is the member whose next queue call fails, from 1
+    std::atomic<int> submit_calls{0};
+    int fail_submit_call = 0;
     bool premature = false;
-    explicit CollectiveCalls(const std::vector<backend::VulkanBackend*>& m) : members(m) {
+    // Trace only shared inbox/gather payloads. These are actual Vulkan calls, not
+    // an assumed barrier count: aliases are paired through their exported fd.
+    enum class Op { write, barrier, read };
+    struct Event {
+        Op op; size_t payload; VkDeviceSize offset, bytes;
+        VkPipelineStageFlags src_stage = 0, dst_stage = 0;
+        VkAccessFlags src_access = 0, dst_access = 0;
+        uint32_t src_family = 0, dst_family = 0;
+    };
+    struct Allocation { size_t member, payload; VkDeviceMemory memory; };
+    struct Shared { size_t member, payload; VkBuffer buffer; };
+    struct Command {
+        VkCommandBuffer cmd; size_t member; std::vector<Event> events;
+        VkDescriptorBufferInfo source{}; uint32_t count = 0;
+    };
+    struct Submitted { size_t member; std::vector<Event> events; std::vector<size_t> dependencies; };
+    struct Signal { size_t member; VkSemaphore semaphore; size_t submission; };
+    struct FenceFd { int fd; size_t submission; };
+    struct Imported { size_t member; VkSemaphore semaphore; std::vector<size_t> dependencies; };
+    bool trace = false;
+    size_t payloads = 0;
+    std::vector<Allocation> allocations;
+    std::vector<Shared> shared;
+    std::vector<std::pair<int, size_t>> memory_exports;
+    std::vector<Command> commands;
+    std::vector<Submitted> submitted;
+    std::vector<Signal> signals;
+    std::vector<FenceFd> fences;
+    std::vector<Imported> imported;
+    std::mutex trace_mutex;
+    bool bad_wait_stage = false;
+    explicit CollectiveCalls(const std::vector<backend::VulkanBackend*>& m, bool ownership = false) : members(m), trace(ownership) {
+        if (trace) for (auto* b : members)
+            if (!backend::VulkanLifetimeTest::device(*b)->push_descriptor)
+                throw std::runtime_error("collective ownership trace requires push descriptors to observe shader peer reads");
         collective_calls = this;
         for (auto* b : members) {
             auto dev = backend::VulkanLifetimeTest::device(*b);
             original.push_back(dev->fn);
             get_fd.push_back(dev->get_semaphore_fd);
             import_fd.push_back(dev->import_semaphore_fd);
+            memory_fd.push_back(dev->get_memory_fd);
             dev->fn.vkCreateSemaphore = create;
             dev->fn.vkDestroySemaphore = destroy;
             dev->fn.vkQueueSubmit = submit;
             dev->get_semaphore_fd = get;
             dev->import_semaphore_fd = import;
+            if (trace) {
+                dev->fn.vkAllocateMemory = allocate;
+                dev->fn.vkBindBufferMemory = bind;
+                dev->fn.vkDestroyBuffer = destroy_buffer;
+                dev->fn.vkFreeMemory = free_memory;
+                dev->fn.vkBeginCommandBuffer = begin;
+                dev->fn.vkCmdCopyBuffer = copy;
+                dev->fn.vkCmdPipelineBarrier = barrier;
+                dev->fn.vkCmdPushDescriptorSetKHR = descriptors;
+                dev->fn.vkCmdPushConstants = constants;
+                dev->fn.vkCmdDispatch = dispatch;
+                dev->get_memory_fd = export_memory;
+            }
         }
     }
     ~CollectiveCalls() {
@@ -541,6 +596,7 @@ struct CollectiveCalls {
             dev->fn = original[i];
             dev->get_semaphore_fd = get_fd[i];
             dev->import_semaphore_fd = import_fd[i];
+            dev->get_memory_fd = memory_fd[i];
         }
         collective_calls = nullptr;
     }
@@ -548,6 +604,108 @@ struct CollectiveCalls {
         for (size_t i = 0; i < members.size(); ++i)
             if (backend::VulkanLifetimeTest::device(*members[i])->device == d) return i;
         std::abort();
+    }
+    Command& command(VkCommandBuffer cmd) {
+        for (auto& c : commands) if (c.cmd == cmd) return c;
+        for (size_t m = 0; m < members.size(); ++m)
+            if (backend::VulkanLifetimeTest::owns(*members[m], cmd)) {
+                commands.push_back({cmd, m, {}});
+                return commands.back();
+            }
+        std::abort();
+    }
+    size_t payload(size_t member, VkBuffer buffer) const {
+        for (const auto& b : shared) if (b.member == member && b.buffer == buffer) return b.payload;
+        return 0;
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL allocate(VkDevice d, const VkMemoryAllocateInfo* info, const VkAllocationCallbacks* a, VkDeviceMemory* out) {
+        auto& q = *collective_calls;
+        const size_t m = q.index(d);
+        size_t id = 0;
+        for (auto p = static_cast<const VkBaseInStructure*>(info->pNext); p; p = p->pNext) {
+            if (p->sType == VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO) id = ++q.payloads;
+            if (p->sType == VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR) {
+                const int fd = reinterpret_cast<const VkImportMemoryFdInfoKHR*>(p)->fd;
+                for (const auto& e : q.memory_exports) if (e.first == fd) id = e.second;
+            }
+        }
+        const VkResult r = q.original[m].vkAllocateMemory(d, info, a, out);
+        if (r == VK_SUCCESS && id) q.allocations.push_back({m, id, *out});
+        return r;
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL bind(VkDevice d, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset) {
+        auto& q = *collective_calls;
+        const size_t m = q.index(d);
+        const VkResult r = q.original[m].vkBindBufferMemory(d, buffer, memory, offset);
+        if (r == VK_SUCCESS) for (const auto& a : q.allocations)
+            if (a.member == m && a.memory == memory) q.shared.push_back({m, a.payload, buffer});
+        return r;
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL export_memory(VkDevice d, const VkMemoryGetFdInfoKHR* info, int* fd) {
+        auto& q = *collective_calls;
+        const size_t m = q.index(d);
+        const VkResult r = q.memory_fd[m](d, info, fd);
+        if (r == VK_SUCCESS) for (const auto& a : q.allocations)
+            if (a.member == m && a.memory == info->memory) q.memory_exports.push_back({*fd, a.payload});
+        return r;
+    }
+    static VKAPI_ATTR void VKAPI_CALL destroy_buffer(VkDevice d, VkBuffer buffer, const VkAllocationCallbacks* a) {
+        auto& q = *collective_calls;
+        const size_t m = q.index(d);
+        q.shared.erase(std::remove_if(q.shared.begin(), q.shared.end(), [&](const Shared& b) { return b.member == m && b.buffer == buffer; }), q.shared.end());
+        q.original[m].vkDestroyBuffer(d, buffer, a);
+    }
+    static VKAPI_ATTR void VKAPI_CALL free_memory(VkDevice d, VkDeviceMemory memory, const VkAllocationCallbacks* a) {
+        auto& q = *collective_calls;
+        const size_t m = q.index(d);
+        q.allocations.erase(std::remove_if(q.allocations.begin(), q.allocations.end(), [&](const Allocation& b) { return b.member == m && b.memory == memory; }), q.allocations.end());
+        q.original[m].vkFreeMemory(d, memory, a);
+    }
+    static VKAPI_ATTR VkResult VKAPI_CALL begin(VkCommandBuffer cmd, const VkCommandBufferBeginInfo* info) {
+        auto& q = *collective_calls;
+        auto& c = q.command(cmd);
+        c.events.clear(); c.source = {}; c.count = 0;
+        return q.original[c.member].vkBeginCommandBuffer(cmd, info);
+    }
+    static VKAPI_ATTR void VKAPI_CALL copy(VkCommandBuffer cmd, VkBuffer src, VkBuffer dst, uint32_t n, const VkBufferCopy* regions) {
+        auto& q = *collective_calls;
+        auto& c = q.command(cmd);
+        for (uint32_t i = 0; i < n; ++i) {
+            if (const size_t p = q.payload(c.member, src)) c.events.push_back({Op::read, p, regions[i].srcOffset, regions[i].size, 0, VK_PIPELINE_STAGE_TRANSFER_BIT});
+            if (const size_t p = q.payload(c.member, dst)) c.events.push_back({Op::write, p, regions[i].dstOffset, regions[i].size});
+        }
+        q.original[c.member].vkCmdCopyBuffer(cmd, src, dst, n, regions);
+    }
+    static VKAPI_ATTR void VKAPI_CALL barrier(VkCommandBuffer cmd, VkPipelineStageFlags src, VkPipelineStageFlags dst, VkDependencyFlags flags,
+            uint32_t nm, const VkMemoryBarrier* mb, uint32_t nb, const VkBufferMemoryBarrier* bb, uint32_t ni, const VkImageMemoryBarrier* ib) {
+        auto& q = *collective_calls;
+        auto& c = q.command(cmd);
+        for (uint32_t i = 0; i < nb; ++i) if (const size_t p = q.payload(c.member, bb[i].buffer))
+            c.events.push_back({Op::barrier, p, bb[i].offset, bb[i].size, src, dst,
+                               bb[i].srcAccessMask, bb[i].dstAccessMask, bb[i].srcQueueFamilyIndex, bb[i].dstQueueFamilyIndex});
+        q.original[c.member].vkCmdPipelineBarrier(cmd, src, dst, flags, nm, mb, nb, bb, ni, ib);
+    }
+    static VKAPI_ATTR void VKAPI_CALL descriptors(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipelineLayout layout,
+            uint32_t set, uint32_t n, const VkWriteDescriptorSet* writes) {
+        auto& q = *collective_calls;
+        auto& c = q.command(cmd);
+        c.source = {};
+        for (uint32_t i = 0; i < n; ++i) if (writes[i].dstBinding == 1 && writes[i].pBufferInfo) c.source = *writes[i].pBufferInfo;
+        q.original[c.member].vkCmdPushDescriptorSetKHR(cmd, point, layout, set, n, writes);
+    }
+    static VKAPI_ATTR void VKAPI_CALL constants(VkCommandBuffer cmd, VkPipelineLayout layout, VkShaderStageFlags stages,
+            uint32_t offset, uint32_t bytes, const void* data) {
+        auto& q = *collective_calls;
+        auto& c = q.command(cmd);
+        if (!offset && bytes >= sizeof(c.count)) std::memcpy(&c.count, data, sizeof(c.count));
+        q.original[c.member].vkCmdPushConstants(cmd, layout, stages, offset, bytes, data);
+    }
+    static VKAPI_ATTR void VKAPI_CALL dispatch(VkCommandBuffer cmd, uint32_t x, uint32_t y, uint32_t z) {
+        auto& q = *collective_calls;
+        auto& c = q.command(cmd);
+        if (const size_t p = q.payload(c.member, c.source.buffer))
+            c.events.push_back({Op::read, p, c.source.offset, VkDeviceSize(c.count) * sizeof(float), 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT});
+        q.original[c.member].vkCmdDispatch(cmd, x, y, z);
     }
     static VKAPI_ATTR VkResult VKAPI_CALL create(VkDevice d, const VkSemaphoreCreateInfo* info, const VkAllocationCallbacks* alloc, VkSemaphore* out) {
         auto& q = *collective_calls;
@@ -567,19 +725,123 @@ struct CollectiveCalls {
         auto& q = *collective_calls;
         size_t i = 0;
         while (backend::VulkanLifetimeTest::device(*q.members[i])->queue != queue) ++i;
+        if (++q.submit_calls == q.fail_submit_call) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         int armed = (int)i + 1;
         if (q.fail_submit.compare_exchange_strong(armed, 0)) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-        return q.original[i].vkQueueSubmit(queue, n, info, fence);
+        const VkResult r = q.original[i].vkQueueSubmit(queue, n, info, fence);
+        if (q.trace && r == VK_SUCCESS) {
+            std::lock_guard<std::mutex> lock(q.trace_mutex);
+            for (uint32_t j = 0; j < n; ++j) {
+                Submitted s{i, {}, {}};
+                for (size_t k = q.submitted.size(); k-- > 0;) if (q.submitted[k].member == i) { s.dependencies.push_back(k); break; }
+                for (uint32_t k = 0; k < info[j].waitSemaphoreCount; ++k)
+                    for (size_t w = q.imported.size(); w-- > 0;) if (q.imported[w].member == i && q.imported[w].semaphore == info[j].pWaitSemaphores[k]) {
+                        if (!(info[j].pWaitDstStageMask[k] & VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) q.bad_wait_stage = true;
+                        s.dependencies.insert(s.dependencies.end(), q.imported[w].dependencies.begin(), q.imported[w].dependencies.end());
+                        break;
+                    }
+                for (uint32_t k = 0; k < info[j].commandBufferCount; ++k) {
+                    const auto& c = q.command(info[j].pCommandBuffers[k]);
+                    s.events.insert(s.events.end(), c.events.begin(), c.events.end());
+                }
+                const size_t id = q.submitted.size();
+                q.submitted.push_back(std::move(s));
+                for (uint32_t k = 0; k < info[j].signalSemaphoreCount; ++k) q.signals.push_back({i, info[j].pSignalSemaphores[k], id});
+            }
+        }
+        return r;
     }
     static VKAPI_ATTR VkResult VKAPI_CALL get(VkDevice d, const VkSemaphoreGetFdInfoKHR* info, int* fd) {
         auto& q = *collective_calls;
         if (++q.gets == q.fail_get) return VK_ERROR_TOO_MANY_OBJECTS;
-        return q.get_fd[q.index(d)](d, info, fd);
+        const VkResult r = q.get_fd[q.index(d)](d, info, fd);
+        if (q.trace && r == VK_SUCCESS) {
+            std::lock_guard<std::mutex> lock(q.trace_mutex);
+            for (size_t i = q.signals.size(); i-- > 0;) if (q.signals[i].member == q.index(d) && q.signals[i].semaphore == info->semaphore) {
+                q.fences.push_back({*fd, q.signals[i].submission});
+                break;
+            }
+        }
+        return r;
     }
     static VKAPI_ATTR VkResult VKAPI_CALL import(VkDevice d, const VkImportSemaphoreFdInfoKHR* info) {
         auto& q = *collective_calls;
         if (++q.imports == q.fail_import) return VK_ERROR_INVALID_EXTERNAL_HANDLE;
-        return q.import_fd[q.index(d)](d, info);
+        const VkResult r = q.import_fd[q.index(d)](d, info);
+        if (q.trace && r == VK_SUCCESS) {
+            Imported w{q.index(d), info->semaphore, {}};
+            // -1 denotes already-completed work, so every captured -1 source
+            // really has completed before this import; positive fds are unique
+            // until import consumes them, and may then be reused by the OS.
+            if (info->fd == -1) {
+                for (const auto& f : q.fences) if (f.fd == -1) w.dependencies.push_back(f.submission);
+            } else {
+                for (size_t i = q.fences.size(); i-- > 0;) if (q.fences[i].fd == info->fd) {
+                    w.dependencies.push_back(q.fences[i].submission); break;
+                }
+            }
+            q.imported.push_back(std::move(w));
+        }
+        return r;
+    }
+    bool ordered(size_t before, size_t after) const {
+        if (before == after) return true;
+        std::vector<size_t> todo{after};
+        std::vector<bool> seen(submitted.size(), false);
+        while (!todo.empty()) {
+            const size_t at = todo.back(); todo.pop_back();
+            if (seen[at]) continue;
+            seen[at] = true;
+            for (size_t p : submitted[at].dependencies) {
+                if (p == before) return true;
+                todo.push_back(p);
+            }
+        }
+        return false;
+    }
+    bool ownership_ok() const {
+        struct State {
+            Event write{Op::write, 0, 0, 0}, acquire{Op::barrier, 0, 0, 0};
+            size_t writer = SIZE_MAX, release = SIZE_MAX, reader = SIZE_MAX, acquired = SIZE_MAX;
+        };
+        std::vector<State> state(payloads + 1);
+        size_t reads = 0;
+        auto fail = [](const char* why, size_t payload, size_t submission) {
+            std::cout << "collective_ownership payload=" << payload << " submission=" << submission << " " << why << " FAIL\n";
+            return false;
+        };
+        if (bad_wait_stage) return fail("peer wait does not cover ownership acquire", 0, 0);
+        auto stages_cover = [](VkPipelineStageFlags mask, VkPipelineStageFlags stage) {
+            return (mask & VK_PIPELINE_STAGE_ALL_COMMANDS_BIT) || (mask & stage);
+        };
+        for (size_t s = 0; s < submitted.size(); ++s) for (const auto& e : submitted[s].events) {
+            auto& p = state[e.payload];
+            const uint32_t local = backend::VulkanLifetimeTest::device(*members[submitted[s].member])->queue_family;
+            if (e.op == Op::write) {
+                if (p.reader != SIZE_MAX && !ordered(p.reader, s)) return fail("overwrite precedes prior consumer", e.payload, s);
+                p.write = e; p.writer = s; p.release = p.acquired = SIZE_MAX;
+            } else if (e.op == Op::barrier && e.src_family == local && e.dst_family == VK_QUEUE_FAMILY_FOREIGN_EXT) {
+                if (p.writer == SIZE_MAX || !ordered(p.writer, s) || e.offset != p.write.offset || e.bytes != p.write.bytes ||
+                    submitted[p.writer].member != submitted[s].member || !stages_cover(e.src_stage, VK_PIPELINE_STAGE_TRANSFER_BIT) ||
+                    !(e.src_access & (VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_MEMORY_WRITE_BIT)))
+                    return fail("release does not cover preceding producer copy", e.payload, s);
+                p.release = s;
+            } else if (e.op == Op::barrier && e.src_family == VK_QUEUE_FAMILY_FOREIGN_EXT && e.dst_family == local) {
+                if (p.release == SIZE_MAX || !ordered(p.release, s) || e.offset != p.write.offset || e.bytes != p.write.bytes ||
+                    submitted[p.release].member == submitted[s].member)
+                    return fail("acquire lacks matching release and semaphore dependency", e.payload, s);
+                p.acquire = e; p.acquired = s;
+            } else if (e.op == Op::read) {
+                const VkAccessFlags access = e.dst_stage == VK_PIPELINE_STAGE_TRANSFER_BIT ? VK_ACCESS_TRANSFER_READ_BIT : VK_ACCESS_SHADER_READ_BIT;
+                if (p.acquired == SIZE_MAX || !ordered(p.acquired, s) || e.offset != p.acquire.offset || e.bytes != p.acquire.bytes ||
+                    submitted[p.acquired].member != submitted[s].member || !stages_cover(p.acquire.dst_stage, e.dst_stage) ||
+                    !(p.acquire.dst_access & (access | VK_ACCESS_MEMORY_READ_BIT)))
+                    return fail("consumer read lacks preceding matching acquire", e.payload, s);
+                p.reader = s; ++reads;
+            } else return fail("wrong ownership barrier direction or family", e.payload, s);
+        }
+        std::cout << "collective_ownership payloads=" << payloads << " peer_reads=" << reads << (reads ? " PASS\n" : " FAIL\n");
+        return reads != 0;
     }
 };
 
@@ -671,7 +933,10 @@ int collective_checks() {
     uint32_t seed = 3;
     auto value = [&] { seed = seed * 1664525u + 1013904223u; return float(int(seed >> 16) % 2001 - 1000) / 97.0f; };
     // Sums back to back on fresh residuals, each member's partial written before its sum and nothing read between, the collective destroyed before the residuals are read; true when every member's residual is the chain of sums in member order.
-    auto chain = [&](std::unique_ptr<backend::Collective>& sum, size_t sums) {
+    auto chain = [&](std::unique_ptr<backend::Collective>& sum, size_t sums, size_t active_rows = 0, size_t active_width = 0) {
+        if (!active_rows) active_rows = rows;
+        if (!active_width) active_width = width;
+        const size_t n = active_rows * active_width;
         std::vector<float> want(n);
         for (float& v : want) v = value();
         std::vector<backend::BufferPtr> x;
@@ -688,7 +953,7 @@ int collective_checks() {
                 const backend::Slice p = sum->partial(m);
                 members[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
             }
-            sum->sum_into(xs, rows, width);
+            sum->sum_into(xs, active_rows, active_width);
             for (size_t i = 0; i < n; ++i) {
                 float p = partial[0][i];
                 for (size_t m = 1; m < members.size(); ++m) p = p + partial[m][i];
@@ -721,10 +986,25 @@ int collective_checks() {
         if (!ok) ++failures;
     }
     {
-        CollectiveCalls q(vk);
+        CollectiveCalls q(vk, true);
         auto sum = first->join(members, rows, width);
-        const bool ok = chain(sum, 7) && q.live == 0 && !q.premature;
+        const bool same = chain(sum, 7);
+        const bool ownership = q.ownership_ok();
+        const bool ok = same && ownership && q.live == 0 && !q.premature;
         std::cout << "collective_in_flight sums=7" << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    {
+        // This checks refusal at the existing capability boundary, not the
+        // extension scan or vkCreateDevice's enabled-extension list.
+        auto dev = backend::VulkanLifetimeTest::device(*vk[1]);
+        const bool exchange = dev->exchange;
+        dev->exchange = false;
+        CollectiveCalls q(vk, true);
+        const bool refused = !first->join(members, rows, width);
+        dev->exchange = exchange;
+        const bool ok = refused && q.payloads == 0 && q.live == 0;
+        std::cout << "collective_capability_refused before_shared_allocation=" << ok << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
     }
     {
@@ -754,6 +1034,45 @@ int collective_checks() {
     } catch (const std::exception&) {}
     if (members.size() > vk.size()) members.pop_back();
     const int W = (int)members.size();
+    if (W == 3) {
+        // Both inbox and gather handoffs, with each parity reused. 4097*80 is
+        // just above the production two-shot crossover (327680 floats).
+        const size_t large_rows = 80, large_width = 4097;
+        {
+            CollectiveCalls q(vk, true);
+            auto sum = first->join(members, large_rows, large_width);
+            const bool same = chain(sum, 5, large_rows, large_width);
+            const bool ownership = q.ownership_ok();
+            const bool ok = same && ownership && q.live == 0 && !q.premature;
+            std::cout << "collective_two_shot_ownership sums=5" << (ok ? " PASS\n" : " FAIL\n");
+            if (!ok) ++failures;
+        }
+        for (int kind = 0; kind < 3; ++kind) {
+            const size_t files = open_files();
+            CollectiveCalls q(vk);
+            auto sum = first->join(members, large_rows, large_width);
+            const int live = q.live;
+            if (kind == 0) q.fail_get = W * (W - 1) + 1;
+            if (kind == 1) q.fail_import = W * (W - 1) + 1;
+            if (kind == 2) q.fail_submit_call = W + 1;
+            std::vector<backend::BufferPtr> x;
+            std::vector<backend::Slice> xs;
+            for (auto* b : members) {
+                x.push_back(b->alloc(large_rows * large_width * sizeof(float)));
+                xs.push_back({x.back().get(), 0});
+            }
+            bool threw = false;
+            try { sum->sum_into(xs, large_rows, large_width); }
+            catch (const std::exception&) { threw = true; }
+            bool drained = q.live == live && !q.premature;
+            for (auto* b : vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
+            q.fail_get = q.fail_import = q.fail_submit_call = 0;
+            const bool same = chain(sum, 3, large_rows, large_width);
+            const bool ok = threw && drained && same && q.live == 0 && !q.premature && open_files() == files;
+            std::cout << "collective_second_exchange_failure kind=" << kind << " drained=" << drained << " recovered=" << same << (ok ? " PASS\n" : " FAIL\n");
+            if (!ok) ++failures;
+        }
+    } else std::cout << "collective: no third device, two-shot ownership and second-exchange failures skipped\n";
     for (int kind = 1; kind <= 7; ++kind) {
         bool threw = false, drained = false, summed = false;
         const size_t files = open_files();
@@ -921,6 +1240,7 @@ int share_checks() {
 
 int main(int argc, char** argv) {
     try {
+        if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
                                  loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + lent_checks() + wait_beside_recording();

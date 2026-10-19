@@ -75,7 +75,7 @@ pool when a layer keeps a state, and one default sequence; a `Sequence`
 holds a table per storage and `Model::fork` forks every table at one
 length, and refuses a model that keeps a state. The server keeps one sequence per request over
 a shared pool, finds prefix donors by comparing tokens in
-`server/reuse.hpp` and forks a donor at the whole blocks it shares;
+`server/cache.hpp` and forks a donor at the whole blocks it shares;
 nothing here indexes prefixes.
 
 CTest's `kv-cache` test covers pool reuse and exhaustion, sequence

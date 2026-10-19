@@ -83,9 +83,9 @@ server/
                  chunked stream; blocking sockets, one thread per connection
   scheduler.hpp  the request queue, admission, batch assembly, the rounds
                  over the model's pass API, sampling, token channels
-  reuse.hpp      the cache's moves between its places: device donors,
-                 message boundaries, host entries, the disk tier's side
-                 and the restores from it; members of the scheduler
+  cache.hpp      the cache behind one owner the scheduler calls: device
+                 donors, message boundaries, host entries, the disk
+                 tier's side, the restores, parking and the jobs
   policy.hpp     the policy core: the pools' blocks, the growth rule,
                  make_room, the round's stages, the decode share and the
                  logits rows, as free functions
@@ -521,7 +521,7 @@ None: forks across row classes, the last, closed with `Model::row_class` ([SPECU
 
 ## The cache's moves
 
-A conversation's cache lives on the device (an active request's or a job's sequence, a donor), in host memory (a copy, or a message boundary's state alone) and on disk, and every move between those places is said and counted in one function, `Scheduler::moved` (`src/server/reuse.hpp`), by kind (`server::Move`).
+A conversation's cache lives on the device (an active request's or a job's sequence, a donor), in host memory (a copy, or a message boundary's state alone) and on disk, and every move between those places is said and counted in one function, `Cache::moved` (`src/server/cache.hpp`), by kind (`server::Move`).
 `/v1/health` gives the counts since start under `reuse.moves.since_start`, one field a kind, and `reread.since_start.rows_released`, the rows jobs had read and released as they left the active set, only the rows `park` cannot keep: a job keeps what it read as a donor.
 A kind whose move the request's own line already says, or that loses nothing, is counted without a line.
 
@@ -545,13 +545,13 @@ A kind whose move the request's own line already says, or that loses nothing, is
 | `write_whole`, `write_failed` | a file published in the disk tier's index, the moment it becomes a holder, or a write that failed | none; `server: cache: N writes to disk failed` |
 | `disk_removed` | a file leaving the index, with the tier's reason: a file of this build covering it, an unclaimed write, the cap, its age, its build's failed proof, no whole path reaching it, its read failing | `server: cache: N files left the disk (why)` |
 
-`reuse.disk.since_start.lost_before_written` stays what it was, the restore points released while no file held them beside a disk tier; `job_lost`, `consumed_lost` and a `not_to_host` that keeps nothing count rows that left the device with their only holder, with or without a disk tier, and name them to `Scheduler::on_move` with their history.
-The disk tier's outcomes are taken where the scheduler takes in the tier's completions (`Scheduler::sync_disk` from `DiskTier::figures`), never on an I/O thread.
+`reuse.disk.since_start.lost_before_written` stays what it was, the restore points released while no file held them beside a disk tier; `job_lost`, `consumed_lost` and a `not_to_host` that keeps nothing count rows that left the device with their only holder, with or without a disk tier, and name them to `Cache::on_move` with their history.
+The disk tier's outcomes are taken where the scheduler takes in the tier's completions (`Cache::sync_disk` from `DiskTier::figures`), never on an I/O thread.
 
 
 ## What a restore cost
 
-A request that waits for a read from disk, or takes a copy back from host memory (`promote`), keeps what that cost on itself (`Request::Restore`, filled where each part happens, in `server/reuse.hpp`) and says it at the end of its line.
+A request that waits for a read from disk, or takes a copy back from host memory (`promote`), keeps what that cost on itself (`Request::Restore`, filled where each part happens, in `server/cache.hpp`) and says it at the end of its line.
 - Its completed restores, with the tokens and bytes they gave it and the last one's kind, `host` or `disk` (a host copy read back from disk).
 - Its waits for reads, with those that reached their bound (`timeouts`) and those whose read failed. A wait that reaches its bound or a read that fails completes no restore: no tokens, no bytes, no promotion.
 - A request that waits or restores more than once sums its parts.

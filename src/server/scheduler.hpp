@@ -155,6 +155,11 @@ public:
 
 private:
     friend class Scheduler;
+    friend class Cache;
+    friend size_t history_tokens(const Request& r);
+    friend const uint32_t* token_ptr(const Request& r, size_t at);
+    friend std::vector<uint32_t> history(const Request& r);
+    friend size_t requests(const std::vector<std::shared_ptr<Request>>& active);
     // A token's log-probability and the `top` most likely tokens at its position, from the row of n logits it was sampled from.
     static void fill(Token& t, const float* row, size_t n, size_t top) {
         const double lse = infer::log_sum_exp(row, n);
@@ -283,8 +288,15 @@ inline const char* move_name(Move m) {
     return names[(size_t)m];
 }
 
+} // namespace server
+
+#include "server/cache.hpp"
+
+namespace server {
+
 class Scheduler {
 public:
+    using Moved = Cache::Moved;
     // The model's context is reserved here for `passes` passes in flight (the stage count on a pipelined layer split and one elsewhere when none is given; passes that do not fit run fewer, and stderr says so).
     // With `pacing` on, where a stage is fed in pieces (Model::paces), generating requests are served between a prompt pass's pieces (docs/SERVER.md, A generating request beside a prompt).
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
@@ -294,6 +306,8 @@ public:
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms), background_paced_(!pacing.refused),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)) {
+        cache_.hold_ = [this](bool generated) { hold(generated); };
+        cache_.unhold_ = [this] { release(); };
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
                                    std::to_string(model_.state_slots()));
@@ -348,10 +362,10 @@ public:
         while (steady_from_ > 2 && model_.row_class(steady_from_ - 1) == model_.row_class(limit)) --steady_from_;
         if (disk.bytes) {
             if (!host_cap_) throw std::logic_error("server: a disk tier keeps what the host tier drops, and there is no host tier");
-            disk_ = std::make_unique<DiskTier>(disk, model_, [this] {
+            cache_.disk_ = std::make_unique<DiskTier>(disk, model_, [this] {
                 {
                     std::lock_guard<std::mutex> lk(m_);
-                    disk_wake_ = true;
+                    cache_.disk_wake_ = true;
                 }
                 cv_.notify_all();
             });
@@ -418,7 +432,7 @@ public:
         if (ids.empty() && !whole) return;
         {
             std::lock_guard<std::mutex> lk(m_);
-            follows_.push_back(Follow{r, std::move(ids), whole});
+            cache_.follows_.push_back(Cache::Follow{r, std::move(ids), whole});
             ++arrivals_;
         }
         cv_.notify_all();
@@ -490,14 +504,8 @@ public:
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
         // Each read and promotion once, where Request::Restore attributes them to requests: counts, and each part's sum and largest (docs/SERVER.md, What a restore cost).
-        struct RestoreTotals {
-            size_t reads = 0, promotions = 0, copies = 0, from_host = 0, from_disk = 0, timeouts = 0;
-            double read_ms = 0, read_largest_ms = 0, slabs_ms = 0, slabs_largest_ms = 0, hold_ms = 0, hold_largest_ms = 0, enqueue_ms = 0, enqueue_largest_ms = 0, copies_ms = 0, copies_largest_ms = 0;
-            static void add(double& sum, double& largest, double ms) {
-                sum += ms;
-                largest = std::max(largest, ms);
-            }
-        } restore{};
+        using RestoreTotals = server::RestoreTotals;
+        RestoreTotals restore{};
         size_t disk_in_flight = 0;                // the write and the reads the disk tier has in flight now
         bool disk_ready = false;                  // the disk tier's store made, once the model file's digest is known
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
@@ -527,62 +535,62 @@ public:
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        Stats s{active_count_.load(), queue_.size(), donors_.size(), prefix_hits_, prefix_tokens_, (size_t)pauses_,
-                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), reserved_now_,
-                donor_blocks_now_, timed_, timing_};
+        Stats s{active_count_.load(), queue_.size(), cache_.donors_.size(), cache_.prefix_hits_, cache_.prefix_tokens_, (size_t)pauses_,
+                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), cache_.reserved_now_,
+                cache_.donor_blocks_now_, timed_, timing_};
         for (size_t p = 0; p < s.reserved.size(); ++p) {
             const size_t held = p < s.donor_blocks.size() ? s.donor_blocks[p] : 0;
             s.kv_tokens = std::max(s.kv_tokens, (s.reserved[p] - held) * pools_.block_tokens[p]);
             s.kv_donor_tokens = std::max(s.kv_donor_tokens, held * pools_.block_tokens[p]);
         }
-        s.reprefills = reprefills_;
-        s.jobs = jobs_now_.load();
-        s.job_rows_left = job_rows_left_.load();
+        s.reprefills = cache_.reprefills_;
+        s.jobs = cache_.jobs_now_.load();
+        s.job_rows_left = cache_.job_rows_left_.load();
         s.background_grants = background_.grants;
         s.background_overruns = background_.overruns;
         s.background_first_steps = background_.first_steps;
         s.background_ms = background_.total_ms;
         s.background_largest_ms = background_.largest_ms;
-        s.room_waits = room_waits_;
-        s.room_wait_timeouts = room_wait_timeouts_;
-        s.room_wait_ms = room_wait_ms_;
-        s.room_wait_longest_ms = room_wait_longest_ms_;
-        s.reprefill_rows = reprefill_rows_;
-        s.reprefill_cancels = reprefill_cancels_;
-        s.reprefill_handed = reprefill_handed_;
-        s.host_donors = host_.size();
-        s.host_bytes = host_held_;
-        s.host_hits = host_hits_;
-        s.host_allocated = host_alive_;
-        s.host_yielded = host_yielded_;
-        s.host_bytes_moved = host_moved_;
-        s.boundaries = bounds_.size();
-        s.boundary_hits = bound_hits_;
-        s.disk_entries = disk_now_.files;
-        s.disk_states = disk_now_.states;
-        s.disk_bytes = disk_now_.bytes;
-        s.disk_bytes_written = disk_now_.written;
-        s.disk_errors = disk_ ? disk_->errors() : 0;
-        s.disk_refused_dirs = disk_ ? disk_->refused_dirs() : 0;
-        s.lost_before_written = lost_before_written_;
-        s.uncopyable = uncopyable_;
-        for (size_t k = 0; k < s.moves.size(); ++k) s.moves[k] = moves_[k].load();
-        s.reprefill_released = reprefill_released_.load();
-        s.disk_refused = disk_refused_;
-        s.disk_capped = disk_now_.capped;
-        s.disk_unproved = disk_now_.unproved;
-        s.disk_proved = disk_now_.proved;
-        s.disk_disproved = disk_now_.disproved;
-        s.disk_writing = disk_ && disk_->writing();
-        s.disk_hits = disk_hits_;
-        s.disk_waits = disk_waits_;
-        s.disk_wait_timeouts = disk_wait_timeouts_;
-        s.disk_bytes_read = disk_read_bytes_;
-        s.disk_wait_ms = disk_wait_ms_;
-        s.restore = restore_totals_;
-        s.restore.timeouts = disk_wait_timeouts_;
-        s.disk_in_flight = disk_ ? disk_->calls() : 0;
-        s.disk_ready = disk_ && disk_->readable();
+        s.room_waits = cache_.room_waits_;
+        s.room_wait_timeouts = cache_.room_wait_timeouts_;
+        s.room_wait_ms = cache_.room_wait_ms_;
+        s.room_wait_longest_ms = cache_.room_wait_longest_ms_;
+        s.reprefill_rows = cache_.reprefill_rows_;
+        s.reprefill_cancels = cache_.reprefill_cancels_;
+        s.reprefill_handed = cache_.reprefill_handed_;
+        s.host_donors = cache_.host_.size();
+        s.host_bytes = cache_.host_held_;
+        s.host_hits = cache_.host_hits_;
+        s.host_allocated = cache_.host_alive_;
+        s.host_yielded = cache_.host_yielded_;
+        s.host_bytes_moved = cache_.host_moved_;
+        s.boundaries = cache_.bounds_.size();
+        s.boundary_hits = cache_.bound_hits_;
+        s.disk_entries = cache_.disk_now_.files;
+        s.disk_states = cache_.disk_now_.states;
+        s.disk_bytes = cache_.disk_now_.bytes;
+        s.disk_bytes_written = cache_.disk_now_.written;
+        s.disk_errors = cache_.disk_ ? cache_.disk_->errors() : 0;
+        s.disk_refused_dirs = cache_.disk_ ? cache_.disk_->refused_dirs() : 0;
+        s.lost_before_written = cache_.lost_before_written_;
+        s.uncopyable = cache_.uncopyable_;
+        for (size_t k = 0; k < s.moves.size(); ++k) s.moves[k] = cache_.moves_[k].load();
+        s.reprefill_released = cache_.reprefill_released_.load();
+        s.disk_refused = cache_.disk_refused_;
+        s.disk_capped = cache_.disk_now_.capped;
+        s.disk_unproved = cache_.disk_now_.unproved;
+        s.disk_proved = cache_.disk_now_.proved;
+        s.disk_disproved = cache_.disk_now_.disproved;
+        s.disk_writing = cache_.disk_ && cache_.disk_->writing();
+        s.disk_hits = cache_.disk_hits_;
+        s.disk_waits = cache_.disk_waits_;
+        s.disk_wait_timeouts = cache_.disk_wait_timeouts_;
+        s.disk_bytes_read = cache_.disk_read_bytes_;
+        s.disk_wait_ms = cache_.disk_wait_ms_;
+        s.restore = cache_.restore_totals_;
+        s.restore.timeouts = cache_.disk_wait_timeouts_;
+        s.disk_in_flight = cache_.disk_ ? cache_.disk_->calls() : 0;
+        s.disk_ready = cache_.disk_ && cache_.disk_->readable();
         s.finished = finished_.load();
         s.apart = apart_formed_.load();
         s.between = between_.load();
@@ -619,7 +627,7 @@ public:
         s.yields = yields_.load();
         s.turns_without_memory = turns_without_memory_.load();
         s.host_limit = host_cap_;
-        s.disk_limit = disk_ ? disk_->cap() : 0;
+        s.disk_limit = cache_.disk_ ? cache_.disk_->cap() : 0;
         // Every source's by position, and the requests' own histories' apart.
         s.own_drafted = tally_[infer::spec::Source::lookup].drafted();
         s.own_kept = tally_[infer::spec::Source::lookup].kept();
@@ -644,33 +652,33 @@ public:
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
-                note_room();
+                cache_.note_room();
                 if (live_requested_ || (live_.total && !active_count_.load() && queue_.empty() && paused_.empty())) snapshot_requests(active);
                 // A pass being recorded gives the round nothing to do until its recorder is done, which wakes it.
                 const auto due = [&] {
-                    return stopping_ || disk_wake_ || ended() || acting() || ready(queue_) || ready(paused_) || !follows_.empty() || !restores_.empty() || (active.size() < max_seqs_ && ready(jobs_)) ||
+                    return stopping_ || cache_.disk_wake_ || ended() || acting() || cache_.ready(queue_) || cache_.ready(paused_) || !cache_.follows_.empty() || !cache_.restores_.empty() || (active.size() < max_seqs_ && cache_.ready(cache_.jobs_)) ||
                            std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return working(*r) && !r->seq_.in_flight(); });
                 };
                 // Under --disk-cache-keep a server with nothing to do for kDiskIdle writes ahead (disk_round), and the loop wakes for it.
-                if (!disk_ || !disk_->keeps() || !active.empty() || flying() || !queue_.empty() || !paused_.empty()) {
+                if (!cache_.disk_ || !cache_.disk_->keeps() || !active.empty() || flying() || !queue_.empty() || !paused_.empty()) {
                     idle_at_.reset();
-                    idle_tried_.clear();   // each idle period tries every donor again, one whose copy was refused or dropped before its file landed too
+                    cache_.idle_tried_.clear();   // each idle period tries every donor again, one whose copy was refused or dropped before its file landed too
                 }
                 else if (!idle_at_) {
-                    idle_at_ = std::chrono::steady_clock::now() + disk_->idle();
+                    idle_at_ = std::chrono::steady_clock::now() + cache_.disk_->idle();
                     idled_ = false;
                 }
-                const auto bound = next_disk_bound();
+                const auto bound = cache_.next_disk_bound();
                 // With nothing to do the host tier's slabs are taken ahead, a step a round with no sleep between, so a copy made later allocates none (grow_host).
-                if (host_growing_ && !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && jobs_.empty() && follows_.empty()) host_growing_ = grow_host();
+                if (cache_.host_growing_ && !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && cache_.jobs_.empty() && cache_.follows_.empty()) cache_.host_growing_ = cache_.grow_host();
                 else if (bound) cv_.wait_until(lk, *bound, due);
                 else cv_.wait(lk, due);
                 if (stopping_) break;
                 seen_ = arrivals_;
-                host_pressure();
+                cache_.host_pressure();
                 const bool idle = idle_at_ && std::chrono::steady_clock::now() >= *idle_at_;
                 idled_ = idled_ || idle;
-                disk_round(idle);
+                cache_.disk_round(idle);
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
                 for (auto* waiting : {&queue_, &paused_})
                     for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
@@ -678,7 +686,7 @@ public:
             const Clock::time_point round_start = timed_ ? Clock::now() : Clock::time_point{};
             acted_ = false;
             collect(active);
-            copies_retired();
+            cache_.copies_retired();
             // Stages on the host compute as they are recorded, so they wait until every device stage of the round is on its way.
             std::vector<std::pair<size_t, size_t>> host;
             const Steps steps = round_steps(flights(), model_.stage_count());
@@ -691,7 +699,7 @@ public:
                 if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_, active[i]->error_pending_);
                 else ++i;
             }
-            complete_jobs(active);
+            cache_.complete_jobs(active);
             // Cancelled requests leave before the next pass, and a request in flight once its pass has retired.
             for (size_t i = 0; i < active.size();) {
                 if (active[i]->cancel_.load() && !active[i]->seq_.in_flight()) finish(active, i, "cancel");
@@ -706,24 +714,24 @@ public:
                 std::shared_ptr<Request> waiter;
                 {
                     std::lock_guard<std::mutex> lk(m_);
-                    if (!paused_.empty() && !admits(*paused_.front(), active.size())) waiter = paused_.front();
-                    else if (!queue_.empty() && !admits(*queue_.front(), active.size())) waiter = queue_.front();
+                    if (!paused_.empty() && !cache_.admits(*paused_.front(), active.size())) waiter = paused_.front();
+                    else if (!queue_.empty() && !cache_.admits(*queue_.front(), active.size())) waiter = queue_.front();
                 }
                 if (waiter) {
-                    hand_jobs(active);
-                    yield_jobs(active, waiter.get());
+                    cache_.hand_jobs(active);
+                    cache_.yield_jobs(active, waiter.get());
                 }
                 // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
                 grow(active);
                 // A request that could not grow makes the jobs give way and takes its step from what they held, in this round: with no other request ready, a round later nothing would be in flight.
-                if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; }) && yield_jobs(active)) grow(active, true);
+                if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; }) && cache_.yield_jobs(active)) grow(active, true);
                 {
                     std::lock_guard<std::mutex> lk(m_);
                     // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first, and new requests come in queue order once none is paused.
                     // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
                     const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
                     // A request whose history is being read from disk keeps its place, and those behind it that fit pass it (docs/DISK-TIER.md, Restore); one submitted since the round began is looked for first.
-                    if (disk_) prefetch();
+                    if (cache_.disk_) cache_.prefetch();
                     using Waiting = std::deque<std::shared_ptr<Request>>;
                     if (!stalled)
                         admit_waiting(paused_, queue_, [&] { return active.size() < max_seqs_; },
@@ -732,16 +740,16 @@ public:
                                           leave(q, q.begin() + (std::ptrdiff_t)i);
                                           return true;
                                       },
-                                      [&](const std::shared_ptr<Request>& r) { return reading(*r); },
-                                      [&](const std::shared_ptr<Request>& r) { return enter(r, active); }, [](const std::shared_ptr<Request>& r) { return r->line_; });
+                                      [&](const std::shared_ptr<Request>& r) { return cache_.reading(*r); },
+                                      [&](const std::shared_ptr<Request>& r) { return cache_.enter(r, active); }, [](const std::shared_ptr<Request>& r) { return r->line_; });
                     active_count_.store(requests(active));
                     paused_count_.store(paused_.size());
                 }
-                for (size_t i = 0; disk_ && i < active.size(); ++i)
-                    if (active[i]->proof_ && !active[i]->seq_.in_flight()) prove(*active[i]);
-                follow_up(active);
-                complete_jobs(active);
-                count_jobs(active);
+                for (size_t i = 0; cache_.disk_ && i < active.size(); ++i)
+                    if (active[i]->proof_ && !active[i]->seq_.in_flight()) cache_.prove(*active[i]);
+                cache_.follow_up(active);
+                cache_.complete_jobs(active);
+                cache_.count_jobs(active);
                 {
                     // The background time a write's pieces may take this round, and what the last round's pieces cost, charged here, outside the lock.
                     const BackgroundGrant::Demand demand = jobs_beside(active);
@@ -751,8 +759,8 @@ public:
                         std::lock_guard<std::mutex> lk(m_);
                         demand_ = demand;
                         write_left_ = left;
-                        std::swap(spent, write_spent_ms_);
-                        spent_left = write_spent_left_;
+                        std::swap(spent, cache_.write_spent_ms_);
+                        spent_left = cache_.write_spent_left_;
                     }
                     if (spent > 0) background_spent(spent, spent_left);
                 }
@@ -786,8 +794,8 @@ public:
             // A cancellation does not wake it: a request whose client left ends at the next round, within a stage's time, as when a stage held this thread.
             if (!acted_ && recording()) {
                 std::unique_lock<std::mutex> lk(m_);
-                const auto woken = [&] { return ended() || granted() || stopping_ || disk_wake_ || arrivals_ != seen_; };
-                const auto bound = next_disk_bound();
+                const auto woken = [&] { return ended() || granted() || stopping_ || cache_.disk_wake_ || arrivals_ != seen_; };
+                const auto bound = cache_.next_disk_bound();
                 if (bound) cv_.wait_until(lk, *bound, woken);
                 else cv_.wait(lk, woken);
             }
@@ -795,12 +803,12 @@ public:
         abort_all();
         // Under --disk-cache-keep every active job and request is parked at its checkpoint before anything is released: one that took its conversation's donor over is the only holder of those rows, which the flush then writes.
         // A request keeps its earlier turns' rows so, a hybrid one its prompt's whole blocks; its partial reply is not kept, and it ends cancelled.
-        const bool keeps = disk_ && disk_->keeps();
+        const bool keeps = cache_.disk_ && cache_.disk_->keeps();
         while (keeps && !active.empty()) {
             const auto r = active.back();
             const size_t rows = r->seq_.length();
             const char* why = "";
-            const uint64_t id = park(active, active.size() - 1, r->job_ ? r->prompt_ : history(*r), 0, &why);
+            const uint64_t id = cache_.park(active, active.size() - 1, r->job_ ? r->prompt_ : history(*r), 0, &why);
             r->finished_ = true;
             if (id) std::fprintf(stderr, "server: cache: a %s holding %zu rows parked at the stop for the next server\n", r->job_ ? "job" : "request", rows);
             else std::fprintf(stderr, "server: cache: a %s holding %zu rows released at the stop, %s\n", r->job_ ? "job" : "request", rows, why);
@@ -808,22 +816,22 @@ public:
         }
         for (auto& r : active) {
             if (r->job_) std::fprintf(stderr, "server: cache: a job holding %zu rows released at the stop\n", r->seq_.length());
-            release(*r);
+            cache_.release(*r);
             r->end("cancel");
         }
         // With --disk-cache-keep what memory holds goes to disk first; then the tier goes, its write in flight cancelled, so no write reads a slab released below; its thread calls back under the lock.
-        if (disk_ && disk_->keeps()) flush_disk();
+        if (cache_.disk_ && cache_.disk_->keeps()) cache_.flush_disk();
         // Streamed reads stop and are waited for before the tier goes, since their readers read its files and their copies write the devices.
-        for (Streaming& s : streams_) s.read->cancel();
-        for (Streaming& s : streams_) {
+        for (Cache::Streaming& s : cache_.streams_) s.read->cancel();
+        for (Cache::Streaming& s : cache_.streams_) {
             while (!s.read->idle()) std::this_thread::yield();
             model_.reset(s.into->seq);
         }
-        streams_.clear();
+        cache_.streams_.clear();
         std::unique_ptr<DiskTier> disk;
         {
             std::lock_guard<std::mutex> lk(m_);
-            disk = std::move(disk_);
+            disk = std::move(cache_.disk_);
         }
         // The store goes first, so nothing reads a slab that is released after it.
         if (disk) {
@@ -832,24 +840,24 @@ public:
         }
         disk.reset();
         std::lock_guard<std::mutex> lk(m_);
-        for (infer::HostHistory& h : disk_parked_) model_.release_host(h);
-        disk_parked_.clear();
-        for (DiskRead& rd : disk_reads_) {
-            host_held_ -= rd.history.held;
+        for (infer::HostHistory& h : cache_.disk_parked_) model_.release_host(h);
+        cache_.disk_parked_.clear();
+        for (Cache::DiskRead& rd : cache_.disk_reads_) {
+            cache_.host_held_ -= rd.history.held;
             model_.release_host(rd.history);
         }
-        disk_reads_.clear();
+        cache_.disk_reads_.clear();
         for (auto* waiting : {&queue_, &paused_}) {
             for (auto& r : *waiting) r->end("cancel");
             waiting->clear();
         }
         live_.count = live_.total = 0;
-        jobs_.clear();
-        follows_.clear();
-        while (!donors_.empty()) drop_donor();
-        while (!host_.empty()) drop_host(0);
-        while (!bounds_.empty()) drop_bound(0);
-        note_room();
+        cache_.jobs_.clear();
+        cache_.follows_.clear();
+        while (!cache_.donors_.empty()) cache_.drop_donor();
+        while (!cache_.host_.empty()) cache_.drop_host(0);
+        while (!cache_.bounds_.empty()) cache_.drop_bound(0);
+        cache_.note_room();
         active_count_.store(0);
         paused_count_.store(0);
         in_flight_.store(0);
@@ -879,15 +887,6 @@ public:
     };
     // Called on the scheduler thread with each pass that retires, before its rows are sampled; set before run.
     std::function<void(const Retired&)> on_retire;
-    // A loss as `gone` reports it: the kind, the rows, and the history they were of, valid during the call.
-    struct Moved {
-        Move kind;
-        size_t first, tokens;
-        const std::vector<uint32_t>* history;
-    };
-    // Called on the scheduler thread, under its lock at some sites, with each loss of rows or of a state, so a test matches it to the history it was of; set before run.
-    // A handler takes nothing of the scheduler's: it copies what it needs and returns.
-    std::function<void(const Moved&)> on_move;
     size_t turn_steps = 0;   // for tests: the growth steps of a turn at the pool's edge, in place of the measured ones; set before run
 
 private:
@@ -1126,23 +1125,23 @@ private:
             infer::BatchEntry e{&r->seq_, token_ptr(*r, at), n, at + n == end && !r->job_};
             e.extent = c.extent;
             if (r->keep_at_ && r->keep_at_ == at + n) {
-                e.keep = checkpoint_room(keeps, r->source_);
+                e.keep = cache_.checkpoint_room(keeps, r->source_);
                 keeps += e.keep;
                 r->keep_at_ = 0;
             }
             // The boundary's checkpoint goes to host memory once its pass retires (keep_boundary), and the request's own at keep_at_ then takes its place, a sequence holding one; where the two are one position, one checkpoint is both.
             if (r->boundary_at_ && r->boundary_at_ == at + n) {
                 if (!e.keep) {
-                    e.keep = checkpoint_room(keeps, r->source_);
+                    e.keep = cache_.checkpoint_room(keeps, r->source_);
                     keeps += e.keep;
                 }
-                if (!e.keep) moved(Move::boundary_not_kept, "server: cache: the message boundary asked at %zu tokens was not kept (no checkpoint slot for it)\n", at + n);
+                if (!e.keep) cache_.moved(Move::boundary_not_kept, "server: cache: the message boundary asked at %zu tokens was not kept (no checkpoint slot for it)\n", at + n);
                 r->boundary_at_ = 0;
                 r->boundary_kept_ = e.keep;
             }
             // The slice that ends a proof's path keeps its state there, which the proof compares.
             if (r->prove_state_ && r->prove_at_ == at + n && !e.keep) {
-                e.keep = checkpoint_room(keeps, r->source_);
+                e.keep = cache_.checkpoint_room(keeps, r->source_);
                 keeps += e.keep;
             }
             add_entry(r, e);
@@ -1316,7 +1315,6 @@ private:
         }
         return t;
     }
-    static double ms_since(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
 
     // A timed round's end: its time, and every kReadRounds rounds each stage's device time since the last reading, which on a device waits for its queue, so the span a reading covers starts after it.
     // A reading is a call on the stage's devices, so it is taken with every recorder idle (quieted).
@@ -1445,7 +1443,7 @@ private:
                 // A state computed over rows restored from unproved files is kept by no one: prove keeps the one at its path's end once the proof has ended equal.
                 r.boundary_kept_ = r.unproved_ && to == r.prove_at_;
                 std::lock_guard<std::mutex> lk(m_);
-                if (!r.cancel_.load() && !r.unproved_) asked_boundary(r);
+                if (!r.cancel_.load() && !r.unproved_) cache_.asked_boundary(r);
             }
         }
         if (job_rows) {
@@ -1463,7 +1461,7 @@ private:
         if (again || job_rows) {
             std::lock_guard<std::mutex> lk(m_);
             recomputed_ += again;
-            reprefill_rows_ += job_rows;
+            cache_.reprefill_rows_ += job_rows;
         }
         vacate(k);
     }
@@ -1845,7 +1843,7 @@ private:
                 r.cv.wait(lk, [&] { return !r.granted && !r.holds; });
                 r.parked = false;
                 r.held.resumed();
-                // The scheduler's work for the generated rows under those holds (a chain, a mark, a retract) is a service of theirs, charged once; its other work is neither side's time.
+                // The scheduler's work for the generated rows under those cache_.holds(a chain, a mark, a retract) is a service of theirs, charged once; its other work is neither side's time.
                 r.charge(r.held.take());
             };
             if (r.holds) stand(false);
@@ -2020,7 +2018,6 @@ private:
         Held& operator=(const Held&) = delete;
         ~Held() { s.release(); }
         infer::Model* operator->() const { return &s.model_; }
-        infer::Model& operator*() const { return s.model_; }
     };
     Held quieted(bool generated = false) { return Held(*this, generated); }
 
@@ -2058,31 +2055,10 @@ private:
             }
     }
 
-    // The tokens of r's history, prompt then generated: what a resume holds its cache to.
-    static size_t history_tokens(const Request& r) { return r.prompt_.size() + r.gen_.size(); }
     // Whether r's cache lacks only its last generated token, which a decode entry reads.
     static bool decoding(const Request& r) { return !r.gen_.empty() && r.seq_.length() + 1 == history_tokens(r); }
     // Whether r has work for a pass: a request always, a job while its cache lacks some of its ids.
     static bool working(const Request& r) { return !r.job_ || r.seq_.length() < r.prompt_.size(); }
-    // The active requests a client waits on, jobs left out.
-    static size_t requests(const std::vector<std::shared_ptr<Request>>& active) {
-        return (size_t)std::count_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });
-    }
-    // Where history token `at` of r lies, prompt or generated; a stretch never spans the two, since the prompt's own ends with it.
-    static const uint32_t* token_ptr(const Request& r, size_t at) {
-        return at < r.prompt_.size() ? r.prompt_.data() + at : r.gen_.data() + (at - r.prompt_.size());
-    }
-    // How many of the first `n` positions two records computed alike, their extents of one class.
-    size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) const {
-        size_t at = 0;
-        for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
-            if (a[i].extent != b[j].extent && model_.row_class(a[i].extent) != model_.row_class(b[j].extent)) break;
-            at = std::min({a[i].end, b[j].end, n});
-            if (a[i].end <= at) ++i;
-            if (b[j].end <= at) ++j;
-        }
-        return std::min(at, n);
-    }
 
     // Before a pass, every uncapped decoding request not in flight whose next token would pass its reservation takes another step, the earliest admitted first, with what make_room gives it.
     // A request make_room cannot give it to, or whose plan would pause a request in flight, sits the pass out with its cache as it is (a stall) and asks again before the next; it is never paused for its own growth.
@@ -2102,7 +2078,7 @@ private:
                 pause(active, i--, true);
                 continue;
             }
-            const Taken t = make_room(room(), ranked(), npos, false, holders(active), r.admission_, true, step, gain_of(active));
+            const Taken t = make_room(cache_.room(), cache_.ranked(), npos, false, holders(active), r.admission_, true, step, cache_.gain_of(active));
             if (!t.enough || t.wait) {
                 r.stalled_ = true;
                 if (!last) continue;
@@ -2123,7 +2099,7 @@ private:
     // What the empty-pass error says of the request left without a pass: its history, whether it could not grow, how many requests are active, and each pool's free blocks.
     std::string left_out(const Request& r, size_t requests) const {
         std::string s = "a request of " + std::to_string(r.seq_.length()) + " tokens" + (r.stalled_ ? " could not grow" : " was not ready") + ", " + std::to_string(requests) + " active, blocks free";
-        const std::vector<size_t> free = room();
+        const std::vector<size_t> free = cache_.room();
         for (size_t p = 0; p < free.size(); ++p) s += " " + std::to_string(free[p]) + " of " + std::to_string(pools_.blocks[p]);
         return s;
     }
@@ -2142,14 +2118,14 @@ private:
             return false;
         }
         if (!kGrowth.yields(r.edge_steps_, turn_steps ? turn_steps : kGrowth.turn(swap_ms_, ms_since(r.stepped_)), true, !model_.keeps_state() || model_.checkpoints_free())) return false;
-        std::vector<size_t> free = room();
-        add(free, promised(r));
+        std::vector<size_t> free = cache_.room();
+        add(free, cache_.promised(r));
         add(free, model_.freed({&r.seq_}).blocks);
-        if (!make_room(free, ranked(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), gain_of({}, npos, 0, false, {&r.seq_})).enough)
+        if (!make_room(free, cache_.ranked(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), cache_.gain_of({}, npos, 0, false, {&r.seq_})).enough)
             return false;
         const size_t bt = model_.kv_block_tokens(), n = r.seq_.length() / bt * bt;
-        const HostRoom::Why why = host_room(n, Rank{2, std::filesystem::file_time_type::clock::now()}).why;
-        if (why == HostRoom::Why::memory) {
+        const Cache::HostRoom::Why why = cache_.host_room(n, Cache::Rank{2, std::filesystem::file_time_type::clock::now()}).why;
+        if (why == Cache::HostRoom::Why::memory) {
             ++turns_without_memory_;
             if (!memory_run_++) {
                 memory_since_ = Clock::now();
@@ -2157,7 +2133,7 @@ private:
             }
             return false;
         }
-        if (why != HostRoom::Why::kept) return false;
+        if (why != Cache::HostRoom::Why::kept) return false;
         end_memory_run();
         return true;
     }
@@ -2167,167 +2143,6 @@ private:
         memory_run_ = 0;
     }
 
-    // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back, a fork of what `served` found, or a fresh sequence.
-    // A donor it takes back or shares every full block of goes first, one it forks otherwise last, and a forked donor make_room takes is consumed, the shared blocks counted once; under the lock.
-    bool enter(const std::shared_ptr<Request>& r, std::vector<std::shared_ptr<Request>>& active) {
-        std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(*r), r->params_.until_limit, (size_t)r->params_.max_tokens, r->gen_.size()));
-        size_t shared = 0;
-        size_t d = own_donor(*r);
-        const bool take = d < donors_.size();
-        const Request* from = nullptr;
-        // A message boundary is pinned while room is made, so nothing that room drops is the one chosen, and renewed once the request is admitted.
-        struct Unpin {
-            uint64_t& id;
-            ~Unpin() { id = 0; }
-        } unpin{pinned_bound_};
-        if (!take) {
-            const auto ask = asked(*r);
-            const std::vector<uint32_t>& mine = ask.first;
-            const std::vector<RowClass>& own = ask.second;
-            // A job whose best source is in a pass waits for the round that pass has retired in: admitted now it would read what it could have forked, the whole prompt of the request it follows.
-            const size_t held = served(mine, own, r.get(), true).tokens;
-            for (const auto& a : active) {
-                const bool source = a->job_ ? a != r : a == r->of_;
-                if (r->job_ && source && a->seq_.in_flight() && !a->classes_.empty() && shareable(*r, a->job_ ? a->prompt_ : history(*a), a->classes_, a->seq_) > held) return false;
-            }
-            // The holder serving most is used, and one that fails is passed over and the question asked again, once a holder (docs/CACHE-PLAN.md, section 4).
-            std::vector<uint64_t> skip;
-            for (;;) {
-                const Served s = served(mine, own, r.get(), true, skip);
-                // A host copy goes back to the devices as a donor of its own and the question is asked again; a request finding no room waits, at most kWaitBound, rather than computing rows a copy holds (P2), a job never.
-                const auto promoted = [&](size_t h, size_t tokens, const char* what) -> std::optional<bool> {
-                    bool room = true;
-                    const uint64_t id = host_[h].id;
-                    if (promote(h, r->job_, &room, r)) return true;
-                    if (!room && !r->job_ && waits_for_room(*r, tokens, what)) return std::nullopt;
-                    skip.push_back(id);
-                    return false;
-                };
-                if (s.kind == Served::Kind::host) {
-                    if (!promoted(s.index, s.tokens, "a copy in host memory")) return false;
-                    continue;
-                }
-                if (s.kind == Served::Kind::bound) {
-                    // A boundary takes its blocks from a donor holding its rows, a host copy holding them promoted first, and a checkpoint slot of its own (Model::fork with a state).
-                    const uint64_t b = bounds_[s.index].id;
-                    pinned_bound_ = b;
-                    const Boundary& bound = bounds_[s.index];
-                    size_t k = donors_.size();
-                    for (size_t i = 0; i < donors_.size() && k == donors_.size(); ++i)
-                        if (std::find(skip.begin(), skip.end(), donors_[i].id) == skip.end() && holds(bound, donors_[i].tokens, donors_[i].classes, donors_[i].seq.length())) k = i;
-                    if (k == donors_.size()) {
-                        for (size_t h = 0; h < host_.size(); ++h)
-                            if (std::find(skip.begin(), skip.end(), host_[h].id) == skip.end() && holds(bound, host_[h].tokens, host_[h].classes, host_[h].history.length)) {
-                                if (!promoted(h, s.tokens, "a copy in host memory under a message boundary")) return false;
-                                break;
-                            }
-                        continue;
-                    }
-                    const uint64_t id = donors_[k].id;
-                    k = donors_.size();
-                    if (checkpoint_room_held(0, id))
-                        for (size_t i = 0; i < donors_.size(); ++i)
-                            if (donors_[i].id == id) k = i;
-                    if (k == donors_.size()) {
-                        std::fprintf(stderr, "server: cache: a boundary of %zu tokens found no checkpoint slot; the next restore point is asked\n", s.tokens);
-                        pinned_bound_ = 0;
-                        skip.push_back(b);
-                        continue;
-                    }
-                    d = k;
-                    shared = s.tokens;
-                    break;
-                }
-                pinned_bound_ = 0;
-                // A running job, as far as it has read, is a source too, and a job's own request while it runs, where no pass holds them.
-                d = s.kind == Served::Kind::donor ? s.index : donors_.size();
-                if (s.kind == Served::Kind::running) from = (*running_)[s.index].get();
-                shared = s.tokens;
-                break;
-            }
-        }
-        const bool keep = !from && (take || shared);
-        // A job's own source goes first: the job holds what it forks, and takes no other donor's room (below).
-        const bool keep_first = take || (keep && (r->job_ || donors_[d].tokens.size() - shared < model_.kv_block_tokens()));
-        // A fork takes the blocks it shares from its source, and a donor taken back is the request's own, so neither is room the pool must give.
-        std::vector<size_t> fresh = need;
-        const std::vector<size_t> shares = take ? model_.kv_held(donors_[d].seq) : pools_.blocks_for(shared);
-        for (size_t p = 0; p < fresh.size(); ++p) fresh[p] -= std::min(fresh[p], shares[p]);
-        const Taken t = make_room(room(), ranked(), keep ? d : npos, keep_first, {}, 0, false, fresh, gain_of({}, keep ? d : npos, take ? 0 : shared, take));
-        if (!t.enough) return false;
-        // A request whose room takes a donor the host tier cannot keep waits for that donor's files to be whole on disk, its write then whole pieces (question 5 of docs/CACHE-PLAN.md).
-        // Past the wait's bound it takes the room, and the rows are said as lost.
-        if (const size_t g = r->job_ ? donors_.size() : awaited_write(t, keep ? d : npos); g < donors_.size()) {
-            const Donor& v = donors_[g];
-            const size_t n = copy_length(v);
-            // While the donor's own write is in flight: what is not yet on disk, its files' bytes less what that file has written, and the rate, the write's own once measured, else the store's.
-            const std::vector<std::string> dv = digests(v);
-            const auto [wrote, seconds] = disk_->writing_of(dv, model_.kv_block_tokens());
-            const double remaining = std::max(0.0, (double)disk_->unwritten(dv, model_.kv_block_tokens(), n, model_.keeps_state(), true) - (double)wrote);
-            const double own = in_flight_rate(wrote, seconds), rate = seconds <= 0 ? 0 : own > 0 ? own : disk_->write_rate();
-            if (waits_for_room(*r, n, "a donor's write to disk", remaining, rate)) {
-                // The disk round makes the awaited donor's write whole pieces once, not every round.
-                if (awaited_ != v.id) disk_wake_ = true;
-                awaited_ = v.id;
-                return false;
-            }
-        }
-        if (r->room_wait_) {
-            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - r->room_since_).count();
-            ++room_waits_;
-            room_wait_ms_ += ms;
-            room_wait_longest_ms_ = std::max(room_wait_longest_ms_, ms);
-            r->room_wait_ = false;
-            awaited_ = 0;
-        }
-        // A job takes only spare room: no donor but the one it forks gives blocks up for it (docs/CACHE-PLAN.md, question 2), and what it would have read is the next turn's new work.
-        if (r->job_ && std::any_of(t.donors.begin(), t.donors.end(), [&](size_t g) { return !keep || g != d; })) {
-            if (!r->no_room_) std::fprintf(stderr, "server: cache: a job of %zu ids waits for spare room\n", r->prompt_.size());
-            r->no_room_ = true;
-            return false;
-        }
-        std::vector<size_t> gone = t.donors;
-        std::sort(gone.begin(), gone.end(), std::greater<size_t>());
-        bool consume = false;
-        for (size_t i : gone) {
-            if (keep && i == d) { consume = true; continue; }
-            drop_donor(i, true);
-            if (i < d) --d;
-        }
-        Boundary* bound = pinned_bound_ ? find_bound(pinned_bound_) : nullptr;
-        admit(*r, d, shared, take, from, bound ? &bound->state : nullptr);
-        if (bound) bound->used = std::filesystem::file_time_type::clock::now();
-        // A cut's uncut history (step 9 of docs/CACHE-PLAN.md): every holder of the first row it dropped is superseded, so it ranks first to go; the turn says the re-read it pays (P5).
-        if (!r->cut_.empty()) {
-            const size_t again = history_tokens(*r) - shared;
-            if (prompt_ms_row_ > 0) std::fprintf(stderr, "server: cache: a cut turn reads %zu rows again beside %zu reused, about %.1f s at the measured prompt rate\n", again, shared, prompt_ms_row_ * (double)again / 1000);
-            else std::fprintf(stderr, "server: cache: a cut turn reads %zu rows again beside %zu reused\n", again, shared);
-            const auto uncut = [&](const std::vector<uint32_t>& t) { return t.size() >= r->cut_.size() && std::equal(r->cut_.begin(), r->cut_.end(), t.begin()); };
-            for (Donor& o : donors_) o.superseded = o.superseded || uncut(o.tokens);
-            for (HostDonor& o : host_) o.superseded = o.superseded || uncut(o.tokens);
-            for (Boundary& o : bounds_) o.superseded = o.superseded || uncut(o.tokens);
-            r->cut_.clear();
-        }
-        if (consume && !take) {
-            moved(Move::consumed, "server: cache: a donor of %zu tokens consumed by the %s that forked %zu of it\n", donors_[d].seq.length(), r->job_ ? "job" : "request", shared);
-            // The fork holds the donor's rows up to where it forked; what the donor could restore past that goes with it unless another holder has it.
-            const size_t point = copy_length(donors_[d]);
-            const std::vector<uint32_t> tokens = donors_[d].tokens;
-            const std::vector<RowClass> classes = donors_[d].classes;
-            drop_donor(d);
-            const size_t left = point > shared ? std::max(shared, held_below(tokens, classes, point)) : point;
-            if (point > left) this->gone(tokens, Move::consumed_lost, left, point, "server: cache: rows %zu to %zu of a history left memory with the donor a fork consumed\n", left, point);
-        }
-        if (shared) moved(Move::forked);
-        if (r->job_) moved(Move::job_started, "server: cache: a job started, rows %zu to %zu to read\n", shared, r->prompt_.size());
-        else stale(r->prompt_, nullptr, "a request admitted reads them");
-        r->need_ = std::move(need);
-        if (!r->admission_) r->admission_ = ++admissions_;
-        r->edge_steps_ = 1;
-        r->stepped_ = Clock::now();
-        active.insert(std::upper_bound(active.begin(), active.end(), r, [](const auto& a, const auto& b) { return a->admission_ < b->admission_; }), r);
-        return true;
-    }
 
     // Takes what make_room chose for a growing request: the donors, then the requests it pauses, latest admitted first, and the donor a paused request's history became where make_room took that too.
     void take(const Taken& t, std::vector<std::shared_ptr<Request>>& active) {
@@ -2335,7 +2150,7 @@ private:
             std::vector<size_t> gone = t.donors;
             std::sort(gone.begin(), gone.end(), std::greater<size_t>());
             std::lock_guard<std::mutex> lk(m_);
-            for (size_t i : gone) drop_donor(i, true);
+            for (size_t i : gone) cache_.drop_donor(i, true);
         }
         std::vector<std::pair<std::shared_ptr<Request>, bool>> victims;
         for (const auto& p : t.paused) victims.push_back({active[p.first], p.second});
@@ -2343,26 +2158,17 @@ private:
             const size_t at = (size_t)(std::find(active.begin(), active.end(), v.first) - active.begin());
             if (pause(active, at) && v.second) {
                 std::lock_guard<std::mutex> lk(m_);
-                drop_donor(donors_.size() - 1, true);
+                cache_.drop_donor(cache_.donors_.size() - 1, true);
             }
         }
     }
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    bool grow_host();
-    void host_pressure();
 
-    // A request's history, its prompt then what it generated, which a donor keeps as tokens.
-    static std::vector<uint32_t> history(const Request& r) {
-        std::vector<uint32_t> h = r.prompt_;
-        h.insert(h.end(), r.gen_.begin(), r.gen_.end());
-        return h;
-    }
 
     // A paused request's history goes to a donor, even short of a full block, which it takes back whole on resuming unless something evicted it, and the request to the paused requests in order of first admission; whether it left a donor.
     bool pause(std::vector<std::shared_ptr<Request>>& active, size_t i, bool yielded = false) {
         auto r = active[i];
-        r->paused_as_ = r->donor_ = park(active, i, history(*r), 1);
+        r->paused_as_ = r->donor_ = cache_.park(active, i, history(*r), 1);
         ++r->pauses_;
         r->stalled_ = false;
         yields_ += yielded;
@@ -2388,195 +2194,27 @@ private:
         return h;
     }
 
-    // A finished or paused request kept for its cache: the tokens its history holds, how they were computed, the sequence holding them and the blocks it has reserved.
-    // Shared full blocks are immutable, so a fork of it is safe while it lives; its partial last block, which no fork shares, goes on only in the request that paused, taking it back whole.
-    struct Donor {
-        uint64_t id = 0;   // which paused request may take it back (Request::donor_)
-        std::vector<uint32_t> tokens;
-        std::vector<RowClass> classes;
-        infer::Sequence seq;
-        uint64_t on_host = 0;         // the host donor holding the same history, which it was promoted from
-        bool superseded = false;      // a job's donor holds what its conversation's next turn needs, so this one is kept only while room allows, as a regenerate's
-        bool back = false;            // its conversation came back: the request it holds, or the one a job read the reply of, forked a history a tier kept
-        mutable std::vector<std::string> digests;   // as HostDonor::digests, of what its cache holds
-        std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: parked, forked or promoted
-    };
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    size_t own_donor(const Request& r) const;
 
     // A waiting request whose client left ends where it waits, and a paused one's own donor goes with it when it holds less than a block, which no fork can share; the position after it.
     // Under the lock.
     std::deque<std::shared_ptr<Request>>::iterator leave(std::deque<std::shared_ptr<Request>>& waiting, std::deque<std::shared_ptr<Request>>::iterator it) {
-        const size_t d = own_donor(**it);
-        if (d < donors_.size() && donors_[d].tokens.size() < model_.kv_block_tokens()) drop_donor(d);
-        if ((*it)->proof_) end_proof((*it)->proof_);
+        const size_t d = cache_.own_donor(**it);
+        if (d < cache_.donors_.size() && cache_.donors_[d].tokens.size() < model_.kv_block_tokens()) cache_.drop_donor(d);
+        if ((*it)->proof_) cache_.end_proof((*it)->proof_);
         (*it)->proof_ = 0;
         (*it)->end("cancel");
         return waiting.erase(it);
     }
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    bool checkpoint_room(size_t keeps, uint64_t spare = 0);
-    bool checkpoint_room_held(size_t keeps, uint64_t spare = 0);
-    // What memory serves a history (served): the longest restore point a holder gives, the holder's kind and its index in donors_, host_, bounds_ or the running requests.
-    struct Served {
-        enum class Kind { none, donor, host, bound, running };
-        Kind kind = Kind::none;
-        size_t index = 0, tokens = 0;
-    };
-    Served served(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request* self, bool running, const std::vector<uint64_t>& skip = {}) const;
-    std::pair<std::vector<uint32_t>, std::vector<RowClass>> asked(const Request& r) const;
-    size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, const infer::Sequence& seq) const;
-    size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held, std::optional<size_t> kept) const;
 
-    // A donor the device tier evicted, its history in host memory (Model::save_host): the tokens and row classes it holds, which a request matches as it matches a device donor.
-    struct HostDonor {
-        uint64_t id = 0;
-        std::vector<uint32_t> tokens;
-        std::vector<RowClass> classes;
-        infer::HostHistory history;
-        bool superseded = false;   // as Donor::superseded
-        bool back = false;         // as Donor::back
-        uint64_t disk = 0;         // the file that makes the same history whole on disk (DiskTier::on_disk), 0 while part of it is not there
-        mutable std::vector<std::string> digests;   // its whole blocks' digests, once asked for (digests_of)
-        bool from_disk = false;    // read back from disk, so a promotion of it completes a restore from disk
-        std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: made, renewed or promoted, which its file keeps
-    };
 
-    // A message boundary (docs/SPECULATIVE.md, section 2, Host tier): a job's donor's state alone (Model::save_host without blocks), at its checkpoint where the next user message starts, with the tokens and row classes below it.
-    // A request that edits or regenerates that message forks it with the blocks of a history holding the same rows, a donor or a host donor of the same conversation (Model::fork with a state).
-    struct Boundary {
-        uint64_t id = 0;
-        std::vector<uint32_t> tokens;
-        std::vector<RowClass> classes;
-        infer::HostHistory state;
-        uint64_t disk = 0;         // as HostDonor::disk
-        mutable std::vector<std::string> digests;   // as HostDonor::digests
-        std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // as HostDonor::used
-        bool back = false;         // as HostDonor::back, the conversation's whose state it is
-        bool superseded = false;   // as HostDonor::superseded, a cut having orphaned it
-    };
-    // A holder's place in the one ranking of what stays (rank): its class, 0 where its going loses nothing, 1 for a conversation that did not come back and 2 for one that did, then its last use.
-    struct Rank {
-        int cls = 0;
-        std::filesystem::file_time_type used{};
-        bool operator<(const Rank& o) const { return cls != o.cls ? cls < o.cls : used < o.used; }
-    };
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    void keep_boundary(Donor& d);
-    void asked_boundary(Request& r);
-    void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back);
-    Boundary* find_bound(uint64_t id);
-    void drop_bound(size_t i);
-    Rank rank(const Donor& d) const;
-    Rank rank(const HostDonor& h) const;
-    Rank rank(const Boundary& b) const;
-    bool writing(const Donor& d) const;
-    std::vector<size_t> ranked() const;
-    std::vector<std::pair<bool, uint64_t>> host_victims(const Rank& above, bool* outranked = nullptr) const;
-    bool host_room_for(size_t bytes, const Rank& above);
-    bool holds(const Boundary& b, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held) const;
-    bool holds(const std::vector<uint32_t>& bt, const std::vector<RowClass>& bc, size_t n, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes,
-               size_t held) const;
-    size_t copy_length(const Donor& d) const;
-    // What write_back would do with a copy of `n` tokens of a donor that came back (`back`) or not: keep it after releasing `drops` ((a boundary, id), in order), or why not.
-    struct HostRoom {
-        enum class Why { kept, larger, outranked, room, memory } why = Why::kept;
-        std::vector<std::pair<bool, uint64_t>> drops;
-    };
-    HostRoom host_room(size_t n, const Rank& mine) const;
-    std::vector<size_t> room() const;
-    std::vector<size_t> promised(const Request& r) const;
-    Gain gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep = npos, size_t kept_len = 0, bool take = false, const std::vector<const infer::Sequence*>& also = {}) const;
-    void note_room();
-    void write_back(Donor& d);
-    bool written_soon(bool boundary, uint64_t id) const;
-    void drop_host(size_t i);
-    template <class... A>
-    void moved(Move kind, const char* line = nullptr, A... a);
-    size_t held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other = 0) const;
 
-    // Why job j, about to give way, was not handed to a waiting request (hand_jobs), in that function's own terms; under the lock.
-    const char* not_handed(const Request& j) const {
-        bool first = false, shares = false;
-        for (const auto& r : queue_) {
-            if (r->cancel_.load() || !r->classes_.empty()) continue;
-            first = true;
-            shares = shares || shareable(*r, j.prompt_, j.classes_, j.seq_) > 0;
-        }
-        return !first ? "no queued request at its first admission" : !shares ? "no queued request shares a state or block it kept" : "a history kept shares as much with the request";
-    }
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    template <class... A>
-    void gone(const std::vector<uint32_t>& history, Move kind, size_t first, size_t tokens, const char* line = nullptr, A... a);
-    void lost();
-    bool parks(bool boundary, uint64_t id) const;
-    void release_entry(bool boundary, uint64_t id, infer::HostHistory& h);
-    size_t parked_held() const;
-    bool read_source(uint64_t id) const;
-    std::vector<std::string> digests_of(const uint32_t* tokens, size_t n, const std::vector<RowClass>& classes) const;
-    template <class Entry>
-    const std::vector<std::string>& digests(const Entry& e, size_t n) const;
-    const std::vector<std::string>& digests(const HostDonor& h) const;
-    const std::vector<std::string>& digests(const Boundary& b) const;
-    const std::vector<std::string>& digests(const Donor& d) const;
-    void refresh_disk();
-    void sync_disk();
-    void disk_round(bool idle);
-    void settle_disk();
-    void flush_disk();
-    uint64_t unwritten_bytes() const;
-    bool write_from(const HostDonor& h);
-    bool write_from(const Boundary& b);
-    bool started(DiskTier::Wrote w);
-    bool flush_one(std::vector<uint64_t>& tried, bool beyond = false);
-    void restore_later(const std::vector<uint32_t>& tokens, size_t n);
-    // Whether request r waits this round for `what`, a restore or a save of `n` tokens its admission needs, said once and counted; under the lock.
-    // The bound is the scheduler's constant, raised each round for a save of `remaining` bytes (0 or more) being written at `rate` bytes a second to the write's time (write_wait_ms), never lowered.
-    bool waits_for_room(Request& r, size_t n, const char* what, double remaining = -1, double rate = 0) {
-        const auto now = std::chrono::steady_clock::now();
-        if (!r.room_wait_) {
-            r.room_wait_ = true;
-            r.room_since_ = now;
-            r.room_until_ = now + wait_bound_;
-            std::fprintf(stderr, "server: cache: a request waits for %s of %zu tokens before it is admitted\n", what, n);
-        }
-        if (remaining >= 0 && rate > 0) {
-            const double ms = write_wait_ms(remaining, rate, std::chrono::duration<double, std::milli>(now - r.room_since_).count(), recompute_row_ms_.value_or(prompt_ms_row_) * (double)n);
-            r.room_until_ = std::max(r.room_until_, r.room_since_ + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>(ms)));
-        }
-        if (now < r.room_until_) return true;
-        if (!r.room_timed_out_) ++room_wait_timeouts_;
-        r.room_timed_out_ = true;
-        return false;
-    }
 
-    // Whether a history of `n` tokens is one the host tier cannot keep, its copy larger than the whole tier, so the disk is its only save (write_back, disk_round).
-    bool beyond_host(size_t n) const { return model_.host_bytes(n) > host_cap_; }
 
-    // The most reads from disk in flight (docs/DISK-TIER.md, Restore).
-    static constexpr size_t kDiskReads = 2;
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    static bool ready(const std::deque<std::shared_ptr<Request>>& q);
-    std::optional<std::chrono::steady_clock::time_point> next_disk_bound() const;
-    bool reading(Request& r);
-    void count_wait(Request& r);
-    void end_wait(Request& r);
-    void finish_read(uint64_t id, bool ok);
-    void wake_readers(uint64_t id);
-    void end_proof(uint64_t id);
-    void prove(Request& r);
-    void unprove(Request& r);
-    void prefetch();
-    uint64_t start_stream(const DiskIndex::Path& path, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r);
-    void stream_round();
-    bool stream_room(size_t length, bool spare) const;
-    Clock::time_point read_until(size_t rows, Clock::time_point now) const;
-    uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r, uint64_t source = 0, const DiskIndex::Path* whole = nullptr);
 
     // A pass of prompt rows measures the prompt rate a read's bound takes, a moving mean over passes of 64 rows or more.
     void measure_prompt(const Slot& f, double since_retired) {
@@ -2587,71 +2225,8 @@ private:
         prompt_ms_row_ = forget(prompt_ms_row_, per);
     }
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    void write_ahead();
-    bool promote(size_t i, bool spare = false, bool* room = nullptr, const std::shared_ptr<Request>& r = nullptr);
-    void copies_retired();
 
-    // A history for an admitted request: its own donor `d` taken back whole (`take`), a fork at `shared` tokens of donor `d` or of the running request `from`, or a fresh sequence.
-    // A first admission records its rows: a forked prefix as its source recorded it, the rest of the prompt at the prompt's extent, then the generated tokens at extent 1 (a job's all at its prompt's extent); under the lock.
-    void admit(Request& r, size_t d, size_t shared, bool take = false, const Request* from = nullptr, infer::HostHistory* state = nullptr) {
-        {
-            std::lock_guard<std::mutex> lk(r.m_);
-            if (r.admitted_ == Request::Clock::time_point{}) r.admitted_ = Request::Clock::now();
-        }
-        const bool first = r.classes_.empty();
-        r.donor_ = 0;
-        if (take) {
-            r.seq_ = std::move(donors_[d].seq);
-            donors_.erase(donors_.begin() + (std::ptrdiff_t)d);
-            ++r.taken_back_;
-            ++taken_back_;
-        } else {
-            if (shared && state) {
-                // A fork with a state whose copy fails reads the history from the start: the room admission made holds the whole history either way.
-                try {
-                    r.seq_ = quieted()->fork(donors_[d].seq, shared, *state);
-                    ++bound_hits_;
-                } catch (const std::exception& e) {
-                    std::fprintf(stderr, "server: a message boundary of %zu tokens was not forked (%s)\n", shared, e.what());
-                    shared = 0;
-                    r.seq_ = model_.make_sequence();
-                }
-            } else {
-                r.seq_ = shared ? model_.fork(from ? from->seq_ : donors_[d].seq, shared) : model_.make_sequence();
-            }
-            if (shared && !from) donors_[d].used = std::filesystem::file_time_type::clock::now();
-        }
-        if (!first) return;
-        if (shared) {
-            r.reused_.store(shared);
-            r.classes_ = clip(from ? from->classes_ : donors_[d].classes, shared);
-        }
-        const size_t p = r.prompt_.size();
-        if (r.job_) {
-            r.source_ = shared && !from ? donors_[d].id : 0;
-            r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), p});
-            r.reached_ = shared;
-            return;
-        }
-        if (shared) {
-            ++prefix_hits_;
-            prefix_tokens_ += shared;
-        }
-        r.classes_.push_back(RowClass{p, p});
-        r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), 1});
-        r.reached_ = shared;
-        r.rng_.seed(r.params_.seed);
-        // One checkpoint where a follow-up turn would fork it: whole blocks within the stable prefix, never the last prompt token, past what the request forked.
-        const size_t bt = model_.kv_block_tokens(), at = std::min(r.stable_, p - 1) / bt * bt;
-        if (model_.checkpoint_slots() && at > shared) r.keep_at_ = at;
-        // And a message boundary where its last user message starts, whole blocks, past what it forked, so an edit or a regenerate of that message leaves the boundary the next one forks.
-        const size_t message = std::min(r.message_, p - 1) / bt * bt;
-        if (model_.checkpoint_slots() && host_cap_ && message > shared) r.boundary_at_ = message;
-    }
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    void drop_donor(size_t i = 0, bool evicted = false);
 
     // On a sampling thread: the tokens drawn from d's rows with its request's own settings, history and generator, in order, as infer::accept takes a verify's rows, a decode entry's one row being a verify of no drafts.
     // Each token goes into the history the next row is drawn after, an end token, a stop text or the length ends the request, and with logprobs asked each token's row is copied or its values computed; it touches only d and its request's state.
@@ -2712,17 +2287,17 @@ private:
         if (r->job_) {
             // A failed job leaves the donor it forked and frees what it held.
             active.erase(active.begin() + (std::ptrdiff_t)i);
-            release(*r);
+            cache_.release(*r);
             r->seq_ = infer::Sequence{};
             return;
         }
         if (why == "error") {
             active.erase(active.begin() + (std::ptrdiff_t)i);
-            release(*r);
+            cache_.release(*r);
             r->seq_ = infer::Sequence{};
             active_count_.store(requests(active));
         } else {
-            r->parked_ = park(active, i, history(*r));
+            r->parked_ = cache_.park(active, i, history(*r));
         }
         r->end(why, err);
         ++finished_;
@@ -2751,301 +2326,14 @@ private:
         return s;
     }
 
-    // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less); the donor's id, or 0 with `why` saying why.
-    // A donor keeps only the blocks it holds reserved, at most max_seqs donors exist, and on a model that keeps a recurrent state a donor ends at its checkpoint, with none it keeps no donor and recomputes from its start.
-    uint64_t park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h, size_t least = 0, const char** why = nullptr) {
-        auto r = active[i];
-        active.erase(active.begin() + (std::ptrdiff_t)i);
-        if (r->proof_) unprove(*r);
-        size_t held = r->seq_.length();
-        if (model_.keeps_state() && held && !(least && quieted()->keep(r->seq_))) {
-            const std::optional<size_t> kept = model_.checkpoint(r->seq_);
-            held = kept ? quieted()->retract(r->seq_, *kept) : 0;
-        }
-        uint64_t id = 0;
-        // A paused request's own donor (`least`) is a conversation that comes back, so the host tier does not refuse it first.
-        const bool back = least || (r->job_ ? !r->of_ || r->of_->reused() > 0 : r->reused() > 0);
-        std::unique_lock<std::mutex> lk(m_, std::defer_lock);
-        if (held && held >= (least ? least : model_.kv_block_tokens())) {
-            lk.lock();
-            // A job's donor supersedes its own conversation's older donors, so it never takes an unrelated conversation's place while those stay.
-            if (r->job_ && donors_.size() >= max_seqs_)
-                for (Donor& o : donors_) o.superseded = o.superseded || supersedes(*r, o.id, o.tokens);
-        }
-        if (lk.owns_lock()) {
-            Donor d;
-            d.id = id = ++donor_ids_;
-            d.back = back;
-            d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
-            d.classes = clip(r->classes_, held);
-            d.seq = std::move(r->seq_);
-            r->need_.clear();
-            // The copy its last pause left in host memory (paused_as_) is superseded, the first to go, and so is a donor promoted from it and left on the devices, which would stand for it again when evicted.
-            // Where a finished request's donor ends at its prompt's checkpoint the copy is the longer one, its rows past the prompt decode rows no later prompt forks.
-            for (Donor& o : donors_) o.superseded = o.superseded || (r->paused_as_ && o.on_host == r->paused_as_);
-            donors_.push_back(std::move(d));
-            moved(Move::parked);
-            // A donor holding a block that no copy can take (copy_length 0) is counted and said; by construction only a request paused inside a block, usable for its own take-back alone, makes one.
-            if (held >= model_.kv_block_tokens() && !copy_length(donors_.back())) {
-                ++uncopyable_;
-                std::fprintf(stderr, "server: cache: a donor of %zu tokens whose checkpoint no copy can take: it stays on the devices only\n", held);
-            }
-            for (HostDonor& h : host_) h.superseded = h.superseded || (r->paused_as_ && h.id == r->paused_as_);
-            // The donor count then gives up the lowest-ranked donor, the newcomer among them and a write in flight last (A19 in docs/CACHE-PLAN.md), each leaving as any evicted donor does.
-            while (donors_.size() > max_seqs_) {
-                const size_t v = ranked().front();
-                if (donors_[v].id == id) {
-                    if (why) *why = "every donor ranks above it";
-                    id = 0;
-                }
-                restoring_ = r->job_ && !r->of_;
-                drop_donor(v, true);
-                restoring_ = false;
-            }
-        } else {
-            if (why) *why = "too short to keep";
-            release(*r);
-        }
-        if (lk.owns_lock()) {
-            note_room();
-            lk.unlock();
-        }
-        r->seq_ = infer::Sequence{};
-        active_count_.store(requests(active));
-        return id;
-    }
-    // The ids a conversation's next turn begins with, given for request `of` (follow).
-    struct Follow {
-        std::shared_ptr<Request> of;
-        std::vector<uint32_t> ids;
-        bool whole;
-    };
 
-    // The job of request `of`, active or waiting, as an index into `active` or else into jobs_; npos for none.
-    std::pair<size_t, size_t> job_of(const std::vector<std::shared_ptr<Request>>& active, const Request* of) const {
-        for (size_t i = 0; i < active.size(); ++i)
-            if (active[i]->job_ && active[i]->of_.get() == of) return {i, npos};
-        for (size_t i = 0; i < jobs_.size(); ++i)
-            if (jobs_[i]->of_.get() == of) return {npos, i};
-        return {npos, npos};
-    }
 
-    // Whether r could be admitted now beside the requests and jobs running, by admission's own test: a free seat, and the blocks enter reserves for it from free blocks and donors make_room may give up.
-    // Under the lock.
-    bool admits(const Request& r, size_t seats) const {
-        if (seats >= max_seqs_) return false;
-        const std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
-        return make_room(room(), ranked(), npos, false, {}, 0, false, need, gain_of({})).enough;
-    }
 
-    // The donor of plan `t` whose write to disk a request would wait for (enter): the first it takes, but `skip`, the one it forks, whose rows the host tier cannot keep and whose files are not yet whole on disk; donors_.size() where none.
-    // Under the lock.
-    size_t awaited_write(const Taken& t, size_t skip) {
-        if (!disk_ || !disk_->writing()) return donors_.size();
-        for (size_t g : t.donors) {
-            if (g == skip) continue;
-            const Donor& v = donors_[g];
-            const size_t n = copy_length(v);
-            if (n && !v.superseded && beyond_host(n) && !disk_->on_disk(digests(v), model_.kv_block_tokens(), n, model_.keeps_state())) return g;
-        }
-        return donors_.size();
-    }
 
-    // Whether request r, refused beside the running jobs, would wait for a donor's write once they had gone: its room planned as `admits` plans it, the jobs' sequences counted as freed.
-    // With no forked donor in that plan it may name a write `enter` would not wait for, which costs at most one block of one job, or miss one, which leaves the job giving way as before.
-    bool waits_for_write(const Request& r, const std::vector<std::shared_ptr<Request>>& active) {
-        if (r.job_) return false;
-        std::lock_guard<std::mutex> lk(m_);
-        std::vector<const infer::Sequence*> jobs;
-        std::vector<size_t> free = room();
-        for (const auto& a : active)
-            if (a->job_) {
-                jobs.push_back(&a->seq_);
-                add(free, promised(*a));
-            }
-        if (jobs.empty()) return false;
-        add(free, model_.freed(jobs).blocks);
-        const std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
-        const Taken t = make_room(free, ranked(), npos, false, {}, 0, false, need, gain_of({}, npos, 0, false, jobs));
-        return t.enough && awaited_write(t, npos) < donors_.size();
-    }
 
-    // Job i leaves the active set by the one path every job takes: its rows become a donor (park), which make_room gives up or copies out as any donor's; the donor's id, 0 where none was kept.
-    // Only rows park cannot keep, below a whole block or past a model's checkpoint, are released, said as lost where no other holder has them; `what` says why in the line.
-    uint64_t park_job(std::vector<std::shared_ptr<Request>>& active, size_t i, const char* what) {
-        auto j = active[i];
-        const size_t held = j->seq_.length();
-        const std::optional<size_t> kept = model_.keeps_state() ? model_.checkpoint(j->seq_) : std::nullopt;
-        size_t usable = 0, elsewhere = 0;
-        {
-            std::lock_guard<std::mutex> lk(m_);
-            const size_t bt = model_.kv_block_tokens();
-            usable = model_.keeps_state() ? kept.value_or(0) : held / bt * bt;
-            elsewhere = held_below(j->prompt_, j->classes_, usable);
-        }
-        const uint64_t donor = park(active, i, j->prompt_);
-        j->classes_.clear();
-        j->source_ = 0;
-        std::lock_guard<std::mutex> lk(m_);
-        if (donor) {
-            std::fprintf(stderr, "server: cache: a job %s, its %zu rows kept as a donor, its state kept at %zu\n", what, usable, kept.value_or(0));
-        } else {
-            reprefill_released_ += held;
-            std::fprintf(stderr, "server: cache: a job %s, %zu rows released, its state kept at %zu, %zu of them held elsewhere\n", what, held, kept.value_or(0), elsewhere);
-            if (usable > elsewhere) gone(j->prompt_, Move::job_lost, elsewhere, usable, "server: cache: rows %zu to %zu of a history left memory with the job that alone held them\n", elsewhere, usable);
-        }
-        return donor;
-    }
 
-    // Where a job would give way, a waiting request that can fork more of its rows than of any history kept takes them over: the job's history becomes a donor with its blocks (park), which admission forks and consumes by the donor rules.
-    // The job ends where the request's prompt holds all its ids, the request being the turn it read ahead for, and otherwise waits to start again from that donor; a job in a pass is passed by, as it is by yield_jobs, until its pass has retired.
-    void hand_jobs(std::vector<std::shared_ptr<Request>>& active) {
-        for (size_t i = 0; i < active.size();) {
-            auto j = active[i];
-            bool wanted = false, covered = false;
-            if (j->job_ && !j->seq_.in_flight() && !j->classes_.empty()) {
-                std::lock_guard<std::mutex> lk(m_);
-                // Queued requests alone: a paused one has its own history and takes its own donor back.
-                for (const auto& r : queue_) {
-                    if (wanted || r->cancel_.load() || !r->classes_.empty()) continue;
-                    const auto ask = asked(*r);
-                    const std::vector<uint32_t>& mine = ask.first;
-                    const std::vector<RowClass>& own = ask.second;
-                    if (shareable(*r, j->prompt_, j->classes_, j->seq_) <= served(mine, own, r.get(), false).tokens) continue;
-                    wanted = true;
-                    covered = r->prompt_.size() >= j->prompt_.size() && std::equal(j->prompt_.begin(), j->prompt_.end(), r->prompt_.begin());
-                }
-            }
-            if (!wanted) {
-                ++i;
-                continue;
-            }
-            park_job(active, i, "was handed to the request it read for");
-            std::lock_guard<std::mutex> lk(m_);
-            ++reprefill_handed_;
-            moved(Move::job_handed);
-            if (covered) j->finished_ = true;
-            else {
-                // Back in the line, it is looked at again (prefetch), its history having moved.
-                j->disk_checked_ = j->looked_ = false;
-                jobs_.push_front(j);
-            }
-        }
-    }
 
-    // Each job not in flight gives way (park_job) and waits to start again from its donor once nothing else waits; whether any did.
-    // One with at most one block left reads it first where `waiter` would wait for a donor's write in any case (A21), a spare with no clock: one block at most, ended by the write, which the next round no longer names.
-    bool yield_jobs(std::vector<std::shared_ptr<Request>>& active, const Request* waiter = nullptr) {
-        const bool spare = waiter && waits_for_write(*waiter, active);
-        const size_t bt = model_.kv_block_tokens();
-        bool any = false;
-        for (size_t i = 0; i < active.size();) {
-            auto j = active[i];
-            if (!j->job_ || j->seq_.in_flight() || (spare && j->whole_ && j->prompt_.size() <= j->seq_.length() + bt)) {
-                ++i;
-                continue;
-            }
-            {
-                std::lock_guard<std::mutex> lk(m_);
-                moved(Move::job_not_handed, "server: cache: a job of %zu rows was not handed over (%s)\n", j->seq_.length(), not_handed(*j));
-            }
-            park_job(active, i, "gave way");
-            any = true;
-            std::lock_guard<std::mutex> lk(m_);
-            moved(Move::job_gave_way);
-            j->disk_checked_ = j->looked_ = false;
-            jobs_.push_front(j);
-            ++reprefill_cancels_;
-        }
-        return any;
-    }
 
-    // The ids given since the last round, each to its request's job: a new job, a job's ids grown as the reply is written or made whole, or a job that has read ids the reply's next turn no longer begins with started again; none drops the job.
-    // Then, while no request waits and a seat is free, the oldest waiting job is admitted as a request is, through enter, so it forks the history that shares most with it and takes room as a first admission does.
-    void follow_up(std::vector<std::shared_ptr<Request>>& active) {
-        std::vector<Follow> given;
-        {
-            std::lock_guard<std::mutex> lk(m_);
-            given.swap(follows_);
-        }
-        std::vector<Follow> later;
-        {
-            // The jobs that read back a conversation that left the devices (restore_later): one waiting of the same start goes, as for a new job below.
-            std::lock_guard<std::mutex> lk(m_);
-            for (auto& j : restores_) {
-                stale(j->prompt_, nullptr, "a newer job of the same conversation replaces it");
-                if (jobs_.size() >= max_seqs_) jobs_.pop_front();
-                jobs_.push_back(std::move(j));
-            }
-            restores_.clear();
-        }
-        for (Follow& f : given) {
-            const std::pair<size_t, size_t> at = job_of(active, f.of.get());
-            std::shared_ptr<Request> j = at.first != npos ? active[at.first] : at.second != npos ? jobs_[at.second] : nullptr;
-            if (j && j->seq_.in_flight()) {
-                later.push_back(std::move(f));
-                continue;
-            }
-            // Ids given once the reply ended stay; any given before them is older.
-            if (j && j->whole_ && !f.whole) continue;
-            // What the job's cache holds must still begin the ids; otherwise it starts again.
-            const size_t read = j ? j->seq_.length() : 0;
-            const bool holds = j && !f.ids.empty() && f.ids.size() >= read && std::equal(j->prompt_.begin(), j->prompt_.begin() + (std::ptrdiff_t)read, f.ids.begin());
-            // A running job keeps going only where the blocks its longer ids take past its reservation are free, reserved before it reads them; otherwise it gives its room back and waits to start again, as a first admission would.
-            bool keeps = holds && at.first != npos;
-            std::vector<size_t> more;
-            if (keeps) {
-                const std::vector<size_t> need = pools_.blocks_for(f.ids.size()), free = room();
-                more.resize(need.size());
-                for (size_t p = 0; p < need.size(); ++p) {
-                    more[p] = need[p] > j->need_[p] ? need[p] - j->need_[p] : 0;
-                    keeps = keeps && more[p] <= free[p];
-                }
-            }
-            if (j && at.first != npos && !keeps) {
-                park_job(active, at.first, holds ? "outgrew its room as its ids grew" : "stopped, its ids changed");
-                std::lock_guard<std::mutex> lk(m_);
-                moved(Move::job_gave_way);
-            }
-            std::lock_guard<std::mutex> lk(m_);
-            if (j && (at.second != npos || !keeps)) {
-                const auto w = std::find(jobs_.begin(), jobs_.end(), j);
-                if (w != jobs_.end()) jobs_.erase(w);
-            }
-            if (f.ids.empty()) continue;
-            if (keeps) {
-                add(j->need_, more);
-                j->prompt_ = std::move(f.ids);
-                j->whole_ = f.whole;
-                j->disk_checked_ = j->looked_ = false;
-                continue;
-            }
-            server::SampleParams params;
-            params.max_tokens = 0;
-            auto n = std::make_shared<Request>(std::move(f.ids), params);
-            n->job_ = true;
-            n->whole_ = f.whole;
-            n->of_ = f.of;
-            // A job per conversation: one waiting that the new one's ids extend, or that reads for the same request, is that conversation's older read, and goes; at most max_seqs wait, the oldest dropped.
-            stale(n->prompt_, n->of_.get(), "a newer job of the same conversation replaces it");
-            if (jobs_.size() >= max_seqs_) jobs_.pop_front();
-            jobs_.push_back(n);
-        }
-        std::lock_guard<std::mutex> lk(m_);
-        follows_.insert(follows_.begin(), std::make_move_iterator(later.begin()), std::make_move_iterator(later.end()));
-        const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
-        while (!stalled && queue_.empty() && paused_.empty() && active.size() < max_seqs_ && !jobs_.empty()) {
-            const std::shared_ptr<Request> j = jobs_.front();
-            // A job whose history is being read from disk starts once the read has ended or its bound passed (reading).
-            if (reading(*j)) break;
-            if (!enter(j, active)) {
-                // With no request running, nothing will make room it does not find now.
-                if (!requests(active)) jobs_.pop_front();
-                break;
-            }
-            jobs_.pop_front();
-        }
-    }
 
     // The foreground demand a job's rows give way to (demand_beside): every request that is not a job, queued and paused ones included.
     BackgroundGrant::Demand jobs_beside(const std::vector<std::shared_ptr<Request>>& active) {
@@ -3107,99 +2395,8 @@ private:
             }
     }
 
-    // The jobs running and waiting, and the ids they have yet to read, for the server's figures.
-    void count_jobs(const std::vector<std::shared_ptr<Request>>& active) {
-        size_t n = 0, left = 0;
-        for (const auto& r : active)
-            if (r->job_) ++n, left += r->prompt_.size() - std::min(r->prompt_.size(), r->seq_.length());
-        std::lock_guard<std::mutex> lk(m_);
-        for (const auto& j : jobs_) ++n, left += j->prompt_.size();
-        jobs_now_.store(n);
-        job_rows_left_.store(left);
-    }
 
-    // Drops the waiting jobs of the conversation `ids` continues: those whose whole ids it begins with (a newer job's, or an admitted request's prompt), and those reading for the same request `of`; under the lock.
-    // Conversations that only share a start, as under one system prompt, keep their jobs.
-    void stale(const std::vector<uint32_t>& ids, const Request* of, const char* why) {
-        for (auto it = jobs_.begin(); it != jobs_.end();) {
-            const std::vector<uint32_t>& p = (*it)->prompt_;
-            const bool prefix = p.size() <= ids.size() && std::equal(p.begin(), p.end(), ids.begin());
-            if (prefix || (of && (*it)->of_.get() == of)) {
-                std::fprintf(stderr, "server: cache: a waiting job of %zu ids dropped, %s\n", p.size(), why);
-                it = jobs_.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
 
-    // On a model that keeps a state, each job between passes keeps its state where it has read to a whole block (Model::keep), so a follow-up turn that arrives before it completes forks what it has read.
-    // Each job that has read the whole of its ids becomes a donor beside the one it forked, which a regenerated reply still forks at its earlier checkpoint while room allows (supersede).
-    void complete_jobs(std::vector<std::shared_ptr<Request>>& active) {
-        for (size_t i = 0; i < active.size();) {
-            auto j = active[i];
-            const size_t len = j->seq_.length();
-            if (j->job_ && model_.keeps_state() && !j->seq_.in_flight() && len && len % model_.kv_block_tokens() == 0 &&
-                model_.checkpoint(j->seq_) != std::optional<size_t>(len) && !quieted()->keep(j->seq_) && checkpoint_room(0, j->source_))
-                quieted()->keep(j->seq_);
-            if (!j->job_ || !j->whole_ || j->seq_.in_flight() || len < j->prompt_.size()) {
-                ++i;
-                continue;
-            }
-            // A job that forked every one of its ids from a donor still there read nothing: that donor holds them, so the job leaves no second one and takes no slot, and the donor stands for the job's.
-            bool held;
-            {
-                std::lock_guard<std::mutex> lk(m_);
-                held = j->source_ && j->reused() == j->prompt_.size() && std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return d.id == j->source_; });
-            }
-            if (held) {
-                active.erase(active.begin() + (std::ptrdiff_t)i);
-                release(*j);
-                j->seq_ = infer::Sequence{};
-                j->finished_ = true;
-                std::lock_guard<std::mutex> lk(m_);
-                ++reprefills_;
-                moved(Move::job_done);
-                disk_wake_ = true;
-                // It is the conversation's newest holder now, whatever an earlier job's longer ids made of it.
-                for (Donor& d : donors_)
-                    if (d.id == j->source_) {
-                        d.superseded = false;
-                        keep_boundary(d);
-                    }
-                supersede(*j, j->source_);
-                continue;
-            }
-            // On a model that keeps a state its live state becomes its checkpoint, in a slot an older donor gives up or, where none can, the donor it forked.
-            if (model_.keeps_state() && !quieted()->keep(j->seq_) && !(checkpoint_room(0, j->source_) && quieted()->keep(j->seq_))) {
-                {
-                    std::lock_guard<std::mutex> lk(m_);
-                    for (size_t d = 0; d < donors_.size(); ++d)
-                        if (j->source_ && donors_[d].id == j->source_) { drop_donor(d, true); break; }
-                }
-                if (!quieted()->keep(j->seq_)) {
-                    // With no slot for its end's state it is parked at the checkpoint it kept between passes, so its conversation's whole blocks keep a holder.
-                    const char* why = "";
-                    const uint64_t id = park(active, i, j->prompt_, 0, &why);
-                    j->finished_ = true;
-                    if (id) std::fprintf(stderr, "server: cache: a job of %zu rows found no slot for its end's state and was parked at its checkpoint\n", len);
-                    else std::fprintf(stderr, "server: cache: a job of %zu rows found no slot for its end's state and kept nothing, %s\n", len, why);
-                    continue;
-                }
-            }
-            const char* why = "";
-            const uint64_t id = park(active, i, j->prompt_, 0, &why);
-            j->finished_ = true;
-            std::fprintf(stderr, "server: cache: a job completed, its %zu rows %s%s\n", len, id ? "kept as a donor" : "kept nowhere, ", id ? "" : why);
-            std::lock_guard<std::mutex> lk(m_);
-            if (!id) continue;
-            ++reprefills_;
-            moved(Move::job_done);
-            disk_wake_ = true;
-            if (!donors_.empty() && donors_.back().id == id) keep_boundary(donors_.back());
-            supersede(*j, id);
-        }
-    }
 
     // The rows of job r that `left` ms buy, at most `most`, their price a row, and whether they are a first step: by the jobs' last share of their pass where it was measured at a history at least as deep as r's (job_grant).
     // Otherwise a first step of one row, priced by the last pass of generated rows a row, since a job's rows ride that pass, so an underpriced step costs one row at r's depth (F2DEV, 2026-10-18 20:20).
@@ -3210,17 +2407,7 @@ private:
         return {0, 0, false};
     }
 
-    // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
-    void supersede(const Request& j, uint64_t kept);
-    static bool supersedes(const Request& j, uint64_t id, const std::vector<uint32_t>& tokens);
 
-    // reset waits for the last pass that touched the sequence, so its blocks return to the pool only once the device is done with them.
-    void release(Request& r) {
-        try { model_.reset(r.seq_); } catch (const std::exception&) {}
-        std::lock_guard<std::mutex> lk(m_);
-        r.need_.clear();
-        note_room();
-    }
 
     infer::Model& model_;
     const bpe::Tokenizer& tok_;
@@ -3228,17 +2415,6 @@ private:
     const size_t limit_;                  // the tokens a request may hold (request_limit)
     const bool timed_;
     const size_t host_cap_;               // the host tier's bytes at most
-    bool host_growing_ = true;            // its slabs are not all taken yet (grow_host), under the lock
-    // How often the host's memory is looked at (host_pressure): pressure builds over seconds and the look is one small file read, so idle slabs outstay it by a second at most.
-    static constexpr std::chrono::seconds kHostCheck{1};
-    Clock::time_point host_check_{};      // the next look, under the lock
-    // How long after idle slabs went back the pool takes none ahead: a host short again a second later means something else is taking memory, and slabs taken in between only go back again.
-    static constexpr std::chrono::seconds kHostQuiet{30};
-    Clock::time_point host_quiet_{};      // when idle growth may start again after the last give-back, under the lock
-    size_t host_run_bytes_ = 0;           // the bytes given back since a run of give-backs began, said once it has ended
-    Clock::time_point host_run_since_{};
-    size_t host_alive_ = 0, host_yielded_ = 0;   // the pool's slabs alive at the last look and the bytes given back since the start, under the lock
-    static constexpr size_t kHostGrow = 4;   // the fresh slabs an idle round takes, more only where the shortest copy needs more; a slab took about 21 ms on an MI50 host (docs/STATUS.md)
     const double share_;                  // of each device's time, what generating requests keep while prompts are read; 0 for none
     const bool auto_;                     // generated rows are served by the automatic rule (Pacing)
     const Clock::duration wait_bound_;    // the bound of a wait for a restore or a save while nothing better is measured: kWaitBound, or DiskOptions::wait in tests
@@ -3290,21 +2466,7 @@ private:
     std::deque<std::shared_ptr<Request>> queue_;
     // Paused requests in order of first admission, the scheduler thread's; they hold nothing but a donor, and do not count against max_queue.
     std::deque<std::shared_ptr<Request>> paused_;
-    std::deque<Donor> donors_;
-    std::deque<HostDonor> host_;                  // under the lock, oldest first
-    std::deque<Boundary> bounds_;                 // under the lock, oldest first, in host_held_
-    uint64_t pinned_bound_ = 0;                   // the boundary a request being admitted forks (enter), which nothing drops meanwhile
-    uint64_t promoting_ = 0;                      // the host entry being promoted, which no room it makes releases
-    uint64_t reading_for_ = 0;                    // the host entry whose rows a state about to be read alone is for, while that read's room is made (read_source)
-    size_t bound_hits_ = 0;                       // under the lock
-    size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
-    std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
-    std::vector<std::shared_ptr<Request>> restores_;   // under the lock, jobs restore_later made since follow_up last took them in
-    bool restoring_ = false;   // under the lock: a donor a restore job read takes its slot, so the donor it evicts gets no restore job (restore_later)
-    std::deque<std::shared_ptr<Request>> jobs_;   // under the lock, jobs waiting for a seat, oldest first
     size_t steady_from_ = 0;                      // the least extent from which rows are one class up to the limit
-    size_t reprefills_ = 0, reprefill_rows_ = 0, reprefill_cancels_ = 0, reprefill_handed_ = 0;   // under the lock
-    std::atomic<size_t> jobs_now_{0}, job_rows_left_{0};   // Stats::jobs and Stats::job_rows_left, as the round last counted them (count_jobs)
     std::atomic<size_t> active_count_{0}, paused_count_{0}, in_flight_{0}, checkpoints_{0};
     std::atomic<uint64_t> finished_{0}, prompt_total_{0}, generated_total_{0};   // what Stats gives as the totals since start
     std::atomic<uint64_t> prefilled_total_{0}, published_total_{0};
@@ -3312,7 +2474,6 @@ private:
     RideRun ride_run_;    // the prompt passes the generated rows have ridden in a row
     std::atomic<uint64_t> apart_formed_{0}, between_{0};                         // Stats::apart and Stats::between, the second counted by the stages' threads
     std::atomic<uint64_t> prompt_passes_{0};                                     // Stats::prompt_passes
-    size_t prefix_hits_ = 0, prefix_tokens_ = 0;   // under the lock
     uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock
     // What a change of turn at the pool's edge takes (Growth::change over the last two timed, changed_ms_ the last), each from the yield (turned_) to the first pass retired that carries the request the turn went to.
@@ -3325,71 +2486,16 @@ private:
     size_t memory_run_ = 0;           // the scheduler thread's: turns kept for want of host memory since the last one given up, said as the run starts and ends
     Clock::time_point memory_since_{};
     uint64_t pauses_ = 0;       // under the lock
-    uint64_t donor_ids_ = 0;    // under the lock
     size_t stalls_ = 0;         // under the lock
     size_t waits_ = 0;          // under the lock
     size_t recomputed_ = 0;     // under the lock
     size_t taken_back_ = 0;     // under the lock
     const std::vector<std::shared_ptr<Request>>* running_ = nullptr;   // the scheduler thread's: run's active requests, whose promises room counts
-    std::vector<size_t> reserved_now_, donor_blocks_now_;            // under the lock: Stats::reserved and donor_blocks as note_room last found them
     bool stopping_ = false;
-    // The disk tier (docs/DISK-TIER.md), under the lock: the slabs of a host entry dropped while written, and the tier's figures as stats gives them, kept past the tier itself.
-    std::vector<infer::HostHistory> disk_parked_;
-    DiskTier::Figures disk_now_;
-    bool disk_measured_ = false;
-    bool disk_wake_ = false;
-    // Reads from disk in flight, each into slabs counted in host_held_, and what they gave.
-    std::vector<uint64_t> idle_tried_;   // the donors an idle server has copied towards disk (flush_one), under m_
     std::optional<std::chrono::steady_clock::time_point> idle_at_;   // when a server with nothing to do since may write ahead under keep (run), under m_
     bool idled_ = false;   // a round has run idle since idle_at_ was set, under m_
-    struct DiskRead {
-        uint64_t id = 0;
-        infer::HostHistory history;
-        bool state_only = false;   // a state alone, for blocks a history on the devices or in host memory holds
-        uint64_t source = 0;       // the host entry holding those blocks, which no room releases while the read runs, 0 for a history on the devices
-        std::vector<uint32_t> tokens;
-        std::vector<RowClass> classes;
-        Clock::time_point started{};   // the store's call made, from which its read-ready latency runs (Request::Restore::read_ms)
-        double slabs_ms = 0;           // its slabs taken and zero-filled (alloc_host)
-    };
-    std::deque<DiskRead> disk_reads_;
-    // A history read from disk straight into the devices (start_stream): the read, the history it fills, its tokens, classes, blocks reserved and start.
-    // `ended` once its outcome is taken; it is kept until its readers and copies have ended.
-    struct Streaming {
-        uint64_t id = 0;
-        std::unique_ptr<infer::RestoreInto> into;
-        std::unique_ptr<StreamedRead> read;   // after `into`, which it fills, so it goes first
-        std::vector<uint32_t> tokens;
-        std::vector<RowClass> classes;
-        Clock::time_point started;
-        bool ended = false;
-        bool restore = false;   // read for a job restore_later made
-    };
-    std::vector<Streaming> streams_;   // under the lock
-    size_t lost_before_written_ = 0;   // Stats::lost_before_written, under the lock
-    size_t uncopyable_ = 0;            // Stats::uncopyable, under the lock
-    std::array<std::atomic<size_t>, (size_t)Move::count> moves_{};   // Stats::moves
-    std::atomic<size_t> reprefill_released_{0};   // Stats::reprefill_released
-    size_t disk_refused_ = 0;   // Stats::disk_refused, under the lock
-    size_t disk_hits_ = 0, disk_waits_ = 0, disk_wait_timeouts_ = 0;
-    uint64_t disk_read_bytes_ = 0;
-    double disk_wait_ms_ = 0;
-    Stats::RestoreTotals restore_totals_;   // under the lock
-    // A promotion's copies not yet seen retired, asked once a round (copies_retired): their tickets, their enqueue and the request that took them, if any.
-    struct Copies {
-        std::vector<backend::Ticket> tickets;
-        Clock::time_point at;
-        std::shared_ptr<Request> r;
-    };
-    std::vector<Copies> copies_;   // the scheduler thread's
-    double copy_block_ms_ = 0;         // under the lock, a forgetting mean of the milliseconds a block of a donor's copy off the devices for its write took (flush_one)
     BackgroundGrant::Demand demand_ = BackgroundGrant::Demand::none;   // under the lock, the foreground work the round found waiting, which a write's pieces give way to
     double write_left_ = 0;            // under the lock, the background time the round left a write's pieces (BackgroundGrant::left_ms), less what they took since
-    double write_spent_ms_ = 0, write_spent_left_ = 0;   // under the lock, the pieces' cost not yet charged, and what was left when they were granted
-    uint64_t awaited_ = 0;             // under the lock, the donor whose write a request waits for (enter), written in whole pieces
-    std::vector<uint64_t> turn_tried_; // under the lock, the donors the host tier cannot keep that are whole on disk or were refused their write (disk_round)
-    size_t room_waits_ = 0, room_wait_timeouts_ = 0;   // under the lock, admissions that waited for a donor's write or a restore's room, and those whose wait reached kWaitBound
-    double room_wait_ms_ = 0, room_wait_longest_ms_ = 0;
     size_t job_rows_ = 0;              // the scheduler thread's: the job rows of the last pass that carried any, their part of its time, and the deepest history they reached (job_rows_at)
     double job_ms_ = 0;
     size_t job_end_ = 0;
@@ -3398,8 +2504,11 @@ private:
     double prompt_ms_row_ = 0;         // the scheduler thread's, a pass's milliseconds a prompt row, measured; 0 until a pass has
     double prompt_pass_ms_ = 0;        // the scheduler thread's, the last pass with prompt rows that was fed whole, its milliseconds whatever its size
     static constexpr size_t kMeasuredRows = 64;   // the prompt rows a pass needs for its time to give a row's
-    std::chrono::steady_clock::time_point next_expiry_;   // under the lock, the next check of the entries' age
-    std::unique_ptr<DiskTier> disk_;   // after the lock and the condition, which its threads' callbacks take
+    Cache cache_{model_, m_, pools_, max_seqs_, host_cap_, running_, write_left_, demand_, queue_, paused_, prompt_ms_row_, wait_bound_, recompute_row_ms_, limit_, taken_back_, admissions_, active_count_, stopping_, idle_at_, idled_, read_wait_, epoch_, cv_};
+public:
+    // The cache's handler of each loss (Cache::on_move), which tests set before run.
+    std::function<void(const Moved&)>& on_move = cache_.on_move;
+private:
     std::atomic<int> quieting_{0};        // the scheduler's thread waits for the recorders or holds them, possibly under the lock
     size_t normal_ = 0;                // the slots before the slots of passes apart
     LogitRows apart_rows_;             // the logits rows of the passes apart, after the others'
@@ -3412,4 +2521,4 @@ private:
 
 } // namespace server
 
-#include "server/reuse.hpp"
+

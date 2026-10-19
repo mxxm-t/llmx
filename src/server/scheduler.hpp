@@ -2837,6 +2837,7 @@ private:
     }
 
     // Whether request r, refused beside the running jobs, would wait for a donor's write once they had gone: its room planned as `admits` plans it, the jobs' sequences counted as freed.
+    // With no forked donor in that plan it may name a write `enter` would not wait for, which costs at most one block of one job, or miss one, which leaves the job giving way as before.
     bool waits_for_write(const Request& r, const std::vector<std::shared_ptr<Request>>& active) {
         if (r.job_) return false;
         std::lock_guard<std::mutex> lk(m_);

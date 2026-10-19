@@ -1903,6 +1903,52 @@ void failed_promotion(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
                                                             std::to_string(stats.host_donors) + " donors in host memory, against 1 and 1");
 }
 
+// The next restore point down (N9 in docs/CACHE-PLAN.md): a conversation's two turns in host memory, the second's copy of 512 rows failing its promotion once, so the third turn forks the first's 256 rather than computing them.
+void next_candidate(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a promotion failing, the next restore point down";
+    std::shared_ptr<FailingCopies> failing;
+    const Make make = on(weights, [&] {
+        failing = std::make_shared<FailingCopies>();
+        failing->set_threads(1);
+        return std::vector<backend::BackendPtr>{failing};
+    });
+    const Req a{prompt_of(5, 300, vocab), 40}, filler{prompt_of(9, 800, vocab), 20};
+    Req b{a.prompt, 40}, c;
+    size_t reused = 0;
+    Reply got;
+    {
+        auto model = make(1024, 0);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (uint32_t id : ids_of(drain(*sched.submit(a.prompt, params_of(a))))) b.prompt.push_back(id);
+            const std::vector<uint32_t> more = prompt_of(6, 200, vocab);
+            b.prompt.insert(b.prompt.end(), more.begin(), more.end());
+            c = Req{b.prompt, 32};
+            for (uint32_t id : ids_of(drain(*sched.submit(b.prompt, params_of(b))))) c.prompt.push_back(id);
+            const std::vector<uint32_t> again = prompt_of(7, 30, vocab);
+            c.prompt.insert(c.prompt.end(), again.begin(), again.end());
+            // An 820-token request takes the pool, so both turns' donors go to host memory: the first's 256 prompt rows, the second's 512.
+            drain(*sched.submit(filler.prompt, params_of(filler)));
+            require(sched.stats().host_donors == 2, what + ": " + std::to_string(sched.stats().host_donors) + " donors in host memory, against 2");
+            failing->fail_writes = 1;
+            const auto f = sched.submit(c.prompt, params_of(c));
+            got = drain(*f);
+            reused = f->reused();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::cout << "server-resume: " << what << ": reused " << reused << " tokens\n";
+    require(reused == 2 * kBlock, what + ": reused " + std::to_string(reused) + " tokens, against the first turn's 256");
+    auto fresh = make(1024, 0);
+    same(serve(*fresh, tok, 3, {{c}})[0], got, what + ", the third turn");
+}
+
 void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Make one = on(weights, [] { return cpus(1); }, 3);
     const std::vector<Req> three = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
@@ -4924,6 +4970,7 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");
             host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
             failed_promotion(one, tok, vocab);
+            next_candidate(weights, tok, vocab);
             // Over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2), each reply against its run alone on one group, since a group gives its own bits: pauses, take-backs, forks and donors in host memory, each member's storage copied on its own.
             const Make group = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
             three_uncapped(group, tok, vocab, "three uncapped requests on a group of two CPUs");

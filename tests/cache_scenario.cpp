@@ -958,13 +958,32 @@ void check(const std::vector<Expectation>& table, const std::string& on_what) {
 }
 
 // A restart over kept files: two conversations each leave a turn and its read-ahead job on disk, and a new server opens the directory.
-// Two requests of the first history arrive together, and the second conversation's turn is sent again with its job after it, whose rows are on disk.
-void restart(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
-    const std::string on_what = ", a restart over kept files";
+// Two requests of the first history arrive together, the second conversation's turn is sent again with its job after it, whose rows are on disk; with `leave` the first follower leaves while both wait for the one read the test holds.
+void restart(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool leave) {
+    const std::string on_what = std::string(", a restart over kept files") + (leave ? ", one follower leaving the read" : "");
     // A pool of two of the scenario's, so each job finds the spare room it starts only in beside both conversations' donors.
-    DiskRoot disk("scenario-restart");
+    DiskRoot disk(leave ? "scenario-restart-leave" : "scenario-restart");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
+    // The reads' chunks wait while `held`.
+    struct Hold {
+        std::mutex m;
+        std::condition_variable cv;
+        bool held = false;
+    };
+    auto hold = std::make_shared<Hold>();
+    options.fault = [hold](const char* step) {
+        std::unique_lock<std::mutex> lk(hold->m);
+        if (std::string(step) == "read") hold->cv.wait(lk, [&] { return !hold->held; });
+        return false;
+    };
+    const auto held = [&](bool on) {
+        {
+            std::lock_guard<std::mutex> lk(hold->m);
+            hold->held = on;
+        }
+        hold->cv.notify_all();
+    };
     // A read is waited for whatever this runner computes a row in, so the leg counts reads and not a race with the bound.
     options.read_wait = std::chrono::seconds(60);
     const Req one{prompt_of(21, 600, v), (int)kReply}, two{prompt_of(31, 600, v), (int)kReply};
@@ -986,10 +1005,30 @@ void restart(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
     // Two followers of the first history, which is on disk alone.
     const Req next{joined(ids_one, prompt_of(23, 60, v)), (int)kReply};
     Handle a, b;
+    held(leave);
     {
         std::lock_guard<std::mutex> lk(after.submitting);
         a = after.sched->submit(next.prompt, params_of(next));
         b = after.sched->submit(next.prompt, params_of(next));
+    }
+    if (leave) {
+        try {
+            within_a_minute([&] { return after.sched->stats().disk_waits >= 2; }, "the restart leg: both followers waiting for the read");
+            a->cancel();
+            collect(*a);
+            require(a->finish() == "cancel", "cache-scenario" + on_what + ": the follower that left ended with " + a->finish());
+        } catch (...) {
+            held(false);
+            throw;
+        }
+        held(false);
+        const Reply rb = drain(*b);
+        const size_t reads = after.count(server::Move::read_started);
+        std::cout << "cache-scenario" << on_what << ": the other follower reused " << b->reused() << " of " << point << " with " << reads << " reads from disk\n";
+        require(reads == 1 && b->reused() == point, "cache-scenario" + on_what + ": " + std::to_string(reads) + " reads and the other follower reusing " + std::to_string(b->reused()) + ", against 1 and " + std::to_string(point));
+        auto fresh = make(kPool, 64);
+        same(serve(*fresh, tok, 4, {{next}})[0], rb, "cache-scenario" + on_what + ": the other follower's reply");
+        return;
     }
     const Reply ra = drain(*a), rb = drain(*b);
     const size_t reads = after.count(server::Move::read_started);
@@ -1005,11 +1044,11 @@ void restart(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
     std::vector<Expectation> table;
     // A follower whose read ends after the other's prompt has passed the history forks that request instead, so it may reuse more.
     table.push_back({"after a restart a turn reads its history and does not recompute", "P4", true, a->reused() >= point && b->reused() >= point});
-    table.push_back({"two followers of one history on disk share one read", "P2", false, reads == 1});
-    table.push_back({"after a restart a job reads and does not recompute", "P4", false, job_rows == 0});
-    require(reads == 2 && q->reused() == 512 && job_rows == 256 && job_reads == 0,
+    table.push_back({"two followers of one history on disk share one read", "P2", true, reads == 1});
+    table.push_back({"after a restart a job reads and does not recompute", "P4", true, job_rows == 0});
+    require(reads == 1 && q->reused() == 512 && job_rows == 0 && job_reads == 1,
             "the restart leg's witness: " + std::to_string(reads) + " reads for the two followers, the turn sent again reusing " + std::to_string(q->reused()) + ", its job reading " + std::to_string(job_rows) + " rows with " +
-                std::to_string(job_reads) + " reads, against 2, 512, 256 and 0");
+                std::to_string(job_reads) + " reads, against 1, 512, 0 and 1");
     check(table, on_what);
     auto fresh = make(kPool, 64);
     const std::vector<Reply> alone = serve(*fresh, tok, 4, {{next}, {two}});
@@ -1224,7 +1263,7 @@ int main(int argc, char** argv) {
             for (const bool capped : {false, true}) slow_write_wait(weights, tok, (uint32_t)kCpu.vocab, capped);
             first_write_wait(weights, tok, (uint32_t)kCpu.vocab);
             pool_past_context(one, tok, (uint32_t)kCpu.vocab);
-            restart(one, tok, (uint32_t)kCpu.vocab);
+            for (const bool leave : {false, true}) restart(one, tok, (uint32_t)kCpu.vocab, leave);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const bool room : {true, false}) many_users(one, tok, (uint32_t)kCpu.vocab, room);
             for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(one, tok, (uint32_t)kCpu.vocab, mode);

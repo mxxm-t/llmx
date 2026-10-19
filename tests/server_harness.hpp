@@ -393,8 +393,10 @@ inline std::vector<backend::BackendPtr> cpus(size_t n) {
 }
 
 // A CPU backend whose copies into or out of its host-visible memory throw once `fail_read` or `fail_write` is set, as a copy to or from host memory that fails does (Model::save_host, Model::restore_host); every other copy runs.
+// `fail_writes` copies out of host memory throw, one each, beside `fail_write`.
 struct FailingCopies : backend::CpuBackend {
     std::atomic<bool> fail_read{false}, fail_write{false};
+    size_t fail_writes = 0;
     std::mutex m;
     std::vector<const backend::Buffer*> host;
     backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
@@ -408,7 +410,10 @@ struct FailingCopies : backend::CpuBackend {
             std::lock_guard<std::mutex> lock(m);
             const auto in = [&](const backend::Buffer* b) { return std::find(host.begin(), host.end(), b) != host.end(); };
             if (fail_read && in(&dst)) throw std::runtime_error("injected read failure");
-            if (fail_write && in(&src)) throw std::runtime_error("injected write failure");
+            if (in(&src) && (fail_write || fail_writes)) {
+                if (fail_writes) --fail_writes;
+                throw std::runtime_error("injected write failure");
+            }
         }
         CpuBackend::copy(dst, dst_off, src, src_off, bytes);
     }

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
@@ -101,11 +102,11 @@ struct Growth {
     static bool yields(size_t taken, size_t turn, bool waiting, bool kept) { return waiting && kept && taken >= turn; }
 };
 
-// A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks it has reserved, those its history would keep as a donor once paused, per pool, and whether a pass in flight holds it.
+// A running request as make_room sees it: its first admission, whether it may be paused (an uncapped one), the blocks its history would keep as a donor once paused, per pool, and whether a pass in flight holds it.
 struct Holder {
     uint64_t admission;
     bool uncapped;
-    std::vector<size_t> need, kept;
+    std::vector<size_t> kept;
     bool flying = false;
 };
 
@@ -118,33 +119,28 @@ struct Taken {
     std::vector<std::pair<size_t, bool>> paused;
 };
 
-// Who gives up blocks for whom, the one owner of that rule (docs/SERVER.md, room by first admission): for `need` more blocks per pool, donors go first, oldest first, the one the request forks (`keep`) last or, with `keep_first`, first.
+// What dropping the victims of a plan together frees, per pool: asked of the whole set of victims so far, never of one victim alone, since two forks of one prefix free it only together (Model::freed).
+using Gain = std::function<std::vector<size_t>(const Taken&)>;
+
+// Who gives up blocks for whom (docs/SERVER.md, room by first admission): for `need` blocks a pool beside `free`, donors go first, oldest first, the one the request forks (`keep`) last or, with `keep_first`, first.
 // Only growth (`preempt`) then pauses uncapped requests admitted after `after`, latest first, each giving its headroom and, if still short, its donor; nothing is taken unless the whole is enough.
-inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t>& reserved, const std::vector<std::vector<size_t>>& donors,
-                       size_t keep, bool keep_first, const std::vector<Holder>& active, uint64_t after, bool preempt,
-                       const std::vector<size_t>& need) {
-    std::vector<size_t> free(pool.size());
-    for (size_t s = 0; s < pool.size(); ++s) free[s] = pool[s] - reserved[s];
+inline Taken make_room(const std::vector<size_t>& free, size_t donors, size_t keep, bool keep_first, const std::vector<Holder>& active, uint64_t after, bool preempt,
+                       const std::vector<size_t>& need, const Gain& gain) {
+    Taken t;
+    const auto gained = [&] { return t.donors.empty() && t.paused.empty() ? std::vector<size_t>(need.size()) : gain(t); };
     const auto fits = [&] {
+        const std::vector<size_t> g = gained();
         for (size_t s = 0; s < need.size(); ++s)
-            if (need[s] > free[s]) return false;
+            if (need[s] > (s < free.size() ? free[s] : 0) + (s < g.size() ? g[s] : 0)) return false;
         return true;
     };
-    const auto gain = [&](const std::vector<size_t>& b, const std::vector<size_t>& less) {
-        for (size_t s = 0; s < free.size(); ++s) {
-            const size_t l = s < less.size() ? less[s] : 0, v = s < b.size() ? b[s] : 0;
-            free[s] += v > l ? v - l : 0;
-        }
-    };
-    Taken t;
     t.enough = fits();
     std::vector<size_t> order;
-    if (keep < donors.size() && keep_first) order.push_back(keep);
-    for (size_t d = 0; d < donors.size(); ++d)
+    if (keep < donors && keep_first) order.push_back(keep);
+    for (size_t d = 0; d < donors; ++d)
         if (d != keep) order.push_back(d);
-    if (keep < donors.size() && !keep_first) order.push_back(keep);
+    if (keep < donors && !keep_first) order.push_back(keep);
     for (size_t i = 0; i < order.size() && !t.enough; ++i) {
-        gain(donors[order[i]], {});
         t.donors.push_back(order[i]);
         t.enough = fits();
     }
@@ -155,16 +151,26 @@ inline Taken make_room(const std::vector<size_t>& pool, const std::vector<size_t
         std::sort(later.begin(), later.end(), [&](size_t a, size_t b) { return active[a].admission > active[b].admission; });
         for (size_t i = 0; i < later.size() && !t.enough; ++i) {
             const Holder& h = active[later[i]];
-            gain(h.need, h.kept);
             t.paused.push_back({later[i], false});
             t.wait = t.wait || h.flying;
             if ((t.enough = fits()) || std::all_of(h.kept.begin(), h.kept.end(), [](size_t b) { return b == 0; })) continue;
-            gain(h.kept, {});
             t.paused.back().second = true;
             t.enough = fits();
         }
     }
     if (!t.enough) return Taken{};
+    // A donor that frees nothing beside the other victims goes back, so one whose blocks a fork keeps is not taken for nothing; the order above stands for every other.
+    const auto same = [](const std::vector<size_t>& a, const std::vector<size_t>& b) {
+        for (size_t s = 0; s < std::max(a.size(), b.size()); ++s)
+            if ((s < a.size() ? a[s] : 0) != (s < b.size() ? b[s] : 0)) return false;
+        return true;
+    };
+    for (size_t i = t.donors.size(); i-- > 0;) {
+        const std::vector<size_t> with = gained();
+        const size_t d = t.donors[i];
+        t.donors.erase(t.donors.begin() + (std::ptrdiff_t)i);
+        if (!same(gained(), with)) t.donors.insert(t.donors.begin() + (std::ptrdiff_t)i, d);
+    }
     return t;
 }
 

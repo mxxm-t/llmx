@@ -172,8 +172,8 @@ void take_back_follow_up(const Make& make, const bpe::Tokenizer& tok, uint32_t v
             std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
 }
 
-// B and capped C fork the first block of the setup's 200-token prompt; on 14 blocks B cannot take its step at 512 tokens beside A and C, and A's step pauses B and takes its donor, so once C ends only C's donor holds that block.
-// B forks that block, computed as its own was, and recomputes the other 384 rows in their classes.
+// B and capped C fork the first block of the setup's 200-token prompt; on 14 blocks B's step at 512 takes the setup's donor and A's step at 384 pauses B at 532, so once C ends only C's donor holds that block.
+// B forks that block, computed as its own was, and recomputes the other 404 rows in their classes.
 void partial_eviction(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 14 * kBlock;
     const Req setup{prompt_of(7, 200, vocab), 4};
@@ -186,13 +186,13 @@ void partial_eviction(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     const Req a{prompt_of(1, 40, vocab)}, c{after_shared(3, 12), 380};
     const Req b = stopping(make, tok, pool, {setup}, Req{after_shared(2, 60)}, 420);
     const auto s = alone_then_together(make, tok, pool, 0, 3, {setup}, {a, b, c}, "a paused request whose donor went, part of its history kept");
-    require(s.pauses == 1 && s.taken_back == 0 && s.recomputed == 512 - kBlock,
+    require(s.pauses == 1 && s.taken_back == 0 && s.recomputed == 532 - kBlock,
             "a paused request with part of its history kept: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " +
-            std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 384");
+            std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 404");
 }
 
 // A donor that matches a paused request's history by tokens further than by how it was computed: C's prompt is B's prompt and B's first 80 tokens alone, so C's donor holds B's generated rows 188 to 268 as prompt rows.
-// Paused as in partial_eviction, B must fork only the first block, which both computed as the setup's prompt, and recompute the other 384 rows.
+// Paused as in partial_eviction, B must fork only the first block, which both computed as the setup's prompt, and recompute the other 404 rows.
 void fork_within_class(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const size_t pool = 14 * kBlock;
     const Req setup{prompt_of(7, 200, vocab), 4};
@@ -207,9 +207,9 @@ void fork_within_class(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     longer.insert(longer.end(), reply.begin(), reply.begin() + 80);
     const Req a{prompt_of(1, 40, vocab)}, c{longer, 370};
     const auto s = alone_then_together(make, tok, pool, 0, 3, {setup}, {a, b, c}, "a paused request beside a donor holding its reply as prompt rows");
-    require(s.pauses == 1 && s.taken_back == 0 && s.recomputed == 512 - kBlock,
+    require(s.pauses == 1 && s.taken_back == 0 && s.recomputed == 532 - kBlock,
             "a paused request beside a donor holding its reply as prompt rows: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) +
-            " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 384");
+            " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 0 and 404");
 }
 
 // B paused as in take_back, its donor intact, and cancelled from the scheduler's thread at the first pass retired after the pause: it ends where it waits, taking nothing back, and A and C finish as they do alone.
@@ -2671,7 +2671,7 @@ struct HeldAttention : backend::CpuBackend {
                 } else {
                     held = true;
                     cv.notify_all();
-                    cv.wait(lk, [&] { return open; });
+                    cv.wait(lk, [&] { return open || !held; });
                 }
             }
         }
@@ -2682,47 +2682,74 @@ struct HeldAttention : backend::CpuBackend {
         skip = past;
         armed = true;
     }
-    // Waits, up to a bound only a hang reaches, until a call is held; then `act` runs and the call goes on.
-    void act_while_held(const std::function<void()>& act, const std::string& what) {
+    // Waits, up to a bound only a hang reaches, until a call is held.
+    void wait_held(const std::string& what) {
+        std::unique_lock<std::mutex> lk(m);
+        require(cv.wait_for(lk, std::chrono::minutes(10), [&] { return held; }), what + ": no pass held within ten minutes");
+    }
+    // Lets the held call go and holds the next one.
+    void release() {
         {
-            std::unique_lock<std::mutex> lk(m);
-            require(cv.wait_for(lk, std::chrono::minutes(10), [&] { return held; }), what + ": no pass held within ten minutes");
+            std::lock_guard<std::mutex> lk(m);
+            held = false;
         }
-        act();
+        cv.notify_all();
+    }
+    // Lets every call go from now on.
+    void open_all() {
         {
             std::lock_guard<std::mutex> lk(m);
             open = true;
         }
         cv.notify_all();
     }
+    // Lets held calls go one at a time until `ready` holds at one; the scheduler's rounds run between held calls, so `ready` sees each round's end.
+    void hold_until(const std::function<bool()>& ready, const std::string& what) {
+        for (size_t calls = 0; !ready(); ++calls) {
+            require(calls < 1000000, what + ": not ready within a million held calls");
+            release();
+            wait_held(what);
+        }
+    }
 };
 
-// A stop under --disk-cache-keep while a hybrid conversation's read-again job is in flight (the 27B restart leg of 2026-10-18): the job consumed the turn's donor, so it alone holds the conversation's rows.
-// On a pool of four blocks the job takes the donor's blocks, and its first pass's attention is held while the stop is taken; the restart's follow-up must fork the job's whole blocks, with its reply on a fresh model.
-void stop_keeps_job(const gguf::GGUFModel& mixed) {
-    const std::string what = "a stop with a job in flight";
-    const bpe::Tokenizer tok(mixed);
-    const uint32_t vocab = (uint32_t)kHybrid.vocab;
-    const Make plain = on(mixed, [] { return cpus(1); }, 3, 3);
+// Three conversations of 140 tokens, each ending its turn after one token: their donors fill the donor count of a scheduler of three, so the last one's park drops the oldest donor whose conversation did not come back.
+std::vector<std::shared_ptr<server::Request>> other_turns(server::Scheduler& sched, uint32_t vocab) {
+    std::vector<std::shared_ptr<server::Request>> others;
+    for (uint32_t k = 0; k < 3; ++k) others.push_back(sched.submit(prompt_of(20 + k, 140, vocab), params_of(Req{{}, 1})));
+    return others;
+}
+
+// A stop under --disk-cache-keep while a read-again job is in flight (the 27B restart leg of 2026-10-18); beside its donor, on the hybrid model and four blocks, the job shares every block of the turn's donor.
+// `lone`, on the synthetic model, it reads 1000 more ids while three other turns end, so the donor count drops the turn's donor and only the job holds the rows past its 256.
+void stop_keeps_job(const gguf::GGUFModel& weights, uint32_t vocab, bool lone) {
+    const std::string what = lone ? "a stop with a job in flight holding its history alone" : "a stop with a job in flight beside its donor";
+    const bpe::Tokenizer tok(weights);
+    const Make plain = on(weights, [] { return cpus(1); }, 3, 3);
+    const size_t pool = lone ? 24 * kBlock : 4 * kBlock;
     const Req a{prompt_of(5, 300, vocab), 100};
     std::vector<uint32_t> ids = a.prompt;
     {
-        auto model = plain(512, 16);
+        auto model = plain(pool, 16);
         for (uint32_t id : ids_of(serve(*model, tok, 3, {{a}})[0])) ids.push_back(id);
     }
     ids.push_back(1);
     ids.push_back(2);
+    if (lone) {
+        const std::vector<uint32_t> tail = prompt_of(9, 1000, vocab);
+        ids.insert(ids.end(), tail.begin(), tail.end());
+    }
     Req follow{ids, 32};
     const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
     follow.prompt.insert(follow.prompt.end(), more.begin(), more.end());
-    DiskRoot disk("stop-job");
+    DiskRoot disk(lone ? "stop-job-lone" : "stop-job");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.read_wait = std::chrono::seconds(60);
     {
         auto gate = std::make_shared<HeldAttention>();
         gate->set_threads(1);
-        auto model = on(mixed, [gate] { return std::vector<backend::BackendPtr>{gate}; }, 3, 3)(512, 16);
+        auto model = on(weights, [gate] { return std::vector<backend::BackendPtr>{gate}; }, 3, 3)(pool, 16);
         server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
         try {
@@ -2731,24 +2758,31 @@ void stop_keeps_job(const gguf::GGUFModel& mixed) {
             drain(*h);
             gate->arm(0);
             sched.follow(h, ids, true);
-            gate->act_while_held([&] {
-                const auto st = sched.stats();
-                require(st.moves[(size_t)server::Move::job_started] >= 1 && st.moves[(size_t)server::Move::consumed] >= 1 && !st.reprefills, what + ": the held pass is not the job's, having taken its donor over");
-                sched.stop();
-            }, what);
-        } catch (...) {
-            {
-                std::lock_guard<std::mutex> lk(gate->m);
-                gate->open = true;
+            gate->wait_held(what);
+            std::vector<std::shared_ptr<server::Request>> turns;
+            if (lone) {
+                turns = other_turns(sched, vocab);
+                // Held until the others have ended and the job, which reads to its ids' last whole block, has read past 512, two blocks more than the turn's donor holds as prompt rows.
+                gate->hold_until([&] {
+                    const auto st = sched.stats();
+                    return st.moves[(size_t)server::Move::parked] >= 4 && st.job_rows_left <= ids.size() / kBlock * kBlock - 4 * kBlock;
+                }, what);
             }
-            gate->cv.notify_all();
+            const auto st = sched.stats();
+            require(st.moves[(size_t)server::Move::job_started] >= 1 && !st.moves[(size_t)server::Move::consumed] && !st.reprefills && st.jobs == 1 && st.job_rows_left > 0,
+                    what + ": the held pass is not the job's, its donor not consumed");
+            require(!lone || st.donors == 3, what + ": " + std::to_string(st.donors) + " donors once three other turns ended, against the donor count of 3");
+            sched.stop();
+            gate->open_all();
+        } catch (...) {
+            gate->open_all();
             sched.stop();
             runner.join();
             throw;
         }
         runner.join();
     }
-    auto model = plain(512, 16);
+    auto model = plain(pool, 16);
     server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
     std::thread runner([&] { sched.run(); });
     size_t reused = 0;
@@ -2765,56 +2799,63 @@ void stop_keeps_job(const gguf::GGUFModel& mixed) {
     }
     sched.stop();
     runner.join();
-    require(reused >= 2 * kBlock, what + ": the follow-up after the restart reused " + std::to_string(reused) + " tokens, against the 256 the job held");
-    auto fresh = plain(512, 16);
+    const size_t held = (lone ? 4 : 2) * kBlock;
+    require(reused >= held, what + ": the follow-up after the restart reused " + std::to_string(reused) + " tokens, against the " + std::to_string(held) + " the job held");
+    auto fresh = plain(pool, 16);
     same(serve(*fresh, tok, 3, {{follow}})[0], got, what + ", the follow-up");
     std::cout << "server-resume: " << what << ": the follow-up after the restart reused " << reused << " tokens" << std::endl;
 }
 
-// A stop under --disk-cache-keep while a hybrid follow-up turn is mid-reply, its admission having taken the conversation's donor over for room: the request alone holds the history.
-// On seven blocks the follow-up needs the donor's two blocks too, and its 41st attention call, past its prompt's passes and inside its reply, is held while the stop is taken; the restart's next turn must fork the prompt's whole blocks.
-void stop_keeps_request(const gguf::GGUFModel& mixed) {
-    const std::string what = "a stop with a request mid-reply that took its donor over";
-    const bpe::Tokenizer tok(mixed);
-    const uint32_t vocab = (uint32_t)kHybrid.vocab;
-    const Make plain = on(mixed, [] { return cpus(1); }, 3, 3);
-    const size_t pool = 7 * kBlock;
+// A stop under --disk-cache-keep while a follow-up turn is mid-reply; beside its donor, on the hybrid model and seven blocks, its 41st attention call, inside its reply, is held for the stop.
+// `lone`, on the synthetic model, its prompt passes 512 and three other turns end while it replies, so the donor count drops the conversation's donor and only the request holds the prompt past its 256.
+void stop_keeps_request(const gguf::GGUFModel& weights, uint32_t vocab, bool lone) {
+    const std::string what = lone ? "a stop with a request mid-reply holding its history alone" : "a stop with a request mid-reply beside its donor";
+    const bpe::Tokenizer tok(weights);
+    const Make plain = on(weights, [] { return cpus(1); }, 3, 3);
+    const size_t pool = (lone ? 24 : 7) * kBlock;
     const Req a{prompt_of(5, 300, vocab), 20};
     Req b{a.prompt, 300};
     {
         auto model = plain(pool, 16);
         for (uint32_t id : ids_of(serve(*model, tok, 3, {{a}})[0])) b.prompt.push_back(id);
     }
-    const std::vector<uint32_t> more = prompt_of(6, 30, vocab), again = prompt_of(8, 20, vocab);
+    const std::vector<uint32_t> more = prompt_of(6, lone ? 200 : 30, vocab), again = prompt_of(8, 20, vocab);
     b.prompt.insert(b.prompt.end(), more.begin(), more.end());
     Req c{b.prompt, 16};
     c.prompt.insert(c.prompt.end(), again.begin(), again.end());
-    DiskRoot disk("stop-request");
+    DiskRoot disk(lone ? "stop-request-lone" : "stop-request");
     server::DiskOptions options = disk.options(uint64_t(1) << 30);
     options.keep = true;
     options.read_wait = std::chrono::seconds(60);
     {
         auto gate = std::make_shared<HeldAttention>();
         gate->set_threads(1);
-        auto model = on(mixed, [gate] { return std::vector<backend::BackendPtr>{gate}; }, 3, 3)(pool, 16);
+        auto model = on(weights, [gate] { return std::vector<backend::BackendPtr>{gate}; }, 3, 3)(pool, 16);
         server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
         std::thread runner([&] { sched.run(); });
         try {
             within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
             drain(*sched.submit(a.prompt, params_of(a)));
-            gate->arm(40);
+            gate->arm(lone ? 0 : 40);
             const auto h = sched.submit(b.prompt, params_of(b));
-            gate->act_while_held([&] {
-                const auto st = sched.stats();
-                require(st.moves[(size_t)server::Move::consumed] >= 1 && st.published_tokens > (uint64_t)a.cap, what + ": the held pass is not the follow-up's reply, having taken its donor over");
-                sched.stop();
-            }, what);
-        } catch (...) {
-            {
-                std::lock_guard<std::mutex> lk(gate->m);
-                gate->open = true;
+            gate->wait_held(what);
+            // The others' turns publish one token each.
+            const uint64_t others = lone ? 3 : 0;
+            std::vector<std::shared_ptr<server::Request>> turns;
+            if (lone) {
+                turns = other_turns(sched, vocab);
+                gate->hold_until([&] {
+                    const auto st = sched.stats();
+                    return st.moves[(size_t)server::Move::parked] >= 4 && st.published_tokens > (uint64_t)a.cap + others;
+                }, what);
             }
-            gate->cv.notify_all();
+            const auto st = sched.stats();
+            require(!st.moves[(size_t)server::Move::consumed] && st.active == 1 && st.published_tokens > (uint64_t)a.cap + others, what + ": the held pass is not the follow-up's reply, its donor not consumed");
+            require(!lone || st.donors == 3, what + ": " + std::to_string(st.donors) + " donors once three other turns ended, against the donor count of 3");
+            sched.stop();
+            gate->open_all();
+        } catch (...) {
+            gate->open_all();
             sched.stop();
             runner.join();
             throw;
@@ -2838,7 +2879,8 @@ void stop_keeps_request(const gguf::GGUFModel& mixed) {
     }
     sched.stop();
     runner.join();
-    require(reused >= 2 * kBlock, what + ": the next turn after the restart reused " + std::to_string(reused) + " tokens, against the prompt's 256 the request held");
+    const size_t held = (lone ? 4 : 2) * kBlock;
+    require(reused >= held, what + ": the next turn after the restart reused " + std::to_string(reused) + " tokens, against the prompt's " + std::to_string(held) + " the request held");
     auto fresh = plain(pool, 16);
     same(serve(*fresh, tok, 3, {{c}})[0], got, what + ", the next turn");
     std::cout << "server-resume: " << what << ": the next turn after the restart reused " << reused << " tokens" << std::endl;
@@ -4834,8 +4876,10 @@ int main(int argc, char** argv) {
             shorter_boundary_with_rows(mixed);
             for (const bool spare : {true, false}) state_read_keeps_its_rows(mixed, spare);
             for (const bool no_memory : {false, true}) lost_restore_points(mixed, no_memory);
-            stop_keeps_job(mixed);
-            stop_keeps_request(mixed);
+            for (bool lone : {false, true}) {
+                stop_keeps_job(lone ? weights : mixed, lone ? vocab : (uint32_t)kHybrid.vocab, lone);
+                stop_keeps_request(lone ? weights : mixed, lone ? vocab : (uint32_t)kHybrid.vocab, lone);
+            }
             for (const Take arm : {Take::follow, Take::one_seat, Take::in_flight, Take::first_leaves, Take::edited, Take::unrelated}) {
                 request_takes_job(one, tok, vocab, arm, "");
                 request_takes_job(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, arm, ", a model keeping a state");

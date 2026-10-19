@@ -99,6 +99,43 @@ inline bool Model::keep(Sequence& s) {
 }
 
 // The position of the sequence's checkpoint, which a fork of it takes and a retract reaches.
+inline std::vector<size_t> Model::kv_free() const {
+    std::vector<size_t> f;
+    for (const Device* d : storages_) f.push_back(d->pool.max_blocks() - d->pool.in_use());
+    return f;
+}
+
+inline std::vector<size_t> Model::kv_held(const Sequence& q) const {
+    std::vector<size_t> h(storages_.size(), 0);
+    for (size_t s = 0; s < h.size() && s < q.kv_.size(); ++s) h[s] = q.kv_[s].n_blocks();
+    return h;
+}
+
+// Each pool's references from the set are counted against the pool's own, so a block another sequence holds, or the fork still to be made would share, is not freed.
+inline Model::Freed Model::freed(const std::vector<const Sequence*>& set, const Sequence* kept, size_t kept_len) const {
+    Freed f;
+    f.blocks.assign(storages_.size(), 0);
+    for (size_t s = 0; s < storages_.size(); ++s) {
+        const BlockPool& pool = storages_[s]->pool;
+        std::vector<uint32_t> refs(pool.max_blocks(), 0);
+        for (const Sequence* q : set)
+            if (q && s < q->kv_.size())
+                for (int32_t id : q->kv_[s].blocks()) ++refs[(size_t)id];
+        if (kept && s < kept->kv_.size()) {
+            const std::vector<int32_t>& b = kept->kv_[s].blocks();
+            for (size_t i = 0; i < b.size() && i < backend::blocks_for(kept_len, kv_pool_block_tokens(s)); ++i) refs[(size_t)b[i]] = 0;
+        }
+        for (size_t id = 0; id < refs.size(); ++id) f.blocks[s] += refs[id] && refs[id] == pool.refs((int32_t)id);
+    }
+    if (!state_layers_) return f;
+    std::vector<uint32_t> held(slots_.refs_size(), 0);
+    for (const Sequence* q : set)
+        if (q && q->kept_.held()) ++held[q->kept_.slot()];
+    if (kept && kept->kept_.held()) held[kept->kept_.slot()] = 0;
+    for (size_t slot = 0; slot < held.size(); ++slot) f.slots += held[slot] && held[slot] == slots_.refs(slot);
+    return f;
+}
+
 inline std::optional<size_t> Model::checkpoint(const Sequence& s) const {
     if (!s.kept_.held()) return std::nullopt;
     return s.kept_.pos();

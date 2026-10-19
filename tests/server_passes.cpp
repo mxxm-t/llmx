@@ -24,6 +24,22 @@ void require(bool ok, const std::string& what) {
 
 constexpr size_t npos = (size_t)-1;
 
+// make_room over counts that share nothing, as the simulation's ledger keeps them: a donor gives its blocks, a paused request its reservation (`needs`) less what it keeps, and with its donor that too.
+server::Taken room_of(const std::vector<size_t>& pool, const std::vector<size_t>& reserved, const std::vector<std::vector<size_t>>& donors, size_t keep, bool keep_first, const std::vector<server::Holder>& active,
+                      const std::vector<std::vector<size_t>>& needs, uint64_t after, bool preempt, const std::vector<size_t>& need) {
+    std::vector<size_t> free(pool.size());
+    for (size_t s = 0; s < pool.size(); ++s) free[s] = pool[s] - reserved[s];
+    return server::make_room(free, donors.size(), keep, keep_first, active, after, preempt, need, [&](const server::Taken& t) {
+        std::vector<size_t> g(pool.size(), 0);
+        for (size_t d : t.donors) server::add(g, donors[d]);
+        for (const auto& [i, with] : t.paused) {
+            server::add(g, server::less(needs[i], active[i].kept));
+            if (with) server::add(g, active[i].kept);
+        }
+        return g;
+    });
+}
+
 // The scheduler's round over the policy core, driven by a simulated executor: stage s runs on device s for a random time, the host waiting for a handoff before recording the next stage and for a last stage before it samples.
 // The pools, the growth rule, make_room, the round's stages and the logits rows are the scheduler's own functions, and the order of the round's steps is the scheduler's run restated here.
 struct Sim {
@@ -223,8 +239,13 @@ struct Sim {
     std::vector<server::Holder> holders() const {
         std::vector<server::Holder> h;
         for (const Req& r : active)
-            h.push_back({r.admission, r.uncapped, r.need, r.len ? blocks_for(r.len) : std::vector<size_t>(pools.blocks.size(), 0), r.slot != npos});
+            h.push_back({r.admission, r.uncapped, r.len ? blocks_for(r.len) : std::vector<size_t>(pools.blocks.size(), 0), r.slot != npos});
         return h;
+    }
+    std::vector<std::vector<size_t>> needs() const {
+        std::vector<std::vector<size_t>> n;
+        for (const Req& r : active) n.push_back(r.need);
+        return n;
     }
     std::vector<std::vector<size_t>> donor_blocks() const {
         std::vector<std::vector<size_t>> b;
@@ -325,7 +346,7 @@ struct Sim {
         const bool take = own < donors.size();
         const size_t keep = take ? own : !donors.empty() && rng() % 2 ? rng() % donors.size() : npos;
         const bool keep_first = take || (keep < donors.size() && rng() % 2);
-        const server::Taken t = server::make_room(pools.blocks, reserved, donor_blocks(), keep, keep_first, holders(), 0, false, need);
+        const server::Taken t = room_of(pools.blocks, reserved, donor_blocks(), keep, keep_first, holders(), needs(), 0, false, need);
         if (!t.enough) {
             // Refused, so even every donor would not do.
             std::vector<size_t> all = reserved;
@@ -504,7 +525,7 @@ struct Sim {
             if (w && growth.yields(r.edge, turn_steps, true, tier)) {
                 std::vector<size_t> held = reserved;
                 sub(held, r.need);
-                if (server::make_room(pools.blocks, held, donor_blocks(), npos, false, {}, 0, false, blocks_for(growth.entry(w->history(), true, 0, w->gen))).enough) {
+                if (room_of(pools.blocks, held, donor_blocks(), npos, false, {}, {}, 0, false, blocks_for(growth.entry(w->history(), true, 0, w->gen))).enough) {
                     const uint64_t first = w->id, self = r.id;
                     pause(i--, true);
                     require(paused.back().id == self, at + ": a request that gave the edge up is not last in the line");
@@ -512,7 +533,7 @@ struct Sim {
                     continue;
                 }
             }
-            const server::Taken t = server::make_room(pools.blocks, reserved, donor_blocks(), npos, false, holders(), r.admission, true, step);
+            const server::Taken t = room_of(pools.blocks, reserved, donor_blocks(), npos, false, holders(), needs(), r.admission, true, step);
             require(t.paused.size() <= 1, at + ": a growth plan paused " + std::to_string(t.paused.size()) + " requests, though one uncapped request's reservation holds a step");
             if (i == 0 && waiter == r.id) {
                 if (find(waited) == npos || active[find(waited)].slot == npos) {
@@ -768,32 +789,55 @@ struct Sim {
 void rooms_by_hand() {
     const std::vector<size_t> pool{10};
     const std::vector<std::vector<size_t>> donors{{2}, {3}};
-    auto t = server::make_room(pool, {4}, donors, npos, false, {}, 0, false, {1});
+    auto t = room_of(pool, {4}, donors, npos, false, {}, {}, 0, false, {1});
     require(t.enough && t.donors.empty(), "a request that fits took something");
-    t = server::make_room(pool, {9}, donors, npos, false, {}, 0, false, {7});
+    t = room_of(pool, {9}, donors, npos, false, {}, {}, 0, false, {7});
     require(!t.enough && t.donors.empty(), "a request that cannot fit took donors");
-    t = server::make_room(pool, {9}, donors, 0, false, {}, 0, false, {5});
+    t = room_of(pool, {9}, donors, 0, false, {}, {}, 0, false, {5});
     require(t.enough && t.donors == std::vector<size_t>({1, 0}), "the donor a request forks did not go last");
-    t = server::make_room(pool, {9}, donors, 1, true, {}, 0, false, {3});
+    t = room_of(pool, {9}, donors, 1, true, {}, {}, 0, false, {3});
     require(t.enough && t.donors == std::vector<size_t>({1}), "the donor a request shares whole did not go first");
-    std::vector<server::Holder> active{{1, true, {2}, {1}}, {2, false, {2}, {1}}, {3, true, {3}, {2}}, {4, true, {2}, {0}}};
-    t = server::make_room(pool, {10}, {}, npos, false, active, 1, true, {3});
+    t = room_of(pool, {9}, donors, npos, false, {}, {}, 0, false, {4});
+    require(t.enough && t.donors == std::vector<size_t>({0, 1}), "donors did not go oldest first, the newer alone sparing the oldest");
+    t = room_of(pool, {9}, {{0}, {3}}, 0, true, {}, {}, 0, false, {3});
+    require(t.enough && t.donors == std::vector<size_t>({1}), "a donor freeing nothing beside the others was taken");
+    std::vector<server::Holder> active{{1, true, {1}}, {2, false, {1}}, {3, true, {2}}, {4, true, {0}}};
+    const std::vector<std::vector<size_t>> needs{{2}, {2}, {3}, {2}};
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 1, true, {3});
     require(t.enough && !t.wait && t.paused == std::vector<std::pair<size_t, bool>>({{3, false}, {2, false}}), "growth did not pause the latest uncapped requests after it, headroom first");
-    t = server::make_room(pool, {10}, {}, npos, false, active, 1, true, {5});
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 1, true, {5});
     require(t.enough && t.paused == std::vector<std::pair<size_t, bool>>({{3, false}, {2, true}}), "a paused request's donor did not go when its headroom was short");
-    t = server::make_room(pool, {10}, {}, npos, false, active, 1, false, {1});
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 1, false, {1});
     require(!t.enough && t.paused.empty(), "admission paused a request");
-    t = server::make_room(pool, {10}, {}, npos, false, active, 3, true, {3});
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 3, true, {3});
     require(!t.enough && t.paused.empty(), "a request paused one admitted before it or a capped one");
     active[2].flying = true;
-    t = server::make_room(pool, {10}, {}, npos, false, active, 1, true, {3});
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 1, true, {3});
     require(t.enough && t.wait && t.paused == std::vector<std::pair<size_t, bool>>({{3, false}, {2, false}}), "a plan pausing a request in flight did not wait");
-    t = server::make_room(pool, {10}, {}, npos, false, active, 1, true, {2});
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 1, true, {2});
     require(t.enough && !t.wait && t.paused == std::vector<std::pair<size_t, bool>>({{3, false}}), "a plan pausing only requests not in flight waited");
     active[2].flying = false;
     active[1].flying = true;
-    t = server::make_room(pool, {10}, {}, npos, false, active, 1, true, {3});
+    t = room_of(pool, {10}, {}, npos, false, active, needs, 1, true, {3});
     require(t.enough && !t.wait, "a capped request in flight held up a plan that does not pause it");
+    // Two forks of one prefix, the gain asked of the victims together as Model::freed asks it: donors of blocks {0, 1, 2} and {0, 1, 3} each free one block alone and all four together.
+    const std::vector<std::vector<int>> sets{{0, 1, 2}, {0, 1, 3}};
+    const server::Gain together = [&](const server::Taken& p) {
+        std::vector<int> refs(4, 0), mine(4, 0);
+        for (const auto& b : sets)
+            for (int id : b) ++refs[(size_t)id];
+        for (size_t d : p.donors)
+            for (int id : sets[d]) ++mine[(size_t)id];
+        size_t n = 0;
+        for (size_t id = 0; id < refs.size(); ++id) n += mine[id] && mine[id] == refs[id];
+        return std::vector<size_t>{n};
+    };
+    t = server::make_room({0}, 2, npos, false, {}, 0, false, {1}, together);
+    require(t.enough && t.donors == std::vector<size_t>({0}), "one fork's own block did not do for one block");
+    t = server::make_room({0}, 2, npos, false, {}, 0, false, {2}, together);
+    require(t.enough && t.donors == std::vector<size_t>({0, 1}), "two forks of one prefix were counted as freeing it one at a time");
+    t = server::make_room({0}, 2, npos, false, {}, 0, false, {5}, together);
+    require(!t.enough && t.donors.empty(), "forks freeing less than asked took something");
 }
 
 // The host tier's default size: max_seqs histories below half the free memory, half the free memory at and past it, a product that would overflow taken as past it, and none where the free memory is unknown or a history takes nothing.

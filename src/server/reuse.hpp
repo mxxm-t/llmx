@@ -63,6 +63,60 @@ inline size_t Scheduler::own_donor(const Request& r) const {
     return donors_.size();
 }
 
+// The one count of the device's room (docs/CACHE-PLAN.md, section 4): what is free in each pool now, the model's free blocks less the room the running requests promised and have not taken.
+// A request has promised its reservation (`need_`) less the blocks its sequence holds, a pass's prepared blocks among them, so one in flight counts at what its pass took and its step is not subtracted twice.
+inline std::vector<size_t> Scheduler::room() const {
+    std::vector<size_t> free = model_.kv_free();
+    if (running_)
+        for (const auto& r : *running_) {
+            const std::vector<size_t> p = promised(*r);
+            for (size_t s = 0; s < free.size(); ++s) free[s] -= std::min(free[s], p[s]);
+        }
+    return free;
+}
+
+inline std::vector<size_t> Scheduler::promised(const Request& r) const {
+    std::vector<size_t> p(pools_.blocks.size(), 0);
+    if (r.need_.empty()) return p;
+    const std::vector<size_t> held = model_.kv_held(r.seq_);
+    for (size_t s = 0; s < p.size(); ++s) p[s] = r.need_[s] > held[s] ? r.need_[s] - held[s] : 0;
+    return p;
+}
+
+// make_room's gain over donors_ and `active`: what the model frees of every victim together, asked of the whole set and never victim by victim (Model::freed), with each paused request's promise.
+// The donor `keep` a request forks keeps the `kept_len` tokens it shares, one it takes back (`take`) frees nothing, its blocks being the request's, and `also`, a sequence going in any case, counts for what it frees beside the victims.
+inline Gain Scheduler::gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep, size_t kept_len, bool take, const infer::Sequence* also) const {
+    const std::vector<size_t> base = also ? model_.freed({also}).blocks : std::vector<size_t>();
+    return [this, &active, keep, kept_len, take, also, base](const Taken& t) {
+        std::vector<const infer::Sequence*> set;
+        std::vector<size_t> g(pools_.blocks.size(), 0);
+        if (also) set.push_back(also);
+        bool forked = false;
+        for (size_t d : t.donors) {
+            if (d == keep && take) continue;
+            forked = forked || (d == keep && kept_len);
+            set.push_back(&donors_[d].seq);
+        }
+        for (const auto& [i, with] : t.paused) {
+            add(g, promised(*active[i]));
+            if (with) set.push_back(&active[i]->seq_);
+        }
+        add(g, model_.freed(set, forked ? &donors_[keep].seq : nullptr, kept_len).blocks);
+        return base.empty() ? g : less(g, base);
+    };
+}
+
+// Stats::reserved and Stats::donor_blocks as the device's room stands: each pool's blocks taken or promised, and those only donors and the histories being streamed in hold; under the lock.
+inline void Scheduler::note_room() {
+    const std::vector<size_t> free = room();
+    reserved_now_.assign(free.size(), 0);
+    for (size_t s = 0; s < free.size(); ++s) reserved_now_[s] = pools_.blocks[s] - free[s];
+    std::vector<const infer::Sequence*> held;
+    for (const Donor& d : donors_) held.push_back(&d.seq);
+    for (const Streaming& st : streams_) held.push_back(&st.into->seq);
+    donor_blocks_now_ = model_.freed(held).blocks;
+}
+
 // A free checkpoint slot for a keep beside `keeps` others the pass takes, the oldest donors that hold one giving theirs where none is free (make_room, checkpoint slots being one more pool).
 // The donor `spare` a job forked keeps its slot, which its fork may still read, and a checkpoint is never forced, so false leaves it out.
 inline bool Scheduler::checkpoint_room(size_t keeps, uint64_t spare) {
@@ -74,15 +128,16 @@ inline bool Scheduler::checkpoint_room(size_t keeps, uint64_t spare) {
 // checkpoint_room under the lock.
 inline bool Scheduler::checkpoint_room_held(size_t keeps, uint64_t spare) {
     if (model_.checkpoints_free() > keeps) return true;
-    const size_t slots = model_.checkpoint_slots();
-    std::vector<std::vector<size_t>> held;
+    const size_t free = model_.checkpoints_free();
     std::vector<size_t> at;
     for (size_t d = 0; d < donors_.size(); ++d)
-        if (!spare || donors_[d].id != spare) {
-            held.push_back({model_.checkpoint(donors_[d].seq) ? size_t(1) : size_t(0)});
-            at.push_back(d);
-        }
-    const Taken t = make_room({slots}, {slots - model_.checkpoints_free() + keeps}, held, npos, false, {}, 0, false, {1});
+        if (!spare || donors_[d].id != spare) at.push_back(d);
+    // A donor frees its slot only where no fork still reads it, which the model counts (Model::freed).
+    const Taken t = make_room({0}, at.size(), npos, false, {}, 0, false, {keeps - free + 1}, [&](const Taken& p) {
+        std::vector<const infer::Sequence*> set;
+        for (size_t i : p.donors) set.push_back(&donors_[at[i]].seq);
+        return std::vector<size_t>{model_.freed(set).slots};
+    });
     if (!t.enough) return false;
     std::vector<size_t> gone;
     for (size_t i : t.donors) gone.push_back(at[i]);
@@ -92,14 +147,14 @@ inline bool Scheduler::checkpoint_room_held(size_t keeps, uint64_t spare) {
     return model_.checkpoints_free() > keeps;
 }
 
-// The donor sharing the longest run of whole blocks with r's history by tokens, over rows computed as r's were or, at its first admission, as it would compute them; the run's length goes to `tokens`, zero when none shares a block.
+// The donor sharing the longest run of whole blocks with r's history, over rows computed as r's were or, at its first admission, would be, the newest where several share as much; the run's length goes to `tokens`, zero for none.
 // On a model that keeps a state the run reaches only as far as the donor's checkpoint, and the last history token is never shared, since a pass must compute it to give logits.
 inline size_t Scheduler::best_donor(const Request& r, size_t& tokens) const {
     size_t best = donors_.size();
     tokens = 0;
     for (size_t d = 0; d < donors_.size(); ++d) {
         const size_t n = shareable(r, donors_[d].tokens, donors_[d].classes, donors_[d].seq);
-        if (n > tokens) { tokens = n; best = d; }
+        if (n && n >= tokens) { tokens = n; best = d; }
     }
     return best;
 }
@@ -1014,9 +1069,9 @@ inline void Scheduler::prefetch() {
             if (r->disk_checked_ || r->disk_wait_ || r->cancel_.load() || waiting >= max_seqs_) continue;
             // A job reads only where it could start: into free blocks, so what it reads is on the devices at once and not held while it waits.
             if (r->job_) {
-                const std::vector<size_t> need = pools_.blocks_for(r->prompt_.size());
+                const std::vector<size_t> need = pools_.blocks_for(r->prompt_.size()), free = room();
                 bool spare = true;
-                for (size_t k = 0; k < need.size(); ++k) spare = spare && reserved_[k] + need[k] <= pools_.blocks[k];
+                for (size_t k = 0; k < need.size(); ++k) spare = spare && need[k] <= free[k];
                 if (!spare) continue;
             }
             // The request's history as it would compute it: its tokens but the last, under its own classes or, at its first admission, the class of its prompt.
@@ -1116,8 +1171,7 @@ inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::
     if (!stream_room(length, spare)) return refused("the devices have no room for it");
     // The checkpoint slot its state takes comes first, so no donor goes for its blocks where the slot is not to be had.
     if (model_.keeps_state() && !checkpoint_room_held(0)) return refused("no checkpoint slot for its state");
-    std::vector<size_t> need = pools_.blocks_for(length);
-    const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, {}, 0, false, need);
+    const Taken t = make_room(room(), donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(length), gain_of({}));
     if (!t.enough || (spare && !t.donors.empty())) return refused("the devices have no room for it");
     std::vector<size_t> gone = t.donors;
     std::sort(gone.begin(), gone.end(), std::greater<size_t>());
@@ -1126,7 +1180,6 @@ inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::
     Streaming s;
     s.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)length);
     s.classes = clip(classes, length);
-    s.need = std::move(need);
     s.restore = r.job_ && !r.of_;
     streams_.reserve(streams_.size() + 1);
     try {
@@ -1139,7 +1192,6 @@ inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::
         return refused(e.what());
     }
     s.started = Clock::now();
-    add(reserved_, s.need);
     moved(Move::read_started, "server: a history of %zu tokens read from disk straight into the devices\n", length);
     streams_.push_back(std::move(s));
     return streams_.back().id;
@@ -1147,7 +1199,7 @@ inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::
 
 // Whether a stream of `length` tokens has its room on the devices now, a job's (`spare`) from free blocks alone; under the lock.
 inline bool Scheduler::stream_room(size_t length, bool spare) const {
-    const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, {}, 0, false, pools_.blocks_for(length));
+    const Taken t = make_room(room(), donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(length), gain_of({}));
     return t.enough && (!spare || t.donors.empty());
 }
 
@@ -1204,7 +1256,6 @@ inline void Scheduler::stream_round() {
             d.seq = std::move(s.into->seq);
             d.tokens = std::move(s.tokens);
             d.classes = std::move(s.classes);
-            d.blocks = std::move(s.need);
             d.back = true;
             ++disk_hits_;
             disk_read_bytes_ += s.read->bytes();
@@ -1228,7 +1279,6 @@ inline void Scheduler::stream_round() {
             continue;
         }
         quieted()->reset(s.into->seq);
-        sub(reserved_, s.need);
         streams_.erase(streams_.begin() + (std::ptrdiff_t)i);
     }
 }
@@ -1334,8 +1384,7 @@ inline bool Scheduler::promote(size_t i, bool spare, bool* room, const std::shar
             if (h.id == id) return &h;
         return nullptr;
     };
-    std::vector<size_t> need = pools_.blocks_for(entry()->history.length);
-    const Taken t = make_room(pools_.blocks, reserved_, donor_blocks(), npos, false, {}, 0, false, need);
+    const Taken t = make_room(this->room(), donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(entry()->history.length), gain_of({}));
     if (!t.enough || (spare && !t.donors.empty())) {
         if (room) *room = false;
         return false;
@@ -1389,8 +1438,6 @@ inline bool Scheduler::promote(size_t i, bool spare, bool* room, const std::shar
     d.back = h->back;
     d.tokens = h->tokens;
     d.classes = h->classes;
-    d.blocks = std::move(need);
-    add(reserved_, d.blocks);
     host_moved_ += h->history.bytes;
     ++host_hits_;
     moved(Move::promoted, "server: a donor of %zu tokens promoted from host memory, %.1f MiB, its copy enqueued in %.1f ms\n", h->history.length, (double)h->history.bytes / (1 << 20), ms_since(start));
@@ -1427,7 +1474,6 @@ inline void Scheduler::drop_donor(size_t i, bool evicted) {
     Donor& d = donors_[i];
     if (evicted) write_back(d);
     try { model_.reset(d.seq); } catch (const std::exception&) {}
-    sub(reserved_, d.blocks);
     donors_.erase(donors_.begin() + (std::ptrdiff_t)i);
 }
 

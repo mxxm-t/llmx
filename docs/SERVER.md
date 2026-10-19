@@ -47,7 +47,7 @@ is measured against the single-sequence path and the reference.
   A request that shares every full block of its donor, a follow-up turn or a resume, consumes that donor before any other is evicted, since all the donor holds beyond what the request keeps is a partial last block; the other donors go only if that does not make room.
   A donor is consumed only when the pool is short, so while there is room it stays for other requests sharing its prefix.
   Nothing is evicted for a request that would still not fit: it waits with every donor in place.
-- **Room by first admission.** One function, `make_room`, decides who gives up blocks for whom, and a request's place is its first admission, never renumbered; only its place among the paused changes, when it gives the pool's edge up (Turns at the pool's edge, below).
+- **Room by first admission.** One function, `make_room`, decides who gives up blocks for whom, and a request's place is its first admission, never renumbered. Room is counted once, from the model's own block references: what is free is each pool's free blocks less what the running requests promised and have not taken, and what victims free is asked of the model for the set together, so a fork beside the donor it shares needs only its own blocks and two forks of one prefix free it only together; only its place among the paused changes, when it gives the pool's edge up (Turns at the pool's edge, below).
   A request takes donors first, oldest first; only a request that grows then pauses uncapped requests admitted after it, the latest first, each giving up its reservation and, if that is still short, the donor its history became.
   A capped request is never paused, and a request is never paused for its own growth: one that cannot grow sits out the pass with its cache as it is (a stall) and asks again before the next; what it lacks is held by capped requests or requests admitted before it, and the stall ends when one of them ends or is paused, or by an uncapped request admitted after it that a pass in flight holds, and the stall ends once that pass has retired.
   Paused requests wait apart from the queue, in order of first admission: they do not count against `--max-queue`, a client that leaves ends its paused request at the next round, its donor going with it when it holds less than a block, which no fork can share, and they hold nothing but an evictable donor.
@@ -112,7 +112,7 @@ accept thread ---> connection thread (one per socket)
                      request's token channel and write chunks until done,
                      looking at the socket every 100 ms meanwhile
 scheduler thread   the only thread that calls the model, pushes to the
-                   channels and keeps the ledger
+                   channels and counts the room
 stage threads      one for each tensor group's stage while several passes
                    are in flight: each records the one stage of the one
                    pass the round hands it, and decides nothing
@@ -219,7 +219,7 @@ A decoder the share holds back waits only while every slot is taken, and once th
 
 A failed pass is abandoned in the model (`abort_pass`, which drains every device and returns each of its histories to where the pass found it), and its requests end with the error and give their blocks back; the other passes in flight go on, since their rows sit in their own storages, handoff buffers and logits rows.
 A round the scheduler's own rules cannot go on with, a pass that came out empty with nothing in flight or a pass that found no logits rows, abandons every pass in flight and ends every active request with the error, rather than leave the loop to spin; the oldest request sits a pass out only while a capped request holds room, so with nothing in flight some active request always has rows to add.
-Stopping abandons every pass in flight first and then ends everything, so the ledger and every pool are left at zero.
+Stopping abandons every pass in flight first and then ends everything, so every pool is left with nothing taken or promised.
 With one pass in flight a round that records a stage before the last one only relays, and the pass's logits are read the round after its last stage, which is the order `Model::forward` runs a pass in.
 
 Prefill of a long prompt is chunked at `ubatch`, so a 16k prompt does not
@@ -312,7 +312,7 @@ The pass being formed asks each decoding request it takes for drafts (`Scheduler
 A request with drafts marks its history (`Model::mark`) and takes one entry, its last pick then the drafts, extent 1, every row's logits; one whose mark is refused, or whose proposer has nothing, takes a decode entry.
 Within those, a pass drafts only what pays: the scheduler measures its passes of generated tokens, a base and a row in milliseconds, each by the time the server gave it, from its formation through its retract or, with passes in flight, since the pass before it retired, the drafter's chains apart, and those chains a step, a chain counted once for each pass in flight beside the one being formed, since they all wait behind it (`spec::PassTimes`), and a request drafts where the drafts it is expected to keep, its own share kept at each position weighed with the server's, pay for their rows at the rate the pass gives without drafts, at the depth whose tokens a millisecond are most (`spec::draft_depths`); until passes of different widths have been measured every request drafts what the columns allow, so the price is learned, and a server long at one width measures it again.
 On Qwen3.6-27B Q8_0 on one MI50 a pass costs about 10 ms a row past a few rows, so the columns alone made four or more users drafting slower than without drafts (docs/STATUS-2026-09.md).
-The drafts stay inside the room its reservation already holds, so they never grow the ledger, pause, stall or evict anything.
+The drafts stay inside the room its reservation already holds, so they never grow it, pause, stall or evict anything.
 The pass asks for every request's drafts at once (`spec::Proposer::draft_all`): the embedded drafter's chains run as one batch on the head's device as the pass is formed (`Model::draft` over the requests' sequences), each step reading the drafter's weights and the head once for all of them, lookup's on the host.
 Where `lookup` is listed ahead of a drafter that runs a model (`--drafter lookup,embedded`), a request whose own history convinces drafts from it and is left out of that batch (`spec::lookup_first`, docs/SPECULATIVE.md, section 8), its acceptance kept apart from the drafter's (`spec::Record`) and its drafts priced without a chain; a pass whose requests all draft so runs no chain.
 The rows are drawn in order on the sampling pool as `infer::accept` takes them, each with the request's own settings, history and generator, stopping at the first pick that ends the request or differs from its draft, so the draws are those of the run without drafts; with log-probabilities each token's row is copied for the channel while the reader keeps up and its values computed once it has fallen behind (`Request::kRowsWaiting`), as for one row.

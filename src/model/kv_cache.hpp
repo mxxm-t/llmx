@@ -88,6 +88,7 @@ public:
 
     size_t length() const { return length_; }
     size_t n_blocks() const { return blocks_.size(); }
+    const std::vector<int32_t>& blocks() const { return blocks_; }
 
     // Make positions [length, length + n) addressable.
     // A block another sequence shares is read-only, so a history that was truncated into a shared block cannot be appended to.
@@ -235,6 +236,8 @@ public:
         return true;
     }
     size_t kept_available() const { return kept_ - kept_held_; }
+    uint32_t refs(size_t s) const { return refs_.at(s); }
+    size_t refs_size() const { return refs_.size(); }
 
     // A live slot becomes a mark's, its state kept where it is while the next pass writes another, when the mark side has room; the live side then has one more to give.
     bool mark_live() noexcept {

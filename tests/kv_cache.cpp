@@ -725,6 +725,55 @@ void model_fork() {
     require(a.length() == 0 && b.length() == 0, "reset after fork");
 }
 
+// What dropping sequences frees (Model::freed, docs/CACHE-PLAN.md, section 4), held against the pool itself on one pool and on a split's two.
+// Two forks of one prefix free it only together, a fork of a fork keeps its prefix, a fork still to be made keeps what it shares, and a dropped set gives back exactly what it was said to free.
+void model_freed() {
+    const auto weights = tiny_qwen(2, 512, true);
+    const infer::ModelWeights w = infer::gguf_weights(weights);
+    const auto cpu = [] {
+        auto c = std::make_shared<backend::CpuBackend>();
+        c->set_threads(1);
+        return c;
+    };
+    infer::Placement split;
+    split.mixer_device = {0, 1};
+    split.ffn_device = {0, 1};
+    split.output_device = 1;
+    for (const bool two : {false, true}) {
+        auto model = two ? std::make_unique<infer::Model>(w, std::vector<backend::BackendPtr>{cpu(), cpu()}, split) : std::make_unique<infer::Model>(w, cpu());
+        const size_t bt = model->kv_block_tokens(), pools = model->kv_pools();
+        require(pools == (two ? 2u : 1u), "the model's pools");
+        std::vector<uint32_t> ids(3 * bt + 5);
+        for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)(1 + i % 15);
+        infer::Sequence a = model->make_sequence(), lone = model->make_sequence();
+        infer::ExecContext ctx;
+        const infer::BatchEntry fill[] = {{&a, ids.data(), 3 * bt, false}, {&lone, ids.data(), bt, false}};
+        model->forward(ctx, fill, 2);
+        infer::Sequence b = model->fork(a, 2 * bt);
+        infer::Sequence c = model->fork(b, bt);
+        const auto freed = [&](std::vector<const infer::Sequence*> set, const infer::Sequence* kept = nullptr, size_t kept_len = 0) {
+            const std::vector<size_t> f = model->freed(set, kept, kept_len).blocks;
+            for (size_t p = 1; p < f.size(); ++p) require(f[p] == f[0], "two pools of one block size freed apart");
+            return f.empty() ? size_t(0) : f[0];
+        };
+        require(model->kv_held(a)[0] == 3 && model->kv_held(b)[0] == 2 && model->kv_held(c)[0] == 1, "the blocks a sequence holds");
+        require(freed({&a}) == 1 && freed({&b}) == 0 && freed({&c}) == 0 && freed({&b, &c}) == 0, "a fork's shared blocks were counted freed by one holder");
+        require(freed({&a, &b}) == 2 && freed({&a, &b, &c}) == 3 && freed({&lone}) == 1, "the blocks a set holds alone were not counted together");
+        require(freed({&a}, &a, 2 * bt) == 1 && freed({&a, &b, &c}, &a, 2 * bt) == 1, "the blocks a fork still to be made shares were counted freed");
+        // Against the pool: what a set was said to free is what its drop gives back.
+        std::vector<size_t> before = model->kv_free();
+        const size_t forks = freed({&b, &c});
+        model->reset(c);
+        model->reset(b);
+        for (size_t p = 0; p < pools; ++p) require(model->kv_free()[p] - before[p] == forks, "dropping two forks gave back other than Model::freed said");
+        before = model->kv_free();
+        const size_t source = freed({&a});
+        model->reset(a);
+        for (size_t p = 0; p < pools; ++p) require(source == 3 && model->kv_free()[p] - before[p] == source, "dropping the last holder gave back other than Model::freed said");
+        model->reset(lone);
+    }
+}
+
 // A history copied to host memory and back (Model::save_host, Model::restore_host, docs/SPECULATIVE.md, section 2, Host tier) continues, bit for bit, as the history never copied does, after it was reset and its blocks taken by another.
 // A copy inside a block or past the history and a restore into another model are refused, the refused restore holding nothing.
 void host_round_trip() {
@@ -1163,6 +1212,7 @@ int main() {
         batched_forward();
         fork_shares_blocks();
         model_fork();
+        model_freed();
         host_round_trip();
         host_identity();
         host_slab_limit();

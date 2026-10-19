@@ -591,6 +591,16 @@ public:
     size_t kv_pools() const { return storages_.size(); }
     size_t kv_pool_block_tokens(size_t s) const { return storages_.at(s)->b->kv_layout().block_tokens; }
     size_t kv_pool_blocks(size_t s) const { return storages_.at(s)->pool.max_blocks(); }
+    // The blocks free in each pool now, and those sequence `q` holds there, shared ones and a pass's prepared ones included.
+    std::vector<size_t> kv_free() const;
+    std::vector<size_t> kv_held(const Sequence& q) const;
+    // What dropping every sequence of `set` together frees, the one truth of sharing (docs/CACHE-PLAN.md, section 4): per pool the blocks no other sequence references, and the checkpoint slots none other holds.
+    // `kept`, a fork still to be made of `kept_len` tokens of one of them, keeps the blocks it would share and its checkpoint.
+    struct Freed {
+        std::vector<size_t> blocks;
+        size_t slots = 0;
+    };
+    Freed freed(const std::vector<const Sequence*>& set, const Sequence* kept = nullptr, size_t kept_len = 0) const;
     // Tokens every pool can hold.
     size_t kv_tokens_total() const {
         size_t least = std::numeric_limits<size_t>::max();

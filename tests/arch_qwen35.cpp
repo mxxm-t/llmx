@@ -449,6 +449,9 @@ void checkpoints() {
     require(model.checkpoint(a) == std::optional<size_t>(128), "a keep entry left no checkpoint at its end");
     refuses("a fork past the checkpoint", "takes its source's checkpoint", [&] { model.fork(a, 0); });
     infer::Sequence f = model.fork(a, 128);
+    // The checkpoint's slot is the source's and the fork's together (Model::freed): neither frees it alone, both do, and a fork still to be made of the source keeps it.
+    require(model.freed({&a}).slots == 0 && model.freed({&f}).slots == 0 && model.freed({&a, &f}).slots == 1 && model.freed({&a, &f}, &a, 128).slots == 0,
+            "the checkpoint slot a fork shares was counted freed by one of its holders");
     infer::BatchEntry both[] = {{&a, tail.data(), tail.size(), true}, {&f, tail.data(), tail.size(), true}};
     both[0].extent = both[1].extent = ids.size();
     model.forward(ctx, both, 2);

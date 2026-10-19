@@ -22,5 +22,4 @@ linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vra
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
-linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::n_blocks() const | 1 | a sequence's block count, which kv-cache reads to hold reuse, growth and release to the block; nothing else exposes it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user

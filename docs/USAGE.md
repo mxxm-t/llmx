@@ -904,7 +904,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `requests.since_start.shifts`, `.shifted_tokens` | requests, tokens | since start | Under `--context-overflow shift`: the requests whose prompt was cut, and the tokens those cuts dropped | each shift is a kept window read again; many shifts for few requests means a context too small for the conversations |
 | `reuse.since_start.forks` | requests | since start | Requests that started from a shared history rather than from nothing | close to 0 for a client that sends conversations |
 | `reuse.since_start.tokens` | tokens | since start | Prompt tokens those requests did not have to read | |
-| `requests.now.kv_tokens` | tokens | now | The pool the running requests hold, their prompts, what they generated and the room reserved for them to grow | near `server.kv_tokens` with `pressure` rising: requests are pausing each other |
+| `requests.now.kv_tokens` | tokens | now | The pool the running requests hold or have promised, their prompts, what they generated and the room reserved for them to grow, a block shared with a kept conversation counted once | near `server.kv_tokens` with `pressure` rising: requests are pausing each other |
 | `reuse.device.now.entries` | histories | now | Finished or paused conversations kept in device memory, ready to share | |
 | `reuse.device.now.kv_tokens` | tokens | now | The pool those kept conversations hold; a request that needs it takes it, oldest first | |
 | `reuse.device.now.state_checkpoints` | states | now | Saved conversation states, on a model whose layers keep one | |

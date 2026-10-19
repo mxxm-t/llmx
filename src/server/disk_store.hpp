@@ -53,7 +53,7 @@ public:
         bool proved = false;         // adopt, unproved, the entries of a build other than this one whose model, layout and entry version are this store's (--disk-cache-adopt proved)
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
         std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
-        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), or the start's probe (probe), for tests
+        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), the start's probe (probe) or a write's chunk (write), for tests
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -730,6 +730,7 @@ private:
             format::FileWriter w(tmp.u8string(), direct_);
             for (uint64_t c = 0; c < chunk_count; ++c) {
                 if (j.cancelled) throw std::runtime_error("cancelled");
+                if (options_.fault && options_.fault("write")) throw std::runtime_error("an injected write failure");
                 const size_t n = (size_t)std::min<uint64_t>(kChunk, payload - c * kChunk), padded = (size_t)round_up(n, kAlign);
                 stream(j, c * kChunk, staging_.data(), n, false);
                 std::memset(staging_.data() + n, 0, padded - n);

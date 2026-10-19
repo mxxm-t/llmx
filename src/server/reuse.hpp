@@ -84,13 +84,12 @@ inline std::vector<size_t> Scheduler::promised(const Request& r) const {
 }
 
 // make_room's gain over donors_ and `active`: what the model frees of every victim together, asked of the whole set and never victim by victim (Model::freed), with each paused request's promise.
-// The donor `keep` a request forks keeps the `kept_len` tokens it shares, one it takes back (`take`) frees nothing, its blocks being the request's, and `also`, a sequence going in any case, counts for what it frees beside the victims.
-inline Gain Scheduler::gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep, size_t kept_len, bool take, const infer::Sequence* also) const {
-    const std::vector<size_t> base = also ? model_.freed({also}).blocks : std::vector<size_t>();
+// The donor `keep` a request forks keeps the `kept_len` tokens it shares, one it takes back (`take`) frees nothing, its blocks being the request's, and `also`, sequences going in any case, count for what they free beside the victims.
+inline Gain Scheduler::gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep, size_t kept_len, bool take, const std::vector<const infer::Sequence*>& also) const {
+    const std::vector<size_t> base = also.empty() ? std::vector<size_t>() : model_.freed(also).blocks;
     return [this, &active, keep, kept_len, take, also, base](const Taken& t) {
-        std::vector<const infer::Sequence*> set;
+        std::vector<const infer::Sequence*> set = also;
         std::vector<size_t> g(pools_.blocks.size(), 0);
-        if (also) set.push_back(also);
         bool forked = false;
         for (size_t d : t.donors) {
             if (d == keep && take) continue;

@@ -700,14 +700,15 @@ public:
                 formed_stages_ms_ = 0;
                 formed_chains_ms_ = 0;
                 // A job gives way at this pass boundary to a waiting request that needs its seat or room, and after growth to one that could not grow; it runs again once nothing waits.
-                bool waits;
+                std::shared_ptr<Request> waiter;
                 {
                     std::lock_guard<std::mutex> lk(m_);
-                    waits = (!paused_.empty() && !admits(*paused_.front(), active.size())) || (!queue_.empty() && !admits(*queue_.front(), active.size()));
+                    if (!paused_.empty() && !admits(*paused_.front(), active.size())) waiter = paused_.front();
+                    else if (!queue_.empty() && !admits(*queue_.front(), active.size())) waiter = queue_.front();
                 }
-                if (waits) {
+                if (waiter) {
                     hand_jobs(active);
-                    yield_jobs(active);
+                    yield_jobs(active, waiter.get());
                 }
                 // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
                 grow(active);
@@ -2141,7 +2142,7 @@ private:
         std::vector<size_t> free = room();
         add(free, promised(r));
         add(free, model_.freed({&r.seq_}).blocks);
-        if (!make_room(free, donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), gain_of({}, npos, 0, false, &r.seq_)).enough)
+        if (!make_room(free, donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), gain_of({}, npos, 0, false, {&r.seq_})).enough)
             return false;
         const size_t bt = model_.kv_block_tokens(), n = r.seq_.length() / bt * bt;
         const HostRoom::Why why = host_room(n, true).why;
@@ -2253,24 +2254,19 @@ private:
         if (!t.enough) return false;
         // A request whose room takes a donor the host tier cannot keep waits for that donor's files to be whole on disk, its write then whole pieces (question 5 of docs/CACHE-PLAN.md).
         // Past the wait's bound it takes the room, and the rows are said as lost.
-        if (!r->job_ && disk_ && disk_->writing()) {
-            for (size_t g : t.donors) {
-                if (keep && g == d) continue;
-                const Donor& v = donors_[g];
-                const size_t n = copy_length(v);
-                if (!n || v.superseded || !beyond_host(n) || disk_->on_disk(digests(v), model_.kv_block_tokens(), n, model_.keeps_state())) continue;
-                // While the donor's own write is in flight: what is not yet on disk, its files' bytes less what that file has written, and the rate, the write's own once measured, else the store's.
-                const std::vector<std::string> dv = digests(v);
-                const auto [wrote, seconds] = disk_->writing_of(dv, model_.kv_block_tokens());
-                const double remaining = std::max(0.0, (double)disk_->unwritten(dv, model_.kv_block_tokens(), n, model_.keeps_state(), true) - (double)wrote);
-                const double own = in_flight_rate(wrote, seconds), rate = seconds <= 0 ? 0 : own > 0 ? own : disk_->write_rate();
-                if (waits_for_room(*r, n, "a donor's write to disk", remaining, rate)) {
-                    // The disk round makes the awaited donor's write whole pieces once, not every round.
-                    if (awaited_ != v.id) disk_wake_ = true;
-                    awaited_ = v.id;
-                    return false;
-                }
-                break;
+        if (const size_t g = r->job_ ? donors_.size() : awaited_write(t, keep ? d : npos); g < donors_.size()) {
+            const Donor& v = donors_[g];
+            const size_t n = copy_length(v);
+            // While the donor's own write is in flight: what is not yet on disk, its files' bytes less what that file has written, and the rate, the write's own once measured, else the store's.
+            const std::vector<std::string> dv = digests(v);
+            const auto [wrote, seconds] = disk_->writing_of(dv, model_.kv_block_tokens());
+            const double remaining = std::max(0.0, (double)disk_->unwritten(dv, model_.kv_block_tokens(), n, model_.keeps_state(), true) - (double)wrote);
+            const double own = in_flight_rate(wrote, seconds), rate = seconds <= 0 ? 0 : own > 0 ? own : disk_->write_rate();
+            if (waits_for_room(*r, n, "a donor's write to disk", remaining, rate)) {
+                // The disk round makes the awaited donor's write whole pieces once, not every round.
+                if (awaited_ != v.id) disk_wake_ = true;
+                awaited_ = v.id;
+                return false;
             }
         }
         if (r->room_wait_) {
@@ -2465,7 +2461,7 @@ private:
     HostRoom host_room(size_t n, bool back) const;
     std::vector<size_t> room() const;
     std::vector<size_t> promised(const Request& r) const;
-    Gain gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep = npos, size_t kept_len = 0, bool take = false, const infer::Sequence* also = nullptr) const;
+    Gain gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep = npos, size_t kept_len = 0, bool take = false, const std::vector<const infer::Sequence*>& also = {}) const;
     void note_room();
     void write_back(Donor& d);
     bool written_soon(bool boundary, uint64_t id) const;
@@ -2827,6 +2823,37 @@ private:
         return make_room(room(), donors_.size(), npos, false, {}, 0, false, need, gain_of({})).enough;
     }
 
+    // The donor of plan `t` whose write to disk a request would wait for (enter): the first it takes, but `skip`, the one it forks, whose rows the host tier cannot keep and whose files are not yet whole on disk; donors_.size() where none.
+    // Under the lock.
+    size_t awaited_write(const Taken& t, size_t skip) {
+        if (!disk_ || !disk_->writing()) return donors_.size();
+        for (size_t g : t.donors) {
+            if (g == skip) continue;
+            const Donor& v = donors_[g];
+            const size_t n = copy_length(v);
+            if (n && !v.superseded && beyond_host(n) && !disk_->on_disk(digests(v), model_.kv_block_tokens(), n, model_.keeps_state())) return g;
+        }
+        return donors_.size();
+    }
+
+    // Whether request r, refused beside the running jobs, would wait for a donor's write once they had gone: its room planned as `admits` plans it, the jobs' sequences counted as freed.
+    bool waits_for_write(const Request& r, const std::vector<std::shared_ptr<Request>>& active) {
+        if (r.job_) return false;
+        std::lock_guard<std::mutex> lk(m_);
+        std::vector<const infer::Sequence*> jobs;
+        std::vector<size_t> free = room();
+        for (const auto& a : active)
+            if (a->job_) {
+                jobs.push_back(&a->seq_);
+                add(free, promised(*a));
+            }
+        if (jobs.empty()) return false;
+        add(free, model_.freed(jobs).blocks);
+        const std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
+        const Taken t = make_room(free, donors_.size(), npos, false, {}, 0, false, need, gain_of({}, npos, 0, false, jobs));
+        return t.enough && awaited_write(t, npos) < donors_.size();
+    }
+
     // Job i leaves the active set by the one path every job takes: its rows become a donor (park), which make_room gives up or copies out as any donor's; the donor's id, 0 where none was kept.
     // Only rows park cannot keep, below a whole block or past a model's checkpoint, are released, said as lost where no other holder has them; `what` says why in the line.
     uint64_t park_job(std::vector<std::shared_ptr<Request>>& active, size_t i, const char* what) {
@@ -2887,11 +2914,14 @@ private:
     }
 
     // Each job not in flight gives way (park_job) and waits to start again from its donor once nothing else waits; whether any did.
-    bool yield_jobs(std::vector<std::shared_ptr<Request>>& active) {
+    // One with at most one block left reads it first where `waiter` would wait for a donor's write in any case (A21), a spare with no clock: one block at most, ended by the write, which the next round no longer names.
+    bool yield_jobs(std::vector<std::shared_ptr<Request>>& active, const Request* waiter = nullptr) {
+        const bool spare = waiter && waits_for_write(*waiter, active);
+        const size_t bt = model_.kv_block_tokens();
         bool any = false;
         for (size_t i = 0; i < active.size();) {
             auto j = active[i];
-            if (!j->job_ || j->seq_.in_flight()) {
+            if (!j->job_ || j->seq_.in_flight() || (spare && j->whole_ && j->prompt_.size() <= j->seq_.length() + bt)) {
                 ++i;
                 continue;
             }

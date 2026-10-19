@@ -894,6 +894,7 @@ private:
     struct Fitted {
         size_t messages = 0, tokens = 0, renders = 0;   // renders: those that placed the messages' ends, on a chat route
         bool cut = false, at_marker = false;
+        std::vector<uint32_t> dropped;   // the uncut prompt through the first row the cut dropped, whose holders the scheduler supersedes (Scheduler::submit)
     };
 
     // Where each message of a conversation ends in the prompt's `ids`: the end tokens, where they number the messages and the template's own, else each part asked about rendered as text.
@@ -930,6 +931,7 @@ private:
             refuse(std::string(params.until_limit ? "shorten it, send max_tokens" : "shorten it") + ", or start the server with --context-overflow shift, which drops the oldest turns");
         Fitted f;
         f.cut = true;
+        const std::vector<uint32_t> uncut = ids;
         if (route == Route::chat || route == Route::chat_completions) {
             const std::vector<chat::Message> messages = messages_of(body);
             const std::vector<chat::TemplateVar> vars = template_vars(body);
@@ -952,6 +954,9 @@ private:
             f.at_marker = c.at_marker;
         }
         f.tokens = n - ids.size();
+        size_t same = 0;
+        while (same < ids.size() && same < uncut.size() && ids[same] == uncut[same]) ++same;
+        f.dropped.assign(uncut.begin(), uncut.begin() + (std::ptrdiff_t)std::min(same + 1, uncut.size()));
         if (!fits(ids.size())) refuse("cut to " + std::to_string(ids.size()) + " it still does not fit with what it asks for");
         ++shifts_;
         shifted_tokens_ += f.tokens;
@@ -987,7 +992,7 @@ private:
         std::vector<uint32_t> ids = encode(prompt);
         const Fitted fitted = fit(body, route, params, prompt, ids);
         const size_t stable = stable_of(body, route, ids), start = message_start_of(body, route, prompt, ids);
-        try { r = sched_.submit(std::move(ids), params, stable, start, received); }
+        try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }

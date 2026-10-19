@@ -128,11 +128,14 @@ inline bool Scheduler::checkpoint_room(size_t keeps, uint64_t spare) {
 inline bool Scheduler::checkpoint_room_held(size_t keeps, uint64_t spare) {
     if (model_.checkpoints_free() > keeps) return true;
     const size_t free = model_.checkpoints_free();
-    std::vector<size_t> at;
-    for (size_t d = 0; d < donors_.size(); ++d)
-        if (!spare || donors_[d].id != spare) at.push_back(d);
-    // A donor frees its slot only where no fork still reads it, which the model counts (Model::freed).
-    const Taken t = make_room({0}, at.size(), npos, false, {}, 0, false, {keeps - free + 1}, [&](const Taken& p) {
+    // The donors in rank order; a donor frees its slot only where no fork still reads it, which the model counts (Model::freed).
+    std::vector<size_t> at, order;
+    for (size_t d : ranked())
+        if (!spare || donors_[d].id != spare) {
+            order.push_back(at.size());
+            at.push_back(d);
+        }
+    const Taken t = make_room({0}, order, npos, false, {}, 0, false, {keeps - free + 1}, [&](const Taken& p) {
         std::vector<const infer::Sequence*> set;
         for (size_t i : p.donors) set.push_back(&donors_[at[i]].seq);
         return std::vector<size_t>{model_.freed(set).slots};
@@ -169,72 +172,50 @@ inline size_t Scheduler::shareable(const Request& r, const std::vector<uint32_t>
 }
 
 // Job donor d's state kept as a boundary as its job completes (keep_boundary below).
-inline void Scheduler::keep_boundary(Donor& d) { keep_boundary(d.seq, d.tokens, d.classes); }
+inline void Scheduler::keep_boundary(Donor& d) { keep_boundary(d.seq, d.tokens, d.classes, d.back); }
 
 // The boundary request r asked for, its pass retired: kept, or said not kept with what keep_boundary found; under the lock.
 inline void Scheduler::asked_boundary(Request& r) {
     const std::optional<size_t> kept = model_.keeps_state() ? model_.checkpoint(r.seq_) : std::nullopt;
     const size_t before = bounds_.size(), bt = model_.kv_block_tokens();
     const uint64_t was = moves_[(size_t)Move::boundary_kept].load() + moves_[(size_t)Move::boundary_not_kept].load();
-    keep_boundary(r.seq_, r.prompt_, r.classes_);
+    keep_boundary(r.seq_, r.prompt_, r.classes_, r.reused() > 0);
     if (!host_cap_ || !model_.keeps_state() || bounds_.size() > before || moves_[(size_t)Move::boundary_kept].load() + moves_[(size_t)Move::boundary_not_kept].load() != was) return;
     const char* why = !kept ? "its history has no state kept once its pass retired" : !*kept || *kept % bt ? "the state kept is not at a whole block" : *kept > r.prompt_.size() ? "the state kept is past its prompt" : nullptr;
     if (why) moved(Move::boundary_not_kept, "server: cache: the message boundary a request asked for was not kept (%s, at %zu)\n", why, kept.value_or(0));
 }
 
 // The checkpoint of `seq`, holding `tokens` computed as `classes` record, kept as a boundary, the copy enqueued behind the passes that wrote it, within the room the host tier and the host's free memory leave; one already kept is renewed.
-// Superseded copies and then the longest unheard conversation's boundaries go first and, without a disk tier, a conversation's are thinned to kBoundaries, so the state survives the history's fate; under the lock.
-inline void Scheduler::keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes) {
+// Its room is the ranking's (host_room_for), the conversation's boundaries taking its use, so the state survives the history's fate; under the lock.
+inline void Scheduler::keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back) {
     if (!host_cap_ || !model_.keeps_state()) return;
     const std::optional<size_t> kept = model_.checkpoint(seq);
     const size_t bt = model_.kv_block_tokens();
     if (!kept || !*kept || *kept % bt || *kept > tokens.size()) return;
     const size_t n = *kept;
-    // The conversation's boundaries: those whose tokens d's begin with.
-    std::vector<size_t> mine;
-    for (size_t i = 0; i < bounds_.size(); ++i) {
-        const auto& t = bounds_[i].tokens;
+    const auto now = std::filesystem::file_time_type::clock::now();
+    for (Boundary& b : bounds_) {
+        const auto& t = b.tokens;
         if (t.size() > n || !std::equal(t.begin(), t.end(), tokens.begin())) continue;
-        if (t.size() == n && alike(bounds_[i].classes, classes, n) == n) {
-            bounds_[i].used = std::filesystem::file_time_type::clock::now();
-            if (bounds_[i].disk) disk_->renew(bounds_[i].disk, true);
-            std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
+        // The conversation's boundaries take its use, so the ranking keeps them with it (rank).
+        b.used = now;
+        b.back = b.back || back;
+        if (t.size() == n && alike(b.classes, classes, n) == n) {
+            if (b.disk) disk_->renew(b.disk, true);
             return;
         }
-        mine.push_back(i);
-    }
-    // Thinned before the copy, by position: the one between its neighbours whose gap would grow least goes, never the first nor one a request being admitted has pinned.
-    while (!disk_ && mine.size() + 1 > kBoundaries) {
-        std::sort(mine.begin(), mine.end(), [&](size_t a, size_t b) { return bounds_[a].tokens.size() < bounds_[b].tokens.size(); });
-        size_t best = 0, gap = std::numeric_limits<size_t>::max();
-        for (size_t k = 1; k < mine.size(); ++k) {
-            const size_t next = k + 1 < mine.size() ? bounds_[mine[k + 1]].tokens.size() : n;
-            const size_t g = next - bounds_[mine[k - 1]].tokens.size();
-            if (g < gap && bounds_[mine[k]].id != pinned_bound_) { gap = g; best = k; }
-        }
-        if (!best) break;
-        const size_t gone = mine[best];
-        drop_bound(gone);
-        mine.erase(mine.begin() + (std::ptrdiff_t)best);
-        for (size_t& i : mine) if (i > gone) --i;
     }
     const size_t bytes = model_.host_bytes(n, false);
-    while (!host_.empty() && host_.front().superseded && host_held_ + bytes > host_cap_) drop_host(0);
-    release_written(bytes);
-    while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
-    if (host_held_ + bytes > host_cap_) {
+    if (!host_room_for(bytes, Rank{back ? 2 : 1, now})) {
         moved(Move::boundary_not_kept, "server: a message boundary at %zu tokens was not kept in host memory (the host tier has no room it may give)\n", n);
         return;
     }
-    // The conversation's boundaries take its age, behind every other conversation's, so the room the tier needs takes the longest unheard conversation's boundaries, its first among them, before any of one still going.
-    std::stable_partition(bounds_.begin(), bounds_.end(), [&](const Boundary& o) {
-        return !(o.tokens.size() < n && std::equal(o.tokens.begin(), o.tokens.end(), tokens.begin()));
-    });
     // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry: a throw before the copy, or from it, which releases what it took, leaves no entry.
     bounds_.emplace_back();
     Boundary& b = bounds_.back();
     try {
         b.id = ++donor_ids_;
+        b.back = back;
         b.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)n);
         b.classes = clip(classes, n);
         quieted()->save_host(seq, n, b.state, host_cap_ + parked_held(), false);
@@ -260,16 +241,71 @@ inline Scheduler::Boundary* Scheduler::find_bound(uint64_t id) {
     return nullptr;
 }
 
-// The oldest boundary but the one a request being admitted has pinned out of host memory, the one being written to disk only when no other is left (written_soon); false when there is none.
-// Under the lock.
-inline bool Scheduler::drop_oldest_bound() {
-    for (const bool writing : {false, true})
-        for (size_t i = 0; i < bounds_.size(); ++i)
-            if (bounds_[i].id != pinned_bound_ && written_soon(true, bounds_[i].id) == writing) {
-                drop_bound(i);
-                return true;
-            }
-    return false;
+// The one ranking of what stays (docs/CACHE-PLAN.md, section 4): class 0 where a holder's going loses nothing (superseded, cut off, a boundary without rows, not the last holder), 1 a conversation that did not come back, 2 one that did.
+// Within a class the least recently used goes first; every tier's victims are asked of it.
+inline Scheduler::Rank Scheduler::rank(const Donor& d) const {
+    const size_t n = copy_length(d);
+    const bool kept = n && ((disk_ && disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state())) || held_below(d.tokens, d.classes, n, d.id) >= n);
+    return {d.superseded || kept ? 0 : d.back ? 2 : 1, d.used};
+}
+
+inline Scheduler::Rank Scheduler::rank(const HostDonor& h) const {
+    const size_t n = h.history.length;
+    return {h.superseded || h.disk || (n && held_below(h.tokens, h.classes, n, h.id) >= n) ? 0 : h.back ? 2 : 1, h.used};
+}
+
+inline Scheduler::Rank Scheduler::rank(const Boundary& b) const {
+    const bool rows = std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return holds(b, d.tokens, d.classes, d.seq.length()); }) ||
+                      std::any_of(host_.begin(), host_.end(), [&](const HostDonor& h) { return holds(b, h.tokens, h.classes, h.history.length); });
+    return {b.superseded || b.disk || !rows ? 0 : b.back ? 2 : 1, b.used};
+}
+
+// Whether donor d's write to disk is in flight, which pins it: the donor count and room take it last (A19).
+inline bool Scheduler::writing(const Donor& d) const { return disk_ && disk_->writing_of(digests(d), model_.kv_block_tokens()).second > 0; }
+
+// donors_ in rank order, least worth first, a donor whose write is in flight last; make_room takes its victims in this order.
+inline std::vector<size_t> Scheduler::ranked() const {
+    std::vector<std::pair<std::pair<bool, Rank>, size_t>> keys;
+    for (size_t d = 0; d < donors_.size(); ++d) keys.push_back({{writing(donors_[d]), rank(donors_[d])}, d});
+    std::stable_sort(keys.begin(), keys.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    std::vector<size_t> order;
+    for (const auto& k : keys) order.push_back(k.second);
+    return order;
+}
+
+// The host tier's entries, boundaries and copies, in the order room releases them: ranked below `above`, least worth first, a write in flight last, never one pinned (a boundary being admitted, a copy being promoted, a read's source).
+// With `outranked`, whether an entry was passed over for ranking at or above `above`.
+inline std::vector<std::pair<bool, uint64_t>> Scheduler::host_victims(const Rank& above, bool* outranked) const {
+    std::vector<std::pair<std::pair<bool, Rank>, std::pair<bool, uint64_t>>> keys;
+    const auto add = [&](bool bound, uint64_t id, const Rank& r) {
+        if (r < above) keys.push_back({{written_soon(bound, id), r}, {bound, id}});
+        else if (outranked) *outranked = true;
+    };
+    for (const Boundary& b : bounds_)
+        if (b.id != pinned_bound_) add(true, b.id, rank(b));
+    for (const HostDonor& h : host_)
+        if (h.id != promoting_ && !read_source(h.id)) add(false, h.id, rank(h));
+    std::stable_sort(keys.begin(), keys.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    std::vector<std::pair<bool, uint64_t>> out;
+    for (const auto& k : keys) out.push_back(k.second);
+    return out;
+}
+
+// Host room for `bytes` more, entries released one at a time in host_victims' order below `above`, ranked again after each, as a holder may become the last; whether the bytes fit. Under the lock.
+inline bool Scheduler::host_room_for(size_t bytes, const Rank& above) {
+    while (host_held_ + bytes > host_cap_) {
+        const auto victims = host_victims(above);
+        if (victims.empty()) break;
+        const auto [bound, id] = victims.front();
+        if (bound) {
+            for (size_t i = 0; i < bounds_.size(); ++i)
+                if (bounds_[i].id == id) { drop_bound(i); break; }
+        } else {
+            for (size_t i = 0; i < host_.size(); ++i)
+                if (host_[i].id == id) { drop_host(i); break; }
+        }
+    }
+    return host_held_ + bytes <= host_cap_;
 }
 
 // Boundary i out of host memory.
@@ -364,17 +400,15 @@ inline size_t Scheduler::copy_length(const Donor& d) const {
     return n;
 }
 
-// What write_back does with a copy of `n` tokens, the one owner of whether a copy is kept: the room it takes, in the order write_back releases it, and host memory for the slabs it takes anew.
-// An unreturned donor takes only the room of superseded or unreturned entries until the tier has refused as many in a row as it holds (docs/src/server.md).
-inline Scheduler::HostRoom Scheduler::host_room(size_t n, bool back) const {
+// What write_back does with a copy of `n` tokens ranked `mine`, the one owner of whether a copy is kept: the room it takes, in the ranking's order below its own, and host memory for the slabs it takes anew.
+inline Scheduler::HostRoom Scheduler::host_room(size_t n, const Rank& mine) const {
     HostRoom plan;
     const size_t bytes = model_.host_bytes(n);
     if (bytes > host_cap_) {
         plan.why = HostRoom::Why::larger;
         return plan;
     }
-    size_t held = host_held_, left = host_.size(), parked = parked_held();
-    std::vector<char> gone_bound(bounds_.size(), 0), gone_copy(host_.size(), 0);
+    size_t held = host_held_, parked = parked_held();
     std::vector<size_t> freed;
     // An entry released leaves its slabs idle for the copy, or parked beside the tier's limit while its write stops (release_entry).
     const auto release = [&](const infer::HostHistory& h, bool bound, uint64_t id) {
@@ -387,35 +421,21 @@ inline Scheduler::HostRoom Scheduler::host_room(size_t n, bool back) const {
         if (freed.size() < h.slabs.size()) freed.resize(h.slabs.size(), 0);
         for (size_t k = 0; k < h.slabs.size(); ++k) freed[k] += h.slabs[k].size();
     };
-    const auto bound = [&](size_t i) { gone_bound[i] = 1; release(bounds_[i].state, true, bounds_[i].id); };
-    const auto copy = [&](size_t i) { gone_copy[i] = 1; --left; release(host_[i].history, false, host_[i].id); };
     const auto short_of = [&] { return held + bytes > host_cap_; };
-    for (size_t i = 0; i < host_.size() && host_[i].superseded && short_of(); ++i) copy(i);
-    for (size_t i = 0; i < bounds_.size() && short_of(); ++i)
-        if (bounds_[i].disk && bounds_[i].id != pinned_bound_) bound(i);
-    for (size_t i = 0; i < host_.size() && short_of(); ++i)
-        if (!gone_copy[i] && host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id)) copy(i);
-    for (const bool writing : {false, true})
-        for (size_t i = 0; i < bounds_.size() && short_of(); ++i)
-            if (!gone_bound[i] && bounds_[i].id != pinned_bound_ && written_soon(true, bounds_[i].id) == writing) bound(i);
-    if (!back) {
-        size_t room = host_cap_ - std::min(host_cap_, held);
-        for (size_t i = 0; i < host_.size(); ++i)
-            if (!gone_copy[i] && (host_[i].superseded || !host_[i].back)) room += host_[i].history.held;
-        if (room < bytes && host_refused_ < left) {
-            plan.why = HostRoom::Why::unreturned;
-            return plan;
+    bool outranked = false;
+    for (const auto& [bound, id] : host_victims(mine, &outranked)) {
+        if (!short_of()) break;
+        if (bound) {
+            for (const Boundary& b : bounds_)
+                if (b.id == id) release(b.state, true, id);
+        } else {
+            for (const HostDonor& h : host_)
+                if (h.id == id) release(h.history, false, id);
         }
-        for (const bool writing : {false, true})
-            for (size_t i = 0; i < host_.size() && short_of(); ++i)
-                if (!gone_copy[i] && (host_[i].superseded || !host_[i].back) && written_soon(false, host_[i].id) == writing) copy(i);
     }
-    for (const bool writing : {false, true})
-        for (size_t i = 0; i < host_.size() && short_of(); ++i)
-            if (!gone_copy[i] && host_[i].id != promoting_ && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) copy(i);
-    // Still short once every entry it may release is gone (a pinned boundary, the copy being promoted and a disk read's source stay), the copy would fail its slabs' limit.
+    // Still short once every entry ranked below it is gone, the copy is refused for the entries that outrank it, or for those pinned (a boundary being admitted, the copy being promoted, a read's source).
     if (short_of()) {
-        plan.why = HostRoom::Why::room;
+        plan.why = outranked ? HostRoom::Why::outranked : HostRoom::Why::room;
         return plan;
     }
     const infer::Model::HostFit fit = model_.host_copy_fits(n, host_cap_ + parked, freed);
@@ -441,13 +461,12 @@ inline void Scheduler::write_back(Donor& d) {
             host_[i].superseded = false;
             host_[i].back = host_[i].back || d.back;
             host_[i].used = std::filesystem::file_time_type::clock::now();
-            host_refused_ = 0;
             if (host_[i].disk) disk_->renew(host_[i].disk, host_[i].back);
             std::rotate(host_.begin() + (std::ptrdiff_t)i, host_.begin() + (std::ptrdiff_t)i + 1, host_.end());
             return;
         }
     }
-    const HostRoom plan = host_room(n, d.back);
+    const HostRoom plan = host_room(n, Rank{d.superseded ? 0 : d.back ? 2 : 1, d.used});
     if (plan.why == HostRoom::Why::larger) {
         // Too large for the host tier: it is kept only where its files are already whole on disk, and otherwise lost, which is counted and said.
         uncopied();
@@ -455,7 +474,7 @@ inline void Scheduler::write_back(Donor& d) {
         // Whole on disk, a conversation that came back is read back to the devices by a job once room is spare, so its next turn waits for no read.
         if (whole && d.back && !stopping_) restore_later(d.tokens, n);
         if (whole) moved(Move::not_to_host);
-        else gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n), n, "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)model_.host_bytes(n) / (1 << 20), disk_ ? " and its files were not yet whole on disk" : "");
+        else gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n, d.id), n, "server: a history of %zu tokens left the devices with no copy: %.1f MiB is more than the host tier holds%s\n", n, (double)model_.host_bytes(n) / (1 << 20), disk_ ? " and its files were not yet whole on disk" : "");
         return;
     }
     // What the plan releases goes first, as far as the refusal of an unreturned donor where it is refused; a copy short of room or of the host's memory releases nothing.
@@ -469,20 +488,19 @@ inline void Scheduler::write_back(Donor& d) {
                     if (host_[i].id == id) { drop_host(i); break; }
             }
         }
-    if (plan.why == HostRoom::Why::unreturned) {
-        ++host_refused_;
+    if (plan.why == HostRoom::Why::outranked) {
         uncopied();
-        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n), n, "server: a donor of %zu tokens was not kept in host memory (the copies there are of conversations that came back, and its own did not)\n", n);
+        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n, d.id), n, "server: a donor of %zu tokens was not kept in host memory (the entries there rank above it)\n", n);
         return;
     }
     if (plan.why == HostRoom::Why::room) {
         uncopied();
-        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n), n, "server: a donor of %zu tokens was not kept in host memory (the tier's room is held by entries in use)\n", n);
+        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n, d.id), n, "server: a donor of %zu tokens was not kept in host memory (the tier's room is held by entries in use)\n", n);
         return;
     }
     if (plan.why == HostRoom::Why::memory) {
         uncopied();
-        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n), n, "server: a donor of %zu tokens was not kept in host memory (the host has no memory for its slabs beside the reserve it keeps)\n", n);
+        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n, d.id), n, "server: a donor of %zu tokens was not kept in host memory (the host has no memory for its slabs beside the reserve it keeps)\n", n);
         return;
     }
     // The entry is made before the copy, so nothing allocates between a copy enqueued and its entry.
@@ -492,19 +510,20 @@ inline void Scheduler::write_back(Donor& d) {
     try {
         h.id = d.id ? d.id : ++donor_ids_;
         h.back = d.back;
+        // The copy takes the donor's last use, not its own making, so the ranking keeps its place.
+        h.used = d.used;
         h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
         h.classes = clip(d.classes, n);
         quieted()->save_host(d.seq, n, h.history, host_cap_ + parked_held());
     } catch (const std::exception& e) {
         host_.pop_back();
-        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n), n, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
+        gone(d.tokens, Move::not_to_host, held_below(d.tokens, d.classes, n, d.id), n, "server: a donor of %zu tokens was not kept in host memory (%s)\n", n, e.what());
         uncopied();
         return;
     }
     host_held_ += h.history.held;
     host_moved_ += h.history.bytes;
     moved(Move::to_host, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20), ms_since(start));
-    host_refused_ = 0;
     if (disk_) {
         refresh_disk();
         if (h.disk) disk_->renew(h.disk, h.back);
@@ -525,17 +544,6 @@ inline void Scheduler::restore_later(const std::vector<uint32_t>& tokens, size_t
 // Whether the entry `id` is the one whose write to disk is in flight: room takes it last among those it may take, since dropping it cancels the write (docs/DISK-TIER.md, Demotion).
 inline bool Scheduler::written_soon(bool boundary, uint64_t id) const { return disk_ && disk_->writing_from(id, boundary) && !disk_->write_stopped(); }
 
-// The oldest host donor out of host memory, the one being written to disk only when it is the last; false when no other is left.
-// Room passes by the copy being promoted, whose evictions make this room; under the lock.
-inline bool Scheduler::drop_oldest_host() {
-    for (const bool writing : {false, true})
-        for (size_t i = 0; i < host_.size(); ++i)
-            if (host_[i].id != promoting_ && !read_source(host_[i].id) && written_soon(false, host_[i].id) == writing) {
-                drop_host(i);
-                return true;
-            }
-    return false;
-}
 
 // Host donor i out of host memory.
 // Under the lock.
@@ -561,10 +569,10 @@ inline void Scheduler::moved(Move kind, const char* line, A... a) {
     else std::fprintf(stderr, line, a...);
 }
 
-// The most rows below `n` of `tokens`, in whole blocks, that a donor or a host entry holds: what is left in memory of a history whose other holder goes.
-inline size_t Scheduler::held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n) {
+// The most rows below `n` of `tokens`, in whole blocks, that a donor or a host entry holds but `other`, the holder going: what is left in memory of a history whose holder goes.
+inline size_t Scheduler::held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other) const {
     const size_t bt = model_.kv_block_tokens();
-    return served(std::vector<uint32_t>(tokens.begin(), tokens.begin() + (std::ptrdiff_t)std::min(n / bt * bt, tokens.size())), classes, nullptr, false).tokens;
+    return served(std::vector<uint32_t>(tokens.begin(), tokens.begin() + (std::ptrdiff_t)std::min(n / bt * bt, tokens.size())), classes, nullptr, false, other ? std::vector<uint64_t>{other} : std::vector<uint64_t>{}).tokens;
 }
 
 // Rows [first, tokens) of `history` leaving memory with their last holder, or a state of it at `tokens`: moved, and first given to a test that tells whose rows they were (on_move).
@@ -604,18 +612,6 @@ inline size_t Scheduler::parked_held() const {
     return n;
 }
 
-// Host entries whose files are on disk released, the oldest boundaries and then the oldest copies, until `bytes` more fit the host tier; nothing is lost, the files keeping them.
-// Under the lock.
-inline void Scheduler::release_written(size_t bytes) {
-    for (size_t i = 0; i < bounds_.size() && host_held_ + bytes > host_cap_;) {
-        if (bounds_[i].disk && bounds_[i].id != pinned_bound_) drop_bound(i);
-        else ++i;
-    }
-    for (size_t i = 0; i < host_.size() && host_held_ + bytes > host_cap_;) {
-        if (host_[i].disk && host_[i].id != promoting_ && !read_source(host_[i].id)) drop_host(i);
-        else ++i;
-    }
-}
 
 // Whether host entry `id` holds the rows a state being read alone from disk is for, so no room releases it until that read ends (start_read).
 // Under the lock.
@@ -1036,7 +1032,8 @@ inline void Scheduler::prove(Request& r) {
         }
         if (r.boundary_kept_) asked_boundary(r);
         // The path the proof read is a history read from disk from here, a host entry where the tier has the room.
-        release_written(proved.held);
+        // Only what loses nothing makes its room (rank's class 0).
+        host_room_for(proved.held, Rank{1, {}});
         if (proved.owner && host_held_ + proved.held <= host_cap_) {
             host_.emplace_back();
             HostDonor& d = host_.back();
@@ -1094,7 +1091,7 @@ inline void Scheduler::prefetch() {
                 const std::vector<size_t> shares = pools_.blocks_for(shared);
                 for (size_t k = 0; k < fresh.size(); ++k) fresh[k] -= std::min(fresh[k], shares[k]);
                 const size_t keep = held.kind == Served::Kind::donor ? held.index : npos;
-                const Taken t = make_room(room(), donors_.size(), keep, true, {}, 0, false, fresh, gain_of({}, keep, keep == npos ? 0 : shared));
+                const Taken t = make_room(room(), ranked(), keep, true, {}, 0, false, fresh, gain_of({}, keep, keep == npos ? 0 : shared));
                 if (!t.enough || std::any_of(t.donors.begin(), t.donors.end(), [&](size_t g) { return g != keep; })) continue;
             }
             // The request's history as it would compute it: its tokens but the last, a job's all of them, which it reads and keeps whole.
@@ -1205,7 +1202,7 @@ inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::
     if (!stream_room(length, spare)) return refused("the devices have no room for it");
     // The checkpoint slot its state takes comes first, so no donor goes for its blocks where the slot is not to be had.
     if (model_.keeps_state() && !checkpoint_room_held(0)) return refused("no checkpoint slot for its state");
-    const Taken t = make_room(room(), donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(length), gain_of({}));
+    const Taken t = make_room(room(), ranked(), npos, false, {}, 0, false, pools_.blocks_for(length), gain_of({}));
     if (!t.enough || (spare && !t.donors.empty())) return refused("the devices have no room for it");
     std::vector<size_t> gone = t.donors;
     std::sort(gone.begin(), gone.end(), std::greater<size_t>());
@@ -1233,7 +1230,7 @@ inline uint64_t Scheduler::start_stream(const DiskIndex::Path& path, const std::
 
 // Whether a stream of `length` tokens has its room on the devices now, a job's (`spare`) from free blocks alone; under the lock.
 inline bool Scheduler::stream_room(size_t length, bool spare) const {
-    const Taken t = make_room(room(), donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(length), gain_of({}));
+    const Taken t = make_room(room(), ranked(), npos, false, {}, 0, false, pools_.blocks_for(length), gain_of({}));
     return t.enough && (!spare || t.donors.empty());
 }
 
@@ -1283,7 +1280,7 @@ inline void Scheduler::stream_round() {
             quieted()->restored(*s.into, s.read->last());
             record(s, true);
             restoring_ = s.restore;
-            while (donors_.size() >= max_seqs_) drop_donor(0, true);
+            while (donors_.size() >= max_seqs_) drop_donor(ranked().front(), true);
             restoring_ = false;
             Donor d;
             d.id = ++donor_ids_;
@@ -1336,10 +1333,8 @@ inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_on
     };
     if (bytes > host_cap_) return refused("its state is larger than the host tier");
     reading_for_ = rd.source;
-    while (!host_.empty() && host_.front().superseded && host_.front().id != rd.source && host_held_ + bytes > host_cap_) drop_host(0);
-    release_written(bytes);
-    while (host_held_ + bytes > host_cap_ && drop_oldest_bound()) {}
-    while (host_held_ + bytes > host_cap_ && drop_oldest_host()) {}
+    // A read is for a conversation that came back, so it ranks as one, newest of all.
+    host_room_for(bytes, Rank{2, std::filesystem::file_time_type::clock::now()});
     reading_for_ = 0;
     if (host_held_ + bytes > host_cap_ && rd.source && whole) return start_read(*whole, false, tokens, classes, r);
     if (host_held_ + bytes > host_cap_) return refused("the host tier has no room it may give");
@@ -1365,8 +1360,8 @@ inline uint64_t Scheduler::start_read(const DiskIndex::Path& path, bool state_on
     return id;
 }
 
-// Once host entries not on disk hold more than three quarters of the host tier, the one it would drop next is written while it stays a host entry: boundaries, oldest first, then copies whose conversations did not come back, then the oldest.
-// Room taken later releases entries on disk at once (release_written), so a demotion never waits for a write and writes nothing the host tier keeps (docs/DISK-TIER.md, Demotion); under the lock, one file at a time.
+// Once host entries not on disk hold more than three quarters of the host tier, the one the ranking would drop next is written while it stays a host entry.
+// Room taken later releases entries on disk first (rank's class 0), so a demotion never waits for a write and writes nothing the host tier keeps (docs/DISK-TIER.md, Demotion); under the lock, one file at a time.
 inline void Scheduler::write_ahead() {
     if (!disk_->can_write()) return;
     size_t unwritten = 0;
@@ -1375,18 +1370,22 @@ inline void Scheduler::write_ahead() {
     for (const Boundary& b : bounds_)
         if (!b.disk) unwritten += b.state.held;
     if (unwritten <= host_cap_ / 4 * 3) return;
-    for (const Boundary& b : bounds_)
-        if (!b.disk && write_from(b)) return;
-    for (const bool back : {false, true})
-        for (const HostDonor& h : host_)
-            if (!h.disk && !h.superseded && h.back == back && write_from(h)) return;
+    for (const auto& [bound, id] : host_victims(Rank{3, {}})) {
+        if (bound) {
+            for (const Boundary& b : bounds_)
+                if (b.id == id && !b.disk && !b.superseded && write_from(b)) return;
+        } else {
+            for (const HostDonor& h : host_)
+                if (h.id == id && !h.disk && !h.superseded && write_from(h)) return;
+        }
+    }
 }
 
 // Host donor i back on the devices as a donor of its own, its blocks and, on a model that keeps a state, its checkpoint slot taken as a first admission takes room, evicting older device donors to host memory; the host entry stays, renewed.
 // With `spare`, for a job, only into room no donor gives up; false, the devices as they were but for donors evicted, where the room or a slot is not there or the copy fails, with `room` false where the room was what lacked; under the lock.
 inline bool Scheduler::promote(size_t i, bool spare, bool* room, const std::shared_ptr<Request>& r) {
     const uint64_t id = host_[i].id;
-    // The device donors it evicts to host memory never take its room for theirs (release_written).
+    // The device donors it evicts to host memory never take its room for theirs (promoting_ pins it, host_victims).
     struct Unpromote {
         uint64_t& id;
         ~Unpromote() { id = 0; }
@@ -1401,7 +1400,7 @@ inline bool Scheduler::promote(size_t i, bool spare, bool* room, const std::shar
             if (h.id == id) return &h;
         return nullptr;
     };
-    const Taken t = make_room(this->room(), donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(entry()->history.length), gain_of({}));
+    const Taken t = make_room(this->room(), ranked(), npos, false, {}, 0, false, pools_.blocks_for(entry()->history.length), gain_of({}));
     if (!t.enough || (spare && !t.donors.empty())) {
         if (room) *room = false;
         return false;
@@ -1413,7 +1412,7 @@ inline bool Scheduler::promote(size_t i, bool spare, bool* room, const std::shar
         moved(Move::promote_failed, "server: a donor of %zu tokens was not promoted from host memory (no checkpoint slot for its state)\n", entry() ? entry()->history.length : 0);
         return false;
     }
-    while (donors_.size() >= max_seqs_) drop_donor(0, true);
+    while (donors_.size() >= max_seqs_) drop_donor(ranked().front(), true);
     HostDonor* h = entry();
     if (!h) {
         moved(Move::promote_failed, "server: a copy in host memory was not promoted (the room its promotion made took it)\n");

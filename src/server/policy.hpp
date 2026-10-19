@@ -122,9 +122,9 @@ struct Taken {
 // What dropping the victims of a plan together frees, per pool: asked of the whole set of victims so far, never of one victim alone, since two forks of one prefix free it only together (Model::freed).
 using Gain = std::function<std::vector<size_t>(const Taken&)>;
 
-// Who gives up blocks for whom (docs/SERVER.md, room by first admission): for `need` blocks a pool beside `free`, donors go first, oldest first, the one the request forks (`keep`) last or, with `keep_first`, first.
+// Who gives up blocks for whom (docs/SERVER.md, room by first admission): for `need` blocks beside `free`, donors go in `order`, the scheduler's ranking, the forked one (`keep`) last or, with `keep_first`, first.
 // Only growth (`preempt`) then pauses uncapped requests admitted after `after`, latest first, each giving its headroom and, if still short, its donor; nothing is taken unless the whole is enough.
-inline Taken make_room(const std::vector<size_t>& free, size_t donors, size_t keep, bool keep_first, const std::vector<Holder>& active, uint64_t after, bool preempt,
+inline Taken make_room(const std::vector<size_t>& free, const std::vector<size_t>& order, size_t keep, bool keep_first, const std::vector<Holder>& active, uint64_t after, bool preempt,
                        const std::vector<size_t>& need, const Gain& gain) {
     Taken t;
     const auto gained = [&] { return t.donors.empty() && t.paused.empty() ? std::vector<size_t>(need.size()) : gain(t); };
@@ -135,13 +135,14 @@ inline Taken make_room(const std::vector<size_t>& free, size_t donors, size_t ke
         return true;
     };
     t.enough = fits();
-    std::vector<size_t> order;
-    if (keep < donors && keep_first) order.push_back(keep);
-    for (size_t d = 0; d < donors; ++d)
-        if (d != keep) order.push_back(d);
-    if (keep < donors && !keep_first) order.push_back(keep);
-    for (size_t i = 0; i < order.size() && !t.enough; ++i) {
-        t.donors.push_back(order[i]);
+    std::vector<size_t> victims;
+    const bool kept = std::find(order.begin(), order.end(), keep) != order.end();
+    if (kept && keep_first) victims.push_back(keep);
+    for (size_t d : order)
+        if (d != keep) victims.push_back(d);
+    if (kept && !keep_first) victims.push_back(keep);
+    for (size_t i = 0; i < victims.size() && !t.enough; ++i) {
+        t.donors.push_back(victims[i]);
         t.enough = fits();
     }
     if (preempt && !t.enough) {

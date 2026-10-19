@@ -661,7 +661,7 @@ void hybrid_checkpoints(const gguf::GGUFModel& weights, const bpe::Tokenizer& to
     }
 }
 
-// Message boundaries (docs/SPECULATIVE.md, section 2, Host tier): a hybrid model with three checkpoint slots and a host tier, six turns each read again, each job's donor superseding the one before, its state thinned to four in host memory.
+// Message boundaries (docs/SPECULATIVE.md, section 2, Host tier): a hybrid model with three checkpoint slots and a host tier, six turns each read again, each job's donor superseding the one before, every state kept, room allowing.
 // A 2000-token request then evicts every donor, and an edit of turn 2 and a regenerated turn 6 fork the boundaries and give their replies on a fresh model; `whole`, where given, is how many boundaries the six turns leave in host memory.
 void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what, size_t host = (size_t)1 << 30,
                         const server::DiskOptions& disk = {}, size_t whole = 0) {
@@ -733,7 +733,7 @@ void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
         sched.stop();
         runner.join();
     }
-    require(disk.bytes || after_long.boundaries == 4, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 4");
+    require(disk.bytes || after_long.boundaries == 6, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 6");
     require(!whole || after_turns.boundaries == whole,
             what + ": the turns left " + std::to_string(after_turns.boundaries) + " boundaries in host memory, against " + std::to_string(whole));
     require(!disk.bytes || whole || (stats.disk_hits >= 1 && stats.disk_errors == 0), what + ": " + std::to_string(stats.disk_hits) + " entries read back from disk");
@@ -1714,7 +1714,7 @@ void one_copy_per_conversation(const Make& make, const bpe::Tokenizer& tok, uint
 }
 
 // Host memory keeps the conversations that came back against newcomers (Scheduler::write_back): one request at a time, each finished request's donor evicting the one before it, each host copy one 64 MiB slab.
-// X' repeats X and so came back, then new prompts Y, Z and W evict donors: with room for two copies a prompt repeating X' forks from host memory, with room for one it forks nothing; every reply is its reply alone.
+// X' repeats X and so came back, then new prompts Y, Z and W evict donors; X''s copy outranks every newcomer (Scheduler::rank), so with room for one Z's repeat forks nothing and X'' forks X'.
 void conversations_that_came_back(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     for (const size_t slabs : {(size_t)2, (size_t)1}) {
         const std::string what = "host memory for " + std::to_string(slabs) + " cop" + (slabs == 1 ? "y" : "ies") + " keeping conversations that came back";
@@ -1748,7 +1748,7 @@ void conversations_that_came_back(const Make& make, const bpe::Tokenizer& tok, u
             sched.stop();
             runner.join();
         }
-        const std::vector<size_t> want = slabs == 2 ? std::vector<size_t>{0, 2 * kBlock, 0, 0, 0, 3 * kBlock} : std::vector<size_t>{0, 2 * kBlock, 0, 0, 0, 2 * kBlock, 0};
+        const std::vector<size_t> want = slabs == 2 ? std::vector<size_t>{0, 2 * kBlock, 0, 0, 0, 3 * kBlock} : std::vector<size_t>{0, 2 * kBlock, 0, 0, 0, 0, 3 * kBlock};
         for (size_t i = 0; i < order.size(); ++i) {
             require(reused[i] == want[i], what + ": request " + std::to_string(i) + " reused " + std::to_string(reused[i]) + " tokens, against " + std::to_string(want[i]));
             auto fresh = make(2048, 0);
@@ -2619,7 +2619,8 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
             steps[1].name = "a new conversation";
             steps[1].trigger = Req{prompt_of(60, 300, vocab), 20};
             steps[2].name = "a conversation promoted from host memory";
-            steps[2].trigger = follow(turns.size() - 1, 52);
+            // The newest conversation's donor is the last holder of its rows and stays on the devices (Scheduler::rank), so the one promoted is the conversation step 0 came back to.
+            steps[2].trigger = follow(3, 52);
             steps[3].name = "a conversation read back from disk and promoted";
             steps[3].trigger = follow(0, 50);
             for (size_t k = 0; k < steps.size(); ++k) {
@@ -2681,7 +2682,8 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
     }
     // What each step held is the first call its path makes on the stage's devices: a copy into host memory, and a copy out of it.
     require(steps[0].calls[0] == 'S' && steps[0].after.host_bytes_moved > steps[0].before.host_bytes_moved, what + ", " + steps[0].name + ": its first call there was not a donor's copy to host memory (" + steps[0].calls + ")");
-    require((steps[2].calls[0] == 'R' || (width == 1 && steps[2].calls[0] == 'S' && steps[2].calls.find('R') != std::string::npos)) && steps[2].after.host_hits == steps[2].before.host_hits + 1 && steps[2].after.disk_hits == steps[2].before.disk_hits,
+    // A promotion whose room first sends a donor to host memory (S) makes its copy back after it.
+    require((steps[2].calls[0] == 'R' || (steps[2].calls[0] == 'S' && steps[2].calls.find('R') != std::string::npos)) && steps[2].after.host_hits == steps[2].before.host_hits + 1 && steps[2].after.disk_hits == steps[2].before.disk_hits,
             what + ", " + steps[2].name + ": its first call there was not the copy back from host memory, or it was read from disk (" + steps[2].calls + ", " +
                 std::to_string(steps[2].after.host_hits - steps[2].before.host_hits) + " promotions, " + std::to_string(steps[2].after.disk_hits - steps[2].before.disk_hits) + " reads from disk)");
     require(steps[3].after.disk_hits == steps[3].before.disk_hits + 1 && steps[3].after.host_hits == steps[3].before.host_hits + 1, what + ", " + steps[3].name + ": it was not read back from disk and promoted (" + steps[3].calls + ")");
@@ -4781,7 +4783,7 @@ void request_takes_job(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
     std::cout << "server-resume: " << what << ": " << seen << "\n";
 }
 
-// A shorter boundary whose rows are held serves where the longest has none (Scheduler::best_bound), on the hybrid model: two conversations share their first 300 tokens.
+// A shorter boundary whose rows are held serves where the longest has none (Scheduler::served), on the hybrid model: two conversations share their first 300 tokens.
 // One leaves a boundary at 256 and a donor kept past the point they part; the other leaves a boundary at 512 and no rows, its donor superseded and gone, so a request continuing the second must fork the first's 256.
 void shorter_boundary_with_rows(const gguf::GGUFModel& mixed) {
     const std::string what = "a shorter boundary whose rows are held, behind a longer one without rows";

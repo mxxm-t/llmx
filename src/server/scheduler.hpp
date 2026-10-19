@@ -186,6 +186,7 @@ private:
     SampleParams params_;   // never changed once made, since next reads it in the connection thread
     const size_t stable_;
     const size_t message_;
+    std::vector<uint32_t> cut_;    // a cut prompt's uncut rows through the first one the cut dropped (Api::fit), whose holders admission supersedes
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<Token> out_;
@@ -385,12 +386,13 @@ public:
     // Queue a request; the handle's channel delivers its tokens.
     // A prompt that leaves its reply no room is refused here, before it waits (prompt_room), and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0,
-                                    Request::Clock::time_point received = Request::Clock::now()) {
+                                    Request::Clock::time_point received = Request::Clock::now(), std::vector<uint32_t> cut = {}) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (!params.until_limit && params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() > prompt_room(params)) throw TooLong(too_long(prompt.size(), params));
         if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
         auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message, received);
+        r->cut_ = std::move(cut);
         {
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
@@ -2100,7 +2102,7 @@ private:
                 pause(active, i--, true);
                 continue;
             }
-            const Taken t = make_room(room(), donors_.size(), npos, false, holders(active), r.admission_, true, step, gain_of(active));
+            const Taken t = make_room(room(), ranked(), npos, false, holders(active), r.admission_, true, step, gain_of(active));
             if (!t.enough || t.wait) {
                 r.stalled_ = true;
                 if (!last) continue;
@@ -2143,10 +2145,10 @@ private:
         std::vector<size_t> free = room();
         add(free, promised(r));
         add(free, model_.freed({&r.seq_}).blocks);
-        if (!make_room(free, donors_.size(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), gain_of({}, npos, 0, false, {&r.seq_})).enough)
+        if (!make_room(free, ranked(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), gain_of({}, npos, 0, false, {&r.seq_})).enough)
             return false;
         const size_t bt = model_.kv_block_tokens(), n = r.seq_.length() / bt * bt;
-        const HostRoom::Why why = host_room(n, true).why;
+        const HostRoom::Why why = host_room(n, Rank{2, std::filesystem::file_time_type::clock::now()}).why;
         if (why == HostRoom::Why::memory) {
             ++turns_without_memory_;
             if (!memory_run_++) {
@@ -2251,7 +2253,7 @@ private:
         std::vector<size_t> fresh = need;
         const std::vector<size_t> shares = take ? model_.kv_held(donors_[d].seq) : pools_.blocks_for(shared);
         for (size_t p = 0; p < fresh.size(); ++p) fresh[p] -= std::min(fresh[p], shares[p]);
-        const Taken t = make_room(room(), donors_.size(), keep ? d : npos, keep_first, {}, 0, false, fresh, gain_of({}, keep ? d : npos, take ? 0 : shared, take));
+        const Taken t = make_room(room(), ranked(), keep ? d : npos, keep_first, {}, 0, false, fresh, gain_of({}, keep ? d : npos, take ? 0 : shared, take));
         if (!t.enough) return false;
         // A request whose room takes a donor the host tier cannot keep waits for that donor's files to be whole on disk, its write then whole pieces (question 5 of docs/CACHE-PLAN.md).
         // Past the wait's bound it takes the room, and the rows are said as lost.
@@ -2294,11 +2296,15 @@ private:
         }
         Boundary* bound = pinned_bound_ ? find_bound(pinned_bound_) : nullptr;
         admit(*r, d, shared, take, from, bound ? &bound->state : nullptr);
-        for (size_t i = 0; bound && i < bounds_.size(); ++i)
-            if (&bounds_[i] == bound) {
-                std::rotate(bounds_.begin() + (std::ptrdiff_t)i, bounds_.begin() + (std::ptrdiff_t)i + 1, bounds_.end());
-                break;
-            }
+        if (bound) bound->used = std::filesystem::file_time_type::clock::now();
+        // A cut's uncut history (step 9 of docs/CACHE-PLAN.md): every holder of the first row it dropped is superseded, so it ranks first to go.
+        if (!r->cut_.empty()) {
+            const auto uncut = [&](const std::vector<uint32_t>& t) { return t.size() >= r->cut_.size() && std::equal(r->cut_.begin(), r->cut_.end(), t.begin()); };
+            for (Donor& o : donors_) o.superseded = o.superseded || uncut(o.tokens);
+            for (HostDonor& o : host_) o.superseded = o.superseded || uncut(o.tokens);
+            for (Boundary& o : bounds_) o.superseded = o.superseded || uncut(o.tokens);
+            r->cut_.clear();
+        }
         if (consume && !take) {
             moved(Move::consumed, "server: cache: a donor of %zu tokens consumed by the %s that forked %zu of it\n", donors_[d].seq.length(), r->job_ ? "job" : "request", shared);
             // The fork holds the donor's rows up to where it forked; what the donor could restore past that goes with it unless another holder has it.
@@ -2390,6 +2396,7 @@ private:
         bool superseded = false;      // a job's donor holds what its conversation's next turn needs, so this one is kept only while room allows, as a regenerate's
         bool back = false;            // its conversation came back: the request it holds, or the one a job read the reply of, forked a history a tier kept
         mutable std::vector<std::string> digests;   // as HostDonor::digests, of what its cache holds
+        std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: parked, forked or promoted
     };
 
     // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
@@ -2444,38 +2451,49 @@ private:
         uint64_t disk = 0;         // as HostDonor::disk
         mutable std::vector<std::string> digests;   // as HostDonor::digests
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // as HostDonor::used
+        bool back = false;         // as HostDonor::back, the conversation's whose state it is
+        bool superseded = false;   // as HostDonor::superseded, a cut having orphaned it
     };
-    // The boundaries a conversation keeps in host memory without a disk tier: the first, the newest and, between them, those that leave the most even spacing; with one, the host tier's room sends the older ones to disk instead.
-    static constexpr size_t kBoundaries = 4;
+    // A holder's place in the one ranking of what stays (rank): its class, 0 where its going loses nothing, 1 for a conversation that did not come back and 2 for one that did, then its last use.
+    struct Rank {
+        int cls = 0;
+        std::filesystem::file_time_type used{};
+        bool operator<(const Rank& o) const { return cls != o.cls ? cls < o.cls : used < o.used; }
+    };
 
     // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
     void keep_boundary(Donor& d);
     void asked_boundary(Request& r);
-    void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes);
+    void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back);
     Boundary* find_bound(uint64_t id);
-    bool drop_oldest_bound();
     void drop_bound(size_t i);
+    Rank rank(const Donor& d) const;
+    Rank rank(const HostDonor& h) const;
+    Rank rank(const Boundary& b) const;
+    bool writing(const Donor& d) const;
+    std::vector<size_t> ranked() const;
+    std::vector<std::pair<bool, uint64_t>> host_victims(const Rank& above, bool* outranked = nullptr) const;
+    bool host_room_for(size_t bytes, const Rank& above);
     bool holds(const Boundary& b, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held) const;
     bool holds(const std::vector<uint32_t>& bt, const std::vector<RowClass>& bc, size_t n, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes,
                size_t held) const;
     size_t copy_length(const Donor& d) const;
     // What write_back would do with a copy of `n` tokens of a donor that came back (`back`) or not: keep it after releasing `drops` ((a boundary, id), in order), or why not.
     struct HostRoom {
-        enum class Why { kept, larger, unreturned, room, memory } why = Why::kept;
+        enum class Why { kept, larger, outranked, room, memory } why = Why::kept;
         std::vector<std::pair<bool, uint64_t>> drops;
     };
-    HostRoom host_room(size_t n, bool back) const;
+    HostRoom host_room(size_t n, const Rank& mine) const;
     std::vector<size_t> room() const;
     std::vector<size_t> promised(const Request& r) const;
     Gain gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep = npos, size_t kept_len = 0, bool take = false, const std::vector<const infer::Sequence*>& also = {}) const;
     void note_room();
     void write_back(Donor& d);
     bool written_soon(bool boundary, uint64_t id) const;
-    bool drop_oldest_host();
     void drop_host(size_t i);
     template <class... A>
     void moved(Move kind, const char* line = nullptr, A... a);
-    size_t held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n);
+    size_t held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other = 0) const;
 
     // Why job j, about to give way, was not handed to a waiting request (hand_jobs), in that function's own terms; under the lock.
     const char* not_handed(const Request& j) const {
@@ -2495,7 +2513,6 @@ private:
     bool parks(bool boundary, uint64_t id) const;
     void release_entry(bool boundary, uint64_t id, infer::HostHistory& h);
     size_t parked_held() const;
-    void release_written(size_t bytes);
     bool read_source(uint64_t id) const;
     std::vector<std::string> digests_of(const uint32_t* tokens, size_t n, const std::vector<RowClass>& classes) const;
     template <class Entry>
@@ -2534,11 +2551,6 @@ private:
         return false;
     }
 
-    // Whether donor d's rows survive its leaving the devices: its files whole on disk, or a copy the host tier can take; under the lock.
-    bool kept_elsewhere(const Donor& d) {
-        const size_t n = copy_length(d);
-        return !n || (host_cap_ && !beyond_host(n)) || (disk_ && disk_->on_disk(digests(d), model_.kv_block_tokens(), n, model_.keeps_state()));
-    }
     // Whether a history of `n` tokens is one the host tier cannot keep, its copy larger than the whole tier, so the disk is its only save (write_back, disk_round).
     bool beyond_host(size_t n) const { return model_.host_bytes(n) > host_cap_; }
 
@@ -2605,6 +2617,7 @@ private:
             } else {
                 r.seq_ = shared ? model_.fork(from ? from->seq_ : donors_[d].seq, shared) : model_.make_sequence();
             }
+            if (shared && !from) donors_[d].used = std::filesystem::file_time_type::clock::now();
         }
         if (!first) return;
         if (shared) {
@@ -2752,26 +2765,11 @@ private:
         std::unique_lock<std::mutex> lk(m_, std::defer_lock);
         if (held && held >= (least ? least : model_.kv_block_tokens())) {
             lk.lock();
-            // The donor count gives up a superseded donor first, or one a job's donor supersedes, which it marks so, so a job's donor never evicts an unrelated conversation's while its own conversation's older copies stay.
-            // Then one whose conversation did not come back, then the oldest whose rows another tier keeps; a new donor of no return takes no last holder's place (docs/CACHE-PLAN.md, the one rule of last holders).
-            while (donors_.size() >= max_seqs_) {
-                size_t v = donors_.size();
-                for (size_t d = 0; d < donors_.size() && v == donors_.size(); ++d)
-                    if (donors_[d].superseded || (r->job_ && supersedes(*r, donors_[d].id, donors_[d].tokens))) {
-                        donors_[d].superseded = true;
-                        v = d;
-                    }
-                for (size_t d = 0; d < donors_.size() && v == donors_.size(); ++d)
-                    if (!donors_[d].back) v = d;
-                for (size_t d = 0; d < donors_.size() && v == donors_.size(); ++d)
-                    if (kept_elsewhere(donors_[d])) v = d;
-                if (v == donors_.size() && !back) break;
-                restoring_ = r->job_ && !r->of_;
-                drop_donor(v == donors_.size() ? 0 : v, true);
-                restoring_ = false;
-            }
+            // A job's donor supersedes its own conversation's older donors, so it never takes an unrelated conversation's place while those stay.
+            if (r->job_ && donors_.size() >= max_seqs_)
+                for (Donor& o : donors_) o.superseded = o.superseded || supersedes(*r, o.id, o.tokens);
         }
-        if (lk.owns_lock() && donors_.size() < max_seqs_) {
+        if (lk.owns_lock()) {
             Donor d;
             d.id = id = ++donor_ids_;
             d.back = back;
@@ -2790,10 +2788,19 @@ private:
                 std::fprintf(stderr, "server: cache: a donor of %zu tokens whose checkpoint no copy can take: it stays on the devices only\n", held);
             }
             for (HostDonor& h : host_) h.superseded = h.superseded || (r->paused_as_ && h.id == r->paused_as_);
-            std::stable_partition(host_.begin(), host_.end(), [](const HostDonor& h) { return h.superseded; });
+            // The donor count then gives up the lowest-ranked donor, the newcomer among them and a write in flight last (A19 in docs/CACHE-PLAN.md), each leaving as any evicted donor does.
+            while (donors_.size() > max_seqs_) {
+                const size_t v = ranked().front();
+                if (donors_[v].id == id) {
+                    if (why) *why = "every donor ranks above it";
+                    id = 0;
+                }
+                restoring_ = r->job_ && !r->of_;
+                drop_donor(v, true);
+                restoring_ = false;
+            }
         } else {
-            if (why) *why = lk.owns_lock() ? "no donor slot it may take" : "too short to keep";
-            if (lk.owns_lock()) lk.unlock();
+            if (why) *why = "too short to keep";
             release(*r);
         }
         if (lk.owns_lock()) {
@@ -2825,7 +2832,7 @@ private:
     bool admits(const Request& r, size_t seats) const {
         if (seats >= max_seqs_) return false;
         const std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
-        return make_room(room(), donors_.size(), npos, false, {}, 0, false, need, gain_of({})).enough;
+        return make_room(room(), ranked(), npos, false, {}, 0, false, need, gain_of({})).enough;
     }
 
     // The donor of plan `t` whose write to disk a request would wait for (enter): the first it takes, but `skip`, the one it forks, whose rows the host tier cannot keep and whose files are not yet whole on disk; donors_.size() where none.
@@ -2856,7 +2863,7 @@ private:
         if (jobs.empty()) return false;
         add(free, model_.freed(jobs).blocks);
         const std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
-        const Taken t = make_room(free, donors_.size(), npos, false, {}, 0, false, need, gain_of({}, npos, 0, false, jobs));
+        const Taken t = make_room(free, ranked(), npos, false, {}, 0, false, need, gain_of({}, npos, 0, false, jobs));
         return t.enough && awaited_write(t, npos) < donors_.size();
     }
 
@@ -3288,7 +3295,6 @@ private:
     uint64_t reading_for_ = 0;                    // the host entry whose rows a state about to be read alone is for, while that read's room is made (read_source)
     size_t bound_hits_ = 0;                       // under the lock
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
-    size_t host_refused_ = 0;             // donors write_back refused in a row for want of room the tier keeps for conversations that came back, under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::vector<std::shared_ptr<Request>> restores_;   // under the lock, jobs restore_later made since follow_up last took them in
     bool restoring_ = false;   // under the lock: a donor a restore job read takes its slot, so the donor it evicts gets no restore job (restore_later)

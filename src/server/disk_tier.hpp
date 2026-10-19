@@ -425,9 +425,12 @@ public:
     }
 
     // The write in flight, if it is a file of history `d` in blocks of `block` tokens: its payload bytes written and the seconds since it began; zeros otherwise.
+    // The file's last block must be the history's too, the digests being a chain: histories that share a start, from the root below a file at row 0 up, share digests below the file's end.
     std::pair<uint64_t, double> writing_of(const std::vector<std::string>& d, size_t block) const {
         std::lock_guard<std::mutex> lk(m_);
-        if (!store_ || !key_ || pending_.first / block >= d.size() || d[pending_.first / block] != pending_.below) return {0, 0.0};
+        const size_t at = pending_.first / block, n = pending_.ends.size();
+        if (!store_ || !key_ || at >= d.size() || d[at] != pending_.below) return {0, 0.0};
+        if (n && (at + n >= d.size() || d[at + n] != pending_.ends.back())) return {0, 0.0};
         return store_->write_progress();
     }
 

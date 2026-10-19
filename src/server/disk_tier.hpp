@@ -291,7 +291,8 @@ private:
             const infer::RestoreInto::Run& run = runs[r];
             const size_t off = image - starts_[d][r], k = std::min(n, run.bytes - off);
             backend::Backend& b = *into_.backends[d];
-            if (!views_[d].empty()) b.copy(run.target(), run.offset + off, *views_[d][slot], in_slot, k);
+            if (run.host) std::memcpy(run.host + run.offset + off, src, k);
+            else if (!views_[d].empty()) b.copy(run.target(), run.offset + off, *views_[d][slot], in_slot, k);
             else b.write(run.target(), run.offset + off, src, k);
             image += k;
             src += k;

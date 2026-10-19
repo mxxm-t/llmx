@@ -478,7 +478,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35` or `file-exact` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
 `moe-q8` writes the goldens of the Q8_0 model of `tests/moe.py`, needs numpy, accepts only `--output-dir` and is not part of `all`.
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
@@ -507,6 +507,49 @@ Generation needs the optional HF tooling described in the script. The
 ordinary suite can run with Python's standard library and the built runtime,
 but its numpy raw-block checks skip without numpy; `--require-tools` makes
 that missing dependency a failure.
+
+#### The Flash-Next reference checkpoint
+
+`python tools/gen_baseline.py qwen4exp-tiny --output-dir DIR` runs a small synthetic Qwen4-Exp graph through HF itself, with `tools/qwen4exp_reference.py`, as the independent reference of the [Flash-Next implementation](QWEN38-FLASH.md).
+The mode is not part of `all`, takes only `--output-dir` and downloads no weights.
+
+It needs an isolated environment with Torch 2.11.0+cpu, Transformers 5.16.1, NumPy 2.2.6 and safetensors 0.8.0, and refuses other versions, modified model, config or cache sources and optional accelerated kernel packages.
+It runs CPU F32 eager attention on one thread.
+Torch 2.5.1, which older reference modes use, cannot run this model's int32 scatter, so the environments stay separate.
+
+Its three outputs are `qwen4exp_config.json`, `qwen4exp_weights.safetensors` and `qwen4exp_reference.json`.
+The reference holds the weights' canonical and file hashes, the pins and settings, every logit of whole-prompt, sliced and token-by-token cached execution, two follow-up steps, end-of-text cases, the sparse-selection masks and top-k margins, the whole tiny state dictionary, and the exact n-gram lookup ids observed at HF's embedding input, which must agree over all three executions.
+All three files are staged before any is published, so a failed reference publishes nothing.
+`tests/data/qwen4exp_reference.json` is the committed fixture; the config and weights are regeneration artifacts identified by their recorded hashes.
+The reference config sets `output_gate_type` to `sigmoid`, the architecture's output gate, although GGUF does not carry that HF field.
+
+`tests/reference_qwen4exp.py`, in `reference-generator`, checks the dependency and source refusals, the refusal of nonfinite logits, incomplete staging and the fixture's coverage of sparse selection, a partial block, the longest convolution tap and end-of-text boundaries, without importing Torch.
+`tests/qwen4exp.py` maps the state to a tiny F32 GGUF without Torch or safetensors, and `tests/qwen4exp_fixture.py`, in `reference-consumer`, checks that mapper's inverse transforms and decodes every tensor independently.
+The native checks that read the fixture are listed in [AGENTS](../AGENTS.md), Tests.
+
+A persistence case uses the same weights with `max_position_embeddings` raised to 512 for that case only: independent HF eager forwards of a 257-token prefix and the full 269-token input give the rows a restarted server is held to.
+
+#### File-exact Qwen4Exp HF companion
+
+`tools/qwen4exp_file_reference.py` runs the original pinned HF model on a GGUF's own stored weights.
+In the same isolated environment as the tiny reference, pass the pinned HF `config.json`, all six GGUF shards, the token ids and a new output path:
+
+```text
+python -X utf8 tools/qwen4exp_file_reference.py --config config.json --gguf shard-00001-of-00006.gguf shard-00002-of-00006.gguf shard-00003-of-00006.gguf shard-00004-of-00006.gguf shard-00005-of-00006.gguf shard-00006-of-00006.gguf --input-ids '[1,2,3,4,5,6,7,8,9,10,11,12,13]' --output hf.json
+```
+
+Attention and experts use HF's eager implementations on CPU F32, and HF's expert loop is kept, an adapter loading only the indexed expert's gate and up or down weights at a time.
+`loaded_modules` loads ordinary weights around each HF module call and releases them after it, on failure too.
+The lookup tables use HF's own row selection, with `tests/spec_decode.py` decoding only the selected spans, so no whole table or expert stack is materialized.
+`--max-decoded-mib` (default 3072) bounds one decoded span, not the process, and `--max-tokens` (default 128) bounds the sequence.
+The output records each shard's size and SHA-256, the decoded types and coverage, the largest span, the peak RSS, the logits and the mapping round-trip diagnostics.
+
+`--input-ids JSON` or `--input-ids-file FILE` (a JSON array) gives the ids.
+`--attention eager|sdpa` selects HF attention, eager by default; SDPA first checks the pinned `transformers.integrations.sdpa_attention` source by SHA-256.
+`--last N` passes `N` to HF's `logits_to_keep`, zero keeping every row, and the NLL is computed in float64 as log-sum-exp minus the next token's logit over the transitions the returned rows cover.
+`--top K` writes only each row's top `K` ids and logits, ties by id, with the target ids and logits the NLL needs; a top-only record does not measure the omitted logits.
+
+`python -X utf8 tests/reference_qwen4exp_file.py` checks the shard spans, the HF adaptation and the recovery after a failure: the adapted and the ordinary eager HF logits must be identical on the tiny model, the router ids must match the grouped control, and the non-self-inverse value-head permutation must hold with nonzero hyper-connection norms.
 
 #### The qwen35 tokenizer reference
 

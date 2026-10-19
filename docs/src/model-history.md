@@ -38,7 +38,9 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   section 2, Host tier): each KV storage's blocks, read through
   `BlockKVStorage`'s buffers in runs of consecutive blocks, and on a model
   that keeps a state its checkpoint's slot, which must be at `length`, from
-  every state storage, with an embedded drafter's carried row of that slot, through `Backend::copy` into the backend's
+  every state storage, including each layer's complete per-slot stride and any
+  `LayerPlan::state_tail`, with an embedded drafter's carried row of that slot,
+  through `Backend::copy` into the backend's
   host-visible memory, enqueued on each device's stream behind the passes
   that wrote the history and not waited for, since whatever writes those
   blocks or that slot next comes after them on the same stream. The memory
@@ -50,11 +52,19 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   (`detail::slabs_to_free`, and with the slabs it then allocates anew `detail::copy_slabs`) and being refused where they cannot make room,
   or where the slabs it allocates would leave the host less free memory
   than the pool's reserve.
+  When a layer declares `token_history`, the exact U32 tail is appended once
+  to the host run for the first backend of its owning stage, after that
+  device's state slots and carried row. `host_state_ranges` includes it;
+  restore and state-only fork copy it back into the new slot with the same
+  slot id mapping. This tail is transferred through the backend's host
+  `write` and `read` operations, before enqueueing that device's copies.
+  Vulkan synchronizes those calls, so transfer can wait for earlier device
+  work, but not the new KV, recurrent-state and carried-row copies.
   That reserve is `CpuBackend::host_reserve` of what the host had as the model was made, fixed then, so it does not shrink as memory falls; `host_admits(bytes, optional)` is the one rule every fresh slab passes, a copy's, a read's and an idle step's (`alloc_host`), with twice the reserve for growth nothing waits for, and it reads the host's memory at each call, so it is a sampled guard and no guarantee against another process.
   `host_short()` says the host is below the reserve while idle slabs exist, and `host_yield()` then frees idle slabs, as many as cover what the host is short by, and no slab a copy holds.
   `ModelOptions::host_memory` gives the host's free memory in tests.
   `copies_retired(tickets)` says whether a host history's copies have all retired, asked through each device's `Backend::done`, which a device backend answers without waiting; the server asks it once a round to time a promotion's copies.
-  `restore_into(length)` makes the history a restore copied in piece by piece fills, as `restore_host` does from a whole copy (its blocks and, on a model that keeps a state, its checkpoint slot taken), and says per device where each byte of that device's image goes (`RestoreInto::runs`, in `HostSpan`'s walk: each layer's K blocks then V blocks, a run of consecutive blocks one run, then the state slot and the drafter's carried row; a KV run names its storage's layer and side and finds the buffer as each copy is made (`RestoreInto::Run::target`), since a growth between copies replaces it), so a host copy's bytes copied run by run give `restore_host`'s bits; its blocks hold rows from the start, so its caller lets nothing read it until every copy has retired, and `restored` then gives its passes the copies' tickets and its stages without KV their length.
+  `restore_into(length)` makes the history a restore copied in piece by piece fills, as `restore_host` does from a whole copy: its blocks and checkpoint slot are taken first. `detail::block_runs` and `detail::state_runs` give both `HostSpan` and the restore the same ordered K, V and auxiliary blocks and complete per-layer state slots, followed by the drafter's carried row and host token history. A KV run resolves its storage's layer and side at each copy (`RestoreInto::Run::target`), including auxiliary planes, since growth replaces the buffers. A host destination names the fixed token-history array allocated once when the model is constructed; the restore's checkpoint slot holds that slice until the read and copies have retired. Nothing reads or forks the filling history until then, and `restored` gives its passes the copies' tickets and its stages without KV their length.
   `caches_on_devices` says whether some KV or
   state storage sits off the CPU, without which a copy gains nothing.
   A copy that fails part way retires every device's stream before its slabs
@@ -69,8 +79,9 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   on waits on that ticket, one it recorded on submits and waits, synced alone
   should that fail, and a device it never touched is left alone, since
   another thread may be recording on it); the host slabs remain safe to
-  retry or release. `host_bytes(length)` gives
-  the slabs a copy of `length` tokens takes.
+  retry or release. `host_bytes(length)` gives the slabs a copy of `length`
+  tokens takes, including the fixed-width U32 token-history tail when the
+  model declares one.
   `alloc_host(length, out, limit)` takes the slabs a copy of `length`
   tokens takes, holding nothing yet, as `save_host` takes them before its
   copies, so the server's disk tier reads an entry back into them.
@@ -81,10 +92,22 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   writes them to a file.
   Without `blocks`, `save_host` copies the checkpoint's state alone (`HostHistory::blocks` false), and `fork(sequence, length, state)` continues from it: a second history sharing the source's blocks below `length`, as `fork` does whatever checkpoint the source holds, with the state copied back into a checkpoint slot of its own at `length`, which its first pass reads in place; the server keeps a conversation's message boundaries this way, the source a later history of the same conversation whose rows below `length` are the ones the state was computed after.
   With an embedded drafter the state alone carries the drafter's carried row of its slot too, and the fork copies it into its own slot, so it drafts as the history it was taken from.
-  `restore_host` refuses a state alone, and a fork with a state refuses a whole history's copy or another length; a throw from the slot or a copy holds nothing, its copies retired by `drain_recorded` as a restore's are.
-  `save_host_blocks(sequence, first, length, out, limit)` copies the blocks of a token range alone, with no state and needing no checkpoint (`HostHistory::first`, `HostHistory::state` false): what a turn added to a history whose earlier blocks are kept elsewhere ([DISK-TIER](../DISK-TIER.md), Entries written as what changed). `host_ranges(host, first, length)` gives where a range's blocks lie in a host history that holds them, a layer's K and then its V on each device, in the order a copy of that range alone holds them end to end, so a range copy and the same range of a whole copy are the same bytes in the same order; `host_state_ranges(host)` gives where the state lies, after the blocks. `restore_host` takes a whole history only.
+  `restore_host` refuses a state alone, and a fork with a state refuses a
+  whole history's copy or another length; a throw from the slot or a copy
+  holds nothing, its copies retired by `drain_recorded` as a restore's are.
+  `save_host_blocks(sequence, first, length, out, limit)` copies the blocks
+  of a token range alone, with no state and needing no checkpoint
+  (`HostHistory::first`, `HostHistory::state` false): what a turn added to a
+  history whose earlier blocks are kept elsewhere ([DISK-TIER](../DISK-TIER.md),
+  Entries written as what changed). `host_ranges(host, first, length)` gives
+  where a range's blocks lie in a host history that holds them, a layer's K,
+  V and enabled auxiliary plane on each device, in that order, and in the
+  order a copy of that range alone holds them end to end, so a range copy
+  and the same range of a whole copy are the same bytes in the same order;
+  `host_state_ranges(host)` gives where the state lies, after the blocks.
+  `restore_host` takes a whole history only.
   A copy records its bytes per device (`HostHistory::device_bytes`), the run of each device's slabs.
-- `host_identity()`: what a copy to host memory holds and how, beyond the model file and the build, as text: every device's identity (`Backend::identity`) and effective dtype, the cache types, each device's runs (its KV storage's layers, block tokens and block bytes, its state layers and slot bytes, the carried row) and the placement, then the row classes from extent 1 to the most a history holds (the model context or the KV pool), given where they change; two models of one file and build with equal identities restore each other's copies (`docs/DISK-TIER.md`, The entry file).
+- `host_identity()`: what a copy to host memory holds and how, beyond the model file and the build, as text: every device's identity (`Backend::identity`) and effective dtype, the cache types, each device's runs (its KV storage's layers, block tokens and block bytes, its state layers and core slot bytes, the carried row) and the placement, then the row classes from extent 1 to the most a history holds (the model context or the KV pool), given where they change. When any auxiliary width is nonzero, identity appends the per-layer F32 widths; with all widths zero, the previous identity text is unchanged. If any state layer has a tail, the identity appends the full per-layer slot strides; if token history is declared, identity version 2 also records its owner stage, width and padding ID. Two models of one file and build restore each other's copies only when these identity strings match (`docs/DISK-TIER.md`, The entry file).
 - `can_draft(sequence)`: whether a draft of it may be asked for: it holds a history and, on a model that keeps a state, a pass has fed it since its fork, a forked sequence reading its checkpoint in place until then.
 - `mark(sequence)`: the history kept at its length while one pass runs
   past it, so a retract into that pass reaches any of its rows exactly, as
@@ -94,7 +117,13 @@ The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([K
   and becomes the next pass's `src`, the pass writing a fresh live slot,
   and after each state layer's mixer the pass copies the marked entry's
   rows of the inputs its update read (`LayerPlan::saved`) into the mark's
-  buffer. The sequence holds the mark through a `MarkHold`, so a marked
+  buffer. For declared token history, the owner stage also saves the pass's
+  current U32 token IDs in the host mark buffer after it commits. A retract
+  replays only the accepted IDs from the mark's slot tail into the live slot;
+  rejected IDs never become its preceding-token history. A layer's
+  `state_tail` stays in its ordinary state slot; an
+  architecture that updates it must make `Architecture::recur` reproduce
+  that tail over the kept rows from the saved inputs. The sequence holds the mark through a `MarkHold`, so a marked
   sequence destroyed or moved from returns its holds once, and every
   allocation comes before a hold is taken, so a mark that fails changes
   nothing. It returns false, marking nothing, when no mark is free; a

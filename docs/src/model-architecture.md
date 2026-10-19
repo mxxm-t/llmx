@@ -22,15 +22,30 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   part and the `backend::Op`, and for a layer whose cache is a state the
   inputs its state's update reads, each a `Saved`: an arena slot, the
   floats a row takes in it and which block of the pass's rows it is, so
-  plane 1 starts `rows` rows in; `saved_floats(layer)` is their floats a
-  row) and
+  plane 1 starts `rows` rows in. `replicated` keeps a saved row whole on every
+  tensor-group member; otherwise its width is divided among members.
+  `saved_floats(layer)` is their floats a
+  row; and `state_tail`, additional F32 values after the common recurrent
+  prefix in each slot of this layer; `token_history`, the count of preceding
+  token IDs a recurrent layer keeps, and `token_padding`, the ID used before
+  sequence start;
+  `kv_aux`, an optional F32 width per KV position, stored in the same physical
+  blocks as the layer's K and V and held whole on each tensor-group member;
+  `lookup`, an optional `Lookup` naming a mixer gather role and its requested
+  table rows per token; and
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the
-  pass's roles and each layer's, the context length, and what the arena,
+  pass's roles and optional `pass_ops` (`OpUse`s issued by embedding or head
+  parts beyond the common backend ops), each layer's roles and ops, the context
+  length, and what the arena,
   the caches and the tables take: the residual row, the arena's slot
   widths, the K and V heads and head width of every layer whose cache is
-  KV, the recurrent state's shape (`backend::StateShape`) of every layer
-  whose cache is a state, and the position
-  tables' sizes, and an embedded drafter's `LayerPlan` when a caller asked
+  KV, the common recurrent-state prefix shape (`backend::StateShape`) of every layer
+  whose cache is a state, with each layer's optional `state_tail` extending only
+  its own slots, and the position
+  tables' sizes, `index_width`, the maximum number of host `uint32_t` lookup
+  indices per activation row, reused by token embedding expansion and
+  gathered-weight lookups (zero means no index scratch), and an embedded
+  drafter's `LayerPlan` when a caller asked
   for one, its roles all `Part::draft`, which run on the head's device, and
   `draft_x`, the arena slot of a draft step's residual rows, which a tensor group sums into, and
   `draft_h`, the arena slot its context rows leave the target's
@@ -68,7 +83,15 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   row so the part does not allocate, and for a layer whose cache is a state
   its views (`states`, one per entry, each reading and writing its
   sequence's slot after the history the stage has committed) and its index
-  in its device's state storage. On a tensor group `width` is the group's and `partial` where the part's last projection writes the member's partial rows (`blocks::join`); a member's weights are its shards, `Weight::nin` and `nout` its share, and a module runs its share of the heads, the plan's divided by the width, a KV head replicated where the width is a multiple of them. `HeadStep` adds the
+  in its device's state storage. If the layer declares `token_history`, the
+  step also carries the pass's current token IDs and, per entry, the preceding
+  IDs oldest first as `uint32_t`, with their count in `previous_count`.
+  Sequence-start padding comes from the layer's `token_padding`. The runtime
+  also lends `indices` and `indices_size`, a borrowed host U32 buffer sized
+  for that device's arena rows and `index_width`; architecture calls may use
+  it synchronously for embedding expansion or gathered-weight lookups and
+  must not retain it. It is empty when the plan's width is zero. On a tensor
+  group `width` is the group's and `partial` where the part's last projection writes the member's partial rows (`blocks::join`); a member's weights are its shards, `Weight::nin` and `nout` its share, and a module runs its share of the heads, the plan's divided by the width, a KV head replicated where the width is a multiple of them. `HeadStep` adds the
   rows that want logits, their runs and the slice their logits go to.
   `DraftRowsStep` adds the rows' token ids and, per entry, the row its first
   row reads as the target's row before it (the sequence's carried row, or
@@ -76,11 +99,17 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   draft step's token ids, the rows before them (gathered by `prev_rows`
   where they are rows of the carried rows), the drafted ids, its output
   rows after the drafter's final norm and its logits, a row a sequence.
+  An external table lookup adds `lookup`, a borrowed `PreparedLookup`: packed
+  unique rows in `data`, their count in `rows`, and ordered request IDs remapped
+  into that table in `ids`. The runtime prepares it before recording the graph;
+  the architecture gathers it through the existing backend embedding op.
 - `Architecture`: the interface an architecture implements, immutable once
   read from a file, so models built from one set of weights share it.
   - `plan(index)`: the plan of a file's tensors, looked up through the
     `TensorIndex` ([weights](model-weights.md)), with the architecture's
-    own refusals.
+    own refusals. It declares optional embedding and head backend ops in
+    `ModelPlan::pass_ops`; the runtime checks them on the backend assigned to
+    that part before adopting weights.
   - `fill_tables(tables)`: the position tables' values, into vectors the
     runtime sized as the plan says; the runtime keeps them for the model's
     life and adopts them on every device that runs a mixer part.
@@ -88,6 +117,10 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     step is a `HeadStep`: the parts as backend ops. The runtime calls each once per layer per
     pass, or once per group of entries when a routed layer streams, and a
     part issues backend ops and nothing else.
+  - `lookup_ids(step)`: fills `indices` from the current tokens, preceding
+    token snapshots and views for a declared lookup, without backend work,
+    allocation or I/O. The default refuses the call. Row reading and staging
+    belong to the runtime; addressing belongs to the architecture.
   - `recur(step)`: a state layer's ops that update its state, from the rows
     its `saved` names in their slots, reading the views' `src` slots and
     writing their `dst` slots. The mixer runs them, and the runtime runs

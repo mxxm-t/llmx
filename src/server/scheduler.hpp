@@ -340,7 +340,7 @@ public:
         plain_.resize(recorders_.size());
         for (size_t s = 0; s < recorders_.size(); ++s) {
             // Under the automatic rule a pass that is neither fed in pieces nor apart is recorded as without pacing, so only the stages that had a thread then take one.
-            plain_[s] = (p > 1 && model_.stage_waits(s)) || (a && !auto_);
+            plain_[s] = (p > 1 && model_.stage_waits(s)) || (a && !auto_) || (!model_.stage_on_host(s) && model_.stage_reads(s));
             // And where passes go apart every stage has one, the first among them, which is then fed in pieces.
             if (plain_[s] || a) {
                 recorders_[s] = std::make_unique<Recorder>(*pace_[s]);
@@ -1153,7 +1153,7 @@ private:
             std::lock_guard<std::mutex> lk(pace_[s]->m);
             pace_[s]->clock.began(now_ms());
         }
-        if (Recorder* r = slots_[k].paced || (threaded && recorded_apart(model_.stage_grouped(s), flights_live())) ? recorders_[s].get() : nullptr) {
+        if (Recorder* r = slots_[k].paced || (threaded && (model_.stage_reads(s) || recorded_apart(model_.stage_grouped(s), flights_live()))) ? recorders_[s].get() : nullptr) {
             // A stage records one pass of a kind at a time: a pass that finds its recorder taken waits for a later round, which gives the stage its oldest waiting pass.
             if (recording(s, slots_[k].apart)) return;
             acted_ = true;

@@ -1,0 +1,50 @@
+#version 450
+// Group dot gate from normalized key/query: sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))).
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint groups; uint dim; uint quant; uint n; uint major; float scale; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer K { float key[]; };
+layout(set = 0, binding = 2) readonly buffer Q { float query[]; };
+layout(set = 0, binding = 3) readonly buffer V { float value[]; };
+layout(set = 0, binding = 4) writeonly buffer XQ { uint xq[]; };
+#include "xquant.glsl"
+shared float red[256];
+void main() {
+    uint row_group = gl_WorkGroupID.x;
+    uint row = row_group / p.groups, group = row_group - row * p.groups;
+    uint base = row * p.groups * p.dim + group * p.dim;
+    uint lid = gl_LocalInvocationID.x;
+    precise float s = 0.0;
+    for (uint i = lid; i < p.dim; i += 256u) s += key[base + i] * query[base + i];
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float g = red[0] * p.scale;
+    float signed_root = g == 0.0 ? 0.0 : sign(g) * sqrt(max(abs(g), 1.0e-6));
+    float factor = 1.0 / (1.0 + exp(-signed_root));
+    if (p.quant == 2u) {
+        for (uint chunk = 0u; chunk < (p.dim / 4u + 255u) / 256u; ++chunk) {
+            uint j = chunk * 256u + lid;
+            bool live = j < p.dim / 4u;
+            vec4 v = vec4(0.0);
+            if (live) {
+                uint i = base + 4u * j;
+                uint vi = row * p.dim + 4u * j;
+                v = vec4(value[vi], value[vi + 1u], value[vi + 2u], value[vi + 3u]) * factor;
+                dst[i] = v.x; dst[i + 1u] = v.y; dst[i + 2u] = v.z; dst[i + 3u] = v.w;
+            }
+            xquant_word(v, live, j & 7u, (base / 4u + j) / 8u, p.n, p.major);
+        }
+        return;
+    }
+    for (uint i = lid; i < p.dim; i += 256u) {
+        float v = value[row * p.dim + i] * factor;
+        dst[base + i] = v;
+        if (p.quant != 0u) xquant_block(base + i, v, p.n);
+    }
+}

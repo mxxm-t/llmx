@@ -8,7 +8,7 @@
 
 #include "backends/backend.hpp"
 
-// The KV storage every backend's cache shares: per-layer K and V buffers grown through the backend's own alloc and copy, the byte accounting, the growth rule and the view checks (docs/src/backends-kv_storage.md).
+// The KV storage every backend's cache shares: per-layer K, V and optional auxiliary buffers grown through the backend's own alloc and copy, the byte accounting, the growth rule and the view checks (docs/src/backends-kv_storage.md).
 // A backend derives its storage from it and keeps its block size, its limits, its kernels and its error prefix.
 
 namespace backend {
@@ -22,7 +22,7 @@ public:
     }
 
     size_t max_blocks() const override { return max_; }
-    size_t allocated_bytes() const override { return backed_ * (kblock_ + vblock_) * k_.size(); }
+    size_t allocated_bytes() const override { return size_mul(backed_, total_block_bytes_); }
     size_t peak_bytes() const override { return peak_; }
     // One growth to the whole budget, which copies nothing on a fresh storage.
     void back_all() override {
@@ -38,9 +38,13 @@ public:
     // Block b of a layer's side starts at byte b times these and holds [kv_head][token][head_dim] in the side's type.
     size_t k_block_bytes() const { return kblock_; }
     size_t v_block_bytes() const { return vblock_; }
+    size_t auxiliary_width(size_t layer) const { return aux_widths_.at(layer); }
+    size_t auxiliary_block_bytes(size_t layer) const { return auxblock_.at(layer); }
+    size_t total_block_bytes() const { return total_block_bytes_; }
     bool backed(size_t id) const { return id < backed_; }
     const BufferPtr& k_buffer(size_t layer) const { return k_[layer]; }
     const BufferPtr& v_buffer(size_t layer) const { return v_[layer]; }
+    const BufferPtr& auxiliary_buffer(size_t layer) const { return auxiliary_.at(layer); }
 
     // Backs blocks through `id` by the growth rule: the new buffers of every layer are allocated and hold the history before any is published, so a growth that throws leaves the storage and its accounting as they were, and a retry starts over.
     // alloc is zero-filled, which is what leaves a newly backed block reading as zeros.
@@ -50,21 +54,24 @@ public:
         const size_t want = growth_target(backed_, id, max_);
         const size_t kbytes = size_mul(want, kblock_), vbytes = size_mul(want, vblock_);
         // The old buffers and the new are held together while the copies run.
-        const size_t peak = std::max(peak_, size_add(allocated_bytes(), size_mul(size_add(kbytes, vbytes), layers())));
-        std::vector<BufferPtr> nk(layers()), nv(layers());
+        const size_t peak = std::max(peak_, size_add(allocated_bytes(), size_mul(want, total_block_bytes_)));
+        std::vector<BufferPtr> nk(layers()), nv(layers()), na(layers());
         try {
             for (size_t l = 0; l < layers(); ++l) {
                 nk[l] = owner_->alloc(kbytes, Memory::device);
                 nv[l] = owner_->alloc(vbytes, Memory::device);
+                if (auxblock_[l]) na[l] = owner_->alloc(size_mul(want, auxblock_[l]), Memory::device);
                 if (k_[l]) {
                     owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
                     owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
+                    if (auxiliary_[l]) owner_->copy(*na[l], 0, *auxiliary_[l], 0, auxiliary_[l]->size());
                 }
             }
             for (size_t l = 0; l < layers(); ++l)
                 if (k_[l]) {
                     retire(k_[l]);
                     retire(v_[l]);
+                    if (auxiliary_[l]) retire(auxiliary_[l]);
                 }
             after_growth(nk, nv);
         } catch (...) {
@@ -74,6 +81,7 @@ public:
         }
         k_.swap(nk);
         v_.swap(nv);
+        auxiliary_.swap(na);
         backed_ = want;
         peak_ = peak;
     }
@@ -81,11 +89,9 @@ public:
     // Checks a view for an op on `layer`: the layer exists and the view's table covers its length plus its rows.
     // A writing op then backs the blocks its rows land in, in position order, and a reading op requires every block the view reaches to be backed, so which positions hold data is the caller's to know; it returns the blocks the view reaches.
     size_t check_view(const KVView& view, size_t layer, bool writing) {
-        const size_t sequence = size_add(view.length, view.nq);
-        const size_t used = blocks_for(sequence, bt_);
-        if (layer >= layers() || used > view.n_blocks)
-            fail(writing ? "KV write outside the view" : "attention outside the KV view");
+        const size_t used = validate_view(view, layer, writing);
         if (writing) {
+            const size_t sequence = size_add(view.length, view.nq);
             for (size_t t = view.length; t < sequence; t += bt_ - t % bt_)
                 ensure((size_t)view.blocks[t / bt_]);
         } else {
@@ -95,17 +101,63 @@ public:
         return used;
     }
 
+    size_t validate_write_view(const KVView& view, size_t layer) const { return validate_view(view, layer, true); }
+
+    void validate_auxiliary(size_t layer, CSlice auxiliary, size_t rows) const {
+        const size_t width = aux_widths_.at(layer);
+        if (!width) {
+            if (auxiliary.buffer) fail("auxiliary KV input supplied to a layer without auxiliary storage");
+            return;
+        }
+        if (!auxiliary.buffer) fail("auxiliary KV input missing");
+        span(*auxiliary.buffer, size_mul(auxiliary.offset, sizeof(float)),
+             size_mul(size_mul(rows, width), sizeof(float)));
+    }
+
+    void write_aux(size_t layer, const KVView* views, size_t n_views, CSlice auxiliary) {
+        const size_t width = aux_widths_.at(layer);
+        if (!width) return;
+        size_t row0 = 0;
+        const size_t row_bytes = size_mul(width, sizeof(float));
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& view = views[vi];
+            size_t written = 0;
+            while (written < view.nq) {
+                const size_t token = view.length + written;
+                const size_t in_block = token % bt_;
+                const size_t count = std::min(view.nq - written, bt_ - in_block);
+                const size_t id = (size_t)view.blocks[token / bt_];
+                const size_t source_row = size_add(row0, written);
+                const size_t source_off = size_mul(size_add(auxiliary.offset, size_mul(source_row, width)), sizeof(float));
+                const size_t destination_off = size_add(size_mul(id, auxblock_[layer]), size_mul(in_block, row_bytes));
+                owner_->copy(*auxiliary_[layer], destination_off, *auxiliary.buffer, source_off,
+                             size_mul(count, row_bytes));
+                written += count;
+            }
+            row0 = size_add(row0, view.nq);
+        }
+    }
+
 protected:
-    // Nothing is backed yet: the whole budget, `max_tokens` rounded up to whole blocks of every layer's K and V, is checked here in bytes, so every size computed later is in range and kv_alloc refuses a budget that overflows.
+    // Nothing is backed yet: the whole budget, `max_tokens` rounded up to whole blocks of every layer's K, V and auxiliary rows, is checked here in bytes.
     // `prefix` starts every error the storage throws, the backend's own.
     BlockKVStorage(Backend& owner, const char* prefix, size_t block_tokens, size_t layers, size_t heads, size_t dim,
-                   size_t max_tokens, KVType kt, KVType vt)
+                   size_t max_tokens, KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths = {})
         : owner_(&owner), prefix_(prefix), bt_(block_tokens), heads_(heads), dim_(dim),
           max_(blocks_for(max_tokens, block_tokens)), kt_(kt), vt_(vt),
           kblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(kt))),
           vblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(vt))),
-          k_(layers), v_(layers) {
-        size_mul(size_mul(layers, max_), size_add(kblock_, vblock_));
+          k_(layers), v_(layers), auxiliary_(layers), aux_widths_(layers), auxblock_(layers) {
+        if (!auxiliary_widths.empty() && auxiliary_widths.size() != layers)
+            fail("auxiliary width count differs from its layers");
+        size_t total = size_mul(layers, size_add(kblock_, vblock_));
+        for (size_t l = 0; l < layers; ++l) {
+            aux_widths_[l] = auxiliary_widths.empty() ? 0 : auxiliary_widths[l];
+            auxblock_[l] = size_mul(size_mul(block_tokens, aux_widths_[l]), sizeof(float));
+            total = size_add(total, auxblock_[l]);
+        }
+        total_block_bytes_ = total;
+        size_mul(max_, total_block_bytes_);
     }
 
     Backend& owner() const { return *owner_; }
@@ -120,6 +172,17 @@ protected:
     }
 
 private:
+    size_t validate_view(const KVView& view, size_t layer, bool writing) const {
+        const size_t sequence = size_add(view.length, view.nq);
+        const size_t used = blocks_for(sequence, bt_);
+        if (layer >= layers() || used > view.n_blocks || (used && !view.blocks))
+            fail(writing ? "KV write outside the view" : "attention outside the KV view");
+        const size_t first = writing && view.nq ? view.length / bt_ : used;
+        for (size_t b = first; b < used; ++b)
+            if (view.blocks[b] < 0 || (size_t)view.blocks[b] >= max_) fail("KV block outside the budget");
+        return used;
+    }
+
     [[noreturn]] void fail(const char* what) const {
         throw std::runtime_error(std::string(prefix_) + ": " + what);
     }
@@ -128,8 +191,10 @@ private:
     const char* prefix_;
     size_t bt_, heads_, dim_, max_, backed_ = 0, peak_ = 0;
     KVType kt_, vt_;
-    size_t kblock_, vblock_;
+    size_t kblock_, vblock_, total_block_bytes_ = 0;
     std::vector<BufferPtr> k_, v_;
+    std::vector<BufferPtr> auxiliary_;
+    std::vector<size_t> aux_widths_, auxblock_;
 };
 
 } // namespace backend

@@ -46,7 +46,7 @@ inline std::string architecture(const gguf::GGUFModel& m) {
 
 // The kind of drafter the file `drafter` (from `drafter_path`) is for the model `target` (from `target_path`), or a refusal naming both files and what differs; every kind shares the target's tokenizer.
 // A file of the target's architecture whose tensors all sit in blocks past the target's layers is its MTP blocks, its metadata the target's but for the block counts and per-block arrays; any other file is a draft model.
-inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target_path, const gguf::GGUFModel& drafter, const std::string& drafter_path) {
+inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target_path, gguf::GGUFModel& drafter, const std::string& drafter_path) {
     const auto refuse = [&](const std::string& what) {
         return std::runtime_error("inference: the drafter " + drafter_path + " does not pair with " + target_path + ": " + what);
     };
@@ -59,6 +59,8 @@ inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target
         if (!detail::same(t, d)) throw differs(key, t, d);
     }
     const ArchEntry& entry = architecture_of(target);
+    if (entry.normalize_drafter && detail::architecture(drafter) == entry.name)
+        entry.normalize_drafter(target, drafter);
     const std::string prefix = std::string(entry.name) + ".";
     const int blocks = metadata::integer(target, prefix + "block_count");
     const int nextn = metadata::count(target, prefix + "nextn_predict_layers", 0);

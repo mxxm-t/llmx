@@ -10,7 +10,7 @@ The approved delivery plan held dependent quantization merges until the unified 
 The rule was agreed in the collaboration log on 2026-09-30 and follows vLLM's actual dtype behaviour with a small implementation.
 
 1. **auto** (the default) takes a non-F32 declared dtype where every device can implement it, otherwise a common preferred supported dtype, falling back to F32 when no 16-bit choice is common. A declared F32 model takes the preferred choice under auto, as vLLM does; explicit `--dtype f32` stays F32.
-   A GGUF file records no source dtype, so its architecture module declares a documented default: BF16 for qwen3, qwen3moe, qwen35 and qwen35moe.
+   A GGUF file records no source dtype, so its architecture module declares a documented default: BF16 for qwen3, qwen3moe, qwen35, qwen35moe and qwen4exp.
    An explicit dtype overrides it.
    On the MI50, the Radeon VII and an AVX2 CPU, auto is F16; on a backend with qualified native BF16 kernels it is BF16.
 2. **`--dtype auto|f16|bf16|f32`**: a valid value is never refused.
@@ -33,7 +33,7 @@ It returns a `DtypePlan` with the placed model and applies that policy to the mo
 Nothing below the model layer chooses a dtype, and no kernel chooses one by weight type.
 
 **What it reads.**
-- The declared dtype: a column of the architecture registry (`src/model/arch/registry.hpp`), BF16 for the four Qwen entries, copied into `ModelWeights` when a file is read.
+- The declared dtype: a column of the architecture registry (`src/model/arch/registry.hpp`), BF16 for every registered Qwen entry, copied into `ModelWeights` when a file is read.
   A future safetensors loader reads the checkpoint's `torch_dtype` instead, as vLLM reads the HF config.
 - Each backend's native dtypes, preferred 16-bit first (section 2).
 - The request: `--dtype auto|f16|bf16|f32|int8`, defaulting to `auto`; `int8` is opt-in under the amendment in section 5.

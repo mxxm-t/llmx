@@ -9,6 +9,7 @@
 #include "model/architecture.hpp"
 #include "model/arch/qwen3.hpp"
 #include "model/arch/qwen35.hpp"
+#include "model/arch/qwen4exp.hpp"
 
 // The architectures llmx runs, by the name a file gives: the one place such a name is read and accepted, and the one step from a file's metadata to its architecture.
 
@@ -19,6 +20,8 @@ struct ArchEntry {
     const char* name;
     std::shared_ptr<const Architecture> (*read)(const gguf::GGUFModel&, const std::string& prefix);
     backend::Dtype dtype;
+    // A same-architecture sidecar's header adaptation, called by the pairing owner after tokenizer equality; null preserves the ordinary contract.
+    void (*normalize_drafter)(const gguf::GGUFModel& target, gguf::GGUFModel& side) = nullptr;
 };
 
 // GGUF has no source dtype; these are architecture defaults, not declarations inferred from weight storage.
@@ -27,6 +30,7 @@ inline const ArchEntry kArchitectures[] = {
     {"qwen3moe", qwen3::open_routed, backend::Dtype::bf16},
     {"qwen35", qwen35::open_dense, backend::Dtype::bf16},
     {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
+    {"qwen4exp", qwen4exp::open, backend::Dtype::bf16, qwen4exp::normalize_drafter},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.

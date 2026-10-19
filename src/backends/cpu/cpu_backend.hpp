@@ -52,8 +52,9 @@ static const size_t KV_BLOCK_TOKENS = 128;
 // Copies are eager, so a growth has no old buffer to keep, and each growth resolves the layers' host pointers once: attention walks the block table for every head of every query.
 class CpuKVStorage final : public BlockKVStorage {
 public:
-    CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt)
-        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt),
+    CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
+                 const std::vector<size_t>& auxiliary_widths)
+        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths),
           kp_(layers, nullptr), vp_(layers, nullptr) {}
 
     // Block `id` of a layer as bytes, and as the element type it holds; the caller checks the type and casts once per block.
@@ -683,10 +684,11 @@ public:
 
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
-                                        KVType v_type = KVType::f32) override {
+                                        KVType v_type = KVType::f32,
+                                        const std::vector<size_t>& auxiliary_widths = {}) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
-        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
+        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths);
     }
 
     // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time through F16C.
@@ -714,16 +716,49 @@ public:
     }
 
     void kv_write(size_t layer, const KVView* views, size_t n_views,
-                  CSlice k_s, CSlice v_s) override {
+                  CSlice k_s, CSlice v_s, CSlice auxiliary = {}) override {
         if (n_views && !views) throw std::runtime_error("backend: KV write without views");
+        size_t rows = 0;
+        size_t heads = 0, dim = 0, aux_width = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            CpuKVStorage& s = storage_of(views[vi]);
+            s.validate_write_view(views[vi], layer);
+            if (!vi) { heads = s.heads(); dim = s.dim(); aux_width = s.auxiliary_width(layer); }
+            else if (s.heads() != heads || s.dim() != dim || s.auxiliary_width(layer) != aux_width)
+                throw std::runtime_error("backend: KV views of different shapes");
+            rows = size_add(rows, views[vi].nq);
+        }
+        if (n_views) {
+            CpuKVStorage& first = storage_of(views[0]);
+            const size_t kv_floats = size_mul(size_mul(rows, heads), dim);
+            if (!k_s.buffer || !v_s.buffer) throw std::runtime_error("backend: operand without storage");
+            span(*k_s.buffer, size_mul(k_s.offset, sizeof(float)), size_mul(kv_floats, sizeof(float)));
+            span(*v_s.buffer, size_mul(v_s.offset, sizeof(float)), size_mul(kv_floats, sizeof(float)));
+            first.validate_auxiliary(layer, auxiliary, rows);
+            (void)at(k_s);
+            (void)at(v_s);
+            if (aux_width) (void)at(auxiliary);
+            for (size_t vi = 0; vi < n_views; ++vi)
+                storage_of(views[vi]).check_view(views[vi], layer, true);
+            size_t row0 = 0;
+            for (size_t vi = 0; vi < n_views; ++vi) {
+                CpuKVStorage& s = storage_of(views[vi]);
+                if (aux_width) {
+                    const CSlice part{auxiliary.buffer, size_add(auxiliary.offset, size_mul(row0, aux_width))};
+                    s.write_aux(layer, &views[vi], 1, part);
+                }
+                row0 += views[vi].nq;
+            }
+        } else if (auxiliary.buffer) {
+            throw std::runtime_error("backend: auxiliary KV input supplied without views");
+        }
         const float* k = at(k_s);
         const float* v = at(v_s);
         size_t row0 = 0;
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& view = views[vi];
             CpuKVStorage& s = storage_of(view);
-            s.check_view(view, layer, true);
-            const size_t bt = KV_BLOCK_TOKENS, heads = s.heads(), dim = s.dim();
+            const size_t bt = KV_BLOCK_TOKENS;
             const size_t pos = view.length, batch = view.nq;
             for (size_t b = 0; b < batch; ++b) {
                 const size_t t = pos + b;
@@ -874,6 +909,293 @@ public:
         }
     }
 
+    // Attend over the selected original KV rows, retaining the usual GQA mapping and cache storage types.
+    void sparse_attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
+                          CSlice ids_s, size_t id_stride, Slice out_s,
+                          int n_head, int n_head_kv, int head_dim) override {
+        if (!n_views) return;
+        if (!views) throw std::runtime_error("backend: sparse attention without views");
+        if (!id_stride || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0)
+            throw std::runtime_error("backend: invalid sparse attention dimensions");
+        const size_t hd = (size_t)head_dim;
+        const size_t q_stride = size_mul((size_t)n_head, hd);
+        const int ratio = n_head / n_head_kv;
+        struct ViewPlan {
+            CpuKVStorage* storage = nullptr;
+            const KVView* view = nullptr;
+            size_t row0 = 0;
+        };
+        std::vector<ViewPlan> plans;
+        plans.reserve(n_views);
+        size_t rows = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& view = views[vi];
+            if (!view.nq) throw std::runtime_error("backend: invalid sparse attention dimensions");
+            CpuKVStorage& storage = storage_of(view);
+            if (storage.heads() != (size_t)n_head_kv || storage.dim() != hd)
+                throw std::runtime_error("backend: sparse attention outside the KV view");
+            storage.check_view(view, layer, false);
+            plans.push_back({&storage, &view, rows});
+            rows = size_add(rows, view.nq);
+        }
+
+        const size_t q_count = size_mul(rows, q_stride);
+        const size_t ids_count = size_mul(rows, id_stride);
+        const size_t output_count = q_count;
+        validate_float_slice(Q_s, q_count);
+        validate_float_slice(ids_s, ids_count);
+        validate_float_slice(CSlice(out_s), output_count);
+        if (slices_overlap(CSlice(out_s), output_count, Q_s, q_count) ||
+            slices_overlap(CSlice(out_s), output_count, ids_s, ids_count))
+            throw std::runtime_error("backend: sparse attention output overlaps an input");
+        for (const ViewPlan& plan : plans) {
+            if (out_s.buffer == plan.storage->k_buffer(layer).get() ||
+                out_s.buffer == plan.storage->v_buffer(layer).get() ||
+                out_s.buffer == plan.storage->auxiliary_buffer(layer).get())
+                throw std::runtime_error("backend: sparse attention output overlaps KV storage");
+        }
+
+        const float* query = at(Q_s);
+        const float* ids = at(ids_s);
+        float* output = at(out_s);
+        attention_scores_.resize(size_mul((size_t)n_head, id_stride));
+        const float scale = 1.0f / std::sqrt((float)hd);
+        for (const ViewPlan& plan : plans) {
+            const KVView& view = *plan.view;
+            CpuKVStorage& storage = *plan.storage;
+            const size_t bt = storage.block_tokens();
+            parallel_for(n_head, [&](int h) {
+                const size_t head = (size_t)h;
+                const size_t kv_head = head / (size_t)ratio;
+                float* scores = attention_scores_.data() + head * id_stride;
+                for (size_t b = 0; b < view.nq; ++b) {
+                    const size_t row = plan.row0 + b;
+                    const size_t causal_end = size_add(view.length, b + 1);
+                    const float* q = query + row * q_stride + head * hd;
+                    float maximum = -std::numeric_limits<float>::infinity();
+                    for (size_t j = 0; j < id_stride; ++j) {
+                        uint32_t token_id;
+                        std::memcpy(&token_id, ids + row * id_stride + j, sizeof(token_id));
+                        if (token_id == UINT32_MAX || (size_t)token_id >= causal_end) {
+                            scores[j] = -std::numeric_limits<float>::infinity();
+                            continue;
+                        }
+                        const size_t token = (size_t)token_id;
+                        const int32_t block = view.blocks[token / bt];
+                        const size_t in_block = token % bt;
+                        float score;
+                        if (storage.k_type() == KVType::f16) {
+                            const uint16_t* k = storage.kh(layer, block) +
+                                (kv_head * bt + in_block) * hd;
+                            score = dot_f32_f16(q, k, hd) * scale;
+                        } else {
+                            const float* k = storage.k(layer, block) +
+                                (kv_head * bt + in_block) * hd;
+                            score = dot_f32(q, k, hd) * scale;
+                        }
+                        scores[j] = score;
+                        maximum = std::max(maximum, score);
+                    }
+
+                    float denominator = 0.0f;
+                    float* dst = output + row * q_stride + head * hd;
+                    std::fill_n(dst, hd, 0.0f);
+                    if (maximum == -std::numeric_limits<float>::infinity()) continue;
+                    for (size_t j = 0; j < id_stride; ++j) {
+                        uint32_t token_id;
+                        std::memcpy(&token_id, ids + row * id_stride + j, sizeof(token_id));
+                        if (token_id == UINT32_MAX || (size_t)token_id >= causal_end) continue;
+                        const float weight = std::exp(scores[j] - maximum);
+                        denominator += weight;
+                        const size_t token = (size_t)token_id;
+                        const int32_t block = view.blocks[token / bt];
+                        const size_t in_block = token % bt;
+                        if (storage.v_type() == KVType::f16) {
+                            const uint16_t* v = storage.vh(layer, block) +
+                                (kv_head * bt + in_block) * hd;
+                            for (size_t d = 0; d < hd; ++d)
+                                dst[d] = std::fma(weight, f16_to_f32(v[d]), dst[d]);
+                        } else {
+                            const float* v = storage.v(layer, block) +
+                                (kv_head * bt + in_block) * hd;
+                            for (size_t d = 0; d < hd; ++d)
+                                dst[d] = std::fma(weight, v[d], dst[d]);
+                        }
+                    }
+                    for (size_t d = 0; d < hd; ++d) dst[d] /= denominator;
+                }
+            });
+        }
+    }
+
+    // Select whole compressed groups by the positive indexer score, then keep the visible partial tail in causal order.
+    void select_kv(CSlice Q_s, size_t layer, const KVView* views, size_t n_views, Slice ids_s,
+                   const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s) override {
+        if (!n_views) return;
+        if (!views) throw std::runtime_error("backend: index selection without views");
+        if (!args.heads || !args.dim || !args.rope_dim || args.rope_dim > args.dim || (args.rope_dim & 1) ||
+            !args.compression || !args.budget || args.budget % args.compression ||
+            !std::isfinite(args.eps) || args.eps <= 0.0f)
+            throw std::runtime_error("backend: invalid index selection dimensions");
+
+        const size_t row_width = size_mul(args.heads, args.dim);
+        const size_t output_width = size_add(args.budget, args.compression - 1);
+        const size_t half = args.rope_dim / 2;
+        struct ViewPlan {
+            CpuKVStorage* storage = nullptr;
+            const KVView* view = nullptr;
+            const float* auxiliary = nullptr;
+            size_t first_row = 0, visible = 0, groups = 0;
+        };
+        std::vector<ViewPlan> plans;
+        plans.reserve(n_views);
+        size_t rows = 0, max_position = 0, max_groups = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& view = views[vi];
+            ViewPlan plan;
+            plan.storage = &storage_of(view);
+            plan.view = &view;
+            plan.first_row = rows;
+            plan.visible = size_add(view.length, view.nq);
+            if (plan.visible > UINT32_MAX)
+                throw std::runtime_error("backend: index token position exceeds 32 bits");
+            plan.groups = plan.visible / args.compression;
+            plan.storage->check_view(view, layer, false);
+            if (plan.storage->heads() == 0 || plan.storage->dim() == 0 ||
+                plan.storage->auxiliary_width(layer) != args.dim)
+                throw std::runtime_error("backend: index selection auxiliary width differs from its key dimension");
+            if (plan.visible) {
+                const auto& auxiliary = plan.storage->auxiliary_buffer(layer);
+                if (!auxiliary) throw std::runtime_error("backend: index selection without auxiliary key storage");
+                span(*auxiliary, 0, auxiliary->size());
+                plan.auxiliary = at(CSlice{auxiliary.get(), 0});
+            }
+            rows = size_add(rows, view.nq);
+            max_position = std::max(max_position, plan.visible);
+            max_groups = std::max(max_groups, plan.groups);
+            plans.push_back(std::move(plan));
+        }
+        if (!rows) return;
+
+        const size_t q_count = size_mul(rows, row_width);
+        const size_t output_count = size_mul(rows, output_width);
+        const size_t table_count = size_mul(max_position, half);
+        if (!ids_s.buffer) throw std::runtime_error("backend: operand without storage");
+        validate_float_slice(Q_s, q_count);
+        validate_float_slice(key_norm_s, args.dim);
+        validate_float_slice(cos_s, table_count);
+        validate_float_slice(sin_s, table_count);
+        span(*ids_s.buffer, size_mul(ids_s.offset, sizeof(float)), size_mul(output_count, sizeof(uint32_t)));
+        if (slices_overlap(ids_s, output_count, Q_s, q_count) ||
+            slices_overlap(ids_s, output_count, key_norm_s, args.dim) ||
+            slices_overlap(ids_s, output_count, cos_s, table_count) ||
+            slices_overlap(ids_s, output_count, sin_s, table_count))
+            throw std::runtime_error("backend: index selection output overlaps an input");
+        for (const ViewPlan& plan : plans) {
+            if (!plan.visible) continue;
+            if (ids_s.buffer == plan.storage->k_buffer(layer).get() ||
+                ids_s.buffer == plan.storage->v_buffer(layer).get())
+                throw std::runtime_error("backend: index selection output overlaps KV storage");
+            const Buffer* auxiliary = plan.storage->auxiliary_buffer(layer).get();
+            const size_t auxiliary_count = auxiliary->size() / sizeof(float);
+            if (slices_overlap(ids_s, output_count, CSlice{auxiliary, 0}, auxiliary_count))
+                throw std::runtime_error("backend: index selection output overlaps auxiliary keys");
+        }
+
+        const float* query = at(Q_s);
+        const float* gamma = at(key_norm_s);
+        const float* cosine = at(cos_s);
+        const float* sine = at(sin_s);
+        float* output = at(ids_s);
+        std::vector<float> pooled_keys(size_mul(max_groups, args.dim));
+        struct RankedGroup { float score; size_t group; };
+        std::vector<RankedGroup> ranked(max_groups);
+        std::vector<size_t> selected(max_groups);
+        const size_t group_budget = args.budget / args.compression;
+        const float scale = 1.0f / std::sqrt((float)args.dim);
+        for (size_t i = 0; i < output_count; ++i) {
+            const uint32_t invalid = UINT32_MAX;
+            std::memcpy(output + i, &invalid, sizeof(invalid));
+        }
+
+        for (ViewPlan& plan : plans) {
+            const KVView& view = *plan.view;
+            const size_t aux_width = plan.storage->auxiliary_width(layer);
+            const size_t block_bytes = plan.storage->auxiliary_block_bytes(layer);
+            const size_t bt = plan.storage->block_tokens();
+            for (size_t group = 0; group < plan.groups; ++group) {
+                const size_t first_token = size_mul(group, args.compression);
+                float* pooled = pooled_keys.data() + group * args.dim;
+                std::fill(pooled, pooled + args.dim, 0.0f);
+                for (size_t token = first_token; token < first_token + args.compression; ++token) {
+                    const size_t block_index = token / bt;
+                    const size_t block_id = (size_t)view.blocks[block_index];
+                    const size_t offset = block_id * block_bytes + (token % bt) * aux_width * sizeof(float);
+                    const float* raw = (const float*)((const uint8_t*)plan.auxiliary + offset);
+                    for (size_t d = 0; d < args.dim; ++d) pooled[d] += raw[d];
+                }
+                const float inv_group = 1.0f / (float)args.compression;
+                for (size_t d = 0; d < args.dim; ++d) pooled[d] *= inv_group;
+                float squares = 0.0f;
+                for (size_t d = 0; d < args.dim; ++d)
+                    squares = std::fma(pooled[d], pooled[d], squares);
+                const float inv_norm = 1.0f / std::sqrt(squares / (float)args.dim + args.eps);
+                for (size_t d = 0; d < args.dim; ++d) pooled[d] = (pooled[d] * inv_norm) * gamma[d];
+
+                const float* c = cosine + first_token * half;
+                const float* s = sine + first_token * half;
+                for (size_t i = 0; i < half; ++i) {
+                    const float a = pooled[i], b = pooled[i + half];
+                    pooled[i] = a * c[i] - b * s[i];
+                    pooled[i + half] = b * c[i] + a * s[i];
+                }
+            }
+
+            for (size_t query_row = 0; query_row < view.nq; ++query_row) {
+                const size_t visible = view.length + query_row + 1;
+                const size_t groups = visible / args.compression;
+                const size_t tail = visible % args.compression;
+                const size_t n_selected = std::min(group_budget, groups);
+                const float* q = query + (plan.first_row + query_row) * row_width;
+                for (size_t group = 0; group < groups; ++group) {
+                    const float* key = pooled_keys.data() + group * args.dim;
+                    float total = 0.0f;
+                    for (size_t h = 0; h < args.heads; ++h) {
+                        const float* qh = q + h * args.dim;
+                        float dot = 0.0f;
+                        for (size_t d = 0; d < args.dim; ++d)
+                            dot = std::fma(qh[d], key[d], dot);
+                        total += std::max(dot, 0.0f);
+                    }
+                    const float score = total * scale;
+                    ranked[group] = {score, group};
+                }
+                std::partial_sort(ranked.begin(), ranked.begin() + n_selected, ranked.begin() + groups,
+                                  [](const RankedGroup& a, const RankedGroup& b) {
+                                      if (std::isnan(a.score)) return std::isnan(b.score) && a.group < b.group;
+                                      if (std::isnan(b.score)) return true;
+                                      return a.score > b.score || (a.score == b.score && a.group < b.group);
+                                  });
+                for (size_t i = 0; i < n_selected; ++i) selected[i] = ranked[i].group;
+                std::sort(selected.begin(), selected.begin() + n_selected);
+
+                size_t out = (plan.first_row + query_row) * output_width;
+                for (size_t i = 0; i < n_selected; ++i) {
+                    const size_t first = selected[i] * args.compression;
+                    for (size_t d = 0; d < args.compression; ++d) {
+                        const uint32_t token = (uint32_t)(first + d);
+                        std::memcpy(output + out++, &token, sizeof(token));
+                    }
+                }
+                const size_t tail_start = groups * args.compression;
+                for (size_t d = 0; d < tail; ++d) {
+                    const uint32_t token = (uint32_t)(tail_start + d);
+                    std::memcpy(output + out++, &token, sizeof(token));
+                }
+            }
+        }
+    }
+
     void rms_norm_raw(float* dst, const float* src, const float* w, size_t n, float eps) {
         // Sum of squares (vectorized), then a vectorized weighted scale.
         __m256 acc = _mm256_setzero_ps();
@@ -1005,8 +1327,137 @@ public:
         return d < std::numeric_limits<float>::min() ? 0.0f : d;
     }
 
-    void gated_rms_norm(Slice dst_s, CSlice x_s, CSlice z_s, CSlice w_s, size_t rows, size_t heads, size_t dim, float eps,
+    void group_rms_norm(Slice dst_s, CSlice src_s, CSlice w_s, size_t rows, size_t groups, size_t dim, float eps,
                         RowRuns = {}) override {
+        if (!groups || !dim || !std::isfinite(eps) || eps <= 0.0f)
+            throw std::runtime_error("backend: invalid grouped RMS norm dimensions or epsilon");
+        if (!rows) return;
+        const size_t width = size_mul(groups, dim), count = size_mul(rows, width);
+        validate_float_slice(dst_s, count);
+        validate_float_slice(src_s, count);
+        validate_float_slice(w_s, width);
+        const CSlice dst = dst_s;
+        if (slices_overlap(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
+            throw std::runtime_error("backend: grouped RMS norm output must be disjoint or exactly in place");
+        if (slices_overlap(dst, count, w_s, width))
+            throw std::runtime_error("backend: grouped RMS norm output overlaps its weights");
+        float* out = at(dst_s);
+        const float* x = at(src_s);
+        const float* w = at(w_s);
+        spread(rows, [&](size_t r) {
+            for (size_t g = 0; g < groups; ++g) {
+                const size_t offset = r * width + g * dim;
+                rms_norm_raw(out + offset, x + offset, w + g * dim, dim, eps);
+            }
+        });
+    }
+
+    void silu_scaled(Slice dst_s, CSlice src_s, size_t rows, size_t width, float scale, RowRuns = {}) override {
+        if (!width || !std::isfinite(scale))
+            throw std::runtime_error("backend: invalid scaled SiLU dimensions or scale");
+        if (!rows) return;
+        const size_t count = size_mul(rows, width);
+        validate_float_slice(dst_s, count);
+        validate_float_slice(src_s, count);
+        const CSlice dst = dst_s;
+        if (slices_overlap(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
+            throw std::runtime_error("backend: scaled SiLU output must be disjoint or exactly in place");
+        float* out = at(dst_s);
+        const float* x = at(src_s);
+        chunk(count, [&](size_t begin, size_t end) {
+            for (size_t i = begin; i < end; ++i) out[i] = silu_of(x[i] * scale);
+        });
+    }
+
+    void mix_streams(Slice dst_s, CSlice src_s, CSlice gate_s, size_t rows, size_t streams, size_t dim,
+                     RowRuns = {}) override {
+        if (!streams || !dim) throw std::runtime_error("backend: invalid stream mix dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(streams, dim), source_count = size_mul(rows, width);
+        const size_t output_count = size_mul(rows, dim);
+        validate_float_slice(dst_s, output_count);
+        validate_float_slice(src_s, source_count);
+        validate_float_slice(gate_s, source_count);
+        const CSlice dst = dst_s;
+        if (slices_overlap(dst, output_count, src_s, source_count) ||
+            slices_overlap(dst, output_count, gate_s, source_count))
+            throw std::runtime_error("backend: stream mix output must be disjoint from its inputs");
+        float* out = at(dst_s);
+        const float* x = at(src_s);
+        const float* gate = at(gate_s);
+        spread(rows, [&](size_t r) {
+            for (size_t d = 0; d < dim; ++d) {
+                float sum = 0.0f;
+                for (size_t s = 0; s < streams; ++s) {
+                    const size_t i = r * width + s * dim + d;
+                    sum += sigmoid_of(gate[i]) * x[i];
+                }
+                out[r * dim + d] = sum / float(streams);
+            }
+        });
+    }
+
+    void inject_streams(Slice dst_s, CSlice block_s, CSlice gate_s, size_t rows, size_t streams, size_t dim) override {
+        if (!streams || !dim) throw std::runtime_error("backend: invalid stream injection dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(streams, dim), dst_count = size_mul(rows, width);
+        const size_t block_count = size_mul(rows, dim), gate_count = size_mul(rows, streams);
+        validate_float_slice(dst_s, dst_count);
+        validate_float_slice(block_s, block_count);
+        validate_float_slice(gate_s, gate_count);
+        const CSlice dst = dst_s;
+        if (slices_overlap(dst, dst_count, block_s, block_count) ||
+            slices_overlap(dst, dst_count, gate_s, gate_count) ||
+            slices_overlap(block_s, block_count, gate_s, gate_count))
+            throw std::runtime_error("backend: stream injection operands must be disjoint");
+        float* residual = at(dst_s);
+        const float* block = at(block_s);
+        const float* gate = at(gate_s);
+        spread(rows, [&](size_t r) {
+            for (size_t s = 0; s < streams; ++s) {
+                const float weight = 2.0f * sigmoid_of(gate[r * streams + s] / float(streams));
+                for (size_t d = 0; d < dim; ++d)
+                    residual[r * width + s * dim + d] += block[r * dim + d] * weight;
+            }
+        });
+    }
+
+    void signed_sqrt_gate(Slice dst_s, CSlice key_s, CSlice query_s, CSlice value_s,
+                          size_t rows, size_t groups, size_t dim, RowRuns = {}) override {
+        if (!groups || !dim) throw std::runtime_error("backend: invalid signed square-root gate dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(groups, dim), grouped_count = size_mul(rows, width);
+        const size_t value_count = size_mul(rows, dim);
+        validate_float_slice(dst_s, grouped_count);
+        validate_float_slice(key_s, grouped_count);
+        validate_float_slice(query_s, grouped_count);
+        validate_float_slice(value_s, value_count);
+        const CSlice dst = dst_s;
+        if (slices_overlap(dst, grouped_count, key_s, grouped_count) ||
+            slices_overlap(dst, grouped_count, query_s, grouped_count) ||
+            slices_overlap(dst, grouped_count, value_s, value_count))
+            throw std::runtime_error("backend: signed square-root gate output must be disjoint from its inputs");
+        float* out = at(dst_s);
+        const float* key = at(key_s);
+        const float* query = at(query_s);
+        const float* value = at(value_s);
+        const float sqrt_dim = std::sqrt(float(dim));
+        spread(rows, [&](size_t r) {
+            for (size_t g = 0; g < groups; ++g) {
+                const size_t offset = r * width + g * dim;
+                float dot = 0.0f;
+                for (size_t d = 0; d < dim; ++d) dot += key[offset + d] * query[offset + d];
+                const float score = dot / sqrt_dim;
+                const float magnitude = std::max(std::fabs(score), 1e-6f);
+                const float sign = score > 0.0f ? 1.0f : score < 0.0f ? -1.0f : score == 0.0f ? 0.0f : score;
+                const float gate = sigmoid_of(sign * std::sqrt(magnitude));
+                for (size_t d = 0; d < dim; ++d) out[offset + d] = value[r * dim + d] * gate;
+            }
+        });
+    }
+
+    void gated_rms_norm(Slice dst_s, CSlice x_s, CSlice z_s, CSlice w_s, size_t rows, size_t heads, size_t dim, float eps,
+                        RowRuns = {}, NormGate gate = NormGate::silu) override {
         if (!heads || !dim) throw std::runtime_error("backend: invalid gated norm dimensions");
         const size_t bytes = size_mul(size_mul(size_mul(rows, heads), dim), sizeof(float));
         span(*dst_s.buffer, dst_s.offset * sizeof(float), bytes);
@@ -1022,7 +1473,11 @@ public:
             for (size_t h = 0; h < heads; ++h) {
                 const size_t o = (r * heads + h) * dim;
                 rms_norm_raw(dst + o, x + o, w, dim, eps);
-                for (size_t i = 0; i < dim; ++i) dst[o + i] = dst[o + i] * silu_of(z[o + i]);
+                if (gate == NormGate::silu) {
+                    for (size_t i = 0; i < dim; ++i) dst[o + i] = dst[o + i] * silu_of(z[o + i]);
+                } else {
+                    for (size_t i = 0; i < dim; ++i) dst[o + i] = dst[o + i] * sigmoid_of(z[o + i]);
+                }
             }
         });
     }
@@ -1099,6 +1554,108 @@ public:
         run_parallel([&](int wk) {
             for (size_t t = (size_t)wk * per, e = std::min(tasks, t + per); t < e; ++t) task(t);
         });
+    }
+
+    // A dilated depthwise causal conv adds its SiLU result to the residual and keeps the raw input history in the layer's extra state tail.
+    void dilated_conv_silu_add(Slice out_s, CSlice x_s, CSlice residual_s, CSlice w_s, size_t channels,
+                               size_t taps, size_t dilation, size_t layer, const StateView* views,
+                               size_t n_views) override {
+        if (!channels || !taps || !dilation)
+            throw std::runtime_error("backend: invalid dilated convolution dimensions");
+        const size_t history = size_mul(taps - 1, dilation);
+        const size_t tail_floats = size_mul(history, channels);
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const size_t count = size_mul(rows, channels);
+        const size_t weight_count = size_mul(channels, taps);
+        const size_t tasks = size_mul(n_views, channels);
+        std::vector<size_t> first(n_views), totals(n_views);
+        for (size_t i = 0; i < n_views; ++i) {
+            if (i) first[i] = size_add(first[i - 1], views[i - 1].nq);
+            totals[i] = size_add(views[i].length, views[i].nq);
+        }
+
+        validate_float_slice(out_s, count);
+        validate_float_slice(x_s, count);
+        validate_float_slice(residual_s, count);
+        validate_float_slice(w_s, weight_count);
+        const CSlice outc = out_s;
+        if (slices_overlap(outc, count, residual_s, count) && !same_slice(outc, count, residual_s, count))
+            throw std::runtime_error("backend: dilated convolution output must be disjoint or exactly residual in place");
+        if (slices_overlap(outc, count, x_s, count) || slices_overlap(outc, count, w_s, weight_count))
+            throw std::runtime_error("backend: dilated convolution output overlaps an input");
+
+        std::vector<const float*> src_tails(n_views);
+        std::vector<float*> dst_tails(n_views);
+        for (size_t i = 0; i < n_views; ++i) {
+            const StateView& view = views[i];
+            StateStorage& storage = *view.storage;
+            const size_t core = storage.shape().slot_floats();
+            const size_t stride = storage.slot_floats(layer);
+            if (stride < size_add(core, tail_floats))
+                throw std::runtime_error("backend: dilated convolution history does not fit the state tail");
+            Buffer& state = storage.layer(layer);
+            if (!dynamic_cast<CpuBuffer*>(&state))
+                throw std::runtime_error("backend: state storage does not belong to the CPU backend");
+            span(state, 0, size_mul(storage.slots(), storage.slot_bytes(layer)));
+            const CSlice state_slice{&state, 0};
+            const size_t state_count = state.size() / sizeof(float);
+            if (slices_overlap(state_slice, state_count, CSlice(out_s), count) ||
+                slices_overlap(state_slice, state_count, x_s, count) ||
+                slices_overlap(state_slice, state_count, residual_s, count) ||
+                slices_overlap(state_slice, state_count, w_s, weight_count))
+                throw std::runtime_error("backend: dilated convolution operands overlap the state layer");
+            float* base = state_slot(storage, layer, view.src);
+            float* dst = state_slot(storage, layer, view.dst);
+            src_tails[i] = base + core;
+            dst_tails[i] = dst + core;
+        }
+
+        const float* x = at(x_s);
+        const float* residual = at(residual_s);
+        const float* w = at(w_s);
+        float* out = at(out_s);
+        const auto task = [&](size_t t) {
+            const size_t vi = t / channels, c = t % channels;
+            const StateView& view = views[vi];
+            const float* history_src = src_tails[vi];
+            for (size_t row = 0; row < view.nq; ++row) {
+                const auto sample_at = [&](size_t tap) {
+                    const size_t lag = size_mul(taps - 1 - tap, dilation);
+                    float sample = 0.0f;
+                    if (row >= lag) sample = x[(first[vi] + row - lag) * channels + c];
+                    else {
+                        const size_t before = lag - row;
+                        if (before <= view.length) sample = history_src[(history - before) * channels + c];
+                    }
+                    return sample;
+                };
+                float acc = w[c * taps] * sample_at(0);
+                for (size_t tap = 1; tap < taps; ++tap) {
+                    acc = std::fma(w[c * taps + tap], sample_at(tap), acc);
+                }
+                const size_t index = (first[vi] + row) * channels + c;
+                out[index] = residual[index] + silu_of(acc);
+            }
+            for (size_t j = 0; j < history; ++j) {
+                float value = 0.0f;
+                if (totals[vi] >= history - j) {
+                    const size_t position = totals[vi] - (history - j);
+                    if (position >= view.length) value = x[(first[vi] + position - view.length) * channels + c];
+                    else {
+                        const size_t before = view.length - position;
+                        value = history_src[(history - before) * channels + c];
+                    }
+                }
+                dst_tails[vi][j * channels + c] = value;
+            }
+        };
+        size_t begin = 0;
+        while (begin < tasks) {
+            const size_t n = std::min(tasks - begin, size_t(std::numeric_limits<int>::max()));
+            parallel_for((int)n, [&](int i) { task(begin + (size_t)i); });
+            begin += n;
+        }
     }
 
     // A prologue over the rows (the normed q and k of every K head, each V head's beta and decay), then one task per (view, V head), each on one thread, so no thread count or grouping of rows changes a bit.
@@ -1330,6 +1887,22 @@ public:
     }
 
 private:
+    static void validate_float_slice(CSlice slice, size_t count) {
+        if (!slice.buffer) throw std::runtime_error("backend: operand without storage");
+        span(*slice.buffer, size_mul(slice.offset, sizeof(float)), size_mul(count, sizeof(float)));
+    }
+
+    static bool slices_overlap(CSlice a, size_t a_count, CSlice b, size_t b_count) {
+        if (a.buffer != b.buffer || !a_count || !b_count) return false;
+        const size_t a_end = size_add(a.offset, a_count);
+        const size_t b_end = size_add(b.offset, b_count);
+        return a.offset < b_end && b.offset < a_end;
+    }
+
+    static bool same_slice(CSlice a, size_t a_count, CSlice b, size_t b_count) {
+        return a.buffer == b.buffer && a.offset == b.offset && a_count == b_count;
+    }
+
     const float* dtype_input(CSlice input, size_t n, Dtype dtype) {
         const float* x = at(input);
         if (dtype != Dtype::bf16) return x;
@@ -1497,7 +2070,7 @@ private:
     static float* state_slot(const StateStorage& s, size_t layer, size_t slot) {
         auto* b = dynamic_cast<CpuBuffer*>(&s.layer(layer));
         if (!b) throw std::runtime_error("backend: state storage does not belong to the CPU backend");
-        return (float*)b->host_address() + slot * s.shape().slot_floats();
+        return (float*)b->host_address() + size_mul(slot, s.slot_floats(layer));
     }
 
     std::vector<float> normed_, gates_;   // the gated delta rule's prologue: q and k normed per row, then beta and the decay per row

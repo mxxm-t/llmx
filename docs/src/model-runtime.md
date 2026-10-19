@@ -1,5 +1,7 @@
 # `src/model/runtime.hpp` - the model runtime
 
+`RestoreInto::Run` names a fixed backend buffer, a deferred K/V/auxiliary storage side, or a generic host destination. Its image order is owned by the history layer; host token-history storage is allocated once during construction and never resized while the model lives.
+
 `take_matrix_paths` drains this model's retained dispatch evidence in placement order, including an expert host that runs no whole model stage. `run_stage` swaps the model's evidence into every touched backend and restores the caller's previous set on both normal and error exits. Models used in turn therefore keep separate evidence even if a caller reads it after another model ran on the shared backend; direct backend calls retain their own set. Callers wait for the measured work before consuming the model's records. This lifetime handling does not permit concurrent execution on a shared backend.
 
 `ModelOptions::dtype` is copied at construction and passed into every architecture `Step`, including split and streamed parts. It is independent of KV storage precision. A model never changes a shared backend dtype setting. Placement supplies resolution before construction, including `ModelOptions::device_dtypes` for per-device emulation or wider fallback. An empty vector applies `dtype` everywhere; a nonempty vector must cover every device before allocation. The existing `part` owner selects the device's policy for each step. Direct model construction can still select the scalar policy.
@@ -24,11 +26,11 @@ delegated to a `backend::Backend`.
   as wide as the residual, or with a role id past `role_ids`, is the
   architecture's error (`std::logic_error`), since the runtime strides the
   residual by one and sizes slot 0 by the other, and indexes rows by the id.
-- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(plan, options)` and `kv_bytes_per_position(plan, options)`: the positions the caches are budgeted for, the options' or else the plan's context, which the fit and the cache allocation take, and one position's key and value bytes of one layer at the plan's geometry and the options' cache types, which only the fit and `kv_used_bytes`, times the layers that keep KV, take: the allocation passes the token budget and the two types to `kv_alloc`, and the backend's storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
+- `kDefaultUbatch` (512): the prompt tokens a pass takes unless set otherwise, and so the prompt rows a placement is fitted for. `kv_tokens(plan, options)` and `kv_bytes_per_position(plan, options, auxiliary = 0)`: the positions the caches are budgeted for, the options' or else the plan's context, which the fit and the cache allocation take, and one position's key and value bytes of one layer at the plan's geometry and the options' cache types plus `auxiliary * sizeof(float)` for its optional auxiliary row. The fit and `kv_used_bytes` sum this over KV layers; allocation passes the token budget, two types and each layer's auxiliary width to `kv_alloc`, and backend storage turns them into blocks and bytes (`backends/kv_storage.hpp`).
 - `Placement`: a device index per tensor role: each layer's mixer
   (`mixer_device`) and feed-forward block (`ffn_device`), the embedding
   table and the output head. Empty means everything on device 0.
-  With `width` above 1 each device named is the first member of a tensor group of that many consecutive backends ([TENSOR-SPLIT](../TENSOR-SPLIT.md)): every member holds its shards of every split role (`resolve_tensors`, the other members' rows in `member_pass_` and `member_home_`, read through `pass_row` and `home_row`), its KV heads in a storage of its own whose blocks come from the one pool its group's first member holds, so one block table serves the group, the recurrent state of its K and V heads in a state storage of its own (`shard::state`), under the slot ids the group shares, with its marks' saved rows at its share of each width (`shard::saved`), and its arena; the residual leaves a group from its first member. The constructor refuses a list that is not whole groups, a name that is not a group's first member, members of different kinds or without a collective among them, a width the plan's shards refuse (`shard::check_plan`), a streamed layer, and a placement other than the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer. Per role
+  With `width` above 1 each device named is the first member of a tensor group of that many consecutive backends ([TENSOR-SPLIT](../TENSOR-SPLIT.md)): every member holds its shards of every split role (`resolve_tensors`, the other members' rows in `member_pass_` and `member_home_`, read through `pass_row` and `home_row`), its KV heads in a storage of its own whose blocks come from the one pool its group's first member holds, so one block table serves the group, the recurrent state of its K and V heads in a state storage of its own (`shard::state`), under the slot ids the group shares, with its marks' saved rows at its share of each non-replicated width and replicated rows held whole (`shard::saved`), and its arena; the residual leaves a group from its first member. The constructor refuses a list that is not whole groups, a name that is not a group's first member, members of different kinds or without a collective among them, a width the plan's shards refuse (`shard::check_plan`), a streamed layer, and a placement other than the embedding on the first stage's group, the head on the last's and every feed-forward block beside its mixer. Per role
   rather than per layer so expert offload puts a layer's experts on the CPU
   while its mixer stays on the device (`docs/EXECUTION.md`). `stream_from` is the prompt length (`BatchEntry::extent`) from which such
   a layer whose streamed weight types and feed-forward ops the destination supports runs on its mixer device instead for every row the prompt computes, whatever prefix the history already held, 1 counting as 2 since a one-token prompt never streams; a server forks a donor's rows only where their class (`row_class`), the streamed path included, is the new prompt's. Its `copy` roles (the norm
@@ -81,8 +83,17 @@ delegated to a `backend::Backend`.
 - `ExecContext`: where a context's passes run, plain data the model fills:
   per device an activation arena (the plan's slots at 64-byte offsets in
   one backend allocation), which each device's passes use in turn, and the
-  host-visible handoff buffers on each device the residual leaves, one,
-  two when a prompt's chunks are pipelined, and in a context reserved for
+  separate host U32 index scratch sized as `arena_rows * ModelPlan::index_width`
+  on that device, borrowed by `Step` for synchronous ID gather calls; zero
+  width allocates no index storage. An apart arena has its own equally sized
+  scratch for its rows. Neither index buffer is part of the device arena.
+  Each external lookup has a packed backend buffer on every member of its
+  mixer group. The first member owns the host row-reader scratch and remapped
+  U32 IDs shared by that group's prepared views, indexed by layer. Normal
+  and apart scratch own separate copies. Their capacities are reserved with
+  the arenas, and replacing normal scratch waits for that device's last ticket.
+  It also owns the host-visible handoff buffers on each device the residual
+  leaves, one, two when a prompt's chunks are pipelined, and in a context reserved for
   passes those of its slots (`reserve_passes`), while a device it never
   leaves, such as a pipelined split's last, keeps none; the host-visible
   logits rows; the tickets; and a `Pass` per pass in flight, the entries,
@@ -107,17 +118,26 @@ delegated to a `backend::Backend`.
   default) or over several with a `Placement` and an optional
   `AdoptWeight`, planning the weights itself or given their plan
   (`plan_model`), as `place_model` gives it; the fixtures and the synthetic
-  bench wrap their file in `gguf_weights`. The model keeps no view and no
-  reference to the file, and shares the architecture object with the
-  weights. Each weight is put on the backend that hosts its role, which on
+  bench wrap their file in `gguf_weights`. The model keeps no tensor view or
+  GGUF model reference; it shares the architecture object and retains any
+  explicit row sources. Each ordinary weight is put on the backend that hosts its role, which on
   the CPU reads the file's bytes in place and on a device copies them.
+  A weight with an external row source retains that source instead of adopting
+  the full table. Admission requires a declared mixer gather lookup, matching
+  source type, dimensions and bytes, no expert streaming for that role, and
+  an unsharded gather role. The original tensor layout is still validated;
+  tensor groups replicate the requested packed rows instead of sharding the
+  external table.
   Each device whose mixer layers keep KV (`LayerPlan::cache`) gets a
   `KVStorage` for exactly those layers, each indexed within it by its place
   among them, with its own pool and block size; the block sizes of a
   model's storages must nest, one dividing the other, since a shared prefix
   ends on a whole block of the largest, or the model is refused. Every
-  device that runs a mixer adopts the position tables, which the
-  architecture filled once (`fill_tables`). A pass calls the architecture's
+  used device adopts the position tables, which the architecture filled once
+  (`fill_tables`); some architecture parts read a table even on a device with
+  no mixer layers. Qwen4Exp's feed-forward path clears its accumulation row
+  from the zero-row table before expert accumulation. CPU adoption borrows the
+  model's host vector, while copying backends copy it. A pass calls the architecture's
   parts, each with a `Step` on the device that runs it: the embedding on
   the first stage, each layer's mixer and feed-forward part, and the head
   on the output device. Its stages are
@@ -131,7 +151,7 @@ delegated to a `backend::Backend`.
   Each stage commits its own length, whatever its layers keep, so a stage
   whose layers keep no KV has no storage and still runs. Each device whose
   mixer layers keep a recurrent state holds a `backend::StateStorage` of
-  exactly those layers with `state_slots` + `checkpoint_slots` + `mark_slots` slots, and with marks a buffer of each mark's saved recurrent inputs, `mark_rows` rows of every state layer, allocated and zeroed at
+  exactly those layers with `state_slots` + `checkpoint_slots` + `mark_slots` slots. Each slot has the common `ModelPlan::state` prefix plus its `LayerPlan::state_tail` F32 values, if any; a layer without a tail keeps the common stride. On a tensor group each member holds its head-sharded prefix and the complete F32 tail under the shared slot ids. With marks, a buffer holds each mark's saved recurrent inputs, `mark_rows` rows of every state layer. If one layer declares `token_history`, the model keeps its exact U32 tail in a host-resident array indexed by those same slot ids, outside device state storage. The pass supplies each entry's preceding IDs to the declared layer; the history owner advances the tail only after that stage commits. A separate host U32 mark buffer retains current IDs for retract. These allocations are zeroed at
   load and never grown (`Backend::state_alloc`), and a sequence takes one
   slot of the model's `SlotPool` in its first pass, once the pass is
   accepted and planned, and keeps it until its reset, its destruction or a
@@ -152,6 +172,9 @@ delegated to a `backend::Backend`.
     keeping passes in flight may record it on a thread of that stage's,
     `stage_grouped(s)` whether it is a tensor group's, and
     `stage_backend(s)` gives the backend a caller timing the stages reads.
+    `stage_reads(s)` identifies stages that prepare external rows; a server
+    records their GPU stages on a recorder even with one pass on one device,
+    keeping file reads outside its scheduler lock.
   - `make_sequence()`: a fresh history over the model's cache, a table per KV storage and a count for each stage without one.
   - `keeps_state()`: whether some layer keeps a recurrent state, which
     exists only at the end of what it has read, so such a model forks and
@@ -210,6 +233,9 @@ delegated to a `backend::Backend`.
     role's type must be supported by its assigned backend (`supports_type`),
     including a tied head placed apart from the embedding. A refusal names
     the pass role or layer part, tensor, type and device index.
+    The plan's optional `pass_ops` are also checked at this point on the
+    assigned embedding or head backend. An unsupported op is refused by part
+    and op name before any weight adoption or model-buffer allocation.
     A tensor no role uses is also refused when none of the model's backends
     supports its type. Metadata-only file access remains independent of this
     execution check.

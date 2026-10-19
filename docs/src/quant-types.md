@@ -15,6 +15,8 @@ backend can execute. This is the lowest header of the quant layer.
   types, F64, NVFP4, Q1_0 and Q2_0. It returns null for an unknown ID or a
   removed layout: 4, 5, 31-33 and 36-38. A name and byte layout do not imply
   a decoder or backend support.
+  BF16 is the one-value, two-byte storage layout.
+  It has no decoder in `quant::Registry`; Vulkan decodes BF16 embeddings and matrix weights in its shaders.
 - `row_bytes(type, nin, rows = 1)` sizes rows from this metadata. It refuses
   an unknown or removed type, then a width that ends inside a block, then
   a byte count that would overflow. Zero rows take zero bytes, but still

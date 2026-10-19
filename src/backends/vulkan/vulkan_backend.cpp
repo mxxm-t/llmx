@@ -428,6 +428,9 @@ const uint32_t kSpvGatedRmsNorm[] = {
 const uint32_t kSpvCausalConvSilu[] = {
 #include "vulkan/causal_conv_silu.inc"
 };
+const uint32_t kSpvDilatedConvSiluAdd[] = {
+#include "vulkan/dilated_conv_silu_add.inc"
+};
 const uint32_t kSpvDeltaRule[] = {
 #include "vulkan/delta_rule.inc"
 };
@@ -443,6 +446,21 @@ const uint32_t kSpvEmbedIdsMxfp4[] = {
 };
 const uint32_t kSpvDeltaRuleShort[] = {
 #include "vulkan/delta_rule_short.inc"
+};
+const uint32_t kSpvGroupRmsNorm[] = {
+#include "vulkan/group_rms_norm.inc"
+};
+const uint32_t kSpvSiluScaled[] = {
+#include "vulkan/silu_scaled.inc"
+};
+const uint32_t kSpvMixStreams[] = {
+#include "vulkan/mix_streams.inc"
+};
+const uint32_t kSpvInjectStreams[] = {
+#include "vulkan/inject_streams.inc"
+};
+const uint32_t kSpvSignedSqrtGate[] = {
+#include "vulkan/signed_sqrt_gate.inc"
 };
 
 const uint32_t kSpvEmbedMxfp4[] = {
@@ -473,6 +491,52 @@ const uint32_t kSpvMatmulRowMxfp4FloatX[] = {
 const uint32_t kSpvMatmulTileQ8mx[] = {
 #include "vulkan/matmul_tile_q8mx.inc"
 };
+const uint32_t kSpvKvIndexPool[] = {
+#include "vulkan/kv_index_pool.inc"
+};
+const uint32_t kSpvKvIndexScores[] = {
+#include "vulkan/kv_index_scores.inc"
+};
+const uint32_t kSpvKvIndexSelect[] = {
+#include "vulkan/kv_index_select.inc"
+};
+
+const uint32_t kSpvSparseAttention[] = {
+#include "vulkan/sparse_attention.inc"
+};
+const uint32_t kSpvSparseAttentionK16[] = {
+#include "vulkan/sparse_attention_k16.inc"
+};
+const uint32_t kSpvSparseAttentionV16[] = {
+#include "vulkan/sparse_attention_v16.inc"
+};
+const uint32_t kSpvSparseAttentionKv16[] = {
+#include "vulkan/sparse_attention_kv16.inc"
+};
+const uint32_t kSpvSparseAttentionVec[] = {
+#include "vulkan/sparse_attention_vec.inc"
+};
+const uint32_t kSpvSparseAttentionVecK16[] = {
+#include "vulkan/sparse_attention_vec_k16.inc"
+};
+const uint32_t kSpvSparseAttentionVecV16[] = {
+#include "vulkan/sparse_attention_vec_v16.inc"
+};
+const uint32_t kSpvSparseAttentionVecKv16[] = {
+#include "vulkan/sparse_attention_vec_kv16.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256[] = {
+#include "vulkan/sparse_attention_vec_d256.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256K16[] = {
+#include "vulkan/sparse_attention_vec_d256_k16.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256V16[] = {
+#include "vulkan/sparse_attention_vec_d256_v16.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256Kv16[] = {
+#include "vulkan/sparse_attention_vec_d256_kv16.inc"
+};
 
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
@@ -485,7 +549,22 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
     X(K_MATMUL_ROW, "matmul_row", kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts, kSpvMatmulRowPreserve, sizeof(kSpvMatmulRowPreserve)) \
     X(K_KV_WRITE, "kv_write", kSpvKvWrite, sizeof(kSpvKvWrite), 5, nullptr) \
     X(K_ATTENTION, "attention", kSpvAttention, sizeof(kSpvAttention), 7, nullptr) \
+    X(K_SPARSE_ATTENTION, "sparse_attention", kSpvSparseAttention, sizeof(kSpvSparseAttention), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_K16, "sparse_attention_k16", kSpvSparseAttentionK16, sizeof(kSpvSparseAttentionK16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_V16, "sparse_attention_v16", kSpvSparseAttentionV16, sizeof(kSpvSparseAttentionV16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_KV16, "sparse_attention_kv16", kSpvSparseAttentionKv16, sizeof(kSpvSparseAttentionKv16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC, "sparse_attention_vec", kSpvSparseAttentionVec, sizeof(kSpvSparseAttentionVec), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_K16, "sparse_attention_vec_k16", kSpvSparseAttentionVecK16, sizeof(kSpvSparseAttentionVecK16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_V16, "sparse_attention_vec_v16", kSpvSparseAttentionVecV16, sizeof(kSpvSparseAttentionVecV16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_KV16, "sparse_attention_vec_kv16", kSpvSparseAttentionVecKv16, sizeof(kSpvSparseAttentionVecKv16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256, "sparse_attention_vec_d256", kSpvSparseAttentionVecD256, sizeof(kSpvSparseAttentionVecD256), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_K16, "sparse_attention_vec_d256_k16", kSpvSparseAttentionVecD256K16, sizeof(kSpvSparseAttentionVecD256K16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_V16, "sparse_attention_vec_d256_v16", kSpvSparseAttentionVecD256V16, sizeof(kSpvSparseAttentionVecD256V16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_KV16, "sparse_attention_vec_d256_kv16", kSpvSparseAttentionVecD256Kv16, sizeof(kSpvSparseAttentionVecD256Kv16), 8, nullptr) \
     X(K_ATTENTION_MERGE, "attention_merge", kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr) \
+    X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 6, nullptr) \
+    X(K_KV_INDEX_SCORES, "kv_index_scores", kSpvKvIndexScores, sizeof(kSpvKvIndexScores), 4, nullptr) \
+    X(K_KV_INDEX_SELECT, "kv_index_select", kSpvKvIndexSelect, sizeof(kSpvKvIndexSelect), 3, nullptr) \
     X(K_MATMUL_TILE, "matmul_tile", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \
     X(K_MATMUL_ROW_Q4, "matmul_row_q4", kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 12, kMatmulRowCounts, kSpvMatmulRowQ4Preserve, sizeof(kSpvMatmulRowQ4Preserve)) \
     X(K_MATMUL_ROW_K4, "matmul_row_k4", kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 12, kMatmulRowCounts) \
@@ -580,7 +659,13 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
     X(K_ARGMAX_ROWS, "argmax_rows", kSpvArgmaxRows, sizeof(kSpvArgmaxRows), 4, nullptr) \
     X(K_EMBED_IDS, "embed_ids", kSpvEmbedIds, sizeof(kSpvEmbedIds), 4, nullptr) \
     X(K_DELTA_RULE_SHORT, "delta_rule_short", kSpvDeltaRuleShort, sizeof(kSpvDeltaRuleShort), 8, nullptr) \
-    X(K_EMBED_IDS_MXFP4, "embed_ids_mxfp4", kSpvEmbedIdsMxfp4, sizeof(kSpvEmbedIdsMxfp4), 4, nullptr)
+    X(K_EMBED_IDS_MXFP4, "embed_ids_mxfp4", kSpvEmbedIdsMxfp4, sizeof(kSpvEmbedIdsMxfp4), 4, nullptr) \
+    X(K_GROUP_RMS_NORM, "group_rms_norm", kSpvGroupRmsNorm, sizeof(kSpvGroupRmsNorm), 4, nullptr) \
+    X(K_SILU_SCALED, "silu_scaled", kSpvSiluScaled, sizeof(kSpvSiluScaled), 3, nullptr) \
+    X(K_MIX_STREAMS, "mix_streams", kSpvMixStreams, sizeof(kSpvMixStreams), 4, nullptr) \
+    X(K_INJECT_STREAMS, "inject_streams", kSpvInjectStreams, sizeof(kSpvInjectStreams), 3, nullptr) \
+    X(K_SIGNED_SQRT_GATE, "signed_sqrt_gate", kSpvSignedSqrtGate, sizeof(kSpvSignedSqrtGate), 5, nullptr) \
+    X(K_DILATED_CONV_SILU_ADD, "dilated_conv_silu_add", kSpvDilatedConvSiluAdd, sizeof(kSpvDilatedConvSiluAdd), 6, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,
 enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };
@@ -602,6 +687,9 @@ struct WeightKernels {
 const WeightKernels* weight_kernels(uint32_t type) {
     static const WeightKernels formats[] = {
         {quant::GGML_TYPE_F32, RowLayout::values, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, true, false, &DeviceProfile::moe_tile_from},
+        {quant::GGML_TYPE_BF16, RowLayout::values, K_MATMUL_ROW_FLOAT_X, K_MATMUL_ROW_FLOAT_X, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, true, false, &DeviceProfile::moe_tile_from},
         {quant::GGML_TYPE_Q8_0, RowLayout::q8_pairs, K_MATMUL_ROW, K_MATMUL_ROW, K_MATMUL_ROW_FLOAT_X,
@@ -818,7 +906,7 @@ class VulkanBackend;
 class VulkanKVStorage final : public BlockKVStorage {
 public:
     VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt,
-                    KVType vt);
+                    KVType vt, const std::vector<size_t>& auxiliary_widths);
 
 private:
     void retire(const BufferPtr& old) override;
@@ -2148,7 +2236,7 @@ public:
 
     // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
     void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
-                        RowRuns runs = {}) override {
+                        RowRuns runs = {}, NormGate gate = NormGate::silu) override {
         if (!heads || !dim) throw std::runtime_error("vulkan: invalid gated norm dimensions");
         const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
         if (floats_from(dst) < n || floats_from(x) < n || floats_from(z) < n || floats_from(w) < dim)
@@ -2157,10 +2245,108 @@ public:
         const bool quant = dim % 32 == 0;
         const bool tile = quant && tile_reads(width, rows, runs);
         const uint32_t major = tile ? x8_major(width, rows) : 0;
-        struct { uint32_t heads, dim; float eps; uint32_t quant, n, major; }
-            pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n), major};
+        struct { uint32_t heads, dim; float eps; uint32_t quant, n, major, gate; }
+            pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n), major, gate == NormGate::sigmoid ? 1u : 0u};
         dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? xq_for(n) : bind(dst)},
                  &pc, sizeof(pc), u32(rows * heads), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+    }
+
+    void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t group_count, size_t dim, float eps,
+                        RowRuns runs = {}) override {
+        if (!group_count || !dim || !std::isfinite(eps) || eps <= 0.0f)
+            throw std::runtime_error("vulkan: invalid grouped norm dimensions or epsilon");
+        if (!rows) return;
+        validate_runs(rows, runs);
+        const size_t width = size_mul(group_count, dim), n = size_mul(rows, width);
+        if (floats_from(dst) < n || floats_from(src) < n || floats_from(w) < width)
+            throw std::runtime_error("vulkan: grouped norm operand outside its allocation");
+        if (overlaps(CSlice(dst), n, src, n) && !(dst.buffer == src.buffer && dst.offset == src.offset))
+            throw std::runtime_error("vulkan: grouped norm output must be disjoint or exactly in place");
+        if (overlaps(CSlice(dst), n, w, width))
+            throw std::runtime_error("vulkan: grouped norm output overlaps its weights");
+        // The activation twin is row-major. A group can produce it independently only at a 32-value boundary.
+        const bool quant = dim % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        const uint32_t major = tile ? x8_major(width, rows) : 0;
+        struct { uint32_t rows, groups, dim, quant, n, major; float eps; }
+            pc{u32(rows), u32(group_count), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(n), major, eps};
+        dispatch(K_GROUP_RMS_NORM, {bind(dst), bind(src), bind(w), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), groups(size_mul(rows, group_count), 1), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+    }
+
+    void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs = {}) override {
+        if (!width || !std::isfinite(scale)) throw std::runtime_error("vulkan: invalid scaled SiLU dimensions or scale");
+        if (!rows) return;
+        validate_runs(rows, runs);
+        const size_t n = size_mul(rows, width);
+        if (floats_from(dst) < n || floats_from(src) < n)
+            throw std::runtime_error("vulkan: scaled SiLU operand outside its allocation");
+        if (overlaps(CSlice(dst), n, src, n) && !(dst.buffer == src.buffer && dst.offset == src.offset))
+            throw std::runtime_error("vulkan: scaled SiLU output must be disjoint or exactly in place");
+        const bool quant = width % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        const uint32_t major = tile ? x8_major(width, rows) : 0;
+        struct { uint32_t n, quant, major; float scale; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, scale};
+        dispatch(K_SILU_SCALED, {bind(dst), bind(src), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+    }
+
+    void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim,
+                     RowRuns runs = {}) override {
+        if (!streams || !dim) throw std::runtime_error("vulkan: invalid stream mix dimensions");
+        if (!rows) return;
+        validate_runs(rows, runs);
+        const size_t width = size_mul(streams, dim), n = size_mul(rows, width), out_n = size_mul(rows, dim);
+        if (floats_from(dst) < out_n || floats_from(src) < n || floats_from(gate) < n)
+            throw std::runtime_error("vulkan: stream mix operand outside its allocation");
+        (void)u32(n); // The shader indexes the full [row, stream, dim] source in uint arithmetic.
+        if (overlaps(CSlice(dst), out_n, src, n) || overlaps(CSlice(dst), out_n, gate, n))
+            throw std::runtime_error("vulkan: stream mix output must be disjoint from its inputs");
+        const bool quant = dim % 32 == 0;
+        const bool tile = quant && tile_reads(dim, rows, runs);
+        const uint32_t major = tile ? x8_major(dim, rows) : 0;
+        struct { uint32_t rows, streams, dim, quant, n, major; }
+            pc{u32(rows), u32(streams), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(out_n), major};
+        dispatch(K_MIX_STREAMS, {bind(dst), bind(src), bind(gate), quant ? xq_for(out_n) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? out_n / 4 : out_n, 256), 1, quant ? twin_variant() : 0);
+        if (quant) xq_tag_ = XqTag{bind(dst), out_n, want_x8_, major};
+    }
+
+    void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
+        if (!streams || !dim) throw std::runtime_error("vulkan: invalid stream injection dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(streams, dim), n = size_mul(rows, width);
+        if (floats_from(dst) < n || floats_from(block) < size_mul(rows, dim) || floats_from(gate) < size_mul(rows, streams))
+            throw std::runtime_error("vulkan: stream injection operand outside its allocation");
+        if (overlaps(CSlice(dst), n, block, size_mul(rows, dim)) || overlaps(CSlice(dst), n, gate, size_mul(rows, streams)) ||
+            overlaps(block, size_mul(rows, dim), gate, size_mul(rows, streams)))
+            throw std::runtime_error("vulkan: stream injection operands must be disjoint");
+        const struct { uint32_t rows, streams, dim, n; } pc{u32(rows), u32(streams), u32(dim), u32(n)};
+        dispatch(K_INJECT_STREAMS, {bind(dst), bind(block), bind(gate)}, &pc, sizeof(pc), groups(n, 256));
+    }
+
+    void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups_count, size_t dim,
+                          RowRuns runs = {}) override {
+        if (!groups_count || !dim) throw std::runtime_error("vulkan: invalid signed square-root gate dimensions");
+        if (!rows) return;
+        validate_runs(rows, runs);
+        const size_t width = size_mul(groups_count, dim), n = size_mul(rows, width);
+        if (floats_from(dst) < n || floats_from(key) < n || floats_from(query) < n || floats_from(value) < size_mul(rows, dim))
+            throw std::runtime_error("vulkan: signed square-root gate operand outside its allocation");
+        if (overlaps(CSlice(dst), n, key, n) || overlaps(CSlice(dst), n, query, n) ||
+            overlaps(CSlice(dst), n, value, size_mul(rows, dim)))
+            throw std::runtime_error("vulkan: signed square-root gate output must be disjoint from its inputs");
+        const bool quant = dim % 32 == 0;
+        const bool tile = quant && tile_reads(width, rows, runs);
+        const uint32_t major = tile ? x8_major(width, rows) : 0;
+        struct { uint32_t rows, groups, dim, quant, n, major; float scale; }
+            pc{u32(rows), u32(groups_count), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(n), major,
+               1.0f / std::sqrt(float(dim))};
+        dispatch(K_SIGNED_SQRT_GATE, {bind(dst), bind(key), bind(query), bind(value), quant ? xq_for(n) : bind(dst)},
+                 &pc, sizeof(pc), groups(size_mul(rows, groups_count), 1), 1, quant ? twin_variant() : 0);
         if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
     }
 
@@ -2170,7 +2356,7 @@ public:
         StateStorage* storage = nullptr;
         std::vector<uint32_t> words;
     };
-    static StateTable state_table(const StateView* views, size_t n_views) {
+    static StateTable state_table(const StateView* views, size_t n_views, size_t layer) {
         StateTable t;
         t.words.push_back(u32(n_views));
         size_t row0 = 0;
@@ -2181,7 +2367,8 @@ public:
             t.words.insert(t.words.end(), {u32(row0), u32(v.nq), u32(v.length), u32(v.src), u32(v.dst)});
             row0 += v.nq;
         }
-        (void)u32(size_mul(t.storage->slots(), t.storage->shape().slot_floats()));
+        // This layer may carry an additional recurrent tail after the shared GDN prefix.
+        (void)u32(size_mul(t.storage->slots(), t.storage->slot_floats(layer)));
         return t;
     }
 
@@ -2194,7 +2381,7 @@ public:
     void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) override {
         const size_t rows = check_state_views(views, n_views, layer);
         if (!rows) return;
-        StateTable t = state_table(views, n_views);
+        StateTable t = state_table(views, n_views, layer);
         const StateShape& sh = t.storage->shape();
         const size_t C = sh.channels();
         if (floats_from(out) < size_mul(rows, C) || floats_from(x) < size_mul(rows, C) || floats_from(w) < size_mul(C, kConvTaps))
@@ -2204,10 +2391,70 @@ public:
             for (size_t b0 = 0; b0 < views[i].nq; b0 += kConvChunk, ++chunks) t.words.insert(t.words.end(), {u32(i), u32(b0)});
         if (chunks > dev_->props.limits.maxComputeWorkGroupCount[1]) throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
         const struct { uint32_t C, slot, carried, chunk; }
-            pc{u32(C), u32(sh.slot_floats()), u32(sh.v_heads * sh.matrix_floats()), u32(kConvChunk)};
+            pc{u32(C), u32(t.storage->slot_floats(layer)), u32(sh.v_heads * sh.matrix_floats()), u32(kConvChunk)};
         dispatch(K_CAUSAL_CONV_SILU,
                  {bind(out), bind(x), bind(w), bind(CSlice{&t.storage->layer(layer), 0}), args(t.words.data(), t.words.size() * sizeof(uint32_t))},
                  &pc, sizeof(pc), groups(C, 256), u32(chunks));
+    }
+
+    // A dilated causal conv reads recurrent raw-row tails only in its first chunk; all later chunks begin past the full history window.
+    void dilated_conv_silu_add(Slice out, CSlice x, CSlice residual, CSlice w, size_t channels, size_t taps, size_t dilation,
+                               size_t layer, const StateView* views, size_t n_views) override {
+        if (!channels || !taps || !dilation) throw std::runtime_error("vulkan: invalid dilated conv dimensions");
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        StateTable t = state_table(views, n_views, layer);
+        const size_t history = size_mul(taps - 1, dilation);
+        const size_t row_floats = size_mul(rows, channels), weight_floats = size_mul(channels, taps);
+        const size_t tail_floats = size_mul(history, channels);
+        const size_t prefix_floats = t.storage->shape().slot_floats();
+        if (t.storage->slot_floats(layer) < size_add(prefix_floats, tail_floats))
+            throw std::runtime_error("vulkan: recurrent slot lacks dilated conv history");
+        if (floats_from(out) < row_floats || floats_from(x) < row_floats || floats_from(residual) < row_floats ||
+            floats_from(w) < weight_floats)
+            throw std::runtime_error("vulkan: dilated conv operand outside its allocation");
+
+        // Shader indexing and each slot's entire address range use u32 arithmetic.
+        (void)u32(rows);
+        (void)u32(channels);
+        (void)u32(taps);
+        (void)u32(dilation);
+        (void)u32(history);
+        (void)u32(row_floats);
+        (void)u32(weight_floats);
+        (void)u32(tail_floats);
+        (void)u32(prefix_floats);
+        (void)u32(t.storage->slot_floats(layer));
+        const CSlice outc(out);
+        const bool exact_residual = out.buffer == residual.buffer && out.offset == residual.offset;
+        if ((overlaps(outc, row_floats, residual, row_floats) && !exact_residual) ||
+            overlaps(outc, row_floats, x, row_floats) || overlaps(outc, row_floats, w, weight_floats))
+            throw std::runtime_error("vulkan: dilated conv output may only alias the residual exactly");
+        const CSlice state{&t.storage->layer(layer), 0};
+        const size_t state_floats = t.storage->layer(layer).size() / sizeof(float);
+        if (overlaps(outc, row_floats, state, state_floats) || overlaps(x, row_floats, state, state_floats) ||
+            overlaps(residual, row_floats, state, state_floats) || overlaps(w, weight_floats, state, state_floats))
+            throw std::runtime_error("vulkan: dilated conv operand overlaps recurrent state storage");
+
+        const size_t chunk = std::max(kConvChunk, history);
+        (void)u32(chunk);
+        size_t chunks = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            for (size_t b0 = 0; b0 < views[i].nq; b0 += chunk) {
+                t.words.insert(t.words.end(), {u32(i), u32(b0)});
+                ++chunks;
+            }
+        }
+        (void)u32(chunks);
+        if (chunks > dev_->props.limits.maxComputeWorkGroupCount[1])
+            throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
+        (void)u32(t.words.size());
+        const struct { uint32_t C, taps, dilation, history, slot, prefix, chunk; }
+            pc{u32(channels), u32(taps), u32(dilation), u32(history), u32(t.storage->slot_floats(layer)),
+               u32(prefix_floats), u32(chunk)};
+        dispatch(K_DILATED_CONV_SILU_ADD,
+                 {bind(out), bind(x), bind(residual), bind(w), bind(state), args(t.words.data(), size_mul(t.words.size(), sizeof(uint32_t)))},
+                 &pc, sizeof(pc), groups(channels, 256), u32(chunks));
     }
 
     // One dispatch, a workgroup per (view, V head, 32 V columns), which norms q and k and makes the gates for each block of its view's tokens before running them (shaders/delta_rule.comp).
@@ -2215,7 +2462,7 @@ public:
                           size_t layer, const StateView* views, size_t n_views) override {
         const size_t rows = check_state_views(views, n_views, layer);
         if (!rows) return;
-        const StateTable t = state_table(views, n_views);
+        const StateTable t = state_table(views, n_views, layer);
         const StateShape& sh = t.storage->shape();
         const size_t Hk = sh.k_heads, Hv = sh.v_heads, Dk = sh.k_dim, Dv = sh.v_dim, C = sh.channels();
         // The recurrence holds a column's rows in registers, 16 in each of eight lanes, and stages 128 of each q and k row.
@@ -2225,7 +2472,7 @@ public:
             throw std::runtime_error("vulkan: delta rule operand outside its allocation");
         const size_t blocks = (Dv + 31) / 32;
         const struct { uint32_t C, k_heads, v_heads, k_dim, v_dim, slot, blocks; float scale, eps; }
-            pc{u32(C), u32(Hk), u32(Hv), u32(Dk), u32(Dv), u32(sh.slot_floats()), u32(blocks), (float)(1.0 / std::sqrt((double)Dk)), kL2NormEps};
+            pc{u32(C), u32(Hk), u32(Hv), u32(Dk), u32(Dv), u32(t.storage->slot_floats(layer)), u32(blocks), (float)(1.0 / std::sqrt((double)Dk)), kL2NormEps};
         // Views of at most kShortRows rows each take the build that stages 4 tokens a block, which leaves room for more workgroups: a decode step, a verify of a few drafts and its rerun (shaders/delta_rule.comp).
         size_t longest = 0;
         for (size_t i = 0; i < n_views; ++i) longest = std::max(longest, views[i].nq);
@@ -3079,25 +3326,43 @@ public:
 
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
-                                        KVType v_type = KVType::f32) override {
+                                        KVType v_type = KVType::f32,
+                                        const std::vector<size_t>& auxiliary_widths = {}) override {
         if (!layers || !n_head_kv || !head_dim)
             throw std::runtime_error("vulkan: KV storage without layers, heads or width");
         if (!attention_head_fits(head_dim, dev_->caps.subgroup_size))
             throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
                                      std::to_string(attention_row_width(dev_->caps.subgroup_size)));
-        return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type);
+        return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths);
     }
 
     // One dispatch for every view of the batch through the view table, each view's rows scattering into its blocks.
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
-                  CSlice v) override {
+                  CSlice v, CSlice auxiliary = {}) override {
         std::vector<Placed> placed = place_views(views, n_views);
+        if (placed.empty()) {
+            if (auxiliary.buffer) throw std::runtime_error("vulkan: auxiliary KV input supplied without views");
+            return;
+        }
+        VulkanKVStorage* storage = nullptr;
+        size_t rows = 0;
+        for (const Placed& pv : placed) {
+            VulkanKVStorage& current = storage_of(pv.view->storage);
+            if (storage && storage != &current) throw std::runtime_error("vulkan: views of two storages in one call");
+            storage = &current;
+            storage->validate_write_view(*pv.view, layer);
+            rows = size_add(rows, pv.view->nq);
+        }
+        const size_t hd = size_mul(storage->heads(), storage->dim());
+        const size_t kv_floats = size_mul(rows, hd);
+        if (!k.buffer || !v.buffer) throw std::runtime_error("vulkan: operand without storage");
+        span(*k.buffer, size_mul(k.offset, sizeof(float)), size_mul(kv_floats, sizeof(float)));
+        span(*v.buffer, size_mul(v.offset, sizeof(float)), size_mul(kv_floats, sizeof(float)));
+        storage->validate_auxiliary(layer, auxiliary, rows);
         ViewTable t = view_table(layer, placed, true);
         if (!t.storage || !t.rows) return;
         VulkanKVStorage& s = *t.storage;
-        const size_t hd = s.heads() * s.dim();
-        if (floats_from(k) < t.rows * hd || floats_from(v) < t.rows * hd)
-            throw std::runtime_error("vulkan: KV rows outside their allocation");
+        s.write_aux(layer, views, n_views, auxiliary);
         const uint32_t pc[4] = {u32(t.rows), u32(s.heads()), u32(s.dim()), u32(kVkBlockTokens)};
         dispatch(kv_variant(K_KV_WRITE, K_KV_WRITE_K16, s),
                  {bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
@@ -3193,6 +3458,128 @@ public:
         }
     }
 
+    void sparse_attention(CSlice query, size_t layer, const KVView* views, size_t n_views,
+                          CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim) override {
+        if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || !id_stride ||
+            id_stride > UINT32_MAX / 2 || !attention_head_fits(size_t(head_dim), dev_->caps.subgroup_size))
+            throw std::runtime_error("vulkan: invalid sparse attention dimensions");
+        const auto placed = place_views(views, n_views);
+        if (placed.empty()) return;
+        ViewTable table = view_table(layer, placed, false);
+        if (!table.rows) return;
+        VulkanKVStorage& storage = *table.storage;
+        check_storage(storage, n_head_kv, head_dim);
+        const size_t width = size_mul(size_t(n_head), size_t(head_dim));
+        const size_t count = size_mul(table.rows, width), selections = size_mul(table.rows, id_stride);
+        auto checked = [](CSlice s, size_t elements) {
+            if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
+            span(*s.buffer, size_mul(s.offset, sizeof(float)), size_mul(elements, sizeof(float)));
+            u32(elements);
+        };
+        checked(query, count); checked(ids, selections); checked(out, count);
+        if (overlaps(out, count, query, count) || overlaps(out, count, ids, selections) ||
+            out.buffer == storage.k_buffer(layer).get() || out.buffer == storage.v_buffer(layer).get() ||
+            out.buffer == storage.auxiliary_buffer(layer).get())
+            throw std::runtime_error("vulkan: sparse attention output overlaps an input");
+        u32(storage.k_buffer(layer)->size() / kv_elem_bytes(storage.k_type()));
+        u32(storage.v_buffer(layer)->size() / kv_elem_bytes(storage.v_type()));
+        const size_t pairs = size_mul(table.rows, size_t(n_head));
+        const size_t gx = std::min(pairs, size_t(dev_->props.limits.maxComputeWorkGroupCount[0]));
+        const size_t gy = blocks_for(pairs, gx);
+        if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
+            throw std::runtime_error("vulkan: sparse attention exceeds the workgroup count limit");
+        const KernelId kernel = head_dim == 256 ? kv_variant(K_SPARSE_ATTENTION_VEC_D256, K_SPARSE_ATTENTION_VEC_D256_K16, storage)
+                              : head_dim == 128 ? kv_variant(K_SPARSE_ATTENTION_VEC, K_SPARSE_ATTENTION_VEC_K16, storage)
+                                               : kv_variant(K_SPARSE_ATTENTION, K_SPARSE_ATTENTION_K16, storage);
+        struct { uint32_t rows, heads, kv_heads, dim, bt; float scale; uint32_t splits, chunk, quant, max_parts, hg, stride; }
+            pc{u32(table.rows), uint32_t(n_head), uint32_t(n_head_kv), uint32_t(head_dim), u32(kVkBlockTokens),
+               1.0f / std::sqrt(float(head_dim)), 1, 1, 0, 1, 1, u32(id_stride)};
+        dispatch(kernel, {bind(query), bind(out), bind(CSlice{storage.k_buffer(layer).get(), 0}),
+                          bind(CSlice{storage.v_buffer(layer).get(), 0}), args(table.words.data(), table.words.size() * sizeof(uint32_t)),
+                          bind(out), bind(out), bind(ids)}, &pc, sizeof(pc), u32(gx), u32(gy));
+    }
+
+    void select_kv(CSlice query, size_t layer, const KVView* views, size_t n_views, Slice ids,
+                   const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) override {
+        if (!n_views) return;
+        if (!index.heads || !index.dim || index.dim > 256 || !index.rope_dim || index.rope_dim % 2 ||
+            index.rope_dim > index.dim || !index.compression || !index.budget || index.budget % index.compression ||
+            !std::isfinite(index.eps) || index.eps <= 0)
+            throw std::runtime_error("vulkan: invalid index selection dimensions");
+        const size_t half = index.rope_dim / 2, stride = size_add(index.budget, index.compression - 1);
+        const size_t width = size_mul(index.heads, index.dim);
+        const auto placed = place_views(views, n_views);
+        ViewTable table = view_table(layer, placed, false);
+        if (!table.rows) return;
+        VulkanKVStorage& storage = *table.storage;
+        if (storage.auxiliary_width(layer) != index.dim)
+            throw std::runtime_error("vulkan: index selection auxiliary width differs from its key dimension");
+        size_t longest = 0, max_rows = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            const size_t visible = size_add(views[i].length, views[i].nq);
+            u32(visible);
+            longest = std::max(longest, visible);
+            max_rows = std::max(max_rows, views[i].nq);
+        }
+        const size_t queries = size_mul(table.rows, width), outputs = size_mul(table.rows, stride);
+        const size_t rope_values = size_mul(longest, half);
+        auto checked = [](CSlice s, size_t count) {
+            if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
+            span(*s.buffer, size_mul(s.offset, sizeof(float)), size_mul(count, sizeof(float)));
+            u32(count);
+        };
+        checked(query, queries); checked(ids, outputs); checked(key_norm, index.dim);
+        checked(cos, rope_values); checked(sin, rope_values);
+        if (overlaps(ids, outputs, query, queries) || overlaps(ids, outputs, key_norm, index.dim) ||
+            overlaps(ids, outputs, cos, rope_values) || overlaps(ids, outputs, sin, rope_values))
+            throw std::runtime_error("vulkan: index selection output overlaps an input");
+        const auto& auxiliary = storage.auxiliary_buffer(layer);
+        if (!auxiliary) throw std::runtime_error("vulkan: index selection without auxiliary key storage");
+        if (ids.buffer == auxiliary.get() || ids.buffer == storage.k_buffer(layer).get() || ids.buffer == storage.v_buffer(layer).get())
+            throw std::runtime_error("vulkan: index selection output overlaps KV storage");
+        u32(auxiliary->size() / sizeof(float));
+        const uint32_t heads = u32(index.heads), dim = u32(index.dim), compression = u32(index.compression);
+        const uint32_t budget = u32(index.budget), output_stride = u32(stride);
+        const auto qb = bind(query), ob = bind(ids), wb = bind(key_norm), cb = bind(cos), sb = bind(sin);
+        const auto ab = bind(CSlice{auxiliary.get(), 0});
+        // Pool one view at a time and score at most 16 query rows at once, bounding the score matrix independently of the prompt batch.
+        const size_t max_groups = longest / index.compression;
+        const size_t pool_bytes = size_mul(size_mul(max_groups, index.dim), sizeof(float));
+        const size_t score_bytes = size_mul(size_mul(std::min<size_t>(max_rows, 16), max_groups), sizeof(float));
+        u32(pool_bytes / sizeof(float)); u32(score_bytes / sizeof(float));
+        if (pool_bytes && (!index_pool_ || index_pool_->size() < pool_bytes)) grow(index_pool_, pool_bytes);
+        if (score_bytes && (!scratch_ || scratch_->size() < score_bytes)) grow(scratch_, score_bytes);
+        const auto pb = index_pool_ ? bind(CSlice{index_pool_.get(), 0}) : ob;
+        const auto scores = scratch_ ? bind(CSlice{scratch_.get(), 0}) : ob;
+        const auto table_binding = [&]() { return args(table.words.data(), table.words.size() * sizeof(uint32_t)); };
+        const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            if (!views[vi].nq) continue;
+            const size_t count = (views[vi].length + views[vi].nq) / index.compression;
+            struct { uint32_t view, first, dim, half, compression, bt; float eps; }
+                pc{u32(vi), 0, dim, u32(half), compression, u32(kVkBlockTokens), index.eps};
+            for (size_t first = 0; first < count; first += limit) {
+                pc.first = u32(first);
+                dispatch(K_KV_INDEX_POOL, {ab, pb, wb, cb, sb, table_binding()}, &pc, sizeof(pc), u32(std::min(count - first, limit)));
+            }
+            if (unordered_) barrier(open());
+            for (size_t row = 0; row < views[vi].nq; row += 16) {
+                const size_t rows = std::min<size_t>(16, views[vi].nq - row);
+                struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; }
+                    sc{u32(vi), u32(row), 0, u32(count), heads, dim, compression, 1.0f / std::sqrt(float(index.dim))};
+                const size_t pairs = size_mul(rows, count);
+                for (size_t first = 0; first < pairs; first += limit) {
+                    sc.first = u32(first);
+                    dispatch(K_KV_INDEX_SCORES, {qb, pb, scores, table_binding()}, &sc, sizeof(sc), u32(std::min(pairs - first, limit)));
+                }
+                if (unordered_) barrier(open());
+                const uint32_t tc[] = {u32(vi), u32(row), u32(count), compression, budget, output_stride};
+                dispatch(K_KV_INDEX_SELECT, {scores, ob, table_binding()}, tc, sizeof(tc), u32(rows));
+                if (unordered_) barrier(open());
+            }
+        }
+    }
+
     // A view with the batch row its rows start at.
     struct Placed {
         const KVView* view;
@@ -3204,7 +3591,7 @@ public:
         size_t row0 = 0;
         for (size_t i = 0; i < n_views; ++i) {
             placed.push_back(Placed{&views[i], row0});
-            row0 += views[i].nq;
+            row0 = size_add(row0, views[i].nq);
         }
         return placed;
     }
@@ -3233,7 +3620,7 @@ public:
             t.words.push_back(u32(blocks.size()));
             t.words.push_back(u32(used));
             for (size_t b = 0; b < used; ++b) blocks.push_back((uint32_t)view.blocks[b]);
-            local += view.nq;
+            local = size_add(local, view.nq);
         }
         t.words.insert(t.words.end(), blocks.begin(), blocks.end());
         t.rows = local;
@@ -3282,6 +3669,12 @@ private:
         return (uint32_t)g;
     }
 
+    static void validate_runs(size_t rows, RowRuns runs) {
+        if (!runs.n) return;
+        if (!runs.runs) throw std::runtime_error("vulkan: row runs without storage");
+        for_each_run(rows, runs, [](const RowRun&) { return 0; }, [](size_t, size_t, int) {});
+    }
+
     // Bytes, and whole floats, from a slice's offset to the end of its buffer.
     static size_t bytes_from(CSlice s) {
         if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
@@ -3294,6 +3687,9 @@ private:
         const size_t bytes = s.buffer->size();
         if (s.offset * sizeof(float) > bytes) throw std::runtime_error("vulkan: operand outside the allocation");
         return (bytes - s.offset * sizeof(float)) / sizeof(float);
+    }
+    static bool overlaps(CSlice a, size_t an, CSlice b, size_t bn) {
+        return an && bn && a.buffer == b.buffer && a.offset < b.offset + bn && b.offset < a.offset + an;
     }
 
     // A slice as a storage buffer binding: the buffer at a byte offset of four times the float offset, through to the end of the allocation.
@@ -3591,6 +3987,7 @@ private:
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     size_t next_half_ = 0;                    // the half of staging the next upload fills first
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
+    std::shared_ptr<VulkanBuffer> index_pool_;
     std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed
     static constexpr uint32_t kQueries = 8192;    // a pool's queries, two per dispatch
     size_t query_next_ = 0;        // the next query of the reading interval, across its pools
@@ -3918,8 +4315,8 @@ inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s)
 }
 
 VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens,
-                                 KVType kt, KVType vt)
-    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt) {}
+                                 KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths)
+    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths) {}
 
 void VulkanKVStorage::retire(const BufferPtr& old) {
     static_cast<VulkanBackend&>(owner()).keep_until_retired(old);

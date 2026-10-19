@@ -1,0 +1,1085 @@
+{
+  "scope": "Tiny F32 CPU and MI50 Vulkan tensor-group fixture checkpoint; no released-model or performance qualification",
+  "base": "86f9222485ef5a8806af4bed24d8872ce8c96303",
+  "runtime_changed": false,
+  "test_source_sha256": "dbfced9c5c168297eabfde5c93b973e179078afa0a407d72c2cce12f1c2f23ac",
+  "rig_source": "/zpool1/llmx-xdev-flash-20261015/build-qwen4exp/tensor-group-20261016/source",
+  "rig_container": "llmx-xdev-flash-release-20261015",
+  "rig_build": [
+    {
+      "label": "configure",
+      "command": [
+        "cmake",
+        "-S",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source",
+        "-B",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON",
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+      ],
+      "exit_code": 0,
+      "seconds": 0.8183000087738037,
+      "affinity": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "label": "build",
+      "command": [
+        "cmake",
+        "--build",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build",
+        "--parallel",
+        "3",
+        "--target",
+        "llmx",
+        "llmx-qwen4exp-model-test",
+        "llmx-arch-qwen4exp-test",
+        "llmx-shard-test",
+        "llmx-placement-test",
+        "llmx-load-progress-test",
+        "llmx-model-validation-test",
+        "llmx-qwen4exp-graph-test"
+      ],
+      "exit_code": 0,
+      "seconds": 283.2094120979309,
+      "affinity": [
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "final_native_validation": [
+    {
+      "label": "final-build",
+      "command": [
+        "cmake",
+        "--build",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build",
+        "--parallel",
+        "3",
+        "--target",
+        "llmx-qwen4exp-model-test"
+      ],
+      "exit_code": 0,
+      "seconds": 44.002153396606445,
+      "affinity": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "label": "focused-ctest",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build",
+        "--output-on-failure",
+        "-R",
+        "^(arch-qwen4exp|qwen4exp-graph|shard|placement|load-progress|model-validation)$"
+      ],
+      "exit_code": 0,
+      "seconds": 80.44287061691284,
+      "affinity": [
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "initial_binary_identity": {
+    "llmx": {
+      "sha256": "ce507c922ce93616ba97d8a68574ac4d93edadf4d9bcd84c225e555933d955d4",
+      "version": "llmx 0.1.0+g86f9222485ef.dirty numerics a62d8d4de0229574"
+    },
+    "llmx-qwen4exp-model-test": {
+      "sha256": "52287e024a5b6298bf743ba0b945f41ed0f054c51b4be8bc354e5ad14d2f7283"
+    }
+  },
+  "runs": {
+    "cpu-group": {
+      "command": [
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build/llmx-qwen4exp-model-test",
+        "--gguf",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/reference.gguf",
+        "--reference",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source/tests/data/qwen4exp_reference.json",
+        "--device",
+        "cpu",
+        "--tensor-width",
+        "2"
+      ],
+      "start": "2026-10-15T23:59:54.932164+00:00",
+      "binary_sha256": "52287e024a5b6298bf743ba0b945f41ed0f054c51b4be8bc354e5ad14d2f7283",
+      "fixture_sha256": "191a89432442cd733691125842af9b44c401445dbff5232470a6cc88804c1e1c",
+      "affinity": [
+        0,
+        1
+      ],
+      "pid": 22667,
+      "exit_code": 0,
+      "end": "2026-10-15T23:59:55.057384+00:00",
+      "numeric_summary": {
+        "all": {
+          "comparisons": 41,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        },
+        "tensor_width_two": {
+          "comparisons": 28,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        },
+        "CPU_padded_control": {
+          "comparisons": 13,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        }
+      }
+    },
+    "gpu-single": {
+      "command": [
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build/llmx-qwen4exp-model-test",
+        "--gguf",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/reference.gguf",
+        "--reference",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source/tests/data/qwen4exp_reference.json",
+        "--device",
+        "vulkan:0"
+      ],
+      "start": "2026-10-16T00:00:11.375039+00:00",
+      "binary_sha256": "52287e024a5b6298bf743ba0b945f41ed0f054c51b4be8bc354e5ad14d2f7283",
+      "fixture_sha256": "191a89432442cd733691125842af9b44c401445dbff5232470a6cc88804c1e1c",
+      "affinity": [
+        0,
+        1
+      ],
+      "pid": 22699,
+      "exit_code": 0,
+      "end": "2026-10-16T00:00:14.505509+00:00",
+      "numeric_summary": {
+        "all": {
+          "comparisons": 94,
+          "maximum_printed_absolute_error": 4.47035e-08,
+          "bound": 2e-05,
+          "headroom_factor": 447.39226235082265
+        }
+      }
+    },
+    "gpu-group": {
+      "command": [
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build/llmx-qwen4exp-model-test",
+        "--gguf",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/reference.gguf",
+        "--reference",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source/tests/data/qwen4exp_reference.json",
+        "--device",
+        "vulkan:0,vulkan:1",
+        "--tensor-width",
+        "2"
+      ],
+      "start": "2026-10-16T00:00:35.376232+00:00",
+      "binary_sha256": "52287e024a5b6298bf743ba0b945f41ed0f054c51b4be8bc354e5ad14d2f7283",
+      "fixture_sha256": "191a89432442cd733691125842af9b44c401445dbff5232470a6cc88804c1e1c",
+      "affinity": [
+        0,
+        1
+      ],
+      "pid": 23323,
+      "exit_code": 0,
+      "end": "2026-10-16T00:00:37.108960+00:00",
+      "numeric_summary": {
+        "all": {
+          "comparisons": 43,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        },
+        "tensor_width_two": {
+          "comparisons": 30,
+          "maximum_printed_absolute_error": 4.47035e-08,
+          "bound": 2e-05,
+          "headroom_factor": 447.39226235082265
+        },
+        "CPU_padded_control": {
+          "comparisons": 13,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        }
+      }
+    },
+    "final-cpu-group": {
+      "command": [
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build/llmx-qwen4exp-model-test",
+        "--gguf",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/reference.gguf",
+        "--reference",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source/tests/data/qwen4exp_reference.json",
+        "--device",
+        "cpu",
+        "--tensor-width",
+        "2"
+      ],
+      "start": "2026-10-16T00:06:22.761803+00:00",
+      "binary_sha256": "90c2cbf2e6465f4e7c8a48e82aee565e76e0457414595df66151787ba619d323",
+      "fixture_sha256": "191a89432442cd733691125842af9b44c401445dbff5232470a6cc88804c1e1c",
+      "affinity": [
+        0,
+        1
+      ],
+      "pid": 23890,
+      "exit_code": 0,
+      "end": "2026-10-16T00:06:22.887057+00:00",
+      "numeric_summary": {
+        "all": {
+          "comparisons": 41,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        },
+        "tensor_width_two": {
+          "comparisons": 28,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        },
+        "CPU_padded_control": {
+          "comparisons": 13,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        }
+      }
+    },
+    "final-gpu-single": {
+      "command": [
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build/llmx-qwen4exp-model-test",
+        "--gguf",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/reference.gguf",
+        "--reference",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source/tests/data/qwen4exp_reference.json",
+        "--device",
+        "vulkan:0"
+      ],
+      "start": "2026-10-16T00:06:25.406039+00:00",
+      "binary_sha256": "90c2cbf2e6465f4e7c8a48e82aee565e76e0457414595df66151787ba619d323",
+      "fixture_sha256": "191a89432442cd733691125842af9b44c401445dbff5232470a6cc88804c1e1c",
+      "affinity": [
+        0,
+        1
+      ],
+      "pid": 23897,
+      "exit_code": 0,
+      "end": "2026-10-16T00:06:28.588128+00:00",
+      "numeric_summary": {
+        "all": {
+          "comparisons": 94,
+          "maximum_printed_absolute_error": 4.47035e-08,
+          "bound": 2e-05,
+          "headroom_factor": 447.39226235082265
+        }
+      }
+    },
+    "final-gpu-group": {
+      "command": [
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/build/llmx-qwen4exp-model-test",
+        "--gguf",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/reference.gguf",
+        "--reference",
+        "/work/llmx/build-qwen4exp/tensor-group-20261016/source/tests/data/qwen4exp_reference.json",
+        "--device",
+        "vulkan:0,vulkan:1",
+        "--tensor-width",
+        "2"
+      ],
+      "start": "2026-10-16T00:06:43.810645+00:00",
+      "binary_sha256": "90c2cbf2e6465f4e7c8a48e82aee565e76e0457414595df66151787ba619d323",
+      "fixture_sha256": "191a89432442cd733691125842af9b44c401445dbff5232470a6cc88804c1e1c",
+      "affinity": [
+        0,
+        1
+      ],
+      "pid": 24521,
+      "exit_code": 0,
+      "end": "2026-10-16T00:06:45.545286+00:00",
+      "numeric_summary": {
+        "all": {
+          "comparisons": 43,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        },
+        "tensor_width_two": {
+          "comparisons": 30,
+          "maximum_printed_absolute_error": 4.47035e-08,
+          "bound": 2e-05,
+          "headroom_factor": 447.39226235082265
+        },
+        "CPU_padded_control": {
+          "comparisons": 13,
+          "maximum_printed_absolute_error": 5.21541e-08,
+          "bound": 2e-05,
+          "headroom_factor": 383.4789594681914
+        }
+      }
+    }
+  },
+  "windows_invocations": [
+    {
+      "label": "final-cpu-group",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe",
+        "--gguf",
+        "build-qwen4exp-tensor-20261016\\reference.gguf",
+        "--reference",
+        "tests/data/qwen4exp_reference.json",
+        "--tensor-width",
+        "2"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "seconds": 0.10316038131713867,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    },
+    {
+      "label": "final-cpu-pair",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe",
+        "--gguf",
+        "build-qwen4exp-tensor-20261016\\reference.gguf",
+        "--reference",
+        "tests/data/qwen4exp_reference.json",
+        "--tensor-width",
+        "2",
+        "--device",
+        "cpu,cpu"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "seconds": 0.07777810096740723,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    },
+    {
+      "label": "final-empty-member",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe",
+        "--gguf",
+        "build-qwen4exp-tensor-20261016\\reference.gguf",
+        "--reference",
+        "tests/data/qwen4exp_reference.json",
+        "--tensor-width",
+        "2",
+        "--device",
+        "cpu,"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "seconds": 0.006443977355957031,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    },
+    {
+      "label": "final-wrong-count",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe",
+        "--gguf",
+        "build-qwen4exp-tensor-20261016\\reference.gguf",
+        "--reference",
+        "tests/data/qwen4exp_reference.json",
+        "--tensor-width",
+        "2",
+        "--device",
+        "cpu,cpu,cpu"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "seconds": 0.005501747131347656,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    },
+    {
+      "label": "final-pair-without-width",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe",
+        "--gguf",
+        "build-qwen4exp-tensor-20261016\\reference.gguf",
+        "--reference",
+        "tests/data/qwen4exp_reference.json",
+        "--device",
+        "cpu,cpu"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "seconds": 0.006005525588989258,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    },
+    {
+      "label": "final-unknown-argument",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe",
+        "--bogus"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "seconds": 0.006541252136230469,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    },
+    {
+      "label": "final-missing-argument",
+      "command": [
+        "build-qwen4exp-tensor-20261016\\Release\\llmx-qwen4exp-model-test.exe"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "seconds": 0.006042003631591797,
+      "binary_sha256": "9e568d7b995b38bda0bdec2db5a1bb1512d67e631c7f71ab99a8060350971e6a"
+    }
+  ],
+  "windows_consumer": {
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "build-qwen4exp-tensor-20261016\\Release\\llmx.exe",
+      "--only",
+      "reference-consumer",
+      "--require-tools"
+    ],
+    "exit_code": 0
+  },
+  "monitoring": {
+    "physical_allowed_GPUs": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "production_GPUs_excluded": [
+      8,
+      9
+    ],
+    "availability_checked_before_each_GPU_cell": true,
+    "normal_clocks_unchanged": true,
+    "notes": [
+      "Timestamped process, CPU and GPU samples retained for each GPU cell.",
+      "Correctness checks may overlap own CPU build/native tests on other pinned cores; no performance or idle claim.",
+      "Short cells may finish between monitor samples; observed zero utilization is not proof of no GPU work. Explicit device construction and apart execution establish device-path coverage."
+    ]
+  },
+  "limitations": [
+    "Tiny F32 weights and F32 compute/cache only; no released quantized dispatch coverage.",
+    "Shared expert hidden width is zero-padded from seven to eight in memory; original fixture/GGUF and HF data unchanged.",
+    "Single-GPU numeric count includes native parity cases; group comparisons are against unchanged HF.",
+    "Final merge needs broader released HF/PPL/16K, precision/topology, serving/recovery, regression/performance and hosted gates.",
+    "Released-HF scope proposal remains pending; no acceptance bounds changed."
+  ],
+  "documentation_review": {
+    "path": "build-qwen4exp/long-context/diagnostic/docs-review-20261016-vulkan-group.json",
+    "sha256": "d83eb555f1ef9290967bc409b5320891343893b64f89c0220b391d0225b60140",
+    "status": "complete",
+    "counts": {
+      "tracked_markdown": 112,
+      "unchanged_carried_forward": 108,
+      "changed_since_prior": 4,
+      "relative_targets_checked": 605
+    }
+  },
+  "artifacts": [
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/build.py",
+      "bytes": 1577,
+      "sha256": "cc35b8d59742c96aef26d712eb2a1999e9611fca774f44bb87e7d8f47b85c4f5"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/cpu-group.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/cpu-group.stdout",
+      "bytes": 4234,
+      "sha256": "c01cecf6867efe2ebf5170f296080250e0c86533524265fae1ea4638e6c608d1"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/cpu-pair.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/cpu-pair.stdout",
+      "bytes": 4242,
+      "sha256": "edbeca0eb1d5ef83fbf1e6e77ee32a7a51335a4bbfb97b675492804d64616ba2"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/empty-member.stderr",
+      "bytes": 81,
+      "sha256": "5f0606f69aa74bea79714bb5ffcb4a5e1a731e7314919d6785c2876ab558e579"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/empty-member.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-cpu-group.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-cpu-group.stdout",
+      "bytes": 4234,
+      "sha256": "c01cecf6867efe2ebf5170f296080250e0c86533524265fae1ea4638e6c608d1"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-cpu-pair.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-cpu-pair.stdout",
+      "bytes": 4242,
+      "sha256": "edbeca0eb1d5ef83fbf1e6e77ee32a7a51335a4bbfb97b675492804d64616ba2"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-empty-member.stderr",
+      "bytes": 81,
+      "sha256": "5f0606f69aa74bea79714bb5ffcb4a5e1a731e7314919d6785c2876ab558e579"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-empty-member.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-missing-argument.stderr",
+      "bytes": 111,
+      "sha256": "f100f930e0465d978a6227a525e21d2c5b4e86151b500ea4cba48f2bccc75b48"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-missing-argument.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-pair-without-width.stderr",
+      "bytes": 41,
+      "sha256": "614d2163500d08fab35719235bd0bca19e528e02cb8b0ecd6e5149d4899dd16d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-pair-without-width.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-static.log",
+      "bytes": 584,
+      "sha256": "6135175f09098b676f045e74be14c7e644e33170e2dc9da1a1bf047bad8809ba"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-unknown-argument.stderr",
+      "bytes": 111,
+      "sha256": "f100f930e0465d978a6227a525e21d2c5b4e86151b500ea4cba48f2bccc75b48"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-unknown-argument.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-wrong-count.stderr",
+      "bytes": 81,
+      "sha256": "5f0606f69aa74bea79714bb5ffcb4a5e1a731e7314919d6785c2876ab558e579"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/final-wrong-count.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016-activity.log",
+      "bytes": 3581,
+      "sha256": "e5df6897be75eda7b9227540ff6f7352d9f33be867a4654478ec4cf3fc0d97fa"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016-after.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016-before.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016.argv.json",
+      "bytes": 193,
+      "sha256": "b6e52da467b75ae945c0241f859ca1df5470723825c3597f5a5c21e81dea67f2"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016.end",
+      "bytes": 32,
+      "sha256": "de80eb4beae268c7ce3de85077b8d532d6e03a7b2c66739ee703fa7545205e0d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016.log",
+      "bytes": 23,
+      "sha256": "f807a5ad8cd88827cbc49dc27a69ed78f49076e0779bff84be029c1a5d793dec"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016.pid",
+      "bytes": 6,
+      "sha256": "ecc4d99a942983c7fba3174d4e28a92793c4505b958cf7d65014723e44764439"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016.start",
+      "bytes": 32,
+      "sha256": "c60ac9d8dc655959dd9b20bbaf03f62dc0643131b4d311e6a50439bdc1ef0a9a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-group-20261016.status",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016-activity.log",
+      "bytes": 3581,
+      "sha256": "5f01a30ea19759f7665938b23886da5ddf47bf12118d424c64da94777f785c81"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016-after.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016-before.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016.argv.json",
+      "bytes": 185,
+      "sha256": "a42e450f6d976585e7b38b537b512f7ca4d8b7ae005f1524e7565fbb5f2e20b1"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016.end",
+      "bytes": 32,
+      "sha256": "daaa5cb2639b39a58ec60210913816db6604a80212b1af7572f1eb2ef624b3bf"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016.log",
+      "bytes": 24,
+      "sha256": "d72e9c6db1253681cfcee5b1472468be3c6292045adbc82b4083361a89d7a4e7"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016.pid",
+      "bytes": 6,
+      "sha256": "01c79086538728b0be71b68d3c735db7993d073cdbba2aa3af2964b721c3e950"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016.start",
+      "bytes": 32,
+      "sha256": "e1f54ac7236301374982945d5255384c06332e33ec46a1d5aa717645cdea37cc"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-final-gpu-single-20261016.status",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016-activity.log",
+      "bytes": 3581,
+      "sha256": "0a88125d80c0f536550ec16d32010601cee41eb41c1e8581adc25505c11d7fd9"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016-after.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016-before.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016.argv.json",
+      "bytes": 181,
+      "sha256": "9fd5ab75e97f7c2079a5efcc94876e23cca7185a6552807ce4994eebcccebe1f"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016.end",
+      "bytes": 32,
+      "sha256": "f8ee912bddaf904f2b54da6b358682152dd2fe5059666829b8952601ab3c51ce"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016.log",
+      "bytes": 17,
+      "sha256": "b9e2d1c81116323a7814b2288f0a75f4d18f6dec736afd36cb342b176c548b97"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016.pid",
+      "bytes": 6,
+      "sha256": "bf62da6274dfe88b5f32e67bdf4ea609c75c71b506fcea27295721db5607354a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016.start",
+      "bytes": 32,
+      "sha256": "344c73640af19e936d6f8b333c21526d08e0a7b8d477fbeef6c0653f458a13d1"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-group-20261016.status",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016-activity.log",
+      "bytes": 3581,
+      "sha256": "cb6dc0fd67d2f29e8b9c2f1fdb58280b79a3ec3b3648054d33f70f9c2f599bd7"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016-after.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016-before.mem",
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016.argv.json",
+      "bytes": 173,
+      "sha256": "60ee11093f25e2094f7db3b1ec8d8cf86e2a97e59373078a1ec938053db384c7"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016.end",
+      "bytes": 32,
+      "sha256": "e7fa5c2b4c6c3590dd7ae959381819b382a5c6413cd9f0b69b0723189687538e"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016.log",
+      "bytes": 18,
+      "sha256": "044399ff5bd55291830dcded2793564d1b579d58913af761176bb7258d3d293f"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016.pid",
+      "bytes": 6,
+      "sha256": "e893ecb50b7f50c91e2c7324a751f550e7b18102e12151a0dc9143bfc9061b33"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016.start",
+      "bytes": 32,
+      "sha256": "c56186b8c785c0721e04b3d1b46d83c5ef586cf52876ff0f99ce2c217b35f43f"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/monitor/tensor-gpu-single-20261016.status",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/pair-without-width.stderr",
+      "bytes": 41,
+      "sha256": "614d2163500d08fab35719235bd0bca19e528e02cb8b0ecd6e5149d4899dd16d"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/pair-without-width.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/prepare.py",
+      "bytes": 1075,
+      "sha256": "288ec6e4b5975e9dae20825a19240f892871e4c8956a2580a78da0e5853cbd50"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/binaries.json",
+      "bytes": 294,
+      "sha256": "302f85449fecb17b64b0991236c5a76757ee959b331e5472314d193a7c9260c0"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/build-result.json",
+      "bytes": 1010,
+      "sha256": "ab78a603c51f42486b4228f1afca3fbaca7d4686f80a5f725fe9a10f0e96ebd2"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/build.log",
+      "bytes": 17277,
+      "sha256": "9066036b3938ac0a66e334fe2a83b6e5b9e6815ab895bf1f254050e587e09819"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/clone.log",
+      "bytes": 95,
+      "sha256": "ce08306c5e09d1311e33f801956299a3f573972cd96ad6987cf9b0438835aead"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/configure.log",
+      "bytes": 522,
+      "sha256": "98a320a2889b81b77ff375b3187501c3ad8c348e8b48edb9bf4c45bea914cb49"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/cpu-group.result.json",
+      "bytes": 701,
+      "sha256": "ffefd9c478124407b259b8ad9937373d0e9bbff6e231a995c933b4cbdccd12eb"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/cpu-group.start.json",
+      "bytes": 638,
+      "sha256": "070bcb002624bdd7f60ec339d4026ce1b438e556bc52895f0df728c1d02d0102"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/cpu-group.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/cpu-group.stdout",
+      "bytes": 4189,
+      "sha256": "dc00553db943c177f9558bb192621cf4ae3ca5f6f9641252f5c040e16228c16a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-build.log",
+      "bytes": 5657,
+      "sha256": "524d2076d2bab70a9602078f130c2f78c9b7bdd58b8839a55334820ee2703cc5"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-cpu-group.result.json",
+      "bytes": 701,
+      "sha256": "2ec400fa32a7042b29a0211424b6fc53c2099d6e712d41693be31ed9354dda3e"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-cpu-group.start.json",
+      "bytes": 638,
+      "sha256": "8a853bc584bd376dd4f8cf6b021838579bc39dce436e929cd1fde2e9fdd218e7"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-cpu-group.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-cpu-group.stdout",
+      "bytes": 4189,
+      "sha256": "dc00553db943c177f9558bb192621cf4ae3ca5f6f9641252f5c040e16228c16a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-group.result.json",
+      "bytes": 715,
+      "sha256": "ea282e63f6a1cc0880ffd795d654d91381a566676da02f30d995a6e2753a062e"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-group.start.json",
+      "bytes": 652,
+      "sha256": "758e8c9b901023c6bdf2c28be7bcb045aa6a844d7c536c7cc1177347384df4e6"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-group.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-group.stdout",
+      "bytes": 4231,
+      "sha256": "d04d796257f7739969a37df40ec6a189cea143445df4822519ffd58ae1c55b34"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-single.result.json",
+      "bytes": 675,
+      "sha256": "83796cf0bc3bc4da9eba78a590b99323f75eb09e709aff06ca73db83fdaeed77"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-single.start.json",
+      "bytes": 612,
+      "sha256": "99cb6ace109af0308ecae1da921d14f02e26225d70f91dcf7e2b6cc809dc6b7a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-single.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-gpu-single.stdout",
+      "bytes": 6457,
+      "sha256": "2d4e9cc7ada8fcf72513e173209d48d1bbccbd293bd83ce0c965fe0c7769a77a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/final-validation.json",
+      "bytes": 758,
+      "sha256": "1d1a208deeb96c69fe42ea78a44ee67bb763b4b8ee741f98dfb1666c1e7b7f7e"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/focused-ctest.log",
+      "bytes": 822,
+      "sha256": "dc4c768bb98df2d96c9aa160b86b9e8336d4ee5b157687417f3e3c6481113975"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-group.result.json",
+      "bytes": 715,
+      "sha256": "8f1838a47b710247b27af2899fdc252414600b196297c5a123e8b4d41e142a2b"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-group.start.json",
+      "bytes": 652,
+      "sha256": "f27cd1088eb3b19ca22e2434beee222d8bdb76358fe3cbd2a641c89744408fbb"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-group.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-group.stdout",
+      "bytes": 4231,
+      "sha256": "d04d796257f7739969a37df40ec6a189cea143445df4822519ffd58ae1c55b34"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-single.result.json",
+      "bytes": 675,
+      "sha256": "876991459bb464f099acb4d5564a177862f21dfa01231896709435bda3c0c1ca"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-single.start.json",
+      "bytes": 612,
+      "sha256": "cc0d48338fe7a0d1a36955ceed604c1dfaa95942440df27c027eda41ce872da7"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-single.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/gpu-single.stdout",
+      "bytes": 6457,
+      "sha256": "2d4e9cc7ada8fcf72513e173209d48d1bbccbd293bd83ce0c965fe0c7769a77a"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/rig/input.json",
+      "bytes": 146,
+      "sha256": "ca1b8dce6672bca3c26fdc9160804aa067aeacf42683e0a11623c4c52d04c92e"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/run-final.py",
+      "bytes": 1867,
+      "sha256": "90d8e08a064fef6b5b0a9100680056ed82a3092236b80a4ada57199919b01be5"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/run.py",
+      "bytes": 1823,
+      "sha256": "3dec9efe390a8a90193099e1fefb5cd0d775e8683f10d5c9910cc8df13774413"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/validate-final.py",
+      "bytes": 978,
+      "sha256": "be380c2664eb0124eb91941795c7d7325da342abbd084ed350e99e112adfdaa6"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-build.log",
+      "bytes": 758,
+      "sha256": "cfa84029cd2df659c7eae68c6b7dba844b0a44f6fdc181c27327be79b2b4dcef"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-consumer.log",
+      "bytes": 1532,
+      "sha256": "955254bdae2f04341153ec58051013ba2bc772b69cf03347b932b572c0ef9b94"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-final-build.log",
+      "bytes": 758,
+      "sha256": "cfa84029cd2df659c7eae68c6b7dba844b0a44f6fdc181c27327be79b2b4dcef"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-final-consumer.json",
+      "bytes": 316,
+      "sha256": "9a713aa11e7b98f12ef1ee8b5c00de88359c0456a60f4407a94148f67c71feb0"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-final-consumer.log",
+      "bytes": 449,
+      "sha256": "15d8f835bff3f858f9373f4cd9747fbbf160b27a1ca2b925a87db41f535e607b"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-final-results.json",
+      "bytes": 3304,
+      "sha256": "0210b9e526ac07e8d35fdc131bbdb04eee1953fb2c66888aa7f27598b3d6ea2e"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/windows-results.json",
+      "bytes": 1960,
+      "sha256": "fb24443c91521725a02080df426f27205151f396fa0c297b3352d35a0783b777"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/wrong-count.stderr",
+      "bytes": 81,
+      "sha256": "5f0606f69aa74bea79714bb5ffcb4a5e1a731e7314919d6785c2876ab558e579"
+    },
+    {
+      "path": "build-qwen4exp-tensor-gpu-20261016/wrong-count.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "static_checks": {
+    "command": [
+      "python",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "build-qwen4exp-tensor-20261016/Release/llmx.exe",
+      "--only",
+      "docs,dead-code,arch-boundary"
+    ],
+    "exit_code": 0,
+    "docs_findings": 0,
+    "dead_code_findings": 5,
+    "dead_code_findings_all_prelisted": true,
+    "architecture_boundary_findings": 0
+  },
+  "cleanup": {
+    "owned_container_processes": [
+      "docker-init",
+      "sleep infinity"
+    ],
+    "physical_0_through_7_VRAM_percent": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "production_8_and_9_VRAM_percent": [
+      85,
+      85
+    ],
+    "performance_levels": [
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto",
+      "auto"
+    ]
+  }
+}

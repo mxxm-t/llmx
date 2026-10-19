@@ -1,0 +1,186 @@
+{
+  "schema": "flash-forced-mtp-checkpoint-coverage/v1",
+  "date": "2026-10-19",
+  "result": "Three retained histories passed exact reply and positive MTP coverage.",
+  "test_only_unpriced": true,
+  "qualification": false,
+  "production_policy_changed": false,
+  "physical_cards": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "topology": "staged_tensor",
+  "tensor_width": 2,
+  "stage_layers": [
+    [
+      0,
+      16
+    ],
+    [
+      16,
+      32
+    ],
+    [
+      32,
+      48
+    ]
+  ],
+  "cpu_set": "4,5",
+  "elapsed_seconds": 142.79370951652527,
+  "container_removed": true,
+  "source_base": "f073e6b51b3c240758ec5c45d366dd915161d3b9",
+  "source_delta": [
+    "Buffered scheduler decision observer",
+    "Existing API Scheduler priced argument set false for this test only"
+  ],
+  "numerics": "35723d0316ba61dfb6f96563d6c12d47027c79d0fc67b1f646ffd898c83edf10",
+  "runtime_identity_sha256": "1885130bbdead87785942bab1505674833e0852c138f881d0f35077e6590ddd6",
+  "binary_sha256": {
+    "llmx": "5b8ceb1e05b579ef690379efa9e57bc12f0111784b065ba4abcc60526ec81b78",
+    "libllmx-vulkan.a": "fa9be6e0202e89c702abce4b4ef96403a2fd3f32965c4820cf1ce9c8833a2bd9",
+    "CMakeCache.txt": "de4eac9d1d9dd3b75decd1abdaf2d899b0a50da3c24736a9e16d07229fea5520",
+    "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "generated/llmx-build-info.hpp": "cace71a7dae539640a55f6c0f56aac5aba9040b33756d68c7901ed529fa5edad"
+  },
+  "replies": {
+    "initial": {
+      "reused_tokens": 0,
+      "drafting": {
+        "drafted": 27,
+        "kept": 13,
+        "failed": 0
+      },
+      "exact_off_control": true,
+      "exact_fresh_off_control": false,
+      "reply_tokens": 24
+    },
+    "follow_up": {
+      "reused_tokens": 512,
+      "drafting": {
+        "drafted": 24,
+        "kept": 15,
+        "failed": 0
+      },
+      "exact_off_control": true,
+      "exact_fresh_off_control": true,
+      "reply_tokens": 24
+    },
+    "edited_final_user": {
+      "reused_tokens": 512,
+      "drafting": {
+        "drafted": 33,
+        "kept": 11,
+        "failed": 0
+      },
+      "exact_off_control": true,
+      "exact_fresh_off_control": true,
+      "reply_tokens": 24
+    }
+  },
+  "position_two": {
+    "position": 2,
+    "drafted": 28,
+    "kept": 13
+  },
+  "decision_summary": {
+    "initial": {
+      "request_ids": [
+        1
+      ],
+      "decisions": 10,
+      "reasons": {
+        "verify_formed": 9,
+        "no_candidate": 1
+      },
+      "positive_candidate_zero_selected": 0,
+      "empty_proposal": 0,
+      "invalid_first_proposal": 0,
+      "mark_refused": 0,
+      "verify_formed": 9
+    },
+    "follow_up": {
+      "request_ids": [
+        2
+      ],
+      "decisions": 8,
+      "reasons": {
+        "verify_formed": 8
+      },
+      "positive_candidate_zero_selected": 0,
+      "empty_proposal": 0,
+      "invalid_first_proposal": 0,
+      "mark_refused": 0,
+      "verify_formed": 8
+    },
+    "edited_final_user": {
+      "request_ids": [
+        3
+      ],
+      "decisions": 12,
+      "reasons": {
+        "verify_formed": 12
+      },
+      "positive_candidate_zero_selected": 0,
+      "empty_proposal": 0,
+      "invalid_first_proposal": 0,
+      "mark_refused": 0,
+      "verify_formed": 12
+    }
+  },
+  "trace_dropped": 0,
+  "limits": [
+    "Test-only priced=false policy through the existing native-test seam; not default serving behavior.",
+    "Three exact retained histories with positive drafting do not establish general serving correctness.",
+    "No default-performance, HF qualification, or retrospective historical-veto claim.",
+    "Host and disk cache are disabled; this checks live-device checkpoint restoration, not released disk restore.",
+    "The original zero-draft coverage failure remains retained. Production may legitimately choose zero drafts.",
+    "Released HF correctness remains 492/512 accepted against required 512/512; no threshold or reference change."
+  ],
+  "artifacts": {
+    "rig": "/zpool1/llmx-xdev-flash-restore-20261019/forced-draft-20261019",
+    "archive_sha256": "8144bc9fb5fc80535278bc9703977b96a645206f87e4b50c1fe35622c34113eb",
+    "harness_manifest_sha256": "31c46026ffb57f02ba537c7f1591a8efd7c091656d1d4791319b90ae8e50708a",
+    "files_sha256": {
+      "identity/observer-runtime.json": "1885130bbdead87785942bab1505674833e0852c138f881d0f35077e6590ddd6",
+      "observer-build-result.json": "1d1807ba7c860e52f6c326fc76481eec3cc0d056cfb6f62c28c84dc0a718ad08",
+      "pair/argv.json": "c70996c6c874ca74130ce46dcc031038cf69ea9b58093b7c6fe5f7b46221c5f0",
+      "pair/console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pair/container.json": "30e97be664c6b5cd76ec853cc8d5b3c3a187e788088fe0e4735013fcd7fc1461",
+      "pair/decisions.json": "6089f0e9acd045f545bfe1bfc0328bc508b03ada0de1f766acc7d07dfa204508",
+      "pair/diagnostic-result.json": "5e9bdff1c8c457121c913cd52cdd5ad8fcbd60edd7c75500b78c095e94b2671c",
+      "pair/edited_final_user/checked.json": "11fc235c5a3f5db7301c770b4f6ca85638ee656c538abd83b6ea937e7b0d3732",
+      "pair/edited_final_user/health-after.json": "4a8eb8f233ee9f92f3610b474ce112eb8462c4490ed1870714ac13bd85a2ecce",
+      "pair/edited_final_user/health-before.json": "361aca8e392d8e07b3dcded6e39bffb1f99f68cd9e1432c9c04ce4288ce17521",
+      "pair/edited_final_user/prefix-witness.json": "47f50f7639d3acd14b83889079b434fea108083189587e313598197e82d954b4",
+      "pair/edited_final_user/reply.json": "76e4d3ec449e74dd54db7b0e579c31d0b9c4174616d9870cfb58d34b4863c246",
+      "pair/edited_final_user/request.json": "5711a8a62d1d08e306335ec176c441ff4b80662ff4f3d29b882982f82fccdfb3",
+      "pair/edited_final_user/tokenized.json": "c338401418ec9c30dad6138687a8feacc27b0a065f2e27caf44c45d9fd0de274",
+      "pair/follow_up/checked.json": "ac11077a4c6866d802afaaa0a0c9287dccdd741aa1da9bc7f6d9060badf080b7",
+      "pair/follow_up/health-after.json": "361aca8e392d8e07b3dcded6e39bffb1f99f68cd9e1432c9c04ce4288ce17521",
+      "pair/follow_up/health-before.json": "651418fafeabb773a3839d0779bf80be449e5bc73e43b440527bc0be8bcf8d0f",
+      "pair/follow_up/prefix-witness.json": "47f50f7639d3acd14b83889079b434fea108083189587e313598197e82d954b4",
+      "pair/follow_up/reply.json": "629970cdefee3c19649ef4b6c6abafd9a6ad764586e49d649e2bb9ed11e7f2ab",
+      "pair/follow_up/request.json": "f923a11a4ead6f1b1c4deee9bd42100aa314a1930ec0d35812aa2544a920571f",
+      "pair/follow_up/tokenized.json": "3a5693b62701e2ed0a88cb1feed185782aca5125f4d8d6f0a4c4aefccc2e1780",
+      "pair/health-ready.json": "bf61b4bb09f5e6631645922aeaf469574fda36a9685cb9d0e4f8bb50f43b53b4",
+      "pair/initial/checked.json": "6e3b079ce16421f8ce2448dcf44dc4fb8342885ebea1d2bb5301276faa6f28ce",
+      "pair/initial/health-after.json": "651418fafeabb773a3839d0779bf80be449e5bc73e43b440527bc0be8bcf8d0f",
+      "pair/initial/health-before.json": "bf61b4bb09f5e6631645922aeaf469574fda36a9685cb9d0e4f8bb50f43b53b4",
+      "pair/initial/prefix-witness.json": "59c2efa8cf538febb35568faec07698fb949cb54b0457ec6db7f8b62fe96d5d9",
+      "pair/initial/reply.json": "cbfaced3e68a629c295b6ad7090a68a9b74f0df49c26c1bc00e06b41e98f2a52",
+      "pair/initial/request.json": "45b19253c38382fdff09b2169bfc21d88ab6cfd7abe83a9c0ca6cff004b73043",
+      "pair/initial/tokenized.json": "3ce698762199da286a1971c4a827696874c1133ba2b5f488b8710b8442dd3392",
+      "pair/placement.json": "a72dd9bb15b0c5676db8838349d46f598acbe8dc840d303420f5357a9580a9c3",
+      "pair/position-two.json": "b6c5dde4a73702df55a63d2a3d1b4775ebb282d63bdc7408f9384683ad48f44a",
+      "pair/process.json": "59a65790921f38080649a07d996821923f86ce3b4f1022c7a241fd357fdd1e81",
+      "pair/result.json": "b58133db8110d729f443a63df0d22e88e77ef1162b70c680f4293ee3d6dc3d4e",
+      "pair/server.log": "d168452af6a9b458192de26aadee4b3352c143e56d16e143c9b3a4b1d040e29d",
+      "pair/start.json": "a867fb3cfb05c49ce2f1dd6e82caaecc68c4a16b929883e55e8411dd0eb5fec2",
+      "pair/vulkaninfo.log": "54e618b389686b2f28f366d27d6f9f89bf99c34c22f723b25834448d42d42135"
+    }
+  }
+}

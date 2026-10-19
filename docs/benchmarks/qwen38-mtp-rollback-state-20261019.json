@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-19",
+  "scope": "One released history, marked rollback and continuation against fresh same-runtime control",
+  "qualified": false,
+  "hf_gate_passed": false,
+  "acceptance_cause_established": false,
+  "result": "PASS_SCOPED_ROLLBACK_IDENTITY",
+  "source_head": "f073e6b51b3c240758ec5c45d366dd915161d3b9",
+  "physical_cards": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "runtime_seconds": 154.86341190338135,
+  "target_tokens": 1154,
+  "target_passes": 77,
+  "draft_steps": 15,
+  "vocab": 248320,
+  "finite_rows": 22,
+  "finite_floats": 5463040,
+  "exact_compared_rows": 8,
+  "exact_compared_float_pairs": 1986560,
+  "max_absolute_difference": 0,
+  "proposal_ids": [
+    248046,
+    198,
+    248044
+  ],
+  "resume_draft_ids_before": [
+    248046,
+    198,
+    248044
+  ],
+  "resume_draft_ids_after": [
+    6391,
+    8839,
+    25
+  ],
+  "checkpoint": 512,
+  "prompt_tokens": 569,
+  "mark_rows": 4,
+  "retract_to": 570,
+  "continued_to": 571,
+  "preserved_preflight": {
+    "mem_available_bytes": 8894767104,
+    "required_bytes": 10737418240,
+    "no_container_created": true,
+    "threshold_unchanged": true
+  },
+  "containers_absent": true,
+  "files_sha256": {
+    "verify_collected.py": "3efe048c5ea6d3e279197f5ebbb47be2e65dd011c435ddab5beb46624e5cad40",
+    "independent-review.json": "b0b0de90f2fd56110d07a17a686c1bfb31b31ee3dc96205d480bb05f096589be",
+    "collection-verification.json": "7c366bfac58f43e9bcce8239118835ede0fb1499867c409abd9c612d7cef300d",
+    "container-absence.json": "49a6af1d9946a4dedef64279cfbe95d13aae3d8774d7a39662ea3b776e9e0509",
+    "collected/build/result.json": "6bac7bea43473c9d8d8823b31cd937dfd7638dff549aba19673a7e7f03c063c8",
+    "collected/run/result.json": "5a8287ec3d89901607d9273569ba2745ec02ab5f2545b98a111089e1ae8b1c97",
+    "collected/run/probe/result.json": "c29071a1d9d5ce6b4e93501f1318ae04054879755af7983ede4ad8a355fc1bc8",
+    "collected/preflight-refused-host-memory/result.json": "68f38b6c55b8207c114a513f37dad84f61e03716a429d42e1971ad9c5ad2455a"
+  },
+  "limits": [
+    "One fixed marked verify/retract/continuation case, not general serving qualification.",
+    "No HF, model-quality, natural-acceptance or matched-MX result.",
+    "Released HF remains492/512 versus512/512 required."
+  ],
+  "remote_evidence": "/zpool1/llmx-xdev-flash-restore-20261019/rollback-draft-20261019"
+}

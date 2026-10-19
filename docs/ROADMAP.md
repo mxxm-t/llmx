@@ -30,6 +30,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
 - Next, planned in `docs/STATUS-2026-09.md` (Quantization coverage): `F16` and `BF16` weight tensors, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only, on the CPU and on Vulkan. Activation dtype support does not implement those weight formats.
+  Vulkan decodes BF16 embedding and matrix weights, widening them exactly to F32, for the BF16 tensors Qwen3.8-Flash-Next carries; a CPU BF16 decoder and F16 weights remain planned.
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
   MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
   They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
@@ -61,7 +62,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
   What each needs from the execution model, and the assumptions the model layer must not make so they stay additive, is in `docs/EXECUTION.md`, "Beyond dense Qwen".
   Their released sizes exceed the hardware here; the gate is a tiny random-weight model of the real architecture through HF modeling code.
   They follow Qwen 3.x and the `MXFP4` type (#1).
-  Qwen3.8-Flash-Next (`qwen4exp`), with hyper-connections, compressed attention and hashed n-gram embeddings, gets its own plan after DeepSeek V4.1.
+  Qwen3.8-Flash-Next (`qwen4exp`), with gated residual streams, sparse attention with a compressed indexer and host-backed hashed n-gram embeddings, runs with its MTP drafter ([QWEN38-FLASH](QWEN38-FLASH.md)); its decode speed on split placements is the open follow-up.
 - Each architecture is a module under `model/arch/` on the shared runtime, selected by the registry from `general.architecture`; qwen35 is a module beside qwen3, as `docs/ADDING-AN-ARCHITECTURE.md` describes.
 
 ## 3. More formats
@@ -279,8 +280,9 @@ make a model usable: its architecture and tokenizer must also be implemented.
   schema, integer-range, tensor-extent and dtype checks before exposing data.
   No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16.
-  `core/fp16.hpp` and `core/bf16.hpp` cover conversion to and from F32 for activations. Their weight layouts are recognized by storage metadata, but neither has a decoder registry entry or backend weight kernels.
-  Both are the first executable types still to add in the quantization plan (#1), with exact widening to F32 planned inside the kernels on every backend; the native safetensors path will use those kernels too.
+  `core/fp16.hpp` and `core/bf16.hpp` cover conversion to and from F32 for activations.
+  Their weight layouts are recognized by storage metadata; Vulkan decodes BF16 embedding and matrix weights, widening them exactly to F32, and neither type has a CPU decoder registry entry or F16 backend weight kernels.
+  Completing both is part of the quantization plan (#1); the native safetensors path will use their kernels too.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path
 - **`config.json`**: architecture config. `infer::qwen3::read_config` reads only

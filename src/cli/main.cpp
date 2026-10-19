@@ -86,6 +86,7 @@ struct ExecOptions {
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // prompt length from which those experts are copied to the device for a pass; 0 never
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
+    infer::LookupStorage lookup_storage = infer::LookupStorage::automatic; // bounded lookup table storage policy
     bool verbose = false;         // the prompt token count, the thread counts, a split's plan, progress, generate's KV line and perplexity's per-window lines
 };
 
@@ -438,6 +439,16 @@ infer::LoadMode load_mode_arg(int argc, char** argv, int& i, const std::string& 
     }
 }
 
+// The bounded lookup-table storage policy after `flag`, checked before the model file is opened.
+infer::LookupStorage lookup_storage_arg(int argc, char** argv, int& i, const std::string& flag) {
+    const std::string name = flag_value(argc, argv, i, flag);
+    try {
+        return infer::lookup_storage_of(name);
+    } catch (const std::exception& e) {
+        throw UsageError(flag + ": " + e.what());
+    }
+}
+
 // The execution flags every model command takes, the "Execution options" of its help: reads argv[i] (and its value) into `exec` and returns true when it is one of them.
 // `batch_threads` adds --threads-batch (-tb), which only generate, chat and perplexity read.
 bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_threads) {
@@ -455,6 +466,7 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     else if (f == "--cache-type-k") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
     else if (f == "--cache-type-v") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
     else if (f == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
+    else if (f == "--lookup-storage") exec.lookup_storage = lookup_storage_arg(argc, argv, i, a);
     else if (f == "--dtype") {
         const std::string value = flag_value(argc, argv, i, a);
         if (value == "auto") exec.dtype.reset();
@@ -507,6 +519,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.width = (size_t)exec.tensor_width;
     request.cpu_moe = exec.cpu_moe;
     request.stream_from = (size_t)exec.moe_stream_from;
+    request.lookup_storage = exec.lookup_storage;
     request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
     request.apart_rows = apart_rows;
@@ -1304,6 +1317,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
             << "                          at least N tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens and one-token prompts stay on CPU.\n"
+            << "  --lookup-storage S      Bounded lookup tables: auto, device or file (default: " << infer::lookup_storage_name(defaults.lookup_storage) << ")\n"
+            << "                          Device keeps the whole table on the devices, giving up KV room if it must;\n"
+            << "                          file reads the rows from the model file. Auto takes device where it fits\n"
+            << "                          beside the fitted KV budget, else file. Independent of --load-mode.\n"
             << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n";
     };
     if (command == "chat" || command == "generate") {

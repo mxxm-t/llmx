@@ -1,0 +1,1168 @@
+{
+  "schema": "qwen38-layer-performance/v1",
+  "date": "2026-10-19",
+  "scope": "Completed six-process DIO Vulkan layer-split P512/G128 throughput comparison. This record is not released-model correctness qualification.",
+  "qualification": {
+    "per_workload_condition_met": true,
+    "release_pass": false,
+    "correctness_gate": "Unresolved: current released Flash result 492/512 against required 512/512; this performance comparison changes no correctness result or threshold.",
+    "tg_gain_percent": 53.960116511732906,
+    "pp_gain_percent": 38.724699861179786,
+    "user_minimum_throughput": "At least matched MX throughput for the measured workload"
+  },
+  "source_head": {
+    "llmx_binary_revision": "c0bfa634a565f3ea30b28f6ead685d9b0c97f938",
+    "documentation_worktree": "integrate/qwen38-current-main-20261019",
+    "documentation_base": "f073e6b51b3c240758ec5c45d366dd915161d3b9",
+    "llmx_binary_revision_is_ancestor_of_documentation_base": true
+  },
+  "workload": {
+    "decode_tokens": 128,
+    "format": "Q8_0, six GGUF shards",
+    "warmups_per_phase_per_process": 1,
+    "kv_types": "F16 K and V",
+    "compute": "Each runtime used its own default/auto compute policy; arithmetic schedules are not claimed identical.",
+    "n_ctx_capacity_tokens": 262144,
+    "input_rng_seeds": {
+      "prompt": 12345,
+      "decode": 777
+    },
+    "measured_repeats_per_phase_per_process": 3,
+    "split": "Six-device Vulkan layer split",
+    "prompt_tokens": 512,
+    "batch": 512,
+    "os_page_cache": "Uncontrolled across the interleaved cells; one warmup per phase.",
+    "threads": 2,
+    "decode_input_fnv1a64_le32": "d665e778fc49e41a",
+    "measured_processes_per_runtime": 3,
+    "hf_revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+    "ubatch": 128,
+    "prompt_input_fnv1a64_le32": "842b4e0c43c4a3f0",
+    "model": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "capacity_interpretation": "MX stdout reports n_ctx=262144. llmx bench has no context flag; source resolves kv_tokens=0 to the pinned GGUF plan context 262144. Both arms completed with this configured capacity; measured histories were capped at 512 tokens, so this is not a 262144-token execution. MX used --fit off; automatic fit selection was not exercised.",
+    "process_order": [
+      "mx-dio-six-a",
+      "llmx-dio-six-a",
+      "llmx-dio-six-b",
+      "mx-dio-six-b",
+      "mx-dio-six-c",
+      "llmx-dio-six-c"
+    ]
+  },
+  "environment": {
+    "selected_devices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "selected_device_pci": [
+      "0000:03:00.0",
+      "0000:44:00.0",
+      "0000:83:00.0",
+      "0000:86:00.0",
+      "0000:89:00.0",
+      "0000:8c:00.0"
+    ],
+    "rig": "11.10.10.13",
+    "allocation_id": "boss-free-devices-20261019-0736",
+    "rig_clk_tck": 100,
+    "reserved_cpus": [
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "deadline_utc": "2026-10-19T08:36:00Z",
+    "reserved_devices": [
+      6,
+      7
+    ],
+    "memory_cap_bytes": 8589934592,
+    "container_image_sha256": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_affinity": [
+      0,
+      1
+    ],
+    "memory_cap_basis": "Per-cell host wrapper preflight plus cgroup memory.max=8589934592 bytes; no memory pressure event in any DIO cell."
+  },
+  "binaries": {
+    "llmx": {
+      "dtype": "auto",
+      "path": "/zpool1/llmx-xdev-flash-main5665-20261019/build/llmx",
+      "load_mode": "auto",
+      "container_path": "/work/current-llmx",
+      "lookup_storage": "disk",
+      "version": "llmx 0.1.0+gc0bfa634a565 numerics a03d55e3bc897a9c",
+      "shares": "1,1,1,1,1,1",
+      "sha256": "5426c1b93f5f4685f2bb92b2c0dce6da61a9d688caef04bc72ac6665e7b30bc7",
+      "command": [
+        "/work/current-llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "3",
+        "--threads",
+        "2",
+        "--ubatch",
+        "128",
+        "--device",
+        "vulkan:0,vulkan:1,vulkan:2,vulkan:3,vulkan:4,vulkan:5",
+        "--layer-shares",
+        "1,1,1,1,1,1",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--lookup-storage",
+        "disk",
+        "--load-mode",
+        "auto"
+      ],
+      "source_revision": "c0bfa634a565f3ea30b28f6ead685d9b0c97f938"
+    },
+    "same_binary_or_build": "No. This is an in-environment comparison between separate runtimes/builds; binary identities are explicitly pinned.",
+    "mx": {
+      "path": "/zpool1/llmx-xdev-flash-20261015/build-qwen4exp/performance/mx-exact-bench",
+      "load_mode": "dio",
+      "lazy_ple": "on",
+      "fit": "off",
+      "command": [
+        "/work/llmx/build-qwen4exp/performance/mx-exact-bench",
+        "-m",
+        "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+        "-p",
+        "512",
+        "-n",
+        "128",
+        "-c",
+        "262144",
+        "-b",
+        "512",
+        "-ub",
+        "128",
+        "-t",
+        "2",
+        "-tb",
+        "2",
+        "-ngl",
+        "99",
+        "--device",
+        "Vulkan0,Vulkan1,Vulkan2,Vulkan3,Vulkan4,Vulkan5",
+        "--split-mode",
+        "layer",
+        "--tensor-split",
+        "8,8,8,8,8,9",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--lazy-mode",
+        "on",
+        "--load-mode",
+        "dio",
+        "--fit",
+        "off",
+        "--flash-attn",
+        "auto",
+        "--log-verbosity",
+        "0"
+      ],
+      "flash_attention": "auto",
+      "version": "Not separately recorded; exact binary and source revision are pinned.",
+      "sha256": "4a4973761582e9cbe8ad9583eed47cdf5f6e399f47d6c67a564b621f0585bc13",
+      "runtime_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "tensor_split": "8,8,8,8,8,9"
+    }
+  },
+  "model_pins": {
+    "total_payload_bytes": 188225033248,
+    "manifest_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/model-pins.json",
+    "manifest_sha256": "2d2028f9e57af252344335ff8d0150da5932f30e4062b09f5561df657e1fca62",
+    "detailed_hash_provenance": "Content hashes were verified during preflight. Each benchmark child recorded these same pins plus identical before/after device, inode, size and mtime_ns for all shards. This analysis did not rehash model payloads.",
+    "shards": [
+      {
+        "path": "/zpool1/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+        "sha256": "2dabcbb53ca537a7947bc7d20414fd464eeaf4d66d43021b5b2556cc87544ad2",
+        "stat": {
+          "device": 38,
+          "inode": 622663,
+          "size": 10946624,
+          "mtime_ns": 1787849835449888521
+        }
+      },
+      {
+        "path": "/zpool1/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00002-of-00006.gguf",
+        "sha256": "494ca4ed3dbf97bc28da88af3890b8877b9032f909812d00c0526a9ca5e91d2e",
+        "stat": {
+          "device": 38,
+          "inode": 622664,
+          "size": 682434912,
+          "mtime_ns": 1787849854654387729
+        }
+      },
+      {
+        "path": "/zpool1/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00003-of-00006.gguf",
+        "sha256": "34efd79a80a1ce540a517a5d56171924b66ce1c38b04c904f17ad6d8ef17cf20",
+        "stat": {
+          "device": 38,
+          "inode": 627195,
+          "size": 54400261312,
+          "mtime_ns": 1787996042090983337
+        }
+      },
+      {
+        "path": "/zpool1/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00004-of-00006.gguf",
+        "sha256": "bfa634025fabbd2658bf7694bc80b90e571699c768723f844c934c7ef06c691a",
+        "stat": {
+          "device": 38,
+          "inode": 609234,
+          "size": 49446841216,
+          "mtime_ns": 1787852289129670286
+        }
+      },
+      {
+        "path": "/zpool1/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00005-of-00006.gguf",
+        "sha256": "232a8f14cc0fa4262e7efe8593774b136fe40909e39c7a020342ddaa27259a97",
+        "stat": {
+          "device": 38,
+          "inode": 627060,
+          "size": 49668930400,
+          "mtime_ns": 1787853653041409156
+        }
+      },
+      {
+        "path": "/zpool1/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00006-of-00006.gguf",
+        "sha256": "538a93bca918064983409a41187ad4c68640f9aced6f29564da8f551bf86d7a5",
+        "stat": {
+          "device": 38,
+          "inode": 630064,
+          "size": 34015618784,
+          "mtime_ns": 1787854713521447204
+        }
+      }
+    ]
+  },
+  "runtime_process_means": {
+    "mx_vulkan": {
+      "pp": {
+        "mean_of_three_process_means": 232.20089884666666,
+        "process_means": [
+          235.088601821,
+          227.143859999,
+          234.37023472
+        ]
+      },
+      "tg": {
+        "mean_of_three_process_means": 17.643097413,
+        "process_means": [
+          17.655640383,
+          17.642637524,
+          17.631014332
+        ]
+      }
+    },
+    "llmx_vulkan": {
+      "pp": {
+        "mean_of_three_process_means": 322.12,
+        "process_means": [
+          330.18,
+          307.39,
+          328.79
+        ]
+      },
+      "tg": {
+        "mean_of_three_process_means": 27.163333333333334,
+        "process_means": [
+          27.43,
+          26.81,
+          27.25
+        ]
+      }
+    }
+  },
+  "cells": [
+    {
+      "label": "mx-dio-six-a",
+      "arm": "mx-vulkan",
+      "wrapper_started_utc": "2026-10-19T07:53:06.107208+00:00",
+      "benchmark_started_utc": "2026-10-19T07:53:07.798320+00:00",
+      "benchmark_ended_utc": "2026-10-19T07:57:18.571097+00:00",
+      "wrapper_ended_utc": "2026-10-19T07:57:19.798310+00:00",
+      "exit_codes": {
+        "benchmark_child": 0,
+        "wrapper": 0,
+        "monitor": 0
+      },
+      "container_absent": true,
+      "model_unchanged": true,
+      "content_hashes_match_manifest": true,
+      "file_stats_identical_before_after": true,
+      "pp": {
+        "inner_sd_population": 9.531380538,
+        "measured": [
+          {
+            "run": 1,
+            "milliseconds": 2179.61196,
+            "tokens_per_second": 234.904198268,
+            "final_output_hash": "f5df5a18a28171c3",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 2,
+            "milliseconds": 2290.741783,
+            "tokens_per_second": 223.508386584,
+            "final_output_hash": "f5df5a18a28171c3",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 3,
+            "milliseconds": 2074.107029,
+            "tokens_per_second": 246.853220611,
+            "final_output_hash": "f5df5a18a28171c3",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          }
+        ],
+        "mean_tokens_per_second": 235.088601821,
+        "inner_sd_sample_llmx": 11.673509431
+      },
+      "tg": {
+        "inner_sd_population": 0.112846925,
+        "measured": [
+          {
+            "run": 1,
+            "milliseconds": 7315.92199,
+            "tokens_per_second": 17.496085958,
+            "final_output_hash": "7909fd310949cdf1",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 2,
+            "milliseconds": 7218.378695,
+            "tokens_per_second": 17.732513825,
+            "final_output_hash": "7909fd310949cdf1",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 3,
+            "milliseconds": 7216.015392,
+            "tokens_per_second": 17.738321365,
+            "final_output_hash": "7909fd310949cdf1",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          }
+        ],
+        "mean_tokens_per_second": 17.655640383,
+        "inner_sd_sample_llmx": 0.138208692
+      },
+      "warmups": [
+        {
+          "phase": "pp",
+          "milliseconds": 5311.749655,
+          "tokens_per_second": 96.39008486,
+          "final_output_hash": "f5df5a18a28171c3",
+          "finite_logits": 248320,
+          "repeat_equal": true
+        },
+        {
+          "phase": "tg",
+          "milliseconds": 7924.461068,
+          "tokens_per_second": 16.152517995,
+          "final_output_hash": "7909fd310949cdf1",
+          "finite_logits": 248320,
+          "repeat_equal": true
+        }
+      ],
+      "within_process_output_hashes": {
+        "pp": [
+          "f5df5a18a28171c3"
+        ],
+        "tg": [
+          "7909fd310949cdf1"
+        ]
+      },
+      "outputs": {
+        "monitor_jsonl_sha256": "4b512a8f4189dfb6c4bd0e19426bd1a284cac07efd10201936bf5dbc4383ce2c",
+        "stdout_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/results/mx-dio-six-a/mx-dio-six-a.stdout",
+        "monitor_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor_stdout_sha256": "14770b44bf8b2a4d8c8825b42d238ff8e8db19a5051a2fb86b0dc25f236dc286",
+        "stdout_sha256": "19730753ed572ea3f6b0808d0e888556415bc12b98e7da24ddf5dbccb6d35011",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "completion_checks": {
+        "host_wrapper_exit_zero": true,
+        "child_exit_zero": true,
+        "container_absent": true,
+        "model_unchanged": true,
+        "monitor_exit_zero": true,
+        "monitor_has_samples": true,
+        "monitor_error_free": true,
+        "monitor_gaps_absent": true,
+        "pp_metrics_valid": true,
+        "tg_metrics_valid": true,
+        "arm_matches_label": true
+      },
+      "activity": {
+        "container_memory_events_delta": {
+          "max": 0,
+          "high": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "low": 0,
+          "oom": 0
+        },
+        "container_memory_peak_bytes": 377692160,
+        "selected_gpu_busy_percent_max": 100.0,
+        "flagged_sample_gaps": 0,
+        "max_sample_gap_seconds": 1.0616993990261108,
+        "monitor_errors": 0,
+        "selected_gpu_pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0",
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "sample_count": 242,
+        "interval_count": 241,
+        "physical_device_disk_unknown_intervals": 0,
+        "selected_gpu_busy_percent_mean_whole_cell": 10.951101928374655,
+        "container_memory_cap_bytes": 8589934592,
+        "monitored_seconds": 251.7797609360423,
+        "physical_device_disk_mean_read_bytes_per_second": 552421960.1752098,
+        "physical_device_disk_known_intervals": 241,
+        "unrelated_cpu_mean_cores_over_monitored_interval": 0.9974193281714675,
+        "system_iowait_percent": {
+          "flag": false,
+          "threshold": 10,
+          "max_interval": 6.189320388349515,
+          "mean": 0.2166650511379217
+        },
+        "unrelated_cpu_flag": false,
+        "unrelated_cpu_threshold_percent_one_core": 100,
+        "system_cpu_busy_percent": {
+          "flag": false,
+          "threshold": 80,
+          "max_interval": 54.71923536439665,
+          "mean": 10.48420585871785
+        },
+        "container_memory_pressure_flag": false
+      },
+      "runtime_output_fingerprints_recorded": true
+    },
+    {
+      "label": "llmx-dio-six-a",
+      "arm": "llmx-vulkan",
+      "wrapper_started_utc": "2026-10-19T07:57:51.124577+00:00",
+      "benchmark_started_utc": "2026-10-19T07:57:52.713207+00:00",
+      "benchmark_ended_utc": "2026-10-19T07:59:01.745219+00:00",
+      "wrapper_ended_utc": "2026-10-19T07:59:03.040346+00:00",
+      "exit_codes": {
+        "benchmark_child": 0,
+        "wrapper": 0,
+        "monitor": 0
+      },
+      "container_absent": true,
+      "model_unchanged": true,
+      "content_hashes_match_manifest": true,
+      "file_stats_identical_before_after": true,
+      "pp": {
+        "reported_inner_sd": 1.56,
+        "measured_repeats": 3,
+        "mean_tokens_per_second": 330.18
+      },
+      "tg": {
+        "reported_inner_sd": 0.3,
+        "measured_repeats": 3,
+        "mean_tokens_per_second": 27.43
+      },
+      "warmups": [],
+      "within_process_output_hashes": null,
+      "outputs": {
+        "monitor_jsonl_sha256": "7e2905995ee8c479758c6ebd4194c22541463f62421f652d45e5aab9af2dac56",
+        "stdout_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/results/llmx-dio-six-a/llmx-dio-six-a.stdout",
+        "monitor_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor_stdout_sha256": "15e36b126f56cc436fde175b2f844c5af08b4da9e3abcb98d7c52982e613a473",
+        "stdout_sha256": "7ab61cbb94a3681ff871b2ae29cfe1f97772d4cc9a7d337354bdfc441542d8f6",
+        "stderr_sha256": "7c4c052dd27f49c19bffa35c90d5aa0f2c93274f5ce8ab6f4920cf4c63f7301f"
+      },
+      "completion_checks": {
+        "host_wrapper_exit_zero": true,
+        "child_exit_zero": true,
+        "container_absent": true,
+        "model_unchanged": true,
+        "monitor_exit_zero": true,
+        "monitor_has_samples": true,
+        "monitor_error_free": true,
+        "monitor_gaps_absent": true,
+        "pp_metrics_valid": true,
+        "tg_metrics_valid": true,
+        "arm_matches_label": true
+      },
+      "activity": {
+        "container_memory_events_delta": {
+          "max": 0,
+          "high": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "low": 0,
+          "oom": 0
+        },
+        "container_memory_peak_bytes": 308015104,
+        "selected_gpu_busy_percent_max": 100.0,
+        "flagged_sample_gaps": 0,
+        "max_sample_gap_seconds": 1.0520095309475437,
+        "monitor_errors": 0,
+        "selected_gpu_pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0",
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "sample_count": 68,
+        "interval_count": 67,
+        "physical_device_disk_unknown_intervals": 0,
+        "selected_gpu_busy_percent_mean_whole_cell": 37.865196078431374,
+        "container_memory_cap_bytes": 8589934592,
+        "monitored_seconds": 69.97600022004917,
+        "physical_device_disk_mean_read_bytes_per_second": 1913129826.7982757,
+        "physical_device_disk_known_intervals": 67,
+        "unrelated_cpu_mean_cores_over_monitored_interval": 1.0033440005032437,
+        "system_iowait_percent": {
+          "flag": false,
+          "threshold": 10,
+          "max_interval": 9.657701711491443,
+          "mean": 5.213060821578754
+        },
+        "unrelated_cpu_flag": true,
+        "unrelated_cpu_threshold_percent_one_core": 100,
+        "system_cpu_busy_percent": {
+          "flag": false,
+          "threshold": 80,
+          "max_interval": 17.872340425531913,
+          "mean": 10.383265650964661
+        },
+        "container_memory_pressure_flag": false
+      },
+      "runtime_output_fingerprints_recorded": false
+    },
+    {
+      "label": "llmx-dio-six-b",
+      "arm": "llmx-vulkan",
+      "wrapper_started_utc": "2026-10-19T07:59:49.479545+00:00",
+      "benchmark_started_utc": "2026-10-19T07:59:51.103088+00:00",
+      "benchmark_ended_utc": "2026-10-19T08:01:05.629845+00:00",
+      "wrapper_ended_utc": "2026-10-19T08:01:07.002859+00:00",
+      "exit_codes": {
+        "benchmark_child": 0,
+        "wrapper": 0,
+        "monitor": 0
+      },
+      "container_absent": true,
+      "model_unchanged": true,
+      "content_hashes_match_manifest": true,
+      "file_stats_identical_before_after": true,
+      "pp": {
+        "reported_inner_sd": 20.11,
+        "measured_repeats": 3,
+        "mean_tokens_per_second": 307.39
+      },
+      "tg": {
+        "reported_inner_sd": 0.22,
+        "measured_repeats": 3,
+        "mean_tokens_per_second": 26.81
+      },
+      "warmups": [],
+      "within_process_output_hashes": null,
+      "outputs": {
+        "monitor_jsonl_sha256": "bc2527db289749717a3a924e72ea0fe6e4ecac5485f7d154b4f38f0f24eef230",
+        "stdout_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/results/llmx-dio-six-b/llmx-dio-six-b.stdout",
+        "monitor_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor_stdout_sha256": "fe94c744730f4af33c8421a50ba7b232293f60796701cc8d3b64470676482fc2",
+        "stdout_sha256": "0bb9afcde5777c09c502751a4155635e10d2029e6223d61671d611f32043e61e",
+        "stderr_sha256": "2f8b032051f0c6baccaf0c1e6d7a0ea4cd1080d766c10ef117ef6b5d7b9b5dc0"
+      },
+      "completion_checks": {
+        "host_wrapper_exit_zero": true,
+        "child_exit_zero": true,
+        "container_absent": true,
+        "model_unchanged": true,
+        "monitor_exit_zero": true,
+        "monitor_has_samples": true,
+        "monitor_error_free": true,
+        "monitor_gaps_absent": true,
+        "pp_metrics_valid": true,
+        "tg_metrics_valid": true,
+        "arm_matches_label": true
+      },
+      "activity": {
+        "container_memory_events_delta": {
+          "max": 0,
+          "high": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "low": 0,
+          "oom": 0
+        },
+        "container_memory_peak_bytes": 318734336,
+        "selected_gpu_busy_percent_max": 100.0,
+        "flagged_sample_gaps": 0,
+        "max_sample_gap_seconds": 1.0959183630766347,
+        "monitor_errors": 0,
+        "selected_gpu_pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0",
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "sample_count": 73,
+        "interval_count": 72,
+        "physical_device_disk_unknown_intervals": 0,
+        "selected_gpu_busy_percent_mean_whole_cell": 35.97945205479452,
+        "container_memory_cap_bytes": 8589934592,
+        "monitored_seconds": 75.4138603300089,
+        "physical_device_disk_mean_read_bytes_per_second": 1824932693.963304,
+        "physical_device_disk_known_intervals": 72,
+        "unrelated_cpu_mean_cores_over_monitored_interval": 0.8638995499621086,
+        "system_iowait_percent": {
+          "flag": false,
+          "threshold": 10,
+          "max_interval": 9.433962264150944,
+          "mean": 4.8160796130996015
+        },
+        "unrelated_cpu_flag": false,
+        "unrelated_cpu_threshold_percent_one_core": 100,
+        "system_cpu_busy_percent": {
+          "flag": false,
+          "threshold": 80,
+          "max_interval": 15.379939209726444,
+          "mean": 9.313826636868153
+        },
+        "container_memory_pressure_flag": false
+      },
+      "runtime_output_fingerprints_recorded": false
+    },
+    {
+      "label": "mx-dio-six-b",
+      "arm": "mx-vulkan",
+      "wrapper_started_utc": "2026-10-19T08:01:53.520564+00:00",
+      "benchmark_started_utc": "2026-10-19T08:01:55.374924+00:00",
+      "benchmark_ended_utc": "2026-10-19T08:06:00.846011+00:00",
+      "wrapper_ended_utc": "2026-10-19T08:06:01.891931+00:00",
+      "exit_codes": {
+        "benchmark_child": 0,
+        "wrapper": 0,
+        "monitor": 0
+      },
+      "container_absent": true,
+      "model_unchanged": true,
+      "content_hashes_match_manifest": true,
+      "file_stats_identical_before_after": true,
+      "pp": {
+        "inner_sd_population": 14.7192833,
+        "measured": [
+          {
+            "run": 1,
+            "milliseconds": 2424.097122,
+            "tokens_per_second": 211.21265949,
+            "final_output_hash": "38aa1497b745f339",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 2,
+            "milliseconds": 2290.763284,
+            "tokens_per_second": 223.506288745,
+            "final_output_hash": "38aa1497b745f339",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 3,
+            "milliseconds": 2075.288956,
+            "tokens_per_second": 246.712631761,
+            "final_output_hash": "38aa1497b745f339",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          }
+        ],
+        "mean_tokens_per_second": 227.143859999,
+        "inner_sd_sample_llmx": 18.027366732
+      },
+      "tg": {
+        "inner_sd_population": 0.019903378,
+        "measured": [
+          {
+            "run": 1,
+            "milliseconds": 7243.641523,
+            "tokens_per_second": 17.670670145,
+            "final_output_hash": "d8ba0595dbc761d9",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 2,
+            "milliseconds": 7260.012957,
+            "tokens_per_second": 17.630822529,
+            "final_output_hash": "d8ba0595dbc761d9",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 3,
+            "milliseconds": 7261.826323,
+            "tokens_per_second": 17.626419899,
+            "final_output_hash": "d8ba0595dbc761d9",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          }
+        ],
+        "mean_tokens_per_second": 17.642637524,
+        "inner_sd_sample_llmx": 0.02437656
+      },
+      "warmups": [
+        {
+          "phase": "pp",
+          "milliseconds": 7059.009585,
+          "tokens_per_second": 72.531421559,
+          "final_output_hash": "38aa1497b745f339",
+          "finite_logits": 248320,
+          "repeat_equal": true
+        },
+        {
+          "phase": "tg",
+          "milliseconds": 7974.074497,
+          "tokens_per_second": 16.052019585,
+          "final_output_hash": "d8ba0595dbc761d9",
+          "finite_logits": 248320,
+          "repeat_equal": true
+        }
+      ],
+      "within_process_output_hashes": {
+        "pp": [
+          "38aa1497b745f339"
+        ],
+        "tg": [
+          "d8ba0595dbc761d9"
+        ]
+      },
+      "outputs": {
+        "monitor_jsonl_sha256": "71cbdf277fa590c66479da37f91af58a94c63a20db088438dab89e4157429dfd",
+        "stdout_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/results/mx-dio-six-b/mx-dio-six-b.stdout",
+        "monitor_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor_stdout_sha256": "460db058251f0ca2e4d250ec064dce798741e0a90732d1fa453d6128d723e656",
+        "stdout_sha256": "7be3d579bad601bdcfec2a99b0087af4d3985d90a28c4ee6399b4a97587308a2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "completion_checks": {
+        "host_wrapper_exit_zero": true,
+        "child_exit_zero": true,
+        "container_absent": true,
+        "model_unchanged": true,
+        "monitor_exit_zero": true,
+        "monitor_has_samples": true,
+        "monitor_error_free": true,
+        "monitor_gaps_absent": true,
+        "pp_metrics_valid": true,
+        "tg_metrics_valid": true,
+        "arm_matches_label": true
+      },
+      "activity": {
+        "container_memory_events_delta": {
+          "max": 0,
+          "high": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "low": 0,
+          "oom": 0
+        },
+        "container_memory_peak_bytes": 355397632,
+        "selected_gpu_busy_percent_max": 100.0,
+        "flagged_sample_gaps": 0,
+        "max_sample_gap_seconds": 1.1093472170177847,
+        "monitor_errors": 0,
+        "selected_gpu_pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0",
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "sample_count": 232,
+        "interval_count": 231,
+        "physical_device_disk_unknown_intervals": 0,
+        "selected_gpu_busy_percent_mean_whole_cell": 11.378591954022989,
+        "container_memory_cap_bytes": 8589934592,
+        "monitored_seconds": 245.91916537994985,
+        "physical_device_disk_mean_read_bytes_per_second": 594874540.3442513,
+        "physical_device_disk_known_intervals": 231,
+        "unrelated_cpu_mean_cores_over_monitored_interval": 0.5921051324935565,
+        "system_iowait_percent": {
+          "flag": false,
+          "threshold": 10,
+          "max_interval": 4.531902206320811,
+          "mean": 0.2047406751022398
+        },
+        "unrelated_cpu_flag": false,
+        "unrelated_cpu_threshold_percent_one_core": 100,
+        "system_cpu_busy_percent": {
+          "flag": false,
+          "threshold": 80,
+          "max_interval": 24.255065554231226,
+          "mean": 7.262227864828908
+        },
+        "container_memory_pressure_flag": false
+      },
+      "runtime_output_fingerprints_recorded": true
+    },
+    {
+      "label": "mx-dio-six-c",
+      "arm": "mx-vulkan",
+      "wrapper_started_utc": "2026-10-19T08:06:39.413015+00:00",
+      "benchmark_started_utc": "2026-10-19T08:06:41.196131+00:00",
+      "benchmark_ended_utc": "2026-10-19T08:10:52.156048+00:00",
+      "wrapper_ended_utc": "2026-10-19T08:10:53.403397+00:00",
+      "exit_codes": {
+        "benchmark_child": 0,
+        "wrapper": 0,
+        "monitor": 0
+      },
+      "container_absent": true,
+      "model_unchanged": true,
+      "content_hashes_match_manifest": true,
+      "file_stats_identical_before_after": true,
+      "pp": {
+        "inner_sd_population": 9.530091472,
+        "measured": [
+          {
+            "run": 1,
+            "milliseconds": 2196.865015,
+            "tokens_per_second": 233.059380756,
+            "final_output_hash": "c2544148da7e0187",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 2,
+            "milliseconds": 2291.760137,
+            "tokens_per_second": 223.40906962,
+            "final_output_hash": "c2544148da7e0187",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 3,
+            "milliseconds": 2075.881128,
+            "tokens_per_second": 246.642253785,
+            "final_output_hash": "c2544148da7e0187",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          }
+        ],
+        "mean_tokens_per_second": 234.37023472,
+        "inner_sd_sample_llmx": 11.671930654
+      },
+      "tg": {
+        "inner_sd_population": 0.036995842,
+        "measured": [
+          {
+            "run": 1,
+            "milliseconds": 7250.129347,
+            "tokens_per_second": 17.654857434,
+            "final_output_hash": "d70b7c9383f3a44a",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 2,
+            "milliseconds": 7248.254219,
+            "tokens_per_second": 17.659424757,
+            "final_output_hash": "d70b7c9383f3a44a",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          },
+          {
+            "run": 3,
+            "milliseconds": 7281.514404,
+            "tokens_per_second": 17.578760804,
+            "final_output_hash": "d70b7c9383f3a44a",
+            "finite_logits": 248320,
+            "repeat_equal": true
+          }
+        ],
+        "mean_tokens_per_second": 17.631014332,
+        "inner_sd_sample_llmx": 0.045310468
+      },
+      "warmups": [
+        {
+          "phase": "pp",
+          "milliseconds": 6777.845871,
+          "tokens_per_second": 75.540224689,
+          "final_output_hash": "c2544148da7e0187",
+          "finite_logits": 248320,
+          "repeat_equal": true
+        },
+        {
+          "phase": "tg",
+          "milliseconds": 8229.053729,
+          "tokens_per_second": 15.554643853,
+          "final_output_hash": "d70b7c9383f3a44a",
+          "finite_logits": 248320,
+          "repeat_equal": true
+        }
+      ],
+      "within_process_output_hashes": {
+        "pp": [
+          "c2544148da7e0187"
+        ],
+        "tg": [
+          "d70b7c9383f3a44a"
+        ]
+      },
+      "outputs": {
+        "monitor_jsonl_sha256": "2cf18d3135f4830a0ce00929f5483b9e5b121d584ef2d4283681271d9633b638",
+        "stdout_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/results/mx-dio-six-c/mx-dio-six-c.stdout",
+        "monitor_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor_stdout_sha256": "ac04abdbcc8c3b9d0f8d952403af0fcd9b5296bca26f5ec89540149d5ae690f2",
+        "stdout_sha256": "b99cccd3a9772bd4d429a9defcbed5df5a3677b7b8f073e07ac86f915d07e1b9",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "completion_checks": {
+        "host_wrapper_exit_zero": true,
+        "child_exit_zero": true,
+        "container_absent": true,
+        "model_unchanged": true,
+        "monitor_exit_zero": true,
+        "monitor_has_samples": true,
+        "monitor_error_free": true,
+        "monitor_gaps_absent": true,
+        "pp_metrics_valid": true,
+        "tg_metrics_valid": true,
+        "arm_matches_label": true
+      },
+      "activity": {
+        "container_memory_events_delta": {
+          "max": 0,
+          "high": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "low": 0,
+          "oom": 0
+        },
+        "container_memory_peak_bytes": 355643392,
+        "selected_gpu_busy_percent_max": 100.0,
+        "flagged_sample_gaps": 0,
+        "max_sample_gap_seconds": 1.0571429480332881,
+        "monitor_errors": 0,
+        "selected_gpu_pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0",
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "sample_count": 241,
+        "interval_count": 240,
+        "physical_device_disk_unknown_intervals": 0,
+        "selected_gpu_busy_percent_mean_whole_cell": 11.072614107883817,
+        "container_memory_cap_bytes": 8589934592,
+        "monitored_seconds": 251.69247021595947,
+        "physical_device_disk_mean_read_bytes_per_second": 579425684.7257009,
+        "physical_device_disk_known_intervals": 240,
+        "unrelated_cpu_mean_cores_over_monitored_interval": 0.5787221201930255,
+        "system_iowait_percent": {
+          "flag": false,
+          "threshold": 10,
+          "max_interval": 3.3674082982561635,
+          "mean": 0.38165291069817503
+        },
+        "unrelated_cpu_flag": false,
+        "unrelated_cpu_threshold_percent_one_core": 100,
+        "system_cpu_busy_percent": {
+          "flag": false,
+          "threshold": 80,
+          "max_interval": 25.547445255474454,
+          "mean": 6.879486569453004
+        },
+        "container_memory_pressure_flag": false
+      },
+      "runtime_output_fingerprints_recorded": true
+    },
+    {
+      "label": "llmx-dio-six-c",
+      "arm": "llmx-vulkan",
+      "wrapper_started_utc": "2026-10-19T08:11:22.531033+00:00",
+      "benchmark_started_utc": "2026-10-19T08:11:24.256775+00:00",
+      "benchmark_ended_utc": "2026-10-19T08:12:33.487224+00:00",
+      "wrapper_ended_utc": "2026-10-19T08:12:33.993001+00:00",
+      "exit_codes": {
+        "benchmark_child": 0,
+        "wrapper": 0,
+        "monitor": 0
+      },
+      "container_absent": true,
+      "model_unchanged": true,
+      "content_hashes_match_manifest": true,
+      "file_stats_identical_before_after": true,
+      "pp": {
+        "reported_inner_sd": 2.03,
+        "measured_repeats": 3,
+        "mean_tokens_per_second": 328.79
+      },
+      "tg": {
+        "reported_inner_sd": 0.21,
+        "measured_repeats": 3,
+        "mean_tokens_per_second": 27.25
+      },
+      "warmups": [],
+      "within_process_output_hashes": null,
+      "outputs": {
+        "monitor_jsonl_sha256": "0dc780f2bc40d03c30e44744c4051a61ef1ff0b609cef9a80dfa4d0232a1d9cd",
+        "stdout_path": "../build-live-dashboard-final-rig-20261017\\flash-perf-dio-20261019/results/llmx-dio-six-c/llmx-dio-six-c.stdout",
+        "monitor_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor_stdout_sha256": "b703c1e02a6be0a71bccb90dc3467987dd31178c71af2c9a4f886f16c59c4b4a",
+        "stdout_sha256": "bb6e9bf10f93a931829b8f3e58cc9bcf408b4ddff1e577113fe5f956cbb54f98",
+        "stderr_sha256": "7eeaa93137e54b628f3fd44cbb94f79d4b7b2c0f07154ea6abe31af6422f9ffc"
+      },
+      "completion_checks": {
+        "host_wrapper_exit_zero": true,
+        "child_exit_zero": true,
+        "container_absent": true,
+        "model_unchanged": true,
+        "monitor_exit_zero": true,
+        "monitor_has_samples": true,
+        "monitor_error_free": true,
+        "monitor_gaps_absent": true,
+        "pp_metrics_valid": true,
+        "tg_metrics_valid": true,
+        "arm_matches_label": true
+      },
+      "activity": {
+        "container_memory_events_delta": {
+          "max": 0,
+          "high": 0,
+          "oom_group_kill": 0,
+          "oom_kill": 0,
+          "low": 0,
+          "oom": 0
+        },
+        "container_memory_peak_bytes": 342589440,
+        "selected_gpu_busy_percent_max": 100.0,
+        "flagged_sample_gaps": 0,
+        "max_sample_gap_seconds": 1.0624802249949425,
+        "monitor_errors": 0,
+        "selected_gpu_pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0",
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "sample_count": 67,
+        "interval_count": 66,
+        "physical_device_disk_unknown_intervals": 0,
+        "selected_gpu_busy_percent_mean_whole_cell": 38.11194029850746,
+        "container_memory_cap_bytes": 8589934592,
+        "monitored_seconds": 69.33032380789518,
+        "physical_device_disk_mean_read_bytes_per_second": 1928533520.7911284,
+        "physical_device_disk_known_intervals": 66,
+        "unrelated_cpu_mean_cores_over_monitored_interval": 0.9212419110716258,
+        "system_iowait_percent": {
+          "flag": true,
+          "threshold": 10,
+          "max_interval": 10.326086956521738,
+          "mean": 4.918158305219989
+        },
+        "unrelated_cpu_flag": false,
+        "unrelated_cpu_threshold_percent_one_core": 100,
+        "system_cpu_busy_percent": {
+          "flag": false,
+          "threshold": 80,
+          "max_interval": 25.88957055214724,
+          "mean": 9.821123885365164
+        },
+        "container_memory_pressure_flag": false
+      },
+      "runtime_output_fingerprints_recorded": false
+    }
+  ],
+  "mx_cross_process_output_hashes": {
+    "pp": {
+      "hashes": [
+        "f5df5a18a28171c3",
+        "38aa1497b745f339",
+        "c2544148da7e0187"
+      ],
+      "within_each_process_repeat_equal": 1,
+      "cross_process_hashes_identical": false
+    },
+    "interpretation": "MX output fingerprints differ across processes despite repeat_equal=1 within every process. This is retained as an observation, not resolved or treated as correctness proof. llmx stdout does not emit these fingerprints.",
+    "tg": {
+      "hashes": [
+        "7909fd310949cdf1",
+        "d8ba0595dbc761d9",
+        "d70b7c9383f3a44a"
+      ],
+      "within_each_process_repeat_equal": 1,
+      "cross_process_hashes_identical": false
+    }
+  },
+  "separate_mmap_diagnostic": {
+    "exit_code": 130,
+    "container_absent": true,
+    "inference_timings_emitted": false,
+    "note": "The interrupted mmap attempt remains a separate loading diagnostic and is not pooled with or substituted for these DIO cells.",
+    "record": "qwen38-mmap-loading-20261019.json",
+    "included_in_dio_statistics": false
+  },
+  "activity_interpretation": "Monitoring spans container startup/loading through benchmark completion; output has no phase timestamps. GPU, CPU, I/O and disk statistics below are whole-cell aggregates, not inference-phase-only measures. The preparation plan named a lifetime-CPU heuristic; the later raw-tick analysis instead reports interval-averaged unrelated CPU as a diagnostic, not the predeclared lifetime flag. No cell was excluded by either interpretation.",
+  "limitations": [
+    "The actual benchmark history reached at most 512 tokens; no full 262144-token prompt or decode was executed.",
+    "The MX and llmx load paths differ: MX used DIO with lazy PLE; llmx used auto loading with explicit disk lookup.",
+    "The two binaries have different source/build identities and runtime compute defaults; results do not isolate a code change or prove identical arithmetic.",
+    "OS page-cache state was uncontrolled.",
+    "No MTP/drafter, tensor-split, staged-split, or ROCm cell was measured.",
+    "The 492/512 released correctness result remains below the required 512/512; no release qualification is claimed."
+  ],
+  "artifacts": {
+    "rig_result_root": "/zpool1/llmx-xdev-flash-main5665-20261019/perf-layer-dio-run-20261019",
+    "preparation_plan_sha256": "b7319d1d6f78d7ac4f2b040e64c25c223a08f1b89b1a5bf045f56975d45338ef",
+    "local_full_evidence": "build-live-dashboard-final-rig-20261017/flash-perf-dio-20261019/results",
+    "analysis_summary_sha256": "ba3ea5ff210c170634b1629a63b4dd52c0e8dad43e737c4682f60e5205f6fde5",
+    "preparation_scripts": {
+      "run_flash_host.py": "15cdce5c938e84c602c6bce91d4c34c7d52e26d84d200df3862b02990e305a0a",
+      "run_flash_matched_perf.py": "b36a1f9228c54e09c7162d79c2d32af63974d550be52f53b5ad73a069e9f2ee5",
+      "monitor_selected.py": "780c2b6d096a1f9ad63fa3c564ce9030e2818d7f7b9b55f69a6fd65c269d0dee"
+    },
+    "local_analysis_summary": "build-live-dashboard-final-rig-20261017/flash-perf-dio-20261019/analysis-summary.json",
+    "analyzer_parser_fix": "Permit numeric suffixes on MX pp/tg warmup and measured rows; retain exact counts and summary checks.",
+    "analyzer_path": "build-live-dashboard-final-rig-20261017/flash-perf-dio-20261019/analyze_flash_perf.py",
+    "analyzer_sha256": "771570f12a09919674084b73dbb11bd4ec4cd671390ca2cd349ce86f20300deb"
+  }
+}

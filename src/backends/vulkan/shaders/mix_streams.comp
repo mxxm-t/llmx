@@ -1,0 +1,51 @@
+#version 450
+// Elementwise sigmoid-weighted stream reduction divided by the number of streams.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint streams; uint dim; uint quant; uint n; uint major; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer S { float src[]; };
+layout(set = 0, binding = 2) readonly buffer G { float gate[]; };
+layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
+#include "xquant.glsl"
+float sigmoid(float x) { return 1.0 / (1.0 + exp(-x)); }
+vec4 mixed(uint row, uint d) {
+    vec4 sum = vec4(0.0);
+    for (uint s = 0u; s < p.streams; ++s)
+    {
+        uint i = (row * p.streams + s) * p.dim + 4u * d;
+        vec4 x = vec4(src[i], src[i + 1u], src[i + 2u], src[i + 3u]);
+        vec4 g = vec4(gate[i], gate[i + 1u], gate[i + 2u], gate[i + 3u]);
+        sum += x * (vec4(1.0) / (vec4(1.0) + exp(-g)));
+    }
+    return sum / float(p.streams);
+}
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (p.quant == 2u) {
+        bool live = i < p.n / 4u;
+        vec4 v = vec4(0.0);
+        if (live) {
+            uint row = (4u * i) / p.dim;
+            uint d = (4u * i - row * p.dim) / 4u;
+            v = mixed(row, d);
+            uint b = 4u * i;
+            dst[b] = v.x; dst[b + 1u] = v.y; dst[b + 2u] = v.z; dst[b + 3u] = v.w;
+        }
+        xquant_word(v, live, i & 7u, i / 8u, p.n, p.major);
+        return;
+    }
+    if (i < p.n) {
+        uint row = i / p.dim, d = i - row * p.dim;
+        float sum = 0.0;
+        for (uint s = 0u; s < p.streams; ++s)
+        {
+            uint j = (row * p.streams + s) * p.dim + d;
+            sum += src[j] * sigmoid(gate[j]);
+        }
+        float v = sum / float(p.streams);
+        dst[i] = v;
+        if (p.quant != 0u) xquant_block(i, v, p.n);
+    }
+}

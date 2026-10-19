@@ -1,0 +1,561 @@
+{
+  "date": "2026-10-15",
+  "branch": "feat/qwen38-model",
+  "parent": "19316e91f05e66b5ce3a254b0cfd493ce78dcb84",
+  "scope": "First short released Q8_0 file-exact HF comparison and bounded independent reference tooling; feature checkpoint, not final qualification or merge.",
+  "runtime_changes": "None since parent; tools, tests and documentation only.",
+  "reference": {
+    "model_repository": "Qwen/Qwen3.8-Flash-Next",
+    "model_revision": "de4b8e4d43b917e7706784d8bb445c9af86a3540",
+    "gguf_repository": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "gguf_revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+    "config_sha256": "889658f2508e8c61d409b02e70e0d78d8d4452ec65aaafbe129805d213d2e74b",
+    "shards": {
+      "files": [
+        {
+          "file": "Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+          "bytes": 10946624,
+          "sha256": "2dabcbb53ca537a7947bc7d20414fd464eeaf4d66d43021b5b2556cc87544ad2"
+        },
+        {
+          "file": "Qwen3.8-Flash-Next-Q8_0-00002-of-00006.gguf",
+          "bytes": 682434912,
+          "sha256": "494ca4ed3dbf97bc28da88af3890b8877b9032f909812d00c0526a9ca5e91d2e"
+        },
+        {
+          "file": "Qwen3.8-Flash-Next-Q8_0-00003-of-00006.gguf",
+          "bytes": 54400261312,
+          "sha256": "34efd79a80a1ce540a517a5d56171924b66ce1c38b04c904f17ad6d8ef17cf20"
+        },
+        {
+          "file": "Qwen3.8-Flash-Next-Q8_0-00004-of-00006.gguf",
+          "bytes": 49446841216,
+          "sha256": "bfa634025fabbd2658bf7694bc80b90e571699c768723f844c934c7ef06c691a"
+        },
+        {
+          "file": "Qwen3.8-Flash-Next-Q8_0-00005-of-00006.gguf",
+          "bytes": 49668930400,
+          "sha256": "232a8f14cc0fa4262e7efe8593774b136fe40909e39c7a020342ddaa27259a97"
+        },
+        {
+          "file": "Qwen3.8-Flash-Next-Q8_0-00006-of-00006.gguf",
+          "bytes": 34015618784,
+          "sha256": "538a93bca918064983409a41187ad4c68640f9aced6f29564da8f551bf86d7a5"
+        }
+      ],
+      "types": {
+        "Q8_0": 811,
+        "F32": 389,
+        "BF16": 24
+      },
+      "source_tensors": 1224,
+      "decoded_source_tensors": 1224,
+      "largest_decoded_span_bytes": 2542796800
+    },
+    "torch_version": "2.11.0+cpu",
+    "transformers_version": "5.16.1",
+    "transformers_source_sha256": {
+      "cache_utils.py": "4b284431cb3a881b6e6f8b8c6430df6f2efdcb3366a2484c7984ae88c612c61a",
+      "modeling_qwen4_exp.py": "77fec77d87f2a0eb23b95fa04276fb5779698a7c7f523cf5061e49c118bcc459",
+      "configuration_qwen4_exp.py": "26b47995740e3bc596b44b2011ee6c3d971d46136438b00dd5fad9557bec4254"
+    },
+    "forward": "Pinned original HF full forward, CPU F32 eager attention and eager experts; original module lifecycle with independently decoded GGUF weights.",
+    "bounded_storage": "Selected PLE rows and one expert per HF indexing operation; ordinary modules released after calls and failure.",
+    "max_tokens": 128,
+    "max_decoded_span_bytes": 3221225472,
+    "container_memory_limit_bytes": 8589934592,
+    "peak_rss_gib": 3.4749298095703125,
+    "mapping_roundtrip": {
+      "norm_max_abs": 0.0,
+      "a_max_relative": 1.6572373340295599e-07,
+      "limit_f32_units": 8
+    },
+    "limits": "Default token cap and span cap do not establish long-context support, total process RSS guarantee or production throughput."
+  },
+  "candidate": {
+    "host": "root@11.10.10.13",
+    "container": "llmx-xdev-flash-release-20261015",
+    "checkout": "/zpool1/llmx-xdev-flash-20261015",
+    "version": "llmx 0.1.0+ge8ce0f43bc9f.dirty numerics d2232f88d758a06d",
+    "binary_sha256": "3e3a918085adb74947fec1fa4b5032dad3032bd787c88528061545b8566bc907",
+    "source_identity": "Copied feature sources in dirty e8ce0f43bc9f rig checkout; prior sigmoid checkpoint retains exact runtime manifest. Not a clean parent-commit build.",
+    "devices": "Eight MI50s, host GPU0-7, renderD128/129/132-137 only; production GPU8/9 excluded.",
+    "argv": [
+      "/work/llmx/build-xdev/llmx",
+      "logits",
+      "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+      "",
+      "--then-ids",
+      "/work/llmx/build-qwen4exp/file-reference/continuation.ids",
+      "--last",
+      "13",
+      "--top",
+      "248320",
+      "--device",
+      "vulkan:0,vulkan:1,vulkan:2,vulkan:3,vulkan:4,vulkan:5,vulkan:6,vulkan:7",
+      "--lookup-storage",
+      "disk",
+      "--load-mode",
+      "auto",
+      "--dtype",
+      "f32",
+      "--cache-type-k",
+      "f32",
+      "--cache-type-v",
+      "f32",
+      "--ubatch",
+      "16",
+      "--threads",
+      "2"
+    ],
+    "exit_status": 0,
+    "monitoring": "Timestamped CPU/process/disk/GPU log retained for complete capture; no performance interpretation or timing comparison claimed.",
+    "cleanup": "After-run report shows GPU0-7 VRAM zero; fresh docker top check found only docker-init and sleep infinity."
+  },
+  "results": {
+    "scope": "First short released-file comparison, no long-context/dtype/performance/full merge qualification.",
+    "input_ids": [
+      760,
+      6511,
+      314,
+      9338,
+      369,
+      11751,
+      13,
+      11751,
+      369,
+      264,
+      3177,
+      13,
+      14833
+    ],
+    "positions": 13,
+    "vocabulary": 248320,
+    "finite_logits_compared": 3228160,
+    "max_abs_logit": 1.660766601574437e-05,
+    "top1_equal": 13,
+    "minimum_top5_exact_overlap": 5,
+    "llmx_mean_nll": 1.8296273735049962,
+    "hf_mean_nll": 1.82962715096349,
+    "hf_peak_rss_gib": 3.4749298095703125,
+    "mapping_roundtrip": {
+      "norm_max_abs": 0.0,
+      "a_max_relative": 1.6572373340295599e-07,
+      "limit_f32_units": 8
+    },
+    "rows": [
+      {
+        "position": 0,
+        "max_abs_logit": 1.2864395141587437e-05,
+        "rms_logit": 1.3498503118417196e-06,
+        "llmx_top1": 20438,
+        "hf_top1": 20438,
+        "top1_equal": true,
+        "hf_top2_gap": 0.1864185333251953,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 9.60708909504051,
+        "hf_nll": 9.607091765546329,
+        "abs_nll_error": 2.6705058182585617e-06
+      },
+      {
+        "position": 1,
+        "max_abs_logit": 1.079355621347311e-05,
+        "rms_logit": 2.0120073994887946e-06,
+        "llmx_top1": 314,
+        "hf_top1": 314,
+        "top1_equal": true,
+        "hf_top2_gap": 1.0710067749023438,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 1.0170493268219545,
+        "hf_nll": 1.0170497172416617,
+        "abs_nll_error": 3.9041970723019404e-07
+      },
+      {
+        "position": 2,
+        "max_abs_logit": 9.753311157378874e-06,
+        "rms_logit": 1.5688880762664294e-06,
+        "llmx_top1": 279,
+        "hf_top1": 279,
+        "top1_equal": true,
+        "hf_top2_gap": 2.4630889892578125,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 3.599380598741906,
+        "hf_nll": 3.599379268526583,
+        "abs_nll_error": 1.3302153227812141e-06
+      },
+      {
+        "position": 3,
+        "max_abs_logit": 1.0757003784167551e-05,
+        "rms_logit": 1.7759734316305115e-06,
+        "llmx_top1": 369,
+        "hf_top1": 369,
+        "top1_equal": true,
+        "hf_top2_gap": 0.4825572967529297,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 0.6569371428149218,
+        "hf_nll": 0.6569356528031811,
+        "abs_nll_error": 1.4900117406568825e-06
+      },
+      {
+        "position": 4,
+        "max_abs_logit": 1.2790012359653602e-05,
+        "rms_logit": 2.3952334036211967e-06,
+        "llmx_top1": 11751,
+        "hf_top1": 11751,
+        "top1_equal": true,
+        "hf_top2_gap": 2.1170454025268555,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 0.4961212173924423,
+        "hf_nll": 0.4961206392821893,
+        "abs_nll_error": 5.781102530022508e-07
+      },
+      {
+        "position": 5,
+        "max_abs_logit": 1.1602935790833158e-05,
+        "rms_logit": 2.3161175755329587e-06,
+        "llmx_top1": 13,
+        "hf_top1": 13,
+        "top1_equal": true,
+        "hf_top2_gap": 0.8381385803222656,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 0.49443626219150616,
+        "hf_nll": 0.49443631490486695,
+        "abs_nll_error": 5.2713360787493e-08
+      },
+      {
+        "position": 6,
+        "max_abs_logit": 1.3737945556258069e-05,
+        "rms_logit": 2.544664809807422e-06,
+        "llmx_top1": 11751,
+        "hf_top1": 11751,
+        "top1_equal": true,
+        "hf_top2_gap": 0.023774147033691406,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 1.3620542722117772,
+        "hf_nll": 1.3620529650277788,
+        "abs_nll_error": 1.3071839983780364e-06
+      },
+      {
+        "position": 7,
+        "max_abs_logit": 1.4102142333882739e-05,
+        "rms_logit": 3.027820453772126e-06,
+        "llmx_top1": 369,
+        "hf_top1": 369,
+        "top1_equal": true,
+        "hf_top2_gap": 2.9265975952148438,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 0.11447538302322968,
+        "hf_nll": 0.1144755418148442,
+        "abs_nll_error": 1.5879161452403423e-07
+      },
+      {
+        "position": 8,
+        "max_abs_logit": 1.208670043961746e-05,
+        "rms_logit": 2.0934882710510107e-06,
+        "llmx_top1": 264,
+        "hf_top1": 264,
+        "top1_equal": true,
+        "hf_top2_gap": 0.25494384765625,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 1.2791367750243765,
+        "hf_nll": 1.2791401847534054,
+        "abs_nll_error": 3.409729028902575e-06
+      },
+      {
+        "position": 9,
+        "max_abs_logit": 1.1829040527544521e-05,
+        "rms_logit": 2.4562815894215362e-06,
+        "llmx_top1": 3177,
+        "hf_top1": 3177,
+        "top1_equal": true,
+        "hf_top2_gap": 0.34633827209472656,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 0.7902651031299648,
+        "hf_nll": 0.7902632221202737,
+        "abs_nll_error": 1.8810096911181517e-06
+      },
+      {
+        "position": 10,
+        "max_abs_logit": 1.5754272460810625e-05,
+        "rms_logit": 2.6172833884849897e-06,
+        "llmx_top1": 13,
+        "hf_top1": 13,
+        "top1_equal": true,
+        "hf_top2_gap": 1.0948638916015625,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 0.6864062410600908,
+        "hf_nll": 0.6864059241215301,
+        "abs_nll_error": 3.169385607293407e-07
+      },
+      {
+        "position": 11,
+        "max_abs_logit": 1.660766601574437e-05,
+        "rms_logit": 3.118137892803082e-06,
+        "llmx_top1": 14833,
+        "hf_top1": 14833,
+        "top1_equal": true,
+        "hf_top2_gap": 0.029005050659179688,
+        "top5_exact_overlap": 5,
+        "llmx_nll": 1.8521770646072717,
+        "hf_nll": 1.8521746154192371,
+        "abs_nll_error": 2.4491880346033668e-06
+      },
+      {
+        "position": 12,
+        "max_abs_logit": 1.4371337890395353e-05,
+        "rms_logit": 2.53283328163126e-06,
+        "llmx_top1": 11,
+        "hf_top1": 11,
+        "top1_equal": true,
+        "hf_top2_gap": 2.3683853149414062,
+        "top5_exact_overlap": 5
+      }
+    ],
+    "mean_nll_difference": 2.2254150611189516e-07
+  },
+  "bounds": {
+    "f32_max_abs_logit": 2e-05,
+    "f32_mean_nll_error": 1e-05,
+    "origin": "Existing F32 correctness limits, unchanged; applies to this explicit F32 short cell only.",
+    "loss_scope": "Loss recomputed from every printed candidate logit and saved HF logit, not native CLI perplexity."
+  },
+  "scoring_correction": {
+    "source_sha256": "3bdcf7d52a692f75e25d62ebe3056d14c4a05816bf5e64dad1dd6e6c73a012e8",
+    "derived_sha256": "04b5bbcc7b80ecbe6d841b319a6c2204e20eb0296039c8963bb61f84b2190dcb",
+    "scorer_source_sha256": "f7916008a726a57b0edce06fddba4a8a851d884a445b06a4dab655ce8f0c8e6c",
+    "logits_unchanged": true,
+    "original_mean_nll": 1.8294836282730103,
+    "corrected_mean_nll": 1.8296271509634898,
+    "independent_fsum_error": 2.220446049250313e-16,
+    "llmx_mean_nll": 1.8296273735049962,
+    "mean_nll_difference": 2.2254150633393976e-07,
+    "reason": "Original companion used F32 cross-entropy; established gen_baseline uses F64 logsumexp of F32 logits. Same forward logits rescored; original artifact preserved.",
+    "regression": "248320-vocabulary analytic math.fsum oracle: corrected error 4.4408921e-16, old F32 CE error 0.000209949516.",
+    "provenance": "Derived artifact records original SHA, original scores and scorer source SHA. All original saved logits verified unchanged."
+  },
+  "focused_checks": {
+    "static": "docs PASS, zero findings and 21 planted faults; dead-code PASS, five existing listed findings and 18 planted faults.",
+    "pinned_windows": "4 tests PASS, no skips; adapters, nonselfinverse Hv6/Hk2, wide-vocabulary F64 scoring, shard storage.",
+    "pinned_linux": "3 adapter/storage tests PASS before scoring correction; no new Linux scoring claim.",
+    "adapters": "Tiny ordinary/eager, adapted/eager and canonical grouped_mm controls give zero logit error; full prompts, cached slices, decode, routing and failure cleanup.",
+    "routine_generator": "53 tests PASS; only dependency-free ShardStorage added to hosted routine suite.",
+    "routine_consumer": "10 unit tests and 61 reference-consumer tests PASS with --require-tools; no skips.",
+    "span_decoders": "Full raw-blocks PASS; bounded Q8 and BF16 reads, ordering/repeats, alignment/bounds and truncated reads.",
+    "build": "Missing arch-qwen4exp helper compiled with actual source rebuild recorded; runtime C++ unchanged."
+  },
+  "retained_failures": [
+    "First logits capture supplied unsupported --verbose, refused before load, status2; successful corrected capture is v2.",
+    "Initial reference consumer skipped missing arch helper; after building it, required-tools run passed without skips.",
+    "Original F32-CE loss differed from established F64 scoring; original and derived outputs both retained."
+  ],
+  "remaining": [
+    "Long-context raw/chat file-exact HF qualification",
+    "Broader prompts and native CLI perplexity",
+    "Precision-mode matrix",
+    "Serving, split, checkpoint/rollback and failure coverage",
+    "Matched mx performance and existing-model regression gates",
+    "Final head build/hosted/tier gates and main/GitHub merge"
+  ],
+  "evidence": {
+    "tools/qwen4exp_file_reference.py": {
+      "bytes": 29790,
+      "sha256": "f7916008a726a57b0edce06fddba4a8a851d884a445b06a4dab655ce8f0c8e6c"
+    },
+    "tools/gen_layered_reference.py": {
+      "bytes": 44021,
+      "sha256": "8000ebf0819dfb1f0f227a71aac9179d9b2a5f8249e1adece17ee51293459eda"
+    },
+    "tests/reference_qwen4exp_file.py": {
+      "bytes": 13958,
+      "sha256": "b8645048bbb2ed86b349e1c31426b4931d39b11c55a43ce5279cea3f9e92d409"
+    },
+    "tests/spec_decode.py": {
+      "bytes": 22912,
+      "sha256": "c70a7c462181461184ee2a5f3d6b813483fc740dcfc0bad66bd6c00bb688521a"
+    },
+    "tests/raw_blocks.py": {
+      "bytes": 28641,
+      "sha256": "0dd7cd72ab9368fc7a91afec265eaf8e065dcbd574d8b2521d6d27691b1e11b8"
+    },
+    "tests/reference_generator.py": {
+      "bytes": 84856,
+      "sha256": "3238301def389229ba7673541c366c83091cee94e390738e233357f312e151d5"
+    },
+    "tests/qwen4exp.py": {
+      "bytes": 29719,
+      "sha256": "6c67929c439f94fa032f6b6abe5e97b79fb4abcdf9017d6273210937c903fd1f"
+    },
+    "tests/qwen4exp_fixture.py": {
+      "bytes": 36943,
+      "sha256": "9233e88f57712fd33bc550a6899734b657143c9e3479f1cdd5025a88da91fa48"
+    },
+    "build-qwen4exp/file-reference-raw-blocks.log": {
+      "bytes": 2276,
+      "sha256": "9cbbf19ec44a8e4792a6e2be5188a1c6322fbc885f7afe39bf68f96312902e50"
+    },
+    "build-qwen4exp/file-reference-final-suite.log": {
+      "bytes": 1872,
+      "sha256": "3c19d92d98dd8502b0fb38b3b0a53aa1a8adf4c42a9558328a07a51549e6c207"
+    },
+    "build-qwen4exp/file-reference-schema-build.log": {
+      "bytes": 730,
+      "sha256": "eabba3bacb9a7c18467de463b0c98371efa55b1f52d408d986a850a48e508aa5"
+    },
+    "build-qwen4exp/file-reference-final-static.log": {
+      "bytes": 422,
+      "sha256": "79662248a62d454eb321b0993b2b60ecd6c6d40b2315e9a871e544eb25ea9910"
+    },
+    "build-qwen4exp-complete/sigmoid-fixture-20261015/file-reference-scoring-tests.log": {
+      "bytes": 1377,
+      "sha256": "658d6904184bb24fb7d8bd84e6b2e05c5cc05bd2a2a4dd5a302beb6b676c45f4"
+    },
+    "build-qwen4exp/file-reference/reference-source-manifest.json": {
+      "bytes": 5679,
+      "sha256": "89c6ca79ff431658bf1b083f513637bb7f3dd3a82bfd264403904e7620160ca3"
+    },
+    "build-qwen4exp/file-reference/shard-hashes.json": {
+      "bytes": 3795,
+      "sha256": "881cbd20fa791baab252561d2145730054900ccce1df92aba48be6ac5524eb8c"
+    },
+    "build-qwen4exp/file-reference/shard-hash-hf-compare.json": {
+      "bytes": 4227,
+      "sha256": "3e9dee15cb15b168b86d4f053b735d7d509dc14d31b3515e74138ec792d01b9d"
+    },
+    "build-qwen4exp/file-reference/hf-unsloth-revision-38bb39ee.json": {
+      "bytes": 26786,
+      "sha256": "eb3c159cbe437df8b78215f8fce26b9a8e75b7bcdce51f966af16a2b6bed1b2f"
+    },
+    "build-qwen4exp/file-reference/released-config-compare.json": {
+      "bytes": 1435,
+      "sha256": "6cb594e002747155f232b599660eaf4c992c3423c2be60fd5467cfd1456b34b0"
+    },
+    "build-qwen4exp/file-reference/install-report.json": {
+      "bytes": 462291,
+      "sha256": "baf5581abf8723ce4cb5f25b93b0968b64d26bfb4d213081e363ba5394cf0642"
+    },
+    "build-qwen4exp/file-reference/released-config.json": {
+      "bytes": 4745,
+      "sha256": "889658f2508e8c61d409b02e70e0d78d8d4452ec65aaafbe129805d213d2e74b"
+    },
+    "build-qwen4exp/file-reference/released-metadata.json": {
+      "bytes": 8418,
+      "sha256": "3926b6202e860b4115d53684934b2c93bd7bf227f32959b9f6fa894f48e53a62"
+    },
+    "build-qwen4exp/file-reference/raw_prompt_tokenization.json": {
+      "bytes": 623,
+      "sha256": "9268e132dcc99966763a5addbb41b27e1a0c5237ac7992fa9b9eb0853c226bba"
+    },
+    "build-qwen4exp/file-reference/rig-adapter-proof.log": {
+      "bytes": 2680,
+      "sha256": "3400dfcf42ab523f27cf0d436c26baa5493f60b6e59f66c258790a78e0da47d6"
+    },
+    "build-qwen4exp/file-reference/run_hf.py": {
+      "bytes": 1460,
+      "sha256": "7ea9abad90fde00a61a25a05f970eaadd0431897dd62ce27c12c6e2c1c49ec1e"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13.argv.json": {
+      "bytes": 923,
+      "sha256": "4cf68793b981c9912e763ad3c750d3590abb0b9384b82fe119cdda8282c36976"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13.status": {
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13.start": {
+      "bytes": 32,
+      "sha256": "cb561cef1a06dc25ef886004d73186d04fc9fe5adbe51bf1f1090bfff76bfce3"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13.end": {
+      "bytes": 32,
+      "sha256": "0c12453965df222d05ff1f14df9248d32affa48980973bbb748b5e34c7665798"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13.stderr": {
+      "bytes": 1972,
+      "sha256": "34693af9eb7eedd668ef793513d81834f275298dbf66c28f8bbd13ee2942f796"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13.json": {
+      "bytes": 63010135,
+      "sha256": "3bdcf7d52a692f75e25d62ebe3056d14c4a05816bf5e64dad1dd6e6c73a012e8"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13-f64-score.json": {
+      "bytes": 63010832,
+      "sha256": "04b5bbcc7b80ecbe6d841b319a6c2204e20eb0296039c8963bb61f84b2190dcb"
+    },
+    "build-qwen4exp/file-reference/hf-f32-first13-rescore.json": {
+      "bytes": 537,
+      "sha256": "0ef67fcd26ab9ec2af3fbda9a2b141d9aa4a5270765a9c80a19dfbdc6ea2fdde"
+    },
+    "build-qwen4exp/file-reference/hf-nll-reduction-check.json": {
+      "bytes": 2266,
+      "sha256": "daaffedddd88117df77e2ae41c2d419bd7fcf0119f4ce470d8a99f5e2013d949"
+    },
+    "build-qwen4exp/file-reference/rescore_saved.py": {
+      "bytes": 2477,
+      "sha256": "74dbaf6f46467d340e65db6a161ece05279bf6ee0ffa6228aed241205b5873b2"
+    },
+    "build-qwen4exp/file-reference/compare_logits.py": {
+      "bytes": 3286,
+      "sha256": "9a9f099c75386f23d5f2f743162aab26be2523831f66195c480e4643e4a19c49"
+    },
+    "build-qwen4exp/file-reference/first13-comparison.json": {
+      "bytes": 6221,
+      "sha256": "dd9d504425a0a71836fc826500cb988c4502370420043b36804dad0bd79e91ca"
+    },
+    "build-qwen4exp/file-reference/capture_logits.py": {
+      "bytes": 1428,
+      "sha256": "b1798c95d76b190098357966a6a2ba4d009ff3698aa6fbe07f2260322ee18d28"
+    },
+    "build-qwen4exp/file-reference/llmx-f32.argv.json": {
+      "bytes": 539,
+      "sha256": "c17cc475cc26a789e14864601bf366f126700282e5f7a3e08d450a1341f7ecdd"
+    },
+    "build-qwen4exp/file-reference/llmx-f32.stderr": {
+      "bytes": 2806,
+      "sha256": "04733bb0f9941eba179dcc2de7f1faafff89eeb76abec94196a06c932f084fa0"
+    },
+    "build-qwen4exp/file-reference/llmx-f32.status": {
+      "bytes": 1,
+      "sha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+    },
+    "build-qwen4exp/file-reference/llmx-f32-v2.argv.json": {
+      "bytes": 524,
+      "sha256": "44e28a4bb5d522cb2b28769a0e38c7285ab6ad7279b788bd550f81a941d4c8ed"
+    },
+    "build-qwen4exp/file-reference/llmx-f32-v2.stdout": {
+      "bytes": 52721899,
+      "sha256": "51278fd06354ec61fd3529f58fb7a28f02dc284a917622b42a7b81779a9bf29d"
+    },
+    "build-qwen4exp/file-reference/llmx-f32-v2.stderr": {
+      "bytes": 322,
+      "sha256": "445aa3e64f647aa9a7faeb9c2f091ff61d049db4d64e6cbd27810fcd1ce3b175"
+    },
+    "build-qwen4exp/file-reference/llmx-f32-v2.version": {
+      "bytes": 57,
+      "sha256": "66759cc7af0437c483626ee22b6e8b646526a4aa262cc1603d81d90ebcb24b6e"
+    },
+    "build-qwen4exp/file-reference/llmx-f32-v2.status": {
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    "build-qwen4exp/file-reference/llmx-f32-v2-coverage.json": {
+      "bytes": 1846,
+      "sha256": "a375f760581824184549fea34e936441c6971cbcb0cbfa6d5a58b14f227249f4"
+    },
+    "build-qwen4exp/file-reference/released-hf-logits-f32-v2-activity.log": {
+      "bytes": 46668,
+      "sha256": "873b65730caea6c519b53893dddd1035b9438beee10707583c9c64ba89f75f5f"
+    },
+    "build-qwen4exp/file-reference/released-hf-logits-f32-v2-before.mem": {
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    "build-qwen4exp/file-reference/released-hf-logits-f32-v2-after.mem": {
+      "bytes": 2018,
+      "sha256": "5bb316125b06a6f955f8024df40d7c83ae28c080f26edc50b97b835cfd278b6d"
+    },
+    "build-qwen4exp/file-reference/released-hf-logits-f32-v2.status": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    }
+  }
+}

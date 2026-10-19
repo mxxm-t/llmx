@@ -8,6 +8,11 @@ The matrix-call dtype is forwarded through dense, grouped, routed, additive and 
 
 MXFP4 uses exact packed-weight decoding in the embedding and float tile. Separate shader builds keep other quantized types on their existing modules. The type requires F64 arithmetic, F32 denormal and signed-zero/infinity/NaN preservation, and F64 signed-zero/infinity/NaN preservation before adoption; other types keep their existing device requirements. Unsafe products are recomputed from decoded weights in double, and split partials stay double through reduction. BF16 rounds inputs through the same `matrix_input` function in the tile and recomputation. F32 short calls use the dedicated packed-weight row build. F16 calls use block-int16 rows; on integer-tile profiles, dense prompts copy each eligible projection into a queue-ordered 256 MiB scratch buffer as an exact F32 scale and 32 signed codes per block. Grouped copies retain their original type and packed weight binding. Projections beyond the copy budget and routed prompts take the F32 tile. Both row and tile range repair read exact weights and the same reconstructed int16 inputs as their normal paths; integer split partials remain double through reduction. MXFP4 row dot selection has its own measured profile preference.
 
+BF16 stored weights and BF16 activation precision are separate paths.
+The weight descriptor recognizes the BF16 storage type; `embed.comp` widens its 16-bit values directly, as does the float tile's 16-bit storage load.
+The shared `quantized_at` decoder supplies the float row kernels.
+These shaders are BF16's only decoder; the CPU's `quant::Registry` has none.
+
 The `Backend` of `backend.hpp` over a Vulkan 1.2 compute queue, in one
 translation unit (`vulkan_backend.cpp`, built only with
 `LLMX_HAS_BACKEND_VULKAN=ON`) and the GLSL kernels under `shaders/`, which
@@ -23,7 +28,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   `implements` supports the qwen35 layer ops but refuses `Op::mixed_experts`. A grouped gate/up pair with differing storage types is therefore refused at model load; an otherwise eligible streamed layer stays on its capable host. Its separate down projection may use another type.
 
 - `LLMX_VULKAN_KERNELS` is the single ordered list of kernel IDs, diagnostic names and source bindings, including optional preservation modules. It generates `KernelId`, `kKernelNames` and `kKernels`; cache variants depend on the adjacent IDs it preserves. The source dead-code check reads this list and holds its reachability with planted missing-module, orphan-ID and missing-name faults.
-  `backend-vulkan` witnesses dense and routed products through the existing timestamp diagnostics, with expected kernel names independent of the descriptor, at each crossover's two sides under F16, F32 and BF16. It also pins unsupported-type refusal text; the existing numerical and row-class checks remain separate. A device without timestamps reports that dispatch-name coverage is unavailable.
+  `backend-vulkan` checks dense and routed dispatches through the existing timestamp diagnostics, with expected kernel names independent of the descriptor, at each crossover's two sides under F16, F32 and BF16. It also pins unsupported-type refusal text; the existing numerical and row-class checks remain separate. A device without timestamps reports that dispatch-name coverage is unavailable.
 
 - `make_vulkan_backend(index, diagnostics)`, `vulkan_device_name`: open
   the loader, pick the device, require what the kernels need (Vulkan 1.2,
@@ -221,9 +226,12 @@ The lifetime and packed-quantization tests include the implementation and use te
     Every sum is a lane's multiply-adds in row order, then one butterfly over eight lanes, the same for every token whatever else is in the call, so a sequence gives the same bits alone, beside others and cut into passes; o of a token and m of the next share their butterfly.
     Rows past the K head's width stage as zeros, so the recurrence tests no row.
     It refuses K heads wider than 128.
-  - `state_table` lays a call's state views out for the kernels, the conv appending its chunks, and refuses views of two storages in one call; the slots' floats must be addressable in 32 bits.
-  - `state_alloc` is `Backend`'s own, built on this backend's `alloc`; `backend-vulkan` checks its zeroed slots.
+  - `state_table` lays a call's state views out for the kernels, the conv appending its chunks, and refuses views of two storages in one call; the addressed slot count uses the active layer's full stride, including an optional F32 tail, and must fit 32-bit shader indexing. The conv and delta shaders index only the common GDN prefix and leave such a tail unchanged.
+  - `state_alloc` is `Backend`'s own, built on this backend's `alloc`; it allocates each layer at its own stride and zeroes every slot, including any tail.
   - `implements` answers true for these state and gating ops and the drafter's two below; mixed routed projection types remain unsupported as described above.
+- The PLE convolution primitive `dilated_conv_silu_add` (`shaders/dilated_conv_silu_add.comp`) dispatches one invocation per channel and view chunk. The first chunk reads and updates the layer's `(taps - 1) * dilation` raw-row F32 tail after the common prefix; later chunks use rows produced earlier in the same call. It applies the causal convolution, SiLU and residual add in tap order, and checks shader-index and alias limits before dispatch.
+- `select_kv` uses `kv_index_pool`, `kv_index_scores` and `kv_index_select`. It pools one view at a time from raw auxiliary F32 keys, applies the stored GGUF RMSNorm multiplier and first-position split-half RoPE, and scores at most 16 query rows at once. Eight radix passes locate the score cutoff; the chronological scan selects earlier groups first on exact ties, emits selected token IDs in ascending order, appends a visible partial group and pads with `UINT32_MAX`. The selector accepts index dimensions through 256 and preflights geometry, views, storage, spans and aliases before dispatch. At the released geometry (262144 positions, index width 128, compression 4) its pooled-key and score buffers, 32 MiB and 4 MiB, fit within the 256 MiB base scratch reserve. It computes in F32 throughout.
+- `sparse_attention` reuses `attention.comp` and `attention_vec.comp` built with `LLMX_SPARSE`, selecting the F16/F32 K/V variant for each cache side. It launches one workgroup per query row and head, reads the supplied IDs, and performs online softmax directly over selected original KV rows. The 128-wide vector path and 256-wide `LLMX_D256` vector path are available; this sparse dispatch uses one head per workgroup and one unsplit pass, without the dense path's history split/merge, tiled prompt or four-head G4 dispatch. Empty selections write zero. `tests/sparse_attention.cpp` holds it to the same double-precision oracle as the CPU's.
 - The embedded drafter's ops (docs/SPECULATIVE.md, section 7), held to the CPU id for id and bit for bit by `backend-vulkan`:
   - `argmax_rows` (`shaders/argmax_rows.comp`): each lane its first largest over its strided ids, then a tree to the lowest id of the largest, with a NaN anywhere, a largest that is not finite or an invalid prior id giving the row the invalid id. A row of more than `kVulkanArgmaxSlice` (4096) ids is reduced in two dispatches: a workgroup a slice of ids writes a partial (the value, the id, whether a NaN was seen) into a scratch of the call's, then a workgroup a row reduces the row's partials in slice order by the same comparison and applies the row's rules once, so the id is the one a single workgroup gives; a shorter row, or a call recorded without barriers, whose second dispatch could not follow its first, takes one workgroup a row.
   - `embed_ids` (`shaders/embed.comp` built with `LLMX_DEVICE_IDS`, and with `LLMX_MXFP4` too for an MXFP4 table, as `embed` takes its own build for one): `embed` reading its ids from a device buffer, a zero row for an id past the table.
@@ -367,7 +375,7 @@ From the comment at line 2:
 
 From the comment at line 2:
 
-- One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * silu(z) over the head's dim values, silu(z) = z / (1 + exp(-z)), w shared by every head.
+- One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * gate(z) over the head's dim values, w shared by every head. The uniform `NormGate` selector chooses SiLU (default) or sigmoid in the same dispatch and activation-copy path.
 - The sum of squares is a lane's fused multiply-adds, then a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
 - With `quant` 1, dim is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
 - dst may be x: every value is read for the sum before the barrier, and after it each lane reads and writes only its own values.
@@ -529,3 +537,29 @@ From the comment at line 164:
 - With `major` zero the blocks lie as xquant8_block lays them, column after column.
 - Otherwise `major` is the blocks of a column and the twin is block-major, as the integer-dot tile reads a block of every column together: block k of column c at k * xquant8_columns(columns) + c, the table after the padded blocks in the same order.
 
+### `src/backends/vulkan/shaders/group_rms_norm.comp`
+
+One workgroup reduces each row's group, using that group's weight slice.
+Groups aligned to 32 values also produce the activation twin for a later matrix consumer; other widths leave packing to the consumer.
+
+### `src/backends/vulkan/shaders/silu_scaled.comp`
+
+Elementwise SiLU after a scalar multiplier, with exact in-place output allowed.
+Aligned rows also produce the activation twin.
+
+### `src/backends/vulkan/shaders/mix_streams.comp`
+
+Elementwise sigmoid gates weight the streams, averaged into one output row.
+Each stream and element has its own gate.
+Aligned output rows also produce the activation twin.
+
+### `src/backends/vulkan/shaders/inject_streams.comp`
+
+Adds one block output into each residual stream using twice the sigmoid of the raw stream gate divided by the stream count.
+The residual is updated in place; the block and gate inputs must be disjoint from it and each other.
+
+### `src/backends/vulkan/shaders/signed_sqrt_gate.comp`
+
+One workgroup reduces each normalized key/query group's dot, scales by the inverse square root of its width, and applies the signed square-root sigmoid gate to the shared value row.
+Zero retains zero sign before sigmoid.
+Aligned groups also produce the activation twin, with every lane participating in the packing rounds even when a final round has inactive elements.

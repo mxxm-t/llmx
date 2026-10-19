@@ -13,6 +13,7 @@ The tables below list the supported models, file formats, quantization types, ba
 | `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | Supported |
 | `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported, prefix reuse for follow-up turns |
 | `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | Supported, prefix reuse for follow-up turns |
+| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0, with its MTP drafter | Planned (its BF16 tensors need a CPU decoder) | Supported | Supported, prefix reuse for follow-up turns |
 | Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned |
 
 Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS.md) lists what is covered.
@@ -58,7 +59,7 @@ Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USA
 |---|---|---|---|
 | Layer split | Consecutive layers on different devices, GPUs and the CPU mixed, fitted to free memory, for every supported model in every command and `llmx serve` | `--device A,B,...`, `--layer-shares` | Supported |
 | Expert offload | A mixture-of-experts model's experts run on the CPU beside one GPU | `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N` | Supported |
-| Tensor split | Every layer on a group of 2 to 4 devices at once; dense `qwen3`, hybrid `qwen35` and mixture-of-experts `qwen3moe` and `qwen35moe` models, with their embedded drafter, on Vulkan devices on Linux | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
+| Tensor split | Every layer on a group of 2 to 4 devices at once; dense `qwen3`, hybrid `qwen35` and `qwen4exp` and mixture-of-experts `qwen3moe` and `qwen35moe` models, with their embedded drafter, on Vulkan devices on Linux | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
 | Staged tensor split | A layer split whose stages are tensor groups | `--tensor-width N` with several groups listed in `--device`; `--layer-shares` gives each group its share | Supported, as above |
 | Replicas | Several copies of a model behind one scheduler | | Planned |
 | Multi-node | One model over several machines | | Planned |

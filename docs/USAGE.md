@@ -217,7 +217,7 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--lookup-storage S] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -294,6 +294,7 @@ Flags:
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
 | `--moe-stream-from N` | run those experts on the device for a prompt of at least `N` tokens, two at the least (default 0, never) |
 | `--load-mode M` | how the weights are read: `auto` (default), `mapped` or `direct` (below) |
+| `--lookup-storage S` | bounded lookup tables: `auto`, `device` or `file`; independent of `--load-mode` |
 
 By default a window goes through the model in batched passes of up to `--ubatch` tokens, the way a prompt does, with logits taken for every position; the output head then runs once per pass over all of its rows. `--per-token` scores the same targets one token at a time instead, which is the path generation takes after the prompt. On a device the two paths use different kernels, so a score from each checks different code; they agree to within the rounding of their reductions. This all-target window policy differs from
 scoring modes elsewhere that exclude a warmup half-window; compare scores only with
@@ -480,6 +481,14 @@ Every command that runs a model takes `--load-mode`, which says how the weights 
 
 All three give the same model, bit for bit. With `--verbose`, and always with `bench --model`, a line after the split's plan gives the mode and where the load's time went: building the model, and for a streamed load the files read through the cache and around it, the reads, the uploads, the bytes the devices copied straight out of the reads where they can read host memory in place, and the uploads' waits for a read.
 
+## Bounded lookup tables (`--lookup-storage`)
+
+Every model command accepts `--lookup-storage auto|device|file` for the immutable lookup tables an architecture declares; models without such tables are unchanged.
+`device` keeps the whole table on the devices that run its layers; where it fits only with less KV room the KV budget is cut to fit, and where it does not fit at all the load is refused.
+`file` reads each pass's rows from the model file and uploads only those packed rows: through the file's mapping in `--load-mode auto` and `mapped`, which commits no memory and leaves the rows to the page cache, and through direct reads in `direct`, which has no mapping.
+`auto` keeps the table on the devices where it fits beside the fitted KV budget, and otherwise reads it from the file.
+Lookup storage does not prefetch asynchronously or pin memory.
+
 ## Physical batch (`--ubatch`)
 
 `--ubatch` is how many prompt tokens go through **one forward pass** of the
@@ -548,6 +557,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--cpu-moe`             | experts of every routed layer on the CPU             | off     |
 | `--moe-stream-from N`   | prompt length, two at the least, from which those experts run on the device | 0 (never) |
 | `--load-mode M`         | how the weights are read: `auto`, `mapped` or `direct` | auto    |
+| `--lookup-storage S`    | bounded lookup table storage: `auto`, `device` or `file` | auto |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
@@ -570,7 +580,7 @@ The model's context still bounds the reply: a `-n` up to what the prompt leaves 
 `--drafter lookup` drafts the tokens that followed the latest earlier occurrence of the last three tokens, else two, else one, of the prompt and the reply so far, and verifies the last token and up to `--draft-max` drafts in one pass of generated tokens (docs/SPECULATIVE.md, section 3).
 Each row is sampled as the token without drafts would be, so the text, the ids and every draw are the same as with `--drafter off`, greedy or seeded; drafts that match save passes, which pays where the reply repeats its prompt or itself, and a reply whose drafts kept average below half a draft a verify drafts nothing for its next 16 tokens, then tries again.
 On a model that keeps a recurrent state a verify keeps the state it started from in a slot of its own, and a rejected draft runs the state's update again over the rows it keeps.
-`--drafter embedded` drafts with the MTP block a qwen35 file carries after its layers (docs/SPECULATIVE.md, section 7): the model is loaded with the block on the device of its head, every pass writes the block's cache rows for the tokens it feeds, and each round's drafts are one chain of the block's rows on that device; a file without the block is refused by name.
+`--drafter embedded` drafts with the MTP block a qwen35 or qwen4exp file carries after its layers (docs/SPECULATIVE.md, section 7): the model is loaded with the block on the device of its head, every pass writes the block's cache rows for the tokens it feeds, and each round's drafts are one chain of the block's rows on that device; a file without the block is refused by name.
 The text, the ids and every draw are those of `--drafter off` here too.
 `--drafter` is a list of sources tried in the order given, comma-separated, and one rule reads every value: `off` alone drafts nothing; `lookup` is the history's lookup; `embedded` is the MTP block of the model's file; anything else is a drafter file beside the model.
 A drafter that runs a model, `embedded` or a file, drafts alone as `--drafter embedded` or `--drafter PATH`, and stands behind the reply's own history as `--drafter lookup,embedded` or `--drafter lookup,PATH`: where the last 8 tokens of the prompt and the reply so far occur earlier in them, the tokens that followed are the round's drafts and the drafter is not run that round, which pays where a reply repeats its prompt or itself and changes nothing elsewhere (docs/SPECULATIVE.md, section 8).
@@ -647,7 +657,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--kv-tokens N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--dtype T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--kv-tokens N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--lookup-storage S] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -714,7 +724,7 @@ The flags, in the groups of the help page (`llmx serve --help`); the paragraphs 
 | Server | `--context-overflow HOW` | `refuse` | What a prompt that does not fit gets: `refuse`, a 413, or `shift`, the oldest turns dropped |
 | Speculative decoding | `--drafter D` | `off` | Proposes tokens and checks them in one pass |
 | Speculative decoding | `--draft-max N` | `3` | Most drafted tokens checked at once |
-| Execution | `--device D`, `--dtype T`, `--layer-shares A,B`, `--tensor-width N`, `--threads N`, `--ubatch N`, `--cache-type-k T`, `--cache-type-v T`, `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N`, `--load-mode M` | | Where and how the model runs, as for every model command |
+| Execution | `--device D`, `--dtype T`, `--layer-shares A,B`, `--tensor-width N`, `--threads N`, `--ubatch N`, `--cache-type-k T`, `--cache-type-v T`, `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N`, `--load-mode M`, `--lookup-storage S` | | Where and how the model runs, as for every model command |
 
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes`, `--ctx-size` and `--kv-tokens` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
@@ -1023,7 +1033,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--profile] [--drafter D] [--draft-max N]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--lookup-storage S] [--profile] [--drafter D] [--draft-max N]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

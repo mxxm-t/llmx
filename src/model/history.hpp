@@ -6,6 +6,13 @@
 
 namespace infer {
 
+// Append IDs to the fixed-width tail, oldest first; reading an empty history uses padding, and an in-place shift reads ahead of its writes.
+inline void Model::advance_tokens(uint32_t* dst, const uint32_t* previous, size_t history, const uint32_t* ids, size_t n) const noexcept {
+    const size_t from_previous = n < token_width_ ? token_width_ - n : 0;
+    for (size_t i = 0; i < from_previous; ++i) dst[i] = history ? previous[n + i] : token_padding_;
+    for (size_t i = from_previous; i < token_width_; ++i) dst[i] = ids[n - (token_width_ - i)];
+}
+
 // A second history holding the first `length` tokens of `src`, which must be whole blocks in every storage: every block below `length` is shared and read-only from now on, so nothing is allocated or copied here.
 // The fork inherits the tickets of the passes that wrote what it shares, and on a model that keeps a state it takes src's checkpoint at `length`, whose state its first pass reads in place.
 inline Sequence Model::fork(const Sequence& src, size_t length) {
@@ -141,22 +148,47 @@ inline std::optional<size_t> Model::checkpoint(const Sequence& s) const {
     return s.kept_.pos();
 }
 
-// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of its KV storage's layers, K and V, and one slot of its state storage, in whole slabs.
+// The host memory a copy of `length` tokens takes (HostHistory::held): per device, whole blocks of K, V and auxiliary rows, and one slot of state, in whole slabs.
 // Without `blocks` it is the slot alone, and from `first` on and without `state` the blocks of a range alone.
 inline size_t Model::host_bytes(size_t length, bool blocks, size_t first, bool state) const {
     size_t n = 0;
     for (const auto& d : devices_) {
         size_t bytes = 0;
         if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d->storage.get()) : nullptr)
-            bytes += (backend::blocks_for(length, st->block_tokens()) - first / st->block_tokens()) * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
-        if (state && d->states) bytes += d->states->layers() * d->states->shape().slot_floats() * sizeof(float);
+            bytes += (backend::blocks_for(length, st->block_tokens()) - first / st->block_tokens()) * st->total_block_bytes();
+        if (state && d->states)
+            for (size_t l = 0; l < d->states->layers(); ++l) bytes = backend::size_add(bytes, d->states->slot_bytes(l));
         if (state && d->carry && state_layers_) bytes += plan_.residual * sizeof(float);
+        if (state && token_width_ && d.get() == devices_[stages_[token_stage_].device].get()) bytes = backend::size_add(bytes, backend::size_mul(token_width_, sizeof(uint32_t)));
         n += backend::blocks_for(bytes, kHostSlab) * kHostSlab;
     }
     return n;
 }
 
 namespace detail {
+// The host image's ordered KV runs: each layer's K, V and auxiliary planes, joining consecutive physical blocks.
+template<class F> inline void block_runs(const backend::BlockKVStorage& st, const int32_t* ids, size_t n, F&& take) {
+    for (size_t l = 0; l < st.layers(); ++l)
+        for (unsigned side = 0; side < 3; ++side) {
+            const size_t block = side == 0 ? st.k_block_bytes() : side == 1 ? st.v_block_bytes() : st.auxiliary_block_bytes(l);
+            if (!block) continue;
+            for (size_t i = 0; i < n;) {
+                size_t e = i + 1;
+                while (e < n && ids[e] == ids[e - 1] + 1) ++e;
+                take(l, side, (size_t)ids[i] * block, (e - i) * block);
+                i = e;
+            }
+        }
+}
+
+// One complete state slot per layer, including that layer's extra carried rows.
+template<class F> inline void state_runs(backend::StateStorage& states, size_t slot, F&& take) {
+    for (size_t l = 0; l < states.layers(); ++l) {
+        const size_t bytes = states.slot_bytes(l);
+        take(states.layer(l), slot * bytes, bytes);
+    }
+}
+
 // Copies between device storage and a run of host slabs of `slab` bytes each, at a byte offset into the run, split where a copy crosses from one slab into the next.
 struct HostSpan {
     backend::Backend& b;
@@ -175,24 +207,28 @@ struct HostSpan {
             bytes -= n;
         }
     }
-    // `n` blocks of a sequence in `st`, from `ids` on, each layer's K blocks then its V blocks, a run of consecutive blocks in one copy.
+    // `n` blocks from `ids` on: each layer's K, V and auxiliary blocks, with a run of consecutive blocks in one copy.
     void blocks(backend::BlockKVStorage& st, const int32_t* ids, size_t n) {
-        for (size_t l = 0; l < st.layers(); ++l)
-            for (int side = 0; side < 2; ++side) {
-                backend::Buffer& buf = side ? *st.v_buffer(l) : *st.k_buffer(l);
-                const size_t block = side ? st.v_block_bytes() : st.k_block_bytes();
-                for (size_t i = 0; i < n;) {
-                    size_t e = i + 1;
-                    while (e < n && ids[e] == ids[e - 1] + 1) ++e;
-                    copy(buf, (size_t)ids[i] * block, (e - i) * block);
-                    i = e;
-                }
-            }
+        block_runs(st, ids, n, [&](size_t l, unsigned side, size_t off, size_t bytes) {
+            copy(*(side == 0 ? st.k_buffer(l) : side == 1 ? st.v_buffer(l) : st.auxiliary_buffer(l)), off, bytes);
+        });
     }
     // One slot of every layer of `states`.
     void slot(backend::StateStorage& states, size_t slot) {
-        const size_t bytes = states.shape().slot_floats() * sizeof(float);
-        for (size_t l = 0; l < states.layers(); ++l) copy(states.layer(l), slot * bytes, bytes);
+        state_runs(states, slot, [&](backend::Buffer& buffer, size_t off, size_t bytes) { copy(buffer, off, bytes); });
+    }
+    // Transfer the host IDs before enqueueing device copies; host read/write can retire earlier device work.
+    void tokens(uint32_t* data, size_t count, size_t pos) {
+        size_t bytes = backend::size_mul(count, sizeof(uint32_t)), off = 0;
+        while (bytes) {
+            backend::Buffer& host = *slabs[pos / slab];
+            const size_t in = pos % slab, n = std::min(bytes, slab - in);
+            if (to_host) b.write(host, in, (const uint8_t*)data + off, n);
+            else b.read(host, in, (uint8_t*)data + off, n);
+            pos += n;
+            off += n;
+            bytes -= n;
+        }
     }
 };
 
@@ -255,9 +291,11 @@ inline std::vector<size_t> Model::host_copy_bytes(size_t length, bool blocks, si
     for (size_t i = 0; i < devices_.size(); ++i) {
         const Device& d = *devices_[i];
         if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr)
-            bytes[i] = (length - first) / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
-        if (state && d.states) bytes[i] += d.states->layers() * d.states->shape().slot_floats() * sizeof(float);
+            bytes[i] = (length - first) / st->block_tokens() * st->total_block_bytes();
+        if (state && d.states)
+            for (size_t l = 0; l < d.states->layers(); ++l) bytes[i] = backend::size_add(bytes[i], d.states->slot_bytes(l));
         if (state && d.carry && state_layers_) bytes[i] += plan_.residual * sizeof(float);
+        if (state && token_width_ && i == stages_[token_stage_].device) bytes[i] = backend::size_add(bytes[i], backend::size_mul(token_width_, sizeof(uint32_t)));
     }
     return bytes;
 }
@@ -350,7 +388,7 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
 }
 
 // The history's first `length` tokens (whole blocks of every storage) copied to host memory, with its checkpoint's slot at `length` on a model that keeps a state; without `blocks` only the state is copied.
-// The copies are enqueued behind the passes that wrote the history and nothing waits for them, the slabs stay within `limit` and the host's reserve, and `out` is whole or, on a throw, released (docs/SPECULATIVE.md, section 2, Host tier).
+// Host token IDs transfer first, then device copies are enqueued; slabs stay within `limit` and the host's reserve, and `out` is whole or released on failure.
 inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks) {
     settle(s, "a copy to host memory");
     release_host(out);
@@ -370,6 +408,8 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
             if (h.slabs[i].empty()) continue;
             Device& d = *devices_[i];
             detail::HostSpan span{*d.b, h.slabs[i], kHostSlab, true};
+            if (token_width_ && i == stages_[token_stage_].device)
+                span.tokens(token_tails_.data() + s.kept_.slot() * token_width_, token_width_, h.device_bytes[i] - token_width_ * sizeof(uint32_t));
             auto* st = blocks ? dynamic_cast<backend::BlockKVStorage*>(d.storage.get()) : nullptr;
             if (st) span.blocks(*st, s.kv_[(size_t)d.storage_index].view(nullptr).blocks, length / st->block_tokens());
             if (d.states) span.slot(*d.states, s.kept_.slot());
@@ -416,7 +456,7 @@ inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, Ho
     out = std::move(h);
 }
 
-// Where the blocks of tokens `first` to `length` lie in host history `h`, which holds them: per device, a layer's K blocks then its V blocks, in the order a copy of that range alone holds them end to end.
+// Where tokens `first` to `length` lie in host history `h`: per device, each layer's K, V and auxiliary blocks, in the order a copy of that range holds them end to end.
 inline std::vector<HostRange> Model::host_ranges(const HostHistory& h, size_t first, size_t length) const {
     if (h.owner != this || !h.blocks || first < h.first || first >= length || length > h.length) throw std::logic_error("inference: a range outside the host history");
     std::vector<HostRange> out;
@@ -427,7 +467,8 @@ inline std::vector<HostRange> Model::host_ranges(const HostHistory& h, size_t fi
         if (first % bt || length % bt) throw std::logic_error("inference: a range of a host history takes whole blocks");
         size_t at = 0;
         for (size_t l = 0; l < st->layers(); ++l)
-            for (const size_t block : {st->k_block_bytes(), st->v_block_bytes()}) {
+            for (const size_t block : {st->k_block_bytes(), st->v_block_bytes(), st->auxiliary_block_bytes(l)}) {
+                if (!block) continue;
                 out.push_back(HostRange{i, at + skip * block, n * block});
                 at += held * block;
             }
@@ -442,7 +483,7 @@ inline std::vector<HostRange> Model::host_state_ranges(const HostHistory& h) con
     for (size_t i = 0; i < devices_.size(); ++i) {
         size_t blocks = 0;
         if (const auto* st = h.blocks ? dynamic_cast<const backend::BlockKVStorage*>(devices_[i]->storage.get()) : nullptr)
-            blocks = (h.length - h.first) / st->block_tokens() * (st->k_block_bytes() + st->v_block_bytes()) * st->layers();
+            blocks = (h.length - h.first) / st->block_tokens() * st->total_block_bytes();
         if (h.device_bytes[i] > blocks) out.push_back(HostRange{i, blocks, h.device_bytes[i] - blocks});
     }
     return out;
@@ -495,6 +536,8 @@ inline Sequence Model::restore_host(HostHistory& h) {
             if ((st || d.states) && h.slabs[i].empty()) throw std::logic_error("inference: a host history of another layout");
             recorded = i + 1;
             detail::HostSpan span{*d.b, h.slabs[i], kHostSlab, false};
+            if (token_width_ && i == stages_[token_stage_].device)
+                span.tokens(token_tails_.data() + slot * token_width_, token_width_, h.device_bytes[i] - token_width_ * sizeof(uint32_t));
             if (st) {
                 // A tensor group's members copy into the blocks its first member, before them, took from the pool they share.
                 const size_t n = h.length / st->block_tokens();
@@ -548,23 +591,17 @@ inline RestoreInto Model::restore_into(size_t length) {
             if (!d.member) kv.prepare(length);
             const int32_t* blocks = kv.view(nullptr).blocks;
             if (n) st->ensure((size_t)*std::max_element(blocks, blocks + n));
-            for (size_t l = 0; l < st->layers(); ++l)
-                for (const bool v : {false, true}) {
-                    const size_t block = v ? st->v_block_bytes() : st->k_block_bytes();
-                    for (size_t b = 0; b < n;) {
-                        size_t e = b + 1;
-                        while (e < n && blocks[e] == blocks[e - 1] + 1) ++e;
-                        runs.push_back({nullptr, st, l, v, (size_t)blocks[b] * block, (e - b) * block});
-                        b = e;
-                    }
-                }
+            detail::block_runs(*st, blocks, n, [&](size_t l, unsigned side, size_t off, size_t bytes) {
+                runs.push_back({nullptr, st, l, side, off, bytes});
+            });
             if (!d.member) kv.commit();
         }
-        if (d.states) {
-            const size_t bytes = d.states->shape().slot_floats() * sizeof(float);
-            for (size_t l = 0; l < d.states->layers(); ++l) runs.push_back({&d.states->layer(l), nullptr, 0, false, slot * bytes, bytes});
-        }
+        if (d.states) detail::state_runs(*d.states, slot, [&](backend::Buffer& buffer, size_t off, size_t bytes) {
+            runs.push_back({&buffer, nullptr, 0, 0, off, bytes});
+        });
         if (d.carry && state_layers_) runs.push_back({d.carry.get(), nullptr, 0, false, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float)});
+        if (token_width_ && i == stages_[token_stage_].device)
+            runs.push_back({nullptr, nullptr, 0, 0, 0, token_width_ * sizeof(uint32_t), reinterpret_cast<uint8_t*>(token_tails_.data() + slot * token_width_)});
     }
     return r;
 }
@@ -612,6 +649,8 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
             if (state.slabs[i].empty()) throw std::logic_error("inference: a host state of another layout");
             recorded = i + 1;
             detail::HostSpan span{*d.b, state.slabs[i], kHostSlab, false};
+            if (token_width_ && i == stages_[token_stage_].device)
+                span.tokens(token_tails_.data() + slot * token_width_, token_width_, state.device_bytes[i] - token_width_ * sizeof(uint32_t));
             if (d.states) span.slot(*d.states, slot);
             // An embedded drafter's carried row comes back with the state it was saved beside, so the fork drafts as the history it was taken from did.
             if (d.carry) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
@@ -629,7 +668,8 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
 // What a history copied to host memory holds and how, beyond the model file and the build: each device's identity, effective dtype and runs, the cache types, the placement and the row classes up to the most a history holds.
 // Two models of one file and one build with equal identities hold the same bytes for the same history, so a copy written by one is restored by the other (docs/DISK-TIER.md, The entry file).
 inline std::string Model::host_identity() const {
-    std::string s = "llmx-host-history 1\n";
+    std::string s = token_width_ ? "llmx-host-history 2\n" : "llmx-host-history 1\n";
+    if (token_width_) s += "token history " + std::to_string(token_stage_) + " " + std::to_string(token_width_) + " " + std::to_string(token_padding_) + "\n";
     const auto join = [](const std::vector<int>& v) {
         std::string t;
         for (int x : v) t += (t.empty() ? "" : ",") + std::to_string(x);
@@ -640,10 +680,26 @@ inline std::string Model::host_identity() const {
         const Device& d = *devices_[i];
         const backend::Dtype dtype = options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[i];
         s += "device " + std::to_string(i) + " " + d.b->identity() + "; dtype " + backend::dtype_name(dtype) + "; used " + std::to_string(d.used);
-        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()))
+        if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get())) {
             s += "; kv " + std::to_string(st->layers()) + " layers, " + std::to_string(st->block_tokens()) + " tokens a block, " + std::to_string(st->k_block_bytes()) + "+" +
                  std::to_string(st->v_block_bytes()) + " bytes";
-        if (d.states) s += "; state " + std::to_string(d.states->layers()) + " layers, " + std::to_string(d.states->shape().slot_floats() * sizeof(float)) + " bytes";
+            bool auxiliary = false;
+            for (size_t l = 0; l < st->layers(); ++l) auxiliary |= st->auxiliary_width(l) != 0;
+            if (auxiliary) {
+                s += "; auxiliary f32 widths";
+                for (size_t l = 0; l < st->layers(); ++l) s += " " + std::to_string(st->auxiliary_width(l));
+            }
+        }
+        if (d.states) {
+            const size_t core = d.states->shape().slot_floats() * sizeof(float);
+            s += "; state " + std::to_string(d.states->layers()) + " layers, " + std::to_string(core) + " bytes";
+            bool tails = false;
+            for (size_t l = 0; l < d.states->layers(); ++l) tails |= d.states->slot_bytes(l) != core;
+            if (tails) {
+                s += "; state strides";
+                for (size_t l = 0; l < d.states->layers(); ++l) s += " " + std::to_string(d.states->slot_bytes(l));
+            }
+        }
         if (d.carry && state_layers_) s += "; carry " + std::to_string(plan_.residual * sizeof(float)) + " bytes";
         s += "\n";
     }
@@ -841,6 +897,11 @@ inline void Model::rerun(Sequence& s, size_t rows) {
                           E * sizeof(float));
             }
             s.last_[dev] = d.b->submit();
+        }
+        if (token_width_) {
+            const size_t src = m.from[token_stage_] == Sequence::kLive ? s.state_.slot() : m.from[token_stage_];
+            advance_tokens(token_tails_.data() + s.state_.slot() * token_width_, token_tails_.data() + src * token_width_,
+                           m.pos, marked_tokens_.data() + m.hold.buffer() * options_.mark_rows, rows);
         }
     } catch (...) {
         // A failure inside a phase leaves its device recording without barriers; the mode is set before any barrier is recorded, so it is off even where recording that barrier fails.

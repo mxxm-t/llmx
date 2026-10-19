@@ -10,6 +10,7 @@ const uint MXFP4_BLOCK = 32u;
 const uint MXFP4_BYTES = 17u;
 
 const uint TYPE_F32 = 0u;
+const uint TYPE_BF16 = 30u;
 const uint TYPE_Q4_0 = 2u;
 const uint TYPE_Q4_1 = 3u;
 const uint TYPE_Q8_0 = 8u;

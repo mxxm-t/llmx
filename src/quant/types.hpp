@@ -12,6 +12,7 @@ namespace quant {
 static_assert(sizeof(size_t) >= sizeof(uint64_t), "llmx needs a 64-bit size_t");
 
 constexpr uint32_t GGML_TYPE_F32  = 0;
+constexpr uint32_t GGML_TYPE_BF16 = 30;
 constexpr uint32_t GGML_TYPE_Q4_0 = 2;
 constexpr uint32_t GGML_TYPE_Q4_1 = 3;
 constexpr uint32_t GGML_TYPE_Q8_0 = 8;

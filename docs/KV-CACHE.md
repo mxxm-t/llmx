@@ -121,14 +121,14 @@ A failed step restores history and length; capacity the backend grew for the att
 `KVSequence` replaces the per-model position bookkeeping. `Model` keeps one
 `Sequence`, which holds a `KVSequence` for each storage, and the server
 keeps one `Sequence` per request. The budget is a token count that
-the backend rounds up to whole blocks of every KV layer's K and V, the
+the backend rounds up to whole blocks of every KV layer's K, V and optional auxiliary plane, the
 model context by default; a device whose layers keep only a recurrent
 state has no KV storage. The CLI exposes it only as `llmx serve --kv-tokens`,
 the pool's total token budget, by default what the devices' free memory holds, whose exhaustion behaviour is admission and growth: a
 request that does not fit waits or is refused, and an uncapped request's growth can pause an uncapped request admitted after it, which later resumes from its history (`docs/SERVER.md`).
 
 `length` is the logically committed history: the model advances it after
-submitting the stage that writes its K and V. The sequence keeps that work's
+submitting the stage that writes its K, V and any auxiliary rows. The sequence keeps that work's
 ticket; commitment does not mean the device has retired it. A forward pass
 appends `batch` tokens with `kv_write` after
 allocating the blocks they need; query `b` of the batch attends through
@@ -144,9 +144,10 @@ KVStorage  handle from kv_alloc; owns the physical blocks of one cache
 KVView     { storage, blocks, n_blocks, length, nq, extent }
            one sequence's history, its nq rows of the current pass and
            their extent, which a device chooses its kernels by
-kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type)
-           -> KVStorage                          grows on demand
-kv_write(layer, views, n_views, k, v)            model -> storage, rows in view order
+kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type,
+         auxiliary_widths = {}) -> KVStorage     grows on demand
+kv_write(layer, views, n_views, k, v, auxiliary = {})
+                                                 model -> storage, rows in view order
 attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)
 ```
 
@@ -161,11 +162,18 @@ uses backend-owned buffers on CPU and Vulkan under this contract. Public
 attention calls use storage views; host pointers and physical offsets remain
 backend implementation details.
 
+`auxiliary_widths` is empty for a K and V layout alone, or has one F32 row width per layer.
+`kv_write` takes an optional token-major `[rows, width]` F32 input, required for a layer with auxiliary storage and refused for a layer without it.
+The backend validates all views and source spans before it writes K, V or auxiliary data.
+The auxiliary plane follows the same physical block IDs as K and V, so the sequence, block table, growth and release still have one owner.
+Tensor-group members each retain the full auxiliary row under the shared block IDs.
+Qwen4Exp keeps its raw indexer keys in this plane.
+
 ### CPU physical layout
 
-Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim`
-elements of each side's cache type, f16 by default or f32. Inside a block
-the order is `[kv_head][token][head_dim]`, so each head's history within a
+Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim` elements of each side's cache type, f16 by default or f32, plus an optional F32 auxiliary pool of `n_blocks * block_tokens * auxiliary_width` elements.
+All three planes use the same block ids.
+Inside a K or V block the order is `[kv_head][token][head_dim]`, so each head's history within a
 block is contiguous and the existing dot and weighted-value loops run
 unchanged inside a block. Attention walks blocks in
 table order, which is the form the benchmark measured. The softmax stays one

@@ -1,0 +1,62 @@
+#version 450
+// Dilated causal conv, SiLU and residual add. The first chunk alone reads/writes recurrent raw-row history.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint C; uint taps; uint dilation; uint history; uint slot; uint prefix; uint chunk; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 1) readonly buffer X { float x[]; };
+layout(set = 0, binding = 2) readonly buffer R { float residual[]; };
+layout(set = 0, binding = 3) readonly buffer W { float w[]; };
+layout(set = 0, binding = 4) buffer S { float st[]; };
+layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
+uint view_row0(uint v) { return tab[1u + 5u * v]; }
+uint view_nq(uint v) { return tab[2u + 5u * v]; }
+uint view_len(uint v) { return tab[3u + 5u * v]; }
+uint view_src(uint v) { return tab[4u + 5u * v]; }
+uint view_dst(uint v) { return tab[5u + 5u * v]; }
+
+void main() {
+    uint c = gl_GlobalInvocationID.x;
+    if (c >= p.C) return;
+    uint k = 1u + 5u * tab[0] + 2u * gl_WorkGroupID.y;
+    uint v = tab[k], b0 = tab[k + 1u];
+    uint row0 = view_row0(v), nq = view_nq(v), end = b0 + min(p.chunk, nq - b0);
+    for (uint b = b0; b < end; ++b) {
+        precise float acc = 0.0;
+        for (uint j = 0u; j < p.taps; ++j) {
+            uint lag = (p.taps - 1u - j) * p.dilation;
+            float value;
+            if (b >= lag) {
+                value = x[(row0 + b - lag) * p.C + c];
+            } else {
+                uint back = lag - b;
+                value = view_len(v) >= back
+                    ? st[view_src(v) * p.slot + p.prefix + (p.history - back) * p.C + c]
+                    : 0.0;
+            }
+            if (j == 0u) acc = w[c * p.taps] * value;
+            else acc = fma(w[c * p.taps + j], value, acc);
+        }
+        precise float activated = acc / (1.0 + exp(-acc));
+        uint i = (row0 + b) * p.C + c;
+        o[i] = residual[i] + activated;
+    }
+
+    // Only b0==0 writes history. With the same src/dst, ascending indices ensure an old row is read before any lower destination index can overwrite it.
+    if (b0 == 0u) {
+        uint missing = p.history - min(p.history, nq);
+        for (uint i = 0u; i < p.history; ++i) {
+            float value;
+            if (nq >= p.history) {
+                value = x[(row0 + nq - p.history + i) * p.C + c];
+            } else if (i < missing) {
+                uint old = nq + i;
+                value = view_len(v) >= p.history - old
+                    ? st[view_src(v) * p.slot + p.prefix + old * p.C + c]
+                    : 0.0;
+            } else {
+                value = x[(row0 + i - missing) * p.C + c];
+            }
+            st[view_dst(v) * p.slot + p.prefix + i * p.C + c] = value;
+        }
+    }
+}

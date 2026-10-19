@@ -114,7 +114,8 @@ placement contracts in `docs/EXECUTION.md`.
   precise activations for it; the Vulkan backend keeps the 16-bit twin for
   a Q4_0, Q4_1 or Q6_K head.
 - `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type,
-  v_type)`, `kv_write(layer, views, n_views, k, v)`: the backend-owned half of
+  v_type, auxiliary_widths = {})`, `kv_write(layer, views, n_views, k, v,
+  auxiliary = {})`: the backend-owned half of
   the paged KV cache in `docs/KV-CACHE.md`. Each side is stored as
   `KVType::f32` or `KVType::f16` (the CLI's `--cache-type-k` and
   `--cache-type-v`), and a backend without a type throws rather than
@@ -128,6 +129,9 @@ placement contracts in `docs/EXECUTION.md`.
   demand up to the blocks `max_tokens` needs, or all at once by
   `back_all()`; it reports retained bytes and the peak held during a growth
   copy.
+  `auxiliary_widths` is empty for zero width on every layer or supplies one F32 width per KV layer.
+  `kv_write` requires its token-major `[rows, width]` source on enabled layers, refuses one on disabled layers, and validates all views and sources before writing.
+  The optional plane uses the same block ids as K and V; `select_kv` reads it for QSA, where qwen4exp keeps its raw indexer keys.
   The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
   causal GQA over every view, shared by decode and prefill. Queries/output
@@ -136,6 +140,34 @@ placement contracts in `docs/EXECUTION.md`.
   `length + nq` positions and every block it reaches must have been written.
   Several views in one call is what a batch of sequences needs; the model
   passes one per entry. The backend owns temporary score storage.
+- `select_kv(Q, layer, views, n_views, ids, index, key_norm, cos, sin)`:
+  QSA's causal selector. `Q` is already normalized and RoPE-rotated with shape
+  `[rows, index.heads, index.dim]`; each view supplies its contiguous visible
+  cache prefix and current rows. `IndexArgs` gives heads, key dimension,
+  rotary dimension, compression ratio, token budget and RMS epsilon. `key_norm`
+  is the stored GGUF multiplier (already including the one added to the HF
+  zero-centered gamma); `cos` and `sin` hold `rope_dim / 2` values per
+  position. The operation pools each complete group of raw auxiliary F32 keys
+  once per view, applies RMSNorm and split-half RoPE at the group's first
+  position, then scores each causal query by summing per-head ReLU dot products
+  divided by `sqrt(dim)`. It selects at most `budget / compression` groups,
+  emits their token IDs in ascending chronological order, appends the visible
+  partial tail, and fills the remaining `budget + compression - 1` U32 slots
+  with `UINT32_MAX`. Equal scores prefer the earlier group, a deterministic
+  contract because HF `topk` does not specify tied-index order. Backends
+  validate dimensions, views and operand spans before changing `ids`. The
+  default throws; CPU and Vulkan override it. This primitive does not perform
+  sparse attention over the selected IDs.
+- `sparse_attention(Q, layer, views, n_views, ids, id_stride, out, n_head,
+  n_head_kv, head_dim)`: causal GQA over original, full-resolution K/V rows
+  selected by `select_kv`. Q and `out` have `[rows, n_head, head_dim]` shape;
+  `ids` contains `id_stride` U32 values in float-sized slots for each row, in
+  view order. IDs are chronological and unique; `UINT32_MAX` padding and any
+  ID at or beyond that row's causal end are ignored before KV access. Each
+  query head uses its grouped KV head and a stable softmax over selected keys.
+  K and V independently support F32 or F16 storage. A row with no valid IDs
+  writes zero. Backends preflight dimensions, views, spans and output aliases
+  before writing. The default throws; CPU and Vulkan override it.
 - `Slice` / `CSlice`: where an operand lives, a buffer and a float offset.
   Device arithmetic uses these handles; host-visible results and transfer
   staging may expose host addresses. An empty allocation resolves to no address and is
@@ -201,22 +233,35 @@ placement contracts in `docs/EXECUTION.md`.
   the weighted sum of its k slots, formed in slot order before the add.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
   Every backend implements them: the CPU (`backends-cpu.md`) and the Vulkan backend (`backends-vulkan.md`).
-  - `Op` names these five, the mixed routed projection capability above and the embedded drafter's `argmax_rows` and `embed_ids`; `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five ops here and the drafter's two.
+  - `Op` names these five, the mixed routed projection capability above, the embedded drafter's `argmax_rows` and `embed_ids`, the separate PLE `dilated_conv_silu_add` primitive and QSA `select_kv` and `sparse_attention`; `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five qwen35 ops, the drafter's two, `dilated_conv_silu_add`, `select_kv` and `sparse_attention`.
     A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
-    It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); these five are pure virtual now that both backends run them.
-  - `StateShape`: one linear-attention layer's state for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, `slot_floats()` a slot, every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32, and `layer_bytes(slots)` one layer's buffer of that many slots.
+    It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); the five qwen35 ops are pure virtual, while optional additions such as `select_kv` and `sparse_attention` keep the base refusal until implemented by a backend.
+  - `StateShape`: the common linear-attention state prefix for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, and `slot_floats()` counts every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
-  - `state_alloc(layers, slots, shape)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state.
+  - `state_alloc(layers, slots, shape, tail_floats)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state. `tail_floats` is optional; when supplied it has one count per layer. Each slot then holds the common `StateShape` prefix followed by that layer's additional F32 values, so layers without a tail do not pay for one. `slot_floats(layer)` and `slot_bytes(layer)` report the complete stride for that layer.
     It refuses zero layers, zero slots, a shape with zero K or V heads or a zero width, and V heads that are no multiple of the K heads.
     It is the same on every backend, over its own `alloc`.
-    A `StateStorage` refuses a missing buffer or one smaller than `layer_bytes(slots)`, so a storage made by hand cannot send an op past a buffer's end.
+    It refuses a tail list with the wrong layer count, arithmetic overflow, a missing buffer or one smaller than that layer's full slot strides, so a storage made by hand cannot send an op past a buffer's end. `check_state_views` also requires matching full per-layer strides across views. State ops use the common prefix; an architecture-specific tail remains in the same slot and is untouched unless that architecture updates it.
   - `StateView`: one sequence's `nq` rows of a pass continuing a history of `length` tokens, read from slot `src` and written to slot `dst`, which differ only in a verify.
     Length 0 reads a zero state whatever `src` holds, so a recycled slot needs no clearing.
     `check_state_views(views, n_views, layer)` is every backend's check of them: rows in every view, the layer and slots inside a storage, one shape, and no slot written by one view and read or written by another, so the views do not depend on their order.
   - `causal_conv_silu(out, x, w, layer, views, n_views)`: the causal conv of width `kConvTaps` over each view's carried rows and rows, then SiLU, with `w` as `ssm_conv1d` stores it and rows before a sequence's start zero; each view leaves its last raw rows in slot `dst`.
   - `gated_delta_rule(out, qkv, alpha, b, a, dt_bias, layer, views, n_views)`: the L2 norms of q and k, beta and the decay, then the recurrence token by token for every (view, V head), V head `j` reading K head `j mod k_heads`, from slot `src`'s matrices into slot `dst`'s; the decay is 0 below 2^-126.
-  - `gated_rms_norm(dst, x, z, w, rows, heads, dim, eps, runs)`: the RMS norm of each head of `x` against `w`, which every head shares, times SiLU of `z`.
+  - `gated_rms_norm(dst, x, z, w, rows, heads, dim, eps, runs, gate)`: the RMS norm of each head of `x` against `w`, which every head shares, times `NormGate::silu` (the default) or `NormGate::sigmoid` of `z`. Qwen35 keeps SiLU; Qwen4Exp selects sigmoid.
   - `sigmoid_mul(dst, x, gate, rows, heads, dim, gate_stride, gate_head_stride, runs)`: `x * sigmoid(gate)`, the gate addressed by row, head and element: the output gate reads each query head's gate in place, and a scale of one value per row is `heads` the width, `dim` 1 and `gate_head_stride` 0.
+- `dilated_conv_silu_add(out, x, residual, w, channels, taps, dilation, layer, views, n_views)`: the PLE causal depthwise convolution primitive. Weights are `[channel, tap]`, oldest tap first and the final tap at the current row; the op applies SiLU and adds to `residual`. It reads `(taps - 1) * dilation` preceding raw `x` rows from the layer's F32 tail after the common state prefix, writes the newest raw rows to `dst`, and uses zero before sequence start. `out` may alias `residual` exactly, but not partially or with `x`, `w` or state storage. CPU and Vulkan implement it.
+- Stream operations keep their reductions and norms in F32. `group_rms_norm`
+  normalizes each group using its own weight slice; `silu_scaled` applies SiLU
+  after multiplying its input by a scale. Both allow exact in-place output.
+  `mix_streams` averages elementwise sigmoid-gated stream values into one row.
+  `inject_streams` adds a block's row into every residual stream, weighted by
+  twice the sigmoid of that stream's raw gate divided by the stream count.
+  `signed_sqrt_gate` takes a normalized key/query dot divided by the square root
+  of their width, applies its sign times the square root of its absolute value
+  clamped below at 1e-6, then sigmoid, and scales a value row for each group.
+  A zero dot has zero sign. Mixing and signed-gate outputs must be disjoint
+  from their inputs; injection operands are disjoint. Matrix dtype policy is
+  applied by the subsequent matrix call, not by these operations.
 - `BackendPtr`: the shared handle a backend is held by. The factories live
   with their backends, `make_cpu_backend` in `cpu/cpu_backend.hpp` and
   `make_vulkan_backend` in `vulkan/vulkan_backend.hpp`, and `devices.hpp`

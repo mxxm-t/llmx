@@ -1,0 +1,45 @@
+#version 450
+// One workgroup pools a complete group of raw auxiliary keys, then normalizes and rotates it at its first token's position.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint view; uint first; uint dim; uint half_dim; uint compression; uint bt; float eps; } p;
+layout(set = 0, binding = 0) readonly buffer X { float raw[]; };
+layout(set = 0, binding = 1) writeonly buffer O { float pooled[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) readonly buffer C { float cs[]; };
+layout(set = 0, binding = 4) readonly buffer S { float sn[]; };
+layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
+#include "views.glsl"
+shared float values[256];
+shared float red[256];
+void main() {
+    uint g = p.first + gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
+    uint start = g * p.compression;
+    float value = 0.0;
+    if (lid < p.dim) {
+        for (uint i = 0u; i < p.compression; ++i) {
+            uint t = start + i;
+            uint at = (view_block(p.view, t / p.bt) * p.bt + t % p.bt) * p.dim;
+            value += raw[at + lid];
+        }
+        value /= float(p.compression);
+    }
+    values[lid] = value;
+    red[lid] = value * value;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float scale = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    if (lid < p.dim) {
+        float result = value * scale * w[lid];
+        if (lid < 2u * p.half_dim) {
+            uint i = lid % p.half_dim;
+            float a = values[i] * scale * w[i];
+            float b = values[i + p.half_dim] * scale * w[i + p.half_dim];
+            uint r = start * p.half_dim + i;
+            result = lid < p.half_dim ? a * cs[r] - b * sn[r] : a * sn[r] + b * cs[r];
+        }
+        pooled[g * p.dim + lid] = result;
+    }
+}

@@ -7,6 +7,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -37,9 +38,15 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             const Footprint o = footprint(weights, plan, options, width, m);
             for (size_t l = 0; l < fp.layers.size(); ++l)
                 for (size_t i = 0; i < fp.layers[l].size(); ++i) larger(fp.layers[l][i], o.layers[l][i]);
+            for (size_t l = 0; l < fp.lookups.size(); ++l) {
+                fp.lookups[l].rows_per_token = std::max(fp.lookups[l].rows_per_token, o.lookups[l].rows_per_token);
+                fp.lookups[l].row_bytes = std::max(fp.lookups[l].row_bytes, o.lookups[l].row_bytes);
+                fp.lookups[l].io_bytes = std::max(fp.lookups[l].io_bytes, o.lookups[l].io_bytes);
+            }
             larger(fp.embedding, o.embedding);
             larger(fp.output, o.output);
             larger(fp.output_norm, o.output_norm);
+            for (size_t i = 0; i < fp.head_aux.size(); ++i) larger(fp.head_aux[i], o.head_aux[i]);
             larger(fp.drafter_embedding, o.drafter_embedding);
             for (size_t i = 0; i < fp.drafter.size(); ++i) larger(fp.drafter[i], o.drafter[i]);
             for (size_t l = 0; l < fp.cache.size(); ++l) fp.cache[l] = std::max(fp.cache[l], o.cache[l]);
@@ -59,10 +66,23 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     };
     Footprint fp;
     fp.layers.resize(plan.layers.size());
+    fp.lookups.resize(plan.layers.size());
     for (size_t l = 0; l < plan.layers.size(); ++l) {
         std::vector<std::pair<size_t, const Role*>> taken;
-        for (const Role& role : plan.layers[l].roles)
-            if (role.tensor) taken.push_back({*role.tensor, &role});
+        const LayerPlan& layer = plan.layers[l];
+        const Role* lookup_role = nullptr;
+        if (layer.lookup) {
+            for (const Role& role : layer.roles)
+                if (role.id == layer.lookup->role) { lookup_role = &role; break; }
+            if (lookup_role && lookup_role->tensor) {
+                const TensorView& source = weights.tensors[*lookup_role->tensor];
+                if (source.row_source)
+                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->io_bytes()};
+            }
+        }
+        for (const Role& role : layer.roles)
+            if (role.tensor && !(lookup_role == &role && weights.tensors[*role.tensor].row_source))
+                taken.push_back({*role.tensor, &role});
         std::stable_sort(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         for (size_t k = 0; k < taken.size(); ++k) {
             const bool product = taken[k].second->kind == RoleKind::matrix;
@@ -74,11 +94,24 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         }
     }
     std::vector<const Matrix*> counted;
-    for (const Role& role : plan.pass) {
+    bool head_output = false, head_norm = false;
+    for (size_t i = 0; i < plan.pass.size(); ++i) {
+        const Role& role = plan.pass[i];
+        for (size_t j = 0; j < i; ++j)
+            if (plan.pass[j].id == role.id) throw std::logic_error("footprint: repeated pass role " + role.name);
         Matrix* field = nullptr;
         if (role.part == Part::embed && role.kind == RoleKind::gather) field = &fp.embedding;
-        else if (role.part == Part::head && role.kind == RoleKind::matrix) field = &fp.output;
-        else if (role.part == Part::head && role.kind == RoleKind::norm) field = &fp.output_norm;
+        else if (role.part == Part::head && role.kind == RoleKind::matrix && !head_output) {
+            // Model::head_rows uses the first head matrix as the vocabulary logits weight.
+            head_output = true;
+            field = &fp.output;
+        } else if (role.part == Part::head && role.kind == RoleKind::norm && !head_norm) {
+            head_norm = true;
+            field = &fp.output_norm;
+        } else if (role.part == Part::head && (role.kind == RoleKind::matrix || role.kind == RoleKind::norm)) {
+            fp.head_aux.push_back(role.tensor ? matrix(*role.tensor, role.kind == RoleKind::matrix, &role) : Matrix{});
+            continue;
+        }
         if (!field || std::find(counted.begin(), counted.end(), field) != counted.end())
             throw std::logic_error("footprint: no field of its own for the pass role " + role.name);
         counted.push_back(field);
@@ -121,17 +154,36 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         taken.erase(std::unique(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first == b.first; }), taken.end());
         for (const auto& t : taken) fp.drafter.push_back(matrix(t.first.first, t.first.second, t.second));
         const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
-        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options)),
+        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, plan.drafter->kv_aux)),
                                              backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
     }
-    for (const LayerPlan& layer : plan.layers)
-        fp.cache.push_back(layer.cache == Cache::kv      ? kv_tokens(plan, options) * kv_bytes_per_position(kept, options)
-                           : layer.cache == Cache::state ? backend::size_add(kept.state.layer_bytes(backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots)),
-                                                                             backend::size_add(backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(shard::saved_floats(layer, width), sizeof(float))),
-                                                                                               options.mark_slots ? backend::size_mul(options.mark_rows, backend::size_mul(recur_floats(plan, layer), sizeof(float))) : 0))
-                                                         : 0);
+    // Runtime gives every state layer on one device the largest saved and rerun row of that device. Before placement, charge the model-wide maxima for each state layer.
+    size_t saved_max = 0, rerun_max = 0;
+    if (options.mark_slots)
+        for (const LayerPlan& layer : plan.layers)
+            if (layer.cache == Cache::state) {
+                saved_max = std::max(saved_max, shard::saved_floats(layer, width));
+                rerun_max = std::max(rerun_max, recur_floats(plan, layer));
+            }
+    for (const LayerPlan& layer : plan.layers) {
+        size_t bytes = 0;
+        if (layer.cache == Cache::kv) bytes = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, layer.kv_aux));
+        else if (layer.cache == Cache::state) {
+            const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
+            bytes = backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), layer.state_tail)), sizeof(float));
+            bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_max, sizeof(float))));
+            if (options.mark_slots) bytes = backend::size_add(bytes, backend::size_mul(options.mark_rows, backend::size_mul(rerun_max, sizeof(float))));
+        }
+        fp.cache.push_back(bytes);
+        if (layer.token_history) {
+            const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
+            const size_t ids = backend::size_add(backend::size_mul(slots, layer.token_history), backend::size_mul(options.mark_slots, options.mark_rows));
+            fp.host_state = backend::size_add(fp.host_state, backend::size_mul(ids, sizeof(uint32_t)));
+        }
+    }
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
     fp.handoff_per_row = plan.residual * sizeof(float);
+    fp.host_scratch_per_row = backend::size_mul(backend::size_mul(plan.index_width, sizeof(uint32_t)), width);
     for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);
     // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
     if (width > 1 && (std::any_of(plan.layers.begin(), plan.layers.end(), has_experts) || (plan.drafter && has_experts(*plan.drafter)))) fp.activations_per_row += plan.residual * sizeof(float);
@@ -193,6 +245,29 @@ inline std::vector<size_t> one_root_order(const std::vector<std::string>& roots,
     return order;
 }
 
+enum class LookupStorage { automatic, device, file };
+
+inline const char* lookup_storage_name(LookupStorage storage) {
+    switch (storage) {
+    case LookupStorage::automatic: return "auto";
+    case LookupStorage::device: return "device";
+    case LookupStorage::file: return "file";
+    }
+    throw std::invalid_argument("lookup storage: unknown policy");
+}
+
+inline LookupStorage lookup_storage_of(std::string_view name) {
+    for (LookupStorage storage : {LookupStorage::automatic, LookupStorage::device, LookupStorage::file})
+        if (lookup_storage_name(storage) == name) return storage;
+    throw std::invalid_argument("--lookup-storage: expected auto, device or file");
+}
+
+// A loader's bounded source for one declared lookup tensor; placement chooses storage before the loader materializes any whole table.
+struct LookupCandidate {
+    size_t tensor;
+    std::shared_ptr<const WeightRows> file;
+};
+
 // How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
 struct PlacementRequest {
     std::optional<backend::Dtype> dtype; // empty selects auto
@@ -221,6 +296,7 @@ struct PlacementRequest {
     bool drafter = false;
     // Devices each layer is split across (docs/TENSOR-SPLIT.md): consecutive backends form groups of this many, and the groups are the stages of the layer split; 1 is the layer split alone.
     size_t width = 1;
+    LookupStorage lookup_storage = LookupStorage::automatic;
 };
 
 // The run's activation policy and each device's implementation, resolved once before model construction.
@@ -294,6 +370,20 @@ struct PlacedModel {
     size_t checkpoint_kv_tokens = 0;   // the KV tokens the fitted checkpoint slots took from the budget (fitted_kv)
     std::string kv_kept_context;       // why an automatic budget (PlacementRequest::kv_auto) kept the model's context, empty where it read the devices
     std::string unpaced;               // why no stage of it is fed in pieces (unpaced), empty where one is
+};
+
+// A placement without model buffers: the loader attaches the selected row sources before constructing it once.
+struct PlannedModel {
+    ModelPlan architecture;
+    ModelOptions options;
+    std::vector<backend::BackendPtr> backends;
+    Placement placement;
+    std::vector<LookupStorage> lookups;
+    std::string plan;
+    DtypePlan dtype;
+    size_t checkpoint_kv_tokens = 0;
+    std::string kv_kept_context;
+    std::string unpaced;
 };
 
 // Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one backend that is not the CPU.
@@ -386,7 +476,8 @@ inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t
 // Drafting never lowers it: the drafter, the marks (fit_marks) and then the checkpoint slots (fit_checkpoints, `given_up`, `read`) are fitted beside that budget as docs/SPECULATIVE.md, sections 2 and 3 give.
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
-                              std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr) {
+                              std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr,
+                              size_t host_bytes = 0, const ModelWeights* resident = nullptr) {
     size_t block = 1;
     for (const auto& b : backends) {
         if (!b) throw std::runtime_error("inference: missing backend");
@@ -413,14 +504,19 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         ModelOptions o = options;
         o.kv_tokens = tokens;
         o.checkpoint_slots = kept;
-        try {
-            split_layers(footprint(weights, *fitting, o, request.width), group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(),
-                         std::max<size_t>(1, request.slots), logits);
-            return true;
-        } catch (const std::runtime_error& e) {
-            why = e.what();
-            return false;
-        }
+        const auto holds = [&](const ModelWeights& source) {
+            try {
+                Footprint fp = footprint(source, *fitting, o, request.width);
+                fp.host_state = backend::size_add(fp.host_state, host_bytes);
+                split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(),
+                             std::max<size_t>(1, request.slots), logits, apart_rows(backends, request));
+                return true;
+            } catch (const std::runtime_error& e) {
+                why = e.what();
+                return false;
+            }
+        };
+        return holds(weights) || (resident && holds(*resident));
     };
     size_t want = kv_tokens(plan, options);
     // The options' budget where it fits, else the most whole blocks that fit, by bisection, since each more block only adds to what the devices hold; 0 when none does.
@@ -543,10 +639,10 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     return options;
 }
 
-// The model over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, with the request's ubatch set.
+// The placement over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, before model buffers exist.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; the mixers, the dense blocks, the embedding and the head stay on the device.
-inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
-                               ModelOptions options, const AdoptWeight& adopt = {}) {
+inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
+                                   ModelOptions options, const std::vector<LookupCandidate>& candidates = {}) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (!request.width || backends.size() % request.width)
         throw std::runtime_error("placement: a tensor width of " + std::to_string(request.width) + " needs whole groups of devices, and " + std::to_string(backends.size()) + " were given");
@@ -554,6 +650,36 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
     const ModelPlan plan = plan_model(weights, request.drafter);
+    std::optional<ModelWeights> bounded;
+    if (!candidates.empty()) {
+        bounded = weights;
+    }
+    for (size_t i = 0; i < candidates.size(); ++i) {
+        const LookupCandidate& candidate = candidates[i];
+        if (candidate.tensor >= weights.tensors.size() || !candidate.file)
+            throw std::runtime_error("placement: invalid lookup source");
+        for (size_t j = 0; j < i; ++j)
+            if (candidates[j].tensor == candidate.tensor) throw std::runtime_error("placement: repeated lookup candidate");
+        const TensorView& tensor = weights.tensors[candidate.tensor];
+        bool declared = false;
+        for (const LayerPlan& layer : plan.layers)
+            for (const Role& role : layer.roles)
+                if (role.tensor == candidate.tensor) {
+                    if (!layer.lookup || !layer.lookup->rows || layer.lookup->role != role.id || role.kind != RoleKind::gather || role.part != Part::mixer ||
+                        role.stream != Stream::none || role.shard.axis != Axis::none || role.in != candidate.file->columns() || role.out != candidate.file->rows())
+                        throw std::runtime_error("placement: candidate is not a declared lookup tensor: " + tensor.name);
+                    declared = true;
+                }
+        for (const Role& role : plan.pass)
+            if (role.tensor == candidate.tensor) throw std::runtime_error("placement: lookup candidate also has a pass role: " + tensor.name);
+        if (plan.drafter)
+            for (const Role& role : plan.drafter->roles)
+                if (role.tensor == candidate.tensor) throw std::runtime_error("placement: lookup candidate also has a drafter role: " + tensor.name);
+        if (!declared || tensor.shape.size() != 2 || tensor.shape[0] != candidate.file->columns() || tensor.shape[1] != candidate.file->rows() ||
+            tensor.type != candidate.file->type() || tensor.bytes != candidate.file->bytes())
+            throw std::runtime_error("placement: lookup source does not match tensor: " + tensor.name);
+        bounded->tensors[candidate.tensor].row_source = candidate.file;
+    }
     const std::string no_pieces = unpaced(backends, request);
     // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards.
     shard::check_plan(plan, weights.tensors, request.width);
@@ -576,10 +702,37 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         }
         if (short_of) options.kv_tokens = held;
     }
-    PlacedModel placed;
+    PlannedModel placed;
+    placed.architecture = plan;
+    placed.lookups.assign(candidates.size(), LookupStorage::file);
+    if (request.lookup_storage == LookupStorage::device)
+        for (size_t i = 0; i < candidates.size(); ++i) {
+            bounded->tensors[candidates[i].tensor].row_source.reset();
+            placed.lookups[i] = LookupStorage::device;
+        }
+    std::optional<ModelWeights> resident;
+    if (!candidates.empty() && request.lookup_storage == LookupStorage::automatic) {
+        resident = weights;
+        for (const LookupCandidate& candidate : candidates) resident->tensors[candidate.tensor].row_source.reset();
+    }
+    // A lookup's host admission counts the expert payload already retained beside the device as well.
+    size_t host_experts = 0;
+    if (!candidates.empty() && adds_host_for_experts(backends, request)) {
+        std::vector<size_t> counted;
+        for (size_t l = 0; l < plan.layers.size(); ++l)
+            if (ffn_on_host(request, plan.layers, l))
+                for (const Role& role : plan.layers[l].roles)
+                    if (role.part == Part::ffn && role.tensor && std::find(counted.begin(), counted.end(), *role.tensor) == counted.end()) {
+                        counted.push_back(*role.tensor);
+                        host_experts = backend::size_add(host_experts, weights.tensors[*role.tensor].bytes);
+                    }
+        host_experts = backend::size_mul(backend::blocks_for(host_experts, core::page_size()), core::page_size());
+    }
     // A fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
     std::vector<DeviceBudget> budgets;
-    if (request.fit_kv) options = fitted_kv(weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets, &placed.kv_kept_context);
+    if (request.fit_kv)
+        options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
+                            &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr);
     backend::BackendPtr host;
     std::vector<backend::BackendPtr> all = backends;
     std::vector<std::string> names = request.names;
@@ -592,6 +745,70 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
     options.dtype = dtype.effective;
     options.device_dtypes.clear();
     for (const auto& d : dtype.devices) options.device_dtypes.push_back(d.effective);
+    // All choices use the baseline fit's KV budget and the same reading of free memory; a table read from its file costs only its row staging.
+    std::optional<LayerSplit> selected;
+    if (!candidates.empty()) {
+        ModelPlan held = plan;
+        if (adds_host_for_experts(backends, request))
+            for (size_t l = 0; l < held.layers.size(); ++l)
+                if (ffn_on_host(request, plan.layers, l))
+                    for (Role& role : held.layers[l].roles)
+                        if (role.part == Part::ffn) role.tensor.reset();
+        const std::optional<size_t> host_room = core::host_memory_available();
+        const auto lookup_footprint = [&] {
+            ModelWeights choice = *bounded;
+            for (size_t i = 0; i < candidates.size(); ++i)
+                choice.tensors[candidates[i].tensor].row_source = placed.lookups[i] == LookupStorage::device ? nullptr : candidates[i].file;
+            Footprint fp = footprint(choice, held, options, request.width);
+            fp.host_state = backend::size_add(fp.host_state, host_experts);
+            return fp;
+        };
+        std::string why;
+        const auto fits = [&] {
+            try {
+                selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, plan.residual), fitted_rows(backends, request), request.shares,
+                                        host_room, std::max<size_t>(1, request.slots), fitted_logit_rows(backends, request), apart_rows(backends, request));
+                return true;
+            } catch (const std::runtime_error& e) {
+                selected.reset();
+                why = e.what();
+                return false;
+            }
+        };
+        // Host staging can be the limiting budget even where the resident table costs more device memory.
+        const auto initial_fit = [&] {
+            if (fits()) return true;
+            if (request.lookup_storage != LookupStorage::automatic) return false;
+            const auto previous = placed.lookups;
+            placed.lookups.assign(candidates.size(), LookupStorage::device);
+            if (fits()) return true;
+            placed.lookups = previous;
+            return false;
+        };
+        if (!request.fit_kv) {
+            std::vector<std::string> fit_names = request.names;
+            if (fit_names.empty())
+                for (size_t i = 0; i < backends.size(); ++i) fit_names.push_back("device " + std::to_string(i));
+            budgets = budgets_for(backends, fit_names);
+            settle(budgets, backends, fit_names, initial_fit, level_first(backends, request));
+        } else initial_fit();
+        if (!selected)
+            throw std::runtime_error("placement: lookup storage " + std::string(lookup_storage_name(request.lookup_storage)) +
+                                     " does not fit beside the KV budget of " + std::to_string(kv_tokens(plan, options)) + " tokens (" + why + ")");
+        if (request.lookup_storage == LookupStorage::automatic) {
+            for (size_t i = 0; i < candidates.size(); ++i) {
+                placed.lookups[i] = LookupStorage::device;
+                if (fits()) continue;
+                placed.lookups[i] = LookupStorage::file;
+                if (!fits()) throw std::logic_error("placement: an unchanged bounded lookup fit failed");
+            }
+        } else {
+            placed.lookups.assign(candidates.size(), request.lookup_storage);
+            if (!fits())
+                throw std::runtime_error("placement: lookup storage " + std::string(lookup_storage_name(request.lookup_storage)) +
+                                         " does not fit beside the KV budget of " + std::to_string(kv_tokens(plan, options)) + " tokens (" + why + ")");
+        }
+    }
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
@@ -602,24 +819,26 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         auto fit = [&] {
             try {
                 split = split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(), request.slots,
-                                     fitted_logit_rows(backends, request));
+                                     fitted_logit_rows(backends, request), apart_rows(backends, request));
                 return true;
             } catch (const std::runtime_error&) {
                 refused = std::current_exception();
                 return false;
             }
         };
-        if (request.fit_kv) {
+        if (selected) {
+            split = selected;
+        } else if (request.fit_kv) {
             fit();
         } else {
             budgets = budgets_for(backends, request.names);
             settle(budgets, backends, request.names, fit, level_first(backends, request));
         }
         if (!split) std::rethrow_exception(refused);
-        placed.model = std::make_unique<Model>(weights, plan, std::move(backends), placement_for(*split, request.width), options, adopt);
+        placed.placement = placement_for(*split, request.width);
         placed.plan = split->describe(group_budgets(budgets, request.width, plan.residual));
     } else if (!adds_host_for_experts(backends, request)) {
-        placed.model = std::make_unique<Model>(weights, plan, std::move(backends), Placement{}, options, adopt);
+        placed.placement = Placement{};
     } else {
         const size_t n_layer = plan.layers.size();
         Placement place;
@@ -629,13 +848,30 @@ inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend:
         place.stream_from = request.stream_from;
         for (size_t l = 0; l < n_layer; ++l)
             if (ffn_on_host(request, plan.layers, l)) place.ffn_device[l] = 0;
-        std::vector<backend::BackendPtr> both{std::move(host), std::move(backends[0])};
-        placed.model = std::make_unique<Model>(weights, plan, std::move(both), place, options, adopt);
+        placed.placement = std::move(place);
     }
-    placed.model->set_ubatch(request.ubatch);
+    placed.backends = std::move(all);
+    placed.options = options;
     placed.dtype = std::move(dtype);
     placed.unpaced = no_pieces;
     return placed;
+}
+
+inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel planned, int ubatch, const AdoptWeight& adopt = {}) {
+    PlacedModel placed;
+    placed.model = std::make_unique<Model>(weights, std::move(planned.architecture), std::move(planned.backends), planned.placement, planned.options, adopt);
+    placed.model->set_ubatch(ubatch);
+    placed.plan = std::move(planned.plan);
+    placed.dtype = std::move(planned.dtype);
+    placed.checkpoint_kv_tokens = planned.checkpoint_kv_tokens;
+    placed.kv_kept_context = std::move(planned.kv_kept_context);
+    placed.unpaced = std::move(planned.unpaced);
+    return placed;
+}
+
+inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
+                               ModelOptions options, const AdoptWeight& adopt = {}) {
+    return construct_model(weights, plan_placement(weights, std::move(backends), request, options), request.ubatch, adopt);
 }
 
 } // namespace infer

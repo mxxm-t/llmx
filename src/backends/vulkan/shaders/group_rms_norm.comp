@@ -1,0 +1,48 @@
+#version 450
+// Groupwise RMSNorm: one workgroup per (row, group), with each group using its own slice of w.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint groups; uint dim; uint quant; uint n; uint major; float eps; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer S { float src[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
+#include "xquant.glsl"
+shared float red[256];
+void main() {
+    uint row_group = gl_WorkGroupID.x;
+    uint row = row_group / p.groups, group = row_group - row * p.groups;
+    uint base = row * p.groups * p.dim + group * p.dim;
+    uint lid = gl_LocalInvocationID.x;
+    float s = 0.0;
+    for (uint i = lid; i < p.dim; i += 256u) { float v = src[base + i]; s += v * v; }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float r = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    if (p.quant == 2u) {
+        for (uint chunk = 0u; chunk < (p.dim / 4u + 255u) / 256u; ++chunk) {
+            uint j = chunk * 256u + lid;
+            bool live = j < p.dim / 4u;
+            vec4 v = vec4(0.0);
+            if (live) {
+                uint i = base + 4u * j;
+                uint wi = group * p.dim + 4u * j;
+                v = vec4(src[i], src[i + 1u], src[i + 2u], src[i + 3u]) * r *
+                    vec4(w[wi], w[wi + 1u], w[wi + 2u], w[wi + 3u]);
+                dst[i] = v.x; dst[i + 1u] = v.y; dst[i + 2u] = v.z; dst[i + 3u] = v.w;
+            }
+            xquant_word(v, live, j & 7u, (base / 4u + j) / 8u, p.n, p.major);
+        }
+        return;
+    }
+    for (uint i = lid; i < p.dim; i += 256u) {
+        float v = src[base + i] * r * w[group * p.dim + i];
+        dst[base + i] = v;
+        if (p.quant != 0u) xquant_block(base + i, v, p.n);
+    }
+}

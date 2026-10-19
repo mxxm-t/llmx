@@ -1,0 +1,161 @@
+{
+  "date": "2026-10-19",
+  "status": "six_bounded_vulkan_fixture_cells_pass; broader_qualification_open",
+  "scope": "Physical-device fixture validation for the integrated Flash/MTP source. This does not qualify a released model, broad HF coverage, performance, or production use.",
+  "source": {
+    "tested_commit": "ed7026bee4bd63a51d5f5af1369e33c38599fd55",
+    "tree": "c73178516891e1fe6d90888c1b32c7fff8425587",
+    "clean": true,
+    "bundle_sha256": "d9354c1127953877d29119a081f4936985bc8fecab44e657391df6e553ce723f",
+    "current_integration_head": "33e615f4ae46eba3807c618277c3fa5aca9478f3",
+    "current_delta": "The later test-only overlay at 33e615f4 added width-four cases in tests/qwen4exp_mtp.cpp and tests/qwen4exp_mtp_fixture.hpp; runtime src is unchanged from tested commit. Its width-four one-stage Vulkan result is recorded below."
+  },
+  "build": {
+    "host": "Linux Vulkan rig",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "configure": "LLMX_HAS_BACKEND_VULKAN=ON; BUILD_TESTING=ON",
+    "targets": [
+      "llmx",
+      "llmx-vulkan-lifetime-test",
+      "llmx-qwen4exp-model-test",
+      "llmx-qwen4exp-mtp-test",
+      "llmx-server-spec-test"
+    ],
+    "cpuset": "4",
+    "memory_and_swap_bytes": 4294967296,
+    "network": "none",
+    "gpu_devices_during_build": false,
+    "started_utc": "2026-10-18T21:58:51.731477+00:00",
+    "elapsed_seconds": 303.529,
+    "exit_code": 0,
+    "oom_killed": false,
+    "version": "llmx 0.1.0+ged7026bee4bd numerics d85615a955eb0a31",
+    "binary_sha256": {
+      "llmx": "45592a65ebdb1065a9de3fd9ae9a977b5945a65a784c67da8684225789d468ab",
+      "llmx-vulkan-lifetime-test": "52356f06cab51a00b865b578768fadcaa3c004ac118181494834b078e1a369e7",
+      "llmx-qwen4exp-model-test": "cf95272feef2592d5953d5c90b204db4e0ca2223efc48beecbb173f81a89327d",
+      "llmx-qwen4exp-mtp-test": "6da2c9e8078b2c94d66d6c3eb149d28ca06055078ed2fd0a93f4e48b0beb712f",
+      "llmx-server-spec-test": "8d6eecda89f08b820ded6d2d415d499b4efb250b43fa7c1e5e610d6c218866e9"
+    },
+    "build_files_sha256": "3be7ae338f4235c3b1e5bf72712eb32cad17a6412f07d297c274ca9026c2f0b2",
+    "original_result_sha256": "9b6498c4b59b1937357f9239f5401b4f3033e15f8b703a11e6cd9783f034306d",
+    "original_cleanup_detector": "Reported an AssertionError after docker rm returned 0 because the subsequent missing-container response used stderr `error: no such object` and stdout `[]`. Preserve this original result as recorded.",
+    "terminal_revalidation": {
+      "sha256": "6405098062906ee73435cbdc5d631dd87980c623d68cfaa2c57413adf8000790",
+      "build_rerun": false,
+      "build_exit_code": 0,
+      "oom_killed": false,
+      "exact_container_id_and_name_absent": true,
+      "missing_container_response": "exit 1; stdout []; stderr contains the exact no-such-object response for each queried ID/name"
+    },
+    "configure_log_sha256": "f650ae2697ad5d80dc016507aecc4bd3c818da87ff94d55f2dfa0d5f2db02387",
+    "build_log_sha256": "9661f47201be3d5cca0c735f08a9ba01c217980a1e819066e44d523847a4f14b",
+    "local_evidence": "../build-live-dashboard-final-rig-20261017/flash-main-build-preparation-20261019/collected-rig-build"
+  },
+  "width4_test_overlay": {
+    "test_commit": "33e615f4ae46eba3807c618277c3fa5aca9478f3",
+    "runtime_head": "ed7026bee4bd63a51d5f5af1369e33c38599fd55",
+    "runtime_tree": "c73178516891e1fe6d90888c1b32c7fff8425587",
+    "runtime_unchanged": true,
+    "test_only_overlay_files": {
+      "tests/qwen4exp_mtp.cpp": "7e46593880a58ef8f31b693679c6ff816c84531177758ffe05e9eb80eccca04e",
+      "tests/qwen4exp_mtp_fixture.hpp": "7fb1f47be0f35b3ed90be07664ed3e215258f3d1edde615717e901603c86b19f"
+    },
+    "overlay_build_result_sha256": "8a88af80e23368275b00e08ef38c340e792030fb21b13b95c9baf70e69b79ffd",
+    "overlay_manifest_sha256": "a48611c3b3e9ce9ee584c14e822a7c040ce02a822f556768cf54f01e2936789e",
+    "binary_sha256": "bf769aa13edabb2c5d346abf8e46bb4e3f604667be3ab857e5c6e9d32ee8129d",
+    "local_evidence": "../build-live-dashboard-final-rig-20261017/flash-main-build-preparation-20261019/collected-device-cells/device-tests-width4-33e615f4-w4-r1"
+  },
+  "device_cells": [
+    {
+      "cell": "single",
+      "suite": "model",
+      "physical_cards": [0],
+      "result": "pass",
+      "hf_cases": 3,
+      "elapsed_seconds": 5.74841636500787,
+      "result_sha256": "06f304e7762cd605b657a5952e1a2c5fc1c4e4358ec3cc05de08d7cd36409d76",
+      "inside_result_sha256": "8f7b2152b09641464e1bcb1e703ebba70a837d7a524ad6b0b203e99bc0fc5103",
+      "test_log_sha256": "9fd832f1a1d4be020f13ff7145c5c85f8275b6e2c4a33053468e3a66b9505a76"
+    },
+    {
+      "cell": "single",
+      "suite": "mtp",
+      "physical_cards": [0],
+      "result": "pass",
+      "checks": 1527,
+      "elapsed_seconds": 3.385574373998679,
+      "result_sha256": "cd953f20418ee5999931808963aba0a95f3279eb8469240bbdc82fd44723388b",
+      "inside_result_sha256": "1e99cf336ea4c6e55b648409888f84ebab305fb9b04f224ff7ff653ee8005ca4",
+      "test_log_sha256": "1c92736c049cd0240963c6c1d907e54df2cafa59e8c98c6dc5fcbd1950b7c358"
+    },
+    {
+      "cell": "tensor-width-2",
+      "suite": "model",
+      "physical_cards": [0, 1],
+      "result": "pass",
+      "hf_cases": 3,
+      "elapsed_seconds": 6.390734893037006,
+      "result_sha256": "f52733169e5edc14e4641122312285c12c93180d733ded8d682a2c05278cd4c9",
+      "inside_result_sha256": "cf87cb105b73f8085d169ef34e34dc485c3ba9a4d43cce58d4e12c7acb134813",
+      "test_log_sha256": "66abdc2d2332eb0f0abce386567593f90ecdcb378d6f3a34ca85168c074c152d"
+    },
+    {
+      "cell": "tensor-width-2",
+      "suite": "mtp",
+      "physical_cards": [0, 1],
+      "result": "pass",
+      "checks": 1245,
+      "elapsed_seconds": 6.887006531935185,
+      "result_sha256": "a530f3b0466af13845a44b48d266312f3acb91c43deae4c89fae47ef02c983c0",
+      "inside_result_sha256": "32e875fbe7184cfab1f713a79dd0bfeafc654d9a3ab3d5e5192255e6ab1dc38a",
+      "test_log_sha256": "a67f7e1df8910da5b5fd34a02765c9f5161867103dcb38ee496b46bea3b9af99"
+    },
+    {
+      "cell": "staged-tensor-width-2",
+      "suite": "mtp",
+      "physical_cards": [0, 1, 2, 3],
+      "result": "pass",
+      "checks": 1245,
+      "elapsed_seconds": 10.20485842099879,
+      "result_sha256": "08565eea697e3fbbbb406bc176aeda8dc32b02bb20c49ed90d51a52540182243",
+      "inside_result_sha256": "76b0fb5f4aef83f323aaa78309e5b88af38e2b8c63347d0b0daa7392766a18c6",
+      "test_log_sha256": "8ded2dd4f8fa6a26564f7d04ae4c0ce3049a6c73745674fb82dcff9e36ea856f"
+    },
+    {
+      "cell": "width4-one-stage",
+      "suite": "mtp",
+      "physical_cards": [0, 1, 2, 3],
+      "runtime_head": "ed7026bee4bd63a51d5f5af1369e33c38599fd55",
+      "test_overlay_commit": "33e615f4ae46eba3807c618277c3fa5aca9478f3",
+      "result": "pass",
+      "container_name": "llmx-flash-mtp-width4-33e615f4-w4-r1",
+      "container_id": "b354212cccf7eefe4a2f859308108e8952f348e66aee6ddc0f339cd55a9d8e74",
+      "exit_code": 0,
+      "oom_killed": false,
+      "container_removed": true,
+      "checks": 1245,
+      "elapsed_seconds": 10.588187627959996,
+      "width4_rows": "six fused/split combinations across compression ratios 0, 2 and 4",
+      "target_native_control_max_abs": 1.19209e-7,
+      "draft_native_control_max_abs": 8.9407e-8,
+      "comparison_scope": "native controls only; these are not HF comparisons",
+      "base_build_unchanged": true,
+      "overlay_unchanged": true,
+      "source_clean_after": true,
+      "result_sha256": "e024459e609ca07dfbc020696a41da6da26dea4034670431d59f27e65dda5393",
+      "inside_result_sha256": "98b85297def65b9da1b238003ae578623ba013077b9c6dedaf2ed6607064be32",
+      "test_log_sha256": "1c0a11c5eabd9cef131bf03b837e145e8f2c9f805cd48908f3343c1456ff57d4"
+    }
+  ],
+  "collection": {
+    "sha256": "e270237745133105f44180789a0863b782f4e6bd9615ddf3e413f95912548e25",
+    "remote_root": "/zpool1/llmx-xdev-flash-main-20261019",
+    "local_evidence": "../build-live-dashboard-final-rig-20261017/flash-main-build-preparation-20261019/collected-device-cells"
+  },
+  "limitations": [
+    "The GPU MTP tests cover single-device, width-2, staged width-2, and width-4 one-stage fixtures. Staged width-4 remains untested.",
+    "No released-sidecar or broad released-model MTP qualification, performance result, or production-support claim follows from these fixtures.",
+    "The separate Flash original-model 492/512 HF result is unchanged."
+  ]
+}

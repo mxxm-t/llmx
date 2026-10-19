@@ -1,0 +1,346 @@
+{
+  "date": "2026-10-15",
+  "base": "c80c1b673d2922cdd77dae8aecdcb1702612cfc1",
+  "scope": "Correct released Qwen4Exp recurrent output gate; no released HF or performance qualification claimed.",
+  "defect": "Keyless qwen4exp GGUF specifies sigmoid output gating; earlier runtime and tiny HF reference both used SiLU.",
+  "hf_bound": 2e-05,
+  "fixture_identity": {
+    "config_delta": {
+      "output_gate_type": [
+        null,
+        "sigmoid"
+      ]
+    },
+    "seed": 3802027,
+    "weight_tensors": 63,
+    "weights_file_sha256": "07b78b2d3f15369729e35f3f2641f66f1de4fb651f6002d1411df158eb8ac19b",
+    "weights_canonical_sha256": "1dfc001dbd33a54e03123bd468079437c1776aa94908339e42bad6f71133bc1a",
+    "old_config_sha256": "c657a3126f81235cf55e8705ca0894309d97a8a6d7059e3b080acbcaef14099c",
+    "new_config_sha256": "dc49c134020787960165fb993736be5f9f84eb923c562c0118cbbe47140b059c",
+    "old_reference_sha256": "5aedc68479b0c4648a7c1134c62699198e92400af6e48fc01d96716902030f08",
+    "new_reference_sha256": "74132a6c73ba9aebd3a0e41561d36722e35fce1b87b6488338f26156bd135da2",
+    "maximum_full_logits_delta": 0.04031355865299702,
+    "independent_repeat_sha256": {
+      "qwen4exp_config.json": "dc49c134020787960165fb993736be5f9f84eb923c562c0118cbbe47140b059c",
+      "qwen4exp_weights.safetensors": "07b78b2d3f15369729e35f3f2641f66f1de4fb651f6002d1411df158eb8ac19b",
+      "qwen4exp_reference.json": "74132a6c73ba9aebd3a0e41561d36722e35fce1b87b6488338f26156bd135da2"
+    }
+  },
+  "windows_cpu": {
+    "log": {
+      "path": "build-qwen4exp/gate-fix-model-cpu.log",
+      "sha256": "6df97f857d16211ea7e737ebbd74f25672731f15fe07de6010c11aab8c1e7624"
+    },
+    "comparisons": 99,
+    "max_abs": 5.21541e-08
+  },
+  "cpu_ops": {
+    "log": {
+      "path": "build-qwen4exp/gate-fix-cpu-ops.log",
+      "sha256": "30a3c3dee696c877833c2c222a4e1eb86105cb1b08a1aec5c55b92d6a4be3359"
+    },
+    "gated_heads": 276
+  },
+  "old_reference_negative": {
+    "log": {
+      "path": "build-qwen4exp/gate-fix-old-reference-negative.log",
+      "sha256": "3b85d42900738a97c91d5878feceb49c5ecbb76889a479a58a5f086fb9ae709f"
+    },
+    "expected_failure": true,
+    "max_abs": 0.032744
+  },
+  "first_released_smoke": {
+    "source_audit": {
+      "path": "build-qwen4exp/first-release-remote/source-verification-v2.json",
+      "sha256": "decc408d7cc739a7c64c7408f9347dd7f428a7b2e2d5e2294053d2434a881e9f"
+    },
+    "output": {
+      "path": "build-qwen4exp/first-release-remote/release-f32.stdout",
+      "sha256": "bb2d879775149bbbca9842665cdbc6138cd6f3ff4b594362845dd9b0fe809509"
+    },
+    "diagnostic": "Process exited 0 but output was incoherent; this is not a correctness pass.",
+    "ids": [
+      62454,
+      332,
+      806,
+      1366,
+      20489,
+      70,
+      632,
+      10270
+    ]
+  },
+  "open": [
+    "Released file-exact HF (including long context)",
+    "Broader dtype/cache and serving/split qualification",
+    "Matched performance and existing-path regression gates",
+    "Full merge gate"
+  ],
+  "linux_cpu": {
+    "log": {
+      "path": "build-qwen4exp/rig-gate-fix/model-cpu.log",
+      "sha256": "736506e88c76103e0b1acb8a9b7a404ab5d579fa828585944a76b42b59c98afb"
+    },
+    "comparisons": 99,
+    "max_abs": 5.21541e-08
+  },
+  "linux_vulkan": {
+    "log": {
+      "path": "build-qwen4exp/rig-gate-fix/model-vulkan.log",
+      "sha256": "2f5f7acda18b3b75bea513418d943281f892ceea6a65662c3e8ff6c2b4c0f027"
+    },
+    "comparisons": 86,
+    "max_abs": 4.47035e-08
+  },
+  "linux_native": {
+    "cpu_ops": {
+      "path": "build-qwen4exp/rig-gate-fix/qwen35-cpu.log",
+      "sha256": "b0b16e64355d8d5898de096b81ff3f074c4edab7e0b8216da38fb130daf07fe8"
+    },
+    "vulkan": {
+      "path": "build-qwen4exp/rig-gate-fix/backend-vulkan.log",
+      "sha256": "4d664968a039f736543626d1197cc29987cfcb6a575fd982ec07ca47e5bcbfdb"
+    },
+    "vulkan_qwen35_runs": 488,
+    "vulkan_kernel_values": 46266364
+  },
+  "windows_regression": {
+    "initial": {
+      "path": "build-qwen4exp/gate-fix-regression.log",
+      "sha256": "105d73367a7e91322373ad36241c14f89acbf5c52ec2df539c0bbd53f753b1ec"
+    },
+    "qwen35_required_tools": {
+      "path": "build-qwen4exp/gate-fix-qwen35-tools.log",
+      "sha256": "b51c87feecadf7bf65558ab4412bad64c1aa9e549f441d3f7fc14382239a52c2"
+    },
+    "result": "F32/MoE/Qwen35 pass; both initially skipped Qwen35 probes pass after building helper"
+  },
+  "tiny_two_gpu": [
+    {
+      "argv": [
+        "/work/llmx/build-xdev/llmx",
+        "logits",
+        "/work/llmx/build-qwen4exp/first-release/sigmoid-fixture/reference.gguf",
+        "",
+        "--then-ids",
+        "/work/llmx/build-qwen4exp/first-release/prompt.ids",
+        "--last",
+        "13",
+        "--top",
+        "32",
+        "--device",
+        "vulkan:0,vulkan:1",
+        "--layer-shares",
+        "1,1",
+        "--dtype",
+        "f32",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--lookup-storage",
+        "device",
+        "--threads",
+        "2",
+        "--ubatch",
+        "16"
+      ],
+      "exit": 0,
+      "max_abs": 5.046181678763917e-07
+    },
+    {
+      "argv": [
+        "/work/llmx/build-xdev/llmx",
+        "logits",
+        "/work/llmx/build-qwen4exp/first-release/sigmoid-fixture/reference.gguf",
+        "",
+        "--then-ids",
+        "/work/llmx/build-qwen4exp/first-release/prompt.ids",
+        "--last",
+        "13",
+        "--top",
+        "32",
+        "--device",
+        "vulkan:0,vulkan:1",
+        "--layer-shares",
+        "1,1",
+        "--dtype",
+        "f32",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--lookup-storage",
+        "disk",
+        "--threads",
+        "2",
+        "--ubatch",
+        "16"
+      ],
+      "exit": 0,
+      "max_abs": 5.046181678763917e-07
+    }
+  ],
+  "released_smokes": {
+    "f32": {
+      "command": [
+        "/work/llmx/build-xdev/llmx",
+        "generate",
+        "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+        "The capital of France is",
+        "--device",
+        "vulkan:0,vulkan:1,vulkan:2,vulkan:3,vulkan:4,vulkan:5,vulkan:6,vulkan:7",
+        "--lookup-storage",
+        "disk",
+        "--load-mode",
+        "auto",
+        "--dtype",
+        "f32",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--ubatch",
+        "16",
+        "--threads",
+        "2",
+        "--temp",
+        "0",
+        "-n",
+        "8",
+        "--verbose"
+      ],
+      "stdout": {
+        "path": "build-qwen4exp/first-release-remote/release-sigmoid-f32.stdout",
+        "sha256": "9999190a5cc3583fd99ace6f5297321463f464b23307add7c8609eb8fab3327e"
+      },
+      "stderr": {
+        "path": "build-qwen4exp/first-release-remote/release-sigmoid-f32.stderr",
+        "sha256": "4ed91e6443e07262c7fc3ad304b40ad588d1f0df81bbb35d9920eaef323a59f8"
+      },
+      "activity": {
+        "path": "build-qwen4exp/first-release-remote/release-sigmoid-f32-activity.log",
+        "sha256": "b9a5697b59a6c1500b007f4c86b60be18b0529f0db5f5d2f1ab0689c4b46f075"
+      },
+      "status": 0,
+      "ids": [
+        11751,
+        13,
+        11751,
+        369,
+        264,
+        3177,
+        13,
+        14833
+      ],
+      "text": " Paris. Paris is a city. Therefore",
+      "timings_diagnostic_only": {
+        "prefill_tokens": 5,
+        "decode_tokens": 8,
+        "prefill_tps": 10.95,
+        "decode_tps": 4.56,
+        "read_seconds": 42.27
+      },
+      "dtype_report": [
+        "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32; vulkan:1 native: f32; vulkan:2 native: f32; vulkan:3 native: f32; vulkan:4 native: f32; vulkan:5 native: f32; vulkan:6 native: f32; vulkan:7 native: f32"
+      ],
+      "matched_mx": "not measured; not a performance gate"
+    },
+    "auto": {
+      "command": [
+        "/work/llmx/build-xdev/llmx",
+        "generate",
+        "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-Q8_0-00001-of-00006.gguf",
+        "The capital of France is",
+        "--device",
+        "vulkan:0,vulkan:1,vulkan:2,vulkan:3,vulkan:4,vulkan:5,vulkan:6,vulkan:7",
+        "--lookup-storage",
+        "disk",
+        "--load-mode",
+        "auto",
+        "--ubatch",
+        "16",
+        "--threads",
+        "2",
+        "--temp",
+        "0",
+        "-n",
+        "8",
+        "--verbose"
+      ],
+      "stdout": {
+        "path": "build-qwen4exp/first-release-remote/release-sigmoid-auto.stdout",
+        "sha256": "686e8b66c8d14f35c690c93d4a76569c89293e9896006ee315514165fee175dd"
+      },
+      "stderr": {
+        "path": "build-qwen4exp/first-release-remote/release-sigmoid-auto.stderr",
+        "sha256": "7cb3a5d9e41ed31146a8455f4ac13a3684d2da9cf6ca3cb3967aa76a0b11a807"
+      },
+      "activity": {
+        "path": "build-qwen4exp/first-release-remote/release-sigmoid-auto-activity.log",
+        "sha256": "531e3b510b640ccd431ba12d01f83195fb7ee129bccfd04a14c22eb530299342"
+      },
+      "status": 0,
+      "ids": [
+        11751,
+        13,
+        11751,
+        369,
+        264,
+        3177,
+        13,
+        14833
+      ],
+      "text": " Paris. Paris is a city. Therefore",
+      "timings_diagnostic_only": {
+        "prefill_tokens": 5,
+        "decode_tokens": 8,
+        "prefill_tps": 19.59,
+        "decode_tps": 24.01,
+        "read_seconds": 83.08
+      },
+      "dtype_report": [
+        "dtype: auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:2 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:3 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:4 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:5 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:6 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers); vulkan:7 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers)"
+      ],
+      "matched_mx": "not measured; not a performance gate"
+    }
+  },
+  "released_source_audit": {
+    "path": "build-qwen4exp/first-release-remote/source-verification-gatefix.json",
+    "sha256": "a8f2326b3680d8cdb9a3ba2910d6b5a11d101b02e15a12995feff861c7cdb9b4"
+  },
+  "released_binary": {
+    "sha256": "3e3a918085adb74947fec1fa4b5032dad3032bd787c88528061545b8566bc907",
+    "version": "llmx 0.1.0+ge8ce0f43bc9f.dirty numerics d2232f88d758a06d"
+  },
+  "static_checks": {
+    "path": "build-qwen4exp/gate-fix-static-final.log",
+    "sha256": "21cf85d9e0151d95959ebad085a8c2bc5924e3a11767d96f1502f21aed54bcb5"
+  },
+  "qualification": "Focused checks and released short execution smoke only; no file-exact released HF or speed gate.",
+  "python_checks": {
+    "command": "pinned-venv/python -X utf8 -m unittest discover -v -s tests -p *qwen4exp*.py",
+    "passed": 22,
+    "skipped": 2,
+    "skip_reason": "Native tool wrappers use default exe path without helpers; native graph/schema evidence recorded separately.",
+    "log": {
+      "path": "build-qwen4exp/gate-fix-python-pinned.log",
+      "sha256": "467ce8bac95c82d799d7b0b41dd7c7165e7ba95fdfb601d3610612ddffd3589e"
+    }
+  },
+  "docs_review": {
+    "tracked_markdown_files": 112,
+    "scope": "Inventory and affected-claim search across all tracked Markdown, affected owner pages reread, carrying forward prior full checkpoint review. Not a new line-by-line semantic reread of all historical pages.",
+    "corrections": [
+      "Linux public loader matrix completed",
+      "Earlier Radeon VII full graph was SiLU",
+      "Corrected sigmoid CPU/MI50 and two-device fixture scope",
+      "Eight-device released smoke is not released HF or performance gate",
+      "UD-Q4_K_XL IQ4_NL PLE unsupported"
+    ]
+  },
+  "docs_check": {
+    "path": "build-qwen4exp/gate-fix-docs-checkpoint.log",
+    "sha256": "9ed6a05b50d453cdc88a7e729282081dd11b0b1032b95abc041ab7420e50aefd"
+  }
+}

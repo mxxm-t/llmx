@@ -1,0 +1,151 @@
+{
+  "date": "2026-10-19",
+  "scope": "Reference server build, retained preparation failures, and three llmx MTP-off natural-stopping controls",
+  "qualified": false,
+  "hf_gate_passed": false,
+  "acceptance_result_available": false,
+  "mx_server_build": {
+    "success": true,
+    "source_head": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "seconds": 314.2849636077881,
+    "version": "version: 0.6.0-dev (build 1, commit c4d12e2)\nbuilt with GNU 14.2.0 for Linux x86_64\n",
+    "server_sha256": "f59b1b50f92f6b06c3d0c4188b4a2d41fc6d75d366fe55624776bbcaf569760f",
+    "result_sha256": "9f362fd7c013c03c51dde023f71a86a5e0acbafc402e555bec8f54dbe09fc667",
+    "runtime_artifacts_sha256": "860c5a3d8f09e356a34c95bd703b562b3c1044f0fc73d44ef8744f5173013f24",
+    "static_archive_hashes": 14,
+    "resolved_system_library_hashes": 7,
+    "original_inputs_unchanged": true,
+    "no_install_or_download": true,
+    "recovered_original_spirv_package": "1.6.1+1.4.309.0-1",
+    "first_dependency_refusal_retained": true,
+    "configure_dirty_label_retained": true,
+    "evidence": "mx-server-retry-r2/collected"
+  },
+  "first_harness_failure": {
+    "cell": "llmx-0",
+    "requests_completed": 0,
+    "error": "AttributeError(\"'function' object has no attribute 'client'\")",
+    "container_id": "813dad01267ced88491c7e99a42167f83f92f4592f7043ed2c94c6f92a2bff9c",
+    "container_absent": true,
+    "server_sigterm_cleanup": true,
+    "inputs_unchanged": true,
+    "seconds": 2.9408111572265625,
+    "evidence": "first-run-failure-collected",
+    "review_sha256": "51464bda9f99004ff943772a7068e51b919a0c4d007c0018d0374093ca25c182"
+  },
+  "corrected_transport": {
+    "change": "from http.client import HTTPConnection; HTTPConnection(...) at the existing call site",
+    "new_owned_root": "natural-acceptance-r2-20261019",
+    "real_loopback_check_passed": true,
+    "retained_loopback_check_sha256": "405350ecefabf72e795f867c4451d64351a5fe858c1c4d0e19bd05435700cd63",
+    "runtime_prompt_protocol_scoring_changes": false
+  },
+  "limits": [
+    "Three original llmx MTP-off controls only; zero drafted tokens provide no acceptance-rate estimate.",
+    "Both MX attempts refused before model/container creation; no MX output or reference comparison follows.",
+    "No MTP-on identity, quality, HF correctness, performance gate or general serving qualification is claimed.",
+    "The historical HF gate remains failed at 492/512. The revised qualification accepted at 11:42 is not complete."
+  ],
+  "llmx_off_natural_control": {
+    "success": true,
+    "requests": [
+      {
+        "label": "code_fix",
+        "prompt_tokens": 128,
+        "generated_tokens": 170,
+        "finish": "eos",
+        "censored": false,
+        "reused_tokens": 0,
+        "drafted": 0,
+        "kept": 0,
+        "acceptance": null,
+        "finite_logprobs": 170,
+        "finite_top_logprobs": 850,
+        "reply_sha256": "5783d66965e2293e870891dd91a6ea7f7d25e34bc93029d467d0e82adf1ae618",
+        "prompt_ids_exact": true
+      },
+      {
+        "label": "incident_summary",
+        "prompt_tokens": 147,
+        "generated_tokens": 115,
+        "finish": "eos",
+        "censored": false,
+        "reused_tokens": 0,
+        "drafted": 0,
+        "kept": 0,
+        "acceptance": null,
+        "finite_logprobs": 115,
+        "finite_top_logprobs": 575,
+        "reply_sha256": "3ca1d2ec31da4eb6f6383a805f8f32a8e6e2b4ecc523b1e2d1290547eee9f9cd",
+        "prompt_ids_exact": true
+      },
+      {
+        "label": "ordering",
+        "prompt_tokens": 135,
+        "generated_tokens": 136,
+        "finish": "eos",
+        "censored": false,
+        "reused_tokens": 0,
+        "drafted": 0,
+        "kept": 0,
+        "acceptance": null,
+        "finite_logprobs": 136,
+        "finite_top_logprobs": 680,
+        "reply_sha256": "f00219d174126368037881350cd685573bf11b0d72e930ffeff3aede725dd59f",
+        "prompt_ids_exact": true
+      }
+    ],
+    "total_generated_tokens": 421,
+    "total_finite_logprob_values": 2526,
+    "exact_prompt_ids": true,
+    "uncensored_eos_replies": 3,
+    "outer_seconds": 197.7909607887268,
+    "inside_seconds": 195.0563997849822,
+    "drafted": 0,
+    "kept": 0,
+    "acceptance_rate": null,
+    "input_model_pins_unchanged": true,
+    "container_id": "890ab0c33ae69e89047e8ae98cc3ca00249355e7332e59b319ebcb0330db33e8",
+    "container_independently_absent": true,
+    "result_sha256": "5bb87408130929a20ee19d8bc4cc9577fddf26a25392ab9e7eaa959bf713fd90",
+    "independent_review_sha256": "beabad31292ef2641e231c9ab345d00c448c43cbbc76fc7e372d193a9dbb2815",
+    "collected_remote_files_hash_verified": 36,
+    "evidence": "natural-controls-collected/llmx-0"
+  },
+  "mx_preflight_refusals": [
+    {
+      "directory": "preflight-refused-mx-0",
+      "available_host_bytes": 7083778048,
+      "required_host_bytes": 10737418240,
+      "container_created": false,
+      "requests_completed": 0,
+      "inputs_unchanged": true,
+      "result_sha256": "4c832c2335c13ee1c9eebccdea18aac40202bbe33e64a2a2e41d8354a90902b3"
+    },
+    {
+      "directory": "mx-0",
+      "available_host_bytes": 7173378048,
+      "required_host_bytes": 10737418240,
+      "container_created": false,
+      "requests_completed": 0,
+      "inputs_unchanged": true,
+      "result_sha256": "9873466c9e2f5efd27545352b6f5ff8050ce4bdcdb4dd9dc590d426b7b69adfc"
+    }
+  ],
+  "host_memory_guard": {
+    "required_bytes": 10737418240,
+    "unchanged": true,
+    "lowered": false,
+    "both_mx_attempts_before_container_creation": true
+  },
+  "mtp_on_tested": false,
+  "mx_inference_tested": false,
+  "retained_evidence_sha256": {
+    "first_run_failure_review": "51464bda9f99004ff943772a7068e51b919a0c4d007c0018d0374093ca25c182",
+    "mx_build_collection_verification": "26bdeba36e4afba495ced93f9d2fc4333464cab2500c53d7f29c0b75f8ec4f12",
+    "natural_controls_independent_review": "beabad31292ef2641e231c9ab345d00c448c43cbbc76fc7e372d193a9dbb2815",
+    "natural_controls_verifier": "e2bd3e3bbff58baec1e6f53600a599ea5ee02eb302df899f2075f46556426e56",
+    "natural_controls_archive": "04535ae12f94349aae44f04ef426feb61d63f6ee25edf14061b0e2cc2f6f7e1f",
+    "natural_controls_remote_manifest": "861a4f27ddaa55b1edf9873210fed80544c24f9abbf333b5d274639134387d79"
+  }
+}

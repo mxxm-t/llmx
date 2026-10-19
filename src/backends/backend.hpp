@@ -198,23 +198,32 @@ struct StateShape {
     size_t slot_floats() const {
         return size_add(size_mul(v_heads, matrix_floats()), size_mul(kConvTaps - 1, channels()));
     }
-    // Bytes of one layer's buffer of `slots` slots.
-    size_t layer_bytes(size_t slots) const { return size_mul(size_mul(slots, slot_floats()), sizeof(float)); }
 };
 
 // The recurrent state of `layers` linear-attention layers, made whole by Backend::state_alloc and never grown: one buffer per layer, holding every slot back to back, all F32.
 // It refuses a buffer that cannot hold its slots, so an op resolving a slot stays inside its buffer.
 class StateStorage {
 public:
-    StateStorage(std::vector<BufferPtr> buffers, size_t slots, const StateShape& shape)
-        : buffers_(std::move(buffers)), slots_(slots), shape_(shape) {
-        const size_t bytes = shape_.layer_bytes(slots_);
-        for (const BufferPtr& b : buffers_)
-            if (!b || b->size() < bytes) throw std::runtime_error("backend: state buffer smaller than its slots");
+    StateStorage(std::vector<BufferPtr> buffers, size_t slots, const StateShape& shape,
+                 const std::vector<size_t>& tail_floats = {})
+        : buffers_(std::move(buffers)), slots_(slots), shape_(shape), tail_floats_(tail_floats) {
+        if (!tail_floats_.empty() && tail_floats_.size() != buffers_.size())
+            throw std::runtime_error("backend: state tail count differs from its layers");
+        std::vector<size_t> bytes(buffers_.size());
+        for (size_t l = 0; l < buffers_.size(); ++l)
+            bytes[l] = size_mul(slots_, slot_bytes(l));
+        for (size_t l = 0; l < buffers_.size(); ++l)
+            if (!buffers_[l] || buffers_[l]->size() < bytes[l])
+                throw std::runtime_error("backend: state buffer smaller than its slots");
     }
     size_t layers() const { return buffers_.size(); }
     size_t slots() const { return slots_; }
     const StateShape& shape() const { return shape_; }
+    size_t slot_floats(size_t l) const {
+        if (l >= buffers_.size()) throw std::runtime_error("backend: state layer outside the storage");
+        return size_add(shape_.slot_floats(), tail_floats_.empty() ? 0 : tail_floats_[l]);
+    }
+    size_t slot_bytes(size_t l) const { return size_mul(slot_floats(l), sizeof(float)); }
     Buffer& layer(size_t l) const {
         if (l >= buffers_.size()) throw std::runtime_error("backend: state layer outside the storage");
         return *buffers_[l];
@@ -224,6 +233,7 @@ private:
     std::vector<BufferPtr> buffers_;
     size_t slots_;
     StateShape shape_;
+    std::vector<size_t> tail_floats_;
 };
 
 // One sequence's rows of a pass in one StateStorage: `nq` rows, in view order, continue a history of `length` tokens.
@@ -249,7 +259,8 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
         if (!v.nq) throw std::runtime_error("backend: state view without rows");
         const StateShape& a = v.storage->shape();
         const StateShape& b = views[0].storage->shape();
-        if (a.k_heads != b.k_heads || a.v_heads != b.v_heads || a.k_dim != b.k_dim || a.v_dim != b.v_dim)
+        if (a.k_heads != b.k_heads || a.v_heads != b.v_heads || a.k_dim != b.k_dim || a.v_dim != b.v_dim ||
+            v.storage->slot_floats(layer) != views[0].storage->slot_floats(layer))
             throw std::runtime_error("backend: state views of different shapes");
         for (size_t j = 0; j < i; ++j) {
             const StateView& u = views[j];
@@ -262,8 +273,10 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
     return rows;
 }
 
+enum class NormGate : uint8_t { silu, sigmoid };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts, argmax_rows, embed_ids };
+enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts, argmax_rows, embed_ids,
+                          group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -274,6 +287,14 @@ inline const char* op_name(Op op) {
         case Op::mixed_experts: return "mixed_experts";
         case Op::argmax_rows: return "argmax_rows";
         case Op::embed_ids: return "embed_ids";
+        case Op::group_rms_norm: return "group_rms_norm";
+        case Op::silu_scaled: return "silu_scaled";
+        case Op::mix_streams: return "mix_streams";
+        case Op::inject_streams: return "inject_streams";
+        case Op::signed_sqrt_gate: return "signed_sqrt_gate";
+        case Op::dilated_conv_silu_add: return "dilated_conv_silu_add";
+        case Op::select_kv: return "select_kv";
+        case Op::sparse_attention: return "sparse_attention";
     }
     return "an unknown op";
 }
@@ -477,22 +498,38 @@ public:
 
     virtual KVLayout kv_layout() const = 0;
 
-    // Keys and values for `layers` layers of n_head_kv x head_dim, whole blocks for max_tokens positions, each side stored as f32 or f16 (round-to-nearest, read back exactly), so only the stored precision differs between backends.
-    // Nothing is backed until a block is written, and a backend without a type throws rather than substituting.
+    // Allocates block-backed K/V up to max_tokens. Optional auxiliary widths specify F32 values per token for each layer.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim, size_t max_tokens,
                                                 KVType k_type = KVType::f32,
-                                                KVType v_type = KVType::f32) = 0;
+                                                KVType v_type = KVType::f32,
+                                                const std::vector<size_t>& auxiliary_widths = {}) = 0;
 
     // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows, which go to positions length to length + nq of its sequence, and several views carry several sequences in one call.
     virtual void kv_write(size_t layer, const KVView* views, size_t n_views,
-                          CSlice k, CSlice v) = 0;
+                          CSlice k, CSlice v, CSlice auxiliary = {}) = 0;
 
     // Causal GQA: Q/out are [rows, n_head, head_dim] in the same view order, and row b of view v attends through views[v].length + b.
     // A device backend gets every sequence of the pass in one launch.
     virtual void attention(CSlice Q, size_t layer, const KVView* views,
                            size_t n_views, Slice out,
                            int n_head, int n_head_kv, int head_dim) = 0;
+
+    struct IndexArgs {
+        size_t heads, dim, rope_dim, compression, budget;
+        float eps;
+    };
+    // Q is already normalized and rotated; each view's raw auxiliary keys are pooled in complete causal groups, normalized and rotated at the group's first position.
+    // Output is U32 token IDs in chronological order, padded with UINT32_MAX to budget + compression - 1 per row; equal scores prefer the earlier group.
+    virtual void select_kv(CSlice, size_t, const KVView*, size_t, Slice,
+                           const IndexArgs&, CSlice, CSlice, CSlice) {
+        throw std::runtime_error("backend: select_kv is not implemented");
+    }
+
+    // Causal GQA over chronological unique U32 IDs, id_stride slots per query in view order; padding and IDs outside the causal prefix are ignored, and an empty selection yields zeros.
+    virtual void sparse_attention(CSlice, size_t, const KVView*, size_t, CSlice, size_t, Slice, int, int, int) {
+        throw std::runtime_error("backend: sparse_attention is not implemented");
+    }
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm), the one-row case of rms_norm_rows.
     void rms_norm(Slice dst, CSlice src, CSlice w, size_t n, float eps) {
@@ -568,13 +605,21 @@ public:
     // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), with norm_rope_partial above.
 
     // The recurrent state of `layers` linear-attention layers with `slots` slots each, allocated now and zero-filled, so no pass allocates state.
-    std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape) {
+    std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape,
+                                             const std::vector<size_t>& tail_floats = {}) {
         if (!layers || !slots || !shape.k_heads || !shape.k_dim || !shape.v_dim || !shape.v_heads || shape.v_heads % shape.k_heads)
             throw std::runtime_error("backend: invalid state shape");
-        const size_t bytes = shape.layer_bytes(slots);
+        if (!tail_floats.empty() && tail_floats.size() != layers)
+            throw std::runtime_error("backend: state tail count differs from its layers");
+        std::vector<size_t> bytes(layers);
+        for (size_t l = 0; l < layers; ++l) {
+            const size_t stride = size_add(shape.slot_floats(), tail_floats.empty() ? 0 : tail_floats[l]);
+            bytes[l] = size_mul(size_mul(slots, stride), sizeof(float));
+        }
         std::vector<BufferPtr> buffers;
-        for (size_t l = 0; l < layers; ++l) buffers.push_back(alloc(bytes));
-        return std::make_unique<StateStorage>(std::move(buffers), slots, shape);
+        buffers.reserve(layers);
+        for (size_t l = 0; l < layers; ++l) buffers.push_back(alloc(bytes[l]));
+        return std::make_unique<StateStorage>(std::move(buffers), slots, shape, tail_floats);
     }
 
     // The linear-attention layers' causal conv, then SiLU: out[t][c] = silu(sum over tap i of w[c * kConvTaps + i] * x[t - kConvTaps + 1 + i][c]), w being `ssm_conv1d` as stored, so tap kConvTaps - 1 multiplies row t.
@@ -586,15 +631,38 @@ public:
     virtual void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
                                   size_t layer, const StateView* views, size_t n_views) = 0;
 
-    // dst = RMSNorm(x; w) * silu(z) over each of `heads` heads of `dim` floats in each of `rows` rows, w being one dim-wide weight every head shares.
+    // dst = RMSNorm(x; w) times the selected gate of z over each head; w is one dim-wide weight shared by every head.
     // dst may alias x only if identical, and never z; `runs` as for rms_norm_rows.
     virtual void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
-                                RowRuns runs = {}) = 0;
+                                RowRuns runs = {}, NormGate gate = NormGate::silu) = 0;
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.
     // The output gate reads each query head's gate in place from `attn_q`'s rows, a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0, and dst may alias x only if identical; `runs` as for silu_mul.
     virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
                              size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) = 0;
+
+    // Normalize each dim-wide group separately with its own weight slice in each row of groups * dim floats; dst may equal src.
+    virtual void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps,
+                                RowRuns runs = {}) = 0;
+
+    // dst = silu(src * scale) for rows of width floats; dst may equal src.
+    virtual void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs = {}) = 0;
+
+    // Reduce each row's streams * dim normalized values with elementwise sigmoid(gate), dividing the sum across streams by streams into dim outputs.
+    virtual void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim,
+                             RowRuns runs = {}) = 0;
+
+    // Add each dim-wide block row to every residual stream, weighted by 2 * sigmoid(gate[row][stream] / streams); dst holds the residual in place.
+    virtual void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) = 0;
+
+    // For each normalized key/query group, g = dot(key, query) / sqrt(dim), then sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))) gates the row's shared dim-wide value.
+    virtual void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups, size_t dim,
+                                  RowRuns runs = {}) = 0;
+
+    // Add SiLU of a causal depthwise convolution of x to residual, using weights [channel][tap], last tap current, and taps spaced by dilation.
+    // Carries (taps - 1) * dilation raw x rows in the layer's F32 tail after its common state prefix; exact out=residual is allowed, but out may not overlap x or weights.
+    virtual void dilated_conv_silu_add(Slice out, CSlice x, CSlice residual, CSlice w, size_t channels, size_t taps, size_t dilation,
+                                       size_t layer, const StateView* views, size_t n_views) = 0;
 protected:
     void record_matrix_path(MatrixPath path) { matrix_paths_.record(path); }
 

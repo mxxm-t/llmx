@@ -33,6 +33,12 @@ void main() {
     if (p.type == TYPE_F32) {
         uint base = id * p.nin;
         for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = table_f[base + j];
+    } else if (p.type == TYPE_BF16) {
+        uint base = id * p.nin * 2u;
+        for (uint j = lid; j < p.nin; j += 256u) {
+            uint o = base + j * 2u;
+            dst[out_base + j] = uintBitsToFloat((QBYTE(o) | (QBYTE(o + 1u) << 8u)) << 16u);
+        }
     } else if (p.type == TYPE_Q8_0) {
         uint blocks = p.nin / Q8_0_BLOCK;
         uint base = id * blocks * Q8_0_BYTES;

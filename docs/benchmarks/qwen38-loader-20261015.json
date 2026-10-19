@@ -1,0 +1,339 @@
+{
+  "date": "2026-10-15",
+  "base": "49195a32906eee09ceea58a45879e13b7f11afbd",
+  "tree": "feat/qwen38-model dirty",
+  "scope": "Registered tiny graph through public loader; BF16 Vulkan weight decoding. Released model and performance gates remain open.",
+  "hf_bound": 2e-05,
+  "windows_cpu": {
+    "log": {
+      "path": "build-qwen4exp/lookup-registered-final-cpu.log",
+      "sha256": "eea5b972cc5806e06993ebce7053247fb08f3c403f26715cab172773f924fec9"
+    },
+    "comparisons": 99,
+    "max_abs": 3.72529e-08,
+    "loader_comparisons": {
+      "loader auto/auto": 2.98023e-08,
+      "loader auto/auto repeat": 2.98023e-08,
+      "loader auto/device": 2.98023e-08,
+      "loader auto/device repeat": 2.98023e-08,
+      "loader auto/host": 2.98023e-08,
+      "loader auto/host repeat": 2.98023e-08,
+      "loader auto/disk": 2.98023e-08,
+      "loader auto/disk repeat": 2.98023e-08,
+      "loader mapped/auto": 2.98023e-08,
+      "loader mapped/auto repeat": 2.98023e-08,
+      "loader mapped/device": 2.98023e-08,
+      "loader mapped/device repeat": 2.98023e-08,
+      "loader mapped/host": 2.98023e-08,
+      "loader mapped/host repeat": 2.98023e-08,
+      "loader mapped/disk": 2.98023e-08,
+      "loader mapped/disk repeat": 2.98023e-08,
+      "loader direct/auto": 2.98023e-08,
+      "loader direct/auto repeat": 2.98023e-08,
+      "loader direct/device": 2.98023e-08,
+      "loader direct/device repeat": 2.98023e-08,
+      "loader direct/host": 2.98023e-08,
+      "loader direct/host repeat": 2.98023e-08,
+      "loader direct/disk": 2.98023e-08,
+      "loader direct/disk repeat": 2.98023e-08
+    }
+  },
+  "windows_vulkan": {
+    "log": {
+      "path": "build-qwen4exp/lookup-loader-vulkan.stdout",
+      "sha256": "f50188dfea218c95f69a6070a230779144b96bc7fa779bdf4d2932f248dbf0ad"
+    },
+    "comparisons": 86,
+    "max_abs": 2.98023e-08,
+    "loader_comparisons": {
+      "loader auto/auto": 2.98023e-08,
+      "loader auto/auto repeat": 2.98023e-08,
+      "loader auto/device": 2.98023e-08,
+      "loader auto/device repeat": 2.98023e-08,
+      "loader auto/host": 2.98023e-08,
+      "loader auto/host repeat": 2.98023e-08,
+      "loader auto/disk": 2.98023e-08,
+      "loader auto/disk repeat": 2.98023e-08,
+      "loader mapped/auto": 2.98023e-08,
+      "loader mapped/auto repeat": 2.98023e-08,
+      "loader mapped/device": 2.98023e-08,
+      "loader mapped/device repeat": 2.98023e-08,
+      "loader mapped/host": 2.98023e-08,
+      "loader mapped/host repeat": 2.98023e-08,
+      "loader mapped/disk": 2.98023e-08,
+      "loader mapped/disk repeat": 2.98023e-08,
+      "loader direct/auto": 2.98023e-08,
+      "loader direct/auto repeat": 2.98023e-08,
+      "loader direct/device": 2.98023e-08,
+      "loader direct/device repeat": 2.98023e-08,
+      "loader direct/host": 2.98023e-08,
+      "loader direct/host repeat": 2.98023e-08,
+      "loader direct/disk": 2.98023e-08,
+      "loader direct/disk repeat": 2.98023e-08
+    }
+  },
+  "windows_native": {
+    "log": {
+      "path": "build-qwen4exp/lookup-ctest-final.log",
+      "sha256": "05ac2567515f3c2cc986c3c1d368db7ad3568f9d8f8967cf2a4270fa68986339"
+    },
+    "passed": [
+      "cli-output",
+      "load-progress",
+      "weight-rows",
+      "placement"
+    ],
+    "placement_checks": 681,
+    "weight_rows_checks": 92,
+    "shared_regression": {
+      "path": "build-qwen4exp/lookup-shared-ctest.log",
+      "sha256": "f290613df1b494d16712b1a1ce4258d36a5bd874382fb2be9c7e26799a6ff812",
+      "passed": [
+        "model-validation",
+        "arch-qwen35",
+        "arch-qwen35-fit"
+      ]
+    }
+  },
+  "windows_regression": {
+    "log": {
+      "path": "build-qwen4exp/lookup-regression-final.log",
+      "sha256": "112dc6ed1e297436972063f0fb11ace072288a0ea0853a9ababcd38f54f84c92"
+    },
+    "passed": [
+      "docs",
+      "dead-code",
+      "f32",
+      "moe",
+      "qwen35"
+    ],
+    "identity": {
+      "logits": {
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-qwen38-model-20261014\\build-lookup-loader\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "--threads",
+          "2",
+          "--top",
+          "151936"
+        ],
+        "sha256": "0f0331396e50a7ee04411dad442686148b034644bf53ea0a4d3f324f9713d602",
+        "bytes": 2441857,
+        "matches_prior_checkpoint": true
+      },
+      "generate": {
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-qwen38-model-20261014\\build-lookup-loader\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "--threads",
+          "2",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--verbose"
+        ],
+        "sha256": "af5b3c97bd565ce56673fdd46e01eab750c08080b7201c53b1ccd80691d74fe9",
+        "bytes": 239,
+        "matches_prior_checkpoint": true
+      }
+    },
+    "initial_skips": [
+      "qwen35 wide-vocabulary decode probe",
+      "qwen35 drafter HF probe"
+    ],
+    "probe_closure": {
+      "path": "build-qwen4exp/lookup-qwen35-tools.log",
+      "sha256": "b51c87feecadf7bf65558ab4412bad64c1aa9e549f441d3f7fc14382239a52c2",
+      "result": "Qwen35 PASS with --require-tools; both initially skipped probes passed"
+    }
+  },
+  "bf16_weights": {
+    "storage": "Two-byte BF16, exact high-half widening in shared float kernels.",
+    "checks_per_device": 49280,
+    "row_bound": "2e-5 * (1 + abs(reference))",
+    "tile_bound": "2e-4 * (1 + abs(reference))",
+    "embed_bound": "bit-identical finite values",
+    "windows": {
+      "log": {
+        "path": "build-qwen4exp/lookup-bf16-vulkan-3.stdout",
+        "sha256": "cd3548e812a7521694f82ab964dc642911ce9678ad331dfc3a3b80e0429d36b9"
+      },
+      "exit": {
+        "path": "build-qwen4exp/lookup-bf16-vulkan-3.exit",
+        "sha256": "7e36230a822f9245df6d7b08a65768b497f625b5b45ded9f519ced696265b48b"
+      },
+      "dispatch_checks": 366
+    },
+    "linux": {
+      "log": {
+        "path": "build-qwen4exp/rig-bf16/remote/native-vulkan.log",
+        "sha256": "965e87712e9ee59e8476470283e34c6a68ce4691a35e9d25625f1f8f2a347b63"
+      },
+      "exit": {
+        "path": "build-qwen4exp/rig-bf16/remote/native-vulkan.status",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+      },
+      "dispatch_checks": 486
+    }
+  },
+  "limits": [
+    "No released-file execution or HF proof",
+    "No throughput, latency or matched mx comparison",
+    "No full merge gate",
+    "Server concurrency and row-I/O failure rollback pending",
+    "No asynchronous lookup prefetch or cross-pass hot-row cache"
+  ],
+  "binaries": [
+    {
+      "path": "build-lookup-loader/Release/llmx.exe",
+      "sha256": "4ab919137d4f3eb91f381e5931e2906421a67506cf68bfb9077f415f85f24191"
+    },
+    {
+      "path": "build-lookup-loader/Release/llmx-qwen4exp-model-test.exe",
+      "sha256": "bd6901a6b921b3f054f5079c4faf8d601a50228519338d4c9c0b12808e4da329"
+    },
+    {
+      "path": "build-lookup-vulkan/Release/llmx-qwen4exp-model-test.exe",
+      "sha256": "48d19c72a83df097d5212841bd0e0a09a08241f861addc5202da5b2f639e66cb"
+    },
+    {
+      "path": "build-lookup-vulkan/Release/llmx-backend-vulkan-test.exe",
+      "sha256": "d5fab8b88da01983f6b02a28a413df2743c9bebca73728383dc2a27442f9b2e3"
+    }
+  ],
+  "linux_cpu": {
+    "log": {
+      "path": "build-qwen4exp/rig-lookup/remote/model-cpu.log",
+      "sha256": "649bcea7111c81b1455321c53612dd4929cd2f5ae9b95fb353a8f5c274384ff7"
+    },
+    "exit": {
+      "path": "build-qwen4exp/rig-lookup/remote/model-cpu.status",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "comparisons": 99,
+    "max_abs": 3.72529e-08,
+    "loader_comparisons": {
+      "loader auto/auto": 2.98023e-08,
+      "loader auto/auto repeat": 2.98023e-08,
+      "loader auto/device": 2.98023e-08,
+      "loader auto/device repeat": 2.98023e-08,
+      "loader auto/host": 2.98023e-08,
+      "loader auto/host repeat": 2.98023e-08,
+      "loader auto/disk": 2.98023e-08,
+      "loader auto/disk repeat": 2.98023e-08,
+      "loader mapped/auto": 2.98023e-08,
+      "loader mapped/auto repeat": 2.98023e-08,
+      "loader mapped/device": 2.98023e-08,
+      "loader mapped/device repeat": 2.98023e-08,
+      "loader mapped/host": 2.98023e-08,
+      "loader mapped/host repeat": 2.98023e-08,
+      "loader mapped/disk": 2.98023e-08,
+      "loader mapped/disk repeat": 2.98023e-08,
+      "loader direct/auto": 2.98023e-08,
+      "loader direct/auto repeat": 2.98023e-08,
+      "loader direct/device": 2.98023e-08,
+      "loader direct/device repeat": 2.98023e-08,
+      "loader direct/host": 2.98023e-08,
+      "loader direct/host repeat": 2.98023e-08,
+      "loader direct/disk": 2.98023e-08,
+      "loader direct/disk repeat": 2.98023e-08
+    }
+  },
+  "linux_vulkan": {
+    "log": {
+      "path": "build-qwen4exp/rig-lookup/remote/model-vulkan.log",
+      "sha256": "e53280d9643c7f7e7ffe00dab12bb6f8f4bf40bb768b8ec706edd0b5e6857ec8"
+    },
+    "exit": {
+      "path": "build-qwen4exp/rig-lookup/remote/model-vulkan.status",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "comparisons": 86,
+    "max_abs": 4.47035e-08,
+    "loader_comparisons": {
+      "loader auto/auto": 4.47035e-08,
+      "loader auto/auto repeat": 4.47035e-08,
+      "loader auto/device": 4.47035e-08,
+      "loader auto/device repeat": 4.47035e-08,
+      "loader auto/host": 4.47035e-08,
+      "loader auto/host repeat": 4.47035e-08,
+      "loader auto/disk": 4.47035e-08,
+      "loader auto/disk repeat": 4.47035e-08,
+      "loader mapped/auto": 4.47035e-08,
+      "loader mapped/auto repeat": 4.47035e-08,
+      "loader mapped/device": 4.47035e-08,
+      "loader mapped/device repeat": 4.47035e-08,
+      "loader mapped/host": 4.47035e-08,
+      "loader mapped/host repeat": 4.47035e-08,
+      "loader mapped/disk": 4.47035e-08,
+      "loader mapped/disk repeat": 4.47035e-08,
+      "loader direct/auto": 4.47035e-08,
+      "loader direct/auto repeat": 4.47035e-08,
+      "loader direct/device": 4.47035e-08,
+      "loader direct/device repeat": 4.47035e-08,
+      "loader direct/host": 4.47035e-08,
+      "loader direct/host repeat": 4.47035e-08,
+      "loader direct/disk": 4.47035e-08,
+      "loader direct/disk repeat": 4.47035e-08
+    }
+  },
+  "linux_native": {
+    "log": {
+      "path": "build-qwen4exp/rig-lookup/remote/native-ctest.log",
+      "sha256": "06669216810f6c012a5b06e5f40995a3d4007dbce9247b13c04657eecb11eb27"
+    },
+    "passed": [
+      "load-progress",
+      "weight-rows",
+      "placement"
+    ]
+  },
+  "linux_source_identity": {
+    "source-head.txt": {
+      "path": "build-qwen4exp/rig-lookup/remote/source-head.txt",
+      "sha256": "e1f0fceb376db893287a7505d903631fd53b29c7d36b48afc5da8cf6b4b5be10"
+    },
+    "source-status.txt": {
+      "path": "build-qwen4exp/rig-lookup/remote/source-status.txt",
+      "sha256": "9fe67d0ce993f09d4615333c5df497ebc336d71faa3d83c4cf643a295fee3a33"
+    },
+    "source-files.sha256": {
+      "path": "build-qwen4exp/rig-lookup/remote/source-files.sha256",
+      "sha256": "f15e1d9455fd08eeec27df66a813e309685c3f1c7ff3d49dd9c70f1f4f7e22f9"
+    },
+    "binaries.sha256": {
+      "path": "build-qwen4exp/rig-lookup/remote/binaries.sha256",
+      "sha256": "04ad594f03200c58d5f63ca83e86b04a1aa4c826ad7578154afa316f6b3124e7"
+    }
+  },
+  "bf16_commit": "b56e4badf",
+  "source_hashes": {
+    "src/backends/vulkan/shaders/embed.comp": "5668801591d2977738b0089d21782ad916c59d34875696d0809082e12e66fdbb",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "0382ba5095bde883de123a6a15fe8b252245ec7332ee5efced29bfdf1499ece2",
+    "src/backends/vulkan/shaders/q.glsl": "15a197ec89092286899f64b2b98153d83407210a72b5bc6829b216f240e2b192",
+    "src/backends/vulkan/shaders/qdecode.glsl": "b8259d49ddfaf0412d916b32727268188c87a46558fd1eb81bb6e1edf852d27f",
+    "src/backends/vulkan/vulkan_backend.cpp": "7101387b9759a62942c126367e635dc6d57c04673d9e70ea360a26eef63f7311",
+    "src/cli/main.cpp": "62d4c78ae3653923d0094b9af05908c2d136e84e52a502d229811ea8c427a265",
+    "src/inference/load.hpp": "13e47b087ca104a7d0f8c9a50857c460408b043bbdc33d5c729a82a997d62003",
+    "src/model/arch/registry.hpp": "9db75c4c1b09eb845ad4a8b8c04aebb6111ea9035c13507acfa20a6c566febba",
+    "src/model/place.hpp": "6eca39abe3d2eda2eacc8ac299e1902349d1808c6c9363b296e57c6e89f08acb",
+    "src/model/weight_rows.hpp": "9cea07b591e777846994e832a44de5e4ce9c51ce9dd6662819c03d49b9e680e6",
+    "src/quant/types.hpp": "3a0f6a6c280760fe7b6a332247dd629350f968878019d48358e79457bebade8f",
+    "tests/backend_vulkan.cpp": "2513a5dc65e012f398190136893548fa66f7411b41ba978e93d0bcbb13a40de3",
+    "tests/cli_output.cpp": "adcccf8f5a3241b7fb68d30e255034d886efaab6f94938761dcea0cb8522839f",
+    "tests/load_progress.cpp": "d5572b54c091b16a769273f1b19fc55544ab3afa6c22788b258b926227c35f64",
+    "tests/placement.cpp": "aab6e8e160823d768fedcd2d2f9e3dd23a81da27063bbc3697f1824dad9e1b87",
+    "tests/qwen4exp_model.cpp": "16ccdd629cdf4e41fd846b79df902c320074f81e0f66ee19d1b5987685c3536c",
+    "tests/weight_rows.cpp": "af850fa85e698c5ac7807433fa2e81fdea17cf74d7387753f7d9c218379c198e"
+  },
+  "static_checks": {
+    "path": "build-qwen4exp/lookup-static-final.log",
+    "sha256": "26be5cc28ed252844ce399910893ccbdf9f2fad90ca89bf455ae93778397df6a",
+    "result": "docs PASS with no findings; dead-code PASS against five existing listed findings"
+  }
+}

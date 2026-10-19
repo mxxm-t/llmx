@@ -1,10 +1,10 @@
 #version 450
-// One workgroup per (row, head): dst = x * rsqrt(mean(x^2) + eps) * w * silu(z) over the head's dim values, silu(z) = z / (1 + exp(-z)), w shared by every head, dst may be x.
+// One workgroup per (row, head): normalize x, multiply by w and the selected gate of z; p.gate selects SiLU or sigmoid, and dst may be x.
 // The sum of squares is a lane's fused multiply-adds then a fixed-order tree through shared memory, so a head computes the same in every build; with `quant` 1 or 2 the 16-bit twin is written beside the output (xquant.glsl).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint heads; uint dim; float eps; uint quant; uint n; uint major; } p;
+layout(push_constant) uniform P { uint heads; uint dim; float eps; uint quant; uint n; uint major; uint gate; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer X { float x[]; };
 layout(set = 0, binding = 2) readonly buffer Z { float z[]; };
@@ -14,7 +14,8 @@ layout(set = 0, binding = 4) writeonly buffer Q { uint xq[]; };
 shared float red[256];
 float gated(uint o, uint i, float r) {
     float zz = z[o + i];
-    return x[o + i] * r * w[i] * (zz / (1.0 + exp(-zz)));
+    if (p.gate == 0u) return x[o + i] * r * w[i] * (zz / (1.0 + exp(-zz)));
+    return x[o + i] * r * w[i] * (1.0 / (1.0 + exp(-zz)));
 }
 void main() {
     uint lid = gl_LocalInvocationID.x;

@@ -11,6 +11,7 @@
 
 #include "quant/types.hpp"
 #include "backends/backend.hpp"
+#include "model/weight_rows.hpp"
 
 // What a model is built from, whatever file it came from, and the weights it resolves: the part of the architecture contract (model/architecture.hpp) that the loader and a file's reader also use.
 
@@ -26,6 +27,7 @@ struct TensorView {
     uint32_t type = quant::GGML_TYPE_F32;
     const uint8_t* data = nullptr;
     size_t bytes = 0;
+    std::shared_ptr<const WeightRows> row_source = {};
 };
 
 // What a model is built from, whatever file it came from: the architecture that reads it and one view per tensor in the file's order, each under a unique name; two models built from one set share the architecture and nothing else.
@@ -79,6 +81,7 @@ struct Weight {
     size_t nin = 0, nout = 0;
     // Normalization weights are F32 by validation, so this is the whole row.
     backend::CSlice slice() const { return {data.get(), 0}; }
+    std::shared_ptr<const WeightRows> row_source = {};
 };
 
 } // namespace infer

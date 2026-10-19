@@ -1,0 +1,251 @@
+{
+  "schema": "flash-natural-mx-off-v3-independent/v1",
+  "files_verified": 24,
+  "result_sha256": "25c2a63b3f7a0303302430b709a43a2d5da712eab335117a54bc2733d26ecc8a",
+  "reply_sha256": "9eb206b34b3664998828e6423ff3471e872ae9ad3a7c83f95f4ff5821e8ec8df",
+  "seal_sha256": "d2bb8dbb0f6e2dd8e69ee03325bb6d63a5c5ef907c8dd57bfef0e9b4c2405ab3",
+  "container_id": "2aabec32de1390d6967a0aee78ead98155cde164e20cee56920a6b379fe65faa",
+  "container_absent": true,
+  "outer_exit": 2,
+  "server_exit": 0,
+  "oom": false,
+  "forced": false,
+  "inside_seconds": 180.7908753270749,
+  "outer_seconds": 184.12250685691833,
+  "input_model_pins_unchanged": true,
+  "llmx_off_input_model_identity_equal": true,
+  "topology": {
+    "actual_meta_groups": [
+      {
+        "devices": [
+          "Vulkan0",
+          "Vulkan1",
+          "Vulkan2",
+          "Vulkan3",
+          "Vulkan4",
+          "Vulkan5"
+        ],
+        "width": 2,
+        "stages": 3
+      }
+    ],
+    "cache_types": [
+      [
+        "f32",
+        "f32"
+      ],
+      [
+        "f32",
+        "f32"
+      ]
+    ],
+    "source_derived_layer_ranges": [
+      [
+        0,
+        16
+      ],
+      [
+        16,
+        32
+      ],
+      [
+        32,
+        48
+      ]
+    ],
+    "limitation": "Actual groups/width/stage counts from normal startup; layer ranges from pinned split algorithm."
+  },
+  "requests_completed_by_harness": 0,
+  "requests_with_saved_reply": 1,
+  "prompt_tokens": 128,
+  "prompt_tokenization_ids_exact": true,
+  "request_bytes_exact": true,
+  "generated_tokens": 192,
+  "finish": "limit",
+  "censored": true,
+  "eos": false,
+  "content": "",
+  "unique_generated_ids": [
+    248319
+  ],
+  "selected_probability_rows": 192,
+  "selected_finite": 0,
+  "selected_null": 192,
+  "top_probability_entries": 960,
+  "top_finite": 0,
+  "top_null": 960,
+  "validator_failure_replay": {
+    "type": "AssertionError",
+    "file": "mx_probabilities.py",
+    "line": 22,
+    "source": "assert type(value) in (int, float) and math.isfinite(value)"
+  },
+  "native_counter_deltas": {
+    "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+    "llamacpp:spec_decode_num_accepted_tokens_total": 0.0,
+    "llamacpp:spec_decode_num_drafts_total": 0.0
+  },
+  "draft_acceptance": null,
+  "cross_runtime_code_fix": {
+    "llmx_generated_tokens": 170,
+    "llmx_finish": "eos",
+    "mx_generated_tokens": 192,
+    "mx_finish": "limit",
+    "common_prefix_ids": 0,
+    "llmx_first_ids": [
+      71093,
+      12305,
+      198,
+      727,
+      10562,
+      39914,
+      17145,
+      11,
+      1245,
+      1590,
+      198,
+      262
+    ],
+    "mx_first_ids": [
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319,
+      248319
+    ],
+    "llmx_visible_text_prefix": "```python\ndef merge_sorted(left, right):\n    result = []\n    i = j = 0\n    while i < len(left) and j < len(right):\n        if left[i] <= right[j]:\n            result.append(left[i])\n            i += 1",
+    "mx_visible_text_prefix": "",
+    "equality_required": false
+  },
+  "buffered_io_fallbacks": [
+    "0.00.924.080 W read_raw_unsafe: Falling back to buffered IO due to Bad address",
+    "1.28.855.995 W read_raw_unsafe: Falling back to buffered IO due to Bad address",
+    "2.03.424.151 W read_raw_unsafe: Falling back to buffered IO due to Bad address",
+    "2.26.922.384 W read_raw_unsafe: Falling back to buffered IO due to Bad address"
+  ],
+  "remaining_requests_unrun": [
+    "incident_summary",
+    "ordering"
+  ],
+  "remaining_matrix_cells_unrun": [
+    "llmx-3",
+    "mx-3"
+  ],
+  "stop_rule": "Stop after first invalid probability response; original capped response retained; no rerun.",
+  "limits": [
+    "Null probability values fail finite-coverage contract; raw underlying float cause is not observable in JSON.",
+    "No runtime changes, qualification, acceptance or speed claim."
+  ],
+  "prior_reference_comparison": {
+    "failure_review": "build-live-dashboard-final-rig-20261017\\flash-perf-staged-20261019\\MX-FAILURE-REVIEW.md",
+    "failure_review_sha256": "88cf14076cdd22e7a54af22abd7231670f18d64358564965106f9a0bdd210f22",
+    "observation_review": "build-live-dashboard-final-rig-20261017\\flash-perf-staged-20261019\\MX-DEBUG-SUMMARY.md",
+    "observation_review_sha256": "f076173bc53d6728d10303c4229c74fc2886781930604545dcb9e2e3a7f7a82a",
+    "prior_failure": "Same MX revision c4d12e2: first staged width2 six-device PP512 warmup reported nonfinite final logit; no timing row. F16 KV/context262144/ubatch128/helper path differ from current F32 KV/context1024/ubatch16/server path.",
+    "prior_observation": "A later debug observation passed finite and within-process repeated PP/TG rows, with cap and logging confounded.",
+    "inference": "These are retained reference validity observations, not proof of a shared cause, a fix, wrong-parent conditioning, or llmx correctness."
+  },
+  "source_interpretation": {
+    "schema": "flash-mx-null-source-review/v1",
+    "revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "source_identity": "Exact git blobs at pinned revision; no working-tree source substitution.",
+    "response": {
+      "path": "build-live-dashboard-final-rig-20261017/flash-natural-acceptance-20261019/mx-off-v3-collected/mx-0/code_fix/reply.json",
+      "sha256": "9eb206b34b3664998828e6423ff3471e872ae9ad3a7c83f95f4ff5821e8ec8df",
+      "tokens": 192,
+      "unique_token_ids": [
+        248319
+      ],
+      "content": "",
+      "selected_logprob_null_count": 192,
+      "top_logprob_null_count": 960
+    },
+    "request": {
+      "path": "build-live-dashboard-final-rig-20261017/flash-natural-acceptance-20261019/mx-off-v3-collected/mx-0/code_fix/request.json",
+      "sha256": "130c226fa607c180c4d107ca2dc0beab680be3d880fb225a378ef2ed6c235f97",
+      "post_sampling_probs": false,
+      "n_probs": 5,
+      "mtp_enabled": false
+    },
+    "sources": [
+      {
+        "path": "tools/server/server-task.cpp",
+        "git_blob_bytes_sha256": "4c3f413b9b54d4cc0e7b5998e6979a2389f5ff716e20cb1510ca7745fa233495",
+        "line_ranges_inclusive": [
+          [
+            266,
+            267
+          ],
+          [
+            284,
+            285
+          ],
+          [
+            296,
+            298
+          ]
+        ],
+        "interpretation": "Numeric probability/logarithm fields; zero probability maps to finite float::lowest()."
+      },
+      {
+        "path": "vendor/nlohmann/json.hpp",
+        "git_blob_bytes_sha256": "08f19bbcc66ff3082f5caf58867b1232987dba98d82e2b29d870722fce42776b",
+        "line_ranges_inclusive": [
+          [
+            19771,
+            19777
+          ]
+        ],
+        "interpretation": "Nonfinite floating-point values serialize as null."
+      },
+      {
+        "path": "tools/server/server-context.cpp",
+        "git_blob_bytes_sha256": "dd751cdaf5b2d772da38c8c02bc2d57bf56d165fe549bee95f916f7162ecdd49",
+        "line_ranges_inclusive": [
+          [
+            2160,
+            2180
+          ]
+        ],
+        "interpretation": "Pre-sampling probabilities use get_token_probabilities on the target row."
+      },
+      {
+        "path": "tools/server/server-common.cpp",
+        "git_blob_bytes_sha256": "6f7b99cc3f9c18f9ddc2123d559a277f87f87d4480b9b8ac08471a031ba2bf4b",
+        "line_ranges_inclusive": [
+          [
+            1584,
+            1633
+          ]
+        ],
+        "interpretation": "Read target logits, partially sort, max-subtract, exponentiate and normalize."
+      }
+    ],
+    "conclusion": "The null log probabilities represent nonfinite numerical serialization, not intentionally nullable completion probability fields. The MX-off response is invalid numerical output; retain validator refusal.",
+    "limitations": [
+      "Raw logits were not retained; this does not localize kernel, loading, softmax or other corruption, nor prove every logit was nonfinite.",
+      "This MTP-off failure provides no evidence of wrong MTP parent conditioning.",
+      "No causal attribution to host memory cap or earlier benchmark failures is established.",
+      "No model execution, source modification or validator waiver was performed."
+    ]
+  },
+  "source_interpretation_sha256": "31fa903ca60a1c3a943666b9e4285ca222418b620299952373a12925f9abbc3d",
+  "native_observation_preparation": {
+    "utc": "2026-10-19T12:30:39.593462+00:00",
+    "state": "STAGED_NOT_EXECUTED",
+    "root": "/zpool1/llmx-xdev-flash-restore-20261019/natural-native-20261019",
+    "seal_sha256": "5a9b1c7951fb6f5bb082e5a14a2518ffbddd714487730db14b3f9a8164a0a59c",
+    "launcher_sha256": "82da6851bf7c27fce648cdcf8387e75c7ffc99577c0ea4d0963f94fe37e20fac",
+    "bundle_files_verified": 25,
+    "off_control_files_verified": 34,
+    "no_model_process_started": true
+  },
+  "native_observation_limit": "Staged only; original CPU4/5 and 10 GiB memory guard remain. No new model run or acceptance result."
+}

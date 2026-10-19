@@ -1,0 +1,68 @@
+#version 450
+// Eight radix passes find the kth nonnegative F32 score; a chronological scan resolves equal scores toward earlier groups and emits the selected tokens plus the causal tail.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint view; uint row; uint groups; uint compression; uint budget; uint stride; } p;
+layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
+layout(set = 0, binding = 1) writeonly buffer O { uint ids[]; };
+layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
+#include "views.glsl"
+shared uint hist[16];
+shared uint prefix, mask, rank, emitted, equals;
+shared uvec2 scan[256];
+void main() {
+    uint row = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
+    uint visible = view_hist(p.view) + p.row + row + 1u;
+    uint count = visible / p.compression, take = min(count, p.budget / p.compression);
+    uint base = (view_row0(p.view) + p.row + row) * p.stride;
+    for (uint i = lid; i < p.stride; i += 256u) ids[base + i] = 0xffffffffu;
+    if (lid == 0u) { prefix = 0u; mask = 0u; rank = take > 0u ? take - 1u : 0u; emitted = 0u; equals = 0u; }
+    barrier();
+    if (count > take) {
+        for (int shift = 28; shift >= 0; shift -= 4) {
+            if (lid < 16u) hist[lid] = 0u;
+            barrier();
+            for (uint i = lid; i < count; i += 256u) {
+                uint bits = floatBitsToUint(scores[row * p.groups + i]);
+                if ((bits & mask) == prefix) atomicAdd(hist[(bits >> shift) & 15u], 1u);
+            }
+            barrier();
+            if (lid == 0u) {
+                for (int digit = 15; digit >= 0; --digit) {
+                    if (rank < hist[digit]) { prefix |= uint(digit) << shift; break; }
+                    rank -= hist[digit];
+                }
+                mask |= 15u << shift;
+            }
+            barrier();
+        }
+    }
+    for (uint start = 0u; start < count; start += 256u) {
+        uint i = start + lid;
+        uint bits = i < count ? floatBitsToUint(scores[row * p.groups + i]) : 0u;
+        bool all = count == take;
+        scan[lid] = uvec2(i < count && (all || bits > prefix) ? 1u : 0u,
+                          i < count && !all && bits == prefix ? 1u : 0u);
+        barrier();
+        for (uint step = 1u; step < 256u; step <<= 1u) {
+            uvec2 before = lid >= step ? scan[lid - step] : uvec2(0u);
+            barrier();
+            scan[lid] += before;
+            barrier();
+        }
+        uint equal_before = equals + scan[lid].y;
+        uint allowed = min(scan[lid].y, rank + 1u - min(equals, rank + 1u));
+        bool selected = i < count && (all || bits > prefix || (bits == prefix && equal_before <= rank + 1u));
+        if (selected) {
+            uint slot = emitted + scan[lid].x + allowed - 1u;
+            for (uint t = 0u; t < p.compression; ++t) ids[base + slot * p.compression + t] = i * p.compression + t;
+        }
+        barrier();
+        if (lid == 0u) {
+            emitted += scan[255].x + min(scan[255].y, rank + 1u - min(equals, rank + 1u));
+            equals += scan[255].y;
+        }
+        barrier();
+    }
+    uint tail = visible % p.compression;
+    for (uint t = lid; t < tail; t += 256u) ids[base + take * p.compression + t] = count * p.compression + t;
+}

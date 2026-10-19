@@ -1,5 +1,37 @@
 # llmx - Development Status
 
+## Qwen3.8-Flash-Next text support (2026-10-19, branch feat/qwen38-flash-finish on main, lands by fast-forward as two commits)
+
+- **Why:** llmx did not run Qwen3.8-Flash-Next (`qwen4exp`), a hybrid of GDN and sparse-attention layers with hyper-connection streams, per-layer embeddings read from bounded lookup rows, routed experts and an MTP block; design, contract and evidence are in [QWEN38-FLASH](QWEN38-FLASH.md).
+- **The change:** the architecture module (configuration, roles, refusals and the full graph), its CPU ops and Vulkan shaders, lookup rows kept on the devices or read from the model file through the ordinary loader (`--lookup-storage auto|device|file`), tensor-group shards, the extra sequence state through checkpoint, fork, mark, retract and the host and disk tiers, and MTP with the sidecar pairing adapter.
+  A disk restore streamed to the devices now walks the same KV blocks and state as the whole-host image, so the auxiliary KV planes, every layer's state, the MTP carry and the host token history come back with it (a failing test showed 8352 of a saved image's 12744 bytes restored).
+- **Qualified (QWEN38-FLASH, section 6, under the released-file contract agreed on 2026-10-19):** at the re-pinned candidate (source 14e4867a9, binary 8b38f953), all eight corpus cells are within `FILE_EXACT_BOUNDS` of canonical HF, the largest difference 0.00056 against 0.01; both fresh 16K depth inputs are within the frozen limits (18 misses, RMS 1.431, abs mean 0.0986): raw 511/512 top-1 with 1 miss, RMS 0.0404, mean +0.0012; chat 499/512 with 13 misses, RMS 0.7375, mean +0.0085.
+  Natural-stopping MTP acceptance is 88.4, 89.2 and 87.0 percent on three prompts against 84.6, 86.5 and 82.6 for the ROCm build of the reference runtime, mx-llama.cpp, with every llmx reply the same with MTP on and off.
+- **Speed gate, open on decode (first support may land with these cells listed and their recovery named, `AGENTS.md`, Merge gates):** llmx `--dtype int8` against mx-llama.cpp's ROCm build mode by mode leads on PP16384 and PP4096 in every comparable mode (layer on 6 MI50s 7.7x and 6.2x, staged 3x2 3.1x and 3.2x, staged 2x4 on 8 1.6x and 1.7x, layer on 10 14.2x) and is below it on TG256:
+
+  | Mode, MI50s | llmx int8 TG256 | mx-llama.cpp ROCm TG256 | llmx against it |
+  |---|---|---|---|
+  | Layer, 6 | 28.82 | 35.53 | -18.9% |
+  | Staged 3x2, 6 | 32.61 | 37.84 | -13.8% |
+  | Staged 2x4, 8 | 27.16 | 37.87 | -28.3% |
+  | Layer, 10 | 22.21 | 31.45 | -29.4% |
+
+  Cause, from a traced token on the six-MI50 layer split before the lookup change (the reference beside it at 28.1 ms a token): 33.1 of llmx's 38.5 ms is GPU busy, the stages of a token running in turn, and about 4.5 ms is host work (the lookup rows 2.6 to 3.0, first chunks about 1.5, crossings about 0.6); on staged 3x2 the 93 cross-device sums add about 5.3 ms.
+  This change removes the rows' read (`file` through the mapping, H1): TG256 on the six-MI50 layer split 26.40 and 26.29 before, 29.05 and 29.19 after, 3.6 ms a token less, and PP512 from 272 to 653.
+  Recovery, as the recovery design of 2026-10-20 plans it: H2 first chunks flushed early (about 1.2 ms), H3 crossing rows copied on the device (about 0.3 ms), K1 `group_rms_norm` (about 2.2), K2 the low-rank stream-mixing products (about 1.7, numerics change), K3 quantizes folded into producers (about 0.9), K4 `moe_route` (about 0.8); projected 35.0 against 35.5 (layer) and 38.3 against 37.8 (staged 3x2), parity at best, so the gate stays open after them.
+- **Gates (taken at the head on main 912b2012e, both arms built the same way from fresh clones; the rebase onto main 53a7e81e2 changed no Flash code, `libllmx-vulkan.a` byte-identical to the qualified build's, `fa9be6e0`):**
+  Byte identity against main, 38 of 38 comparisons identical: greedy ids and text, the last row's top 10 logits and perplexity of Qwen3-0.6B and Qwen3.5-0.8B Q8_0 on the CPU and one MI50 in each load mode, and of Qwen3-30B-A3B Q8_0 on two MI50s.
+  The Radeon VII on Windows: the Flash device tests (backend-vulkan, qwen4exp-graph, kv-selection, sparse-attention, dilated-conv, stream-ops, kv-auxiliary, qwen4exp-mtp) pass and Qwen3-0.6B Q8_0 is byte-identical to main.
+  CTest and the suite on one MI50 pass, but for `cache-scenario`'s cap leg, which main 912b2012e fails the same way and which passes at the rebased head, and the help-page placeholder of `--lookup-storage`, fixed in the tests.
+  One timing round on MI50s, main, head, head, main, tokens/s: Qwen3-0.6B Q8_0 pp512 8977.6 and 8975.7 against 8981.9 and 8984.4, tg128 396.1 and 398.8 against 400.4 and 398.9; Qwen3-30B-A3B Q8_0 on two MI50s pp512 1225.9 and 1225.4 against 1224.7 and 1225.0, tg128 121.7 and 121.0 against 122.3 and 120.7; level.
+  The linked dead-code check found a constructor only tests reached and an accessor nothing reached in `WeightRows`; both are gone, and the Flash tests that read the rows were rerun and pass.
+  After the review's lookup rework (`--lookup-storage auto|device|file`, on main 53a7e81e2): CTest 62 of 62; the model harness in each load mode and storage on the CPU and an MI50; `weight-rows`; the tiny Flash fixture's logits identical under `file`, `device` and `auto` in each load mode on the CPU, an MI50 and the Radeon VII; Qwen3-0.6B Q8_0 identical to main, 18 of 18 on the CPU and an MI50 in each load mode; the TG256 cell above.
+- **Gotchas:** the historical 492/512 chat depth result failed the rule the 2026-10-19 contract replaced and is no evidence either way.
+  The reference runtime's staged split gives nonfinite logits on its Vulkan build and its ROCm server fails with `CUBLAS_STATUS_INTERNAL_ERROR` at f32 caches or ubatch 16, so its acceptance figure comes from its ROCm layer split at f16 caches and ubatch 512.
+  llmx tensor groups hold two to four devices, and width 3 does not divide this model's vocabulary, so a single group of six and two stages of three have no llmx arm.
+  Production pricing may choose zero drafts after reuse; the unpriced seam is test-only.
+  The checkpoint slot and its host token slice stay held until a streamed read drains.
+
 ## A job's step costlier than the background allowance runs on credit (2026-10-20, branch feat/job-credit on feat/item14 568d028d6, F2DEV's DECISION of 01:25, lands by fast-forward as two commits after feat/item14)
 
 - **Why:** `job_grant` granted no step where one step cost more than was left, and a job's cost a step is measured only by its own passes, so beside waiting work a job whose step cost more than the 25 ms allowance never ran again; on the 27B at depth a 16-row step costs about 2 s, so every job, and one stall inside a pass measured as the job's step froze it the same way.
@@ -1468,6 +1500,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (record in [STATUS-2026-09](STATUS-2026-09.md)): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`; Vulkan MXFP4 landed with the activation dtype (its row above). Remaining weight types and the recorded speed gaps stay open |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (record in [STATUS-2026-09](STATUS-2026-09.md), design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
+| Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |
 | JSON syntax and Unicode validation      | Done |

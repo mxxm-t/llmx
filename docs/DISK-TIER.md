@@ -13,9 +13,10 @@ A disk read of an 800 MiB copy takes about 0.5 s on the MI50 machine (Hardware, 
 ## What the host tier does now
 
 Read from `src/server/scheduler.hpp`, `src/model/history.hpp` and `src/server/policy.hpp` at main `6b5c051e`:
-- **Entries.** A `HostDonor` is a device donor's history copied to host memory as the devices evict it (`Cache::write_back`): its whole KV blocks up to its checkpoint, the checkpoint's state on a model that keeps one, and on a model with an embedded drafter the drafter's carried row with the slot, in a `HostHistory` (per device, runs of 64 MiB host-visible slabs, with tickets for the copies in flight), beside its tokens and row classes.
+- **Entries.** A `HostDonor` is a device donor's history copied to host memory as the devices evict it (`Cache::write_back`): its whole KV blocks up to its checkpoint, the checkpoint's state on a model that keeps one, and on a model with an embedded drafter the drafter's carried row with the slot, and a declared token-history tail in the owning stage's host run, in a `HostHistory` (per device, runs of 64 MiB host-visible slabs, with tickets for the copies in flight), beside its tokens and row classes.
   A `Boundary` is the state alone at a re-prefill job's checkpoint, or where a request's last user message starts (`Cache::keep_boundary`, `Model::save_host` without blocks), forked later with the blocks of a later history of the same conversation (`Model::fork` with a state); with a disk tier the host tier thins no conversation's boundaries, and its room sends the older ones to disk.
-- **Copies.** `Model::save_host` and `Model::restore_host` enqueue the copies on each device's stream and return; nothing waits for them, and `release_host` waits for their tickets before the slabs are reused.
+- **Copies.** `Model::save_host` and `Model::restore_host` enqueue the KV, recurrent-state and carried-row copies on each device's stream and return; nothing waits for them, and `release_host` waits for their tickets before the slabs are reused.
+  A declared U32 token-history tail transfers through the owning backend's host `write` or `read` before that device's copies are enqueued; Vulkan synchronizes those calls, so it may wait for earlier device work but not the new copies.
 - **Room.** `host_cap_` (`--host-cache-bytes`, by default `--max-seqs` histories at the most one request may hold, within half of the free memory after loading, `server::default_host_cache`) bounds the slabs; each slab allocation must leave the host the pool's reserve, a twentieth of what the host had free as the model was made and fixed then (`Model::host_admits`).
 - **Ranking**, the one ranking of what stays (`Cache::rank`, docs/CACHE-PLAN.md, section 4), which `write_back` and `keep_boundary` ask: an entry whose going loses nothing goes first (superseded, as a re-prefill job's donor supersedes its conversation's earlier copies, `Cache::supersede`, orphaned by a cut, a boundary without its rows, rows another holder keeps or whole on disk), then those of conversations that did not come back, then those that did, each least recently used first; a copy is kept only in the room of entries ranked below it, and a copy renewed by a donor of the same history takes that donor's standing.
 - **Matching.** `enter` asks one question (`Cache::served`) over the device donors, the host donors (promoted first by `promote`), the boundaries whose rows a donor or a host donor holds and the running sources, by tokens and row classes, and forks the longest whole-block share, passing over a holder that fails and asking again; a promoted host entry stays in host memory, renewed, so evicting it again copies nothing.
@@ -34,13 +35,14 @@ One file per entry, written once; its payload is never changed, and its header o
 - **Header**, fixed layout, its own CRC32C:
   - magic and format version (`DiskStore::kVersion`, 2 since a file is a segment or a state);
   - identity (below), whose every field must equal the running server's for the entry to be read;
-  - what the file is (`DiskIndex::describe`): a segment's token range or a state's position, the digest of the history below it and at each of its blocks' ends, and whether its conversation came back, so the index is rebuilt from headers alone; the tokens themselves are not written;
-  - the layout: per device, the bytes of each run in the order `HostSpan` writes them (each KV storage's blocks layer by layer, K then V, then the state slot, then the carried row), the block tokens, the layers, the K and V block bytes and the state slot bytes;
+  - what the file is (`DiskIndex::describe`): a segment's token range or a state's position, the digest of the history below it and at each of its blocks' ends, and whether its conversation came back, so the index is rebuilt from headers alone; the full token sequence is not written, though model state can include its bounded U32 token-history tail;
+  - the layout: per device, the bytes of each run in the order `HostSpan` writes them (each KV storage's blocks layer by layer, K then V then any F32 auxiliary rows, then the state slot, then the carried row, then a U32 token-history tail on its owning stage's first device when present), the block tokens, the layers, the K and V block bytes, optional per-layer auxiliary widths, and the state slot bytes.
+    A state slot contains its common recurrent prefix and, when present, that layer's full F32 tail; the token-history tail stays exact U32 outside device state storage;
   - the payload's length and the CRC32C of each 4 MiB chunk of it.
 - **Payload**: the runs, device by device, padded to the file system's direct-I/O granule.
 - **Identity** (what makes two servers' bytes interchangeable):
   - the model's SHA-256, of its one file or of every file of a set that holds tensors, with the first, in order (`model_files` in `src/server/disk_tier.hpp`), a first shard of metadata alone being the same bytes for models whose tensors differ: from the hub manifest when the file was pulled, otherwise computed once on a background thread at startup and kept in a sidecar keyed by the file's path, size, modification time and inode, the tier reading and writing nothing until it is known;
-  - the placement: each device's kind and index and the layers it holds, the KV pools' block tokens, the state slots' shape;
+  - the placement: each device's kind and index and the layers it holds, the KV pools' block tokens, the state slots' common `StateShape` prefix; if a layer has a per-layer F32 tail, `host_identity()` also records the full per-layer slot strides, and if token history is declared its versioned identity records the owner stage, width and padding ID;
   - each device's effective activation dtype and the K and V cache types;
   - what in the build can change a history's bits, and not the revision, so an update that changes none of it reads the entries of the server before (`disk_identity` in `src/server/disk_tier.hpp`):
     - the numerics fingerprint: the SHA-256 over every file under `src/`, `cmake/`, `CMakeLists.txt` and `build.bat` that `cmake/numerics-sources.txt` does not name out, each file's bytes with CRLF read as LF. A file is in unless a line there argues it out (the CLI, the hub, the server, the tokenizer, and the files that only parse, sample or print), so the backends and their shaders, the model and its architectures, the quantization decoders, the format readers and the loader are in without being named. Both build routes compute it at every build, CMake in `cmake/build-info.cmake` and `build.bat` through `cmake/numerics-fingerprint.ps1`, with no Git, and `tests/version.py` computes it a third time and holds the binary to it;
@@ -204,7 +206,9 @@ Many conversations are used once, and nothing should be kept forever.
 ## Privacy
 
 - Directories 0700 and files 0600 on POSIX; on Windows the server sets no permissions and checks no ACL, so its directory and files inherit the ACL of `--disk-cache-dir`, and that directory is where access is decided (the default is under the user's profile).
-- File names carry no tokens or text; the files hold no token ids since version 2, only digests of them, and caches from which a conversation could be reconstructed, so they are as private as the conversations.
+- File names carry no tokens or text.
+  The files hold token digests and model caches; models that declare token history also persist its bounded U32 token-ID tail.
+  They do not hold the full token sequence, but the tail and caches are private conversation data.
 - By default nothing remains after a clean exit, and after a crash only until the next sweep; `--disk-cache-keep` is the one way to keep entries past an exit.
 - A stronger mode, planned as an option after measurement: entries as files unlinked as soon as they are open (`O_TMPFILE` on Linux, `FILE_FLAG_DELETE_ON_CLOSE` on Windows), so nothing remains after any exit, crash included, at the cost of an open handle per entry and no adoption.
 - No encryption at rest in this plan; a disk that must not hold conversations should not be given to the tier.
@@ -301,7 +305,8 @@ Two facts decide the shape. The KV rows of a history are append-only: a later tu
 
 Two kinds of file, their payloads immutable, both written as the store writes any entry (a temporary name, flushed, renamed, the directory flushed):
 
-- **A segment**: the blocks of a token range `[a, b)` of one history, every device, layer by layer, K then V. A segment never crosses a multiple of 1024 tokens (`DiskIndex::kSegmentTokens`): it bounds what a fork copies at 68 MiB on this model and leaves 75 files for 76k tokens.
+- **A segment**: the blocks of a token range `[a, b)` of one history, every device, layer by layer, K then V then any F32 auxiliary rows.
+  A segment never crosses a multiple of 1024 tokens (`DiskIndex::kSegmentTokens`): it bounds what a fork copies at 68 MiB on this model and leaves 75 files for 76k tokens.
 - **A state**: the recurrent state at one position. A model that keeps no state writes none.
 
 A history of `n` tokens is on disk when segments cover `[0, n)` and, on a model that keeps a state, a state at `n` is there. A message boundary is an earlier state of the same history.

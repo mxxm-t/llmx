@@ -29,7 +29,7 @@ This page covers what a module holds, what the shared runtime does for it, the r
   It names no architecture, tensor or metadata key, and a check in the test suite (`tests/arch_boundary.py`) holds it to naming no registered architecture and no tensor.
 - **A module** (`src/model/arch/<name>.hpp`) holds everything that depends on the architecture:
   - its configuration, read from the file's metadata, and every refusal;
-  - its plan: the layers the runtime runs, each layer's kind and tensor roles, the arena slots, the residual row, the context length, the K and V geometry every layer shares and the position tables;
+  - its plan: the layers the runtime runs, each layer's kind and tensor roles, the arena slots, the residual row, the context length, the K and V geometry every layer shares, the optional `LayerPlan::kv_aux` widths of F32 values kept beside K and V, and the position tables;
   - the values of its position tables;
   - its math, written as backend ops: the embedding, each layer's mixer part and feed-forward part, and the head.
 - **The registry** (`src/model/arch/registry.hpp`) maps each `general.architecture` value to its module. It is the only place such a name is accepted, and an unknown name is refused there.
@@ -81,7 +81,7 @@ The module's `plan` is built once, from the configuration and the runtime's inde
 - for each layer:
   - its kind, a value of the module's own that the runtime hands back on every call for that layer;
   - whether its feed-forward part holds routed experts;
-  - what its mixer keeps for each sequence between passes: keys and values for every position, a recurrent state, or nothing;
+  - what its mixer keeps for each sequence between passes: keys and values for every position, with optional auxiliary F32 values per position, a recurrent state, or nothing;
   - its roles;
 - the roles of the pass: the embedding and the head;
 - for each role:
@@ -94,7 +94,7 @@ The module's `plan` is built once, from the configuration and the runtime's inde
 - the arena slots, as the floats one row takes in each, with slot 0 the residual and each slot sized for the widest use any layer kind makes of it;
 - the width of the residual row, which is also what a crossing between devices carries;
 - the context length: the positions a sequence may reach, which the tables cover and the cache budget defaults to;
-- the geometry of K and V, for the layers that keep them;
+- the geometry of K and V and the optional auxiliary width of each KV layer;
 - the sizes of the position tables.
 
 The plan looks tensors up through `TensorIndex`, which refuses a missing or repeated tensor with the one text the runtime uses.
@@ -105,10 +105,16 @@ The runtime then:
 - checks every role by its kind: its shape, F32 for a norm, and trailing axes of one;
 - checks each assigned backend's weight types through `supports_type`, before adopting any weight;
 - decides whether each host layer can stream to its mixer device once: all its streamed roles must have supported types there and the destination must implement its feed-forward part's ops, or that layer stays on the host;
-- adopts each role on the device of its part;
+- adopts each role on the device of its part, except a declared mixer lookup read through an external row source;
 - reads one buffer for a tensor that two roles take on one device;
-- counts each layer's roles in the fit, in file order, and the pass's roles through the fit's three fields for them: the embedding's table, the head's matrix and the head's norm.
-  A pass role of another part and kind, such as a second head weight, is refused by the fit until a field for it is added to `Footprint`, in the branch of the module that first declares one.
+- counts each layer's roles in the fit, in file order, and the pass's roles by kind: the embedding's table, the first head matrix, the first head norm, and further head matrices or norms through `head_aux`.
+  A pass role id listed twice is refused.
+
+A layer's optional `lookup` names its gather role and the rows it reads per token.
+Its `lookup_ids` hook fills the ordered integer ids from the pass and the saved token history, with no I/O and no backend operation.
+With a `row_source`, the runtime reads the unique packed rows and a remap before the graph is recorded, and the fit counts the bounded device staging and host scratch rather than the whole table; a normal pass and a pass apart have separate buffers.
+Without a row source the table is a resident weight.
+The loader builds row sources for the lookup roles an architecture declares, and placement applies `--lookup-storage`.
 
 None of that is written again for each architecture.
 
@@ -117,7 +123,7 @@ Until the architecture's math runs, its `plan` refuses the architecture by name 
 ### The position tables
 
 `fill_tables` computes them once at load, as values that depend only on the position and the configuration.
-The runtime keeps them for the model's life and adopts them on every device that runs a mixer part.
+The runtime keeps them for the model's life and adopts them on every device the model uses, since any part may read a table.
 
 ### The math
 
@@ -147,11 +153,9 @@ The op's kernels keep the batch-invariance rule below.
 
 ### Drafters
 
-None of this exists yet; each piece arrives with its first user, as "When the runtime needs more" says.
-- A drafter the file embeds, such as an MTP block, belongs to the module. It will reach the speculative decoding system through a drafter hook of the module, which arrives with Qwen 3.x step 9, and the module will own its part of taking a rejected draft back.
-- A drafter in a sidecar file will be reached through drafter entries of the registry, which arrive with speculative decoding step 5, and the target module's graph header will supply the blocks it runs.
-- The rows a drafter reads (taps of the residual entering listed layers) will be taken by the runtime in its layer loop, from speculative decoding step 5 on.
-- Output with the drafter on equals output with it off.
+An embedded drafter, such as an MTP block, is declared by the module through its drafter hooks: the module plans the drafter's roles and ops and computes its context rows, and the runtime supplies the target rows from the pass and owns the sequence storage, the verify and the rollback.
+A drafter in a sidecar file is paired with its target through the registry entry's `normalize_drafter` before it is read.
+The drafter's cache follows the target sequence's history, and output with the drafter on equals output with it off.
 
 ### When the runtime needs more
 
@@ -161,20 +165,13 @@ Nothing is added to the contract before an architecture uses it.
 
 ### Future split modes
 
-Today the runtime runs a model as a layer split, and each part of a layer runs whole on one device, the one whose backend its `Step` holds.
-[MULTI-DEVICE](MULTI-DEVICE.md) plans more ways to split a model:
-- the layer split, which runs now;
-- the head split of layer split phase 3's step 6, an option that divides the output projection's vocabulary rows over the stages;
-- the tensor split in phase 6, where every layer runs on a tensor group of several devices at once: q, k, v, gate and up split by output rows, the attention output and down by input columns, attention by heads with each member keeping the KV of its heads, and two sums over the group per layer;
-- the staged tensor split, stages of a layer split each of which is a tensor group;
-- expert parallelism, where a layer's experts are divided between devices.
-
+The runtime runs a model as a layer split, a tensor group of two to four devices, or stages each of which is a tensor group ([MULTI-DEVICE](MULTI-DEVICE.md), [TENSOR-SPLIT](TENSOR-SPLIT.md)).
 Each reaches a module as fields of the contract, not as a rewrite of it:
 - a `Role` says how its tensor shards: by output rows, by input columns, or not at all;
 - a `Step` carries the group member it runs on, the group's width and the range of heads that member holds, and a group-sum hook the parts call where a partial result is summed over the group, which is the identity at width 1.
 
-So once the contract gives a module shard information, its math assumes neither a whole matrix nor all heads: it takes a projection's widths from the `Weight` it is handed, runs over the heads its `Step` names, and calls the group sum where a product split by input columns ends.
-The head split lands those fields in their general form as their first user, and the tensor split adds the group sum.
+So a module's math assumes neither a whole matrix nor all heads: it takes a projection's widths from the `Weight` it is handed, runs over the heads its `Step` names, and calls the group sum where a product split by input columns ends.
+Expert parallelism remains planned in [MULTI-DEVICE](MULTI-DEVICE.md).
 
 ## Rules
 
@@ -182,7 +179,7 @@ The head split lands those fields in their general form as their first user, and
 
 A row's arithmetic depends only on the row, its prompt's extent and its position. It never depends on the width of the pass, the other sequences in it, how a prompt is sliced into passes, or a reused prefix.
 - Kernels are chosen by the extent in `backend::RowRun`, never by a call's row count.
-- Anything a pass carries to the next, such as a recurrent state or a partial group, is stored exactly, in F32, so where a slice ends cannot round it.
+- Anything a pass carries to the next, such as a recurrent state or a partial group, is stored exactly, in F32, so where a slice ends cannot round it; a declared token-history tail is kept exactly as U32 in the model's host slot array.
 - Kernel layouts (lanes, reduction trees, chunk sizes) are constants of the model and the device, never of the token or sequence count.
 - Every multiply-add in a new kernel is an explicit fused multiply-add, and the accumulators whose order matters are `precise`, as [QWEN35](QWEN35.md), Row classes, sets out.
 
@@ -220,7 +217,7 @@ What is not implemented is refused, never approximated. That covers an architect
 | which roles follow a routed block to the host, which are copied beside the mixer and which are streamed | declared by the plan, done by the runtime |
 | slot widths, the residual width and the context length | the module |
 | the arena, the handoff buffers and the crossings | the runtime |
-| the K and V geometry | the module declares it; the storages, pools, blocks, forks and rollback are the runtime's and the backends' |
+| the K and V geometry and the auxiliary row widths | the module declares them; the storages, pools, blocks, forks and rollback are the runtime's and the backends' |
 | table values | the module; their adoption and the position bound are the runtime's |
 | the math | the module |
 | the kernels | the backends |

@@ -212,6 +212,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.logits_base = logits_base;
     p.ran = 0;
     p.ids.resize(rows);
+    p.previous_tokens.resize(backend::size_mul(n_entries, token_width_));
     p.pos.resize(rows);
     p.pick.resize(want);
     p.runs.resize(n_entries);
@@ -298,6 +299,33 @@ inline void Model::single_prepare(Pass& p, size_t s) {
         const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
         p.states[st.device][e] = backend::StateView{home.states.get(), src, dst, q.stage_length(s), p.entries[e].n};
     }
+    prepare_tokens(p, s);
+}
+
+// Prepare one layer's requested rows once on the group's first member, then upload the packed rows to each member's own buffer.
+// The remapped IDs live in that first member's context scratch until the backends consume their gather calls.
+inline void Model::prepare_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l) {
+    const auto& lookup = plan_.layers[size_t(l)].lookup;
+    if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
+    ExecContext::Scratch& owner = p.apart ? ctx.apart[group] : ctx.scratch[group];
+    auto& prepared = owner.lookups[size_t(l)];
+    prepared.view = {};
+    Step step = mixer_part(ctx, p, group, l);
+    step.indices = prepared.ids.data();
+    step.indices_size = prepared.ids.size();
+    arch_->lookup_ids(step);
+    const WeightRows& source = *home_[size_t(l)][lookup->role].row_source;
+    const auto rows = source.read(prepared.ids.data(), backend::size_mul(p.rows, lookup->rows), *prepared.host);
+    for (size_t i = 0; i < rows.requested; ++i) prepared.ids[i] = uint32_t(rows.remap[i]);
+    const size_t bytes = backend::size_mul(rows.unique, rows.row_bytes);
+    for (size_t m = 0; m < width; ++m) {
+        const size_t dev = group + m;
+        ExecContext::Scratch& member = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
+        auto& target = member.lookups[size_t(l)];
+        target.view = {};
+        devices_[dev]->b->write(*target.data, 0, rows.data, bytes);
+        target.view = {{target.data.get(), 0}, prepared.ids.data(), rows.unique};
+    }
 }
 
 // A stage of one device on its devices, through its submissions: it touches the pass, the devices the stage records on and their tickets, and no history or pool.
@@ -306,6 +334,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
     const Stage& st = stages_[s];
     size_t cur = st.device;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
+    for (int l = st.first; l < st.end; ++l) prepare_lookup(ctx, p, cur, 1, l);
     const auto piece = [&](int l, bool ffn) {
         if (!pace) return;
         backend::Backend& b = *devices_[st.device]->b;
@@ -384,6 +413,18 @@ inline void Model::group_prepare(Pass& p, size_t s) {
             v.extent = p.runs[e].extent;
         }
     }
+    prepare_tokens(p, s);
+}
+
+// Snapshot the token-history owner's preceding IDs on the history thread, before its stage may be recorded on a worker.
+inline void Model::prepare_tokens(Pass& p, size_t s) const {
+    if (s != token_stage_) return;
+    for (size_t e = 0; e < p.entries.size(); ++e) {
+        const backend::StateView& view = p.states[stages_[s].device][e];
+        uint32_t* out = p.previous_tokens.data() + e * token_width_;
+        if (!view.length) std::fill_n(out, token_width_, token_padding_);
+        else std::copy_n(token_tails_.data() + view.src * token_width_, token_width_, out);
+    }
 }
 
 // A group's stage on its devices, through its last submission: it touches the pass, the stage's devices and their tickets, and no history or pool.
@@ -412,6 +453,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
         else receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows, p.apart);
     }
     for (int l = st.first; l < st.end; l++) {
+        prepare_lookup(ctx, p, g, W, l);
         for (size_t m = 0; m < W; ++m) {
             Step step = mixer_part(ctx, p, g + m, l);
             step.width = W;
@@ -472,6 +514,13 @@ inline void Model::stage_commit(Pass& p, size_t s) {
     const int storage = devices_[st.device]->storage_index;
     for (size_t e = 0; e < p.entries.size(); ++e) {
         Sequence& q = *p.entries[e].seq;
+        if (s == token_stage_) {
+            const backend::StateView& view = p.states[st.device][e];
+            const size_t first = e ? p.runs[e - 1].end : 0;
+            advance_tokens(token_tails_.data() + view.dst * token_width_, p.previous_tokens.data() + e * token_width_,
+                           view.length, p.ids.data() + first, p.entries[e].n);
+            if (q.mark_.held()) std::copy_n(p.ids.data() + first, p.entries[e].n, marked_tokens_.data() + q.mark_.hold.buffer() * options_.mark_rows);
+        }
         if (storage >= 0) q.kv_[(size_t)storage].commit();
         else q.length_[s] += p.entries[e].n;
         for (size_t d : st.touches)
@@ -558,16 +607,39 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     ctx.tickets.resize(devices_.size(), 0);
     // The run list a part rebuilds and a streamed layer's groups hold at most a run per entry, and so per row, so no part grows them.
     ctx.part_runs.reserve(rows);
+    const auto lookups = [&](size_t device, size_t n) {
+        std::vector<ExecContext::Scratch::LookupScratch> result;
+        for (size_t l = 0; l < plan_.layers.size(); ++l) {
+            const auto& lookup = plan_.layers[l].lookup;
+            if (!lookup || size_t(place_.mixer_device[l]) != device - device % width_) continue;
+            const auto& source = home_[l][lookup->role].row_source;
+            if (!source) continue;
+            const size_t count = mul(n, lookup->rows);
+            if (count > UINT32_MAX) throw std::length_error("inference: lookup staging exceeds row ID range");
+            if (result.empty()) result.resize(plan_.layers.size());
+            auto& target = result[l];
+            if (device % width_ == 0) {
+                target.host = std::make_unique<WeightRows::Scratch>(*source, count, source->io_bytes());
+                target.ids.resize(count);
+            }
+            target.data = devices_[device]->b->alloc(mul(count, source->row_bytes()));
+        }
+        return result;
+    };
     for (size_t d = 0; d < devices_.size(); ++d) {
         ExecContext::Scratch& sc = ctx.scratch[d];
         if (!devices_[d]->used || (sc.arena && sc.rows >= rows)) continue;
         std::vector<size_t> counts(plan_.slots.size()), offsets;
         for (size_t i = 0; i < counts.size(); ++i) counts[i] = mul(rows, plan_.slots[i]);
         backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
+        std::vector<uint32_t> indices(mul(rows, plan_.index_width));
+        auto prepared = lookups(d, rows);
         // A pass through this context may still run on the arena being replaced: nothing else waits for a pass that wanted no logits.
         if (sc.arena) devices_[d]->b->wait(ctx.tickets[d]);
         sc.arena = std::move(arena);
         sc.offset = std::move(offsets);
+        sc.indices = std::move(indices);
+        sc.lookups = std::move(prepared);
         sc.rows = rows;
         sc.entry_runs.reserve(rows);
     }
@@ -577,7 +649,11 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         if (!devices_[d]->used) continue;
         std::vector<size_t> counts(plan_.slots.size());
         for (size_t i = 0; i < counts.size(); ++i) counts[i] = mul(apart_rows, plan_.slots[i]);
+        std::vector<uint32_t> indices(mul(apart_rows, plan_.index_width));
+        auto prepared = lookups(d, apart_rows);
         sc.arena = alloc_arena(*devices_[d]->b, counts, sc.offset);
+        sc.indices = std::move(indices);
+        sc.lookups = std::move(prepared);
         sc.rows = apart_rows;
         sc.entry_runs.reserve(apart_rows);
     }
@@ -710,8 +786,11 @@ inline void Model::ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l)
 inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, bool apart) const {
     ExecContext::Scratch& sc = apart ? ctx.apart[dev] : ctx.scratch[dev];
     const Device& d = *devices_[dev];
-    return Step{*d.b, sc.arena.get(), sc.offset.data(), {sc.arena.get(), sc.offset[0] / sizeof(float) + base * plan_.residual},
+    Step step{*d.b, sc.arena.get(), sc.offset.data(), {sc.arena.get(), sc.offset[0] / sizeof(float) + base * plan_.residual},
                 rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &sc.entry_runs, nullptr, 0, options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]};
+    step.indices = sc.indices.data();
+    step.indices_size = sc.indices.size();
+    return step;
 }
 
 // Layer l's mixer over every row of the pass, with the cache views of its device's storage when the layer keeps KV, and the rows' positions.
@@ -729,6 +808,15 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
         s.state_layer = (size_t)d.local_layer[(size_t)l];
     }
     s.pos = p.pos.data();
+    if (layer.lookup && home_[(size_t)l][layer.lookup->role].row_source) {
+        const ExecContext::Scratch& sc = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
+        s.lookup = &sc.lookups[size_t(l)].view;
+    }
+    if (layer.token_history) {
+        s.tokens = p.ids.data();
+        s.previous_tokens = p.previous_tokens.data();
+        s.previous_count = token_width_;
+    }
     return s;
 }
 

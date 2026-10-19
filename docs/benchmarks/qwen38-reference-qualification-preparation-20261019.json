@@ -1,0 +1,312 @@
+{
+  "date": "2026-10-19",
+  "protocol": "F2DEV-20261019-1142",
+  "state": "PREPARED_NOT_EXECUTED",
+  "qualified": false,
+  "reference_forwards": 0,
+  "native_forwards": 0,
+  "depth_limits": null,
+  "agreement": "Shared llmx devlog F2DEV 11:42 decision and XDEV 11:44 acknowledgement; complete rule in QWEN38-FLASH section 6.",
+  "bundle_local": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-qualification-20261019",
+  "bundle_manifest_sha256": "ecdd01c9abc37d73ca18b57b8b26291042ad1f034c5c6bfb0246315ff7303e93",
+  "files_sha256": {
+    "calibration-pin-inventory.json": "f39fd91c3ead55d5bb4785feac0ca114d00ffa630bd64bb1eb063190c555c5f1",
+    "candidate-before-inputs.json": "bb84b164765d729ad833cdb0b42feba261fbd5ddc03b07edcecdae0c75317580",
+    "commands.json": "c9c2fbbecb0352040d7cb3490c20de4fc26ae16247f872fb96f856e5aa9cbc96",
+    "compare_reference.py": "74b37b310feced278308b7e76739cb717329963c7cfd5ef0e8ffbf9e1d3d7a32",
+    "inputs-manifest.json": "e32927a154a4c3b2dcec2ca89ad21b918a84b4589456a1a28a9af367ca320e1a",
+    "preparation.json": "ba8e8145ce28c3c44563c9f94aa9cce21d43af270dc13e9f7f2149d067230e0b",
+    "prepare_inputs.py": "31d0a78ba506c6034be25b9c0520180696184658586b81e3519e1f260861a26d",
+    "prior-input-audit.json": "731bc31f5be667877aded94e4feb7f2bb4bff870839af1304b2a0d7b43b53de6",
+    "README.txt": "b945d9cb18000762238c1ee45a1b63e50f59be5397d98f04dc022a29ae143feb",
+    "run_cell.py": "c1e54dae7942106e41b11e7536c2a403fdc763c93f972f015279390e08a1bc0e",
+    "sequential_control.py": "f3b2748fdcb06ea0c9c1460ae13832571be43d1133aca6fc3752fac8b58ba48b",
+    "assets/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+    "inputs/fresh-chat-input.json": "7029be5df711c1b8e662cb965519455cf29e8020add7295aca9d4e8670d8bf04",
+    "inputs/fresh-chat.txt": "81c77eb3f2b591041f30af27d56bfbaf5f752499aee38b3f8ec80df05147d5c2",
+    "inputs/fresh-raw-input.json": "5583a03811186ad1efaba01f32a6f929b351bbf742eef533d510e2434816fb6e",
+    "inputs/fresh-raw.txt": "234b24579d429453f11de65e286f7ac849b24a714b24f1f589fe6d83791c2a90"
+  },
+  "inputs": {
+    "state": "INPUTS_PREPARED_NO_INFERENCE",
+    "diagnostic_only": true,
+    "qualification_or_budget": false,
+    "native_model_executed": false,
+    "new_inputs_sent_to_native": false,
+    "native_outputs_read": false,
+    "source": {
+      "path": "/zpool1/models/wiki.test.raw",
+      "bytes": 1290590,
+      "sha256": "173c87a53759e0201f33e0ccf978e510c2042d7f2cb78229d9a50d79b9e7dd08"
+    },
+    "source_local_file": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-qwen38-model-20261014\\build-qwen4exp\\long-context\\wiki.test.raw",
+    "normalization": "UTF8 decode, universal newline normalization, lstrip newline and space exactly as original prepare.py",
+    "input_selection": "First article heading at/after normalized corpus midpoint. Exact16384-token raw prefix and complete chat prefix using unchanged prior mechanics, within source span disjoint from prior prefix/one-third/two-thirds inputs.",
+    "scope": "Exactly one fresh source block, paired raw/chat; they share content and are not independent samples. Same two inputs serve reference calibration and native comparison.",
+    "prior_inspected_prefix_end_normalized_characters": 65948,
+    "original_tokenizer_controls": {
+      "raw-16384": {
+        "text_sha256": "152c6ffcc8c5bd6b6f480dacc78522f44e4e01e6e961428b69b93ccdeacb2f58",
+        "input_json_sha256": "088cbcc31f9f2988a5c3ece69042fe220e2d4d2b5f187be7c4b63721cc597f82",
+        "tokens": 16384
+      },
+      "chat-near-16384": {
+        "text_sha256": "547e920e17fab9801400c80b79b3c0e16b425d94a96f586bf31cd5822795fc39",
+        "input_json_sha256": "edc896cac19b651f6d8f28f1e7ead9391528f48de579ac78050449b1ebc8289d",
+        "tokens": 16384
+      }
+    },
+    "tokenizer_assets": {
+      "tokenizer.json": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+      "tokenizer_config.json": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+      "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+      "config.json": "889658f2508e8c61d409b02e70e0d78d8d4452ec65aaafbe129805d213d2e74b"
+    },
+    "local_preparation_environment": {
+      "tokenizers": "0.22.2",
+      "jinja2": "3.1.6",
+      "method": "Pinned tokenizer.json via Tokenizer.from_file and pinned Jinja template via ImmutableSandboxedEnvironment; exact retained raw/chat IDs and complete old rendered chat are prerequisites."
+    },
+    "candidate_freeze_sha256": "bb84b164765d729ad833cdb0b42feba261fbd5ddc03b07edcecdae0c75317580",
+    "prior_input_identities": [
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-qwen38-model-20261014\\build-qwen4exp\\long-context\\raw-16384-input.json",
+        "file_sha256": "088cbcc31f9f2988a5c3ece69042fe220e2d4d2b5f187be7c4b63721cc597f82",
+        "ids_sha256": "02e0ec98499cb3aed0b5e0413d50939e0449ec989f58c2097f58ad3e05c7ae53"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-qwen38-model-20261014\\build-qwen4exp\\long-context\\chat-near-16384-input.json",
+        "file_sha256": "edc896cac19b651f6d8f28f1e7ead9391528f48de579ac78050449b1ebc8289d",
+        "ids_sha256": "c3d23acfce4d8bccb3595c0036da01b5cd85461a05c0dc1b4e5dbaf54a75472b"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-20261018\\inputs\\calibration-chat-input.json",
+        "file_sha256": "e1b8142766a17bb67a821619abb1c41b63814e24034d469c6c3e7738896c1036",
+        "ids_sha256": "c34f64f29bfbf955275a65099afe1de7da3d82f555990d0065f6106abbaf81a1"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-20261018\\inputs\\calibration-raw-input.json",
+        "file_sha256": "54a0135ef3731e3038ec5f265b91949e9121f0a562cde34fbd7285e7cd482782",
+        "ids_sha256": "d698756855776c603467c0cd5e1528a6252dfca346e4a3d5d95e59ea09b9e4aa"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-20261018\\inputs\\validation-chat-input.json",
+        "file_sha256": "24a5916d296433540ef156f95047fbada243cb132f99fc290c3a6c01e5433801",
+        "ids_sha256": "d5c6806fb032230105f11a0be9096864f1d2af9d126902dcdd142f13ea03c57d"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-20261018\\inputs\\validation-raw-input.json",
+        "file_sha256": "9b088940b4afcf4f1549120a0a3df3ea880b154b04155657f6317fd3d250c6fa",
+        "ids_sha256": "ff6a9b2a5e4b8508f54111953a920307ff3c06dfcf1b79e408e281b4d475db66"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-repeatability-20261018\\inputs\\calibration-chat-input.json",
+        "file_sha256": "e1b8142766a17bb67a821619abb1c41b63814e24034d469c6c3e7738896c1036",
+        "ids_sha256": "c34f64f29bfbf955275a65099afe1de7da3d82f555990d0065f6106abbaf81a1"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-repeatability-20261018\\inputs\\calibration-raw-input.json",
+        "file_sha256": "54a0135ef3731e3038ec5f265b91949e9121f0a562cde34fbd7285e7cd482782",
+        "ids_sha256": "d698756855776c603467c0cd5e1528a6252dfca346e4a3d5d95e59ea09b9e4aa"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-repeatability-20261018\\inputs\\validation-chat-input.json",
+        "file_sha256": "24a5916d296433540ef156f95047fbada243cb132f99fc290c3a6c01e5433801",
+        "ids_sha256": "d5c6806fb032230105f11a0be9096864f1d2af9d126902dcdd142f13ea03c57d"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-live-dashboard-final-rig-20261017\\flash-reference-pilot-repeatability-20261018\\inputs\\validation-raw-input.json",
+        "file_sha256": "9b088940b4afcf4f1549120a0a3df3ea880b154b04155657f6317fd3d250c6fa",
+        "ids_sha256": "ff6a9b2a5e4b8508f54111953a920307ff3c06dfcf1b79e408e281b4d475db66"
+      }
+    ],
+    "source_disjoint_from_prior_inputs": true,
+    "cells": {
+      "fresh-raw": {
+        "split": "fresh",
+        "form": "raw",
+        "tokens": 16384,
+        "text_file": "inputs/fresh-raw.txt",
+        "text_sha256": "234b24579d429453f11de65e286f7ac849b24a714b24f1f589fe6d83791c2a90",
+        "text_bytes": 73921,
+        "input_file": "inputs/fresh-raw-input.json",
+        "input_sha256": "5583a03811186ad1efaba01f32a6f929b351bbf742eef533d510e2434816fb6e",
+        "input_bytes": 76441,
+        "source_normalized_character_span": [
+          647636,
+          721488
+        ],
+        "source_block_limit": 863942,
+        "source_start_heading": " = No. 20 Squadron RAAF = ",
+        "complete_chat_template": false,
+        "ids_sha256": "d48fb8f3717a2f4efbe3d2d029ea89e28c7f9fe9bf5b9e857bc123757ab431e0"
+      },
+      "fresh-chat": {
+        "split": "fresh",
+        "form": "chat",
+        "tokens": 16384,
+        "text_file": "inputs/fresh-chat.txt",
+        "text_sha256": "81c77eb3f2b591041f30af27d56bfbaf5f752499aee38b3f8ec80df05147d5c2",
+        "text_bytes": 73984,
+        "input_file": "inputs/fresh-chat-input.json",
+        "input_sha256": "7029be5df711c1b8e662cb965519455cf29e8020add7295aca9d4e8670d8bf04",
+        "input_bytes": 76450,
+        "source_normalized_character_span": [
+          647636,
+          721156
+        ],
+        "source_block_limit": 863942,
+        "source_start_heading": " = No. 20 Squadron RAAF = ",
+        "complete_chat_template": true,
+        "ids_sha256": "ba1baa34c5c103fe886b24dee72e76160bbfa337ec8ae3790d47ee2d21273bd3"
+      }
+    },
+    "policy": "Reference-only four-forward plan; no native exposure before numerical limits frozen; no forward performed by preparation."
+  },
+  "commands": {
+    "protocol": "F2DEV-20261019-1142",
+    "state": "PREPARED_NOT_EXECUTED",
+    "preparation_sha256": "ba8e8145ce28c3c44563c9f94aa9cce21d43af270dc13e9f7f2149d067230e0b",
+    "reference_forward_count": 4,
+    "native_forward_count": 0,
+    "commands": [
+      {
+        "key": "fresh-raw-chunk64",
+        "argv": [
+          "/work/llmx/.venv-file-reference/bin/python",
+          "-B",
+          "-X",
+          "utf8",
+          "/pilot/run_cell.py",
+          "--cell",
+          "fresh-raw",
+          "--arm",
+          "chunk64",
+          "--preparation-sha",
+          "ba8e8145ce28c3c44563c9f94aa9cce21d43af270dc13e9f7f2149d067230e0b"
+        ],
+        "output_directory": "outputs/fresh-raw-chunk64",
+        "forwards": 1,
+        "expected_outputs": [
+          "hf.json",
+          "witness.json"
+        ]
+      },
+      {
+        "key": "fresh-raw-sequential",
+        "argv": [
+          "/work/llmx/.venv-file-reference/bin/python",
+          "-B",
+          "-X",
+          "utf8",
+          "/pilot/run_cell.py",
+          "--cell",
+          "fresh-raw",
+          "--arm",
+          "sequential",
+          "--preparation-sha",
+          "ba8e8145ce28c3c44563c9f94aa9cce21d43af270dc13e9f7f2149d067230e0b"
+        ],
+        "output_directory": "outputs/fresh-raw-sequential",
+        "forwards": 1,
+        "expected_outputs": [
+          "hf.json",
+          "witness.json"
+        ]
+      },
+      {
+        "key": "fresh-chat-chunk64",
+        "argv": [
+          "/work/llmx/.venv-file-reference/bin/python",
+          "-B",
+          "-X",
+          "utf8",
+          "/pilot/run_cell.py",
+          "--cell",
+          "fresh-chat",
+          "--arm",
+          "chunk64",
+          "--preparation-sha",
+          "ba8e8145ce28c3c44563c9f94aa9cce21d43af270dc13e9f7f2149d067230e0b"
+        ],
+        "output_directory": "outputs/fresh-chat-chunk64",
+        "forwards": 1,
+        "expected_outputs": [
+          "hf.json",
+          "witness.json"
+        ]
+      },
+      {
+        "key": "fresh-chat-sequential",
+        "argv": [
+          "/work/llmx/.venv-file-reference/bin/python",
+          "-B",
+          "-X",
+          "utf8",
+          "/pilot/run_cell.py",
+          "--cell",
+          "fresh-chat",
+          "--arm",
+          "sequential",
+          "--preparation-sha",
+          "ba8e8145ce28c3c44563c9f94aa9cce21d43af270dc13e9f7f2149d067230e0b"
+        ],
+        "output_directory": "outputs/fresh-chat-sequential",
+        "forwards": 1,
+        "expected_outputs": [
+          "hf.json",
+          "witness.json"
+        ]
+      }
+    ],
+    "serial_order": [
+      "fresh-raw-chunk64",
+      "fresh-raw-sequential",
+      "fresh-chat-chunk64",
+      "fresh-chat-sequential"
+    ],
+    "mounts": {
+      "/pilot": "new immutable bundle readonly",
+      "/output": "each unique fresh output directory writable",
+      "/work/llmx": "/zpool1/llmx-xdev-flash-20261015 readonly",
+      "/models/Qwen3.8-Flash-Next": "/zpool1/models/Qwen3.8-Flash-Next readonly"
+    },
+    "runtime": {
+      "cpus": [
+        4,
+        5
+      ],
+      "torch_threads": 2,
+      "memory_bytes": 8589934592,
+      "memory_plus_swap_bytes": 8589934592,
+      "fresh_mem_available_guard_bytes": 15032385536,
+      "fresh_free_disk_guard_bytes": 2147483648,
+      "timeout_seconds": 7200,
+      "network": "none",
+      "gpu_devices": [],
+      "core_limit": 0,
+      "source_models_inputs": "read-only",
+      "fresh_output_only_writable": true
+    },
+    "launch_requires": [
+      "parent reviewed new host wrapper with exact-CID cleanup and immutable pins",
+      "fresh14GiB available memory,2GiB disk,nonconflicting CPUs4/5;8GiB cap;no devices/network",
+      "fresh output for each one-forward cell; retain failure, no automated rerun",
+      "all four outputs hashed and reference-only three limits frozen before native reads inputs"
+    ],
+    "parallel_execution": "Not configured or authorized. Existing worker pins CPUs4/5. A second host/affinity requires separately reviewed matching environment and adequate guards; four-forward experiment unchanged.",
+    "budget_formulas": {
+      "misses": "2 * max(raw_ref_misses,chat_ref_misses)",
+      "rms": "2 * max(raw_ref_nll_rms,chat_ref_nll_rms)",
+      "abs_mean": "2 * max(abs(raw_ref_signed_mean),abs(chat_ref_signed_mean))"
+    },
+    "native_after_freeze": "Original f073 candidate once per same raw/chat input, all three metrics separately per input; native launch commands intentionally absent."
+  },
+  "limits": [
+    "Input preparation only; no reference output, calibration limit or native qualification exists.",
+    "Four reference forwards must complete and their numerical limits be frozen before native reads these inputs.",
+    "Raw/chat inputs share corpus content; they are not independent validation holdouts.",
+    "Historical 492/512 failed the former rule and is not promoted to a pass.",
+    "Host wrapper and scoring helper review remain pending; available rig memory is below the unchanged reference guard."
+  ]
+}

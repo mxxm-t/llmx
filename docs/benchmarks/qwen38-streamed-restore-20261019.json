@@ -1,0 +1,283 @@
+{
+  "scope": "Focused tiny Flash streamed-history restore regression, not released-model or performance qualification",
+  "cpu_fix_validation": {
+    "test_first_commit": "c0247a08a",
+    "fix_commit": "629228938ae7705ce91831cf140e9f6382e13687",
+    "worktree": ".tmp-qwen38-current-main-20261019",
+    "source_sha256": {
+      "src/model/history.hpp": "47d502a0fa58dee0e7ce89ac1d5cbb122c2c0285fbc7acfea7396c45aaa49ff6",
+      "src/model/runtime.hpp": "f01834c4d5526da921f623fa608f136a29ff785dd39284f36c69eafa0617eaf5",
+      "src/server/disk_tier.hpp": "eee7fa7ee78110229820fdb598480375d4ad1c7f013bcb918511921847b0b979",
+      "tests/qwen4exp_mtp.cpp": "f17ad7518d6428a0df4b2e489b131f64d6ad5525aed9f1dafc38eabee23a34b1",
+      "tests/tiny_qwen.hpp": "217b13c612b78ba97e57a9d5f00118d0b6cd8bfcc3b0d3761dea7edceb4ab445"
+    },
+    "binaries_sha256": {
+      "llmx-arch-qwen35-test.exe": "9600c84f25260bfed882df81ed5de844049de278f9a95181f4cad842761015d9",
+      "llmx-kv-auxiliary-test.exe": "4cdecc73a3a0df1bcc398dd8cf1711a25e5eb82bea0c5ceb6405e452bceee598",
+      "llmx-kv-cache-test.exe": "c785a06c6b782f8bf11d2d46d2e11c1d6dd34c9be31dc5f9671711ff66483252",
+      "llmx-qwen4exp-mtp-test.exe": "5b662a9eeee0b53265ddbf9935504ef0c05ec12e7838c2fd0bb39fa05324babf",
+      "llmx-server-resume-test.exe": "45b76d8e4ff44da23071cbac077b21be54fbf77550261ac674d5c97d7e37ee6a"
+    },
+    "tests": {
+      "qwen4exp-mtp": {
+        "passed": true,
+        "checks": 1828
+      },
+      "kv-cache": {
+        "passed": true
+      },
+      "arch-qwen35": {
+        "passed": true,
+        "checks": 987
+      },
+      "server-resume": {
+        "passed": true,
+        "seconds": 154.46
+      },
+      "server-resume-cache": {
+        "passed": true,
+        "seconds": 112.3
+      },
+      "kv-auxiliary": {
+        "passed": true,
+        "seconds": 0.04
+      }
+    },
+    "expected_failure": "destinations=8352, saved=12744",
+    "scope": "CPU only focused targets; no rig, GPU, full suite, performance or released-model qualification",
+    "logs_sha256": {
+      "build-current-main-restore-fix-aux-build.log": "e69d53e8af876c7176a943f48d58d1ad0c09a845cecd8669ca6d3fd9e9f93c42",
+      "build-current-main-restore-fix-build.log": "9e3694cfae88a54a39adfd75b4829145f9fd830e73289829fa20a402763b74de",
+      "build-current-main-restore-fix-cache-tests.log": "224c9e4b63c32727fbb57dd157d36b1a2a1f7ce22b944e7b0d62254bdca27345",
+      "build-current-main-restore-fix-dead.log": "41b125788b374b95fd890dc59df7bf6ee904f55a7ce565b14353e0eac5b196be",
+      "build-current-main-restore-fix-docs.log": "072593910b47895f562d600cb48ccf5f50b0db1eb6ffbcae857d47d2dcd46566",
+      "build-current-main-restore-fix-tests.log": "7103f1a65ccfd35931dbdd3e6de90d306ae56dbb7e32f3a9da3679c0b99a47f3",
+      "build-current-main-restore-testfirst-build-r2.log": "f7da22eb692308afe04a68bc05a87caa03b83e97a95f1bc3ced6d52e52e83cb7",
+      "build-current-main-restore-testfirst-build-r3.log": "f7da22eb692308afe04a68bc05a87caa03b83e97a95f1bc3ced6d52e52e83cb7",
+      "build-current-main-restore-testfirst-build-r4.log": "f7da22eb692308afe04a68bc05a87caa03b83e97a95f1bc3ced6d52e52e83cb7",
+      "build-current-main-restore-testfirst-build.log": "f7da22eb692308afe04a68bc05a87caa03b83e97a95f1bc3ced6d52e52e83cb7",
+      "build-current-main-restore-testfirst-configure.log": "db25b98d21ef34b0842710a40d290c7afb5a85ef81242963b9dcea1dfe50e957",
+      "build-current-main-restore-testfirst-failure-r2.log": "c9ae328ff4b3fe9027fbb7e3fe1e743969c29517ae0401d029d91499bac9c04f",
+      "build-current-main-restore-testfirst-failure-r3.log": "31a300aacfc4f7b9bedcb0a2d20d6925ea9cc0ac64f7fd5832d4b8db286cab1d",
+      "build-current-main-restore-testfirst-failure-r4.log": "71e2c4404db28207fd5f77c83e4e9819ad39b79b32e0d67bc44a577ee5d2eccb",
+      "build-current-main-restore-testfirst-failure.log": "018131349c8abccdaf9c49667ca91c47cb337b703c07c0e328c768d3c4b5a4e0",
+      "LastTest-cache.log": "9b23102ea6d27a772cca7aeffcffabd9d4c19b2df9318d10f789122e114c25fe"
+    }
+  },
+  "vulkan_device_and_disk_validation": {
+    "source_head": "f073e6b51b3c240758ec5c45d366dd915161d3b9",
+    "source_tree": "2518343a07e7ce5b5c032d26c7e22c644c3ab0dd",
+    "binary_sha256": "1230438121f88f8089bfdc19662b04d99b7ecd4089b8d9d926aa5767efdfd4a5",
+    "cells": [
+      {
+        "cell": "single",
+        "physical_cards": [
+          0
+        ],
+        "container_id": "f2aa4d56c19f340bd0982e5349abc9caa6b1b7973e617926a1aaf4cdae822845",
+        "container_removed": true,
+        "exit_code": 0,
+        "error": null,
+        "command": [
+          "/build/llmx-qwen4exp-mtp-test",
+          "--device",
+          "vulkan:0"
+        ],
+        "started_utc": "2026-10-19T08:37:51.074092+00:00",
+        "ended_utc": "2026-10-19T08:37:53.397300+00:00",
+        "inside_elapsed_seconds": 2.544058913947083,
+        "checks": [
+          1928
+        ],
+        "restore_witness": "streamed restore vulkan:0 width=1 stages=1 block_tokens=64 devices=1 passed",
+        "test_log_sha256": "0721db02f0681054c0616e08600c38018e8e703ef43887b6b78e1ff7a9546229",
+        "vulkan_uuids": {
+          "0": "00000000-0300-0000-0000-000000000000"
+        },
+        "test_elapsed_seconds": 2.323208
+      },
+      {
+        "cell": "tensor2",
+        "physical_cards": [
+          0,
+          1
+        ],
+        "container_id": "ca1a770908c71dc5b80989a7eab8238675514fa53f5167f40edac67cfea721b4",
+        "container_removed": true,
+        "exit_code": 0,
+        "error": null,
+        "command": [
+          "/build/llmx-qwen4exp-mtp-test",
+          "--device",
+          "vulkan:0",
+          "--group-devices",
+          "vulkan:0,vulkan:1",
+          "--group-width",
+          "2"
+        ],
+        "started_utc": "2026-10-19T08:38:11.773134+00:00",
+        "ended_utc": "2026-10-19T08:38:16.608692+00:00",
+        "inside_elapsed_seconds": 4.958379974006675,
+        "checks": [
+          1302
+        ],
+        "restore_witness": "streamed restore vulkan:0 width=2 stages=1 block_tokens=64 devices=2 passed",
+        "test_log_sha256": "cba87399bc209437019a6ac076eec4f7adb1845440e43ee4236f69632b1fc1d4",
+        "vulkan_uuids": {
+          "0": "00000000-0300-0000-0000-000000000000",
+          "1": "00000000-4400-0000-0000-000000000000"
+        },
+        "test_elapsed_seconds": 4.835558
+      },
+      {
+        "cell": "staged2",
+        "physical_cards": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "container_id": "bd93d049b09425e003b6e39444430907d8497c42b1b97ac62e403a34c72e2da6",
+        "container_removed": true,
+        "exit_code": 0,
+        "error": null,
+        "command": [
+          "/build/llmx-qwen4exp-mtp-test",
+          "--device",
+          "vulkan:0",
+          "--group-devices",
+          "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+          "--group-width",
+          "2"
+        ],
+        "started_utc": "2026-10-19T08:38:35.151777+00:00",
+        "ended_utc": "2026-10-19T08:38:42.408001+00:00",
+        "inside_elapsed_seconds": 7.424386015045457,
+        "checks": [
+          1304
+        ],
+        "restore_witness": "streamed restore vulkan:0 width=2 stages=2 block_tokens=64 devices=4 passed",
+        "test_log_sha256": "94d58b03efbb4bbb596f1050c9f2793c8c3e80f56435758a66fa575d0d65084f",
+        "vulkan_uuids": {
+          "0": "00000000-0300-0000-0000-000000000000",
+          "1": "00000000-4400-0000-0000-000000000000",
+          "2": "00000000-8300-0000-0000-000000000000",
+          "3": "00000000-8600-0000-0000-000000000000"
+        },
+        "test_elapsed_seconds": 7.256224
+      }
+    ],
+    "container_absence": [
+      {
+        "id": "30821e247363cd78410908405cf5f282f161208b8ad3cc0b1a05b08273f110b9",
+        "absent": true,
+        "exit_code": 1,
+        "stderr": "error: no such object: 30821e247363cd78410908405cf5f282f161208b8ad3cc0b1a05b08273f110b9"
+      },
+      {
+        "id": "f2aa4d56c19f340bd0982e5349abc9caa6b1b7973e617926a1aaf4cdae822845",
+        "absent": true,
+        "exit_code": 1,
+        "stderr": "error: no such object: f2aa4d56c19f340bd0982e5349abc9caa6b1b7973e617926a1aaf4cdae822845"
+      },
+      {
+        "id": "ca1a770908c71dc5b80989a7eab8238675514fa53f5167f40edac67cfea721b4",
+        "absent": true,
+        "exit_code": 1,
+        "stderr": "error: no such object: ca1a770908c71dc5b80989a7eab8238675514fa53f5167f40edac67cfea721b4"
+      },
+      {
+        "id": "bd93d049b09425e003b6e39444430907d8497c42b1b97ac62e403a34c72e2da6",
+        "absent": true,
+        "exit_code": 1,
+        "stderr": "error: no such object: bd93d049b09425e003b6e39444430907d8497c42b1b97ac62e403a34c72e2da6"
+      }
+    ],
+    "physical_mapping": [
+      {
+        "physical": 0,
+        "pci": "0000:03:00.0",
+        "render": "/dev/dri/renderD136",
+        "uuid": "00000000-0300-0000-0000-000000000000"
+      },
+      {
+        "physical": 1,
+        "pci": "0000:44:00.0",
+        "render": "/dev/dri/renderD137",
+        "uuid": "00000000-4400-0000-0000-000000000000"
+      },
+      {
+        "physical": 2,
+        "pci": "0000:83:00.0",
+        "render": "/dev/dri/renderD132",
+        "uuid": "00000000-8300-0000-0000-000000000000"
+      },
+      {
+        "physical": 3,
+        "pci": "0000:86:00.0",
+        "render": "/dev/dri/renderD133",
+        "uuid": "00000000-8600-0000-0000-000000000000"
+      }
+    ],
+    "build_note": "Compile/configure passed; first evidence wrapper failed on absent CLI-only generated/llmx-build-info.hpp. Preserved original failure and independent build/source/container verification.",
+    "local_copy": {
+      "archive_sha256": "5443f7e7ba301604e13dd2f086c20012cb0d121f90817b37d663e67cdf572920",
+      "verified_manifest_files": 48,
+      "archive": "build-live-dashboard-final-rig-20261017\\flash-current-main-restore-20261019\\vulkan\\validation-evidence.tar.gz",
+      "collected": "build-live-dashboard-final-rig-20261017\\flash-current-main-restore-20261019\\vulkan\\collected"
+    }
+  },
+  "retained_artifacts": "build-live-dashboard-final-rig-20261017/flash-current-main-restore-20261019",
+  "rig_artifacts": "/zpool1/llmx-xdev-flash-restore-20261019",
+  "verified_artifact_sha256": {
+    "logs/build-console.log": "513ac61bdf0ab8cb3ab9c62fd023dcc12fd8fd20556a24a34fb32e82618b9043",
+    "logs/build.log": "7ff2838aa40e1e42ac062b01520d296a35f1d41eadb78e22f4ebbfae49ae4605",
+    "logs/configure.log": "abdb157e26ac452807b3faf255500a57284eef62a5fb992618f6103ecb15b569",
+    "logs/inside-build.json": "5d9945ab4174cb835cf5fb09ae54aa5fe0b6c2c06197cc7c048661ea262b68d2",
+    "build-result.json": "d6c9ee916820645f59f594f7a8acdd8f7e9c8f49cd2a5b8b1af46af1ea78eb35",
+    "build-verification.json": "bfbab9ef3dcd5ff5e21e4a92cbf75f5b5f3934c8a4f7d9f4457f83077a084261",
+    "source-identity.json": "8b5f12125438e80be213bdd860502dfa0b0146505396c7fc83523376dec43130",
+    "helpers.py": "d152a9b50134b46f18fe11cbcabd34b748d7bcdaf52581bfc9bf4b1c89e45e12",
+    "run_restore_mtp.py": "e1a6bccc671561d4210ebc4414ffc585edc72e5968fd88bbec0d62e600ae3142",
+    "build_inside.py": "7a5cb65c6ca85d390e83c6fd356ffe37ca3ae480ef67c46cfcb7a418baf4933b",
+    "build_remote.py": "fcf2004bdfbecda24384322250cfb78138642d9fc6f6adb5e8e36b5b8c197921",
+    "focused-mtp-restore-f073-single-r1/single/console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "focused-mtp-restore-f073-single-r1/single/container-inspect.json": "956f59a897e3247433ebdd3181b285fd6c135d873dd1f061b87bfb73b8a2ea20",
+    "focused-mtp-restore-f073-single-r1/single/host-start.json": "a945c26bd80e738f1ca0f31a2c821c1c29579da3cc7723f65d57493014084f42",
+    "focused-mtp-restore-f073-single-r1/single/inside-result.json": "ed489054c15ba035d47902f18972f4ac64f394ad5292c99014015c7bae9ed885",
+    "focused-mtp-restore-f073-single-r1/single/mtp.json": "7e7bd11923ff8564b941b2374ab5a5e3195a8300ef2623ad74547254bfd2e0fe",
+    "focused-mtp-restore-f073-single-r1/single/mtp.log": "0721db02f0681054c0616e08600c38018e8e703ef43887b6b78e1ff7a9546229",
+    "focused-mtp-restore-f073-single-r1/single/plan.json": "027a22e93f795305225ede43e48160d8f6cd9e847601e651add6da63d2c50f9f",
+    "focused-mtp-restore-f073-single-r1/single/result.json": "4e67c01b30af714a5f32e55f57ee11e18908f8f5d70b3cf6094ad204c62f2b8b",
+    "focused-mtp-restore-f073-single-r1/single/start.json": "88298858ae3fbba7e42f532d3631c09fab58a33846ff9f0c468512ad1427d927",
+    "focused-mtp-restore-f073-single-r1/single/vulkaninfo.json": "6e8346941eb549b16f2ccf64de650c33e9c940d8425aa5d8a491b801a353dd9c",
+    "focused-mtp-restore-f073-single-r1/single/vulkaninfo.log": "939f076660385567a9f3b782f1991d96f3702a11fef5db6183e4184a5cbcb5a6",
+    "focused-mtp-restore-f073-single-r1/summary.json": "57054f579fa12362f837b4f40190327ba8f5302ed83586355aee8ac7e4f35e50",
+    "focused-mtp-restore-f073-tensor2-r1/summary.json": "c2588b67b193567f127a00291b70d1ff6cfe9e5b92cd0b99e6d744f83808795c",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/container-inspect.json": "013978af5ef8caa09837266290a0d0bde20590dcda949daeb43672aab3ba9040",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/host-start.json": "98a6a7c21804f856f80e4ea4eb36564d43c456b9a8d300ad5f8afc8785f4a4e8",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/inside-result.json": "75caf26e052163d7b4635c1fe8ec435eb2227087195686ba8e7aed973f85bea0",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/mtp.json": "03c793fdb37244f8a8d96a669bf387a43870349297d69bdb8a37cea47ff588ee",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/mtp.log": "cba87399bc209437019a6ac076eec4f7adb1845440e43ee4236f69632b1fc1d4",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/plan.json": "027a22e93f795305225ede43e48160d8f6cd9e847601e651add6da63d2c50f9f",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/result.json": "b9124ec743102639a0a3f61e57c8fa8e1be5b4ec6f309d125411361bfd5cccdd",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/start.json": "2fe281ffa6a8e963bc6ed1e53f16cb3a504fd3fb2fcca519b83988771ede4c1f",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/vulkaninfo.json": "4a7e6ae8b3b0017b75d154ff6a83a49ebdbe2309a6fadd4149203361646198c0",
+    "focused-mtp-restore-f073-tensor2-r1/tensor2/vulkaninfo.log": "16fdb09438e528085adc8eee101d0762d2eee7873039e895afeff123bfe52919",
+    "focused-mtp-restore-f073-staged2-r1/staged2/console.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "focused-mtp-restore-f073-staged2-r1/staged2/container-inspect.json": "40ed0380b4c178d0d432eeac9ef7f0eed1a093a5b8908af2025a88e71af551b9",
+    "focused-mtp-restore-f073-staged2-r1/staged2/host-start.json": "efe8954ef29adc960c12fed927530aa8940cb140356d82ee7ad785529650f906",
+    "focused-mtp-restore-f073-staged2-r1/staged2/inside-result.json": "a5a90c25e7ad722c7c255855ba1a1565f8f3ad00cdf4af1180f99dbf9ba296ca",
+    "focused-mtp-restore-f073-staged2-r1/staged2/mtp.json": "1a6320b36be5ce2abe12ffdf63ab0e63cc8cb7d04acad91f9e1f1721ad1eda53",
+    "focused-mtp-restore-f073-staged2-r1/staged2/mtp.log": "94d58b03efbb4bbb596f1050c9f2793c8c3e80f56435758a66fa575d0d65084f",
+    "focused-mtp-restore-f073-staged2-r1/staged2/plan.json": "027a22e93f795305225ede43e48160d8f6cd9e847601e651add6da63d2c50f9f",
+    "focused-mtp-restore-f073-staged2-r1/staged2/result.json": "0aecdadbacdbd7f549ff1a92ce1c77343c7d3eadc6293ae2d84b360b9b83e886",
+    "focused-mtp-restore-f073-staged2-r1/staged2/start.json": "0ccc4bda771999a91dfae934f4affc7a7837369793888c8d929b74cf48614997",
+    "focused-mtp-restore-f073-staged2-r1/staged2/vulkaninfo.json": "e787f566c35f3bfae2ff8fe14f6299184977790b3d01e70ab53389e95f5b62e6",
+    "focused-mtp-restore-f073-staged2-r1/staged2/vulkaninfo.log": "12cc61ef2bf5c9e61c488421ad37861b3fb9c4bf151dc9854990ca6fbaa7c133",
+    "focused-mtp-restore-f073-staged2-r1/summary.json": "5069831cc75988cb71afe1386da5bf261ea7dc70faaf41051adef316acd00448",
+    "validation-summary.json": "6920757669d2a00de14cfa385bf34ca7be2c182bf6f4c0b977f52bf8fecd8a5a"
+  },
+  "remaining": "Released correctness 492/512 against required 512/512; applicable integration and landing checks remain open"
+}

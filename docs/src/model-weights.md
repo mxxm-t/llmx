@@ -7,6 +7,11 @@ The part of the architecture contract that the loader and a file's reader use as
 - `TensorView`: one tensor as a reader hands it to the model: its `name`,
   its `shape` with the fastest dimension first, its storage `type` (the GGUF
   type id) and its `bytes`, with `data` null when they are not in memory.
+  An optional `row_source` retains a shared [WeightRows](model-weight_rows.md)
+  source for a declared mixer lookup instead of ordinary weight adoption.
+  The ordinary GGUF loader sets it for architecture-declared lookup tensors:
+  disk mode retains a file reader, while host-backed modes retain the mapping
+  or host allocation that owns the table bytes.
 - `ModelWeights`: what a model is built from, whatever file it came from:
   the architecture that reads it (`arch`, [architecture](model-architecture.md)),
   and one view per tensor in the file's order, so tensor i is the file's
@@ -14,7 +19,8 @@ The part of the architecture contract that the loader and a file's reader use as
   and the model refuses one among views that reach it another way. A second
   format is a reader that produces this, as `infer::gguf_weights`
   ([registry](model-arch-registry.md)) does for GGUF. Two models built from one
-  `ModelWeights` share the architecture object and nothing else.
+  `ModelWeights` share the architecture object and any explicit row sources;
+  their execution storage and histories remain separate.
 - `TensorIndex`: the views by name, which `plan_model` builds once over a
   `ModelWeights`'s tensors for the architecture's plan and for setting each
   role's tensor. It refuses a repeated name ("duplicate tensor"), `find`
@@ -40,3 +46,13 @@ The part of the architecture contract that the loader and a file's reader use as
   rebuilding `"blk.N."` and hashing a tensor name for every projection of
   every layer of every token, and a device backend recognizes the same weight
   across calls. See `docs/DEVICE-EXECUTION.md` step 1.
+  For an external lookup, `row_source` is retained and the backend handle is
+  empty; dimensions and type still describe the original table. The runtime
+  validates the source against that table and bypasses `AdoptWeight` for it.
+  The prepared lookup supplied to the graph holds only the requested rows.
+
+File-backed sources own their shared reader. A memory-backed source borrows its
+span unless given a shared owner. The GGUF loader supplies that owner for
+host-backed sources. Without an owner, the caller must retain the allocation
+or mapping through every read; keeping `row_source` alive alone does not retain
+those borrowed bytes.

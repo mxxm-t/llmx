@@ -102,9 +102,9 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
     each(plan.pass);
     for (size_t l = 0; l < plan.layers.size(); ++l) {
         each(plan.layers[l].roles);
-        // A state layer's saved rows are rows its split roles write, so a member holds its share of each (saved).
+        // Saved rows follow their producer: sharded inputs shrink, replicated inputs stay whole (saved).
         for (const Saved& v : plan.layers[l].saved)
-            if (v.width % width)
+            if (!v.replicated && v.width % width)
                 throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " does not divide the " + std::to_string(v.width) +
                                          " floats layer " + std::to_string(l) + " saves a row for a mark");
     }
@@ -184,8 +184,9 @@ inline backend::StateShape state(const ModelPlan& plan, size_t width) {
     return s;
 }
 
-// The rows a state layer saves for a mark (LayerPlan::saved) as a member of `width` holds them: its share of each, since the split roles that write those rows give a member that share; check_plan refuses a width that does not divide one.
+// The rows a state layer saves for a mark (LayerPlan::saved): replicated rows stay whole, and a member holds its share of every other row.
 inline Saved saved(const Saved& v, size_t width) {
+    if (v.replicated) return v;
     if (v.width % width) throw std::logic_error("shard: a saved row of " + std::to_string(v.width) + " floats over a group of " + std::to_string(width));
     return Saved{v.slot, v.width / width, v.plane};
 }

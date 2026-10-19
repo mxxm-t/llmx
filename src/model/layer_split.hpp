@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 #include "backends/backend.hpp"
+#include "core/host_memory.hpp"
 
 // A model split by layers over several devices: which consecutive layers each device runs, fitted against what each device reports free (docs/MULTI-DEVICE.md, phase 1).
 // Nothing here knows an architecture: the model describes what it asks of memory as a Footprint, and the split works on those numbers alone.
@@ -23,12 +24,19 @@ struct Matrix {
     bool product = false;
 };
 
+// An externally-backed lookup's bounded per-pass storage. Its table bytes stay in the source; only requested rows and lookup scratch are fitted.
+struct LookupMemory {
+    size_t rows_per_token = 0, row_bytes = 0, io_bytes = 0;
+};
+
 // What a model asks of the memory of the devices it runs on, part by part; an architecture computes it from its file and options.
 struct Footprint {
     std::vector<std::vector<Matrix>> layers;   // each layer's weights
+    std::vector<LookupMemory> lookups;         // optional external lookup storage, aligned with layers
     Matrix embedding;                          // the embedding table
     Matrix output;                             // the head's matrix, the embedding table itself when tied
     Matrix output_norm;                        // what runs with the head besides its matrix
+    std::vector<Matrix> head_aux;               // additional head matrices or norms, counted on the output device
     bool tied = false;                         // the head reads the embedding table, adopted once where both sit on one device
     std::vector<size_t> cache;                 // each layer's cache: a KV layer's for every position the budget allows, a state layer's for every slot; none for every layer when empty
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
@@ -40,6 +48,8 @@ struct Footprint {
     std::vector<Matrix> drafter;
     Matrix drafter_embedding;
     size_t drafter_cache = 0;
+    size_t host_state = 0;                     // model-owned host state, counted once rather than per device
+    size_t host_scratch_per_row = 0;           // host lookup indices for each used stage's execution arena
 };
 
 // The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the one before waits in the other; otherwise one.
@@ -106,12 +116,39 @@ struct LayerSplit {
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
 // `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets, and `logit_rows` the logits rows kept where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
-                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt) {
+                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt,
+                               size_t apart_rows = 0) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
     if (N > 16) throw std::runtime_error("split: more than 16 devices");
     if (!fp.cache.empty() && fp.cache.size() != L) throw std::logic_error("split: a cache for some layers and not others");
+    if (!fp.lookups.empty() && fp.lookups.size() != L) throw std::logic_error("split: a lookup footprint for some layers and not others");
+    if (apart_rows > rows) throw std::logic_error("split: apart rows exceed fitted rows");
+    const size_t normal_rows = rows - apart_rows;
+    auto page_bytes = [](size_t bytes) {
+        if (!bytes) return size_t(0);
+        const size_t page = core::page_size();
+        return backend::size_mul(backend::size_add(bytes, page - 1) / page, page);
+    };
+    std::vector<size_t> lookup_device(L, 0), lookup_host(L, 0);
+    for (size_t l = 0; l < L && !fp.lookups.empty(); ++l) {
+        const LookupMemory& lookup = fp.lookups[l];
+        if (!lookup.rows_per_token) continue;
+        const size_t rows_per_pass = backend::size_mul(lookup.rows_per_token, lookup.row_bytes);
+        const size_t normal_capacity = backend::size_mul(normal_rows, rows_per_pass);
+        const size_t apart_capacity = backend::size_mul(apart_rows, rows_per_pass);
+        lookup_device[l] = backend::size_add(normal_capacity, apart_capacity);
+        auto host_capacity = [&](size_t nrows) {
+            if (!nrows) return size_t(0);
+            const size_t count = backend::size_mul(nrows, lookup.rows_per_token);
+            const size_t raw = page_bytes(backend::size_mul(count, lookup.row_bytes));
+            const size_t arrays = backend::size_mul(count, 2 * sizeof(size_t) + 2 * sizeof(uint32_t));
+            const size_t io = page_bytes(lookup.io_bytes);
+            return backend::size_add(backend::size_add(raw, arrays), io);
+        };
+        lookup_host[l] = backend::size_add(host_capacity(normal_rows), host_capacity(apart_rows));
+    }
     // cached[i]: the cache of layers [0, i), the same on every device.
     std::vector<size_t> cached(L + 1, 0);
     for (size_t l = 0; l < L; ++l) cached[l + 1] = backend::size_add(cached[l], fp.cache.empty() ? 0 : fp.cache[l]);
@@ -122,22 +159,26 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // prefix[d][i]: the resident bytes of layers [0, i) on device d.
     std::vector<std::vector<size_t>> prefix(N, std::vector<size_t>(L + 1, 0));
+    std::vector<size_t> lookup_prefix(L + 1, 0);
+    for (size_t l = 0; l < L; ++l) lookup_prefix[l + 1] = backend::size_add(lookup_prefix[l], lookup_device[l]);
     for (size_t d = 0; d < N; ++d)
         for (size_t l = 0; l < L; ++l) {
             size_t b = 0;
             for (const Matrix& m : fp.layers[l]) b += resident(d, m);
-            prefix[d][l + 1] = prefix[d][l] + b;
+            prefix[d][l + 1] = backend::size_add(prefix[d][l], b);
         }
     // The embedding and head weights a device keeps, given whether it runs the first and the last layers.
     // A tied pair on one device is one buffer, kept as the head keeps it, since the head reads it through a product.
     auto end_weights = [&](size_t d, bool first, bool last) -> size_t {
         size_t drafter = 0;
+        size_t head_aux = 0;
         if (last) {
+            for (const Matrix& m : fp.head_aux) head_aux = backend::size_add(head_aux, resident(d, m));
             for (const Matrix& m : fp.drafter) drafter += resident(d, m);
             if (!first && !fp.tied) drafter += resident(d, fp.drafter_embedding);
         }
-        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + drafter;
-        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) : 0) + drafter;
+        if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + head_aux + drafter;
+        return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) + head_aux : 0) + drafter;
     };
 
     // What the host holds for a set of devices running layers, and the device that carries it: the set's first host device, or none.
@@ -147,7 +188,9 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     auto host_for = [&](const std::vector<size_t>& used) {
         Host h;
         // A layer split is pipelined, and every stage but the last sends its residual on.
-        h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
+        h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + fp.host_state + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
+        h.need = backend::size_add(h.need, backend::size_mul(used.size(), backend::size_mul(rows, fp.host_scratch_per_row)));
+        for (size_t l = 0; l < L; ++l) h.need = backend::size_add(h.need, lookup_host[l]);
         for (size_t d : used) {
             h.need += devices[d].host_side;
             if (devices[d].host && h.carrier == SIZE_MAX) h.carrier = d;
@@ -166,7 +209,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], cached[i + k] - cached[i] + (last ? fp.drafter_cache : 0)),
+        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[i + k] - cached[i] + (last ? fp.drafter_cache : 0)),
                                  backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row : 0), overhead(d, h)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
@@ -262,7 +305,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         LayerSplit::Stage& st = out.stages[d];
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back());
         st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + (d == used.back() ? fp.drafter_cache : 0);
-        st.other = overhead(d, h);
+        st.other = backend::size_add(overhead(d, h), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {
             char msg[256];

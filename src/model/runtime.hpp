@@ -139,14 +139,15 @@ struct HostHistory {
 // A history being restored from an image laid out as a whole host copy (Model::restore_into): its sequence, whose blocks and checkpoint slot are taken, and per device where each byte of that device's image goes, in the image's order.
 // Its blocks hold rows from the start, so nothing reads or forks it until every copy into it has retired, which its caller holds to; Model::restored then gives its passes the copies' tickets.
 struct RestoreInto {
-    // `bytes` at `offset` of a fixed buffer, or of a KV storage's layer side, looked up as each copy is made since a growth replaces those buffers.
+    // `bytes` at `offset` of host memory, a fixed buffer, or a KV layer side resolved at each copy since growth replaces its buffers.
     struct Run {
         backend::Buffer* buffer = nullptr;
         const backend::BlockKVStorage* kv = nullptr;
         size_t layer = 0;
-        bool v = false;
+        unsigned side = 0;
         size_t offset = 0, bytes = 0;
-        backend::Buffer& target() const { return kv ? *(v ? kv->v_buffer(layer) : kv->k_buffer(layer)) : *buffer; }
+        uint8_t* host = nullptr;
+        backend::Buffer& target() const { return kv ? *(side == 0 ? kv->k_buffer(layer) : side == 1 ? kv->v_buffer(layer) : kv->auxiliary_buffer(layer)) : *buffer; }
     };
     Sequence seq;
     size_t length = 0;
@@ -183,6 +184,7 @@ struct Pass {
     size_t rows = 0, want = 0;
     bool long_runs = false;                            // some entry takes its streamed layers on the device
     std::vector<uint32_t> ids, pos, pick;
+    std::vector<uint32_t> previous_tokens;             // the token-history layer's preceding IDs, a fixed-width row per entry
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<std::vector<backend::StateView>> states;   // per device, per entry, on a device whose layers keep a state
     std::vector<Checkpoint> kept;                      // per entry, the checkpoint a keep entry writes, its sequence's once the last stage commits it
@@ -234,10 +236,18 @@ struct ExecContext {
     bool pending = false;
 
     struct Scratch {
+        struct LookupScratch {
+            std::unique_ptr<WeightRows::Scratch> host;
+            std::vector<uint32_t> ids;
+            backend::BufferPtr data;
+            PreparedLookup view;
+        };
         backend::BufferPtr arena;
         size_t rows = 0;
         std::vector<size_t> offset;            // bytes, per slot of the plan
         std::vector<backend::RowRun> entry_runs;   // the run list a part on this device may rebuild (Step::scratch): a device's own, since stages are recorded on a thread each
+        std::vector<uint32_t> indices;            // host lookup scratch sized with the arena, consumed synchronously by backend gather calls
+        std::vector<LookupScratch> lookups;
     };
     std::vector<Scratch> scratch;              // per device
     std::vector<Scratch> apart;                // per device, a second arena of apart_rows rows for a pass begun apart (Model::reserve_passes)
@@ -271,9 +281,11 @@ inline size_t kv_tokens(const ModelPlan& plan, const ModelOptions& options) {
     return options.kv_tokens ? options.kv_tokens : plan.context_length;
 }
 
-// The bytes one position of one layer's cache takes, key and value, at the options' cache types.
-inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& options) {
-    return plan.kv_heads * plan.head_dim * (backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v));
+// The bytes one layer keeps per position: K and V at the requested types, with any auxiliary row kept in F32.
+inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& options, size_t auxiliary = 0) {
+    return backend::size_add(backend::size_mul(backend::size_mul(plan.kv_heads, plan.head_dim),
+                             backend::kv_elem_bytes(options.kv_k) + backend::kv_elem_bytes(options.kv_v)),
+                             backend::size_mul(auxiliary, sizeof(float)));
 }
 
 class Model {
@@ -318,6 +330,23 @@ public:
         if (!options_.device_dtypes.empty() && options_.device_dtypes.size() != backends.size())
             throw std::runtime_error("inference: dtype policy does not cover every device");
         const size_t n_layer = plan_.layers.size();
+        for (const LayerPlan& layer : plan_.layers) {
+            if (layer.lookup) {
+                const auto role = std::find_if(layer.roles.begin(), layer.roles.end(), [&](const Role& r) { return r.id == layer.lookup->role; });
+                if (!layer.lookup->rows || role == layer.roles.end() || role->id >= plan_.role_ids ||
+                    role->kind != RoleKind::gather || role->part != Part::mixer)
+                    throw std::logic_error("inference: lookup needs a mixer gather role and rows");
+            }
+            if (layer.kv_aux && layer.cache != Cache::kv)
+                throw std::logic_error("inference: auxiliary KV rows need a KV layer");
+            kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(layer.kv_aux, sizeof(float)));
+            if (!layer.token_history) continue;
+            if (token_width_ || layer.cache != Cache::state || layer.token_padding >= plan_.vocab)
+                throw std::logic_error("inference: token history needs one recurrent layer and a padding ID in the vocabulary");
+            token_width_ = layer.token_history;
+            token_padding_ = layer.token_padding;
+        }
+        if (plan_.drafter) kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.drafter->kv_aux, sizeof(float)));
 
         if (place_.mixer_device.empty() && place_.ffn_device.empty()) {
             place_.mixer_device.assign(n_layer, 0);
@@ -359,7 +388,9 @@ public:
         auto accepts = [&](const Role& role, size_t device) {
             return !role.tensor || backends[device]->supports_type(weights.tensors[*role.tensor].type);
         };
-        auto require_type = [&](const Role& role, size_t device, const std::string& part) {
+        auto require_type = [&](const Role& role, size_t device, const std::string& part, bool lookup = false) {
+            if (role.tensor && weights.tensors[*role.tensor].row_source && !lookup)
+                throw std::runtime_error("inference: external row source needs a declared lookup " + role.name);
             if (role.tensor) used[*role.tensor] = true;
             if (!accepts(role, device)) {
                 const TensorView& t = weights.tensors[*role.tensor];
@@ -369,6 +400,13 @@ public:
         };
         for (const Role& role : plan_.pass)
             require_type(role, device_of(role.part, 0), role.part == Part::embed ? "embedding" : "head");
+        for (const OpUse& u : plan_.pass_ops) {
+            if (u.part != Part::embed && u.part != Part::head)
+                throw std::runtime_error("inference: a pass op must belong to the embedding or head");
+            if (!backends[device_of(u.part, 0)]->implements(u.op))
+                throw std::runtime_error(std::string("inference: the ") + (u.part == Part::embed ? "embedding" : "head") +
+                                         " needs " + backend::op_name(u.op) + ", which the backend of its device does not implement");
+        }
         // An embedded drafter runs beside the head, every role and op of it on the head's device.
         if (plan_.drafter) {
             for (const Role& role : plan_.drafter->roles) require_type(role, device_of(Part::draft, 0), "embedded drafter");
@@ -385,8 +423,16 @@ public:
             // Experts read in place on the host beside a mixer on a device that copies its weights.
             bool streamed = layer.routed && place_.stream_from && a != f && !backends[a]->reads_in_place() && backends[f]->reads_in_place();
             for (const Role& role : layer.roles) {
+                if (role.tensor && weights.tensors[*role.tensor].row_source) {
+                    const TensorView& t = weights.tensors[*role.tensor];
+                    if (!layer.lookup || layer.lookup->role != role.id || !layer.lookup->rows ||
+                        role.kind != RoleKind::gather || role.part != Part::mixer || role.stream != Stream::none ||
+                        role.shard.axis != Axis::none || role.in != t.row_source->columns() || role.out != t.row_source->rows() ||
+                        t.type != t.row_source->type() || t.bytes != t.row_source->bytes())
+                        throw std::runtime_error("inference: incompatible external row source " + t.name);
+                }
                 require_type(role, device_of(role.part, l), "layer " + std::to_string(l) + "'s " +
-                             (role.part == Part::mixer ? "mixer" : "feed-forward part"));
+                             (role.part == Part::mixer ? "mixer" : "feed-forward part"), layer.lookup && layer.lookup->role == role.id);
                 if (role.stream != Stream::none && !accepts(role, a)) streamed = false;
             }
             // Every op a part issues beyond the common set runs on its device; a stream destination without one of the feed-forward part's leaves the layer at home, as a type does.
@@ -507,8 +553,14 @@ public:
                                                  " tokens in one model; a split needs one size to divide the other");
                 }
                 // A tensor group's members each keep their KV heads, in blocks of the one pool its first member holds, so one block table serves them all.
+                std::vector<size_t> auxiliary((size_t)d.kv_layers, 0);
+                for (size_t l = 0; l < plan_.layers.size(); ++l)
+                    if (plan_.layers[l].cache == Cache::kv && d.local_layer[l] >= 0)
+                        auxiliary[(size_t)d.local_layer[l]] = plan_.layers[l].kv_aux;
+                if (plan_.drafter && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_)
+                    auxiliary[drafter_kv_] = plan_.drafter->kv_aux;
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
-                                          budget, options_.kv_k, options_.kv_v);
+                                          budget, options_.kv_k, options_.kv_v, auxiliary);
                 if (options_.kv_backed) d.storage->back_all();
                 if (d.member) {
                     d.storage_index = devices_[(size_t)(&dp - devices_.data()) - d.member]->storage_index;
@@ -522,10 +574,21 @@ public:
             // A tensor group's members each keep the state of their K and V heads and save a mark's inputs at their share of each width, under the slot ids the group shares.
             if (state_layers_) {
                 const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
+                if (token_width_) {
+                    for (size_t s = 0; s < stages_.size(); ++s)
+                        for (int l = stages_[s].first; l < stages_[s].end; ++l)
+                            if (plan_.layers[(size_t)l].token_history) token_stage_ = s;
+                    token_tails_.resize(backend::size_mul(slots, token_width_));
+                    marked_tokens_.resize(backend::size_mul(options_.mark_slots, options_.mark_rows));
+                }
                 for (size_t di = 0; di < devices_.size(); ++di) {
                     Device& d = *devices_[di];
                     if (!d.state_layers) continue;
-                    d.states = d.b->state_alloc((size_t)d.state_layers, slots, shard::state(plan_, width_));
+                    std::vector<size_t> tails((size_t)d.state_layers, 0);
+                    for (size_t l = 0; l < n_layer; ++l)
+                        if (place_.mixer_device[l] == (int)(di - d.member) && plan_.layers[l].cache == Cache::state)
+                            tails[(size_t)d.local_layer[l]] = plan_.layers[l].state_tail;
+                    d.states = d.b->state_alloc((size_t)d.state_layers, slots, shard::state(plan_, width_), tails);
                     // Each mark's room for the recurrent inputs of its rows, per state layer of the device.
                     if (!options_.mark_slots) continue;
                     for (size_t l = 0; l < n_layer; ++l)
@@ -554,13 +617,12 @@ public:
             }
             seq_ = make_sequence();
 
-            // The position tables, sized by the plan and filled once by the architecture.
-            // Every device that runs a mixer reads them through adopted buffers, so the host vectors stay alive for the model's lifetime; on CPU that is the same memory.
+            // The architecture's tables can be read by any part, so every used device adopts them; CPU buffers borrow the shared host vectors for the model's lifetime.
             tables_.resize(plan_.tables.size());
             for (size_t t = 0; t < tables_.size(); ++t) tables_[t].assign(plan_.tables[t], 0.0f);
             arch_->fill_tables(tables_);
             for (auto& d : devices_)
-                if (d->mixer_layers)
+                if (d->used)
                     for (const std::vector<float>& t : tables_) d->tables.push_back(d->b->adopt(t.data(), t.size() * sizeof(float)));
             // Each device of a placement over several waits while the others run their parts, which a device that waits on the host spends at an idle clock; a model made asks, and gives its request back when it goes.
             if (std::count_if(devices_.begin(), devices_.end(), [](const auto& d) { return d->used; }) > 1)
@@ -663,6 +725,15 @@ public:
     // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it.
     // A caller that keeps passes in flight may record such a stage on a thread of that stage's (prepare_pass_stage, record_pass_stage, commit_pass_stage).
     bool stage_waits(size_t s) const { return stage_grouped(s) || (s > 0 && stages_.at(s).device < devices_.size() && pipelined_ && !stage_on_host(s)); }
+    // External row preparation runs outside a caller's scheduler lock even with one pass on one device.
+    bool stage_reads(size_t s) const {
+        const Stage& stage = stages_.at(s);
+        for (int l = stage.first; l < stage.end; ++l) {
+            const auto& lookup = plan_.layers[size_t(l)].lookup;
+            if (lookup && home_[size_t(l)][lookup->role].row_source) return true;
+        }
+        return false;
+    }
     // The backend stage s runs on, which a caller timing the stages reads its host and device times from.
     backend::Backend& stage_backend(size_t s) { return *devices_[stages_.at(s).device]->b; }
 
@@ -885,7 +956,7 @@ public:
         return n;
     }
     size_t kv_used_bytes() const {
-        return seq_.length() * kv_layers_ * kv_bytes_per_position(plan_, options_);
+        return seq_.length() * (kv_layers_ * kv_bytes_per_position(plan_, options_) + kv_aux_);
     }
 
     // Whether some layer keeps a recurrent state, which exists only at the end of what it has read: such a model forks and retracts only at a checkpoint, and a failed pass returns its entries to theirs.
@@ -985,6 +1056,7 @@ private:
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
     size_t kv_layers_ = 0;                       // the model's layers that keep KV
+    size_t kv_aux_ = 0;                          // auxiliary bytes per position over those layers
     size_t state_layers_ = 0;                    // and those that keep a state
     // Host-visible memory for copies of histories (Model::save_host), in slabs a released copy leaves per device for the next, since allocating and pinning host memory costs far more than copying into it.
     static constexpr size_t kHostSlab = size_t(64) << 20;
@@ -997,6 +1069,9 @@ private:
     std::vector<std::vector<backend::BufferPtr>> host_slabs_;   // per device, the idle slabs, each vector's capacity reserved for every slab of its device so a release does not allocate
     std::vector<size_t> host_allocated_;                        // per device, its slabs alive, idle or in a copy
     SlotPool slots_;
+    size_t token_width_ = 0, token_stage_ = SIZE_MAX;
+    uint32_t token_padding_ = 0;
+    std::vector<uint32_t> token_tails_, marked_tokens_; // host IDs indexed by the existing state slot and mark buffer IDs
     std::vector<Stage> stages_;
     bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)
     int ubatch_ = kDefaultUbatch;
@@ -1066,6 +1141,7 @@ private:
                 for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
             }
             if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
+            if (t.row_source) return Weight{t.type, {}, size_t(role.in), size_t(role.out), t.row_source};
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
             if (width_ > 1 && role.shard.axis != Axis::none) {
@@ -1170,12 +1246,15 @@ private:
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
     void single_prepare(Pass& p, size_t s);
+    void prepare_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);
     void single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace);
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace);
     void clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows);
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_commit(Pass& p, size_t s);
+    void prepare_tokens(Pass& p, size_t s) const;
+    void advance_tokens(uint32_t* dst, const uint32_t* previous, size_t history, const uint32_t* ids, size_t n) const noexcept;
     void draft_context(ExecContext& ctx, Pass& p, size_t s);
     void finish(ExecContext& ctx, const Pass& p);
     void roll_back(Pass& p) noexcept;

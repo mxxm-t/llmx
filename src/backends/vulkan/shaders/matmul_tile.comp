@@ -235,6 +235,13 @@ void main() {
                         }
                     }
                 }
+            } else if (p.type == TYPE_BF16) {
+                uint base = wr * p.nin + k0 + wseg * WVALS;
+                for (uint i = 0u; i < WVALS; ++i) {
+                    uint k = k0 + wseg * WVALS + i;
+                    ws[wseg * WVALS + i][wrow] = k < p.nin
+                        ? uintBitsToFloat(uint(w16[base + i]) << 16u) : 0.0;
+                }
             } else {
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = k0 + wseg * WVALS + i;

@@ -71,9 +71,16 @@ struct OpUse {
 };
 
 // Rows of an arena slot that a state layer's mixer leaves for Architecture::recur: in slot `slot`, `width` floats a row, the `plane`-th block of the call's rows, so plane 1 starts Step::rows rows in.
-// A slot's planes are consecutive entries of LayerPlan::saved, in plane order.
+// A slot's planes are consecutive entries of LayerPlan::saved, in plane order; replicated rows stay whole on every tensor-group member.
 struct Saved {
     size_t slot, width, plane = 0;
+    bool replicated = false;
+};
+
+// One layer's immutable table lookup: its gather role and the table rows requested per token.
+struct Lookup {
+    uint16_t role;
+    size_t rows;
 };
 
 // A decoder layer as the model runs it: the architecture's own kind for it, handed back on every call, whether its feed-forward part holds routed experts, what its mixer keeps between passes, and its roles in the order they are adopted.
@@ -90,6 +97,14 @@ struct LayerPlan {
     std::vector<size_t> recur_writes;
     // The phases of its state's update, each reading what the ones before it in the same layer wrote, so a rerun runs one phase of every layer, then the next (Step::phase).
     int recur_phases = 1;
+    // Additional F32 values after the common recurrent state in each slot, held whole on every member of a tensor group.
+    size_t state_tail = 0;
+    // Additional F32 values per KV position, held whole on every tensor-group member under the same block IDs as K and V.
+    size_t kv_aux = 0;
+    // One recurrent layer may keep this many preceding token IDs on the host under its existing state slots, padded before sequence start.
+    size_t token_history = 0;
+    uint32_t token_padding = 0;
+    std::optional<Lookup> lookup;
 };
 
 // What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.
@@ -98,10 +113,12 @@ struct ModelPlan {
     size_t role_ids = 0;
     size_t vocab = 0;
     std::vector<Role> pass;
+    std::vector<OpUse> pass_ops;        // optional embedding and head ops, admitted before weight adoption
     std::vector<LayerPlan> layers;
     size_t context_length = 0;          // the tables cover these positions, a pass past them is refused, and the cache budget defaults to them
     size_t residual = 0;                // floats in a residual row: slot 0, a handoff row, a crossing
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
+    size_t index_width = 0;            // host U32 scratch entries per row, reused by embedding and gathered-weight lookups
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
     std::vector<size_t> tables;         // floats in each position table
@@ -124,6 +141,13 @@ inline size_t recur_floats(const ModelPlan& plan, const LayerPlan& layer) {
     for (size_t slot : layer.recur_writes) n = backend::size_add(n, plan.slots.at(slot));
     return n;
 }
+
+// Packed unique table rows prepared before the graph, with ordered request IDs remapped into those rows.
+struct PreparedLookup {
+    backend::CSlice data;
+    const uint32_t* ids = nullptr;
+    size_t rows = 0;
+};
 
 // One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, and the layer's kind and cache views.
 // It also holds the rows' positions, the position tables on that device, a run list the part may rebuild without allocating, which holds a run for every entry of the pass, and a state layer's views.
@@ -151,6 +175,13 @@ struct Step {
     // Where a part's last projection writes its partial rows, which the group sums into every member's residual in place of adding them to the residual itself (blocks::join); a part with routed experts is handed them cleared and adds to them.
     size_t width = 1;
     backend::Slice partial{};
+    // For the layer that keeps token history: the pass's token IDs and its entries' oldest-first preceding IDs, previous_count per entry.
+    const uint32_t* tokens = nullptr;
+    const uint32_t* previous_tokens = nullptr;
+    size_t previous_count = 0;
+    uint32_t* indices = nullptr;
+    size_t indices_size = 0;
+    const PreparedLookup* lookup = nullptr;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 
@@ -189,6 +220,8 @@ public:
     // The tables come sized as the plan says.
     virtual void fill_tables(std::vector<std::vector<float>>& tables) const = 0;
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
+    // Fill Step::indices from the pass's tokens and preceding token snapshots, without backend work, allocation or I/O.
+    virtual void lookup_ids(const Step&) const { throw std::runtime_error("inference: this architecture has no weight-row lookup"); }
     virtual void mixer(const Step& s) const = 0;
     // The ops of a state layer's mixer that update its state, from the rows LayerPlan::saved names in their slots: the mixer runs them, and a retract inside a mark runs them again over the rows it keeps (docs/SPECULATIVE.md, section 1).
     // A layer that keeps no state has none, and a rerun reads the saved rows in place, where a plane holds the rows the mark has room for, given as Step::rows, the views giving the rows it runs.

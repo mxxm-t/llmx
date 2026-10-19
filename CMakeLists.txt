@@ -69,7 +69,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_VK_SHADERS copy_mxfp4 add silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec
-        sigmoid_mul gated_rms_norm causal_conv_silu delta_rule argmax_rows)
+        sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
+        group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
+        kv_index_pool kv_index_scores kv_index_select)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_row_mxfp4_dot=matmul_row=LLMX_MXFP4+LLMX_DOT+LLMX_PRESERVE_F32
@@ -101,6 +103,18 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_k4_dot=matmul_row=LLMX_K4+LLMX_DOT
         matmul_row_k5_dot=matmul_row=LLMX_K5+LLMX_DOT
         matmul_row_k_dot=matmul_row=LLMX_KQUANT+LLMX_DOT
+        sparse_attention=attention=LLMX_SPARSE
+        sparse_attention_k16=attention=LLMX_SPARSE+LLMX_K16
+        sparse_attention_v16=attention=LLMX_SPARSE+LLMX_V16
+        sparse_attention_kv16=attention=LLMX_SPARSE+LLMX_K16+LLMX_V16
+        sparse_attention_vec=attention_vec=LLMX_SPARSE
+        sparse_attention_vec_k16=attention_vec=LLMX_SPARSE+LLMX_K16
+        sparse_attention_vec_v16=attention_vec=LLMX_SPARSE+LLMX_V16
+        sparse_attention_vec_kv16=attention_vec=LLMX_SPARSE+LLMX_K16+LLMX_V16
+        sparse_attention_vec_d256=attention_vec=LLMX_SPARSE+LLMX_D256
+        sparse_attention_vec_d256_k16=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_K16
+        sparse_attention_vec_d256_v16=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_V16
+        sparse_attention_vec_d256_kv16=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_K16+LLMX_V16
         kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
         attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
         attention_g4=attention=LLMX_G4 attention_k16_g4=attention=LLMX_K16+LLMX_G4 attention_v16_g4=attention=LLMX_V16+LLMX_G4

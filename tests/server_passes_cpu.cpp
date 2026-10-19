@@ -877,7 +877,7 @@ struct Deep : NoCpu {
     }
 };
 
-// A prompt read beside a reply on a device whose attention grows with depth (docs/CACHE-PLAN.md, section 8 item 3): its slices are cut by the last piece's time, so past its first passes no attention of it takes more than twice the budget.
+// A prompt read beside a reply on a device whose attention grows with depth (docs/CACHE-PLAN.md, section 8 item 3): its slices are cut by the last piece's time, starting at a probe of one step.
 // Whole ubatch slices take about 300 ms a piece at its end; every row stays in its class whatever the slices, so each reply is its reply alone, which a ubatch of 16 gave.
 void pieces_by_time(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
@@ -897,9 +897,9 @@ void pieces_by_time(const gguf::GGUFModel& weights, uint32_t vocab) {
     const std::string seen_text = std::to_string(s.between) + " passes between pieces, the longest piece " + std::to_string(s.longest_piece_ms) + " ms, the longest attention past 1400 tokens " +
                                   std::to_string(device->deepest_ms) + " ms of " + std::to_string(device->deep_calls) + ", " + std::to_string(s.apart) + " passes apart";
     std::cout << "server-passes-cpu: a prompt cut by its pieces' time: " << seen_text << std::endl;
-    // Counted, not timed: the attention's cost is the device's model of it (rows times history), at most twice the budget, and a slow runner's longer pieces only cut it smaller.
+    // How far the slices grow follows the search's target, which takes the reply's pass and the probe's piece as this runner measures them (PieceSearch::target), so no time bounds the attention here.
     // Whether slices grow past the probe, so the reply goes apart between pieces, is the runner's speed (a hosted macOS runner's pieces took 151 ms, none apart), which the 27B gate measures.
-    require(device->deep_calls > 0 && device->deepest_ms <= 100, "a prompt cut by its pieces' time: " + seen_text + ", against some and at most 100 ms");
+    require(device->deep_calls > 0, "a prompt cut by its pieces' time: " + seen_text + ", against some");
     // The record the health gives (SliceRecord): the stage's last slice beside the reply, its pieces two a layer and the tail after the last, its longest one of them, and the prompts' passes counted.
     const server::SliceRecord& last = s.slices.empty() ? server::SliceRecord{} : s.slices[0];
     const std::string part = last.longest_part;
@@ -912,7 +912,7 @@ void pieces_by_time(const gguf::GGUFModel& weights, uint32_t vocab) {
 }
 
 // A prompt starting deep beside a reply (docs/CACHE-PLAN.md, section 8 item 3): a follow-up of a 1600-token conversation arrives with a shallow prompt's pieces the last measured.
-// Its first slice is not cut by their ratio but starts at one step and grows by its own, so no attention of it past 1400 tokens takes more than twice the budget, and every reply is its reply alone.
+// Its first slice is not cut by their ratio but starts at one step and grows by its own, and every reply is its reply alone.
 void pieces_at_new_depth(const gguf::GGUFModel& weights, uint32_t vocab) {
     const std::string what = "a prompt at a new depth";
     const bpe::Tokenizer tok(weights);
@@ -962,7 +962,7 @@ void pieces_at_new_depth(const gguf::GGUFModel& weights, uint32_t vocab) {
     const std::string seen_text = "the follow-up reused " + std::to_string(reused) + " tokens, the longest attention past 1400 tokens " + std::to_string(device->deepest_ms) + " ms of " +
                                   std::to_string(device->deep_calls);
     std::cout << "server-passes-cpu: " << what << ": " << seen_text << std::endl;
-    require(reused >= 1536 && device->deep_calls > 0 && device->deepest_ms <= 100, what + ": " + seen_text + ", against at least 1536 reused and at most 100 ms");
+    require(reused >= 1536 && device->deep_calls > 0, what + ": " + seen_text + ", against at least 1536 reused and some");
     // Its first slice past 1400 tokens is the probe, in a pass the reply does not ride; growth past it is the runner's speed, which this does not hold.
     const auto first = std::find_if(device->calls.begin(), device->calls.end(), [](const Deep::Call& c) { return c.length >= 1400; });
     require(first != device->calls.end() && first->rows == server::kPieceStep && first->views == 1,
@@ -1032,7 +1032,7 @@ void pieces_fixed_cost(const gguf::GGUFModel& weights, uint32_t vocab) {
 }
 
 // A prompt beside a reply on a device whose attention is a staircase, 100 ms a call to 48 rows, 175 to 96 and 300 past, as the 27B's at 211k (F2DEV, 2026-10-19 12:38): the target is the probe's 100 and 50 more.
-// The search doubles from the probe and, once it turns down, never grows again, so it does not cycle back past a step; how far it doubles follows the runner's time beside the model's.
+// The search doubles from the probe until a slice is over the target, then stays in that bracket while the depth holds, as here, where the cost is the rows' alone; how far it doubles follows the runner's time.
 void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
     const std::string what = "a prompt beside a reply whose attention is a staircase";
     const bpe::Tokenizer tok(weights);
@@ -1064,11 +1064,14 @@ void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
     std::string seen_text;
     for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
     std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe" << std::endl;
-    // The search's slices, the last being the prompt's end, which may hold fewer rows: the probe, its double, a turn down, and no growth after it.
+    // The probe, its double, and doubling until the first slice over the target, which a turn down shows; after it every slice lies between the last within the target and that one, but the prompt's last, which may be short.
     const auto turn = std::adjacent_find(cut.begin(), cut.end(), [](size_t a, size_t b) { return b < a; });
-    bool settles = cut.size() >= 4 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep && turn != cut.end();
-    for (auto it = turn; settles && it + 2 < cut.end(); ++it) settles = it[2] <= it[1];
-    require(settles, what + ": slices of " + seen_text + " rows after the probe, against the probe doubled, then a turn down and no growth to the prompt's end");
+    bool settles = cut.size() >= 4 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep && turn != cut.end() && turn != cut.begin();
+    if (settles) {
+        const size_t top = *turn, low = turn[-1];
+        for (auto it = turn + 1; settles && it != cut.end(); ++it) settles = *it <= top && (*it >= low || it + 1 == cut.end());
+    }
+    require(settles, what + ": slices of " + seen_text + " rows after the probe, against the probe doubled up to a slice over the target, then every slice but the last within the bracket below it");
 }
 
 // The automatic rule (server::Pacing::automatic) on one device and on one tensor group of two, each no CPU's.

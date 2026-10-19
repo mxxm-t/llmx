@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The cut prompt's cases hold the cut's start, not a time (2026-10-19, tests only, one commit under item 10's tests)
+
+- **Why:** gate/cache-rest's hosted run 39332012407 failed `server-passes-cpu` on Windows: "a prompt cut by its pieces' time: ... the longest attention past 1400 tokens 172.2 ms ..., against some and at most 100 ms". The bound of 100 ms, twice `kPieceMs`, predates the search, whose target is the longest of `kPieceMs`, the reply's own pass and the probe's piece and `kPieceMs` more (`PieceSearch::target`), so on a runner whose probe or reply pass is slow the slices legitimately grow past it; that runner's longest piece took 248.9 ms.
+- **The change:** the prompt cut by its pieces' time and the prompt at a new depth no longer bound the longest deep attention; they still print it, and still hold what the search fixes: the probe of one step alone in its pass, the first slice past 1400 tokens being that probe, the record's shape and every reply its reply alone.
+- **The staircase case too:** gate/cache-rest's run at ffd21d398 failed it on macOS with slices of 16, 32, 64, 128, 96, 112 and 44 rows, the search halving its bracket after 128 was over (96, then 112), which its "no growth after the turn down" forbade though the rule does it. It now holds the rule's claim: the probe, its double, doubling up to the first slice over the target, then every slice between the last within the target and that one, the prompt's last alone shorter; Windows gave 16, 32, 64, then 48 to the end and 44.
+- **Held by:** `server-passes-cpu` on Windows; the hosted run of the gate branch.
+
 ## Background work's interval ends at a service or a gap after it began (2026-10-20, F2DEV's DECISION of 00:35, two commits at the bottom of feat/item14)
 
 - **Why:** gate/cache-rest's hosted run 39344569480 failed A21's held last-block leg on the Linux runner: the job read one step of its last block and no more. `BackgroundGrant` keyed its interval on `ServiceClock::last_ms`, which only a pass of generated rows moves, so beside waiting or prompt-only work with no reply running the 25 ms allowance was given once and never again; a fast runner read the block inside it and the Linux runner did not. On the 27B at depth a block costs far more, so A21's spare held nowhere in production.

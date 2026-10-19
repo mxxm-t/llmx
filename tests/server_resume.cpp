@@ -3093,6 +3093,8 @@ void restart_without_host_memory(const gguf::GGUFModel& weights, const bpe::Toke
             record = h->restore();
             // A stream that failed as it was set up leaves no read in flight behind it, its files' pin given back.
             if (fault == Streamed::setup_fails) within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": nothing left in flight");
+            // The job a turn leaves behind may still run once its reply is drained; the ledger holds once it has ended too.
+            within_a_minute([&] { const auto now = sched.stats(); return !now.active && !now.jobs; }, what + ": every request and job ended");
             st = sched.stats();
             ledger(st, *model, what);
         } catch (...) {

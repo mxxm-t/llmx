@@ -1,5 +1,9 @@
 # llmx - Development Status
 
+## The streamed restore cases read the ledger once the turn's job has ended (2026-10-19, branch fix/streamed-ledger-wait, tests only, lands by fast-forward as one commit)
+
+- **Why:** the hosted macOS run of step1b/legs (job 118087412763) failed `server-resume-cache` at the streamed restore over a tensor group of two with "pool 0 holds 6 blocks reserved and its donors 3, of 16": the read-again job the turn leaves (rows 256 to 256) was still active when the test read the ledger, which holds only once every request and job has ended. The restore itself was whole: the turn reused its 256 tokens from disk.
+- **The change:** the case waits for no request and no job to be active before it reads the counts; nothing else changes.
 ## Dashboard drafting lifetime and empty states (2026-10-19, UI only)
 
 - **Goal:** distinguish lifetime drafting acceptance from current activity, and empty observations from a measured zero acceptance.

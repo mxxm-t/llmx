@@ -1949,6 +1949,126 @@ void next_candidate(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, u
     same(serve(*fresh, tok, 3, {{c}})[0], got, what + ", the third turn");
 }
 
+// A cut ranks its conversation's uncut history first to go (step 9 of docs/CACHE-PLAN.md): X, then a longer conversation L, then L's next turn cut to its first block and 100 tokens, which names L's first dropped row.
+// L's donor is then superseded, so a request needing one donor's room takes it rather than the older X, and X's repeat forks its 256 tokens; every reply is its reply alone.
+void cut_ranked_out(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a cut's uncut history ranked out";
+    const Req x{prompt_of(3, 300, vocab), 20}, l{prompt_of(5, 500, vocab), 20}, y{prompt_of(9, 1100, vocab), 20};
+    Req cut{std::vector<uint32_t>(l.prompt.begin(), l.prompt.begin() + kBlock), 20}, again{x.prompt, 32};
+    const std::vector<uint32_t> tail = prompt_of(7, 100, vocab), more = prompt_of(8, 30, vocab);
+    cut.prompt.insert(cut.prompt.end(), tail.begin(), tail.end());
+    again.prompt.insert(again.prompt.end(), more.begin(), more.end());
+    // The uncut prompt through its first dropped row: L's prompt agrees with it there, so L's donor holds that row.
+    const std::vector<uint32_t> dropped(l.prompt.begin(), l.prompt.begin() + kBlock + 1);
+    size_t reused = 0;
+    std::vector<Reply> got;
+    {
+        auto model = make(2048, 0);
+        server::Scheduler sched(*model, tok, 3, 64);
+        std::thread runner([&] { sched.run(); });
+        try {
+            got.push_back(drain(*sched.submit(x.prompt, params_of(x))));
+            got.push_back(drain(*sched.submit(l.prompt, params_of(l))));
+            got.push_back(drain(*sched.submit(cut.prompt, params_of(cut), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), dropped)));
+            // A 1120-token request takes nine of 16 blocks, where seven are free and the cut turn's donor gives one, which it shares with L: one more donor's room.
+            got.push_back(drain(*sched.submit(y.prompt, params_of(y))));
+            const auto h = sched.submit(again.prompt, params_of(again));
+            got.push_back(drain(*h));
+            reused = h->reused();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::cout << "server-resume: " << what << ": X's repeat reused " << reused << " tokens\n";
+    require(reused == 2 * kBlock, what + ": X's repeat reused " + std::to_string(reused) + " tokens, against its 256");
+    const std::vector<Req> reqs{x, l, cut, y, again};
+    for (size_t i = 0; i < reqs.size(); ++i) {
+        auto fresh = make(2048, 0);
+        same(serve(*fresh, tok, 3, {{reqs[i]}})[0], got[i], what + ", request " + std::to_string(i));
+    }
+}
+
+// The donor count keeps a donor whose turn-end write is in flight (A19 in docs/CACHE-PLAN.md): one donor at most, a host tier a byte short of a slab, so the disk is a history's only save, and that write held.
+// A's donor is being written when B ends, so B's newcomer goes rather than A's and A's repeat forks its 256 tokens, also where B begins with A's first block (`shared`), as under one system prompt; every reply is its reply alone.
+void count_keeps_writing(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, bool shared) {
+    const std::string what = std::string("the donor count keeping a donor being written") + (shared ? ", the two sharing their first block" : "");
+    const Req a{prompt_of(3, 300, vocab), 20};
+    Req b{prompt_of(5, 300, vocab), 20};
+    if (shared) std::copy(a.prompt.begin(), a.prompt.begin() + kBlock, b.prompt.begin());
+    Req again{a.prompt, 32};
+    const std::vector<uint32_t> more = prompt_of(8, 30, vocab);
+    again.prompt.insert(again.prompt.end(), more.begin(), more.end());
+    DiskRoot disk("count-writing");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.idle = std::chrono::hours(1);
+    // The writes' chunks wait while `held`.
+    struct Hold {
+        std::mutex m;
+        std::condition_variable cv;
+        bool held = true;
+        bool waiting = false;
+    };
+    auto hold = std::make_shared<Hold>();
+    options.fault = [hold](const char* step) {
+        std::unique_lock<std::mutex> lk(hold->m);
+        if (std::string(step) == "write") {
+            hold->waiting = true;
+            hold->cv.notify_all();
+            hold->cv.wait(lk, [&] { return !hold->held; });
+        }
+        return false;
+    };
+    const auto release = [&] {
+        {
+            std::lock_guard<std::mutex> lk(hold->m);
+            hold->held = false;
+        }
+        hold->cv.notify_all();
+    };
+    size_t reused = 0, reads = 0;
+    std::vector<Reply> got;
+    {
+        auto model = make(2048, 0);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, infer::Model::host_slab_bytes() - 1, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            got.push_back(drain(*sched.submit(a.prompt, params_of(a))));
+            {
+                std::unique_lock<std::mutex> lk(hold->m);
+                require(hold->cv.wait_for(lk, std::chrono::minutes(1), [&] { return hold->waiting; }), what + ": A's write not started within a minute");
+            }
+            got.push_back(drain(*sched.submit(b.prompt, params_of(b))));
+            release();
+            within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": A's write ended");
+            const auto h = sched.submit(again.prompt, params_of(again));
+            got.push_back(drain(*h));
+            reused = h->reused();
+            reads = sched.stats().moves[(size_t)server::Move::read_started];
+        } catch (...) {
+            release();
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::cout << "server-resume: " << what << ": A's repeat reused " << reused << " tokens\n";
+    require(reused == 2 * kBlock, what + ": A's repeat reused " + std::to_string(reused) + " tokens, against its 256");
+    // Forked from A's donor on the devices, not read back from A's file: a read would mean the donor count gave A's donor up while its write was in flight.
+    require(!reads, what + ": A's repeat read " + std::to_string(reads) + " histories from disk, against none, A's donor being kept");
+    const std::vector<Req> reqs{a, b, again};
+    for (size_t i = 0; i < reqs.size(); ++i) {
+        auto fresh = make(2048, 0);
+        same(serve(*fresh, tok, 1, {{reqs[i]}})[0], got[i], what + ", request " + std::to_string(i));
+    }
+}
+
 void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const Make one = on(weights, [] { return cpus(1); }, 3);
     const std::vector<Req> three = {{prompt_of(1, 40, vocab)}, {prompt_of(2, 9, vocab)}, {prompt_of(3, 23, vocab)}};
@@ -4972,6 +5092,8 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
             failed_promotion(one, tok, vocab);
             next_candidate(weights, tok, vocab);
+            cut_ranked_out(one, tok, vocab);
+            for (const bool shared : {false, true}) count_keeps_writing(one, tok, vocab, shared);
             // Over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2), each reply against its run alone on one group, since a group gives its own bits: pauses, take-backs, forks and donors in host memory, each member's storage copied on its own.
             const Make group = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
             three_uncapped(group, tok, vocab, "three uncapped requests on a group of two CPUs");

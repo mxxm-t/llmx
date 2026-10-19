@@ -29,7 +29,9 @@ server::Taken room_of(const std::vector<size_t>& pool, const std::vector<size_t>
                       const std::vector<std::vector<size_t>>& needs, uint64_t after, bool preempt, const std::vector<size_t>& need) {
     std::vector<size_t> free(pool.size());
     for (size_t s = 0; s < pool.size(); ++s) free[s] = pool[s] - reserved[s];
-    return server::make_room(free, donors.size(), keep, keep_first, active, after, preempt, need, [&](const server::Taken& t) {
+    std::vector<size_t> order(donors.size());
+    for (size_t d = 0; d < order.size(); ++d) order[d] = d;
+    return server::make_room(free, order, keep, keep_first, active, after, preempt, need, [&](const server::Taken& t) {
         std::vector<size_t> g(pool.size(), 0);
         for (size_t d : t.donors) server::add(g, donors[d]);
         for (const auto& [i, with] : t.paused) {
@@ -832,12 +834,18 @@ void rooms_by_hand() {
         for (size_t id = 0; id < refs.size(); ++id) n += mine[id] && mine[id] == refs[id];
         return std::vector<size_t>{n};
     };
-    t = server::make_room({0}, 2, npos, false, {}, 0, false, {1}, together);
+    t = server::make_room({0}, {0, 1}, npos, false, {}, 0, false, {1}, together);
     require(t.enough && t.donors == std::vector<size_t>({0}), "one fork's own block did not do for one block");
-    t = server::make_room({0}, 2, npos, false, {}, 0, false, {2}, together);
+    t = server::make_room({0}, {0, 1}, npos, false, {}, 0, false, {2}, together);
     require(t.enough && t.donors == std::vector<size_t>({0, 1}), "two forks of one prefix were counted as freeing it one at a time");
-    t = server::make_room({0}, 2, npos, false, {}, 0, false, {5}, together);
+    t = server::make_room({0}, {0, 1}, npos, false, {}, 0, false, {5}, together);
     require(!t.enough && t.donors.empty(), "forks freeing less than asked took something");
+    // Victims go in the order given, the scheduler's ranking (Scheduler::ranked): the second donor ranked first goes first and, with the first ranked last but forked, still last.
+    const server::Gain apart = [](const server::Taken& p) { return std::vector<size_t>{2 * p.donors.size()}; };
+    t = server::make_room({0}, {1, 0}, npos, false, {}, 0, false, {2}, apart);
+    require(t.enough && t.donors == std::vector<size_t>({1}), "the donor ranked first did not go first");
+    t = server::make_room({0}, {1, 0}, 1, false, {}, 0, false, {2}, apart);
+    require(t.enough && t.donors == std::vector<size_t>({0}), "the forked donor did not go last whatever its rank");
 }
 
 // The host tier's default size: max_seqs histories below half the free memory, half the free memory at and past it, a product that would overflow taken as past it, and none where the free memory is unknown or a history takes nothing.

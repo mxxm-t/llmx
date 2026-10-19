@@ -379,7 +379,7 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
             classify(edit, r, e, reply, "C", before);
             chat.said.push_back(edit.said.back());
             // On a model that keeps a state, the state at that message was thinned out of host memory (a fixed number of boundaries a conversation, with no disk tier), and the next one down serves.
-            table.push_back({"an edit reuses up to the last unchanged message", "P10", !state, report.back().reused == after3.size() / bt * bt});
+            table.push_back({"an edit reuses up to the last unchanged message", "P10", w.boundaries, report.back().reused == after3.size() / bt * bt});
             require(report.back().reused == w.edit_reused && report.back().reused + report.back().evicted == (w.boundaries ? 768u : 0u), "leg C's witness: reused " + std::to_string(report.back().reused) + " and evicted " + std::to_string(report.back().evicted) + ", against " + std::to_string(w.edit_reused) + " and the rest of what was prepared");
         }
         // The same at an older message, turn 2's user message replaced.
@@ -1093,9 +1093,13 @@ void beyond_the_host_tier(const Make& make, const bpe::Tokenizer& tok, uint32_t 
     same(serve(*fresh, tok, 2, {{next}})[0], reply, "cache-scenario" + on_what + ": the follow-up's reply");
 }
 
-// Many users at the cap: six conversations taking turns, three turns each, with a pool and a host tier that hold them all, or a pool for three and a host tier for one more.
-void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool room) {
-    const std::string on_what = std::string(", six conversations taking turns") + (room ? ", room for all" : ", room for four");
+// Many users at the cap, on a pool and a host tier that hold them all (`room`), or a pool for three and a host tier for one more: six conversations taking turns, three each (`room` and `cycle`),
+// or two conversations that come back every round beside four one-off requests a round (`returning`), the production shape the one ranking is for (docs/CACHE-PLAN.md, section 4).
+enum class Users { room, cycle, returning };
+void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, Users mode) {
+    const bool room = mode == Users::room;
+    const std::string on_what = mode == Users::returning ? ", two conversations coming back beside four one-off requests a round, room for four"
+                                                         : std::string(", six conversations taking turns") + (room ? ", room for all" : ", room for four");
     auto model = make(room ? 8192 : kPool, 64);
     const size_t host = room ? (size_t)1 << 30 : model->host_bytes(1024);
     Run run(std::move(model), tok, 4, host);
@@ -1103,38 +1107,57 @@ void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool ro
         std::vector<uint32_t> history;
         size_t prepared = 0, since = 0, evicted = 0, reused = 0;
     };
-    std::vector<User> users(6);
-    for (size_t u = 0; u < users.size(); ++u) users[u].history = prompt_of((uint32_t)(50 + u), 500, v);
     size_t shortfall = 0, unexplained = 0, ended = 0;
-    for (size_t turn = 0; turn < 3; ++turn)
-        for (size_t u = 0; u < users.size(); ++u) {
-            User& c = users[u];
-            const Req r{joined(c.history, prompt_of((uint32_t)((turn * 7 + u) % v), kUser, v)), (int)kReply};
-            const Handle h = run.sched->submit(r.prompt, params_of(r));
-            const Reply reply = drain(*h);
-            ++ended;
-            const size_t reused = h->reused(), missing = c.prepared > reused ? c.prepared - reused : 0;
-            const auto [evicted, failed] = run.classified(r.prompt, reused, c.prepared, c.since, h->restore_late());
-            shortfall += missing;
-            unexplained += missing - evicted - failed;
-            c.evicted += evicted;
-            c.reused += reused;
-            c.history = joined(r.prompt, ids_of(reply));
-            c.prepared = r.prompt.size() / kBlock * kBlock;
-            c.since = run.lost();
-        }
-    std::cout << "cache-scenario" << on_what << ": " << ended << " turns ended, " << shortfall << " rows short of what was prepared, " << unexplained << " of them unexplained; evicted by conversation:";
-    for (const User& c : users) std::cout << " " << c.evicted;
-    std::cout << "\n";
-    require(ended == 18, "cache-scenario" + on_what + ": not every turn ended");
-    require(!unexplained, "cache-scenario" + on_what + ": " + std::to_string(unexplained) + " rows computed that a restore point should have held and no reported loss explains (P8)");
+    const auto turn = [&](User& c, uint32_t seed) {
+        const Req r{joined(c.history, prompt_of(seed % v, kUser, v)), (int)kReply};
+        const Handle h = run.sched->submit(r.prompt, params_of(r));
+        const Reply reply = drain(*h);
+        ++ended;
+        const size_t reused = h->reused(), missing = c.prepared > reused ? c.prepared - reused : 0;
+        const auto [evicted, failed] = run.classified(r.prompt, reused, c.prepared, c.since, h->restore_late());
+        shortfall += missing;
+        unexplained += missing - evicted - failed;
+        c.evicted += evicted;
+        c.reused += reused;
+        c.history = joined(r.prompt, ids_of(reply));
+        c.prepared = r.prompt.size() / kBlock * kBlock;
+        c.since = run.lost();
+    };
+    std::vector<User> users(mode == Users::returning ? 2 : 6);
     std::vector<Expectation> table;
-    if (room) table.push_back({"with room for every conversation no turn computes a row it held", "P1, P2", true, !shortfall});
-    // At the cap each conversation comes back after five others: no conversation is kept over another until the plan's step 7.
-    else table.push_back({"at the cap the conversations that came back keep their rows over those that did not", "P3", false, std::any_of(users.begin(), users.end(), [](const User& c) { return !c.evicted; })});
-    // At the cap each conversation comes back after five others and loses its 512 and then 640 prepared rows, each loss reported.
-    if (!room)
-        for (const User& c : users) require(c.evicted == 1152 && !c.reused, "the many-users witness: a conversation lost " + std::to_string(c.evicted) + " rows and reused " + std::to_string(c.reused) + ", against 1152 and 0");
+    if (mode == Users::returning) {
+        // The two take a turn each and come back once before the one-offs start, so they have come back when the tiers first fill.
+        for (User& c : users) c.history = prompt_of((uint32_t)(50 + (&c - users.data())), 200, v);
+        for (uint32_t warm = 0; warm < 2; ++warm)
+            for (size_t u = 0; u < users.size(); ++u) turn(users[u], warm * 7 + (uint32_t)u);
+        const size_t before = users[0].evicted + users[1].evicted;
+        for (uint32_t round = 0; round < 3; ++round) {
+            for (size_t u = 0; u < users.size(); ++u) turn(users[u], 20 + round * 7 + (uint32_t)u);
+            for (uint32_t k = 0; k < 4; ++k) {
+                User once;
+                once.history = prompt_of((uint32_t)((10 + round * 4 + k) % v), 300, v);
+                turn(once, 30 + round * 4 + k);
+            }
+        }
+        std::cout << "cache-scenario" << on_what << ": " << ended << " turns ended, " << shortfall << " rows short of what was prepared, " << unexplained << " unexplained; the two lost " << users[0].evicted << " and "
+                  << users[1].evicted << " and reused " << users[0].reused << " and " << users[1].reused << "\n";
+        require(ended == 22, "cache-scenario" + on_what + ": not every turn ended");
+        table.push_back({"at the cap the conversations that came back keep their rows over those that did not", "P3", true, users[0].evicted + users[1].evicted == before});
+    } else {
+        for (size_t u = 0; u < users.size(); ++u) users[u].history = prompt_of((uint32_t)(50 + u), 500, v);
+        for (uint32_t t = 0; t < 3; ++t)
+            for (size_t u = 0; u < users.size(); ++u) turn(users[u], t * 7 + (uint32_t)u);
+        std::cout << "cache-scenario" << on_what << ": " << ended << " turns ended, " << shortfall << " rows short of what was prepared, " << unexplained << " of them unexplained; evicted by conversation:";
+        for (const User& c : users) std::cout << " " << c.evicted;
+        std::cout << "\n";
+        require(ended == 18, "cache-scenario" + on_what + ": not every turn ended");
+        if (room) table.push_back({"with room for every conversation no turn computes a row it held", "P1, P2", true, !shortfall});
+        // A pure cycle past the tiers' room, which no recency order wins, is a recorded count: each conversation loses its 512 and then 640 prepared rows, each loss reported.
+        else
+            for (size_t u = 0; u < users.size(); ++u)
+                require(users[u].evicted == 1152, "the many-users cycle: conversation " + std::to_string(u) + " lost " + std::to_string(users[u].evicted) + " rows, against 1152");
+    }
+    require(!unexplained, "cache-scenario" + on_what + ": " + std::to_string(unexplained) + " rows computed that a restore point should have held and no reported loss explains (P8)");
     check(table, on_what);
 }
 
@@ -1289,11 +1312,11 @@ int main(int argc, char** argv) {
             pool_past_context(one, tok, (uint32_t)kCpu.vocab);
             for (const bool leave : {false, true}) restart(one, tok, (uint32_t)kCpu.vocab, leave);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
-            for (const bool room : {true, false}) many_users(one, tok, (uint32_t)kCpu.vocab, room);
+            for (const Users mode : {Users::room, Users::cycle, Users::returning}) many_users(one, tok, (uint32_t)kCpu.vocab, mode);
             for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
-            scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 1152, true});
-            scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});
+            scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {768, 512, 1152, true});
+            scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {768, 512, 1152, true});
         }
         // The request after the job takes the same paths on a split as on one CPU, so it runs on one CPU of each model alone.
         if (shaped)

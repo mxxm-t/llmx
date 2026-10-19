@@ -60,6 +60,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(default.threads, 6)
         self.assertEqual(generator.parse_args(["tokenizer-qwen35"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["qwen35-tiny"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["qwen4exp-tiny"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -73,6 +74,8 @@ class ReferenceGenerator(unittest.TestCase):
             ["tokenizer-qwen35", "--repo", "Qwen/Qwen3.5-9B", "--revision", "c" * 40],
             ["tokenizer-qwen35", "--gguf-repo", "a/b", "--gguf-file", "c.gguf"],
             ["qwen35-tiny", "--threads", "2"], ["qwen35-tiny", "--revision", "c" * 40],
+            ["qwen4exp-tiny", "--threads", "2"], ["qwen4exp-tiny", "--revision", "c" * 40],
+            ["qwen4exp-tiny", "--repo", "Qwen/Qwen3.8-Flash-Next"],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -87,6 +90,14 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertTrue(Path(selected.output_dir).is_absolute())
             self.assertTrue(Path(selected.output_dir).samefile(directory))
             self.assertEqual(selected.gguf_file, "Qwen3-8B-Q8_0.gguf")
+
+    def test_qwen4exp_uses_its_own_reference_writer(self):
+        write = MagicMock()
+        with tempfile.TemporaryDirectory(prefix="llmx_qwen4exp_args_") as directory:
+            with patch.dict(sys.modules, qwen4exp_reference=SimpleNamespace(generate=write)):
+                generator.main(["qwen4exp-tiny", "--output-dir", directory])
+            write.assert_called_once()
+            self.assertTrue(Path(write.call_args.args[0]).samefile(directory))
 
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:
@@ -1079,7 +1090,11 @@ class DtypeCalibration(unittest.TestCase):
 
 
 def run():
+    import reference_qwen4exp
+    import reference_qwen4exp_file
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceGenerator, LayeredReference, DtypeCalibration))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(reference_qwen4exp))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(reference_qwen4exp_file.ShardStorage))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

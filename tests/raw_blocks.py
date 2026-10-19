@@ -8,6 +8,7 @@ import random
 import struct
 import sys
 import tempfile
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import roundtrip
@@ -407,6 +408,67 @@ def check_writer_file(writer):
             assert hashlib.sha256(f.read()).hexdigest() == first, "the writer is not deterministic"
 
 
+def check_gguf_spans():
+    """Selected packed rows and experts decode like complete tensors, with reads bounded to their bytes."""
+    blocks = [struct.pack("<e32b", scale, *range(-16 + row, 16 + row))
+              for row, scale in enumerate((1.0, -0.5, 0.0, 2.0, -2.0, 0.25))]
+    bf16 = struct.pack("<6H", 0, 0x8000, 0x3F80, 0xBF80, 1, 0x7F7F)
+    with tempfile.TemporaryDirectory(prefix="gguf_spans_") as directory:
+        path = os.path.join(directory, "rows.gguf")
+        sd.write_gguf(path, {}, [("experts", [32, 2, 3], sd.Q8_0, b"".join(blocks)),
+                                 ("bf16", [2, 3], sd.BF16, bf16)])
+        reader = sd.GGUF(path)
+        tensor = reader.tensors[0]
+        reads = []
+
+        class ObservedFile:
+            def __init__(self, *args):
+                self.file = open(*args)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.file.close()
+
+            def seek(self, offset):
+                self.file.seek(offset)
+
+            def read(self, size):
+                reads.append((self.file.tell(), size))
+                return self.file.read(size)
+
+        with patch.object(sd, "open", ObservedFile, create=True):
+            for start, count in ((128, 64), (0, 32), (64, 64), (0, 32), (192, 0)):
+                expected = sd.decode(sd.Q8_0, b"".join(blocks)[start // 32 * 34:(start + count) // 32 * 34], count)
+                for numpy in ((False, True) if sd.np is not None else (False,)):
+                    got = reader.decode_span(tensor, start, count, numpy)
+                    assert_same_bits("GGUF selected span", sd.pack_f32(expected), sd.pack_f32(got))
+                    assert reads[-1] == (tensor.offset + start // 32 * 34, count // 32 * 34)
+            before = len(reads)
+            for first, count in ((-32, 32), (0, -32), (192, 32), (224, 0), (1, 32), (0, 1)):
+                try:
+                    reader.decode_span(tensor, first, count, False)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("invalid GGUF span accepted: %s" % ((first, count),))
+            assert len(reads) == before, "invalid span performed IO"
+        expected = sd.decode(sd.BF16, bf16[2:10], 4)
+        for numpy in ((False, True) if sd.np is not None else (False,)):
+            got = reader.decode_span(reader.tensors[1], 1, 4, numpy)
+            assert_same_bits("GGUF BF16 span", sd.pack_f32(expected), sd.pack_f32(got))
+        with open(path, "r+b") as file:
+            file.truncate(tensor.offset + 5 * 34)
+        try:
+            reader.decode_span(tensor, 128, 64, False)
+        except ValueError as error:
+            assert "runs past the end" in str(error)
+        else:
+            raise AssertionError("truncated selected span accepted")
+    print("raw-blocks: bounded GGUF row/expert spans, invalid extents and short reads  [ok]")
+
+
 def run(require=False):
     """The checks above; without numpy the numpy form's are skipped, or with `require` fail."""
     rng = random.Random(20260925)
@@ -417,6 +479,7 @@ def run(require=False):
     check_q2_k(rng)
     check_q4_0_q8_0(rng)
     check_zero_blocks()
+    check_gguf_spans()
     if sd.np is None:
         assert not require, "raw-blocks: numpy is not installed, and the numpy form's checks need it"
         print("raw-blocks: SKIP - the numpy form's checks and the writer's file need numpy")

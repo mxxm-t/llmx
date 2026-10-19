@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -400,6 +401,340 @@ void state_rules() {
     refuses("a step failing", "injected", [&] { broken.step(7); });
     require(broken.n_tokens() == 0, "a failed step without a checkpoint kept a history");
     require(same(broken.prefill(ids), want), "a sequence after a failed step differs from a fresh one");
+}
+
+struct TokenHistoryCall {
+    size_t previous_count = 0;
+    std::vector<std::vector<uint32_t>> current, previous;
+};
+struct TokenHistoryLog {
+    std::vector<TokenHistoryCall> calls;
+    bool fail_next = false;
+};
+
+// Test adapter: only the plan and token plumbing differ; all model math stays in Qwen35.
+struct TokenHistoryArchitecture final : infer::Architecture {
+    TokenHistoryArchitecture(std::shared_ptr<const infer::Architecture> base, std::shared_ptr<TokenHistoryLog> log, size_t owner)
+        : base(std::move(base)), log(std::move(log)), owner(owner) {}
+    infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
+        infer::ModelPlan p = base->plan(tensors);
+        require(owner < p.layers.size() && p.layers[owner].cache == infer::Cache::state, "token-history owner is not recurrent");
+        p.layers[owner].token_history = 2;
+        p.layers[owner].token_padding = 31;
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& tables) const override { base->fill_tables(tables); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override {
+        // Large raw IDs are preserved in Step::tokens; only this tiny fixture's embedding lookup is mapped into its 32-row table.
+        std::vector<uint32_t> mapped(s.rows);
+        for (size_t i = 0; i < s.rows; ++i) mapped[i] = ids[i] % (uint32_t)VOCAB;
+        base->embed(s, mapped.data());
+    }
+    void mixer(const infer::Step& s) const override {
+        if (s.previous_count) {
+            require(s.tokens && s.previous_tokens && s.states && s.n_views, "token-history mixer fields are incomplete");
+            TokenHistoryCall call;
+            call.previous_count = s.previous_count;
+            size_t row = 0;
+            for (size_t e = 0; e < s.n_views; ++e) {
+                const size_t n = s.states[e].nq;
+                call.current.emplace_back(s.tokens + row, s.tokens + row + n);
+                call.previous.emplace_back(s.previous_tokens + e * s.previous_count,
+                                           s.previous_tokens + (e + 1) * s.previous_count);
+                row += n;
+            }
+            require(row == s.rows, "token-history entries do not cover the pass rows");
+            log->calls.push_back(std::move(call));
+            if (log->fail_next) {
+                log->fail_next = false;
+                throw std::runtime_error("injected before token-history owner commit");
+            }
+        }
+        base->mixer(s);
+    }
+    void recur(const infer::Step& s) const override { base->recur(s); }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    void plan_drafter(const infer::TensorIndex& t, infer::ModelPlan& p) const override { base->plan_drafter(t, p); }
+    void draft_rows(const infer::DraftRowsStep& s) const override { base->draft_rows(s); }
+    void draft(const infer::DraftStep& s) const override { base->draft(s); }
+
+    std::shared_ptr<const infer::Architecture> base;
+    std::shared_ptr<TokenHistoryLog> log;
+    size_t owner;
+};
+
+void use_token_history(infer::ModelWeights& weights, const std::shared_ptr<TokenHistoryLog>& log, size_t owner) {
+    weights.arch = std::make_shared<const TokenHistoryArchitecture>(weights.arch, log, owner);
+}
+
+void expect_token_call(const TokenHistoryLog& log, size_t index, const std::vector<std::vector<uint32_t>>& current,
+                       const std::vector<std::vector<uint32_t>>& previous) {
+    require(index < log.calls.size(), "the token-history owner did not run at call " + std::to_string(index));
+    const TokenHistoryCall& call = log.calls[index];
+    require(call.previous_count == 2 && call.current == current && call.previous == previous,
+            "the token-history owner saw unexpected current or preceding IDs at call " + std::to_string(index));
+}
+
+void token_history_short_reset_failure() {
+    const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    const auto log = std::make_shared<TokenHistoryLog>();
+    use_token_history(weights, log, 0);
+    auto cpu = backend::make_cpu_backend();
+    cpu->set_threads(1);
+    infer::ModelOptions options;
+    options.checkpoint_slots = 1;
+    infer::Model model(weights, std::move(cpu), options);
+    infer::Sequence seq = model.make_sequence();
+    infer::ExecContext ctx;
+    const std::vector<uint32_t> short_ids = {0x01000005u, 31u}; // 31 is both padding and a real token here.
+    infer::BatchEntry first{&seq, short_ids.data(), short_ids.size(), false};
+    model.forward(ctx, &first, 1);
+    expect_token_call(*log, 0, {short_ids}, {{31u, 31u}});
+    const std::vector<uint32_t> follow = {0x01000011u};
+    infer::BatchEntry second{&seq, follow.data(), follow.size(), false};
+    model.forward(ctx, &second, 1);
+    expect_token_call(*log, 1, {follow}, {{short_ids[0], 31u}});
+
+    // A recycled state slot must take fresh padding, never its previous owner's tail.
+    model.reset(seq);
+    const std::vector<uint32_t> fresh = {0x0100001bu};
+    infer::BatchEntry reset{&seq, fresh.data(), fresh.size(), false};
+    model.forward(ctx, &reset, 1);
+    expect_token_call(*log, 2, {fresh}, {{31u, 31u}});
+
+    // A throw in the owner mixer happens before its stage commit; retry sees the same prior raw IDs.
+    // A whole-block checkpoint before the failure fixes the rollback point and its tail.
+    const std::vector<uint32_t> before_failure = {0x01000002u, 31u};
+    std::vector<uint32_t> establish_ids(127, 0x01000008u);
+    establish_ids[125] = before_failure[0];
+    establish_ids[126] = before_failure[1];
+    infer::BatchEntry establish{&seq, establish_ids.data(), establish_ids.size(), false};
+    establish.keep = true;
+    establish.extent = 128;
+    model.forward(ctx, &establish, 1);
+    expect_token_call(*log, 3, {establish_ids}, {{31u, fresh[0]}});
+    const std::vector<uint32_t> retry_id = {0x01000017u};
+    infer::BatchEntry retry{&seq, retry_id.data(), retry_id.size(), false};
+    log->fail_next = true;
+    refuses("owner stage fails before commit", "injected before token-history owner commit", [&] { model.forward(ctx, &retry, 1); });
+    require(seq.length() == 128, "an owner-stage failure did not restore the kept checkpoint length");
+    const size_t failed = log->calls.size() - 1;
+    model.forward(ctx, &retry, 1);
+    const size_t retried = log->calls.size() - 1;
+    expect_token_call(*log, failed, {retry_id}, {{before_failure[0], before_failure[1]}});
+    expect_token_call(*log, retried, {retry_id}, {{before_failure[0], before_failure[1]}});
+}
+
+void token_history_fork_and_marks() {
+    const std::vector<uint32_t> base = {0x01000005u, 31u};
+    const std::vector<uint32_t> source_id = {0x01000012u}, fork_id = {0x0100001cu};
+    const std::vector<uint32_t> next_source = {0x01000009u}, next_fork = {0x01000003u};
+    {
+        const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+        infer::ModelWeights weights = infer::gguf_weights(file);
+        const auto log = std::make_shared<TokenHistoryLog>();
+        use_token_history(weights, log, 0);
+        auto cpu = backend::make_cpu_backend();
+        cpu->set_threads(1);
+        infer::ModelOptions options;
+        options.state_slots = 3;
+        options.checkpoint_slots = 2;
+        infer::Model model(weights, std::move(cpu), options);
+        infer::Sequence src = model.make_sequence();
+        infer::ExecContext ctx;
+        std::vector<uint32_t> prefix(128);
+        for (size_t i = 0; i < prefix.size(); ++i) prefix[i] = 0x01000001u + (uint32_t)i;
+        prefix[127] = 31u;
+        infer::BatchEntry kept{&src, prefix.data(), prefix.size(), false};
+        kept.keep = true;
+        kept.extent = prefix.size();
+        model.forward(ctx, &kept, 1);
+        expect_token_call(*log, 0, {prefix}, {{31u, 31u}});
+        infer::Sequence fork = model.fork(src, prefix.size());
+        infer::BatchEntry branches[] = {{&src, source_id.data(), 1, false}, {&fork, fork_id.data(), 1, false}};
+        model.forward(ctx, branches, 2);
+        expect_token_call(*log, 1, {{source_id[0]}, {fork_id[0]}}, {{prefix[126], prefix[127]}, {prefix[126], prefix[127]}});
+        infer::BatchEntry more[] = {{&src, next_source.data(), 1, false}, {&fork, next_fork.data(), 1, false}};
+        model.forward(ctx, more, 2);
+        expect_token_call(*log, 2, {{next_source[0]}, {next_fork[0]}}, {{prefix[127], source_id[0]}, {prefix[127], fork_id[0]}});
+        model.reset(fork);
+        model.reset(src);
+    }
+
+    const std::vector<uint32_t> verify = {0x0100000au, 0x0100000bu, 0x0100000cu};
+    const std::vector<uint32_t> trigger = {0x0100001du};
+    for (size_t accepted : {size_t(0), size_t(1), verify.size()}) {
+        const gguf::GGUFModel file = tiny();
+        infer::ModelWeights weights = infer::gguf_weights(file);
+        const auto log = std::make_shared<TokenHistoryLog>();
+        use_token_history(weights, log, 0);
+        auto cpu = backend::make_cpu_backend();
+        cpu->set_threads(1);
+        infer::ModelOptions options;
+        options.state_slots = 2;
+        options.mark_slots = 1;
+        options.mark_rows = 4;
+        infer::Model model(weights, std::move(cpu), options);
+        infer::Sequence seq = model.make_sequence();
+        infer::ExecContext ctx;
+        infer::BatchEntry first{&seq, base.data(), base.size(), false};
+        model.forward(ctx, &first, 1);
+        require(model.mark(seq), "token-history acceptance mark was refused");
+        infer::BatchEntry draft{&seq, verify.data(), verify.size(), false};
+        model.forward(ctx, &draft, 1);
+        expect_token_call(*log, 1, {verify}, {{base[0], base[1]}});
+        const size_t target = base.size() + accepted;
+        require(model.retract(seq, target) == target, "token-history acceptance retract reached the wrong length");
+        infer::BatchEntry after{&seq, trigger.data(), trigger.size(), false};
+        model.forward(ctx, &after, 1);
+        std::vector<uint32_t> full = base;
+        full.insert(full.end(), verify.begin(), verify.begin() + (std::ptrdiff_t)accepted);
+        const std::vector<uint32_t> want = full.size() < 2 ? std::vector<uint32_t>{31u, full.back()}
+                                                           : std::vector<uint32_t>{full[full.size() - 2], full.back()};
+        expect_token_call(*log, 2, {trigger}, {want});
+        model.reset(seq);
+    }
+}
+
+struct TokenTransferOrderProbe : backend::CpuBackend {
+    explicit TokenTransferOrderProbe(size_t token_bytes) : token_bytes(token_bytes) { set_threads(1); }
+    void arm() { copies = 0; armed = true; }
+    bool disarm() { armed = false; return copies != 0; }
+    void read(const backend::Buffer& src, size_t off, void* dst, size_t bytes) override {
+        check(bytes);
+        backend::CpuBackend::read(src, off, dst, bytes);
+    }
+    void write(backend::Buffer& dst, size_t off, const void* src, size_t bytes) override {
+        check(bytes);
+        backend::CpuBackend::write(dst, off, src, bytes);
+    }
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        if (armed) ++copies;
+        backend::CpuBackend::copy(dst, dst_off, src, src_off, bytes);
+    }
+    void check(size_t bytes) const {
+        if (armed && copies && bytes == token_bytes)
+            throw std::runtime_error("token-sized host transfer followed a device copy");
+    }
+    size_t token_bytes, copies = 0;
+    bool armed = false;
+};
+
+void token_history_host(bool split) {
+    const size_t owner = split ? 2 : 0, owner_device = split ? 1 : 0;
+    const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    const auto log = std::make_shared<TokenHistoryLog>();
+    use_token_history(weights, log, owner);
+    const infer::ModelPlan planned = infer::plan_model(weights);
+    const size_t token_bytes = 2 * sizeof(uint32_t);
+    std::vector<std::shared_ptr<TokenTransferOrderProbe>> probes;
+    std::vector<backend::BackendPtr> backends;
+    auto first = std::make_shared<TokenTransferOrderProbe>(token_bytes);
+    probes.push_back(first);
+    backends.push_back(first);
+    infer::Placement placement;
+    if (split) {
+        auto second = std::make_shared<TokenTransferOrderProbe>(token_bytes);
+        probes.push_back(second);
+        backends.push_back(second);
+        placement.mixer_device = {0, 0, 1, 1};
+        placement.ffn_device = {0, 0, 1, 1};
+        placement.output_device = 1;
+    }
+    auto ordered_host_operation = [&](const char* label, const std::function<void()>& action) {
+        for (auto& probe : probes) probe->arm();
+        try {
+            action();
+        } catch (...) {
+            for (auto& probe : probes) probe->disarm();
+            throw;
+        }
+        for (auto& probe : probes)
+            require(probe->disarm(), std::string(label) + " did not issue a device copy");
+    };
+    infer::ModelOptions options;
+    options.kv_tokens = 1024;
+    options.state_slots = 4;
+    options.checkpoint_slots = 4;
+    options.mark_slots = 2;
+    options.mark_rows = 5;
+    const infer::Footprint fp = infer::footprint(weights, planned, options);
+    size_t history_owners = 0;
+    for (const infer::LayerPlan& layer : planned.layers) history_owners += layer.token_history != 0;
+    const size_t expected_history_bytes = (10 * size_t(2) + 2 * size_t(5)) * sizeof(uint32_t);
+    require(history_owners == 1 && fp.host_state == expected_history_bytes,
+            "host footprint did not count one token tail per state/checkpoint/mark slot plus marked IDs exactly once");
+    infer::Model model(weights, std::move(backends), placement, options);
+    infer::Sequence source = model.make_sequence();
+    infer::ExecContext ctx;
+    std::vector<uint32_t> prefix(128);
+    for (size_t i = 0; i < prefix.size(); ++i) prefix[i] = 0x01000021u + (uint32_t)i;
+    prefix[127] = 31u;
+    infer::BatchEntry keep{&source, prefix.data(), prefix.size(), false};
+    keep.keep = true;
+    keep.extent = prefix.size();
+    model.forward(ctx, &keep, 1);
+    expect_token_call(*log, 0, {prefix}, {{31u, 31u}});
+
+    const size_t state_layers_per_device = split ? 1 : 2;
+    const size_t state_bytes_per_device = state_layers_per_device * planned.state.slot_floats() * sizeof(float);
+    const std::vector<uint32_t> expected_tail = {prefix[126], prefix[127]};
+    const size_t slab_size = size_t(64) << 20;
+    auto inspect_host_tail = [&](infer::HostHistory& h) {
+        model.wait_host(h);
+        const auto ranges = model.host_state_ranges(h);
+        const size_t expected_ranges = split ? 2 : 1;
+        require(ranges.size() == expected_ranges, "host history has the wrong number of state-device ranges");
+        for (size_t d = 0; d < expected_ranges; ++d) {
+            const size_t expected = state_bytes_per_device + (d == owner_device ? 2 * sizeof(uint32_t) : 0);
+            auto it = std::find_if(ranges.begin(), ranges.end(), [&](const infer::HostRange& r) { return r.device == d; });
+            require(it != ranges.end() && it->bytes == expected, "host history does not place the token tail once after its owner's state");
+            if (d != owner_device) continue;
+            std::array<uint8_t, 2 * sizeof(uint32_t)> raw{};
+            const size_t at = it->offset + state_bytes_per_device;
+            for (size_t i = 0; i < raw.size(); ++i) {
+                const size_t pos = at + i;
+                const void* slab = h.slabs[d][pos / slab_size]->host_ptr();
+                raw[i] = ((const uint8_t*)slab)[pos % slab_size];
+            }
+            std::array<uint32_t, 2> ids{};
+            std::memcpy(ids.data(), raw.data(), raw.size());
+            require(ids[0] == expected_tail[0] && ids[1] == expected_tail[1], "host serialization changed or reordered raw token IDs");
+        }
+    };
+
+    infer::HostHistory whole, state;
+    const size_t any = std::numeric_limits<size_t>::max();
+    ordered_host_operation("full host save", [&] { model.save_host(source, prefix.size(), whole, any); });
+    inspect_host_tail(whole);
+    ordered_host_operation("state-only host save", [&] { model.save_host(source, prefix.size(), state, any, false); });
+    inspect_host_tail(state);
+
+    const std::vector<uint32_t> source_id = {0x01000004u}, restored_id = {0x0100000eu}, fork_id = {0x01000018u};
+    infer::BatchEntry advance{&source, source_id.data(), 1, false};
+    model.forward(ctx, &advance, 1);
+    expect_token_call(*log, 1, {source_id}, {expected_tail});
+    infer::Sequence restored;
+    ordered_host_operation("whole host restore", [&] { restored = model.restore_host(whole); });
+    infer::Sequence fork;
+    ordered_host_operation("state-only host fork", [&] { fork = model.fork(source, prefix.size(), state); });
+    infer::BatchEntry branches[] = {{&source, restored_id.data(), 1, false}, {&restored, restored_id.data(), 1, false}, {&fork, fork_id.data(), 1, false}};
+    model.forward(ctx, branches, 3);
+    expect_token_call(*log, 2, {{restored_id[0]}, {restored_id[0]}, {fork_id[0]}},
+                      {{prefix[127], source_id[0]}, expected_tail, expected_tail});
+    const std::vector<uint32_t> next[] = {{0x01000002u}, {0x01000003u}, {0x01000005u}};
+    infer::BatchEntry following[] = {{&source, next[0].data(), 1, false}, {&restored, next[1].data(), 1, false}, {&fork, next[2].data(), 1, false}};
+    model.forward(ctx, following, 3);
+    expect_token_call(*log, 3, {{next[0][0]}, {next[1][0]}, {next[2][0]}},
+                      {{source_id[0], restored_id[0]}, {prefix[127], restored_id[0]}, {prefix[127], fork_id[0]}});
+    model.reset(source);
+    model.reset(restored);
+    model.reset(fork);
+    model.release_host(whole);
+    model.release_host(state);
 }
 
 // State checkpoints (docs/SPECULATIVE.md, section 1) on a model of a 512-token context: keep, retract, fork, failed passes and slot counts, each continuing with the bits of the history never stopped (AGENTS.md, Tests).
@@ -794,6 +1129,154 @@ void host_state_fork() {
     model.reset(f);
     model.reset(a);
     require(model.checkpoints_free() == 2, "a fork with a state kept its checkpoint slot after its reset");
+}
+
+// A Qwen35 state layer's extra recurrent tail is part of its slot, footprint and host checkpoint, after the common GDN prefix.
+struct TailProbe : backend::CpuBackend {
+    TailProbe() { set_threads(1); }
+    float output_tail = 17.0f;
+    std::optional<float> expected_input_tail;
+    size_t observed = 0;
+    std::vector<size_t> strides;
+
+    void gated_delta_rule(backend::Slice out, backend::CSlice qkv, backend::CSlice alpha, backend::CSlice b,
+                          backend::CSlice a, backend::CSlice dt_bias, size_t layer,
+                          const backend::StateView* views, size_t n_views) override {
+        for (size_t i = 0; i < n_views; ++i) {
+            const backend::StateView& view = views[i];
+            backend::StateStorage& storage = *view.storage;
+            const size_t core = storage.shape().slot_floats();
+            const size_t stride = storage.slot_floats(layer);
+            if (strides.size() <= layer) strides.resize(layer + 1);
+            if (strides[layer] && strides[layer] != stride)
+                throw std::runtime_error("tail probe saw inconsistent per-layer state strides");
+            strides[layer] = stride;
+            if (stride == core) continue;
+            if (stride != core + 7) throw std::runtime_error("tail probe saw an unexpected tail width");
+            if (expected_input_tail) {
+                std::vector<float> tail(7);
+                read(storage.layer(layer), (view.src * stride + core) * sizeof(float), tail.data(), tail.size() * sizeof(float));
+                if (!std::all_of(tail.begin(), tail.end(), [&](float value) { return value == *expected_input_tail; }))
+                    throw std::runtime_error("a recurrent op did not read the restored host tail sentinel");
+                ++observed;
+            }
+        }
+        backend::CpuBackend::gated_delta_rule(out, qkv, alpha, b, a, dt_bias, layer, views, n_views);
+        for (size_t i = 0; i < n_views; ++i) {
+            const backend::StateView& view = views[i];
+            backend::StateStorage& storage = *view.storage;
+            const size_t core = storage.shape().slot_floats();
+            const size_t stride = storage.slot_floats(layer);
+            if (stride == core) continue;
+            const std::vector<float> tail(7, output_tail);
+            write(storage.layer(layer), (view.dst * stride + core) * sizeof(float), tail.data(), tail.size() * sizeof(float));
+        }
+    }
+};
+
+void per_layer_tail_history(bool split) {
+    const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    const infer::ModelWeights weights = infer::gguf_weights(m);
+    infer::ModelPlan plan = infer::plan_model(weights);
+    require(plan.layers[0].cache == infer::Cache::state && plan.layers[2].cache == infer::Cache::state,
+            "the tiny plan has its expected two recurrent layers");
+    plan.layers[0].state_tail = 7;
+    plan.layers[2].state_tail = 0;
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 2;
+    const infer::Footprint fp = infer::footprint(weights, plan, options);
+    const size_t core_floats = plan.state.slot_floats();
+    const size_t core_bytes = core_floats * sizeof(float);
+    const size_t footprint_slots = options.state_slots + options.checkpoint_slots + options.mark_slots;
+    require(fp.cache.size() == 4 && fp.cache[0] == footprint_slots * (core_bytes + 7 * sizeof(float)) &&
+            fp.cache[2] == footprint_slots * core_bytes,
+            "the footprint charges the added tail to its layer only");
+    auto probe = std::make_shared<TailProbe>();
+    std::vector<backend::BackendPtr> backends{probe};
+    infer::Placement placement;
+    if (split) {
+        auto second = backend::make_cpu_backend();
+        second->set_threads(1);
+        backends.push_back(std::move(second));
+        placement.mixer_device = placement.ffn_device = {0, 0, 1, 1};
+        placement.output_device = 1;
+    }
+    infer::Model model(weights, std::move(plan), std::move(backends), placement, options);
+    std::vector<uint32_t> ids(129);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = (uint32_t)((i * 7 + 3) % VOCAB);
+    const std::vector<uint32_t> head(ids.begin(), ids.begin() + 128);
+    const std::vector<uint32_t> next(ids.begin() + 128, ids.end());
+    infer::Sequence sequence = model.make_sequence();
+    infer::ExecContext context;
+    infer::BatchEntry first{&sequence, head.data(), head.size(), true};
+    first.keep = true;
+    first.extent = 128;
+    model.forward(context, &first, 1);
+    require(model.checkpoint(sequence) == std::optional<size_t>(128), "the mixed-tail state checkpoint");
+    require(probe->strides.size() == (split ? 1u : 2u) && probe->strides[0] == core_floats + 7 && (split || probe->strides[1] == core_floats),
+            "runtime allocation gives only the selected recurrent layer an extra tail");
+
+    const size_t expected_state_bytes = 2 * core_bytes + 7 * sizeof(float);
+    auto check_host_tail = [&](infer::HostHistory& history, bool has_blocks) {
+        model.wait_host(history);
+        const auto ranges = model.host_state_ranges(history);
+        const size_t bytes = std::accumulate(ranges.begin(), ranges.end(), size_t(0),
+                                             [](size_t n, const infer::HostRange& r) { return n + r.bytes; });
+        require(ranges.size() == (split ? 2u : 1u) && bytes == expected_state_bytes,
+                "host state ranges omit or miscount the per-layer tail");
+        const size_t slab_bytes = size_t(64) << 20;
+        const size_t at = ranges[0].offset + core_bytes;
+        const void* slab = history.slabs[ranges[0].device][at / slab_bytes]->host_ptr();
+        float sentinel = 0.0f;
+        std::memcpy(&sentinel, (const uint8_t*)slab + at % slab_bytes, sizeof(sentinel));
+        require(sentinel == 17.0f, has_blocks ? "full history did not preserve its state tail" : "state-only history did not preserve its tail");
+    };
+
+    infer::HostHistory full;
+    model.save_host(sequence, 128, full, std::numeric_limits<size_t>::max());
+    check_host_tail(full, true);
+    probe->output_tail = 23.0f;
+    infer::BatchEntry advance{&sequence, next.data(), next.size(), true};
+    advance.extent = 129;
+    model.forward(context, &advance, 1);
+    infer::Sequence restored = model.restore_host(full);
+    probe->expected_input_tail = 17.0f;
+    probe->observed = 0;
+    probe->output_tail = 29.0f;
+    infer::BatchEntry restored_next{&restored, next.data(), next.size(), true};
+    restored_next.extent = 129;
+    model.forward(context, &restored_next, 1);
+    require(probe->observed > 0, "full-history restore never read the state tail");
+    model.reset(restored);
+    model.release_host(full);
+    model.reset(sequence);
+
+    probe->expected_input_tail.reset();
+    probe->output_tail = 17.0f;
+    infer::Sequence state_source = model.make_sequence();
+    infer::BatchEntry source_first{&state_source, head.data(), head.size(), true};
+    source_first.keep = true;
+    source_first.extent = 128;
+    model.forward(context, &source_first, 1);
+    infer::HostHistory only_state;
+    model.save_host(state_source, 128, only_state, std::numeric_limits<size_t>::max(), false);
+    check_host_tail(only_state, false);
+    probe->output_tail = 31.0f;
+    infer::BatchEntry source_next{&state_source, next.data(), next.size(), true};
+    source_next.extent = 129;
+    model.forward(context, &source_next, 1);
+    probe->expected_input_tail = 17.0f;
+    probe->observed = 0;
+    probe->output_tail = 37.0f;
+    infer::Sequence fork = model.fork(state_source, 128, only_state);
+    infer::BatchEntry fork_next{&fork, next.data(), next.size(), true};
+    fork_next.extent = 129;
+    model.forward(context, &fork_next, 1);
+    require(probe->observed > 0, "state-only fork never read the copied tail");
+    model.reset(fork);
+    model.reset(state_source);
+    model.release_host(only_state);
 }
 
 // A device reporting `room` bytes free that keeps copies of what it adopts, so the fit charges it its layers' weights; its first `rise_after` reads report `early` bytes, as a card still taking back an ended process's memory does.
@@ -1859,12 +2342,18 @@ int main(int argc, char** argv) {
             plan();
             footprint();
             state_rules();
+            token_history_short_reset_failure();
+            token_history_fork_and_marks();
+            token_history_host(false);
+            token_history_host(true);
             checkpoints();
             host_round_trip();
             host_restore_submit_failure();
             fork_submit_failure();
             split_restore_into();
             host_state_fork();
+            per_layer_tail_history(false);
+            per_layer_tail_history(true);
             refused_passes_take_no_slot();
             failed_admission_takes_no_slot();
             marks();

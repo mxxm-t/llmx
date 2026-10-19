@@ -247,7 +247,8 @@ struct EditedPlan final : infer::Architecture {
     std::function<void(infer::ModelPlan&)> edit;
 };
 
-// A wrong plan is the architecture's error, not a refusal of the file: the fit has a field for every pass role and one role for each, and every plan has slot 0 as wide as the residual and its role ids inside its rows of weights.
+// A wrong plan is the architecture's error, not a refusal of the file.
+// The fit counts distinct pass roles; slot 0 covers the residual, and role IDs stay within each row of weights.
 void plan_checks() {
     const auto file = fixture();
     const infer::ModelWeights weights = infer::gguf_weights(file);
@@ -261,7 +262,7 @@ void plan_checks() {
         infer::footprint(weights, plan, infer::ModelOptions{});
     };
     wrong("a pass role the fit has no field for", [&] { fit([](infer::ModelPlan& p) { p.pass[0].kind = infer::RoleKind::norm; }); });
-    wrong("a second head matrix", [&] { fit([](infer::ModelPlan& p) { p.pass.push_back(p.pass[1]); }); });
+    wrong("a duplicate head role", [&] { fit([](infer::ModelPlan& p) { p.pass.push_back(p.pass[1]); }); });
     auto planned = [&](std::function<void(infer::ModelPlan&)> edit) {
         infer::ModelWeights edited = weights;
         edited.arch = std::make_shared<const EditedPlan>(weights.arch, std::move(edit));

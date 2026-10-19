@@ -1,6 +1,6 @@
 """The runtime names no architecture: outside the modules under src/model/arch/, no file of the runtime, the loader, the passes, the server or the CLI names a registered architecture or a tensor, and neither does a header the modules share (AGENTS.md, Tests, the Arch boundary entry).
 
-The registered names are read from src/model/arch/registry.hpp, and the modules are the headers it includes; every other header under src/model/arch/ is shared.
+The registered names are read from src/model/arch/registry.hpp. Modules are the headers it includes or headers under src/model/arch/ that implement Architecture; the rest are shared.
 A name counts wherever it stands as a word: in its own case anywhere, comments and strings included, and in any case outside a string, so a comment's "Qwen3" counts and a model id in a help text does not.
 A tensor is a string literal that begins with "blk." or ends in ".weight" or ".bias".
 The tokenizer is left out, since its pretokenizer names are keyed by the file's tokenizer and some match architecture names.
@@ -27,11 +27,23 @@ def registered(text):
     return re.findall(r'\{\s*"([^"]+)"\s*,', table(text))
 
 
+def implements_architecture(text):
+    """A concrete architecture declaration, ignoring comments and literals."""
+    return bool(re.search(r'\bclass\s+\w+\s+(?:final\s+)?[:]\s*public\s+Architecture\b',
+                          TOKENS.sub('', text)))
+
+
 def shared(text):
-    """The headers under src/model/arch/ that are not the registry and not a module it includes."""
+    """Headers that are neither registered modules nor an Architecture implementation awaiting registration."""
     modules = set(re.findall(r'#include\s+"model/arch/([^"/]+\.hpp)"', text))
-    return sorted(p for p in glob.glob(os.path.join(ROOT, "src/model/arch/*.hpp"))
-                  if os.path.basename(p) not in modules | {os.path.basename(REGISTRY)})
+    paths = []
+    for p in glob.glob(os.path.join(ROOT, "src/model/arch/*.hpp")):
+        if os.path.basename(p) in modules | {os.path.basename(REGISTRY)}:
+            continue
+        with open(p, encoding="utf-8") as f:
+            if not implements_architecture(f.read()):
+                paths.append(p)
+    return sorted(paths)
 
 
 def findings(path, text, names):
@@ -54,6 +66,11 @@ def findings(path, text, names):
 
 def self_test(text, names):
     """The check finds what it is for, and not a name inside a longer word, a tensor name in a comment or a model id in a string; and it read every row of the table."""
+    assert implements_architecture('class NewModel final : public Architecture {};')
+    assert implements_architecture('class NewModel : public Architecture {};')
+    assert not implements_architecture('// class NewModel : public Architecture {};\nvoid helper();')
+    assert not implements_architecture('const char* x = "class NewModel : public Architecture {};";')
+    assert not implements_architecture('class Helper : public Other {};')
     planted = ('int x; // qwen3 in a comment\nf("blk.0.attn_q.weight"); g("output.weight"); h("a.bias");\n// "blk.1."\n'
                'int qwen3x = qwen3moe_count;\n// Qwen3\'s slots\nhelp("Qwen/Qwen3-0.6B");\n')
     got = [what for _, _, what in findings("planted", planted, ["qwen3", "qwen3moe"])]

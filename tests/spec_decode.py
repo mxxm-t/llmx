@@ -453,18 +453,27 @@ class GGUF:
     def value(self, key, default=None):
         return self.metadata[key][1] if key in self.metadata else default
 
-    def raw(self, tensor):
+    def raw(self, tensor, first=0, count=None):
+        count = tensor.count - first if count is None else count
+        if not isinstance(first, int) or not isinstance(count, int) or first < 0 or count < 0 or first + count > tensor.count:
+            raise ValueError("tensor %s: invalid element span" % tensor.name)
+        skip = payload_bytes(tensor.type, first)
+        size = payload_bytes(tensor.type, count)
         with open(self.path, "rb") as f:
-            f.seek(tensor.offset)
-            data = f.read(tensor.nbytes)
-        if len(data) != tensor.nbytes:
+            f.seek(tensor.offset + skip)
+            data = f.read(size)
+        if len(data) != size:
             raise ValueError("%s: tensor %s runs past the end of the file" % (self.path, tensor.name))
         return data
 
     def decode(self, tensor, numpy=True):
         """A tensor's values, flat with the first dimension varying fastest: a float32 array from the numpy form, or a list from the pure one."""
-        raw = self.raw(tensor)
-        return decode_numpy(tensor.type, raw, tensor.count) if numpy else decode(tensor.type, raw, tensor.count)
+        return self.decode_span(tensor, 0, tensor.count, numpy)
+
+    def decode_span(self, tensor, first, count, numpy=True):
+        """Decode only a flat element span, aligned to stored blocks, without reading the rest of a table or expert stack."""
+        raw = self.raw(tensor, first, count)
+        return decode_numpy(tensor.type, raw, count) if numpy else decode(tensor.type, raw, count)
 
 
 def _pack_string(text):

@@ -93,6 +93,31 @@ bool load_modes() {
            refused("") && refused("mmap") && refused("Auto");
 }
 
+// Lookup-storage policy names are shared by all model commands, with automatic selection by default.
+bool lookup_storage_modes() {
+    auto read = [](std::string value, ExecOptions& exec) {
+        std::string flag = "--lookup-storage";
+        char* argv[] = {flag.data(), value.data()};
+        int i = 0;
+        return exec_flag(2, argv, i, exec, false) && i == 1;
+    };
+    auto refused = [&](const std::string& value) {
+        ExecOptions exec;
+        try { read(value, exec); } catch (const UsageError&) { return exec.lookup_storage == infer::LookupStorage::automatic; }
+        return false;
+    };
+    ExecOptions exec;
+    if (exec.lookup_storage != infer::LookupStorage::automatic ||
+        !read("device", exec) || exec.lookup_storage != infer::LookupStorage::device ||
+        !read("file", exec) || exec.lookup_storage != infer::LookupStorage::file ||
+        !read("auto", exec) || exec.lookup_storage != infer::LookupStorage::automatic ||
+        !refused("") || !refused("memory") || !refused("Auto") || !refused("host") || !refused("disk")) return false;
+    std::ostringstream page;
+    return print_usage("logits", page) && page.str().find("--lookup-storage S") != std::string::npos &&
+           page.str().find("(default: auto)") != std::string::npos &&
+           page.str().find("Independent of --load-mode") != std::string::npos;
+}
+
 // An empty --layer-shares would read as no shares given, so it is refused as the flag is read, as a malformed list is.
 bool empty_layer_shares() {
     std::string flag = "--layer-shares", empty;
@@ -121,6 +146,7 @@ bool given_flags() {
     return refused({{"--temp", true}, {"--temp", true}}) && refused({{"-n", true}, {"--max-tokens", true}}) &&
            refused({{"--threads-batch", true}, {"-tb", true}}) && refused({{"-c", true}, {"--ctx-size", true}}) &&
            refused({{"-ctk", true}, {"--cache-type-k", true}}) && refused({{"--cache-type-v", true}, {"-ctv", true}}) &&
+           refused({{"--lookup-storage", true}, {"--lookup-storage", true}}) &&
            refused({{"--cpu-moe", false}, {"--n-cpu-moe", true}}) && refused({{"--n-cpu-moe", true}, {"--cpu-moe", false}}) &&
            !refused({{"--cpu-moe", false}, {"--cpu-moe", false}}) && !refused({{"--verbose", false}, {"--verbose", false}}) &&
            !refused({{"-n", true}, {"--n", true}}) && !refused({{"--cache-type-k", true}, {"--cache-type-v", true}}) &&
@@ -265,6 +291,10 @@ int main() {
         std::cerr << "CLI load modes not read by name or not refused as the flag is read\n";
         return 1;
     }
+    if (!lookup_storage_modes()) {
+        std::cerr << "CLI lookup-storage policies not read by name, defaulted, refused or printed in help\n";
+        return 1;
+    }
     if (!empty_layer_shares()) {
         std::cerr << "CLI --layer-shares with an empty list read as no shares given\n";
         return 1;
@@ -293,6 +323,6 @@ int main() {
         std::cerr << "CLI token id lists not read as comma or whitespace separated ids within the vocabulary\n";
         return 1;
     }
-    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and an empty share list refused as read; a second value for a flag refused and a switch given again taken; pull's cache default from hub; -tb read only where asked; numbers and token ids read strictly; the bench's timed steps allocate nothing\n";
+    std::cout << "CLI output: each byte chunk flushed immediately; device lists canonical; cache types, load modes and lookup-storage policies read by name; a second value for a flag refused and a switch given again taken; pull's cache default from hub; -tb read only where asked; numbers and token ids read strictly; the bench's timed steps allocate nothing\n";
     return 0;
 }

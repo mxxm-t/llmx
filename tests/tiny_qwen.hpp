@@ -133,7 +133,8 @@ inline void copy_image(infer::Model& model, infer::HostHistory& h, infer::Restor
         for (const infer::RestoreInto::Run& run : into.runs[i])
             for (size_t done = 0; done < run.bytes;) {
                 const size_t n = std::min({piece, run.bytes - done, slab - at % slab});
-                devices[i]->copy(run.target(), run.offset + done, *h.slabs[i][at / slab], at % slab, n);
+                if (run.host) devices[i]->read(*h.slabs[i][at / slab], at % slab, run.host + run.offset + done, n);
+                else devices[i]->copy(run.target(), run.offset + done, *h.slabs[i][at / slab], at % slab, n);
                 at += n;
                 done += n;
             }

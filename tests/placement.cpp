@@ -16,6 +16,7 @@
 #include "model/place.hpp"
 #include "model/arch/registry.hpp"
 #include "model/layer_split.hpp"
+#include "core/host_memory.hpp"
 #include "tiny_qwen.hpp"
 #if defined(_WIN32)
 #include <windows.h>
@@ -192,6 +193,194 @@ void host_scratch_fits() {
     require(two.stages[0].count == 1 && two.stages[1].count == 1,
             "host scratch did not constrain the automatic layer placement");
     checked += 3;
+}
+
+// A head may own auxiliary projections as well as its canonical logits matrix and norm.
+void head_aux_footprint_fits() {
+    const gguf::GGUFModel file = fixture();
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelPlan plan = infer::plan_model(weights);
+    const infer::ModelOptions options;
+    const infer::Footprint base = infer::footprint(weights, plan, options);
+
+    auto add_head_weight = [&](const char* name, std::vector<uint64_t> shape, size_t bytes, uint64_t in, uint64_t out,
+                               bool split_rows) {
+        const size_t index = weights.tensors.size();
+        weights.tensors.push_back(infer::TensorView{name, std::move(shape), quant::GGML_TYPE_F32, nullptr, bytes});
+        infer::Role role{static_cast<uint16_t>(plan.role_ids++), infer::Part::head, infer::RoleKind::matrix,
+                         name, "", in, out};
+        role.tensor = index;
+        if (split_rows) {
+            role.shard.axis = infer::Axis::rows;
+            role.shard.sections.push_back(infer::ShardSection{out, 1, 1, "head auxiliary rows"});
+        }
+        plan.pass.push_back(std::move(role));
+    };
+    add_head_weight("output_hc_down.weight", {4, 3}, 48, 4, 3, false);
+    add_head_weight("output_hc_up.weight", {4, 4}, 64, 4, 4, true);
+
+    const infer::Footprint with_aux = infer::footprint(weights, plan, options);
+    require(with_aux.tied && with_aux.head_aux.size() == 2 && with_aux.head_aux[0].bytes == 48 &&
+                with_aux.head_aux[0].product && with_aux.head_aux[1].bytes == 64 && with_aux.head_aux[1].product,
+            "additional head projections were not captured by the footprint");
+
+    auto budget = [](const char* name) {
+        infer::DeviceBudget d;
+        d.name = name;
+        d.bytes = size_t(1) << 30;
+        return d;
+    };
+    const auto base_one = infer::split_layers(base, {budget("one")}, 1);
+    const auto aux_one = infer::split_layers(with_aux, {budget("one")}, 1);
+    require(aux_one.stages[0].weights == base_one.stages[0].weights + 48 + 64,
+            "a tied first-and-last stage did not count its auxiliary head weights");
+
+    const auto base_split = infer::split_layers(base, {budget("first"), budget("last")}, 1, {1, 1});
+    const auto aux_split = infer::split_layers(with_aux, {budget("first"), budget("last")}, 1, {1, 1});
+    require(base_split.stages[0].count == 1 && aux_split.stages[0].count == 1 &&
+                aux_split.stages[0].weights == base_split.stages[0].weights &&
+                aux_split.stages[1].weights == base_split.stages[1].weights + 48 + 64,
+            "auxiliary head weights were not charged only to the separate last stage");
+
+    const infer::Footprint member0 = infer::footprint(weights, plan, options, 2, 0);
+    const infer::Footprint member1 = infer::footprint(weights, plan, options, 2, 1);
+    const infer::Footprint group = infer::footprint(weights, plan, options, 2);
+    require(member0.head_aux.size() == 2 && member1.head_aux.size() == 2 && group.head_aux.size() == 2 &&
+                member0.head_aux[0].bytes == 48 && member1.head_aux[0].bytes == 48 &&
+                member0.head_aux[1].bytes == 32 && member1.head_aux[1].bytes == 32 &&
+                group.head_aux[0].bytes == 48 && group.head_aux[1].bytes == 32,
+            "a tensor group did not combine each member's auxiliary head weights");
+    checked += 4;
+}
+
+void lookup_scratch_fits() {
+    const gguf::GGUFModel file = fixture();
+    const infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelPlan plan = infer::plan_model(weights);
+    const infer::ModelOptions options;
+    const auto original = infer::footprint(weights, plan, options);
+    plan.index_width = 7;
+    const auto indexed = infer::footprint(weights, plan, options);
+    infer::DeviceBudget device;
+    device.bytes = size_t(1) << 30;
+    const size_t rows = 11;
+    for (size_t count : {size_t(1), size_t(2)}) {
+        const std::vector<infer::DeviceBudget> devices(count, device);
+        const std::vector<int> shares(count, 1);
+        const auto base = infer::split_layers(original, devices, rows, shares);
+        const auto with_indices = infer::split_layers(indexed, devices, rows, shares);
+        require(with_indices.host == base.host + count * rows * 7 * sizeof(uint32_t),
+                "lookup scratch is not charged to the host once per used stage");
+    }
+    const auto grouped = infer::footprint(weights, plan, options, 2);
+    require(grouped.host_scratch_per_row == 2 * indexed.host_scratch_per_row,
+            "lookup scratch is not counted for every tensor-group member");
+    checked += 3;
+}
+
+void heterogeneous_saved_fits() {
+    const infer::ModelWeights weights = infer::gguf_weights(fixture());
+    infer::ModelPlan plan = infer::plan_model(weights);
+    plan.state = {2, 2, 4, 4};
+    plan.slots = {8, 6};
+    for (auto& layer : plan.layers) {
+        layer.cache = infer::Cache::state;
+        layer.state_tail = 0;
+    }
+    plan.layers[0].saved = {{0, 8, 0, true}, {1, 6}};
+    plan.layers[0].recur_writes = {0, 1};
+    plan.layers[1].saved = {{1, 6}};
+    plan.layers[1].recur_writes = {1};
+    infer::ModelOptions options;
+    options.mark_slots = 2;
+    options.mark_rows = 3;
+    for (size_t width : {size_t(1), size_t(2)}) {
+        const infer::Footprint fp = infer::footprint(weights, plan, options, width);
+        const size_t saved = 8 + 6 / width;
+        const size_t rerun = 8 + 6;
+        const size_t slots = options.state_slots + options.checkpoint_slots + options.mark_slots;
+        const size_t state = infer::shard::state(plan, width).slot_floats();
+        const size_t expected = (slots * state + options.mark_slots * options.mark_rows * saved + options.mark_rows * rerun) * sizeof(float);
+        require(fp.cache.size() == 2 && fp.cache[0] == expected && fp.cache[1] == expected,
+                "heterogeneous saved and rerun rows were not conservatively fitted per state layer");
+        ++checked;
+    }
+}
+
+void external_lookup_fits() {
+    const auto file = fixture();
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelPlan plan = infer::plan_model(weights);
+    const uint32_t type = quant::GGML_TYPE_Q8_0;
+    const size_t columns = 32, rows_in_table = 8;
+    const size_t row_bytes = quant::row_bytes(type, columns);
+    std::vector<uint8_t> table(row_bytes * rows_in_table);
+    const size_t tensor = weights.tensors.size();
+    weights.tensors.push_back(infer::TensorView{"external.lookup", {columns, rows_in_table}, type, table.data(), table.size()});
+    infer::Role role{static_cast<uint16_t>(plan.role_ids++), infer::Part::mixer, infer::RoleKind::gather,
+                     "external.lookup", "", columns, rows_in_table};
+    role.tensor = tensor;
+    plan.layers[0].roles.push_back(role);
+    plan.layers[0].lookup = infer::Lookup{role.id, 2};
+
+    const infer::ModelOptions options;
+    const infer::Footprint mapped = infer::footprint(weights, plan, options);
+    weights.tensors[tensor].row_source = std::make_shared<const infer::WeightRows>(type, columns, rows_in_table,
+                                                                                   table.data(), table.size());
+    const infer::Footprint external = infer::footprint(weights, plan, options);
+    size_t mapped_layer_bytes = 0, external_layer_bytes = 0;
+    for (const auto& matrix : mapped.layers[0]) mapped_layer_bytes += matrix.bytes;
+    for (const auto& matrix : external.layers[0]) external_layer_bytes += matrix.bytes;
+    require(mapped.lookups[0].rows_per_token == 0 && external.lookups[0].rows_per_token == 2 &&
+                external.lookups[0].row_bytes == row_bytes && external.lookups[0].io_bytes == 0 &&
+                mapped_layer_bytes == external_layer_bytes + table.size(),
+            "an external lookup was not separated from its full-table weight cost");
+    const infer::Footprint group = infer::footprint(weights, plan, options, 2);
+    require(group.lookups[0].rows_per_token == 2 && group.lookups[0].row_bytes == row_bytes,
+            "a tensor group did not retain its external lookup footprint");
+
+    infer::Footprint fit;
+    fit.layers.resize(2);
+    fit.cache = {0, 0};
+    fit.lookups.resize(2);
+    const size_t page = core::page_size();
+    fit.lookups[0] = {2, row_bytes, page + 1};
+    const size_t normal_rows = 3, apart_rows = 2;
+    const size_t device_capacity = (normal_rows + apart_rows) * 2 * row_bytes;
+    const auto rounded = [page](size_t bytes) { return (bytes + page - 1) / page * page; };
+    const auto host_capacity = [&](size_t token_rows) {
+        if (!token_rows) return size_t(0);
+        const size_t count = token_rows * 2;
+        return rounded(count * row_bytes) + count * (2 * sizeof(size_t) + 2 * sizeof(uint32_t)) + rounded(page + 1);
+    };
+    const size_t host_capacity_total = host_capacity(normal_rows) + host_capacity(apart_rows);
+    auto device = [](size_t bytes) {
+        infer::DeviceBudget d;
+        d.name = "device";
+        d.bytes = bytes;
+        return d;
+    };
+    const auto normal_only = infer::split_layers(fit, {device(normal_rows * 2 * row_bytes), device(size_t(1) << 20)}, normal_rows,
+                                                 {1, 1}, host_capacity(normal_rows), 1, size_t(0));
+    require(normal_only.stages[0].other == normal_rows * 2 * row_bytes && normal_only.host == host_capacity(normal_rows),
+            "a normal-only lookup did not fit its own rounded host window");
+    const auto split = infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, 5, {1, 1},
+                                           host_capacity_total, 1, size_t(0), apart_rows);
+    require(split.stages[0].other == device_capacity && split.stages[1].other == 0 && split.host == host_capacity_total,
+            "external lookup memory was not charged to its layer device and separate host windows");
+    bool device_short = false;
+    try {
+        infer::split_layers(fit, {device(device_capacity - 1), device(size_t(1) << 20)}, 5, {1, 1},
+                            host_capacity_total, 1, size_t(0), apart_rows);
+    } catch (const std::runtime_error&) { device_short = true; }
+    require(device_short, "a device one byte short of packed lookup capacity was accepted");
+    bool host_short = false;
+    try {
+        infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, 5, {1, 1},
+                            host_capacity_total - 1, 1, size_t(0), apart_rows);
+    } catch (const std::runtime_error&) { host_short = true; }
+    require(host_short, "host lookup pages and index vectors were not fitted exactly");
+    checked += 6;
 }
 
 // The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host given only what the others cannot hold, tied weights counted once, and the fit exact against one device.
@@ -683,6 +872,173 @@ struct SizedDevice : HostMemoryDevice {
     }
     bool reads_in_place() const override { return !copying; }
 };
+
+// A normal tiny architecture with an additional declared table, used to exercise storage planning without recording a graph.
+struct LookupArchitecture : infer::Architecture {
+    std::shared_ptr<const infer::Architecture> base;
+    explicit LookupArchitecture(std::shared_ptr<const infer::Architecture> b) : base(std::move(b)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
+        infer::ModelPlan p = base->plan(tensors);
+        const size_t tensor = tensors.at("placement.lookup");
+        const auto& t = tensors.view(tensor);
+        infer::Role role{static_cast<uint16_t>(p.role_ids++), infer::Part::mixer, infer::RoleKind::gather,
+                         t.name, "", t.shape[0], t.shape[1]};
+        role.tensor = tensor;
+        p.layers[0].roles.push_back(role);
+        p.layers[0].lookup = infer::Lookup{role.id, 2};
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& tables) const override { base->fill_tables(tables); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base->mixer(s); }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+};
+
+void lookup_storage_planned() {
+    const auto file = fixture();
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    weights.arch = std::make_shared<LookupArchitecture>(weights.arch);
+    const size_t columns = 16, rows = size_t(1) << 18;
+    std::vector<float> table(columns * rows);
+    const size_t tensor = weights.tensors.size();
+    weights.tensors.push_back({"placement.lookup", {columns, rows}, quant::GGML_TYPE_F32,
+                              reinterpret_cast<const uint8_t*>(table.data()), table.size() * sizeof(float)});
+    const auto source = std::make_shared<const infer::WeightRows>(quant::GGML_TYPE_F32, columns, rows,
+                                                                 weights.tensors[tensor].data, weights.tensors[tensor].bytes);
+    const std::vector<infer::LookupCandidate> candidates{{tensor, source}};
+    struct PlanningDevice : SizedDevice {
+        size_t allocations = 0, adoptions = 0;
+        size_t scratch_reserve(size_t) const override { return 0; }
+        backend::BufferPtr alloc(size_t bytes, backend::Memory where = backend::Memory::device) override {
+            ++allocations;
+            return SizedDevice::alloc(bytes, where);
+        }
+        backend::BufferPtr adopt(const void* data, size_t bytes) override {
+            ++adoptions;
+            return SizedDevice::adopt(data, bytes);
+        }
+    };
+    auto device = std::make_shared<PlanningDevice>();
+    device->room = size_t(64) << 20;
+    device->copying = true;
+    device->set_threads(1);
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.ubatch = 2;
+    infer::ModelOptions options;
+    const auto resident = infer::plan_placement(weights, {device}, request, options, candidates);
+    require(resident.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device} &&
+                !weights.tensors[tensor].row_source && device->allocations == 0 && device->adoptions == 0 && device->writes == 0,
+            "lookup planning allocated model buffers, mutated its input or failed to preserve device residency");
+    const int reads = device->rise_after;
+    require(reads == -1, "lookup candidates did not share one device budget reading");
+
+    device->room = size_t(8) << 20;
+    request.fit_kv = true;
+    const auto hosted = infer::plan_placement(weights, {device}, request, options, candidates);
+    require(hosted.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::file} && hosted.options.kv_tokens == resident.architecture.context_length,
+            "automatic lookup storage cut KV rather than reading a table that does not fit from its file");
+    request.lookup_storage = infer::LookupStorage::file;
+    auto from_file = infer::plan_placement(weights, {device}, request, options, candidates);
+    require(from_file.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::file} &&
+                from_file.options.kv_tokens == hosted.options.kv_tokens,
+            "explicit file lookup storage changed the fitted KV budget");
+    request.lookup_storage = infer::LookupStorage::device;
+    request.fit_kv = false;
+    bool device_short = false;
+    try { infer::plan_placement(weights, {device}, request, options, candidates); }
+    catch (const std::runtime_error& e) { device_short = std::string(e.what()).find("lookup storage device does not fit beside the KV budget") != std::string::npos; }
+    require(device_short && device->allocations == 0 && device->adoptions == 0,
+            "explicit device lookup storage was not refused before allocation at the bounded fit's KV budget");
+
+    // Beside an unused host device, automatic storage still reads a table that fits no device from its file.
+    auto host = std::make_shared<SizedDevice>();
+    host->room = size_t(1) << 20;
+    host->set_threads(1);
+    request.names = {"host", "device"};
+    request.shares = {0, 1};
+    request.fit_kv = false;
+    request.lookup_storage = infer::LookupStorage::automatic;
+    const auto bounded = infer::plan_placement(weights, {host, device}, request, options, candidates);
+    require(bounded.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::file},
+            "automatic lookup storage kept a table on a device it exceeds");
+
+    request.names = {"device"};
+    request.shares.clear();
+    const auto refused = [&](const std::vector<infer::LookupCandidate>& bad) {
+        try { infer::plan_placement(weights, {device}, request, options, bad); }
+        catch (const std::runtime_error&) { return true; }
+        return false;
+    };
+    require(refused({{tensor, source}, {tensor, source}}) && refused({{tensor + 1, source}}) && refused({{tensor, {}}}),
+            "invalid lookup candidates reached a placement probe");
+    const auto wrong = std::make_shared<const infer::WeightRows>(quant::GGML_TYPE_F32, columns / 2, rows * 2,
+                                                                weights.tensors[tensor].data, weights.tensors[tensor].bytes);
+    require(refused({{tensor, wrong}}), "a lookup source with another row geometry reached a placement probe");
+    for (infer::LookupStorage storage : {infer::LookupStorage::automatic, infer::LookupStorage::device, infer::LookupStorage::file})
+        require(infer::lookup_storage_of(infer::lookup_storage_name(storage)) == storage, "lookup storage policy names do not round trip");
+
+    // A one-row table fits where a large pass's packed row capacity does not, so residency must be considered before requiring that capacity.
+    infer::ModelWeights tiny = weights;
+    tiny.tensors[tensor].shape[1] = 1;
+    tiny.tensors[tensor].bytes = columns * sizeof(float);
+    const auto tiny_source = std::make_shared<const infer::WeightRows>(quant::GGML_TYPE_F32, columns, 1,
+                                                                     tiny.tensors[tensor].data, tiny.tensors[tensor].bytes);
+    const std::vector<infer::LookupCandidate> tiny_candidate{{tensor, tiny_source}};
+    const auto tiny_plan = infer::plan_model(tiny);
+    request.ubatch = 1024;
+    infer::DeviceBudget generous;
+    generous.name = "device";
+    generous.bytes = size_t(64) << 20;
+    const auto exact_fit = infer::split_layers(infer::footprint(tiny, tiny_plan, options), {generous}, request.ubatch);
+    device->room = exact_fit.stages[0].weights + exact_fit.stages[0].cache + exact_fit.stages[0].other;
+    generous.bytes = device->room;
+    tiny.tensors[tensor].row_source = tiny_source;
+    bool packed_short = false;
+    try { infer::split_layers(infer::footprint(tiny, tiny_plan, options), {generous}, request.ubatch); }
+    catch (const std::runtime_error&) { packed_short = true; }
+    tiny.tensors[tensor].row_source.reset();
+    require(packed_short, "the tiny-table fixture did not exceed its resident budget with bounded row staging");
+    request.lookup_storage = infer::LookupStorage::automatic;
+    const auto tiny_auto = infer::plan_placement(tiny, {device}, request, options, tiny_candidate);
+    require(tiny_auto.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device},
+            "automatic lookup planning required packed staging for a smaller resident table");
+    request.lookup_storage = infer::LookupStorage::device;
+    request.fit_kv = true;
+    const auto tiny_device = infer::plan_placement(tiny, {device}, request, options, tiny_candidate);
+    require(tiny_device.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device} &&
+                tiny_device.options.kv_tokens == tiny_plan.context_length && device->allocations == 0 && device->adoptions == 0,
+            "explicit device lookup fitting used nonexistent row staging or allocated before construction");
+
+    // A larger resident table can also be the only fit when the host has no room for packed row staging.
+    request.names = {"host", "device"};
+    request.shares = {0, 1};
+    request.ubatch = 2;
+    request.fit_kv = false;
+    request.lookup_storage = infer::LookupStorage::automatic;
+    device->room = size_t(64) << 20;
+    host->room = size_t(1) << 20;
+    const auto full_plan = infer::plan_model(weights);
+    const auto host_fit = infer::split_layers(infer::footprint(weights, full_plan, options), infer::budgets_for({host, device}, request.names),
+                                              request.ubatch, request.shares, core::host_memory_available());
+    host->room = host_fit.host;
+    const auto no_staging = infer::plan_placement(weights, {host, device}, request, options, candidates);
+    require(no_staging.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device},
+            "automatic lookup fitting rejected residency when only bounded host staging exceeded its budget");
+    request.fit_kv = true;
+    const auto no_staging_kv = infer::plan_placement(weights, {host, device}, request, options, candidates);
+    require(no_staging_kv.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device} &&
+                no_staging_kv.options.kv_tokens == full_plan.context_length,
+            "automatic KV fitting rejected a resident lookup that avoids bounded host staging");
+
+    // The loader attaches the selected source after planning, then construction consumes that same plan once.
+    weights.tensors[tensor].row_source = source;
+    auto constructed = infer::construct_model(weights, std::move(from_file), 2);
+    require(constructed.model && constructed.model->kv_tokens_total() == hosted.options.kv_tokens && device->allocations > 0,
+            "a planned external lookup model was not constructed with its fitted budget");
+    checked += 20;
+}
 
 // A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made, else the most whole blocks that fit; a load where not one block fits is refused.
 // Beside experts on the CPU the device is not charged for those layers' feed-forward weights.
@@ -1590,6 +1946,11 @@ int main() {
         apart_rows_fitted();
         final_piece_observed();
         host_scratch_fits();
+        head_aux_footprint_fits();
+        lookup_scratch_fits();
+        heterogeneous_saved_fits();
+        external_lookup_fits();
+        lookup_storage_planned();
         split_matches_single();
         layer_split_fits();
         histories_fit_the_pool();

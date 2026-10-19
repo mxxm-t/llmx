@@ -1,9 +1,14 @@
 // Drafting in the scheduler (docs/SPECULATIVE.md, section 3): requests that verify drafts beside each other give, token for token, the ids and log-probabilities they give alone without drafts.
 // The models, placements and request kinds it runs over are listed under `server-spec` in AGENTS.md, Tests.
 #include <iostream>
+#include <cmath>
+#include <cstring>
+#include <atomic>
 #include <numeric>
 
 #include "server_harness.hpp"
+#include "inference/load.hpp"
+#include "qwen4exp_mtp_fixture.hpp"
 
 namespace {
 
@@ -13,6 +18,38 @@ constexpr size_t kDraftMax = 3;
 struct Wide : backend::CpuBackend {
     Wide() { set_threads(1); }
     size_t decode_columns() const override { return 16; }
+};
+
+struct FlashRerunFault {
+    std::atomic<bool> armed{false}, threw{false}, retrying{false};
+    std::atomic<size_t> marked_ple_replays{0}, marked_gdn_completions{0}, retry_ple_replays{0};
+};
+
+// Fails GDN only after the marked rerun has replayed PLE's stateful convolution.
+struct FlashRerunFailingWide : Wide {
+    std::shared_ptr<FlashRerunFault> fault;
+    bool fail_member = false, ple_after_mark = false;
+    bool unordered_on = false;
+    FlashRerunFailingWide(std::shared_ptr<FlashRerunFault> f, bool member) : fault(std::move(f)), fail_member(member) {}
+    void unordered(bool on) override { unordered_on = on; }
+    void dilated_conv_silu_add(backend::Slice out, backend::CSlice x, backend::CSlice residual, backend::CSlice w,
+                               size_t channels, size_t taps, size_t dilation, size_t layer,
+                               const backend::StateView* views, size_t n_views) override {
+        backend::CpuBackend::dilated_conv_silu_add(out, x, residual, w, channels, taps, dilation, layer, views, n_views);
+        if (fault->armed.load()) { ple_after_mark = true; ++fault->marked_ple_replays; }
+        if (fault->retrying.load()) ++fault->retry_ple_replays;
+    }
+    void gated_delta_rule(backend::Slice out, backend::CSlice qkv, backend::CSlice alpha, backend::CSlice b,
+                          backend::CSlice a, backend::CSlice dt_bias, size_t layer,
+                          const backend::StateView* views, size_t n_views) override {
+        if (fault->armed.load() && fail_member && ple_after_mark) {
+            fault->armed.store(false);
+            fault->threw.store(true);
+            throw std::runtime_error("injected Flash GDN rerun failure");
+        }
+        backend::CpuBackend::gated_delta_rule(out, qkv, alpha, b, a, dt_bias, layer, views, n_views);
+        if (fault->armed.load()) ++fault->marked_gdn_completions;
+    }
 };
 
 std::vector<backend::BackendPtr> wide(size_t n) {
@@ -252,10 +289,258 @@ void drafts_while_one_waits(const Make& plain, const Make& drafting, const MakeP
     std::cout << "server-spec: " << what << ": " << fed[0] << " drafts fed beside a request waiting for room, none beside one waiting for the seat" << std::endl;
 }
 
+// Delegates every draft unchanged and witnesses that simultaneous requests reach the model's batched drafter.
+struct FlashDrafts final : infer::spec::Proposer {
+    infer::spec::Embedded embedded;
+    bool batched = false;
+    explicit FlashDrafts(infer::Model& model) : embedded(model) {}
+    void draft(infer::Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out) override {
+        embedded.draft(seq, history, k, out);
+    }
+    void draft_all(Ask* asks, size_t n) override {
+        batched = batched || n > 1;
+        embedded.draft_all(asks, n);
+    }
+};
+
+// Public sidecar loading and real scheduler verifies share the native Flash fixture, without an HTTP transport claim.
+void flash_sidecar(bool split, int compression, int layout, const std::vector<std::string>& devices, size_t passes = 0) {
+    const bool grouped = devices.size() > 1;
+    flash_mtp::Fixture fixture(split, compression, grouped);
+    fixture.c.context_length = 512;
+    // Positive random A makes the original short fixture overflow after 73 rows; long server histories need genuine decay.
+    auto& decay = fixture.data.at("blk.0.ssm_a");
+    std::fill(decay.begin(), decay.end(), -0.5f);
+    auto [target, side] = flash_mtp::headers(fixture, layout);
+    std::map<std::string, std::vector<float>> private_data;
+    if (layout == 2) private_data = flash_mtp::private_globals(fixture, side);
+    flash_mtp::Files files(fixture, std::move(target), std::move(side), private_data);
+    std::vector<backend::BackendPtr> selected;
+    if (std::any_of(devices.begin(), devices.end(), [](const std::string& name) { return name != "cpu"; }))
+        for (const auto& name : devices) selected.push_back(name == "cpu" ? std::make_shared<Wide>() : backend::make_backend(name));
+    const auto load = [&](bool paired) {
+        infer::ModelOptions options;
+        options.kv_tokens = 1024; options.state_slots = 3; options.checkpoint_slots = 3;
+        options.mark_slots = 3; options.mark_rows = kDraftMax + 1;
+        infer::PlacementRequest request;
+        request.dtype = backend::Dtype::f32;
+        request.width = grouped ? 2 : 1;
+        if (grouped) {
+            request.names = devices;
+            request.shares.assign(devices.size() / 2, 1);
+        }
+        auto loaded = infer::load_model(files.target_path, selected.empty() ? wide(devices.size()) : selected, request, options, {},
+                                        infer::LoadMode::mapped, paired ? files.side_path : "");
+        if (grouped) {
+            require(loaded->model->stage_count() == devices.size() / 2, "Flash public loader stage count");
+            for (size_t stage = 0; stage < loaded->model->stage_count(); ++stage)
+                require(loaded->model->stage_grouped(stage), "Flash public loader tensor-group stage");
+        }
+        return loaded;
+    };
+    std::string where;
+    for (const auto& name : devices) where += (where.empty() ? "" : ",") + name;
+    const std::string what = "Flash " + std::string(split ? "split QSA" : "fused dense") + (layout == 1 ? " shared" : " private") +
+                             " on " + where + " width=" + std::to_string(grouped ? 2 : 1) + " stages=" + std::to_string(grouped ? devices.size() / 2 : 1);
+    const std::vector<Req> reqs{{prompt_of(1, 151, flash_mtp::V), 27}, {prompt_of(3, 137, flash_mtp::V), 19, "", 0.8f, 7}};
+    std::vector<Reply> wants;
+    for (const auto& req : reqs) {
+        auto plain = load(false);
+        wants.push_back(serve(*plain->model, *plain->tok, 2, {{req}}, nullptr, passes).back());
+        for (const auto& token : wants.back()) {
+            require(std::isfinite(token.logprob), what + ": nonfinite target logprob");
+            for (const auto& top : token.top) require(std::isfinite(top.logprob), what + ": nonfinite top logprob");
+        }
+        auto off = load(true);
+        require(off->drafter == infer::spec::DrafterKind::mtp, what + ": public loader selected MTP");
+        same(wants.back(), serve(*off->model, *off->tok, 2, {{req}}, nullptr, passes).back(), what + ": loaded/off");
+    }
+    Req follow{reqs[0].prompt, 17}, edited{reqs[0].prompt, 13};
+    for (const auto& token : wants[0]) follow.prompt.push_back(token.id);
+    follow.prompt.insert(follow.prompt.end(), {2, 4, 1});
+    for (size_t i = 135; i < edited.prompt.size(); ++i) edited.prompt[i] = (edited.prompt[i] + 3) % flash_mtp::V;
+    for (const auto& req : {follow, edited}) {
+        auto fresh = load(false);
+        wants.push_back(serve(*fresh->model, *fresh->tok, 2, {{req}}, nullptr, passes).back());
+    }
+    auto loaded = load(true);
+    FlashDrafts proposer(*loaded->model);
+    server::Scheduler::Stats stats;
+    const auto got = serve(*loaded->model, *loaded->tok, 2, {reqs, {follow}, {edited}}, &stats, passes, 0, &proposer, kDraftMax);
+    for (size_t i = 0; i < wants.size(); ++i) same(wants[i], got[i], what + ": verified reply " + std::to_string(i));
+    require(total(stats.drafted) > total(stats.kept) && total(stats.kept) > 0,
+            what + ": need fed, kept and rejected drafts, got " + std::to_string(total(stats.kept)) + "/" + std::to_string(total(stats.drafted)));
+    require(stats.prefix_hits == 2 && stats.prefix_tokens == 256, what + ": follow-up/edit did not reuse the exact checkpoints");
+    if (devices.size() != 4 || passes == 1) require(proposer.batched, what + ": unequal requests never drafted together");
+    if (grouped) require(stats.passes == (passes ? passes : devices.size() / 2), what + ": scheduler did not retain the requested pass count");
+    require(wants[0][0].logprob != wants[3][0].logprob, what + ": edited suffix did not change the target row");
+    require(stats.draft_failures == 0, what + ": drafter failed");
+    std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted)
+              << " drafts kept, " << stats.prefix_tokens << " prefix tokens reused, passes=" << stats.passes << " batched=" << proposer.batched << '\n';
+}
+
+void flash_sidecars(const std::vector<std::string>& devices) {
+    const size_t before = checks;
+    flash_sidecar(false, 0, 1, devices);
+    flash_sidecar(false, 0, 2, devices);
+    flash_sidecar(true, 4, 2, devices);
+    if (devices.size() == 4) flash_sidecar(true, 4, 2, devices, 1);
+    std::cout << "server-spec: Flash scheduler/public-loader " << devices.size() << " backends: " << checks - before << " checks pass\n";
+}
+
+// A marked MTP verify whose accepted-state replay fails after PLE has mutated its tail, then retries the same mark.
+void flash_marked_rerun_failure() {
+    flash_mtp::Fixture fixture(true, 4, true, true, 3);
+    auto [target, side] = flash_mtp::headers(fixture, 1);
+    flash_mtp::Files files(fixture, std::move(target), std::move(side));
+    struct Loaded {
+        std::unique_ptr<infer::LoadedModel> model;
+        std::vector<std::shared_ptr<FlashRerunFailingWide>> injected;
+    };
+    const auto load = [&](const std::shared_ptr<FlashRerunFault>& fault) {
+        std::vector<backend::BackendPtr> backends;
+        std::vector<std::shared_ptr<FlashRerunFailingWide>> injected;
+        for (size_t i = 0; i < 6; ++i) {
+            if (fault) {
+                auto b = std::make_shared<FlashRerunFailingWide>(fault, i % 2 == 1);
+                injected.push_back(b);
+                backends.push_back(std::move(b));
+            } else {
+                backends.push_back(std::make_shared<Wide>());
+            }
+        }
+        infer::PlacementRequest request;
+        request.width = 2;
+        request.drafter = true;
+        request.shares.assign(3, 1);
+        for (size_t i = 0; i < backends.size(); ++i) request.names.push_back("device " + std::to_string(i));
+        infer::ModelOptions options;
+        options.dtype = backend::Dtype::f32;
+        options.kv_tokens = 1024;
+        options.state_slots = 1;
+        options.mark_slots = 1;
+        options.mark_rows = kDraftMax + 1;
+        auto loaded = infer::load_model(files.target_path, std::move(backends), request, options, {}, infer::LoadMode::mapped, files.side_path);
+        require(loaded->drafter == infer::spec::DrafterKind::mtp, "Flash rerun fixture did not load its MTP sidecar");
+        require(loaded->model->stage_count() == 3, "Flash rerun fixture did not make three stages");
+        for (size_t s = 0; s < loaded->model->stage_count(); ++s)
+            require(loaded->model->stage_grouped(s), "Flash rerun fixture has an ungrouped stage");
+        return Loaded{std::move(loaded), std::move(injected)};
+    };
+    const auto exercise = [&](bool check_draft) {
+        auto fault = std::make_shared<FlashRerunFault>();
+        auto clean = load({});
+        auto broken = load(fault);
+        const std::vector<uint32_t> prompt = prompt_of(6, 9, flash_mtp::V);
+        const size_t mark_at = prompt.size();
+        clean.model->model->prefill(prompt);
+        broken.model->model->prefill(prompt);
+        require(clean.model->model->mark() && broken.model->model->mark(), "Flash rerun mark was refused");
+        const uint32_t verify[] = {1, 4, 2};
+        const float* expected_rows = clean.model->model->step(verify, 3);
+        const float* actual_rows = broken.model->model->step(verify, 3);
+        require(std::all_of(expected_rows, expected_rows + 3 * flash_mtp::V, [](float x) { return std::isfinite(x); }) &&
+                    std::memcmp(expected_rows, actual_rows, 3 * flash_mtp::V * sizeof(float)) == 0,
+                "Flash rerun pre-failure verify logits differ from the clean control");
+        fault->armed.store(true);
+        bool threw = false;
+        try { (void)broken.model->model->retract(mark_at + 2); }
+        catch (const std::runtime_error& e) { threw = std::string(e.what()) == "injected Flash GDN rerun failure"; }
+        require(threw && fault->threw.load() && fault->marked_ple_replays.load() >= 2 && fault->marked_gdn_completions.load() == 1,
+                "Flash rerun fault did not follow both PLE replays and exactly one member's GDN completion");
+        for (const auto& b : broken.injected)
+            require(!b->unordered_on, "a failed Flash rerun left a backend recording unordered");
+        fault->retrying.store(true);
+        require(broken.model->model->retract(mark_at + 2) == mark_at + 2,
+                "Flash rerun retry of the same mark did not reach the kept length");
+        fault->retrying.store(false);
+        require(fault->retry_ple_replays.load() > 0, "Flash retry did not replay the saved PLE inputs");
+        require(clean.model->model->retract(mark_at + 2) == mark_at + 2, "Flash clean control did not reach the kept length");
+        require(clean.model->model->n_tokens() == broken.model->model->n_tokens(), "Flash retry history length differs from the clean control");
+        if (check_draft) {
+            std::vector<uint32_t> want, got;
+            clean.model->model->draft(verify[1], 2, want);
+            broken.model->model->draft(verify[1], 2, got);
+            require(want.size() == 2 && got.size() == 2 && want == got,
+                    "Flash MTP drafts after failed-rerun retry differ from the clean control");
+            for (size_t i = 0; i < got.size(); ++i) {
+                const float* expected = clean.model->model->draft_logits(i);
+                const float* actual = broken.model->model->draft_logits(i);
+                require(std::all_of(expected, expected + flash_mtp::V, [](float x) { return std::isfinite(x); }) &&
+                            std::memcmp(expected, actual, flash_mtp::V * sizeof(float)) == 0,
+                        "Flash MTP draft logits after failed-rerun retry differ from the clean control");
+            }
+        } else {
+            const uint32_t continuation[] = {5, 3, 7, 1, 6, 2, 4, 0, 3, 5, 1, 7};
+            for (uint32_t id : continuation) {
+                const std::vector<float> want = clean.model->model->step(int(id));
+                const std::vector<float> got = broken.model->model->step(int(id));
+                require(std::all_of(want.begin(), want.end(), [](float x) { return std::isfinite(x); }) &&
+                            std::memcmp(want.data(), got.data(), flash_mtp::V * sizeof(float)) == 0,
+                        "Flash target logits after failed-rerun retry differ from the clean control");
+            }
+        }
+    };
+    exercise(false);
+    exercise(true);
+    std::cout << "server-spec: Flash MTP marked rerun failure after both PLE replays and one GDN member, then retry; width 2 over three CPU stages: pass\n";
+}
+
+void write_flash_http(const std::filesystem::path& directory) {
+    require(std::filesystem::is_directory(directory) && std::filesystem::is_empty(directory), "Flash HTTP fixture needs an empty directory");
+    flash_mtp::Fixture fixture(false, 0);
+    fixture.c.context_length = 512;
+    auto& decay = fixture.data.at("blk.0.ssm_a");
+    std::fill(decay.begin(), decay.end(), -0.5f);
+    auto [target, side] = flash_mtp::headers(fixture, 1);
+    const auto format = flash_mtp::string("{% for m in messages %}{{ m.content }}{% endfor %}{% if add_generation_prompt %}a{% endif %}");
+    target.kv.push_back({"tokenizer.chat_template", format});
+    side.kv.push_back({"tokenizer.chat_template", format});
+    flash_mtp::Files files(fixture, std::move(target), std::move(side));
+    std::filesystem::copy_file(std::filesystem::u8path(files.target_path), directory / "model.gguf");
+    std::filesystem::copy_file(std::filesystem::u8path(files.side_path), directory / "mtp.gguf");
+}
+
 }   // namespace
 
-int main() {
+int main(int argc, char** argv) {
     try {
+        if (argc == 3 && std::string(argv[1]) == "--write-flash-http") {
+            write_flash_http(std::filesystem::u8path(argv[2]));
+            return 0;
+        }
+        const char* usage = "usage: llmx-server-spec-test [--flash-only [--device cpu|vulkan:N] [--group-devices D0,D1[,D2,D3]]] | --write-flash-http EMPTY_DIRECTORY";
+        bool flash_only = false, device_given = false, groups_given = false;
+        std::string device = "cpu";
+        std::vector<std::string> group_devices;
+        for (int i = 1; i < argc; ++i) {
+            const std::string flag = argv[i];
+            if (flag == "--flash-only") flash_only = true;
+            else if (flag == "--device" && i + 1 < argc) { device = backend::canonical_device(argv[++i]); device_given = true; }
+            else if (flag == "--group-devices" && i + 1 < argc) { group_devices = core::comma_list(argv[++i]); groups_given = true; }
+            else throw std::runtime_error(usage);
+        }
+        if ((device_given || groups_given) && !flash_only) throw std::runtime_error("device options require --flash-only");
+        if (groups_given) {
+            if (group_devices.size() != 2 && group_devices.size() != 4) throw std::runtime_error(usage);
+            for (size_t i = 0; i < group_devices.size(); ++i) {
+                group_devices[i] = backend::canonical_device(group_devices[i]);
+                for (size_t j = 0; j < i; ++j)
+                    if (group_devices[i] != "cpu" && group_devices[i] == group_devices[j])
+                        throw std::runtime_error("--group-devices requires distinct device names except cpu");
+            }
+        }
+        flash_sidecars({device});
+        if (device == "cpu") flash_marked_rerun_failure();
+        if (groups_given) flash_sidecars(group_devices);
+        else {
+            flash_sidecars({"cpu", "cpu"});
+            flash_sidecars({"cpu", "cpu", "cpu", "cpu"});
+        }
+        if (flash_only) {
+            std::cout << "server-spec: " << checks << " Flash checks pass\n";
+            return 0;
+        }
         const gguf::GGUFModel q8 = served(kCpu);
         const bpe::Tokenizer q8_tok(q8);
         const uint32_t q8_vocab = (uint32_t)kCpu.vocab;

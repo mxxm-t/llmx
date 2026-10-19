@@ -126,6 +126,15 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
     if (type == quant::GGML_TYPE_F32) {
         bytes.resize(f.size() * sizeof(float));
         std::memcpy(bytes.data(), f.data(), bytes.size());
+    } else if (type == quant::GGML_TYPE_BF16) {
+        bytes.resize(f.size() * sizeof(uint16_t));
+        for (size_t i = 0; i < f.size(); ++i) {
+            uint32_t bits;
+            std::memcpy(&bits, &f[i], sizeof bits);
+            const uint32_t rounded = bits + 0x7fffu + ((bits >> 16) & 1u);
+            const uint16_t bf = uint16_t(rounded >> 16);
+            std::memcpy(bytes.data() + i * sizeof bf, &bf, sizeof bf);
+        }
     } else if (type == quant::GGML_TYPE_MXFP4) {
         bytes = testq::mxfp4_matrix(rows * in, seed);
     } else if (type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1) {
@@ -197,6 +206,65 @@ size_t check_bf16_rounding(backend::Backend& vk) {
             ++checked;
         }
     }
+    return checked;
+}
+
+// BF16 GGUF weights stay in their original two-byte storage on the device; the reference widens each high half to F32.
+size_t check_bf16_weight_decode(backend::Backend& vk) {
+    Pair p(vk);
+    constexpr size_t width = 2560, qrows = 512, krows = 128;
+    const auto raw = matrix(quant::GGML_TYPE_BF16, width, qrows + krows, 1409);
+    std::vector<float> wide((qrows + krows) * width);
+    for (size_t i = 0; i < wide.size(); ++i) {
+        uint16_t bits;
+        std::memcpy(&bits, raw.data() + i * sizeof bits, sizeof bits);
+        const uint32_t fbits = uint32_t(bits) << 16;
+        std::memcpy(&wide[i], &fbits, sizeof fbits);
+    }
+    const auto wt = p.in(raw.data(), raw.size());
+    const auto fw = p.in(wide);
+
+    // The Qwen indexer consumes these 2560->512 and 2560->128 projections together.
+    const uint32_t ids[] = {3, 1, 0};
+    Pair::Out embedded = p.out(width * 3);
+    p.cpu.embed(embedded.cs(), quant::GGML_TYPE_F32, fw.cs(), width, qrows + krows, ids, 3);
+    p.vk.embed(embedded.vs(), quant::GGML_TYPE_BF16, wt.vs(), width, qrows + krows, ids, 3);
+    auto er = p.results(embedded);
+    size_t checked = exact(er.first, er.second, "BF16 embedding does not widen the stored high half exactly");
+
+    const auto x = uniform(width, 1411, -0.1f, 0.1f);
+    Pair::In xi = p.in(x);
+    Pair::Out q = p.out(qrows), k = p.out(krows);
+    p.cpu.matmul(quant::GGML_TYPE_F32, fw.cs(), xi.cs(), q.cs(), width, qrows, 1, {}, backend::Dtype::f32);
+    p.cpu.matmul(quant::GGML_TYPE_F32, {fw.c.get(), qrows * width}, xi.cs(), k.cs(), width, krows, 1, {}, backend::Dtype::f32);
+    p.vk.matmul_group({{quant::GGML_TYPE_BF16, wt.vs(), q.vs(), qrows},
+                       {quant::GGML_TYPE_BF16, {wt.v.get(), qrows * width / 2}, k.vs(), krows}},
+                      xi.vs(), width, 1, {}, backend::Dtype::f32);
+    auto qr = p.results(q), kr = p.results(k);
+    checked += close(qr.first, qr.second, 2e-5, "BF16 indexer query projection differs from widened F32");
+    checked += close(kr.first, kr.second, 2e-5, "BF16 indexer key projection differs from widened F32");
+
+    // BF16 activation requests select the float tile; widen its activations independently for the CPU oracle.
+    constexpr size_t cols = 64;
+    auto batch = uniform(width * cols, 1413, -0.1f, 0.1f);
+    std::vector<float> rounded(batch.size());
+    for (size_t i = 0; i < batch.size(); ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &batch[i], sizeof bits);
+        bits += 0x7fffu + ((bits >> 16) & 1u);
+        bits &= 0xffff0000u;
+        std::memcpy(&rounded[i], &bits, sizeof bits);
+    }
+    Pair::In bi = p.in(batch), ri = p.in(rounded);
+    Pair::Out bq = p.out(qrows * cols), bk = p.out(krows * cols);
+    p.cpu.matmul(quant::GGML_TYPE_F32, fw.cs(), ri.cs(), bq.cs(), width, qrows, cols, {}, backend::Dtype::f32);
+    p.cpu.matmul(quant::GGML_TYPE_F32, {fw.c.get(), qrows * width}, ri.cs(), bk.cs(), width, krows, cols, {}, backend::Dtype::f32);
+    p.vk.matmul_group({{quant::GGML_TYPE_BF16, wt.vs(), bq.vs(), qrows},
+                       {quant::GGML_TYPE_BF16, {wt.v.get(), qrows * width / 2}, bk.vs(), krows}},
+                      bi.vs(), width, cols, {}, backend::Dtype::bf16);
+    auto bqr = p.results(bq), bkr = p.results(bk);
+    checked += close(bqr.first, bqr.second, 2e-4, "BF16 indexer tile query projection differs from widened F32");
+    checked += close(bkr.first, bkr.second, 2e-4, "BF16 indexer tile key projection differs from widened F32");
     return checked;
 }
 
@@ -2279,7 +2347,7 @@ size_t check_weight_dispatch() {
     backend::Backend& vk = *owner;
     const backend::DeviceProfile p = backend::vulkan_device_profile(vk);
     struct Expected { uint32_t type; const char* row; const char* integer_tile; };
-    const Expected cases[] = {{0, "matmul_row_f32", ""}, {8, "matmul_row_q8w", "matmul_tile_q8"},
+    const Expected cases[] = {{0, "matmul_row_f32", ""}, {30, "matmul_row_float_x", ""}, {8, "matmul_row_q8w", "matmul_tile_q8"},
         {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
         {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
         {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
@@ -2296,7 +2364,7 @@ size_t check_weight_dispatch() {
             const auto w = vk.adopt(bytes.data(), bytes.size()), x = vk.adopt(xf.data(), xf.size() * sizeof(float));
             const auto ids = vk.adopt(&id, sizeof(id)), y = vk.alloc(nout * sizeof(float));
             for (bool routed : {false, true}) {
-                const bool fast = e.type == 0 || e.type == 8;
+                const bool fast = e.type == 0 || e.type == 8 || e.type == 30;
                 const size_t dense_from = fast ? (nin < p.tile_narrow_nin ? p.tile_from_8bit_narrow : p.tile_from_8bit)
                                               : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
                 const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 ? p.moe_tile_from_q4
@@ -2304,10 +2372,10 @@ size_t check_weight_dispatch() {
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::int8}) {
                     // int8 reaches a device only where it is native, which takes the integer dot; there every type but F32 and MXFP4 takes its 8-bit builds.
                     if (dtype == backend::Dtype::int8 && !p.prefer_integer_dot) continue;
-                    const bool i8 = dtype == backend::Dtype::int8 && e.type != 0 && e.type != 39;
+                    const bool i8 = dtype == backend::Dtype::int8 && e.type != 0 && e.type != 30 && e.type != 39;
                     for (size_t extent : {size_t(1), from - 1, from}) {
                         const bool tile = dtype == backend::Dtype::bf16 || extent >= from;
-                        const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && e.type != 0 &&
+                        const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && e.type != 0 && e.type != 30 &&
                                              !(routed && e.type == 39);
                         std::string expected;
                         if (tile) {
@@ -2322,7 +2390,7 @@ size_t check_weight_dispatch() {
                             expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
                             if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
                             else if ((e.type == 39 && p.mxfp4_integer_dot) ||
-                                     (p.prefer_integer_dot && e.type != 0 && e.type != 8 && e.type != 39)) expected += "_dot";
+                                     (p.prefer_integer_dot && e.type != 0 && e.type != 8 && e.type != 30 && e.type != 39)) expected += "_dot";
                         }
                         (void)backend::vulkan_kernel_times(vk);
                         const backend::RowRun run{1, extent};
@@ -2352,7 +2420,7 @@ size_t check_weight_dispatch() {
             }
         }
     }
-    for (uint32_t type : {1u, 4u, 10u, 30u, 42u, 43u, UINT32_MAX}) {
+    for (uint32_t type : {1u, 4u, 10u, 42u, 43u, UINT32_MAX}) {
         require(!vk.supports_type(type), "metadata-only or unknown weight type acquired a kernel");
         const std::string expected = "vulkan: unsupported matrix type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)";
@@ -2582,10 +2650,22 @@ BufferPtr floats_on(backend::Backend& b, const std::vector<float>& v) {
 
 // One conv and one delta rule call over the views, on layer 1 of a two-layer storage whose slots start as `start`.
 Run run(backend::Backend& b, const StateShape& sh, const std::vector<Seq>& seqs, const Inputs& in,
-        const std::vector<std::vector<float>>& start) {
-    const size_t layer = 1, n = sh.slot_floats();
-    auto storage = b.state_alloc(2, start.size(), sh);
-    for (size_t s = 0; s < start.size(); ++s) b.write(storage->layer(layer), s * n * sizeof(float), start[s].data(), n * sizeof(float));
+        const std::vector<std::vector<float>>& start, size_t tail_floats = 0) {
+    const size_t layer = 1, core = sh.slot_floats();
+    const float tail_sentinel = -12345.5f;
+    const std::vector<size_t> tails = tail_floats ? std::vector<size_t>{0, tail_floats} : std::vector<size_t>{};
+    auto storage = b.state_alloc(2, start.size(), sh, tails);
+    const size_t n = storage->slot_floats(layer), other_n = storage->slot_floats(0);
+    for (size_t s = 0; s < start.size(); ++s) {
+        require(start[s].size() == core, "recurrent test slot has the wrong core size");
+        std::vector<float> slot(n, tail_sentinel);
+        std::copy(start[s].begin(), start[s].end(), slot.begin());
+        b.write(storage->layer(layer), s * n * sizeof(float), slot.data(), n * sizeof(float));
+        if (tail_floats) {
+            std::vector<float> other(other_n, tail_sentinel);
+            b.write(storage->layer(0), s * other_n * sizeof(float), other.data(), other_n * sizeof(float));
+        }
+    }
     std::vector<StateView> views;
     size_t rows = 0;
     for (const Seq& q : seqs) {
@@ -2604,10 +2684,40 @@ Run run(backend::Backend& b, const StateShape& sh, const std::vector<Seq>& seqs,
     r.delta = read_floats(b, *o, rows * Hv * sh.v_dim);
     for (size_t s = 0; s < start.size(); ++s) r.slots.push_back(read_floats(b, storage->layer(layer), n, s * n));
     for (size_t s = 0; s < start.size(); ++s) {
-        const auto other = read_floats(b, storage->layer(0), n, s * n);
-        require(std::all_of(other.begin(), other.end(), [](float f) { return f == 0.0f; }), "a state op wrote another layer");
+        const auto other = read_floats(b, storage->layer(0), other_n, s * other_n);
+        require(std::all_of(other.begin(), other.end(), [&](float f) { return f == (tail_floats ? tail_sentinel : 0.0f); }), "a state op wrote another layer");
     }
     return r;
+}
+
+// A layer-specific tail changes slot spacing, but the recurrent ops may only touch their GDN prefix.
+size_t check_layer_tail(backend::Backend& vk) {
+    const StateShape sh = {1, 2, 8, 8};
+    const size_t core = sh.slot_floats(), tail = 11;
+    size_t values = 0;
+    for (size_t rows : {size_t(3), size_t(33)}) {
+        const std::vector<Seq> seqs = {{7, 1, 2, rows}};
+        const Inputs in = inputs(171 + (uint32_t)rows, sh, rows);
+        std::vector<std::vector<float>> start(4);
+        for (size_t s = 0; s < start.size(); ++s) start[s] = uniform(core, 172 + (uint32_t)s, -0.5f, 0.5f);
+        const Run base = run(vk, sh, seqs, in, start);
+        const Run with_tail = run(vk, sh, seqs, in, start, tail);
+        require(base.conv.size() == with_tail.conv.size() && base.delta.size() == with_tail.delta.size() &&
+                    std::memcmp(base.conv.data(), with_tail.conv.data(), base.conv.size() * sizeof(float)) == 0 &&
+                    std::memcmp(base.delta.data(), with_tail.delta.data(), base.delta.size() * sizeof(float)) == 0,
+                "a recurrent tail changed device conv or delta rows");
+        for (size_t s = 0; s < start.size(); ++s) {
+            require(std::memcmp(base.slots[s].data(), with_tail.slots[s].data(), core * sizeof(float)) == 0,
+                    "a recurrent tail changed the device GDN state");
+            require(std::all_of(with_tail.slots[s].begin() + core, with_tail.slots[s].end(),
+                                [](float f) { return f == -12345.5f; }),
+                    "a recurrent op wrote into its layer tail");
+        }
+        require(std::memcmp(start[1].data(), with_tail.slots[1].data(), core * sizeof(float)) == 0,
+                "a recurrent op changed its nonzero source slot");
+        values += with_tail.conv.size() + with_tail.delta.size() + start.size() * (core + tail);
+    }
+    return values;
 }
 
 bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
@@ -2785,20 +2895,23 @@ size_t check_storage(backend::Backend& vk) {
 }
 
 // The gated norm against the CPU, in place too, heads near 1e-4 holding eps.
-size_t check_gated_norm(Pair& p, size_t heads, size_t dim) {
+size_t check_gated_norm(Pair& p, size_t heads, size_t dim, backend::NormGate gate = backend::NormGate::silu) {
     const size_t rows = 23, n = rows * heads * dim;
     auto x = uniform(n, 80, -2.0f, 2.0f);
-    const auto z = uniform(n, 81, -6.0f, 6.0f), w = uniform(dim, 82, 0.5f, 1.5f);
+    auto z = uniform(n, 81, -6.0f, 6.0f);
+    z[0] = 0.0f;
+    z[1] = -4.0f;
+    const auto w = uniform(dim, 82, 0.5f, 1.5f);
     for (size_t i = 0; i < dim; ++i) x[(5 * heads + 1) * dim + i] *= 1e-4f;
     Pair::In xi = p.in(x), zi = p.in(z), wi = p.in(w);
     Pair::Out d = p.out(n);
-    p.cpu.gated_rms_norm(d.cs(), xi.cs(), zi.cs(), wi.cs(), rows, heads, dim, 1e-6f);
-    p.vk.gated_rms_norm(d.vs(), xi.vs(), zi.vs(), wi.vs(), rows, heads, dim, 1e-6f);
+    p.cpu.gated_rms_norm(d.cs(), xi.cs(), zi.cs(), wi.cs(), rows, heads, dim, 1e-6f, {}, gate);
+    p.vk.gated_rms_norm(d.vs(), xi.vs(), zi.vs(), wi.vs(), rows, heads, dim, 1e-6f, {}, gate);
     auto r = p.results(d);
     size_t values = close(r.first, r.second, 1e-5, "gated_rms_norm differs beyond 1e-5");
     Pair::Out ip = p.out(n);
     p.vk.write(*ip.v, 0, x.data(), n * sizeof(float));
-    p.vk.gated_rms_norm(ip.vs(), ip.vs(), zi.vs(), wi.vs(), rows, heads, dim, 1e-6f);
+    p.vk.gated_rms_norm(ip.vs(), ip.vs(), zi.vs(), wi.vs(), rows, heads, dim, 1e-6f, {}, gate);
     std::vector<float> in_place(n);
     p.vk.read(*ip.v, 0, in_place.data(), n * sizeof(float));
     require(same_bits(in_place, r.second), "gated_rms_norm in place differs on the device");
@@ -3005,6 +3118,7 @@ size_t check_qwen35(backend::Backend& vk) {
     // Hv = Hk and Hv = 3 Hk at the tiny fixtures' widths, a shape past one column block, the files' 128 by 128 matrices, and the 0.8B's and the 27B's heads, whose slots are too large to cut into passes of a row here.
     const std::vector<backend::StateShape> shapes = {{2, 2, 12, 10}, {2, 6, 12, 10}, {2, 4, 64, 40}, {2, 4, 128, 128}, {16, 16, 128, 128}, {16, 48, 128, 128}};
     size_t runs = 0;
+    values += q35::check_layer_tail(vk);
     uint32_t seed = 100;
     for (const backend::StateShape& sh : shapes) {
         try {
@@ -3018,6 +3132,7 @@ size_t check_qwen35(backend::Backend& vk) {
     }
     q35::check_decay_flush(vk);
     values += q35::check_gated_norm(p, 2, 10) + q35::check_gated_norm(p, 16, 128);
+    values += q35::check_gated_norm(p, 2, 8, backend::NormGate::sigmoid) + q35::check_gated_norm(p, 16, 128, backend::NormGate::sigmoid);
     values += q35::check_sigmoid_mul(p, 4, 40) + q35::check_sigmoid_mul(p, 3, 256);
     values += q35::check_gated_attention(p, integer_dot);
     values += check_drafter_ops(p);
@@ -3548,6 +3663,7 @@ int main(int argc, char** argv) {
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8) << " int8 decode columns equal to the same columns alone\n";
         std::cout << "backend-vulkan: " << check_bf16_rounding(*b) << " BF16 boundary and unchanged-weight products, with F32 control\n";
+        std::cout << "backend-vulkan: " << check_bf16_weight_decode(*b) << " BF16 weight embedding and indexer projection values\n";
         const size_t precise = check_activation_precision(*b, backend::Dtype::f16);
         std::cout << "backend-vulkan: " << precise << " outputs within the 16-bit activations' precision\n";
         std::cout << "backend-vulkan: " << check_activation_precision(*b, backend::Dtype::f32) << " F32 outputs against double dots and batch identity\n";

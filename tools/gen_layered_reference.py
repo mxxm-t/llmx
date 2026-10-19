@@ -27,6 +27,7 @@ It does not define a new acceptance bound.
 """
 
 import argparse
+from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -211,6 +212,26 @@ class FileWeights:
         return got
 
 
+@contextmanager
+def loaded_modules(modules, load, release, on_load=None):
+    """Load weights around original HF module calls and release them on success or failure."""
+    hooks = []
+    try:
+        for name, module in modules:
+            def before(module, args, name=name):
+                load(module, name + ".")
+                if on_load:
+                    on_load(name, module)
+            hooks.append(module.register_forward_pre_hook(before))
+            hooks.append(module.register_forward_hook(lambda module, args, output: release(module)))
+        yield
+    finally:
+        for hook in hooks:
+            hook.remove()
+        for _, module in modules:
+            release(module)
+
+
 class Layered:
     """The checkpoint's HF causal model, cut to its first `layers` decoder layers when given, built on the meta device, whose modules hold weights only while they run.
     With `gguf`, the weights are that file's own (FileWeights) and the checkpoint gives the model's config and parameter names.
@@ -286,25 +307,15 @@ class Layered:
             modules = [("model.embed_tokens", text.embed_tokens)]
             modules += [("model.layers.%d" % i, layer) for i, layer in enumerate(text.layers)]
             modules += [("model.norm", text.norm), ("lm_head", self.model.lm_head)]
-            hooks = []
-            try:
-                for name, module in modules:
-                    def before(module, args, name=name):
-                        self.load(module, name + ".")
-                        if on_layer and (name.startswith("model.layers.") or name == "model.norm"):
-                            on_layer(name, module)
-                    hooks.append(module.register_forward_pre_hook(before))
-                    hooks.append(module.register_forward_hook(lambda module, args, output: self.release(module)))
+            def on_load(name, module):
+                if on_layer and (name.startswith("model.layers.") or name == "model.norm"):
+                    on_layer(name, module)
+            with loaded_modules(modules, self.load, self.release, on_load):
                 with self.torch.inference_mode():
                     for ids in rows:
                         key = tuple(ids[0].tolist())
                         if key not in self.logits:
                             self.logits[key] = self.model(ids, use_cache=False).logits
-            finally:
-                for hook in hooks:
-                    hook.remove()
-                for _, module in modules:
-                    self.release(module)
             return
         from transformers.masking_utils import create_causal_mask, create_recurrent_attention_mask
         torch = self.torch

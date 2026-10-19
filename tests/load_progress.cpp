@@ -214,7 +214,7 @@ void loader_checks(const std::string& path) {
             if (direct && !copying)
                 for (size_t i = 0; i < source.tensors.size(); ++i)
                     require(!loaded->file.tensor_data(i) &&
-                                std::memcmp(loaded->host[0].data() + loaded->file.span(i).offset, source.tensor_data(i), source.tensor_bytes(i)) == 0,
+                                std::memcmp(loaded->host[0]->data() + loaded->file.span(i).offset, source.tensor_data(i), source.tensor_bytes(i)) == 0,
                             "a direct load mapped the file, or its copy does not hold a weight where the file does");
             const std::vector<float> logits = loaded->model->prefill(ids);
             require(logits.size() == expected.size() &&
@@ -430,7 +430,7 @@ void stream_checks(const std::string& path) {
         if (i == 0) uploads.push_back({i, cpu.get(), cpu->alloc_weight(file.tensor_bytes(i)), {}});
     }
     auto streamed = [&](const std::string& p, gguf::GGUFModel& f) {
-        std::vector<std::unique_ptr<format::FileReader>> readers;
+        std::vector<std::shared_ptr<const format::FileReader>> readers;
         readers.push_back(std::make_unique<format::FileReader>(p));
         std::vector<size_t> order(f.tensors.size()), file_of(f.tensors.size(), 0);
         std::vector<format::FileSpan> spans(f.tensors.size());
@@ -475,7 +475,7 @@ void stream_checks(const std::string& path) {
     }
     // Dozens of 64-byte reads through the four slots, the writes slow enough that both readers fill the ring and wait: every copy still holds the file's bytes, and a write failing late stops the stream while the readers wait on the ring.
     {
-        std::vector<std::unique_ptr<format::FileReader>> readers;
+        std::vector<std::shared_ptr<const format::FileReader>> readers;
         readers.push_back(std::make_unique<format::FileReader>(path));
         std::vector<size_t> order(file.tensors.size()), file_of(file.tensors.size(), 0);
         std::vector<format::FileSpan> spans(file.tensors.size());
@@ -539,7 +539,7 @@ void stream_checks(const std::string& path) {
         }
         // A read that fails on a reader thread, a direct read off its granule where the file system takes direct reads, comes out of the stream with the readers joined.
         try {
-            std::vector<std::unique_ptr<format::FileReader>> direct;
+            std::vector<std::shared_ptr<const format::FileReader>> direct;
             direct.push_back(std::make_unique<format::FileReader>(path, true));
             auto skewed = infer::detail::plan_pieces(order, spans, file_of, {direct[0]->granule()}, direct[0]->granule());
             skewed.back().bytes += 1;

@@ -2245,13 +2245,80 @@ def run_group():
     return True
 
 
-def run():
+def check_flash_mtp_http(tool=None):
+    """Actual CLI sidecar wiring: unpaired/off and paired/on chat replies, whole and streamed."""
+    if tool is None:
+        tool = os.path.join(os.path.dirname(common.exe_path()), "llmx-server-spec-test" + (".exe" if os.name == "nt" else ""))
+    with tempfile.TemporaryDirectory(prefix="llmx_flash_http_") as directory:
+        exported = subprocess.run([tool, "--write-flash-http", directory], capture_output=True, timeout=30)
+        assert exported.returncode == 0, (exported.stdout, exported.stderr)
+        model, side = [os.path.join(directory, name) for name in ("model.gguf", "mtp.gguf")]
+        prompt = "".join(chr(ord("a") + ((13 + i * 7) % 8 if i else 1)) for i in range(150))
+        body = {"messages": [{"role": "user", "content": prompt}], "max_tokens": 64,
+                "temperature": 0, "logprobs": True, "top_logprobs": 5}
+        flags = ("--device", "cpu", "--threads", "1", "--dtype", "f32", "--cache-type-k", "f32", "--cache-type-v", "f32",
+                 "--max-seqs", "1", "--ctx-size", "512", "--ubatch", "16", "--state-checkpoints", "0", "--draft-max", "3")
+        replies, counts = [], []
+        for drafter in ("off", side):
+            srv = Server(model, *flags, "--drafter", drafter)
+            try:
+                health = srv.get("/v1/health")
+                assert health["drafting"]["sources"] == ([] if drafter == "off" else [side]), health
+                initial = health["drafting"]["since_start"]
+                tokenized = post_ok(srv, "/v1/tokenize", {"messages": body["messages"]})
+                assert tokenized["count"] == 151, tokenized
+                whole = post_ok(srv, "/v1/chat", body)
+                assert whole["finish"] == "length" and whole["tokens"] == 64 and whole["prompt_tokens"] == 151, whole
+                assert whole["reused_tokens"] == 0, whole
+                assert len(whole["ids"]) == len(whole["logprobs"]) == len(whole["top_logprobs"]) == 64, whole
+                assert all(math.isfinite(x) for x in whole["logprobs"]), whole
+                assert all(len(row) == 5 and all(math.isfinite(t["logprob"]) for t in row) for row in whole["top_logprobs"]), whole
+                ordinary = srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "Flash HTTP ordinary request stayed active")["drafting"]["since_start"]
+                # A fresh server gives each transport the same initial adaptive drafting policy.
+                srv.close()
+                srv = None
+                srv = Server(model, *flags, "--drafter", drafter)
+                stream_start = srv.get("/v1/health")["drafting"]
+                assert stream_start["sources"] == health["drafting"]["sources"] and stream_start["since_start"] == initial, stream_start
+                events = srv.stream("/v1/chat", dict(body, stream=True))
+                assert events[-1] is None and events[-2]["done"] and events[-2]["finish"] == "length" and events[-2]["tokens"] == 64, events
+                assert [e["id"] for e in events if e and "id" in e] == whole["ids"], events
+                assert "".join(e.get("text", "") for e in events if e) == whole["text"], events
+                assert stream_logprobs("/v1/chat", events) == {k: whole[k] for k in ("logprobs", "top_logprobs")}, events
+                finished = srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "Flash HTTP request stayed active")
+                count = finished["drafting"]["since_start"]
+                for before, after in ((initial, ordinary), (initial, count)):
+                    assert after["failed"] == 0 and after["own_history"]["drafted"] == 0, after
+                    drafted, kept = [after[key] - before[key] for key in ("drafted", "kept")]
+                    if drafter == "off":
+                        assert drafted == kept == 0, (before, after)
+                    else:
+                        assert drafted > 0 and 0 <= kept <= drafted, (before, after)
+                replies.append({k: whole[k] for k in ("ids", "text", "logprobs", "top_logprobs", "finish", "tokens", "prompt_tokens")})
+                counts.append((ordinary, count))
+            finally:
+                if srv is not None:
+                    srv.close()
+        assert replies[0] == replies[1], replies
+        print("server: Flash HTTP unpaired/off and paired/on chat whole/stream identity, whole %d/%d and stream %d/%d drafts kept, zero failures  [ok]"
+              % (counts[1][0]["kept"], counts[1][0]["drafted"], counts[1][1]["kept"], counts[1][1]["drafted"]))
+
+
+def run(require=False):
     if not server_mix_tool.run():
         return False
     if common.f32_cache_skip("server"):
         return common.SKIPPED
     if common.tensor_width() > 1:
         return run_group()
+    if os.environ.get("LLMX_DEVICE", "cpu") == "cpu":
+        tool = os.path.join(os.path.dirname(common.exe_path()), "llmx-server-spec-test" + (".exe" if os.name == "nt" else ""))
+        if os.path.isfile(tool):
+            check_flash_mtp_http(tool)
+        elif require:
+            raise AssertionError("Flash HTTP fixture exporter missing: " + tool)
+        else:
+            print("server: SKIP Flash HTTP - build llmx-server-spec-test beside the executable")
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
         # Every reply that names the model carries its file name, so the synthetic model's holds a byte that is not UTF-8 where the file system takes one (Linux), and characters beyond ASCII elsewhere.
         # On Windows a name read in the system code page instead of as UTF-8 fails only where one of its UTF-8 bytes has no mapping there, so U+00E1 brings 0xA1 for code page 1257, U+00E0 brings 0xA0 for 932, and U+4E2D breaks 936, 949 and 950.

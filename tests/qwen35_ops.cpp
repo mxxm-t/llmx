@@ -51,12 +51,13 @@ std::vector<float> download(CpuBackend& cpu, const backend::Buffer& b, size_t n,
 }
 
 std::vector<float> read_slot(CpuBackend& cpu, const StateStorage& s, size_t layer, size_t slot) {
-    const size_t n = s.shape().slot_floats();
+    const size_t n = s.slot_floats(layer);
     return download(cpu, s.layer(layer), n, slot * n);
 }
 
 void write_slot(CpuBackend& cpu, StateStorage& s, size_t layer, size_t slot, const std::vector<float>& v) {
-    const size_t n = s.shape().slot_floats();
+    const size_t n = s.slot_floats(layer);
+    require(v.size() == n, "a state slot write has the wrong full stride");
     cpu.write(s.layer(layer), slot * n * sizeof(float), v.data(), n * sizeof(float));
 }
 
@@ -568,12 +569,92 @@ void check_state_storage(std::mt19937& g) {
     }
 }
 
+void check_state_tails(std::mt19937& g) {
+    CpuBackend cpu;
+    const StateShape sh = {1, 2, 4, 3};
+    const std::vector<size_t> tails = {0, 7, 0};
+    auto storage = cpu.state_alloc(3, 2, sh, tails);
+    require(storage->slot_floats(0) == sh.slot_floats() &&
+            storage->slot_floats(1) == sh.slot_floats() + 7 &&
+            storage->slot_floats(2) == sh.slot_floats(), "per-layer state tail stride");
+    for (size_t l = 0; l < 3; ++l) {
+        require(storage->slot_bytes(l) == storage->slot_floats(l) * sizeof(float), "per-layer state slot bytes");
+        require(storage->layer(l).size() == storage->slots() * storage->slot_bytes(l), "per-layer state allocation size");
+        const auto zeroed = download(cpu, storage->layer(l), storage->slots() * storage->slot_floats(l));
+        require(std::all_of(zeroed.begin(), zeroed.end(), [](float f) { return f == 0.0f; }),
+                "a tailed state allocation was not zero-filled");
+    }
+    std::vector<std::vector<std::vector<float>>> expected(3);
+    for (size_t l = 0; l < 3; ++l)
+        for (size_t slot = 0; slot < storage->slots(); ++slot) {
+            expected[l].push_back(uniform(g, storage->slot_floats(l), -0.5f, 0.5f));
+            write_slot(cpu, *storage, l, slot, expected[l][slot]);
+        }
+    auto moved = std::move(storage);
+    require(!storage && moved->layers() == 3, "moving a mixed-tail state storage");
+    auto copied = cpu.state_alloc(3, 2, sh, tails);
+    for (size_t l = 0; l < 3; ++l)
+        cpu.copy(copied->layer(l), 0, moved->layer(l), 0, moved->layer(l).size());
+    for (size_t l = 0; l < 3; ++l)
+        for (size_t slot = 0; slot < moved->slots(); ++slot)
+            require(same_bits(read_slot(cpu, *moved, l, slot), expected[l][slot]) &&
+                    same_bits(read_slot(cpu, *copied, l, slot), expected[l][slot]),
+                    "a full-stride mixed-tail slot did not survive move and copy");
+
+    bool refused = false;
+    try { (void)cpu.state_alloc(3, 2, sh, {0, 1}); }
+    catch (const std::runtime_error&) { refused = true; }
+    require(refused, "state_alloc accepted a tail count different from the layer count");
+    refused = false;
+    try { (void)cpu.state_alloc(3, 2, sh, {0, std::numeric_limits<size_t>::max(), 0}); }
+    catch (const std::runtime_error&) { refused = true; }
+    require(refused, "state_alloc accepted an overflowing per-layer tail stride");
+
+    const size_t full_bytes = 2 * (sh.slot_floats() + 7) * sizeof(float);
+    std::vector<BufferPtr> buffers = {zeros(cpu, 2 * sh.slot_floats() * sizeof(float)),
+                                      zeros(cpu, full_bytes - sizeof(float)),
+                                      zeros(cpu, 2 * sh.slot_floats() * sizeof(float))};
+    refused = false;
+    try { (void)StateStorage(std::move(buffers), 2, sh, tails); }
+    catch (const std::runtime_error&) { refused = true; }
+    require(refused, "StateStorage accepted a buffer shorter than a tailed layer's slots");
+
+    const std::vector<size_t> operation_tails = {5};
+    auto op_state = cpu.state_alloc(1, 2, sh, operation_tails);
+    std::vector<float> source(sh.slot_floats() + 5), destination(sh.slot_floats() + 5);
+    for (size_t i = 0; i < sh.slot_floats(); ++i) {
+        source[i] = float(i + 1) / 17.0f;
+        destination[i] = float(i + 2) / 19.0f;
+    }
+    std::fill(source.begin() + sh.slot_floats(), source.end(), 41.0f);
+    std::fill(destination.begin() + sh.slot_floats(), destination.end(), 43.0f);
+    write_slot(cpu, *op_state, 0, 0, source);
+    write_slot(cpu, *op_state, 0, 1, destination);
+    const LinearInputs in = linear_inputs(g, sh, 3);
+    BufferPtr x = upload(cpu, in.x), w = upload(cpu, in.w), alpha = upload(cpu, in.alpha), b = upload(cpu, in.b);
+    BufferPtr a = upload(cpu, in.a), dt = upload(cpu, in.dt_bias);
+    BufferPtr conv = zeros(cpu, 3 * sh.channels() * sizeof(float));
+    BufferPtr delta = zeros(cpu, 3 * sh.v_heads * sh.v_dim * sizeof(float));
+    const StateView view = {op_state.get(), 0, 1, 2, 3};
+    cpu.causal_conv_silu({conv.get(), 0}, {x.get(), 0}, {w.get(), 0}, 0, &view, 1);
+    cpu.gated_delta_rule({delta.get(), 0}, {conv.get(), 0}, {alpha.get(), 0}, {b.get(), 0}, {a.get(), 0}, {dt.get(), 0},
+                         0, &view, 1);
+    const auto source_after = read_slot(cpu, *op_state, 0, 0);
+    const auto destination_after = read_slot(cpu, *op_state, 0, 1);
+    require(std::equal(source.begin() + sh.slot_floats(), source.end(), source_after.begin() + sh.slot_floats()),
+            "GDN ops changed the source layer tail");
+    require(std::equal(destination.begin() + sh.slot_floats(), destination.end(),
+                       destination_after.begin() + sh.slot_floats()),
+            "GDN ops changed the destination layer tail");
+}
+
 // Malformed views are refused before any output or state is written.
 void check_view_refusals(std::mt19937& g) {
     const StateShape sh = {1, 2, 4, 4};
     CpuBackend cpu;
     auto s = cpu.state_alloc(2, 3, sh);
     auto other = cpu.state_alloc(2, 3, StateShape{1, 1, 4, 4});
+    auto other_tail = cpu.state_alloc(2, 3, sh, {1, 0});
     const LinearInputs in = linear_inputs(g, sh, 4);
     BufferPtr x = upload(cpu, in.x), w = upload(cpu, in.w), alpha = upload(cpu, in.alpha), b = upload(cpu, in.b);
     BufferPtr a = upload(cpu, in.a), dt = upload(cpu, in.dt_bias);
@@ -587,6 +668,7 @@ void check_view_refusals(std::mt19937& g) {
         {{s.get(), 0, 0, 0, 0}},                          // a view without rows
         {{nullptr, 0, 0, 0, 4}},                          // no storage
         {{s.get(), 0, 0, 0, 2}, {other.get(), 0, 0, 0, 2}},   // two shapes in one call
+        {{s.get(), 0, 0, 0, 2}, {other_tail.get(), 0, 0, 0, 2}}, // equal shapes, different layer stride
     };
     for (size_t k = 0; k < bad.size(); ++k)
         for (int op = 0; op < 2; ++op) {
@@ -615,11 +697,14 @@ void check_view_refusals(std::mt19937& g) {
 // ---------------------------------------------------------------------------------------------------------------------
 // The gated norm, the partial rope and the output gate.
 
-// dst = RMSNorm(x; w) * silu(z) per head against the math, a head near 1e-4 holding eps, at every thread count and with each row alone, bit for bit.
-size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
+// dst = RMSNorm(x; w) times the selected gate per head against the math, at every thread count and with each row alone, bit for bit.
+size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim, backend::NormGate gate = backend::NormGate::silu) {
     const size_t rows = 23, n = rows * heads * dim;
     auto x = uniform(g, n, -2.0f, 2.0f);
-    const auto z = uniform(g, n, -6.0f, 6.0f), w = uniform(g, dim, 0.5f, 1.5f);
+    auto z = uniform(g, n, -6.0f, 6.0f);
+    z[0] = 0.0f;
+    z[1] = -4.0f;
+    const auto w = uniform(g, dim, 0.5f, 1.5f);
     for (size_t i = 0; i < dim; ++i) x[(5 * heads + 1) * dim + i] *= 1e-4f;
     const float eps = 1e-6f;
     CpuBackend cpu;
@@ -627,7 +712,7 @@ size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
     std::vector<float> first;
     for (int t : kThreadCounts) {
         cpu.set_threads(t);
-        cpu.gated_rms_norm({yb.get(), 0}, {xb.get(), 0}, {zb.get(), 0}, {wb.get(), 0}, rows, heads, dim, eps);
+        cpu.gated_rms_norm({yb.get(), 0}, {xb.get(), 0}, {zb.get(), 0}, {wb.get(), 0}, rows, heads, dim, eps, {}, gate);
         const auto y = download(cpu, *yb, n);
         if (first.empty()) first = y;
         require(same_bits(y, first), "gated norm: the thread count changed a result");
@@ -640,7 +725,8 @@ size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
             const double inv = 1.0 / std::sqrt(ss / dim + eps);
             // The sum of dim squares, the root and three products in F32: (dim + 8) units of the result.
             for (size_t i = 0; i < dim; ++i) {
-                const double ref = x[o + i] * inv * w[i] * silu(z[o + i]);
+                const double gate_value = gate == backend::NormGate::sigmoid ? sigmoid(z[o + i]) : silu(z[o + i]);
+                const double ref = x[o + i] * inv * w[i] * gate_value;
                 check_close(first[o + i], ref, (dim + 8) * U * (std::fabs(ref) + 1e-6), worst.norm, "gated norm");
             }
         }
@@ -648,12 +734,12 @@ size_t check_gated_norm(std::mt19937& g, size_t heads, size_t dim) {
     for (size_t r : {size_t(0), size_t(11), rows - 1}) {
         const size_t o = r * heads * dim;
         BufferPtr one = zeros(cpu, heads * dim * sizeof(float));
-        cpu.gated_rms_norm({one.get(), 0}, {xb.get(), o}, {zb.get(), o}, {wb.get(), 0}, 1, heads, dim, eps);
+        cpu.gated_rms_norm({one.get(), 0}, {xb.get(), o}, {zb.get(), o}, {wb.get(), 0}, 1, heads, dim, eps, {}, gate);
         require(same_bits(download(cpu, *one, heads * dim), std::vector<float>(first.begin() + o, first.begin() + o + heads * dim)),
                 "gated norm: a row alone differs from the row in a batch");
     }
     BufferPtr in_place = upload(cpu, x);
-    cpu.gated_rms_norm({in_place.get(), 0}, {in_place.get(), 0}, {zb.get(), 0}, {wb.get(), 0}, rows, heads, dim, eps);
+    cpu.gated_rms_norm({in_place.get(), 0}, {in_place.get(), 0}, {zb.get(), 0}, {wb.get(), 0}, rows, heads, dim, eps, {}, gate);
     require(same_bits(download(cpu, *in_place, n), first), "gated norm: in place differs");
     return rows * heads;
 }
@@ -890,12 +976,15 @@ int main() {
         check_column_paths(g);
         check_l2_eps(g);
         check_state_storage(g);
+        check_state_tails(g);
         check_view_refusals(g);
         std::printf("linear attention: %zu rows of mixed sequences against the references, %zu runs of thread counts and groupings bit for bit, %zu one-token steps; decay flush, column blocks, L2 epsilon, state storage and view refusals\n",
                     mixed, grouped, steps);
         size_t norm = 0, rope = 0, gate = 0;
         norm += check_gated_norm(g, 2, 10);
         norm += check_gated_norm(g, 4, 128);
+        norm += check_gated_norm(g, 2, 8, backend::NormGate::sigmoid);
+        norm += check_gated_norm(g, 4, 128, backend::NormGate::sigmoid);
         rope += check_partial_rope(g, 4, 40, 8, 100.0);
         rope += check_partial_rope(g, 3, 256, 64, 1e7);
         rope += check_partial_rope(g, 2, 64, 64, 1e4);

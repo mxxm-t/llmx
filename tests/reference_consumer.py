@@ -947,8 +947,11 @@ class MXFP4Consumer(unittest.TestCase):
             quality.assert_not_called()
 
 
-def run():
+def run(require=False):
+    import qwen4exp_fixture
+    qwen4exp_fixture.Qwen4ExpFixtureTests.require_native = require
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceConsumer, Qwen35Consumer, Qwen35QualityConsumer, LayeredConsumer, MXFP4Consumer, LongContextConsumer))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(qwen4exp_fixture))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

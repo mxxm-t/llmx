@@ -50,7 +50,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
 - Done: `qwen3moe` (Qwen3-30B-A3B), routed layers on the CPU and Vulkan
   backends with experts optionally on the CPU beside a device; the gate is a
   tiny random-weight model through HF `Qwen3MoeForCausalLM` (`docs/STATUS-2026-09.md`)
-- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS-2026-09.md`; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device against HF and are served with prefix reuse through state checkpoints; the chunked prompt form and MTP steps follow.
+- In progress: Qwen 3.5, 3.6 and 3.8, which are `qwen35` and its mixture-of-experts form `qwen35moe`, designed in `docs/QWEN35.md` and planned in `docs/STATUS-2026-09.md`; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device against HF and are served with prefix reuse through state checkpoints. MTP drafting is implemented through `docs/SPECULATIVE.md`; a chunked formulation of the recurrent prompt computation remains planned.
   Three layers in four are gated delta-net linear attention, with a fixed-size recurrent state per sequence, and every fourth layer is gated full attention at head width 256 with partial rotary.
   The MoE form adds a shared expert with its own gate, and some files carry a multi-token-prediction block, which becomes one proposer of a single speculative decoding system for every kind of drafter.
   A recurrent state exists only at the end of what it has read, so reuse and pause work from checkpoints of it, and every reused state is one the CLI would have computed the same way.
@@ -160,12 +160,12 @@ Branch on what a device reports, never on who made it.
   ships inside it; gfx906 has no matrix cores, so no such case is expected
   on the hardware here.
 
-## 5. Multi-device split: layer split [implemented], the rest **[design]**
+## 5. Multi-device split: layer, tensor and staged tensor splits [implemented]
 Split a single model across several devices on one machine, designed in `docs/MULTI-DEVICE.md` for many users first: layer split with passes in flight, then the tensor split, the staged tensor split and replicas, on one placement of stages and groups.
 - **Layer split** [implemented]: consecutive layers on different devices, bit-identical to one device, fitted to each device's free memory or set by `--layer-shares`. Pipelined stages and a pass in flight per stage in the server are phases 2 and 3 of `docs/MULTI-DEVICE.md`.
-- **Tensor split**: every layer on a tensor group of 2 to 4 devices at once, for per-request decode speed; built after the layer split.
-- **Staged tensor split**: stages of tensor groups.
-- **Replicas**: several copies of a model that fits one card or group, behind one scheduler.
+- **Tensor split** [implemented]: every layer on a tensor group of 2 to 4 devices at once, selected by `--tensor-width`; supported architectures and device constraints are listed in `docs/TENSOR-SPLIT.md`.
+- **Staged tensor split** [implemented]: stages of tensor groups, using the same flag with more devices than one group holds.
+- **Replicas** [design]: several copies of a model that fits one card or group, behind one scheduler.
 - **Prompt and decode on separate devices** (one possibility, not chosen): some devices read prompts while others only generate, the new rows of a prompt copied to the generating devices as each layer finishes, so a prompt arriving never slows the replies being written.
   It needs at least two placements of the model, so four devices for a model that takes two; on devices without a direct link the copy goes through host memory (a 20k-token prompt of a 27B model is about 1.4 GB, a 200k-token history about 14 GB), and a long chat's follow-up needs its whole history on the prompt devices too.
   Weighed against the cheaper measures first: prompt pieces cut by time and decode attention at depth (`docs/CACHE-PLAN.md`, section 8).
@@ -228,7 +228,7 @@ and implemented HF coverage are recorded in STATUS.
   not proof of idleness; small differences may remain unresolved.
 - **Precision policy.** Activation precision follows the model and the device, as vLLM resolves its dtype, instead of a choice per weight type.
   - `auto` takes a non-F32 model declaration where every device supports that policy natively; otherwise it takes a common preferred policy, or F32 when there is no common 16-bit policy. A declared F32 model also takes the preferred policy under auto. A GGUF, which records no source dtype, takes its architecture's documented default (BF16 for the Qwen families). The supported AVX2 CPU, MI50 and Radeon VII paths resolve to F16.
-  - A dtype flag (`auto`, `f16`, `bf16`, `f32`) overrides it. A valid value is never refused: a device without it natively takes a fast exact emulation, else F32, with a warning. F16 and BF16 never stand in for each other.
+  - A dtype flag (`auto`, `f16`, `bf16`, `f32`, `int8`) overrides it. A valid value is never refused: a device without it natively takes a fast exact emulation, else a wider fallback, with a warning. F16 and BF16 never stand in for each other and fall back to F32. Opt-in `int8` falls back to F16 where available, else F32; its separate error budget and implemented paths are described in `docs/PRECISION.md`.
   - Weights are read exactly and ordinary sums are F32; existing wider range repair remains. The F32 intermediates llmx keeps today (norms, softmax, rope, recurrent state, residual) stay until a narrower change is measured and passes the gates.
   - A kernel may implement a dtype in another form, such as block-scaled 16-bit integers for F16, only when it passes that dtype's calibrated budget and exact range checks, with a witness that it ran.
   - One owner resolves the policy once for a run. The requested, effective and native, emulated or fallback precision of each device is shown once, on the CLI and in `/v1/health`.

@@ -36,7 +36,7 @@ Nothing below the model layer chooses a dtype, and no kernel chooses one by weig
 - The declared dtype: a column of the architecture registry (`src/model/arch/registry.hpp`), BF16 for the four Qwen entries, copied into `ModelWeights` when a file is read.
   A future safetensors loader reads the checkpoint's `torch_dtype` instead, as vLLM reads the HF config.
 - Each backend's native dtypes, preferred 16-bit first (section 2).
-- The request: `--dtype auto|f16|bf16|f32`, defaulting to `auto`.
+- The request: `--dtype auto|f16|bf16|f32|int8`, defaulting to `auto`; `int8` is opt-in under the amendment in section 5.
 
 **How it resolves**, as vLLM does at its pinned commit 1117140e (`vllm/config/model.py`, `_resolve_auto_dtype`, [source](https://github.com/vllm-project/vllm/blob/1117140edbaf3d1e1f73b01b09cde3cf98ec24ff/vllm/config/model.py)): the platform's supported dtypes, filtered by the model's validity, give a preferred dtype, the first; a float32 model is taken down to the preferred dtype; the declared dtype is kept where it is supported, and the preferred one taken otherwise.
 llmx makes one plan for every device of a run, since a split's stages pass activations to one another:
@@ -52,7 +52,7 @@ The CLI writes it once to stderr as the model is loaded; on the MI50 it reads, w
     dtype: auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles), f32 (other products, routers)
 
 A fallback adds `warning:` and names the dtype it replaced.
-`/v1/health` gives the same record as a `dtype` object: `requested`, `declared`, `effective` and `devices`, each with `device`, `how` and `paths`.
+`/v1/health` gives the same record as a `precision` object: `requested`, `declared`, `effective` and `devices`, each with `device`, `effective`, `how` and `paths`.
 Keep the implementation in the placement owner and existing backend dispatch owners. It needs a small plan/record, capabilities and one explicit connection to execution, not a second precision framework. The pre-approval `wip/dtype-auto` prototype only built a report. The released implementation applies the resolved policy to execution and retains completed matrix-path witnesses; its qualification and separate open speed gaps are recorded in [STATUS](STATUS.md).
 
 ## 2. Capabilities and kernel classes
@@ -238,6 +238,6 @@ The frozen calibration uses exact weights and rounds matrix inputs only. Native 
 
 Round-to-nearest conversion includes subnormals and rounding to zero at underflow and infinity at overflow; it is not finite saturation. Exact tests follow those conversion semantics. A qualifying implementation may preserve more precision or range, but no guard is required solely to preserve an input beyond the chosen dtype's range.
 
-The backend repeatability tool, `tools/long_context_check.py`, accepts `--dtype auto|f16|bf16|f32` and forwards it to prompt sizing, fresh generation and scoring on both backends. Its existing backend comparison margin is unchanged; that check is separate from file-exact HF depth acceptance.
+The backend repeatability tool, `tools/long_context_check.py`, accepts `--dtype auto|f16|bf16|f32|int8` and forwards it to prompt sizing, fresh generation and scoring on both backends. Its existing backend comparison margin is unchanged; that check is separate from file-exact HF depth acceptance.
 
 The earlier range implementation at 4fc70316 remains in history with its evidence. BF16 rounds activations and widens for F32 arithmetic; F16 uses qualified block-int16 paths or documented wider F32 paths. F16 checks cover the selected precision's range, and explicit F32 retains its original-input range checks. CPU and Vulkan advertise F16 before F32 in their native preference lists. The current evidence, remaining performance work and release state are recorded in [STATUS](STATUS.md).

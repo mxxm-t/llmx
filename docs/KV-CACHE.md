@@ -104,7 +104,10 @@ KVSequence    ordered physical block ids, valid length;
 
 `model/kv_cache.hpp` also holds a model's recurrent state slots (`SlotPool`,
 `StateSlot`): a sequence takes one once its pass is accepted and planned,
-and releases it at reset. A model that keeps a state refuses forks.
+and releases it at reset. A model that keeps a state can fork at its source's
+retained checkpoint, provided the fork also ends on whole KV blocks. Its first
+pass reads that checkpoint's state in place; forks elsewhere are refused
+(`Model::fork` in `model/history.hpp`).
 
 Both own what they hold: neither is copyable, the pool is not movable either
 because sequences hold its address and it is configured in place while idle,

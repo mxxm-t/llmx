@@ -148,8 +148,9 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
 - **Model architectures** are compiled in and selected from metadata by
   `model/arch/registry.hpp`; today qwen3, qwen3moe, qwen35 and qwen35moe.
 - **Split mode** is a runtime parameter: `--device` with several devices
-  runs the model as a layer split over them (`MULTI-DEVICE.md`); the tensor
-  split and node count are planned. See `ROADMAP.md`.
+  runs the model as a layer split over them; `--tensor-width` groups the listed
+  devices for tensor or staged tensor execution (`MULTI-DEVICE.md`,
+  `TENSOR-SPLIT.md`). Multi-node execution remains planned. See `ROADMAP.md`.
 
 `--threads` and `--threads-batch` select CPU workers for decode and prefill.
 GPU backends keep that meaning for applicable CPU work; GPU launch
@@ -320,5 +321,6 @@ A layer split over the devices `--device` lists is fitted by
 (`model/place.hpp`) and each backend's `memory_available()`; the split knows
 no architecture and the architecture knows no device. A prompt's chunks
 pipeline over the stages, and the server keeps a pass in flight per stage;
-the tensor split and a second vendor backend are what `MULTI-DEVICE.md` and
-`ROADMAP.md` #4b and #5 still carry.
+tensor groups and stages of groups are implemented as described in
+`TENSOR-SPLIT.md`. Replicas, multi-node execution and a second vendor backend
+remain planned in `MULTI-DEVICE.md` and `ROADMAP.md` #4b and #5.

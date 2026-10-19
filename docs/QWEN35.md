@@ -1,6 +1,6 @@
 # Qwen 3.5, 3.6 and 3.8: the qwen35 and qwen35moe architectures
 
-Design for the next architectures of ROADMAP #2, written before the code; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device as it describes (`src/model/arch/qwen35.hpp`) and are served with prefix reuse through state checkpoints ([SPECULATIVE](SPECULATIVE.md)), and the chunked prompt form and MTP parts are planned.
+Design for the architectures of ROADMAP #2, written before the code; `qwen35` and `qwen35moe` run on the CPU and on a Vulkan device as it describes (`src/model/arch/qwen35.hpp`) and are served with prefix reuse through state checkpoints. MTP drafting is implemented through the shared speculative execution path ([SPECULATIVE](SPECULATIVE.md)); a chunked formulation of the recurrent prompt computation remains planned.
 This page holds what the code implements: the models and their shapes, the forward pass of each layer kind, the conventions of the GGUF files the kernels read, the files on hand and how each is handled, and the row classes that keep the recurrent layers exact.
 The plan, its branches and gates, the decisions taken and the questions still open are in [STATUS-2026-09](STATUS-2026-09.md), in the block "Qwen 3.5, 3.6 and 3.8".
 The full-attention layers use the paged KV cache of [KV-CACHE](KV-CACHE.md), and the recurrent state is the fixed-size, private, per-sequence state that [EXECUTION](EXECUTION.md), "Beyond dense Qwen", leaves room for.

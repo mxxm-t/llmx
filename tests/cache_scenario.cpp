@@ -814,9 +814,11 @@ void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok,
         for (uint32_t id : ids_of(drain(*sched.submit(first.prompt, params_of(first))))) next.push_back(id);
         drain(*sched.submit(other.prompt, params_of(other)));
         slowed->store(false);
-        // The other request's history, as long in whole blocks, lands too, so the next turn's read waits on no write of it.
-        const uint64_t one = sched.stats().disk_bytes_written;
-        within(std::chrono::minutes(10), [&] { return sched.stats().disk_bytes_written >= 2 * one; }, "first write: the other request's history written", "within ten minutes");
+        // The other request's history lands too, a file of its own, so the next turn's read waits on no write of it.
+        // The first history is whole on disk, since the other request waited for it, but in one write or two as the budget fell, so the files are counted and not its bytes.
+        const size_t files = sched.stats().disk_entries;
+        within(std::chrono::minutes(10), [&] { const Stats now = sched.stats(); return now.disk_entries > files && !now.disk_in_flight; }, "first write: the other request's history written",
+               "within ten minutes");
         const std::vector<uint32_t> user = prompt_of(30, kUser, v);
         next.insert(next.end(), user.begin(), user.end());
         const auto h = sched.submit(next, params_of(Req{next, (int)kReply}));

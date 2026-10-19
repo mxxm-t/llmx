@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## The first write's case counts the other history's file, not its bytes (2026-10-19, branch stack/cache-top, tests only, one commit on the stack)
+
+- **Why:** the stack's hosted run 39307121297 timed out in `cache-scenario` on ubuntu-24.04, as feat/kv-pool's run 39135787656 had failed on macOS (Why of the record of 2026-10-18 below, which took it for a slow runner): after its two requests the first-write case waited for the bytes written to reach twice what they were once the first history was whole, but that history goes to disk in one write or two as the background budget falls while the second request waits for it, and the store pads each write, so where it took two (both failing runs queued the second request about 6.6 and 7.1 s, two of the store's 3 s holds) the other history's one write never reached the mark and nothing else is written. On Windows the first history takes one write of 2 MiB and the other one of 2 MiB.
+- **The change:** the case waits for one file more than it saw once the first history was whole, with nothing in flight; the server is unchanged.
+- **Held by:** the legs on Windows; the hosted run of github gate/cache-top.
+
 ## One question for reuse (2026-10-19, branch feat/item8 on feat/a21 826de2732, item 8 of docs/CACHE-PLAN.md section 8, step 6's remainder, lands by fast-forward as two commits after A21)
 
 - **Why:** `enter` asked five searches in turn, `prefetch` three of them and never the running requests and jobs (N3), `hand_jobs` two and `rows_held` a fourth walk; a failed promotion or a boundary that lost its rows fell back to the best donor rather than the next restore point (N8, N9); two followers of one history on disk read it twice (gap 6); and a job started before `prefetch` looked at it, computing what the files held (gap 5).

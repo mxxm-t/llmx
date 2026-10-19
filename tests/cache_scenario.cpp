@@ -4,6 +4,7 @@
 #include <atomic>
 #include <iostream>
 #include <mutex>
+#include <thread>
 
 #include "server/context_cut.hpp"
 #include "server_harness.hpp"
@@ -43,9 +44,9 @@ std::vector<char> lost_rows(const std::vector<uint32_t>& prompt, size_t reused, 
         const size_t n = std::min({l.tokens, l.history.size(), expected, prompt.size()});
         if (!std::equal(l.history.begin(), l.history.begin() + (std::ptrdiff_t)n, prompt.begin())) continue;
         const bool state = l.kind == server::Move::boundary_dropped || l.kind == server::Move::boundary_lost;
-        // A state lost at a position leaves the rows up to it without a restore point; rows lost are the rows themselves.
-        const size_t from = state ? reused : std::max(l.first, reused), to = std::min(l.tokens, expected);
-        if (state && (l.tokens <= reused || l.tokens > expected)) continue;
+        // A state lost at a position leaves the rows up to it without a restore point, and needs its history known up to there; rows lost are the rows themselves, as far as their history is known.
+        const size_t from = state ? reused : std::max(l.first, reused), to = std::min({l.tokens, expected, n});
+        if (state && (l.tokens <= reused || l.tokens > expected || n < l.tokens)) continue;
         for (size_t k = from; k < to; ++k) covered[k - reused] = 1;
     }
     return covered;
@@ -89,6 +90,10 @@ void attribution() {
     parted[300] ^= 1;
     require(explained(shorter, 0, 512, {right}) == 512, "attribution: a longer history's loss explains a shorter request's rows inside it");
     require(explained(parted, 0, 512, {right}) == 0, "attribution: a request parting from the lost history inside its rows is not explained");
+    // A loss whose history is known only in part explains only the rows it identifies, and a state no row of its position.
+    const Loss truncated{server::Move::job_lost, 0, 896, std::vector<uint32_t>(mine.begin(), mine.begin() + 300)},
+        state_short{server::Move::boundary_dropped, 768, 768, std::vector<uint32_t>(mine.begin(), mine.begin() + 300)};
+    require(explained(mine, 0, 896, {truncated}) == 300 && explained(mine, 640, 768, {state_short}) == 0, "attribution: a loss explains no row past the history it carries");
     // A loss reported before the restore point was prepared again explains nothing of a later shortfall.
     require(explained(mine, 0, 896, {right}, 1) == 0 && explained(mine, 0, 896, {right, other}, 1) == 0 && explained(mine, 0, 896, {other, right}, 1) == 896, "attribution: a loss older than the point's last preparation explains nothing");
 }
@@ -903,6 +908,193 @@ void pool_past_context(const Make& make, const bpe::Tokenizer& tok, uint32_t v) 
     same(serve(*fresh, tok, 4, {{Req{next, (int)kReply}}})[0], got, "a pool past the context, the turn after the restart");
 }
 
+// A scheduler running for one leg, its losses kept for the classification, stopped as it goes out of scope; a stop under keep writes what memory holds to disk.
+struct Run {
+    std::unique_ptr<infer::Model> model;
+    std::unique_ptr<server::Scheduler> sched;
+    std::mutex losing, submitting;
+    std::vector<Loss> losses;
+    std::thread runner;
+    Run(std::unique_ptr<infer::Model> m, const bpe::Tokenizer& tok, size_t seats, size_t host, const server::DiskOptions& disk = {}) : model(std::move(m)) {
+        sched = std::make_unique<server::Scheduler>(*model, tok, seats, 64, 0, false, host, nullptr, 0, true, disk);
+        sched->on_move = [this](const server::Scheduler::Moved& mv) {
+            std::lock_guard<std::mutex> lk(losing);
+            losses.push_back(Loss{mv.kind, mv.first, mv.tokens, std::vector<uint32_t>(mv.history->begin(), mv.history->begin() + (std::ptrdiff_t)std::min(mv.tokens, mv.history->size()))});
+        };
+        // No pass retires while the test submits several requests, so they are queued together.
+        sched->on_retire = [this](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lk(submitting); };
+        runner = std::thread([this] { sched->run(); });
+    }
+    ~Run() {
+        sched->stop();
+        runner.join();
+    }
+    size_t lost() {
+        std::lock_guard<std::mutex> lk(losing);
+        return losses.size();
+    }
+    // The rows of a shortfall [reused, expected) the losses reported from `since` on explain, and those the turn's own read covered past its bound (failed_rows).
+    std::pair<size_t, size_t> classified(const std::vector<uint32_t>& prompt, size_t reused, size_t expected, size_t since, size_t late) {
+        std::lock_guard<std::mutex> lk(losing);
+        const std::vector<char> lost = lost_rows(prompt, reused, expected, losses, since);
+        return {(size_t)std::count(lost.begin(), lost.end(), (char)1), failed_rows(lost, reused, expected, late)};
+    }
+    size_t count(server::Move k) { return sched->stats().moves[(size_t)k]; }
+};
+
+std::vector<uint32_t> joined(std::vector<uint32_t> a, const std::vector<uint32_t>& b) {
+    a.insert(a.end(), b.begin(), b.end());
+    return a;
+}
+
+// Each expectation is what the plan records for today: one that fails, or improves without its entry being updated, fails here.
+void check(const std::vector<Expectation>& table, const std::string& on_what) {
+    for (const Expectation& e : table) {
+        std::cout << "cache-scenario" << on_what << ": " << (e.seen ? "held" : "broken") << ": " << e.name << " (" << e.promise << ")\n";
+        require(e.seen == e.held_today, "cache-scenario" + on_what + ": \"" + e.name + "\" (" + e.promise + ") is " + (e.seen ? "held" : "broken") + ", and the plan records it as " + (e.held_today ? "held" : "broken") + " today");
+    }
+}
+
+// A restart over kept files: two conversations each leave a turn and its read-ahead job on disk, and a new server opens the directory.
+// Two requests of the first history arrive together, and the second conversation's turn is sent again with its job after it, whose rows are on disk.
+void restart(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
+    const std::string on_what = ", a restart over kept files";
+    // A pool of two of the scenario's, so each job finds the spare room it starts only in beside both conversations' donors.
+    DiskRoot disk("scenario-restart");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    // A read is waited for whatever this runner computes a row in, so the leg counts reads and not a race with the bound.
+    options.read_wait = std::chrono::seconds(60);
+    const Req one{prompt_of(21, 600, v), (int)kReply}, two{prompt_of(31, 600, v), (int)kReply};
+    std::vector<uint32_t> ids_one, ids_two;
+    {
+        Run before(make(2 * kPool, 64), tok, 4, (size_t)1 << 30, options);
+        size_t jobs = 0;
+        for (const auto& c : {std::pair<const Req*, std::vector<uint32_t>*>{&one, &ids_one}, {&two, &ids_two}}) {
+            const Handle h = before.sched->submit(c.first->prompt, params_of(*c.first));
+            *c.second = joined(joined(c.first->prompt, ids_of(drain(*h))), prompt_of(22, 200, v));
+            before.sched->follow(h, *c.second, true);
+            within_a_minute([&] { return before.sched->stats().reprefills == jobs + 1; }, "the restart leg: a job done before the stop");
+            ++jobs;
+        }
+    }
+    Run after(make(2 * kPool, 64), tok, 4, (size_t)1 << 30, options);
+    within_a_minute([&] { return after.sched->stats().disk_ready; }, "the restart leg: the kept files adopted");
+    const size_t point = ids_one.size() / kBlock * kBlock;
+    // Two followers of the first history, which is on disk alone.
+    const Req next{joined(ids_one, prompt_of(23, 60, v)), (int)kReply};
+    Handle a, b;
+    {
+        std::lock_guard<std::mutex> lk(after.submitting);
+        a = after.sched->submit(next.prompt, params_of(next));
+        b = after.sched->submit(next.prompt, params_of(next));
+    }
+    const Reply ra = drain(*a), rb = drain(*b);
+    const size_t reads = after.count(server::Move::read_started);
+    // The second conversation's turn again, and its job: the rows the job is to read are in the files the earlier job's donor left.
+    const Handle q = after.sched->submit(two.prompt, params_of(two));
+    const Reply rq = drain(*q);
+    const size_t q_reads = after.count(server::Move::read_started), rows = after.sched->stats().reprefill_rows;
+    after.sched->follow(q, ids_two, true);
+    within_a_minute([&] { return after.sched->stats().reprefills == 1; }, "the restart leg: the job after the restart done");
+    const size_t job_rows = after.sched->stats().reprefill_rows - rows, job_reads = after.count(server::Move::read_started) - q_reads;
+    std::cout << "cache-scenario" << on_what << ": the two followers reused " << a->reused() << " and " << b->reused() << " of " << point << " with " << reads << " reads from disk; the turn sent again reused " << q->reused()
+              << "; its job read " << job_rows << " rows with " << job_reads << " reads from disk\n";
+    std::vector<Expectation> table;
+    // A follower whose read ends after the other's prompt has passed the history forks that request instead, so it may reuse more.
+    table.push_back({"after a restart a turn reads its history and does not recompute", "P4", true, a->reused() >= point && b->reused() >= point});
+    table.push_back({"two followers of one history on disk share one read", "P2", false, reads == 1});
+    table.push_back({"after a restart a job reads and does not recompute", "P4", false, job_rows == 0});
+    require(reads == 2 && q->reused() == 512 && job_rows == 256 && job_reads == 0,
+            "the restart leg's witness: " + std::to_string(reads) + " reads for the two followers, the turn sent again reusing " + std::to_string(q->reused()) + ", its job reading " + std::to_string(job_rows) + " rows with " +
+                std::to_string(job_reads) + " reads, against 2, 512, 256 and 0");
+    check(table, on_what);
+    auto fresh = make(kPool, 64);
+    const std::vector<Reply> alone = serve(*fresh, tok, 4, {{next}, {two}});
+    same(alone[0], ra, "cache-scenario" + on_what + ": the first follower's reply");
+    same(alone[0], rb, "cache-scenario" + on_what + ": the second follower's reply");
+    same(alone[1], rq, "cache-scenario" + on_what + ": the turn sent again");
+}
+
+// A history the host tier cannot keep: another conversation's request takes its room at once, or after its files are whole on disk.
+void beyond_the_host_tier(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool written) {
+    const std::string on_what = std::string(", a history the host tier cannot keep") + (written ? ", written before it is taken" : ", taken at once");
+    DiskRoot disk(written ? "scenario-beyond-written" : "scenario-beyond");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = written ? std::chrono::milliseconds(0) : std::chrono::milliseconds(std::chrono::hours(1));
+    options.read_wait = std::chrono::seconds(60);
+    const Req turn{prompt_of(41, 700, v), 20}, other{prompt_of(42, 500, v), 20};
+    auto model = make(1024, 64);
+    // The tier is a byte short of one slab, the least a copy takes, so no history has a place in it.
+    const size_t cap = infer::Model::host_slab_bytes() - 1, point = turn.prompt.size() / kBlock * kBlock;
+    require(model->host_bytes(point) > cap, "the fixture's history fits the host tier");
+    Run run(std::move(model), tok, 2, cap, options);
+    const Handle h = run.sched->submit(turn.prompt, params_of(turn));
+    const Req next{joined(joined(turn.prompt, ids_of(drain(*h))), prompt_of(43, 60, v)), 20};
+    if (written) within_a_minute([&] { return run.count(server::Move::write_whole) >= 1 && !run.sched->stats().disk_in_flight; }, "the leg beyond the host tier: its files whole on disk");
+    const size_t since = run.lost();
+    drain(*run.sched->submit(other.prompt, params_of(other)));
+    const Handle f = run.sched->submit(next.prompt, params_of(next));
+    const Reply reply = drain(*f);
+    const size_t reused = f->reused();
+    const auto [evicted, failed] = run.classified(next.prompt, reused, point, since, f->restore_late());
+    const size_t unexplained = point - std::min(point, reused) - evicted - failed;
+    std::cout << "cache-scenario" << on_what << ": reused " << reused << ", evicted " << evicted << ", failed restore " << failed << " of " << point << "\n";
+    require(!unexplained, "cache-scenario" + on_what + ": " + std::to_string(unexplained) + " of " + std::to_string(point) + " rows computed that no reported loss or failed restore explains (P8)");
+    std::vector<Expectation> table;
+    table.push_back({"a history the host tier cannot keep is whole on disk before it can be taken", "P3", true, !evicted});
+    require(reused == point && !failed, "the leg's witness: reused " + std::to_string(reused) + " and failed restore " + std::to_string(failed) + ", against " + std::to_string(point) + " and none");
+    check(table, on_what);
+    auto fresh = make(1024, 64);
+    same(serve(*fresh, tok, 2, {{next}})[0], reply, "cache-scenario" + on_what + ": the follow-up's reply");
+}
+
+// Many users at the cap: six conversations taking turns, three turns each, with a pool and a host tier that hold them all, or a pool for three and a host tier for one more.
+void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool room) {
+    const std::string on_what = std::string(", six conversations taking turns") + (room ? ", room for all" : ", room for four");
+    auto model = make(room ? 8192 : kPool, 64);
+    const size_t host = room ? (size_t)1 << 30 : model->host_bytes(1024);
+    Run run(std::move(model), tok, 4, host);
+    struct User {
+        std::vector<uint32_t> history;
+        size_t prepared = 0, since = 0, evicted = 0, reused = 0;
+    };
+    std::vector<User> users(6);
+    for (size_t u = 0; u < users.size(); ++u) users[u].history = prompt_of((uint32_t)(50 + u), 500, v);
+    size_t shortfall = 0, unexplained = 0, ended = 0;
+    for (size_t turn = 0; turn < 3; ++turn)
+        for (size_t u = 0; u < users.size(); ++u) {
+            User& c = users[u];
+            const Req r{joined(c.history, prompt_of((uint32_t)((turn * 7 + u) % v), kUser, v)), (int)kReply};
+            const Handle h = run.sched->submit(r.prompt, params_of(r));
+            const Reply reply = drain(*h);
+            ++ended;
+            const size_t reused = h->reused(), missing = c.prepared > reused ? c.prepared - reused : 0;
+            const auto [evicted, failed] = run.classified(r.prompt, reused, c.prepared, c.since, h->restore_late());
+            shortfall += missing;
+            unexplained += missing - evicted - failed;
+            c.evicted += evicted;
+            c.reused += reused;
+            c.history = joined(r.prompt, ids_of(reply));
+            c.prepared = r.prompt.size() / kBlock * kBlock;
+            c.since = run.lost();
+        }
+    std::cout << "cache-scenario" << on_what << ": " << ended << " turns ended, " << shortfall << " rows short of what was prepared, " << unexplained << " of them unexplained; evicted by conversation:";
+    for (const User& c : users) std::cout << " " << c.evicted;
+    std::cout << "\n";
+    require(ended == 18, "cache-scenario" + on_what + ": not every turn ended");
+    require(!unexplained, "cache-scenario" + on_what + ": " + std::to_string(unexplained) + " rows computed that a restore point should have held and no reported loss explains (P8)");
+    std::vector<Expectation> table;
+    if (room) table.push_back({"with room for every conversation no turn computes a row it held", "P1, P2", true, !shortfall});
+    // At the cap each conversation comes back after five others: no conversation is kept over another until the plan's step 7.
+    else table.push_back({"at the cap the conversations that came back keep their rows over those that did not", "P3", false, std::any_of(users.begin(), users.end(), [](const User& c) { return !c.evicted; })});
+    // At the cap each conversation comes back after five others and loses its 512 and then 640 prepared rows, each loss reported.
+    if (!room)
+        for (const User& c : users) require(c.evicted == 1152 && !c.reused, "the many-users witness: a conversation lost " + std::to_string(c.evicted) + " rows and reused " + std::to_string(c.reused) + ", against 1152 and 0");
+    check(table, on_what);
+}
+
 } // namespace
 
 // `legs` runs the scripted conversation and its cases, `production` the production-shaped script; with no argument, both.
@@ -926,6 +1118,9 @@ int main(int argc, char** argv) {
             for (const bool capped : {false, true}) slow_write_wait(weights, tok, (uint32_t)kCpu.vocab, capped);
             first_write_wait(weights, tok, (uint32_t)kCpu.vocab);
             pool_past_context(one, tok, (uint32_t)kCpu.vocab);
+            restart(one, tok, (uint32_t)kCpu.vocab);
+            for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
+            for (const bool room : {true, false}) many_users(one, tok, (uint32_t)kCpu.vocab, room);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 896, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 768, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});

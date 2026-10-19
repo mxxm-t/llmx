@@ -481,6 +481,7 @@ public:
         size_t disk_refused_dirs = 0;             // kept directories of another identity the start did not adopt, kept until their age limit
         std::array<size_t, (size_t)Move::count> moves{};   // the cache's moves since start, by kind (moved)
         size_t reprefill_released = 0;            // rows jobs had read and released as they gave way
+        size_t uncopyable = 0;                    // donors holding a block whose checkpoint no copy can take (copy_length 0), counted as they are made
         size_t lost_before_written = 0, disk_capped = 0;   // beside a disk tier, histories and boundaries' states released while no file held them (lost), and entries deleted for the disk's cap
         uint64_t disk_bytes_read = 0;             // their bytes
         double disk_wait_ms = 0;                  // the time requests waited for reads
@@ -560,6 +561,7 @@ public:
         s.disk_errors = disk_ ? disk_->errors() : 0;
         s.disk_refused_dirs = disk_ ? disk_->refused_dirs() : 0;
         s.lost_before_written = lost_before_written_;
+        s.uncopyable = uncopyable_;
         for (size_t k = 0; k < s.moves.size(); ++k) s.moves[k] = moves_[k].load();
         s.reprefill_released = reprefill_released_.load();
         s.disk_refused = disk_refused_;
@@ -774,7 +776,24 @@ public:
             }
         }
         abort_all();
-        for (auto& r : active) { release(*r); r->end("cancel"); }
+        // Under --disk-cache-keep every active job and request is parked at its checkpoint before anything is released: one that took its conversation's donor over is the only holder of those rows, which the flush then writes.
+        // A request keeps its earlier turns' rows so, a hybrid one its prompt's whole blocks; its partial reply is not kept, and it ends cancelled.
+        const bool keeps = disk_ && disk_->keeps();
+        while (keeps && !active.empty()) {
+            const auto r = active.back();
+            const size_t rows = r->seq_.length();
+            const char* why = "";
+            const uint64_t id = park(active, active.size() - 1, r->job_ ? r->prompt_ : history(*r), 0, &why);
+            r->finished_ = true;
+            if (id) std::fprintf(stderr, "server: cache: a %s holding %zu rows parked at the stop for the next server\n", r->job_ ? "job" : "request", rows);
+            else std::fprintf(stderr, "server: cache: a %s holding %zu rows released at the stop, %s\n", r->job_ ? "job" : "request", rows, why);
+            if (!r->job_) r->end("cancel");
+        }
+        for (auto& r : active) {
+            if (r->job_) std::fprintf(stderr, "server: cache: a job holding %zu rows released at the stop\n", r->seq_.length());
+            release(*r);
+            r->end("cancel");
+        }
         // With --disk-cache-keep what memory holds goes to disk first; then the tier goes, its write in flight cancelled, so no write reads a slab released below; its thread calls back under the lock.
         if (disk_ && disk_->keeps()) flush_disk();
         // Streamed reads stop and are waited for before the tier goes, since their readers read its files and their copies write the devices.
@@ -2614,9 +2633,9 @@ private:
         return s;
     }
 
-    // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less) and its blocks returned otherwise; the donor's id, 0 when none is kept.
+    // A request leaves the active set, its history kept as a donor when it holds at least `least` tokens (a full block unless a paused request's own asks for less); the donor's id, or 0 with `why` saying why.
     // A donor keeps only the blocks it holds reserved, at most max_seqs donors exist, and on a model that keeps a recurrent state a donor ends at its checkpoint, with none it keeps no donor and recomputes from its start.
-    uint64_t park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h, size_t least = 0) {
+    uint64_t park(std::vector<std::shared_ptr<Request>>& active, size_t i, const std::vector<uint32_t>& h, size_t least = 0, const char** why = nullptr) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
         if (r->proof_) unprove(*r);
@@ -2666,9 +2685,15 @@ private:
             for (Donor& o : donors_) o.superseded = o.superseded || (r->paused_as_ && o.on_host == r->paused_as_);
             donors_.push_back(std::move(d));
             moved(Move::parked);
+            // A donor holding a block that no copy can take (copy_length 0) is counted and said; by construction only a request paused inside a block, usable for its own take-back alone, makes one.
+            if (held >= model_.kv_block_tokens() && !copy_length(donors_.back())) {
+                ++uncopyable_;
+                std::fprintf(stderr, "server: cache: a donor of %zu tokens whose checkpoint no copy can take: it stays on the devices only\n", held);
+            }
             for (HostDonor& h : host_) h.superseded = h.superseded || (r->paused_as_ && h.id == r->paused_as_);
             std::stable_partition(host_.begin(), host_.end(), [](const HostDonor& h) { return h.superseded; });
         } else {
+            if (why) *why = lk.owns_lock() ? "no donor slot it may take" : "too short to keep";
             if (lk.owns_lock()) lk.unlock();
             release(*r);
         }
@@ -3001,12 +3026,19 @@ private:
                         if (j->source_ && donors_[d].id == j->source_) { drop_donor(d, true); break; }
                 }
                 if (!quieted()->keep(j->seq_)) {
-                    finish(active, i, "error");
+                    // With no slot for its end's state it is parked at the checkpoint it kept between passes, so its conversation's whole blocks keep a holder.
+                    const char* why = "";
+                    const uint64_t id = park(active, i, j->prompt_, 0, &why);
+                    j->finished_ = true;
+                    if (id) std::fprintf(stderr, "server: cache: a job of %zu rows found no slot for its end's state and was parked at its checkpoint\n", len);
+                    else std::fprintf(stderr, "server: cache: a job of %zu rows found no slot for its end's state and kept nothing, %s\n", len, why);
                     continue;
                 }
             }
-            const uint64_t id = park(active, i, j->prompt_);
+            const char* why = "";
+            const uint64_t id = park(active, i, j->prompt_, 0, &why);
             j->finished_ = true;
+            std::fprintf(stderr, "server: cache: a job completed, its %zu rows %s%s\n", len, id ? "kept as a donor" : "kept nowhere, ", id ? "" : why);
             std::lock_guard<std::mutex> lk(m_);
             if (!id) continue;
             ++reprefills_;
@@ -3174,6 +3206,7 @@ private:
     };
     std::vector<Streaming> streams_;   // under the lock
     size_t lost_before_written_ = 0;   // Stats::lost_before_written, under the lock
+    size_t uncopyable_ = 0;            // Stats::uncopyable, under the lock
     std::array<std::atomic<size_t>, (size_t)Move::count> moves_{};   // Stats::moves
     std::atomic<size_t> reprefill_released_{0};   // Stats::reprefill_released
     size_t disk_refused_ = 0;   // Stats::disk_refused, under the lock

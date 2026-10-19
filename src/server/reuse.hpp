@@ -663,11 +663,22 @@ inline void Scheduler::flush_disk() {
     disk_->cancel_write();
     const uint64_t left = unwritten_bytes();
     std::fprintf(stderr, "server: %zu entries kept on disk for the next server, %.1f MiB not written%s\n", disk_->index().files().size(), (double)left / (1 << 20), left ? why : "");
+    // Each history left out, and why: superseded ones stand on a newer copy of their conversation, which the line before counts.
+    const size_t bt = model_.kv_block_tokens();
+    const auto said = [&](const std::vector<std::string>& d, size_t n, const char* reason, const char* where) {
+        if (!n || !disk_->unwritten(d, bt, n, model_.keeps_state(), true)) return;
+        std::fprintf(stderr, "server: a history of %zu tokens %s not kept for the next server (%s)\n", n, where, reason);
+    };
+    const char* flush_reason = why[0] ? why + 2 : "not written";
+    for (const Donor& d : donors_)
+        said(digests(d), std::min(d.seq.length(), d.tokens.size()) / bt * bt,
+             d.superseded ? "superseded by a newer copy of its conversation" : !copy_length(d) ? "its checkpoint no copy can take" : flush_reason, "on the devices");
+    for (const HostDonor& h : host_) said(digests(h), h.history.length, h.superseded ? "superseded by a newer copy of its conversation" : flush_reason, "in host memory");
     sync_disk();
 }
 
 // The bytes a keep flush has still to write: of every history a device or host memory holds, the segments not on disk and its state, a history two entries hold counted once.
-// Under the lock.
+// A device donor counts by its whole blocks, not by what a copy can take, so a history no copy can take shows as not written; under the lock.
 inline uint64_t Scheduler::unwritten_bytes() const {
     const size_t bt = model_.kv_block_tokens();
     uint64_t bytes = 0;
@@ -678,7 +689,7 @@ inline uint64_t Scheduler::unwritten_bytes() const {
         bytes += disk_->unwritten(d, bt, n, model_.keeps_state(), blocks);
     };
     for (const Donor& d : donors_)
-        if (!d.superseded) add(digests(d), copy_length(d), true);
+        if (!d.superseded) add(digests(d), std::min(d.seq.length(), d.tokens.size()) / bt * bt, true);
     for (const HostDonor& h : host_)
         if (!h.superseded) add(digests(h), h.history.length, true);
     for (const Boundary& b : bounds_) add(digests(b), b.state.length, false);
@@ -728,6 +739,8 @@ inline bool Scheduler::flush_one(std::vector<uint64_t>& tried, bool beyond) {
                 }
                 return true;
             }
+            if (beyond && w == DiskTier::Wrote::refused)
+                std::fprintf(stderr, "server: cache: a history of %zu tokens the host tier cannot keep was not written as its turn ended (refused room on disk or host memory)\n", n);
             if (w == DiskTier::Wrote::refused || (beyond && w == DiskTier::Wrote::nothing)) tried.push_back(d.id);
         }
         // With `beyond`, only the device donors the host tier cannot keep (beyond_host), each asked until it is whole on disk or refused, then left in `tried` while it lives.

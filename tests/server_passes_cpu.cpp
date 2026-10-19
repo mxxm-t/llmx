@@ -798,6 +798,279 @@ struct Slow : NoCpu {
     }
 };
 
+// A device whose attention takes time in proportion to its query rows times the history they read, as attention at depth does: 0.4 us a row and a token read.
+// It keeps the time of each prompt's attention over a history of at least `deep` tokens.
+struct Deep : NoCpu {
+    using NoCpu::NoCpu;
+    size_t deep = 0;
+    std::mutex m;
+    double deepest_ms = 0;
+    size_t deep_calls = 0;
+    double reply_ms = 0;   // a decode call's own cost, a reply pass at depth, where it is set
+    double fixed_ms = 0;   // a prompt call's cost that its rows do not change, as attention at depth has, where it is set
+    std::vector<std::pair<size_t, double>> stairs;   // where set, a prompt call's whole cost by its rows: the first step whose rows reach them, as tiled attention at depth takes another row of tiles
+    // Every prompt view's attention in order: its query rows, the history it reads and the views beside it in the call, a reply's row among them where generated rows ride.
+    struct Call {
+        size_t rows, length, views;
+    };
+    std::vector<Call> calls;
+    // The modeled time runs on the queue: a submission takes its calls' time after the one before it and a wait ends with it, so a pass recorded between pieces is timed apart from the next piece.
+    using Clock = std::chrono::steady_clock;
+    double pending_ms = 0;
+    Clock::time_point free_at{};
+    std::map<backend::Ticket, Clock::time_point> done_at;
+    backend::Ticket submit() override {
+        const backend::Ticket t = NoCpu::submit();
+        std::lock_guard<std::mutex> lk(m);
+        free_at = std::max(Clock::now(), free_at) + std::chrono::microseconds((long long)(pending_ms * 1000));
+        pending_ms = 0;
+        done_at[t] = free_at;
+        return t;
+    }
+    void wait(backend::Ticket t) noexcept override {
+        Clock::time_point until{};
+        {
+            std::lock_guard<std::mutex> lk(m);
+            const auto it = done_at.upper_bound(t);
+            if (it != done_at.begin()) until = std::prev(it)->second;
+        }
+        std::this_thread::sleep_until(until);
+        NoCpu::wait(t);
+    }
+    void sync() noexcept override {
+        Clock::time_point until{};
+        {
+            std::lock_guard<std::mutex> lk(m);
+            until = std::max(Clock::now(), free_at) + std::chrono::microseconds((long long)(pending_ms * 1000));
+        }
+        std::this_thread::sleep_until(until);
+        NoCpu::sync();
+    }
+    void attention(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice out, int n_head, int n_head_kv, int head_dim) override {
+        double work = 0;
+        bool prompt_deep = false;
+        for (size_t e = 0; e < n_views; ++e) {
+            work += (double)views[e].nq * (double)views[e].length;
+            prompt_deep = prompt_deep || (views[e].nq > 1 && views[e].length >= deep);
+        }
+        bool decode = n_views > 0;
+        for (size_t e = 0; e < n_views; ++e) decode = decode && views[e].nq == 1;
+        double ms = work * 0.0004 + (decode ? reply_ms : 0) + (n_views && !decode ? fixed_ms : 0);
+        if (!stairs.empty() && n_views && !decode) {
+            size_t rows = 0;
+            for (size_t e = 0; e < n_views; ++e) rows += views[e].nq > 1 ? views[e].nq : 0;
+            ms = stairs.back().second;
+            for (auto it = stairs.rbegin(); it != stairs.rend(); ++it)
+                if (rows <= it->first) ms = it->second;
+        }
+        {
+            std::lock_guard<std::mutex> lk(m);
+            pending_ms += ms;
+            for (size_t e = 0; e < n_views; ++e)
+                if (views[e].nq > 1) calls.push_back({views[e].nq, views[e].length, n_views});
+            if (prompt_deep) {
+                deepest_ms = std::max(deepest_ms, ms);
+                ++deep_calls;
+            }
+        }
+        NoCpu::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
+    }
+};
+
+// A prompt read beside a reply on a device whose attention grows with depth (docs/CACHE-PLAN.md, section 8 item 3): its slices are cut by the last piece's time, so past its first passes no attention of it takes more than twice the budget.
+// Whole ubatch slices take about 300 ms a piece at its end; every row stays in its class whatever the slices, so each reply is its reply alone, which a ubatch of 16 gave.
+void pieces_by_time(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    Submitters seen;
+    const std::vector<Req> beside{{prompt_of(51, 4, vocab), 100}, {prompt_of(52, 1800, vocab), 3}};
+    const std::vector<Reply> own = alone(on(weights, [] { return cpus(1); }), tok, pool, beside);
+    std::shared_ptr<Deep> device;
+    auto model = on(weights, [&seen, &device] {
+        device = std::make_shared<Deep>(&seen);
+        return std::vector<backend::BackendPtr>{device};
+    })(pool, 512);
+    device->deep = 1400;
+    server::Scheduler::Stats s;
+    const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &s, 0, 0, nullptr, 0, false, server::Pacing::automatic());
+    for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], "a prompt cut by its pieces' time, request " + std::to_string(i));
+    const std::string seen_text = std::to_string(s.between) + " passes between pieces, the longest piece " + std::to_string(s.longest_piece_ms) + " ms, the longest attention past 1400 tokens " +
+                                  std::to_string(device->deepest_ms) + " ms of " + std::to_string(device->deep_calls) + ", " + std::to_string(s.apart) + " passes apart";
+    std::cout << "server-passes-cpu: a prompt cut by its pieces' time: " << seen_text << std::endl;
+    // Counted, not timed: the attention's cost is the device's model of it (rows times history), at most twice the budget, and a slow runner's longer pieces only cut it smaller.
+    // Whether slices grow past the probe, so the reply goes apart between pieces, is the runner's speed (a hosted macOS runner's pieces took 151 ms, none apart), which the 27B gate measures.
+    require(device->deep_calls > 0 && device->deepest_ms <= 100, "a prompt cut by its pieces' time: " + seen_text + ", against some and at most 100 ms");
+    // The record the health gives (SliceRecord): the stage's last slice beside the reply, its pieces two a layer and the tail after the last, its longest one of them, and the prompts' passes counted.
+    const server::SliceRecord& last = s.slices.empty() ? server::SliceRecord{} : s.slices[0];
+    const std::string part = last.longest_part;
+    require(s.slices.size() == 1 && last.rows > 0 && last.pieces == 2 * (size_t)kSplit.layers + 1 && last.longest_ms <= last.pieces_ms && last.longest_layer >= -1 &&
+                last.longest_layer < kSplit.layers && (part == "mixer" || part == "ffn" || part == "tail") && (part == "tail") == (last.longest_layer == -1) && s.prompt_passes >= 4,
+            "a prompt cut by its pieces' time: the last slice's record holds " + std::to_string(last.rows) + " rows, " + std::to_string(last.pieces) + " pieces, the longest " + part + " of layer " +
+                std::to_string(last.longest_layer) + ", and " + std::to_string(s.prompt_passes) + " prompt passes, against some rows, " + std::to_string(2 * kSplit.layers + 1) + " pieces and 4 passes at least");
+    // The cut starts at a probe of one step in a pass of its own.
+    require(std::any_of(device->calls.begin(), device->calls.end(), [](const Deep::Call& c) { return c.rows == server::kPieceStep && c.views == 1; }), "a prompt cut by its pieces' time: no probe of one step alone");
+}
+
+// A prompt starting deep beside a reply (docs/CACHE-PLAN.md, section 8 item 3): a follow-up of a 1600-token conversation arrives with a shallow prompt's pieces the last measured.
+// Its first slice is not cut by their ratio but starts at one step and grows by its own, so no attention of it past 1400 tokens takes more than twice the budget, and every reply is its reply alone.
+void pieces_at_new_depth(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const std::string what = "a prompt at a new depth";
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 64 * kBlock;
+    Submitters seen;
+    std::shared_ptr<Deep> device;
+    auto model = on(weights, [&seen, &device] {
+        device = std::make_shared<Deep>(&seen);
+        return std::vector<backend::BackendPtr>{device};
+    })(pool, 512);
+    device->deep = 1400;
+    const Req conv{prompt_of(53, 1600, vocab), 3}, reply{prompt_of(51, 4, vocab), 1900}, shallow{prompt_of(52, 150, vocab), 3};
+    Req follow{conv.prompt, 3};
+    std::vector<Reply> got(3);
+    size_t reused = 0;
+    {
+        server::Scheduler sched(*model, tok, kSeqs, 64, 0, false, 0, nullptr, 0, false, {}, server::Pacing::automatic());
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (const auto& t : drain(*sched.submit(conv.prompt, params_of(conv)))) follow.prompt.push_back(t.id);
+            const std::vector<uint32_t> more = prompt_of(54, 300, vocab);
+            follow.prompt.insert(follow.prompt.end(), more.begin(), more.end());
+            {
+                std::lock_guard<std::mutex> lk(device->m);
+                device->deepest_ms = 0;
+                device->deep_calls = 0;
+                device->calls.clear();
+            }
+            const auto r = sched.submit(reply.prompt, params_of(reply));
+            const auto p1 = sched.submit(shallow.prompt, params_of(shallow));
+            got[1] = drain(*p1);
+            const auto p2 = sched.submit(follow.prompt, params_of(follow));
+            got[2] = drain(*p2);
+            reused = p2->reused();
+            got[0] = drain(*r);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const std::vector<Req> reqs{reply, shallow, follow};
+    const std::vector<Reply> own = alone(on(weights, [] { return cpus(1); }), tok, pool, reqs);
+    for (size_t i = 0; i < reqs.size(); ++i) same(own[i], got[i], what + ", request " + std::to_string(i));
+    const std::string seen_text = "the follow-up reused " + std::to_string(reused) + " tokens, the longest attention past 1400 tokens " + std::to_string(device->deepest_ms) + " ms of " +
+                                  std::to_string(device->deep_calls);
+    std::cout << "server-passes-cpu: " << what << ": " << seen_text << std::endl;
+    require(reused >= 1536 && device->deep_calls > 0 && device->deepest_ms <= 100, what + ": " + seen_text + ", against at least 1536 reused and at most 100 ms");
+    // Its first slice past 1400 tokens is the probe, in a pass the reply does not ride; growth past it is the runner's speed, which this does not hold.
+    const auto first = std::find_if(device->calls.begin(), device->calls.end(), [](const Deep::Call& c) { return c.length >= 1400; });
+    require(first != device->calls.end() && first->rows == server::kPieceStep && first->views == 1,
+            what + ": the first slice past 1400 tokens took " + (first == device->calls.end() ? std::string("none") : std::to_string(first->rows) + " rows in a call of " + std::to_string(first->views) + " views") +
+                ", against a probe of 16 alone");
+}
+
+// A prompt read beside a reply whose own pass is slower than the piece budget, as a reply's at 211k tokens is (docs/CACHE-PLAN.md, section 8 item 3, F2DEV 2026-10-19 02:40): each decode call costs 150 ms on the device.
+// How far its pieces grow follows the passes' measured time, which a slow runner changes, so this holds only that passes go apart and reach past 800 tokens, each reply its reply alone; the longest is printed.
+void pieces_beside_slow_reply(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const std::string what = "a prompt beside a slow reply";
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    Submitters seen;
+    const std::vector<Req> beside{{prompt_of(51, 4, vocab), 40}, {prompt_of(52, 1800, vocab), 3}};
+    const std::vector<Reply> own = alone(on(weights, [] { return cpus(1); }), tok, pool, beside);
+    std::shared_ptr<Deep> device;
+    auto model = on(weights, [&seen, &device] {
+        device = std::make_shared<Deep>(&seen);
+        return std::vector<backend::BackendPtr>{device};
+    })(pool, 512);
+    device->deep = 800;
+    device->reply_ms = 150;
+    server::Scheduler::Stats s;
+    const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &s, 0, 0, nullptr, 0, false, server::Pacing::automatic());
+    for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], what + ", request " + std::to_string(i));
+    const std::string seen_text = std::to_string(s.apart) + " passes apart, the longest attention past 800 tokens " + std::to_string(device->deepest_ms) + " ms of " + std::to_string(device->deep_calls);
+    std::cout << "server-passes-cpu: " << what << ": " << seen_text << std::endl;
+    require(s.apart > 0 && device->deep_calls > 0, what + ": " + seen_text + ", against some passes apart and a slice past 800 tokens");
+}
+
+// A prompt beside a reply on a device whose prompt attention has a fixed part of 60 ms a call, past half the 50 ms target, as the 27B's at 211k tokens has (F2DEV, 2026-10-19 05:57): a linear cut kept every slice at one step.
+// The fit's slice after the probe is two steps and the next grows past them, counted from the device's calls; each reply is its reply alone.
+void pieces_fixed_cost(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const std::string what = "a prompt beside a reply whose attention has a fixed part";
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    Submitters seen;
+    const std::vector<Req> beside{{prompt_of(51, 4, vocab), 200}, {prompt_of(52, 1800, vocab), 3}};
+    const std::vector<Reply> own = alone(on(weights, [] { return cpus(1); }), tok, pool, beside);
+    std::shared_ptr<Deep> device;
+    auto model = on(weights, [&seen, &device] {
+        device = std::make_shared<Deep>(&seen);
+        return std::vector<backend::BackendPtr>{device};
+    })(pool, 512);
+    device->deep = 1u << 30;
+    device->fixed_ms = 60;
+    server::Scheduler::Stats s;
+    const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &s, 0, 0, nullptr, 0, false, server::Pacing::automatic());
+    for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], what + ", request " + std::to_string(i));
+    // The slices cut alone in their passes from the first probe on, in order: a pass's layers each give a call of the same rows and history.
+    std::vector<size_t> cut;
+    {
+        std::lock_guard<std::mutex> lk(device->m);
+        size_t length = 0;
+        for (const Deep::Call& c : device->calls) {
+            if (c.views != 1 || (cut.empty() && c.rows != server::kPieceStep) || (!cut.empty() && c.rows == cut.back() && c.length == length)) continue;
+            cut.push_back(c.rows);
+            length = c.length;
+        }
+    }
+    std::string seen_text;
+    for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
+    std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe" << std::endl;
+    require(cut.size() >= 3 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep && cut[2] > 2 * server::kPieceStep,
+            what + ": slices of " + seen_text + " rows after the probe, against one step, two steps and then more");
+}
+
+// A prompt beside a reply on a device whose attention is a staircase, 100 ms a call to 48 rows, 175 to 96 and 300 past, as the 27B's at 211k (F2DEV, 2026-10-19 12:38): the target is the probe's 100 and 50 more.
+// The search doubles from the probe and, once it turns down, never grows again, so it does not cycle back past a step; how far it doubles follows the runner's time beside the model's.
+void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const std::string what = "a prompt beside a reply whose attention is a staircase";
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    Submitters seen;
+    const std::vector<Req> beside{{prompt_of(51, 4, vocab), 400}, {prompt_of(53, 1000, vocab), 3}};
+    const std::vector<Reply> own = alone(on(weights, [] { return cpus(1); }), tok, pool, beside);
+    std::shared_ptr<Deep> device;
+    auto model = on(weights, [&seen, &device] {
+        device = std::make_shared<Deep>(&seen);
+        return std::vector<backend::BackendPtr>{device};
+    })(pool, 512);
+    device->deep = 1u << 30;
+    device->stairs = {{48, 100}, {96, 175}, {std::numeric_limits<size_t>::max(), 300}};
+    server::Scheduler::Stats s;
+    const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &s, 0, 0, nullptr, 0, false, server::Pacing::automatic());
+    for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], what + ", request " + std::to_string(i));
+    // The slices cut alone in their passes from the first probe on, in order: a pass's layers each give a call of the same rows and history.
+    std::vector<size_t> cut;
+    {
+        std::lock_guard<std::mutex> lk(device->m);
+        size_t length = 0;
+        for (const Deep::Call& c : device->calls) {
+            if (c.views != 1 || (cut.empty() && c.rows != server::kPieceStep) || (!cut.empty() && c.rows == cut.back() && c.length == length)) continue;
+            cut.push_back(c.rows);
+            length = c.length;
+        }
+    }
+    std::string seen_text;
+    for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
+    std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe" << std::endl;
+    // The search's slices, the last being the prompt's end, which may hold fewer rows: the probe, its double, a turn down, and no growth after it.
+    const auto turn = std::adjacent_find(cut.begin(), cut.end(), [](size_t a, size_t b) { return b < a; });
+    bool settles = cut.size() >= 4 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep && turn != cut.end();
+    for (auto it = turn; settles && it + 2 < cut.end(); ++it) settles = it[2] <= it[1];
+    require(settles, what + ": slices of " + seen_text + " rows after the probe, against the probe doubled, then a turn down and no growth to the prompt's end");
+}
+
 // The automatic rule (server::Pacing::automatic) on one device and on one tensor group of two, each no CPU's.
 // Where replies and prompts never wait together the scheduler's thread submits every stage, as without pacing; where they do, passes of generated rows are recorded between a slow prompt pass's pieces.
 void automatic(const gguf::GGUFModel& weights, uint32_t vocab, size_t only = 0) {
@@ -1433,6 +1706,11 @@ int main(int argc, char** argv) {
         recorded_stages(served(kSplit), (uint32_t)kSplit.vocab);
         made_and_destroyed(served(kSplit));
         automatic(served(kSplit), (uint32_t)kSplit.vocab);
+        pieces_by_time(served(kSplit), (uint32_t)kSplit.vocab);
+        pieces_at_new_depth(served(kSplit), (uint32_t)kSplit.vocab);
+        pieces_beside_slow_reply(served(kSplit), (uint32_t)kSplit.vocab);
+        pieces_fixed_cost(served(kSplit), (uint32_t)kSplit.vocab);
+        pieces_staircase(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         fitted_reservation(served(kSplit));
         cases(served(kSplit), (uint32_t)kSplit.vocab);

@@ -1166,6 +1166,40 @@ void automatic_by_hand() {
         require(held.take() == 0, "a hold with no pass parked was charged");
     }
     {
+        // A prompt's slices beside generated rows (server::PieceSearch): from the probe of one step, each next slice of a cost given by rows, its longest piece measured as that cost.
+        const auto slices = [](server::PieceSearch& f, const std::function<double(size_t)>& cost, size_t n, size_t from = server::kPieceStep, double apart = 0) {
+            std::vector<size_t> seen;
+            for (size_t rows = from; seen.size() < n; rows = f.next(512)) {
+                seen.push_back(rows);
+                f.add(rows, cost(rows), apart);
+            }
+            return seen;
+        };
+        const auto search = [&](const std::function<double(size_t)>& cost, size_t n, double apart = 0) {
+            server::PieceSearch f;
+            return slices(f, cost, n, server::kPieceStep, apart);
+        };
+        // The 27B's attention at 211k is a staircase (F2DEV, 2026-10-19 10:35): 115 ms to 160 rows, 190 to 320, 288 past; the target the probe's 115 and 50 more, so the search settles on 160 and stays (12:38).
+        const auto stair = [](size_t r) { return r <= 160 ? 115.0 : r <= 320 ? 190.0 : 288.0; };
+        require(search(stair, 12) == std::vector<size_t>{16, 32, 64, 128, 256, 192, 160, 176, 160, 160, 160, 160}, "a prompt's slices did not settle on the top of the staircase's step");
+        // A cost in proportion to the rows, 0.3 ms a row: the target is the probe's 4.8 ms and 50 more, and the search settles on the largest slice within it, 176 rows; a plateau doubles to the ubatch and stays.
+        require(search([](size_t r) { return 0.3 * (double)r; }, 10) == std::vector<size_t>{16, 32, 64, 128, 256, 192, 160, 176, 176, 176} &&
+                    search([](size_t) { return 115.0; }, 7) == std::vector<size_t>{16, 32, 64, 128, 256, 512, 512},
+                "a prompt's slices did not settle on the largest within the target where the cost is a line or a plateau");
+        // A reply's pass of 300 ms sets the target, which every slice of the staircase meets; and when the depth moves the step to 128 rows, the settled 160 is over, and the bracket opens again below it.
+        server::PieceSearch moved;
+        slices(moved, stair, 11);
+        require(search(stair, 7, 300) == std::vector<size_t>{16, 32, 64, 128, 256, 512, 512} &&
+                    slices(moved, [](size_t r) { return r <= 128 ? 115.0 : r <= 288 ? 190.0 : 288.0; }, 8, 160) == std::vector<size_t>{160, 112, 128, 144, 128, 128, 128, 128},
+                "a prompt's slices did not take a reply's longer pass as the target, or did not open the bracket again when the step moved");
+        server::PieceSearch none;
+        require(none.next(512) == 512 && none.next(16) == 16, "a prompt's slice with nothing measured was not a ubatch");
+        // A job's step beside replies goes only into a pass carrying generated rows (server::job_rides); with none waiting or only prompts it goes anywhere.
+        require(!server::job_rides(true, 0) && server::job_rides(true, 3) && server::job_rides(false, 0), "a job's step beside replies went into a pass of its own");
+        // A job's grant (server::job_grant): what is left over the last pass's time a row, in steps of 16; none where one step costs more than is left or nothing is measured, every row with nothing waiting.
+        require(server::job_grant(100, 512, 64, 50) == 128 && server::job_grant(10, 512, 64, 50) == 0 && server::job_grant(10, 512, 0, 0) == 0 && server::job_grant(0, 512, 0, 0) == 0 &&
+                    server::job_grant(server::BackgroundGrant::kUnbounded, 512, 64, 50) == 512 && server::job_grant(1e6, 100, 64, 50) == 100,
+                "a job's grant was not cut by its last pass's time");
         // A wait for a donor's write (server::write_wait_ms): the time waited, then the remaining bytes at the measured rate, half as long again and 2 s more, never past recomputing, and nothing to go by with no rate.
         require(server::write_wait_ms(1e9, 0, 0, 1e9) == 0 && server::write_wait_ms(1e9, 1e9, 0, 0) == 0, "a write's wait was bounded with no rate or no measure of recomputing");
         require(server::write_wait_ms(1e9, 1e9, 0, 1e9) == 3500 && server::write_wait_ms(0, 1e9, 0, 1e9) == 2000 && server::write_wait_ms(-5, 1e9, 0, 1e9) == 2000,
@@ -1227,6 +1261,9 @@ void automatic_by_hand() {
         grant.spent(5, 0, clock);
         clock.began(1100);
         require(grant.left_ms(Demand::replies, true, clock, true, 1105) == B && grant.overruns == 2 && grant.total_ms == 35, "a service did not make the background allowance whole");
+        // A job's first step at a depth nothing measured is counted apart, not as an overrun, whatever it cost.
+        grant.spent(148, 10, clock, true);
+        require(grant.first_steps == 1 && grant.overruns == 2 && grant.grants == 4, "a job's first step was counted an overrun");
     }
     // A request is a prompt's before its first token and while its cache lacks more than its last token, as a resumed one's does; a reply's rows in a pass in flight, its cache one short or whole, keep it a reply.
     require(server::reads_prompt(0, 0, 40) && server::reads_prompt(0, 40, 40) && server::reads_prompt(30, 0, 70) && server::reads_prompt(30, 68, 70) && !server::reads_prompt(30, 69, 70) &&

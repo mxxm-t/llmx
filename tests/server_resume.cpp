@@ -1099,6 +1099,17 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
     require(read > 0 && stats.background_grants > 0 && stats.background_largest_ms < server::kServiceGapMs,
             what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, in " + std::to_string(stats.background_grants) + " grants, the longest " +
                 std::to_string(stats.background_largest_ms) + " ms, against some, some and under the gap");
+    // Begun while its reply is written, every job step while the request decodes rides a pass carrying the request's rows, never a pass of its own beside the one in flight (server::job_rides).
+    for (size_t i = first_pass; !idle && i <= last_pass; ++i)
+        require(!passes[i].second || passes[i].first, what + ": pass " + std::to_string(i) + " carried " + std::to_string(passes[i].second) + " job rows without the decoding request");
+    // Begun while its reply is written, so never at idle, its first step is one row priced by the reply's pass a row, and a later step, priced by its own share of its pass, reads more.
+    size_t first_step = 0, later_step = 0;
+    for (size_t i = first_pass; !idle && i <= last_pass; ++i)
+        if (passes[i].first && passes[i].second) {
+            if (!first_step) first_step = passes[i].second;
+            else later_step = std::max(later_step, passes[i].second);
+        }
+    require(idle || (first_step == 1 && later_step > 1), what + ": the job's first step read " + std::to_string(first_step) + " rows and a later one at most " + std::to_string(later_step) + ", against one row and more");
 }
 
 // A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.

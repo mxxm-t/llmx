@@ -181,14 +181,11 @@
       "log": "build-dashboard-rate-main5665-20261019/docs-dead-code-after-mi50.log",
       "log_sha256": "a43a5c9e18e76518f5fc88e8e57d0280ed958e17978b50e326cb3d8c973c9a7e"
     },
-    "pending_required_gates": [
-      "After the docs-only final landing revision exists, verify runtime/test/build inputs remain identical to this tested head.",
-      "Confirm main has not moved before fast-forward landing."
-    ],
+    "pending_required_gates": [],
     "out_of_scope_not_run": [
       "The six excluded GPU/device CTest cases; the targeted MI50 Python server component passed separately.",
       "Performance or numerical-kernel qualification; this change makes no such claim.",
-      "A production-model MI50 inference run; the target-head server check used the pinned Qwen3-0.6B fixture."
+      "No extended production-model correctness or performance qualification; rollout performed one four-token smoke request."
     ],
     "mi50_server": {
       "result": "PASS, 23 checks, 0 skips",
@@ -235,16 +232,103 @@
         "container-inspect.json_sha256": "e3970677c78c60e98039116e636f07c3ff810e00801ac88d1e625ab9b76a78a0",
         "start.json_sha256": "b53bc23d6fac6b01bb174c5b907af7919a8ebe02b2c63d7ae44c7aa3311687a1"
       }
-    }
+    },
+    "production_rollout_status": "Completed after landing; current services and retained rollback containers were independently checked read-only."
   },
-  "pending_required_gates": [
-    "Verify runtime/build identity after the final docs-only landing revision.",
-    "Confirm main has not moved before fast-forward landing."
-  ],
+  "pending_required_gates": [],
   "out_of_scope_not_run": [
     "The six excluded GPU/device CTest cases; the targeted MI50 Python server component is separately required and passed.",
     "Performance or numerical-kernel qualification; this change makes no such claim.",
-    "A production-model MI50 inference run; the targeted test used the pinned Qwen3-0.6B fixture."
+    "No extended production-model correctness or performance qualification; rollout performed one four-token smoke request."
   ],
-  "production_rollout": "Not performed; landing and review remain pending."
+  "production_rollout": {
+    "result": "PASS",
+    "attempt": "r2",
+    "terminal_utc": "2026-10-19T05:38:07.036160Z",
+    "source_head": "5be5ee481b91b3e9dccaa2c540cabd42f63c7085",
+    "tested_runtime_head": "112161de0f560173eef9be7fb8e56e71ddd2094c",
+    "binary_version": "llmx 0.1.0+g112161de0f56 numerics a9d578d000982124",
+    "binary_sha256": "952b864af0f1bc6ba36b9bbc0d9fb96f88b1da1e8d6fc70f1042733a4ca5bcc5",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "inference_container": {
+      "id": "3ea42e0090518a15884239e55045ceb179db4b4173a59abfa7758a1b977d7883",
+      "state": "running",
+      "model": "Qwen3.8-27B-Q8_0.gguf",
+      "devices": [
+        "vulkan:0",
+        "vulkan:1"
+      ],
+      "restart": "unless-stopped",
+      "network": "host"
+    },
+    "dashboard_container": {
+      "id": "c895d975ffd99323763d41310d104b6b3d25d88aea00bb6e796d6fdb788d6e7e",
+      "state": "running",
+      "restart": "unless-stopped",
+      "network": "host",
+      "http_status": 200,
+      "cache_control": "no-store",
+      "index_sha256": "0421209b449ef6b6d4dc57e546d4acb20ccc2be02382058fa7056bcbfa9625d2"
+    },
+    "smoke_request": {
+      "http_status": 200,
+      "completion_tokens": 4,
+      "prefilled_tokens_before": 0,
+      "prefilled_tokens_after": 56,
+      "generated_tokens_before": 0,
+      "generated_tokens_after": 4,
+      "sample_elapsed_ms_before": 0,
+      "sample_elapsed_ms_after": 15764,
+      "prompt_or_response_retained": false
+    },
+    "cache": {
+      "candidate_path": "/zpool1/llmx-serve/disk-cache-dashboard-rate-5be5ee481b91b3e9dccaa2c540cabd42f63c7085-r2",
+      "initially_empty": true,
+      "previous_production_cache_untouched": true
+    },
+    "release_path": "/zpool1/llmx-serve/dashboard-rate-5be5ee481b91b3e9dccaa2c540cabd42f63c7085-r2",
+    "rollback_containers": [
+      {
+        "id": "7208a79882553c4f50319c8d75f6f1da48a6b57a91d254e78d6942326d676bed",
+        "name": "llmx-serve-rollback-5be5ee481b91-r2",
+        "state": "exited"
+      },
+      {
+        "id": "6bb528e7c8b9f09a1291e75c10ad9ce6b0ee308b65bb775496b968259cd0b197",
+        "name": "llmx-health-dashboard-rollback-5be5ee481b91-r2",
+        "state": "exited"
+      }
+    ],
+    "attempt_history": {
+      "r1": {
+        "result": "failed then rolled back",
+        "failure": "dashboard create preflight rejected structured HostConfig.Mounts because Binds was null",
+        "rollback_errors": [],
+        "restored_inference_version": "0.1.0+g6e5665951f4c",
+        "restored_inference_binary_sha256": "ebb1c7f8481528b051d7b59550ff92f1353341a10b19c222af4710c2c39f3b5c",
+        "restored_dashboard_index_sha256": "4b61deafeea3bf20524656668f1e2754e728334ebc3643a14d6cf20863be940b"
+      }
+    },
+    "audit_files": [
+      {
+        "path": "../../../build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main5665/production-rollout-r1.jsonl",
+        "sha256": "f97544a54af4b3d8c0d8544df92b613f23ce0dcc969c19493a5aef0c76a78be6"
+      },
+      {
+        "path": "../../../build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main5665/production-rollout-r2.jsonl",
+        "sha256": "a94d41e7430f9e20bceb7e9f2ab417e68d876d2ea031ea8d9dde65b7bd435c7f"
+      }
+    ],
+    "independent_readonly_verification": {
+      "path": "../../../build-live-dashboard-final-rig-20261017/dashboard-rate-rig-build-preparation/main5665/production-verification-r2-20261019.json",
+      "sha256": "0b75088a97f35fc1ad632f560334263c65ec94979114b63920712603bfcdc3c0",
+      "verified_utc": "2026-10-19T05:39:33.301349+00:00",
+      "health_http_status": 200,
+      "dashboard_http_status": 200,
+      "dashboard_live_work_label_present": true,
+      "both_services_running": true,
+      "rollback_containers_retained": true
+    },
+    "scope": "One real four-token production rollout smoke request and live health advance; no performance or long-form production-model correctness qualification."
+  }
 }

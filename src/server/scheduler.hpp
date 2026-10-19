@@ -2297,8 +2297,11 @@ private:
         Boundary* bound = pinned_bound_ ? find_bound(pinned_bound_) : nullptr;
         admit(*r, d, shared, take, from, bound ? &bound->state : nullptr);
         if (bound) bound->used = std::filesystem::file_time_type::clock::now();
-        // A cut's uncut history (step 9 of docs/CACHE-PLAN.md): every holder of the first row it dropped is superseded, so it ranks first to go.
+        // A cut's uncut history (step 9 of docs/CACHE-PLAN.md): every holder of the first row it dropped is superseded, so it ranks first to go; the turn says the re-read it pays (P5).
         if (!r->cut_.empty()) {
+            const size_t again = history_tokens(*r) - shared;
+            if (prompt_ms_row_ > 0) std::fprintf(stderr, "server: cache: a cut turn reads %zu rows again beside %zu reused, about %.1f s at the measured prompt rate\n", again, shared, prompt_ms_row_ * (double)again / 1000);
+            else std::fprintf(stderr, "server: cache: a cut turn reads %zu rows again beside %zu reused\n", again, shared);
             const auto uncut = [&](const std::vector<uint32_t>& t) { return t.size() >= r->cut_.size() && std::equal(r->cut_.begin(), r->cut_.end(), t.begin()); };
             for (Donor& o : donors_) o.superseded = o.superseded || uncut(o.tokens);
             for (HostDonor& o : host_) o.superseded = o.superseded || uncut(o.tokens);

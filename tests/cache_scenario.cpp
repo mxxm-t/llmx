@@ -162,9 +162,10 @@ struct Watch {
             losses.push_back(Loss{m.kind, m.first, m.tokens, std::vector<uint32_t>(m.history->begin(), m.history->begin() + (std::ptrdiff_t)std::min(m.tokens, m.history->size()))});
         };
     }
-    Handle submit(const Req& r, size_t message = std::numeric_limits<size_t>::max()) {
+    // A cut request names the uncut prompt through its first dropped row (`cut`), as the routes do (Api::fit).
+    Handle submit(const Req& r, size_t message = std::numeric_limits<size_t>::max(), std::vector<uint32_t> cut = {}) {
         std::lock_guard<std::mutex> lk(handles);
-        known.push_back(sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), message));
+        known.push_back(sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), message, server::Request::Clock::now(), std::move(cut)));
         return known.back();
     }
     size_t lost_so_far() {
@@ -265,7 +266,7 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
     size_t cuts = 0, since1 = 0, since3 = 0;
     std::vector<uint32_t> after3, after1;
     std::vector<Expectation> table;
-    const auto submit = [&](const Req& r, size_t message) { return watch.submit(r, message); };
+    const auto submit = [&](const Req& r, size_t message, std::vector<uint32_t> cut = {}) { return watch.submit(r, message, std::move(cut)); };
     const auto lost_so_far = [&] { return watch.lost_so_far(); };
     const auto classify = [&](Conversation& c, const Req& r, const Handle& h, const Reply& reply, const std::string& leg, const Stats& before) { book.classify(watch, c, &c == &chat, r, h, reply, leg, before); };
     const auto next_of = [&](Conversation& c) {
@@ -406,8 +407,13 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
             const Stats before = sched.stats();
             Req r = next_of(chat);
             bool cut = false;
+            std::vector<uint32_t> dropped;
             if (r.prompt.size() > room) {
+                const std::vector<uint32_t> uncut = r.prompt;
                 const size_t at = book.cut(r, room);
+                size_t same = 0;
+                while (same < r.prompt.size() && r.prompt[same] == uncut[same]) ++same;
+                dropped.assign(uncut.begin(), uncut.begin() + (std::ptrdiff_t)same + 1);
                 require(cuts < 2 && at == where[cuts], "leg E: cut " + std::to_string(cuts + 1) + " falls at row " + std::to_string(at) + " of the conversation, against " + std::to_string(cuts < 2 ? where[cuts] : 0));
                 chat.prepared = w.boundaries ? 400 / bt * bt : 0;
                 chat.since = 0;
@@ -419,7 +425,7 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
                 same_place = same_place && book.dropped == where[cuts - 1] - 400;
                 ++after_cut;
             }
-            const Handle h = submit(r, r.prompt.size() - kUser);
+            const Handle h = submit(r, r.prompt.size() - kUser, dropped);
             const Reply reply = drain(*h);
             classify(chat, r, h, reply, cut ? "E, cut" : "E", before);
             if (cut) reread += report.back().new_work;

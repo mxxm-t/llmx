@@ -240,18 +240,21 @@ int main(int argc, char** argv) {
         // A store leaves its identity's text in its directory, and one that meets a kept directory of another identity names the components that differ: none for another revision, the fingerprint for other numerics.
         {
             const fs::path named = base / "named";
-            const auto make = [&](const server::BuildFacts& facts, uint8_t id) {
+            const auto make = [&](const server::BuildFacts& facts, uint8_t id, bool put = false) {
                 server::DiskStore::Options o;
                 o.root = named.u8string();
                 o.keep = true;
                 o.identity = server::disk_identity("digest", "layout", facts);
                 server::DiskStore s(o, identity(id));
+                uint64_t key = 0;
+                if (put) require(wait_put(s, key, "a", runs_of(cpu, {kSlab}, 3)).ok, "a kept directory's entry was not written");
                 return s.refused();
             };
-            require(make(facts("g111111111111", "aaaa"), 1).empty(), "a store alone refused a directory");
+            require(make(facts("g111111111111", "aaaa"), 1, true).empty(), "a store alone refused a directory");
             require(make(facts("g222222222222", "aaaa"), 1).empty(), "a store of another revision and the same numerics refused the kept directory");
             const std::vector<std::string> differing = make(facts("g222222222222", "bbbb", "cc 2"), 2);
-            require(differing == std::vector<std::string>{"its compiler, numerics differing from this server's"},
+            // The refusal says what the directory holds, which turns compute again (P4's clause).
+            require(differing.size() == 1 && differing[0].rfind("its compiler, numerics differing from this server's; its 1 entry, ", 0) == 0 && differing[0].find(" MiB, computed again where a turn needs them") != std::string::npos,
                     "a store of other numerics and another compiler said " + (differing.empty() ? std::string("nothing") : differing[0]));
             // The build's own facts carry its fingerprint and, beside the compiler, the configuration built.
             const server::BuildFacts own = server::build_facts();

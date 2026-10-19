@@ -515,7 +515,8 @@ private:
         };
         const std::string theirs = text_of(other / "identity");
         bool build_only = false, retain = false;
-        size_t unproved = 0;
+        size_t unproved = 0, left = 0;
+        uint64_t left_bytes = 0;
         if (!options_.identity.empty() && theirs.empty())
             for (const auto& e : std::filesystem::directory_iterator(other, ec))
                 if (e.path().extension() == ".kv") {
@@ -542,7 +543,11 @@ private:
             const bool foreign_now = !options_.identity.empty() && !from.empty() && from != options_.identity;
             if (foreign_now) {
                 differing(from, build_only);
-                if (!options_.proved || !build_only) continue;
+                if (!options_.proved || !build_only) {
+                    ++left;
+                    left_bytes += std::filesystem::file_size(e.path(), ec);
+                    continue;
+                }
             }
             const std::array<uint8_t, 32> written = foreign_now ? identity_of(from) : identity_;
             std::optional<Header> h;
@@ -575,9 +580,16 @@ private:
             if (foreign_now) std::memcpy(&tag, written.data(), sizeof tag);
             adopted_.push_back(Adopted{key, std::move(h->blob), std::move(h->run_bytes), bytes, used, foreign_now, tag | (foreign_now ? 1 : 0)});
         }
-        // A directory of another identity that gave nothing: what differs, for the server's start line.
-        if (!options_.identity.empty() && !unproved && !theirs.empty() && theirs != options_.identity)
-            refused_.push_back("its " + differing(theirs, build_only) + " differing from this server's");
+        // A directory of another identity that gave nothing: what differs and what its entries hold, which turns compute again (P4), for the server's start line.
+        if (!options_.identity.empty() && !unproved && !theirs.empty() && theirs != options_.identity) {
+            std::string cost;
+            if (left) {
+                char mib[32];
+                std::snprintf(mib, sizeof mib, "%.1f", (double)left_bytes / (1 << 20));
+                cost = "; its " + std::to_string(left) + (left == 1 ? " entry, " : " entries, ") + mib + " MiB, computed again where a turn needs them";
+            }
+            refused_.push_back("its " + differing(theirs, build_only) + " differing from this server's" + cost);
+        }
         return retain;
     }
     // The identity entry `key` was written under, in a file beside where the entry will be, written and on the disk; false where that failed, nothing left.

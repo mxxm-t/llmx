@@ -280,6 +280,55 @@ def function_source(source, name):
 
 
 class DashboardRateWindowTests(unittest.TestCase):
+    def test_drafting_lifetime_and_empty_states(self):
+        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+state.lastSuccess = Math.floor(Date.now() / 1000);
+state.ok = true;
+state.received = true;
+$('draft-details').open = true;
+const boxes = [];
+for (const [name, drafted, kept, expected] of [
+  ['idle lifetime', 6, 2, '33.3'], ['no observations', 0, 0, 'No data'],
+  ['missing counters', undefined, undefined, 'Unavailable'], ['measured zero', 6, 0, '0'],
+  ['recovery', 6, 2, '33.3']
+]) {
+  state.latest = {requests: {now: {active: 0}}, drafting: {since_start: {
+    drafted, kept, by_position: [{position: 1, drafted, kept}], own_history: {drafted, kept}
+  }}};
+  state.samples = [];
+  render();
+  check(name + ' readout', $('acceptance').textContent === expected);
+  check(name + ' percent unit', !!$('acceptance-unit') && $('acceptance-unit').hidden === !(drafted > 0));
+  check(name + ' lifetime basis', !!$('acceptance-basis') && $('acceptance-basis').textContent ===
+    (drafted > 0 ? kept + ' kept / ' + drafted + ' drafted since start' : 'Lifetime acceptance since start'));
+  check(name + ' position state', drafted > 0 ?
+    $('positions').querySelector('strong').textContent === (kept === 0 ? '0%' : '33.3%') :
+    $('positions').textContent.includes('No position data available'));
+  check(name + ' own-history state', drafted > 0 ?
+    $('own-history-chart').textContent.includes(kept === 0 ? '0%' : '33.3%') :
+    $('own-history-chart').textContent.includes('No own-history data available'));
+  const r = $('acceptance').closest('.acceptance').getBoundingClientRect();
+  boxes.push([r.x, r.y, r.width, r.height]);
+}
+check('drafting geometry stable', boxes.every(b => JSON.stringify(b) === JSON.stringify(boxes[0])));
+check('actual viewport', innerWidth === TEST_WIDTH);
+check('responsive overflow', document.documentElement.scrollWidth <= innerWidth);
+globalThis.rateTestResults = outcomes;
+document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
+"""
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                script = cases.replace("TEST_WIDTH", str(width))
+                document = source.replace("</body>", "<div hidden><pre id='rate-test-results'></pre></div><script>" + script + "</script></body>")
+                wrapper = ("<!doctype html><html><body style='margin:0'><iframe style='border:0;width:" + str(width) +
+                           "px;height:1100px' srcdoc=\"" + html.escape(document, quote=True) +
+                           "\" onload=\"document.querySelector('pre').textContent=this.contentDocument.querySelector('pre').textContent\"></iframe>"
+                           "<div hidden><pre id='rate-test-results'></pre></div></body></html>")
+                self.assertEqual(len(self.run_browser(wrapper)), 28)
+
     def run_browser(self, document, width=1440):
         browser = next((str(path) for path in CHROME_PATHS if path.is_file()), None)
         if browser is None:

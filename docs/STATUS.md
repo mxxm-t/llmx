@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Dashboard drafting lifetime and empty states (2026-10-19, UI only)
+
+- **Goal:** distinguish lifetime drafting acceptance from current activity, and empty observations from a measured zero acceptance.
+- **Done:** the focused browser regression is added first. Against unchanged public main `3290c0f86`, it fails at both actual 1440px and 390px content viewports for the missing lifetime basis and empty-state presentation; the valid lifetime 2 kept / 6 drafted remains a measured acceptance.
+- **Checks / left:** the expected two browser assertion failures are retained outside tracked source under `build-live-dashboard-final-rig-20261017/dashboard-drafting-empty-20261019/test-first-failure.log`. Implement the static presentation fix and run the focused UI, docs and dead-code checks; no runtime or API change is planned.
+
 ## Cache documentation current-state corrections (2026-10-19)
 
 - **Goal / done:** distinguish current cache behavior from the retained 2026-10-17 design. SERVER now describes both host-tier restoration and direct streaming of block-bearing histories larger than the host tier. CACHE-PLAN section 7 preserves its original evidence/work order under a dated heading, with the implemented request/pool flag split and the obsolete above-context command identified explicitly.

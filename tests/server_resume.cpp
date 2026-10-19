@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -2655,6 +2656,194 @@ void disk_read_bound(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab
     same(serve(*fresh, tok, 1, {{d.follow}})[0], got, what + ", the follow-up");
 }
 
+// A CPU backend whose attention, once armed, holds the call past `skip` until the test opens it, so a test acts while a pass is held at a known point (a pass's recording takes no scheduler lock there).
+struct HeldAttention : backend::CpuBackend {
+    std::mutex m;
+    std::condition_variable cv;
+    bool armed = false, held = false, open = false;
+    size_t skip = 0;
+    void attention(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice out, int n_head, int n_head_kv, int head_dim) override {
+        {
+            std::unique_lock<std::mutex> lk(m);
+            if (armed && !open) {
+                if (skip) {
+                    --skip;
+                } else {
+                    held = true;
+                    cv.notify_all();
+                    cv.wait(lk, [&] { return open; });
+                }
+            }
+        }
+        CpuBackend::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
+    }
+    void arm(size_t past) {
+        std::lock_guard<std::mutex> lk(m);
+        skip = past;
+        armed = true;
+    }
+    // Waits, up to a bound only a hang reaches, until a call is held; then `act` runs and the call goes on.
+    void act_while_held(const std::function<void()>& act, const std::string& what) {
+        {
+            std::unique_lock<std::mutex> lk(m);
+            require(cv.wait_for(lk, std::chrono::minutes(10), [&] { return held; }), what + ": no pass held within ten minutes");
+        }
+        act();
+        {
+            std::lock_guard<std::mutex> lk(m);
+            open = true;
+        }
+        cv.notify_all();
+    }
+};
+
+// A stop under --disk-cache-keep while a hybrid conversation's read-again job is in flight (the 27B restart leg of 2026-10-18): the job consumed the turn's donor, so it alone holds the conversation's rows.
+// On a pool of four blocks the job takes the donor's blocks, and its first pass's attention is held while the stop is taken; the restart's follow-up must fork the job's whole blocks, with its reply on a fresh model.
+void stop_keeps_job(const gguf::GGUFModel& mixed) {
+    const std::string what = "a stop with a job in flight";
+    const bpe::Tokenizer tok(mixed);
+    const uint32_t vocab = (uint32_t)kHybrid.vocab;
+    const Make plain = on(mixed, [] { return cpus(1); }, 3, 3);
+    const Req a{prompt_of(5, 300, vocab), 100};
+    std::vector<uint32_t> ids = a.prompt;
+    {
+        auto model = plain(512, 16);
+        for (uint32_t id : ids_of(serve(*model, tok, 3, {{a}})[0])) ids.push_back(id);
+    }
+    ids.push_back(1);
+    ids.push_back(2);
+    Req follow{ids, 32};
+    const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+    follow.prompt.insert(follow.prompt.end(), more.begin(), more.end());
+    DiskRoot disk("stop-job");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.read_wait = std::chrono::seconds(60);
+    {
+        auto gate = std::make_shared<HeldAttention>();
+        gate->set_threads(1);
+        auto model = on(mixed, [gate] { return std::vector<backend::BackendPtr>{gate}; }, 3, 3)(512, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            const auto h = sched.submit(a.prompt, params_of(a));
+            drain(*h);
+            gate->arm(0);
+            sched.follow(h, ids, true);
+            gate->act_while_held([&] {
+                const auto st = sched.stats();
+                require(st.moves[(size_t)server::Move::job_started] >= 1 && st.moves[(size_t)server::Move::consumed] >= 1 && !st.reprefills, what + ": the held pass is not the job's, having taken its donor over");
+                sched.stop();
+            }, what);
+        } catch (...) {
+            {
+                std::lock_guard<std::mutex> lk(gate->m);
+                gate->open = true;
+            }
+            gate->cv.notify_all();
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        runner.join();
+    }
+    auto model = plain(512, 16);
+    server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
+    std::thread runner([&] { sched.run(); });
+    size_t reused = 0;
+    Reply got;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the second disk tier made");
+        const auto f = sched.submit(follow.prompt, params_of(follow));
+        got = drain(*f);
+        reused = f->reused();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(reused >= 2 * kBlock, what + ": the follow-up after the restart reused " + std::to_string(reused) + " tokens, against the 256 the job held");
+    auto fresh = plain(512, 16);
+    same(serve(*fresh, tok, 3, {{follow}})[0], got, what + ", the follow-up");
+    std::cout << "server-resume: " << what << ": the follow-up after the restart reused " << reused << " tokens" << std::endl;
+}
+
+// A stop under --disk-cache-keep while a hybrid follow-up turn is mid-reply, its admission having taken the conversation's donor over for room: the request alone holds the history.
+// On seven blocks the follow-up needs the donor's two blocks too, and its 41st attention call, past its prompt's passes and inside its reply, is held while the stop is taken; the restart's next turn must fork the prompt's whole blocks.
+void stop_keeps_request(const gguf::GGUFModel& mixed) {
+    const std::string what = "a stop with a request mid-reply that took its donor over";
+    const bpe::Tokenizer tok(mixed);
+    const uint32_t vocab = (uint32_t)kHybrid.vocab;
+    const Make plain = on(mixed, [] { return cpus(1); }, 3, 3);
+    const size_t pool = 7 * kBlock;
+    const Req a{prompt_of(5, 300, vocab), 20};
+    Req b{a.prompt, 300};
+    {
+        auto model = plain(pool, 16);
+        for (uint32_t id : ids_of(serve(*model, tok, 3, {{a}})[0])) b.prompt.push_back(id);
+    }
+    const std::vector<uint32_t> more = prompt_of(6, 30, vocab), again = prompt_of(8, 20, vocab);
+    b.prompt.insert(b.prompt.end(), more.begin(), more.end());
+    Req c{b.prompt, 16};
+    c.prompt.insert(c.prompt.end(), again.begin(), again.end());
+    DiskRoot disk("stop-request");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.read_wait = std::chrono::seconds(60);
+    {
+        auto gate = std::make_shared<HeldAttention>();
+        gate->set_threads(1);
+        auto model = on(mixed, [gate] { return std::vector<backend::BackendPtr>{gate}; }, 3, 3)(pool, 16);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            drain(*sched.submit(a.prompt, params_of(a)));
+            gate->arm(40);
+            const auto h = sched.submit(b.prompt, params_of(b));
+            gate->act_while_held([&] {
+                const auto st = sched.stats();
+                require(st.moves[(size_t)server::Move::consumed] >= 1 && st.published_tokens > (uint64_t)a.cap, what + ": the held pass is not the follow-up's reply, having taken its donor over");
+                sched.stop();
+            }, what);
+        } catch (...) {
+            {
+                std::lock_guard<std::mutex> lk(gate->m);
+                gate->open = true;
+            }
+            gate->cv.notify_all();
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        runner.join();
+    }
+    auto model = plain(pool, 16);
+    server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
+    std::thread runner([&] { sched.run(); });
+    size_t reused = 0;
+    Reply got;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the second disk tier made");
+        const auto f = sched.submit(c.prompt, params_of(c));
+        got = drain(*f);
+        reused = f->reused();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(reused >= 2 * kBlock, what + ": the next turn after the restart reused " + std::to_string(reused) + " tokens, against the prompt's 256 the request held");
+    auto fresh = plain(pool, 16);
+    same(serve(*fresh, tok, 3, {{c}})[0], got, what + ", the next turn");
+    std::cout << "server-resume: " << what << ": the next turn after the restart reused " << reused << " tokens" << std::endl;
+}
+
 // A CPU backend whose `done` the test holds false while `held`, as a device's is until its copies retire, counting the asks the scheduler's loop makes meanwhile; its copies' bytes land at submission, so only the wake is in question.
 struct HeldDone : backend::CpuBackend {
     std::mutex m;
@@ -4643,6 +4832,8 @@ int main(int argc, char** argv) {
             shorter_boundary_with_rows(mixed);
             for (const bool spare : {true, false}) state_read_keeps_its_rows(mixed, spare);
             for (const bool no_memory : {false, true}) lost_restore_points(mixed, no_memory);
+            stop_keeps_job(mixed);
+            stop_keeps_request(mixed);
             for (const Take arm : {Take::follow, Take::one_seat, Take::in_flight, Take::first_leaves, Take::edited, Take::unrelated}) {
                 request_takes_job(one, tok, vocab, arm, "");
                 request_takes_job(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, arm, ", a model keeping a state");

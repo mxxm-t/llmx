@@ -357,7 +357,7 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
             classify(chat, r, plain, reply, "B, settled", before);
         }
         const size_t b_evicted = report[5].evicted, b_gave_way = report[5].gave_way;
-        table.push_back({"past half the pool a turn's donor stays beside its job", "P3", false, !report[5].consumed});
+        table.push_back({"past half the pool a turn's donor stays beside its job", "P3", true, !report[5].consumed});
         table.push_back({"a job that gives way to another conversation's request loses no row a later turn needs", "P1, P7", true, !b_evicted});
         // The job's rows kept as a donor when it gives way (S8), so the next turn forks them while the other request runs.
         require(b_gave_way == 1 && b_evicted == 0 && report[5].reused == 896 && !sched.stats().moves[(size_t)server::Move::job_lost],
@@ -1112,7 +1112,7 @@ int main(int argc, char** argv) {
         const Make hybrid = on(mixed, [] { return cpus(1); }, 4, 6), hybrid_split = on(mixed, [] { return cpus(2); }, 4, 6);
         const bpe::Tokenizer tok(weights), deep_tok(deep), mixed_tok(mixed);
         if (legs) {
-            scenario(one, tok, (uint32_t)kCpu.vocab, "", {768, 512, 896, true});
+            scenario(one, tok, (uint32_t)kCpu.vocab, "", {768, 512, 1152, true});
             shared_system_prompt(one, tok, (uint32_t)kCpu.vocab);
             restore_beside_donor(one, tok, (uint32_t)kCpu.vocab);
             for (const bool capped : {false, true}) slow_write_wait(weights, tok, (uint32_t)kCpu.vocab, capped);
@@ -1121,8 +1121,8 @@ int main(int argc, char** argv) {
             restart(one, tok, (uint32_t)kCpu.vocab);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const bool room : {true, false}) many_users(one, tok, (uint32_t)kCpu.vocab, room);
-            scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 896, true});
-            scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 768, true});
+            scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
+            scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 1152, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});
         }
         // The request after the job takes the same paths on a split as on one CPU, so it runs on one CPU of each model alone.

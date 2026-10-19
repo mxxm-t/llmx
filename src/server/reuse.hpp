@@ -234,7 +234,9 @@ inline bool Scheduler::drop_oldest_bound() {
 inline void Scheduler::drop_bound(size_t i) {
     const bool gone = !bounds_[i].disk && disk_ && !stopping_;
     if (!bounds_[i].disk) lost();
-    this->gone(bounds_[i].tokens, gone ? Move::boundary_lost : Move::boundary_dropped, bounds_[i].state.length, bounds_[i].state.length, gone ? "server: cache: the state at %zu tokens left host memory with no file\n" : nullptr,
+    // A state whose file is whole loses nothing, so it is counted and not given as a loss.
+    if (bounds_[i].disk) moved(Move::boundary_dropped);
+    else this->gone(bounds_[i].tokens, gone ? Move::boundary_lost : Move::boundary_dropped, bounds_[i].state.length, bounds_[i].state.length, gone ? "server: cache: the state at %zu tokens left host memory with no file\n" : nullptr,
                bounds_[i].state.length);
     host_held_ -= bounds_[i].state.held;
     release_entry(true, bounds_[i].id, bounds_[i].state);
@@ -473,6 +475,8 @@ inline void Scheduler::drop_host(size_t i) {
     const bool gone = !host_[i].disk && !host_[i].superseded;
     if (gone) lost();
     if (gone && disk_ && !stopping_) this->gone(host_[i].tokens, Move::host_lost, 0, host_[i].history.length, "server: cache: a copy of %zu tokens left host memory with no file\n", host_[i].history.length);
+    // Without a disk tier the copy is a restore point gone all the same, given with its history so a loss is told from work never done.
+    else if (gone && !stopping_) this->gone(host_[i].tokens, Move::host_dropped, 0, host_[i].history.length);
     else moved(Move::host_dropped);
     host_held_ -= host_[i].history.held;
     release_entry(false, host_[i].id, host_[i].history);

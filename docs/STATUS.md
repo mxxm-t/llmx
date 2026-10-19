@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Cache documentation current-state corrections (2026-10-19)
+
+- **Goal / done:** distinguish current cache behavior from the retained 2026-10-17 design. SERVER now describes both host-tier restoration and direct streaming of block-bearing histories larger than the host tier. CACHE-PLAN section 7 preserves its original evidence/work order under a dated heading, with the implemented request/pool flag split and the obsolete above-context command identified explicitly.
+- **Validation:** checked against `Scheduler::start_read`, `start_stream` and `beyond_host`, CLI parsing and `request_limit`, and the existing DISK-TIER/USAGE descriptions. This changes documentation only; it claims no new production measurement or numerical qualification. The scoped Markdown review found these two discrepancies; the broader review continues.
+- **Checks / landing:** docs passes with zero findings and 21 planted faults; dead-code passes with five listed findings and 18 planted faults. The retained `112161de0f56` CLI supplies unchanged command help. This lands by fast-forward on main `a7078f765`; no inference or hosted runtime gate is required for these prose corrections.
+
 ## Dashboard throughput per sample interval (2026-10-19, branch feat/dashboard-sample-rates-20261019, UI only)
 
 - **Goal:** show throughput changes at each consecutive sample interval so brief activity is not hidden by a ten-second average.

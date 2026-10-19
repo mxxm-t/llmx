@@ -22,6 +22,11 @@
 - **Checked:** the focused dashboard suite passes 3 tests, including 32 rate-window assertions and rendered geometry, typography, zero/gap and overflow checks. Offline Chrome/CDP confirms actual 1440 by 1200 and 390 by 1200 viewports across busy, zero, stale, expired, reset, missing-counter and recovery transitions; fresh/stale/expired screenshots and bounding-box JSON are retained locally in `build-dashboard-review/`. Dead-code passes (5 known findings, 18 planted faults); docs passes (0 findings, 21 planted faults) using the matching main CLI. Relevant dashboard Markdown and reachable helpers reviewed. No collector, server or inference path changed, so no model or inference performance gate applies.
 - **Left:** landing and production rollout after the coordinated main hold clears; no deployment performed.
 
+## Embedded drafter and automatic KV pool fit (2026-10-19)
+
+- **Consolidates pending correction `86830b66a`:** `--ctx-size` is a per-request limit, not the shared pool budget. Without `--kv-tokens`, a device-memory-sized automatic pool includes an embedded drafter and its first mark before sizing; the pool selected by the no-drafter fit under an explicit limit is retained, with only automatic checkpoint slots able to give way. Numeric checkpoint counts remain fixed. The drafter remedies and `pressure.since_start.turns` now name the shared pool (`docs/SERVER.md`, `docs/USAGE.md`).
+- **Validation:** source review against `model/place.hpp::fitted_kv` and the 2026-10-17 amendment in `docs/SPECULATIVE.md`; docs passes (0 findings, 21 planted faults) with the matching main CLI and dead-code passes (5 known findings, 18 planted faults). No code or runtime behavior changes. This single docs commit supersedes the pending correction above; do not land both. Landing remains pending the coordinated main hold.
+
 ## What a restore cost, said by the server (2026-10-18, branch feat/restore-ms, step 8's restore timing, the cache plan's next item, lands by fast-forward as two commits)
 
 - **Why:** the restart fix's gate takes the server's own restore timing as its bound, and the server said only a read's MiB, a promotion's enqueue time and the summed read waits, none tied to the request.

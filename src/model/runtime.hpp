@@ -205,6 +205,8 @@ struct Pace {
     bool ahead = true;
     backend::Ticket fed = 0;      // the last piece submitted
     backend::Ticket within = 0;   // the submission of a pass recorded at the last boundary, 0 once waited for
+    int layer = -1;               // at a boundary, the piece that ended there: its layer and part, the mixer (the first with the embed before it) or the feed-forward
+    bool ffn = false;
 };
 
 // Where a context's passes run, as plain data Model fills: an activation arena per device, host-visible handoff buffers on each device a crossing leaves, the logits rows on the output device, and the tickets of the submissions.

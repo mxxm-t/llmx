@@ -286,13 +286,23 @@ private:
                   ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
                   ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
-                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + "}}" +
+                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + ",\"prompt\":" + n(s.prompt_passes) + "}}" +
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +
                   ",\"since_start\":{\"gaps\":" + n(s.gaps) + ",\"gaps_above_target\":" + n(s.gaps_late) + ",\"deferred_by_floor\":" + n(s.floor_deferred) +
-                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"background\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"job_rows_left\":" + n(s.job_rows_left) +
-                  "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"ms\":" + jmini::number((float)s.background_ms) +
+                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"stages\":" + slices_json(s.slices) + ",\"background\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"job_rows_left\":" + n(s.job_rows_left) +
+                  "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"first_steps\":" + n(s.background_first_steps) + ",\"ms\":" + jmini::number((float)s.background_ms) +
                   ",\"largest_ms\":" + jmini::number((float)s.background_largest_ms) + "}}}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
+    }
+    // Each stage's last pass fed in pieces (SliceRecord): its rows, its pieces' count and time, and its longest piece's time, layer and part.
+    static std::string slices_json(const std::vector<SliceRecord>& slices) {
+        std::string out = "[";
+        for (const SliceRecord& r : slices) {
+            if (out.size() > 1) out += ",";
+            out += "{\"last_slice\":{\"rows\":" + std::to_string(r.rows) + ",\"pieces\":" + std::to_string(r.pieces) + ",\"pieces_ms\":" + jmini::number((float)r.pieces_ms) +
+                   ",\"longest_ms\":" + jmini::number((float)r.longest_ms) + ",\"longest_layer\":" + std::to_string(r.longest_layer) + ",\"longest_part\":\"" + r.longest_part + "\"}}";
+        }
+        return out + "]";
     }
     static std::string topology_json(const infer::Model::Topology& t, const infer::DtypePlan& dtype) {
         const auto n = [](size_t v) { return std::to_string(v); };

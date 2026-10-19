@@ -306,7 +306,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
     const Stage& st = stages_[s];
     size_t cur = st.device;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
-    const auto piece = [&] {
+    const auto piece = [&](int l, bool ffn) {
         if (!pace) return;
         backend::Backend& b = *devices_[st.device]->b;
         const backend::Ticket t = b.submit();
@@ -317,6 +317,8 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
         }
         b.wait(pace->ahead ? pace->fed : t);
         pace->fed = t;
+        pace->layer = l;
+        pace->ffn = ffn;
         pace->between();
     };
     if (s == 0) {
@@ -333,11 +335,11 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
             ffn_split(ctx, p, cur, l);
             continue;
         }
-        piece();
+        piece(l, false);
         const size_t f = (size_t)place_.ffn_device[(size_t)l];
         if (f != cur) { cross(ctx, cur, f, 0, p.rows); cur = f; }
         arch_->ffn(part(ctx, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, p.apart));
-        piece();
+        piece(l, true);
     }
     if (s + 1 < stages_.size()) {
         // A residual already where the next stage runs stays there.
@@ -391,7 +393,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
     const size_t g = st.device, W = width_;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     backend::Collective& sum = *ctx.collectives[g];
-    const auto piece = [&] {
+    const auto piece = [&](int l, bool ffn) {
         if (!pace) return;
         if (pace->within) {
             devices_[g]->b->wait(pace->within);
@@ -399,6 +401,8 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
             pace->passed();
         }
         sum.wait(pace->ahead ? 1 : 0);
+        pace->layer = l;
+        pace->ffn = ffn;
         pace->between();
     };
     std::vector<backend::Slice> x(W);
@@ -416,7 +420,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
         sum.sum_into(x, p.rows, plan_.residual);
-        piece();
+        piece(l, false);
         for (size_t m = 0; m < W; ++m) {
             Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, p.apart);
             step.width = W;
@@ -425,7 +429,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
             arch_->ffn(step);
         }
         sum.sum_into(x, p.rows, plan_.residual);
-        piece();
+        piece(l, true);
     }
     if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
     if (s + 1 < stages_.size()) {

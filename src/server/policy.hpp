@@ -386,6 +386,22 @@ struct ServiceClock {
     }
 };
 
+// A stage's last pass fed in pieces, as the health gives it: its prompt rows, its pieces' count and time, and its longest piece's time, layer and part (`mixer`, `ffn`, or `tail` after the last layer).
+struct SliceRecord {
+    size_t rows = 0, pieces = 0;
+    double pieces_ms = 0, longest_ms = 0;
+    int longest_layer = -1;
+    const char* longest_part = "";
+    void piece(double ms, int layer, const char* part) {
+        ++pieces;
+        pieces_ms += ms;
+        if (pieces > 1 && ms <= longest_ms) return;
+        longest_ms = ms;
+        longest_layer = layer;
+        longest_part = part;
+    }
+};
+
 // Whether a request counts as a prompt for the overlap: before its first token, and while its cache lacks more than its last token, as after a pause.
 // Otherwise it is a reply, whether its rows are in a pass in flight or not.
 inline bool reads_prompt(size_t generated, size_t cached, size_t history) { return !generated || cached + 1 < history; }
@@ -443,11 +459,43 @@ inline double forget(double old, double now) { return old > 0 ? kCostKeep * old 
 // The part of the target gap background work may add to a reply's gap (promise P6 in docs/CACHE-PLAN.md).
 inline constexpr double kBackgroundShare = 0.25;
 
+// The time one piece of a prompt's pass may take beside generated rows (docs/CACHE-PLAN.md, section 8 item 3): 50 ms, from the measured pieces (305 ms at 240k tokens of history, 61 ms at 40k), and the step its rows are cut in.
+inline constexpr double kPieceMs = 50;
+inline constexpr size_t kPieceStep = 16;
+// A prompt's slices beside replies at one depth: the largest whose longest piece stays within the target, found by doubling while every slice is within it and then halving the bracket (F2DEV, 2026-10-19 10:35).
+// The target is kPieceMs, the reply's own pass (`apart_ms`) or the one-step probe's piece and kPieceMs more, the longest; a cost that is a line, a plateau or a staircase in the rows, as tiled attention at depth is, is searched alike.
+struct PieceSearch {
+    double probe_ms = 0;    // the longest piece of the last one-step slice at this depth
+    size_t lo = 0, hi = 0;  // the largest slice measured within the target, and the smallest over it since, 0 for none
+    double target(double apart_ms) const { return std::max({kPieceMs, apart_ms, probe_ms + kPieceMs}); }
+    // A slice's rows and its longest piece: one over the target at or below `lo` means the depth moved a step, so `lo` falls to half of it.
+    void add(size_t rows, double ms, double apart_ms) {
+        if (rows == kPieceStep) probe_ms = ms;
+        if (ms > target(apart_ms)) {
+            hi = rows;
+            if (rows <= lo) lo = std::max(kPieceStep, rows / 2 / kPieceStep * kPieceStep);
+            return;
+        }
+        lo = std::max(lo, rows);
+        if (hi && lo >= hi) hi = 0;
+    }
+    // The next slice's rows, at least one step and at most `most`: twice `lo` while nothing is over the target, the bracket's middle in steps while it is wider than a step, then `lo`.
+    size_t next(size_t most) const {
+        if (!lo) return hi ? kPieceStep : most;
+        const size_t rows = !hi ? 2 * lo : hi - lo > kPieceStep ? (lo + hi) / 2 / kPieceStep * kPieceStep : lo;
+        return std::min(most, std::max(kPieceStep, rows));
+    }
+};
+
+// Whether a job's step goes into a pass: beside replies only one carrying generated rows, whose time a row prices it (job_rows_at), never a pass of its own, whose whole fixed cost it would pay.
+inline bool job_rides(bool replies, size_t decoders) { return !replies || decoders > 0; }
+
 // The time background work may still take of a stage in this service interval: work that reaches the device and is no request's own, as a read-ahead job's rows.
 // A file read or write on a thread of its own touches no stage and takes none of it, and a read for a waiting request is foreground, as its request is.
 struct BackgroundGrant {
     double used_ms = 0, since_ms = 0;   // spent in the service interval that began at since_ms by the stage's clock; a later service makes the allowance whole
     uint64_t grants = 0, overruns = 0;  // grants spent, and those whose cost passed what was left
+    uint64_t first_steps = 0;           // grants that were a job's first step at a depth nothing measured, whose cost is not counted an overrun
     double total_ms = 0, largest_ms = 0;
     enum class Demand { none, prompts, replies };   // the foreground work that waits: none, prompts alone, or generated rows
     static constexpr double kUnbounded = 1e300;
@@ -469,15 +517,25 @@ struct BackgroundGrant {
         return (size_t)std::min((double)at_most, left / unit_ms);
     }
     // What granted work cost, whatever its unit, once: `left` is what left_ms gave when it was granted, and the clock says which service interval pays.
-    void spent(double ms, double left, const ServiceClock& clock) {
+    void spent(double ms, double left, const ServiceClock& clock, bool first = false) {
         ++grants;
-        if (ms > left) ++overruns;
+        if (first) ++first_steps;
+        else if (ms > left) ++overruns;
         if (clock.last_ms != since_ms) used_ms = 0, since_ms = clock.last_ms;
         used_ms += ms;
         total_ms += ms;
         largest_ms = std::max(largest_ms, ms);
     }
 };
+
+// The rows of a job a grant of `left` ms buys, at most `most`, where a measurement took `ms` for `rows` rows: whole steps, none where one step costs more than is left or nothing is measured.
+inline size_t job_grant(double left, size_t most, size_t rows, double ms) {
+    if (left <= 0 || !most) return 0;
+    if (left >= BackgroundGrant::kUnbounded) return most;
+    if (!rows || !(ms > 0)) return 0;
+    const double steps = std::floor(left * (double)rows / ms / (double)kPieceStep);
+    return steps < 1 ? 0 : (size_t)std::min((double)most, steps * (double)kPieceStep);
+}
 
 // The foreground demand background work gives way to (promise P6 in docs/CACHE-PLAN.md): none only where at most one request asks and no other is active, queued or paused.
 // A second asking request or another generating one is a reply's demand, and others reading their prompts or waiting for a seat or for room a prompt's.

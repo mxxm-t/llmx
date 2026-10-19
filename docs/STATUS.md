@@ -15,11 +15,12 @@
 - **Tests:** `server-resume`'s stop with a job in flight and stop with a request mid-reply that took its donor over, the first commit, each failing on main 92acbfb9d (the turn after the restart reused 0 tokens, the stop writing nothing for the history); with the change each reuses its 256. Each holds its pass by a handshake, not a clock: the device's attention is held at a known call while the test takes the stop (XDEV, 00:22). A `park` that keeps nothing says why: too short, or no donor slot it may take.
 - **Left:** the gate (host logic: CTest, the CPU suite, Qwen3-0.6B identity against main, the hosted run; the 27B 240k restart leg with the stop taken while a job is in flight, health read before the stop), reviews.
 
-## Dashboard rate layout regression (2026-10-19, test-first checkpoint)
+## Dashboard rate layout and chart gaps (2026-10-19, branch fix/dashboard-stability-landing-20261019, UI only, lands by fast-forward as test then fix)
 
-- **Goal:** reproduce stale-rate typography/layout jumps and unexplained chart gaps before applying the presentation fix.
-- **Observed:** the new rendered test fails on main `0f4ba6b67` at both requested viewport widths, including geometry, font size, stale color, missing-data explanations and zero markers. The existing rate-window and contract tests pass. Chrome required execution outside the restricted sandbox; the initial browser-launch errors were not evidence of a UI regression.
-- **Left:** apply the prepared static-page fix, run the same focused browser checks and retain the separate actual-width CDP evidence. No collector or inference change is involved.
+- **Done:** live-request numbers keep fixed typography and geometry across measured, zero, stale and unavailable states; status is a separate line. PP/TG headings and units are clearer. Known chart zeros remain numeric, isolated observations have visible markers, and unavailable intervals remain broken and shaded with reasons in the readout and inspection.
+- **Regression:** the test-first commit reproduces ten failed rendered assertions on main `0f4ba6b67` at both requested widths, including geometry, typography, stale color and missing/zero chart treatment; the rate-window and contract checks pass there. The fixed page and test are byte-identical to the previously validated candidate `1df5cf2df`; only this landing record differs.
+- **Checked:** the focused dashboard suite passes 3 tests, including 32 rate-window assertions and rendered geometry, typography, zero/gap and overflow checks. Offline Chrome/CDP confirms actual 1440 by 1200 and 390 by 1200 viewports across busy, zero, stale, expired, reset, missing-counter and recovery transitions; fresh/stale/expired screenshots and bounding-box JSON are retained locally in `build-dashboard-review/`. Dead-code passes (5 known findings, 18 planted faults); docs passes (0 findings, 21 planted faults) using the matching main CLI. Relevant dashboard Markdown and reachable helpers reviewed. No collector, server or inference path changed, so no model or inference performance gate applies.
+- **Left:** landing and production rollout after the coordinated main hold clears; no deployment performed.
 
 ## What a restore cost, said by the server (2026-10-18, branch feat/restore-ms, step 8's restore timing, the cache plan's next item, lands by fast-forward as two commits)
 

@@ -239,6 +239,14 @@ p {
 .notice.show {
   display: block
 }
+#token-rate-note {
+  display: block;
+  height: 18px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
 .grid {
   display: grid;
   gap: 18px
@@ -358,6 +366,16 @@ p {
   fill: #77899f;
   font-size: 11px;
   font-family: inherit
+}
+.chart-gap-key {
+  position: absolute;
+  top: 0;
+  right: 14px;
+  color: var(--muted);
+  font-size: 10px;
+  background: #202936;
+  padding: 2px 5px;
+  border-radius: 3px
 }
 .chart-empty {
   position: absolute;
@@ -803,16 +821,26 @@ p {
   margin-top: 3px;
   color: var(--cyan);
   font-size: 18px;
+  line-height: 24px;
+  height: 24px;
   font-weight: 600;
   font-variant-numeric: tabular-nums
 }
 .live-request-rate strong.live-rate-unavailable {
   color: var(--muted);
-  font-size: 14px
 }
-.live-request-rate strong.live-rate-stale {
-  color: #f3c17e;
-  font-size: 14px
+.live-request-rate .live-rate-status {
+  margin-top: 3px;
+  height: 16px;
+  line-height: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis
+}
+.live-request-rate .live-rate-status.stale {
+  color: #f3c17e
 }
 .live-request-details {
   margin-top: 8px;
@@ -1506,6 +1534,7 @@ button[hidden] {
 }
 .rate-readout strong {
   font-size: 36px;
+  line-height: 46px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: -1px;
@@ -1515,8 +1544,12 @@ button[hidden] {
   color: var(--muted);
 }
 .rate-readout small {
-  display: block;
-  min-height: 16px;
+  display: -webkit-box;
+  height: 32px;
+  line-height: 16px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin-top: 5px;
   font-size: 12px;
   color: #8ba2b9;
@@ -1968,7 +2001,7 @@ button[hidden] {
      <h2 id="live-requests-title">Live requests</h2>
      <span class="muted" id="live-requests-count" style="font-size:12px">--</span>
     </div>
-    <p class="live-request-note">PP = prompt processing / TG = token generation</p>
+    <p class="live-request-note">PP = prompt processing / TG = token generation. Rates in tok/s. 0 = measured no counter change; -- = unavailable.</p>
     <p class="live-request-summary no-data" id="live-requests-summary">Waiting for live request metrics.</p>
     <div class="live-request-list" id="live-requests-table-wrap" hidden aria-label="Current live requests">
      <div id="live-requests-rows"></div>
@@ -2890,8 +2923,7 @@ function drawLiveRequests(view) {
   }
   summary.className = 'live-request-summary';
   const ageText = number(live.sampleAgeMs) ? 'Runtime snapshot unchanged for ' + fmt(live.sampleAgeMs / 1000) + ' s.' : '';
-  const intervalText = live.stale ? ' ' + ageText + (live.items.every(item => item.pp === null && item.tg === null) ? ' Rates unavailable.' : ' Showing last measured rates as stale.') : ' Rates use a 10 s rolling window; actual duration follows snapshot times.';
-  summary.textContent = 'Showing ' + fmt(live.items.length) + (number(live.total) ? ' of ' + fmt(live.total) : '') + ' live requests' + (omitted > 0 ? '; ' + fmt(omitted) + ' omitted by the API limit.' : '.') + intervalText;
+  summary.textContent = 'Showing ' + fmt(live.items.length) + (number(live.total) ? ' of ' + fmt(live.total) : '') + ' live requests' + (omitted > 0 ? '; ' + fmt(omitted) + ' omitted by the API limit.' : '.') + ' Rates use a 10 s rolling window.';
   const fragment = document.createDocumentFragment();
   const valueText = value => number(value) ? fmt(value) : value === undefined || value === null ? '--' : String(value);
   const counter = (label, value) => {
@@ -2910,10 +2942,13 @@ function drawLiveRequests(view) {
     head.append(phase);
     head.append(element('span', 'live-request-elapsed', number(item.elapsed) && item.elapsed >= 0 ? fmt(item.elapsed) + ' ms' : 'Elapsed --'));
     const rates = element('div', 'live-request-rates');
-    for (const [label, value] of [['PP tok/s', item.pp], ['TG tok/s', item.tg]]) {
+    for (const [label, value] of [['PP / prompt tok/s', item.pp], ['TG / output tok/s', item.tg]]) {
       const metric = element('div', 'live-request-rate');
       metric.append(element('span', '', label));
-      metric.append(element('strong', live.stale && number(value) ? 'live-rate-stale' : number(value) ? '' : 'live-rate-unavailable', number(value) ? formatRate(value) : live.stale ? 'Unavailable' : 'Warming'));
+      metric.append(element('strong', number(value) ? '' : 'live-rate-unavailable', formatRate(value)));
+      const status = element('span', 'live-rate-status' + (live.stale ? ' stale' : ''), live.stale && number(value) ? 'Stale / last measured' : number(value) ? '10 s average' : 'Rate unavailable');
+      status.title = live.stale ? ageText : 'A rate needs a continuous window with valid counters and matching aggregate endpoints.';
+      metric.append(status);
       rates.append(metric)
     }
     const details = document.createElement('details');
@@ -3012,6 +3047,25 @@ function rollingRateMeasurement(samples, i, path, clockField, requireFullWindow 
     staleAfter: gapLimit,
     requireFullWindow
   })
+}
+function rateUnavailableReason(samples, i, path, clockField) {
+  if (i < 0) return 'Waiting for health samples';
+  const current = samples[i];
+  if (current.reset) return 'Server reset / waiting for a new rate window';
+  if (!number(current.metrics[path]) || (clockField && !number(current.metrics[clockField]))) return 'Counter or runtime timestamp missing';
+  if (i < 1) return 'Waiting for a second distinct sample';
+  const clock = sample => clockField ? sample.metrics[clockField] : sample.t;
+  const target = clock(current) - (clockField ? 10000 : 10);
+  const gapLimit = Math.max(15, state.interval * 3);
+  if (clockField && runtimeSampleAge(samples.slice(0, i + 1), clockField) > gapLimit) return current.metrics['requests.now.active'] === 0 ? 'No active requests / no new runtime snapshot' : 'Runtime snapshot unchanged / rate expired';
+  for (let j = i; j > 0; j--) {
+    const a = samples[j - 1], b = samples[j];
+    if (b.reset || a.reset || clock(b) < clock(a) || b.metrics[path] < a.metrics[path]) return 'Counter reset / waiting for a new rate window';
+    if (b.t - a.t > gapLimit || b.t <= a.t) return 'Collection gap / waiting for a continuous rate window';
+    if (!number(a.metrics[path]) || !number(clock(a))) return 'Missing counter in rate window';
+    if (clock(a) <= target) break
+  }
+  return 'Waiting for distinct runtime samples';
 }
 function requestWindowRate(history, id, key, interval, alignedWindow = null) {
   let startIndex = history.length - 1;
@@ -3523,10 +3577,9 @@ function configureWorkRates(raw) {
       '10 s rolling window from collector samples; actual duration follows sample times. This legacy aggregate window differs from per-request runtime rates.';
     config.zeroHint = mode === 'completed' ? 'No completed tokens counted in the latest interval' :
       id === 'prompt' ? 'No client prompt rows retired in the latest interval' : 'No output tokens published in the latest interval';
-    txt(id + '-mode', (id === 'prompt' ? 'PP' : 'TG') + (mode === 'runtime' ? ' / 10 S ROLLING RUNTIME' : mode === 'live' && !missing ? ' / COLLECTOR WINDOW' :
-      mode === 'completed' ? ' / COMPLETED-WORK FALLBACK' : ' / LIVE COUNTERS UNAVAILABLE'));
-    txt(id + '-title', name);
-    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'runtime' ? '10 s rolling runtime window' : mode === 'live' ? '10 s rolling collector window' : mode === 'completed' ? 'Completed-work fallback' :
+    txt(id + '-mode', mode === 'runtime' || mode === 'live' && !missing ? 'LIVE THROUGHPUT' : mode === 'completed' ? 'COMPLETED REQUESTS / FALLBACK' : 'LIVE COUNTERS UNAVAILABLE');
+    txt(id + '-title', id === 'prompt' ? 'Prompt processing (PP)' : 'Generation (TG)');
+    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'runtime' ? '10 s average' : mode === 'live' ? '10 s average / legacy API' : mode === 'completed' ? 'Completed-work fallback' :
       'Waiting for compatible health data');
     $(id + '-total').dataset.m = config.fields[0];
     txt(id + '-total-label', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' tokens / lifetime' :
@@ -3534,7 +3587,7 @@ function configureWorkRates(raw) {
   }
   txt('token-rate-label', mode === 'completed' ? 'Completed token rate' : 'Live output throughput');
   txt('token-rate-note', mode === 'completed' ? 'Old API / completed requests only' : mode === 'runtime' ?
-    'Runtime snapshots / 10 s rolling' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
+    '10 s average' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
     'Collector samples / 10 s rolling; legacy window' : 'Live counters unavailable');
   txt('rate-explainer', mode === 'completed' ?
     'Live PP/TG throughput is unavailable from this API. These fallback charts use completed-request counters over a 10 s collector-time window; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
@@ -3592,9 +3645,11 @@ function renderChart(samples, stamp, config, events) {
       values: config.labels.map(() => null),
       gap: true
     });
+    const values = config.values(samples, i, config);
     points.push({
       t: sample.t,
-      values: config.values(samples, i, config)
+      values,
+      reasons: values.map((value, index) => number(value) ? '' : config.mode ? rateUnavailableReason(samples, i, config.fields[index], config.clockField) : 'Metric unavailable')
     });
   });
   const finite = points.flatMap(point => point.values.filter(number));
@@ -3635,6 +3690,22 @@ function renderChart(samples, stamp, config, events) {
       minute: '2-digit'
     })));
   }
+  if (config.mode) {
+    let shaded = false;
+    for (let i = 0; i < points.length; i++) {
+      if (number(points[i].values[0])) continue;
+      const first = i;
+      while (i + 1 < points.length && !number(points[i + 1].values[0])) i++;
+      const left = Math.max(start, points[Math.max(0, first - 1)].t);
+      const right = Math.min(end, points[i + 1]?.t || end);
+      if (right <= left) continue;
+      const band = svgNode('rect', {x: x(left), y: T, width: x(right) - x(left), height: H - T - B, fill: '#8390a5', opacity: '.12', 'data-rate-gap': 'true'});
+      band.append(svgNode('title', {}, points[first].reasons?.[0] || 'Missing samples or server reset'));
+      svg.append(band);
+      shaded = true
+    }
+    if (shaded) host.append(element('div', 'chart-gap-key', 'Shaded = unavailable'))
+  }
   for (let series = config.labels.length - 1; series >= 0; series--) {
     let path = '',
     connected = false;
@@ -3655,6 +3726,11 @@ function renderChart(samples, stamp, config, events) {
       'stroke-linecap': 'round',
       'vector-effect': 'non-scaling-stroke'
     }));
+    points.forEach((point, index) => {
+      if (!number(point.values[series])) return;
+      if (number(points[index - 1]?.values[series]) || number(points[index + 1]?.values[series])) return;
+      svg.append(svgNode('circle', {cx: x(point.t), cy: y(point.values[series]), r: 2.5, fill: config.colors[series], 'data-sample-value': point.values[series]}))
+    });
   }
   const eventColors = { restart: '#f48d99', disconnect: '#f3c17e', recovery: '#66dfd1' };
   events.filter(event => event.t >= start && event.t <= end && eventColors[event.kind]).forEach(event => {
@@ -3686,14 +3762,16 @@ function renderChart(samples, stamp, config, events) {
   const latest = newest ? config.labels.map((label, i) => label + ': ' + format(newest.values[i])).join(' / '): 'No samples available.';
   txt(config.id + '-summary', latest + ' ' + config.note);
   const readout = $(config.id + '-value');
-  const updateReadout = (value, time = null) => {
+  const snapshotAge = runtimeSampleAge(samples, config.clockField);
+  const updateReadout = (value, time = null, reason = '') => {
     if (!readout) return;
     readout.textContent = format(value);
-    txt(config.id + '-at', time !== null ? 'Selected interval ending ' + new Date(time * 1000).toLocaleTimeString() :
-      !number(value) ? 'Rate unavailable / waiting for adjacent samples' :
-      value === 0 ? config.zeroHint : config.mode === 'completed' ? 'Latest completed-request interval' : 'Latest observed sampling interval');
+    txt(config.id + '-at', !number(value) ? reason || 'Metric unavailable / waiting for samples' : time !== null ? 'Selected interval ending ' + new Date(time * 1000).toLocaleTimeString() :
+      number(snapshotAge) && snapshotAge > 0 ? 'Stale / snapshot unchanged ' + fmt(snapshotAge) + ' s' :
+      value === 0 ? config.zeroHint : config.mode === 'completed' ? 'Latest completed-request interval' : 'Latest measured rate');
+    $(config.id + '-at').title = $(config.id + '-at').textContent;
   };
-  updateReadout(newest ? newest.values[0] : null);
+  updateReadout(newest ? newest.values[0] : null, null, newest?.reasons?.[0]);
   const selectable = points.filter(point => !point.gap);
   const nearestIndex = time => {
     let best = 0;
@@ -3705,7 +3783,7 @@ function renderChart(samples, stamp, config, events) {
   const hide = () => {
     tooltip.style.display = 'none';
     cross.setAttribute('visibility', 'hidden');
-    updateReadout(newest ? newest.values[0] : null);
+    updateReadout(newest ? newest.values[0] : null, null, newest?.reasons?.[0]);
   };
   chartViews[config.id] = {
     hide,
@@ -3714,14 +3792,14 @@ function renderChart(samples, stamp, config, events) {
       const point = selectable[nearestIndex(time)];
       if (Math.abs(point.t - time) > .01) { hide(); return ''; }
       const xx = x(point.t);
-      updateReadout(point.values[0], point.t);
+      updateReadout(point.values[0], point.t, point.reasons?.[0]);
       cross.setAttribute('x1', xx);
       cross.setAttribute('x2', xx);
       cross.setAttribute('visibility', 'visible');
       tooltip.replaceChildren(element('strong', '', new Date(point.t * 1000).toLocaleTimeString()));
       config.labels.forEach((label, i) => {
         const row = element('div');
-        row.append(element('span', '', label), element('span', '', format(point.values[i])));
+        row.append(element('span', '', label), element('span', '', number(point.values[i]) ? format(point.values[i]) : point.reasons?.[i] || 'Metric unavailable'));
         tooltip.append(row);
       });
       tooltip.style.display = 'block';
@@ -3784,6 +3862,7 @@ function render() {
     txt('token-rate-note', status);
     txt('rate-explainer', $('rate-explainer').textContent + ' ' + status)
   }
+  $('token-rate-note').title = $('token-rate-note').textContent;
   const req = latestRate(view.samples, 'requests.since_start.finished');
   txt('request-rate', number(req) ? fmt(req * 60): '--');
   txt('device-description', 'Server KV pool: ' + fmt(m('server.kv_tokens')) + ' tokens');

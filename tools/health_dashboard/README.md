@@ -63,6 +63,15 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
   Requests that start and finish between polls may not appear because the
   endpoint exposes current live rows, not completed request history. It contains
   no prompt text or token IDs.
+- Rate values keep the same type and spacing as snapshots become stale or
+  rates become unavailable. A separate status line labels the last measured
+  value; unavailable values use `--`. Known zero rates stay at zero on the
+  charts, including isolated observations. Missing counters, expired runtime
+  snapshots, resets and collection gaps remain shaded gaps, with the reason
+  beside the chart readout and in timeline inspection. Shading remains visible
+  in history after collection recovers. An expired runtime snapshot with no
+  active requests is labeled as such; an instantaneous active count does not
+  establish a measured zero rate for the window.
 - Active and reusable device KV tokens are separate reservations reported by
   llmx. They are not measured GPU memory usage; the endpoint has no GPU
   utilization, physical VRAM use or per-request latency distribution.
@@ -82,7 +91,9 @@ Run the focused rate-window regression with
 `python -m unittest tools.health_dashboard.test_ui_rates`. When Chrome or Edge
 is installed, it uses a local headless browser to execute the dashboard's rate
 helpers; otherwise the browser check is skipped. This adds no runtime
-dependency.
+dependency. The same check renders the full page at desktop and narrow widths
+and compares live-card and chart geometry across busy, zero, stale, expired,
+reset, missing-counter and recovery states.
 
 The model placement panel shows realized topology when `/v1/health` includes
 `topology`: split mode, tensor width, layer stages and backend names. Expand

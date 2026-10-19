@@ -2,6 +2,8 @@
 // Counts only, no clock; an expectation the plan has not closed yet is recorded as broken with its narrow witness, and one that improves unexpectedly fails until its entry is updated.
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <limits>
 #include <iostream>
 #include <mutex>
 #include <thread>
@@ -1095,6 +1097,110 @@ void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool ro
     check(table, on_what);
 }
 
+// A21: a read-ahead job with one block left when another conversation's request arrives that does not fit beside it, the turn's donor beyond the host tier.
+// `held`: the donor's write is held, so the request waits for a write in any case and the job reads its block first; `ended`: the write ends while the job is spared, so it gives way; `whole`: written before the request.
+enum class LastBlock { held, ended, whole };
+void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlock mode) {
+    const std::string on_what = std::string(", a job with its last block left") +
+                                (mode == LastBlock::held ? ", the donor's write held" : mode == LastBlock::ended ? ", the write ending while the job is spared" : ", the donor whole on disk");
+    DiskRoot disk(mode == LastBlock::held ? "scenario-last-held" : mode == LastBlock::ended ? "scenario-last-ended" : "scenario-last-whole");
+    // A write's chunks wait while `writes` is held, and a pass's retirement while `retires` is 0, so the test acts between two rounds.
+    struct Gate {
+        std::mutex m;
+        std::condition_variable cv;
+        bool writes = false, waiting = false;
+        size_t retires = std::numeric_limits<size_t>::max();
+    };
+    auto gate = std::make_shared<Gate>();
+    gate->writes = mode != LastBlock::whole;
+    const auto set = [&](bool writes, size_t retires) {
+        {
+            std::lock_guard<std::mutex> lk(gate->m);
+            gate->writes = writes;
+            gate->retires = retires;
+        }
+        gate->cv.notify_all();
+    };
+    // Waits until a pass waits to retire, with none let through since.
+    const auto at_retire = [&](const std::string& what) {
+        std::unique_lock<std::mutex> lk(gate->m);
+        require(gate->cv.wait_for(lk, std::chrono::minutes(1), [&] { return gate->waiting && !gate->retires; }), "cache-scenario" + on_what + ": " + what);
+    };
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::hours(1);
+    options.read_wait = std::chrono::seconds(60);
+    options.fault = [gate](const char* step) {
+        std::unique_lock<std::mutex> lk(gate->m);
+        if (std::string(step) == "write") gate->cv.wait(lk, [&] { return !gate->writes; });
+        return false;
+    };
+    const Req turn{prompt_of(44, 700, v), 20}, other{prompt_of(45, 500, v), 20};
+    auto model = make(1024, 16);
+    // The tier is a byte short of one slab, so the disk is the turn's donor's only save.
+    const size_t cap = infer::Model::host_slab_bytes() - 1;
+    server::Scheduler sched(*model, tok, 2, 64, 0, false, cap, nullptr, 0, true, options);
+    sched.on_retire = [gate](const server::Scheduler::Retired&) {
+        std::unique_lock<std::mutex> lk(gate->m);
+        gate->waiting = true;
+        gate->cv.notify_all();
+        gate->cv.wait(lk, [&] { return gate->retires > 0; });
+        if (gate->retires != std::numeric_limits<size_t>::max()) --gate->retires;
+        gate->waiting = false;
+    };
+    std::thread runner([&] { sched.run(); });
+    const auto count = [&](server::Move k) { return sched.stats().moves[(size_t)k]; };
+    size_t done = 0, gave = 0, reused = 0;
+    Reply rb, rc;
+    Req next;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, "the last-block leg: the disk tier made");
+        const Handle h = sched.submit(turn.prompt, params_of(turn));
+        // The job forks the turn's 640 prompt rows and reads to 768, one block, its ids the turn, its reply and 52 more.
+        const std::vector<uint32_t> ids = joined(joined(turn.prompt, ids_of(drain(*h))), prompt_of(46, 52, v));
+        if (mode == LastBlock::whole) within_a_minute([&] { return count(server::Move::write_whole) >= 1; }, "the last-block leg: the turn's files whole on disk");
+        set(mode != LastBlock::whole, 0);
+        sched.follow(h, ids, true);
+        at_retire("the job's first pass held");
+        const Handle b = sched.submit(other.prompt, params_of(other));
+        if (mode == LastBlock::ended) {
+            // One round with the request waiting: the job is spared, and its next pass waits to retire.
+            set(true, 1);
+            at_retire("the spared job's next pass held");
+            require(!count(server::Move::job_gave_way), "cache-scenario" + on_what + ": the job gave way while the write was held");
+            set(false, 0);
+            within_a_minute([&] { return !disk.files(".kv").empty(); }, "the last-block leg: the turn's files written");
+        }
+        set(mode == LastBlock::held, std::numeric_limits<size_t>::max());
+        within_a_minute([&] { return count(server::Move::job_done) + count(server::Move::job_gave_way) >= 1; }, "the last-block leg: the job ended or gave way");
+        done = count(server::Move::job_done);
+        gave = count(server::Move::job_gave_way);
+        set(false, std::numeric_limits<size_t>::max());
+        rb = drain(*b);
+        next = Req{joined(ids, prompt_of(47, 30, v)), 20};
+        const Handle c = sched.submit(next.prompt, params_of(next));
+        rc = drain(*c);
+        reused = c->reused();
+    } catch (...) {
+        set(false, std::numeric_limits<size_t>::max());
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    std::cout << "cache-scenario" << on_what << ": " << done << " jobs done, " << gave << " gave way, the next turn reused " << reused << "\n";
+    if (mode == LastBlock::held)
+        require(done == 1 && !gave && reused == 768, "cache-scenario" + on_what + ": " + std::to_string(done) + " jobs done and " + std::to_string(gave) + " gave way, the next turn reusing " +
+                                                          std::to_string(reused) + ", against 1, 0 and the job's 768");
+    else
+        require(!done && gave == 1, "cache-scenario" + on_what + ": " + std::to_string(done) + " jobs done and " + std::to_string(gave) + " gave way, against 0 and 1");
+    auto fresh = make(1024, 16);
+    const std::vector<Reply> alone = serve(*fresh, tok, 2, {{other}, {next}});
+    same(alone[0], rb, "cache-scenario" + on_what + ": the other request");
+    same(alone[1], rc, "cache-scenario" + on_what + ": the next turn");
+}
+
 } // namespace
 
 // `legs` runs the scripted conversation and its cases, `production` the production-shaped script; with no argument, both.
@@ -1121,6 +1227,7 @@ int main(int argc, char** argv) {
             restart(one, tok, (uint32_t)kCpu.vocab);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const bool room : {true, false}) many_users(one, tok, (uint32_t)kCpu.vocab, room);
+            for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(one, tok, (uint32_t)kCpu.vocab, mode);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 1152, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});

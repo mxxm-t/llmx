@@ -181,6 +181,63 @@ check('legacy collector window is ten seconds rather than ten thousand',
 globalThis.rateTestResults = outcomes;
 """
 
+RENDER_CASES = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+const now = Math.floor(Date.now() / 1000);
+const metric = 'requests.live.work.generated_tokens';
+const clockField = 'requests.live.sample_elapsed_ms';
+const sample = (t, value, reset = false) => ({t: now + t, reset, metrics: {
+  [metric]: value, 'requests.live.work.prefilled_tokens': value, [clockField]: (100 + t) * 1000
+}});
+state.latest = {requests: {live: {sample_elapsed_ms: 110000, work: {prefilled_tokens: 100, generated_tokens: 100}}}};
+state.lastSuccess = now;
+state.ok = true;
+state.received = true;
+const item = {id: 'r-1', phase: 'generate', elapsed: 12345, pp: 10, tg: 10, prompt: 100, reused: 0, prefilled: 100, published: 100};
+const measures = [];
+for (const [name, samples, value, stale] of [
+  ['busy', [sample(-10, 0), sample(0, 100)], 10, false],
+  ['zero', [sample(-10, 0), sample(0, 0)], 0, false],
+  ['stale', [sample(-12, 0), sample(-2, 100), {...sample(0, 100), metrics: sample(-2, 100).metrics}], 10, true],
+  ['expired', [sample(-30, 0), sample(-20, 100), {...sample(0, 100), metrics: sample(-20, 100).metrics}], null, true],
+  ['reset', [sample(-10, 100), sample(0, 0, true)], null, false],
+  ['missing', [sample(-10, 0), sample(0, null)], null, false],
+  ['recovery', [sample(-10, 100), sample(0, 200)], 10, false]
+]) {
+  state.samples = samples;
+  state.liveRequests = {available: true, items: [{...item, pp: value, tg: value}], total: 1, omitted: 0, stale, sampleAgeMs: stale ? 2000 : 0};
+  render();
+  const row = document.querySelector('.live-request-row');
+  const strong = row.querySelector('.live-request-rate strong');
+  measures.push({name, boxes: [row, $('prompt-chart'), $('throughput-chart'), $('live-requests-card'), $('token-rate-note')].map(node => {
+    const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height];
+  }), font: getComputedStyle(strong).fontSize, color: getComputedStyle(strong).color});
+  if (name === 'zero') check('zero readout is numeric', $('throughput-value').textContent === '0' && strong.textContent === '0');
+  if (name === 'expired') check('expired gap reason is visible', $('throughput-at').textContent.includes('unchanged'));
+  if (name === 'reset') check('reset gap reason is visible', $('throughput-at').textContent.includes('reset'));
+  if (name === 'missing') check('missing counter reason is visible', $('throughput-at').textContent.includes('missing'));
+}
+check('live card and chart geometry stays fixed through rate states', measures.every(m => JSON.stringify(m.boxes) === JSON.stringify(measures[0].boxes)));
+check('live rate type stays fixed through rate states', measures.every(m => m.font === measures[0].font));
+check('stale rate retains measured color', measures[2].color === measures[0].color);
+check('dashboard fits the viewport without horizontal overflow', document.documentElement.scrollWidth <= innerWidth);
+const config = chartConfigurations.find(c => c.id === 'throughput');
+renderChart([sample(-10, 0), sample(0, 0), sample(2, null)], now + 2, config, []);
+check('isolated known zero has a visible chart marker', !!$('throughput-chart').querySelector('circle[data-sample-value="0"]'));
+check('missing point is not drawn as zero', $('throughput-chart').querySelectorAll('circle[data-sample-value]').length === 1);
+renderChart([sample(-12, 0), sample(-2, 0), sample(0, null), sample(2, 0), sample(12, 0)], now + 12, config, []);
+const d = $('throughput-chart').querySelector('path').getAttribute('d');
+check('missing data splits the path between known zeros', (d.match(/M/g) || []).length === 2);
+check('recovered historical gap remains visibly shaded', !!$('throughput-chart').querySelector('rect[data-rate-gap]') && $('throughput-chart').textContent.includes('Shaded = unavailable'));
+const idleStart = sample(-20, 100);
+const idleLatest = {...idleStart, t: now, metrics: {...idleStart.metrics, 'requests.now.active': 0}};
+renderChart([sample(-30, 0), idleStart, idleLatest], now, config, []);
+check('idle frozen snapshot is explained without inventing zero', $('throughput-at').textContent === 'No active requests / no new runtime snapshot' && $('throughput-value').textContent === '--');
+globalThis.rateTestResults = outcomes;
+globalThis.layoutMeasurements = measures;
+"""
+
 
 def function_source(source, name):
     match = re.search(r"\bfunction\s+" + re.escape(name) + r"\s*\([^)]*\)\s*\{", source)
@@ -212,30 +269,44 @@ def function_source(source, name):
 
 
 class DashboardRateWindowTests(unittest.TestCase):
-    def test_shared_runtime_and_request_windows(self):
-        source = HTML_FILE.read_text(encoding="utf-8")
-        helpers = "\n".join(function_source(source, name) for name in FUNCTIONS)
+    def run_browser(self, document, width=1440):
         browser = next((str(path) for path in CHROME_PATHS if path.is_file()), None)
         if browser is None:
             browser = next((shutil.which(command) for command in CHROME_COMMANDS if shutil.which(command)), None)
         if browser is None:
             self.skipTest("Chrome/Edge is required for the focused JavaScript check")
-        document = ("<!doctype html><html><body><script>" + PRELUDE + helpers + "\n" + CASES +
-                    "</script><pre id='rate-test-results'></pre><script>document.querySelector('#rate-test-results').textContent = "
-                    "JSON.stringify(globalThis.rateTestResults)</script></body></html>")
         with tempfile.TemporaryDirectory(prefix="llmx-dashboard-rates-") as temp:
             page = Path(temp) / "rates.html"
             profile = Path(temp) / "profile"
             page.write_text(document, encoding="utf-8", newline="")
             result = subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-first-run",
-                                     "--disable-background-networking", "--user-data-dir=" + str(profile),
-                                     "--dump-dom", page.as_uri()], capture_output=True, text=True,
-                                    timeout=25, check=True)
+                                     "--disable-background-networking", "--window-size=" + str(width) + ",1200",
+                                     "--user-data-dir=" + str(profile), "--dump-dom", page.as_uri()],
+                                    capture_output=True, text=True, timeout=25, check=True)
         match = re.search(r"<pre id=[\"']rate-test-results[\"']>(.*?)</pre>", result.stdout, re.S)
         self.assertIsNotNone(match, "browser did not return JavaScript results")
         outcomes = json.loads(html.unescape(match.group(1)))
         failed = [item["name"] for item in outcomes if not item["ok"]]
-        self.assertEqual(failed, [], "failed rolling-rate assertions: " + ", ".join(failed))
+        self.assertEqual(failed, [], "failed browser assertions: " + ", ".join(failed))
+        return outcomes
+
+    def test_rendered_rate_geometry_and_zero_gaps(self):
+        source = HTML_FILE.read_text(encoding="utf-8")
+        source = source.rsplit("poll();", 1)[0] + source.rsplit("poll();", 1)[1]
+        results = ("<pre id='rate-test-results'></pre><script>" + RENDER_CASES +
+                   "\ndocument.querySelector('#rate-test-results').textContent = JSON.stringify(globalThis.rateTestResults);</script>")
+        document = source.replace("</body>", results + "</body>")
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                self.assertEqual(len(self.run_browser(document, width)), 13)
+
+    def test_shared_runtime_and_request_windows(self):
+        source = HTML_FILE.read_text(encoding="utf-8")
+        helpers = "\n".join(function_source(source, name) for name in FUNCTIONS)
+        document = ("<!doctype html><html><body><script>" + PRELUDE + helpers + "\n" + CASES +
+                    "</script><pre id='rate-test-results'></pre><script>document.querySelector('#rate-test-results').textContent = "
+                    "JSON.stringify(globalThis.rateTestResults)</script></body></html>")
+        outcomes = self.run_browser(document)
         self.assertEqual(len(outcomes), 32)
 
     def test_health_contract_and_labels_are_source_backed(self):

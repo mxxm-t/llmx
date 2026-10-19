@@ -15,6 +15,12 @@
 - **Tests:** `server-resume`'s stop with a job in flight and stop with a request mid-reply that took its donor over, the first commit, each failing on main 92acbfb9d (the turn after the restart reused 0 tokens, the stop writing nothing for the history); with the change each reuses its 256. Each holds its pass by a handshake, not a clock: the device's attention is held at a known call while the test takes the stop (XDEV, 00:22). A `park` that keeps nothing says why: too short, or no donor slot it may take.
 - **Left:** the gate (host logic: CTest, the CPU suite, Qwen3-0.6B identity against main, the hosted run; the 27B 240k restart leg with the stop taken while a job is in flight, health read before the stop), reviews.
 
+## Dashboard rate layout regression (2026-10-19, test-first checkpoint)
+
+- **Goal:** reproduce stale-rate typography/layout jumps and unexplained chart gaps before applying the presentation fix.
+- **Observed:** the new rendered test fails on main `0f4ba6b67` at both requested viewport widths, including geometry, font size, stale color, missing-data explanations and zero markers. The existing rate-window and contract tests pass. Chrome required execution outside the restricted sandbox; the initial browser-launch errors were not evidence of a UI regression.
+- **Left:** apply the prepared static-page fix, run the same focused browser checks and retain the separate actual-width CDP evidence. No collector or inference change is involved.
+
 ## What a restore cost, said by the server (2026-10-18, branch feat/restore-ms, step 8's restore timing, the cache plan's next item, lands by fast-forward as two commits)
 
 - **Why:** the restart fix's gate takes the server's own restore timing as its bound, and the server said only a read's MiB, a promotion's enqueue time and the summed read waits, none tied to the request.

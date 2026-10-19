@@ -304,17 +304,11 @@ public:
               size_t ctx_size = 0)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms), background_paced_(!pacing.refused),
-          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced),
+          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced), pools_(pools_of(model)),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)) {
-        cache_.hold_ = [this](bool generated) { hold(generated); };
-        cache_.unhold_ = [this] { release(); };
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
                                    std::to_string(model_.state_slots()));
-        for (size_t s = 0; s < model_.kv_pools(); ++s) {
-            pools_.blocks.push_back(model_.kv_pool_blocks(s));
-            pools_.block_tokens.push_back(model_.kv_pool_block_tokens(s));
-        }
         size_t p = passes ? passes : model_.pipelined() ? model_.stage_count() : 1;
         if (p > 1 && !model_.pipelined())
             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
@@ -360,16 +354,7 @@ public:
         const size_t limit = token_limit();
         steady_from_ = limit;
         while (steady_from_ > 2 && model_.row_class(steady_from_ - 1) == model_.row_class(limit)) --steady_from_;
-        if (disk.bytes) {
-            if (!host_cap_) throw std::logic_error("server: a disk tier keeps what the host tier drops, and there is no host tier");
-            cache_.disk_ = std::make_unique<DiskTier>(disk, model_, [this] {
-                {
-                    std::lock_guard<std::mutex> lk(m_);
-                    cache_.disk_wake_ = true;
-                }
-                cv_.notify_all();
-            });
-        }
+        cache_.open_disk(disk, [this] { cv_.notify_all(); });
     }
 
     // Tokens one request may hold, prompt and reply together, the one figure admission, the cut, jobs and the host tier read: the smallest of what the caller asks (`asked`, 0 for none), the model's context and the KV pool.
@@ -432,7 +417,7 @@ public:
         if (ids.empty() && !whole) return;
         {
             std::lock_guard<std::mutex> lk(m_);
-            cache_.follows_.push_back(Cache::Follow{r, std::move(ids), whole});
+            cache_.follow(r, std::move(ids), whole);
             ++arrivals_;
         }
         cv_.notify_all();
@@ -535,62 +520,19 @@ public:
     };
     Stats stats() const {
         std::lock_guard<std::mutex> lk(m_);
-        Stats s{active_count_.load(), queue_.size(), cache_.donors_.size(), cache_.prefix_hits_, cache_.prefix_tokens_, (size_t)pauses_,
-                paused_count_.load(), stalls_, waits_, recomputed_, taken_back_, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), cache_.reserved_now_,
-                cache_.donor_blocks_now_, timed_, timing_};
+        Stats s{active_count_.load(), queue_.size(), 0, 0, 0, (size_t)pauses_, paused_count_.load(), stalls_, waits_, recomputed_, 0, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), {}, {},
+                timed_, timing_};
+        cache_.fill(s);
         for (size_t p = 0; p < s.reserved.size(); ++p) {
             const size_t held = p < s.donor_blocks.size() ? s.donor_blocks[p] : 0;
             s.kv_tokens = std::max(s.kv_tokens, (s.reserved[p] - held) * pools_.block_tokens[p]);
             s.kv_donor_tokens = std::max(s.kv_donor_tokens, held * pools_.block_tokens[p]);
         }
-        s.reprefills = cache_.reprefills_;
-        s.jobs = cache_.jobs_now_.load();
-        s.job_rows_left = cache_.job_rows_left_.load();
         s.background_grants = background_.grants;
         s.background_overruns = background_.overruns;
         s.background_first_steps = background_.first_steps;
         s.background_ms = background_.total_ms;
         s.background_largest_ms = background_.largest_ms;
-        s.room_waits = cache_.room_waits_;
-        s.room_wait_timeouts = cache_.room_wait_timeouts_;
-        s.room_wait_ms = cache_.room_wait_ms_;
-        s.room_wait_longest_ms = cache_.room_wait_longest_ms_;
-        s.reprefill_rows = cache_.reprefill_rows_;
-        s.reprefill_cancels = cache_.reprefill_cancels_;
-        s.reprefill_handed = cache_.reprefill_handed_;
-        s.host_donors = cache_.host_.size();
-        s.host_bytes = cache_.host_held_;
-        s.host_hits = cache_.host_hits_;
-        s.host_allocated = cache_.host_alive_;
-        s.host_yielded = cache_.host_yielded_;
-        s.host_bytes_moved = cache_.host_moved_;
-        s.boundaries = cache_.bounds_.size();
-        s.boundary_hits = cache_.bound_hits_;
-        s.disk_entries = cache_.disk_now_.files;
-        s.disk_states = cache_.disk_now_.states;
-        s.disk_bytes = cache_.disk_now_.bytes;
-        s.disk_bytes_written = cache_.disk_now_.written;
-        s.disk_errors = cache_.disk_ ? cache_.disk_->errors() : 0;
-        s.disk_refused_dirs = cache_.disk_ ? cache_.disk_->refused_dirs() : 0;
-        s.lost_before_written = cache_.lost_before_written_;
-        s.uncopyable = cache_.uncopyable_;
-        for (size_t k = 0; k < s.moves.size(); ++k) s.moves[k] = cache_.moves_[k].load();
-        s.reprefill_released = cache_.reprefill_released_.load();
-        s.disk_refused = cache_.disk_refused_;
-        s.disk_capped = cache_.disk_now_.capped;
-        s.disk_unproved = cache_.disk_now_.unproved;
-        s.disk_proved = cache_.disk_now_.proved;
-        s.disk_disproved = cache_.disk_now_.disproved;
-        s.disk_writing = cache_.disk_ && cache_.disk_->writing();
-        s.disk_hits = cache_.disk_hits_;
-        s.disk_waits = cache_.disk_waits_;
-        s.disk_wait_timeouts = cache_.disk_wait_timeouts_;
-        s.disk_bytes_read = cache_.disk_read_bytes_;
-        s.disk_wait_ms = cache_.disk_wait_ms_;
-        s.restore = cache_.restore_totals_;
-        s.restore.timeouts = cache_.disk_wait_timeouts_;
-        s.disk_in_flight = cache_.disk_ ? cache_.disk_->calls() : 0;
-        s.disk_ready = cache_.disk_ && cache_.disk_->readable();
         s.finished = finished_.load();
         s.apart = apart_formed_.load();
         s.between = between_.load();
@@ -627,7 +569,6 @@ public:
         s.yields = yields_.load();
         s.turns_without_memory = turns_without_memory_.load();
         s.host_limit = host_cap_;
-        s.disk_limit = cache_.disk_ ? cache_.disk_->cap() : 0;
         // Every source's by position, and the requests' own histories' apart.
         s.own_drafted = tally_[infer::spec::Source::lookup].drafted();
         s.own_kept = tally_[infer::spec::Source::lookup].kept();
@@ -644,41 +585,27 @@ public:
     // The only thread that calls the model.
     void run() {
         std::vector<std::shared_ptr<Request>> active;   // in order of first admission
-        running_ = &active;
-        struct Unrun {
-            const std::vector<std::shared_ptr<Request>>*& p;
-            ~Unrun() { p = nullptr; }
-        } unrun{running_};
         for (;;) {
             {
                 std::unique_lock<std::mutex> lk(m_);
-                cache_.note_room();
+                cache_.note_room(active);
                 if (live_requested_ || (live_.total && !active_count_.load() && queue_.empty() && paused_.empty())) snapshot_requests(active);
                 // A pass being recorded gives the round nothing to do until its recorder is done, which wakes it.
                 const auto due = [&] {
-                    return stopping_ || cache_.disk_wake_ || ended() || acting() || cache_.ready(queue_) || cache_.ready(paused_) || !cache_.follows_.empty() || !cache_.restores_.empty() || (active.size() < max_seqs_ && cache_.ready(cache_.jobs_)) ||
+                    return stopping_ || ended() || acting() || Cache::ready(queue_) || Cache::ready(paused_) || cache_.due(active.size() < max_seqs_) ||
                            std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return working(*r) && !r->seq_.in_flight(); });
                 };
                 // Under --disk-cache-keep a server with nothing to do for kDiskIdle writes ahead (disk_round), and the loop wakes for it.
-                if (!cache_.disk_ || !cache_.disk_->keeps() || !active.empty() || flying() || !queue_.empty() || !paused_.empty()) {
-                    idle_at_.reset();
-                    cache_.idle_tried_.clear();   // each idle period tries every donor again, one whose copy was refused or dropped before its file landed too
-                }
-                else if (!idle_at_) {
-                    idle_at_ = std::chrono::steady_clock::now() + cache_.disk_->idle();
-                    idled_ = false;
-                }
-                const auto bound = cache_.next_disk_bound();
+                cache_.idle_moment(!active.empty() || flying() || !queue_.empty() || !paused_.empty());
+                const auto bound = cache_.next_disk_bound(lines());
                 // With nothing to do the host tier's slabs are taken ahead, a step a round with no sleep between, so a copy made later allocates none (grow_host).
-                if (cache_.host_growing_ && !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && cache_.jobs_.empty() && cache_.follows_.empty()) cache_.host_growing_ = cache_.grow_host();
-                else if (bound) cv_.wait_until(lk, *bound, due);
-                else cv_.wait(lk, due);
+                const bool ahead = !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && cache_.grow_ahead();
+                if (!ahead && bound) cv_.wait_until(lk, *bound, due);
+                else if (!ahead) cv_.wait(lk, due);
                 if (stopping_) break;
                 seen_ = arrivals_;
                 cache_.host_pressure();
-                const bool idle = idle_at_ && std::chrono::steady_clock::now() >= *idle_at_;
-                idled_ = idled_ || idle;
-                cache_.disk_round(idle);
+                cache_.disk_round(active, lines());
                 // A waiting request whose client left ends wherever it waits, queued or paused, not only once admission reaches it, which may be after every active request has finished.
                 for (auto* waiting : {&queue_, &paused_})
                     for (auto it = waiting->begin(); it != waiting->end();) it = (*it)->cancel_.load() ? leave(*waiting, it) : it + 1;
@@ -699,7 +626,7 @@ public:
                 if (!active[i]->finish_pending_.empty()) finish(active, i, active[i]->finish_pending_, active[i]->error_pending_);
                 else ++i;
             }
-            cache_.complete_jobs(active);
+            cache_.complete_jobs(active, lines());
             // Cancelled requests leave before the next pass, and a request in flight once its pass has retired.
             for (size_t i = 0; i < active.size();) {
                 if (active[i]->cancel_.load() && !active[i]->seq_.in_flight()) finish(active, i, "cancel");
@@ -714,24 +641,24 @@ public:
                 std::shared_ptr<Request> waiter;
                 {
                     std::lock_guard<std::mutex> lk(m_);
-                    if (!paused_.empty() && !cache_.admits(*paused_.front(), active.size())) waiter = paused_.front();
-                    else if (!queue_.empty() && !cache_.admits(*queue_.front(), active.size())) waiter = queue_.front();
+                    if (!paused_.empty() && !cache_.admits(*paused_.front(), active.size(), active)) waiter = paused_.front();
+                    else if (!queue_.empty() && !cache_.admits(*queue_.front(), active.size(), active)) waiter = queue_.front();
                 }
                 if (waiter) {
-                    cache_.hand_jobs(active);
-                    cache_.yield_jobs(active, waiter.get());
+                    cache_.hand_jobs(active, lines());
+                    cache_.yield_jobs(active, lines(), waiter.get());
                 }
                 // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
                 grow(active);
                 // A request that could not grow makes the jobs give way and takes its step from what they held, in this round: with no other request ready, a round later nothing would be in flight.
-                if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; }) && cache_.yield_jobs(active)) grow(active, true);
+                if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; }) && cache_.yield_jobs(active, lines())) grow(active, true);
                 {
                     std::lock_guard<std::mutex> lk(m_);
                     // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first, and new requests come in queue order once none is paused.
                     // A client can leave after the sweep, while the requests before its own are admitted; its request ends here, before any donor gives blocks up for it or it forks one.
                     const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
                     // A request whose history is being read from disk keeps its place, and those behind it that fit pass it (docs/DISK-TIER.md, Restore); one submitted since the round began is looked for first.
-                    if (cache_.disk_) cache_.prefetch();
+                    cache_.prefetch(active, lines());
                     using Waiting = std::deque<std::shared_ptr<Request>>;
                     if (!stalled)
                         admit_waiting(paused_, queue_, [&] { return active.size() < max_seqs_; },
@@ -740,15 +667,15 @@ public:
                                           leave(q, q.begin() + (std::ptrdiff_t)i);
                                           return true;
                                       },
-                                      [&](const std::shared_ptr<Request>& r) { return cache_.reading(*r); },
+                                      [&](const std::shared_ptr<Request>& r) { return cache_.reading(lines(), *r); },
                                       [&](const std::shared_ptr<Request>& r) { return cache_.enter(r, active); }, [](const std::shared_ptr<Request>& r) { return r->line_; });
                     active_count_.store(requests(active));
                     paused_count_.store(paused_.size());
                 }
-                for (size_t i = 0; cache_.disk_ && i < active.size(); ++i)
-                    if (active[i]->proof_ && !active[i]->seq_.in_flight()) cache_.prove(*active[i]);
-                cache_.follow_up(active);
-                cache_.complete_jobs(active);
+                for (size_t i = 0; i < active.size(); ++i)
+                    if (active[i]->proof_ && !active[i]->seq_.in_flight()) cache_.prove(lines(), *active[i]);
+                cache_.follow_up(active, lines());
+                cache_.complete_jobs(active, lines());
                 cache_.count_jobs(active);
                 {
                     // The background time a write's pieces may take this round, and what the last round's pieces cost, charged here, outside the lock.
@@ -757,10 +684,7 @@ public:
                     double spent = 0, spent_left = 0;
                     {
                         std::lock_guard<std::mutex> lk(m_);
-                        demand_ = demand;
-                        write_left_ = left;
-                        std::swap(spent, cache_.write_spent_ms_);
-                        spent_left = cache_.write_spent_left_;
+                        std::tie(spent, spent_left) = cache_.grant_writes(demand, left);
                     }
                     if (spent > 0) background_spent(spent, spent_left);
                 }
@@ -778,7 +702,7 @@ public:
                     for (size_t k = free_slot(); k < slots_.size() && !first_stage_held(false) && form(k, active, host, ride ? Rows::all : Rows::prompt); k = free_slot()) {}
                     if (admit) serve_generated(active, host);
                     const auto left = std::find_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });
-                    if (!flying() && left != active.end()) throw std::logic_error("server: a round with active requests formed an empty pass: " + left_out(**left, requests(active)));
+                    if (!flying() && left != active.end()) throw std::logic_error("server: a round with active requests formed an empty pass: " + left_out(active, **left, requests(active)));
                 } catch (const std::exception& e) {
                     fail_all(active, e.what());
                     host.clear();
@@ -794,8 +718,8 @@ public:
             // A cancellation does not wake it: a request whose client left ends at the next round, within a stage's time, as when a stage held this thread.
             if (!acted_ && recording()) {
                 std::unique_lock<std::mutex> lk(m_);
-                const auto woken = [&] { return ended() || granted() || stopping_ || cache_.disk_wake_ || arrivals_ != seen_; };
-                const auto bound = cache_.next_disk_bound();
+                const auto woken = [&] { return ended() || granted() || stopping_ || cache_.woken() || arrivals_ != seen_; };
+                const auto bound = cache_.next_disk_bound(lines());
                 if (bound) cv_.wait_until(lk, *bound, woken);
                 else cv_.wait(lk, woken);
             }
@@ -803,12 +727,13 @@ public:
         abort_all();
         // Under --disk-cache-keep every active job and request is parked at its checkpoint before anything is released: one that took its conversation's donor over is the only holder of those rows, which the flush then writes.
         // A request keeps its earlier turns' rows so, a hybrid one its prompt's whole blocks; its partial reply is not kept, and it ends cancelled.
-        const bool keeps = cache_.disk_ && cache_.disk_->keeps();
+        const bool keeps = cache_.keeps();
         while (keeps && !active.empty()) {
             const auto r = active.back();
             const size_t rows = r->seq_.length();
             const char* why = "";
-            const uint64_t id = cache_.park(active, active.size() - 1, r->job_ ? r->prompt_ : history(*r), 0, &why);
+            const uint64_t id = cache_.park(active, lines(), active.size() - 1, r->job_ ? r->prompt_ : history(*r), 0, &why);
+            active_count_.store(requests(active));
             r->finished_ = true;
             if (id) std::fprintf(stderr, "server: cache: a %s holding %zu rows parked at the stop for the next server\n", r->job_ ? "job" : "request", rows);
             else std::fprintf(stderr, "server: cache: a %s holding %zu rows released at the stop, %s\n", r->job_ ? "job" : "request", rows, why);
@@ -816,53 +741,30 @@ public:
         }
         for (auto& r : active) {
             if (r->job_) std::fprintf(stderr, "server: cache: a job holding %zu rows released at the stop\n", r->seq_.length());
-            cache_.release(*r);
+            cache_.release(*r, active);
             r->end("cancel");
         }
-        // With --disk-cache-keep what memory holds goes to disk first; then the tier goes, its write in flight cancelled, so no write reads a slab released below; its thread calls back under the lock.
-        if (cache_.disk_ && cache_.disk_->keeps()) cache_.flush_disk();
-        // Streamed reads stop and are waited for before the tier goes, since their readers read its files and their copies write the devices.
-        for (Cache::Streaming& s : cache_.streams_) s.read->cancel();
-        for (Cache::Streaming& s : cache_.streams_) {
-            while (!s.read->idle()) std::this_thread::yield();
-            model_.reset(s.into->seq);
-        }
-        cache_.streams_.clear();
-        std::unique_ptr<DiskTier> disk;
-        {
-            std::lock_guard<std::mutex> lk(m_);
-            disk = std::move(cache_.disk_);
-        }
-        // The store goes first, so nothing reads a slab that is released after it.
-        if (disk) {
-            disk->close();
-            disk->release(model_);
-        }
-        disk.reset();
+        cache_.stop(active, lines(), cv_);
         std::lock_guard<std::mutex> lk(m_);
-        for (infer::HostHistory& h : cache_.disk_parked_) model_.release_host(h);
-        cache_.disk_parked_.clear();
-        for (Cache::DiskRead& rd : cache_.disk_reads_) {
-            cache_.host_held_ -= rd.history.held;
-            model_.release_host(rd.history);
-        }
-        cache_.disk_reads_.clear();
         for (auto* waiting : {&queue_, &paused_}) {
             for (auto& r : *waiting) r->end("cancel");
             waiting->clear();
         }
         live_.count = live_.total = 0;
-        cache_.jobs_.clear();
-        cache_.follows_.clear();
-        while (!cache_.donors_.empty()) cache_.drop_donor();
-        while (!cache_.host_.empty()) cache_.drop_host(0);
-        while (!cache_.bounds_.empty()) cache_.drop_bound(0);
-        cache_.note_room();
         active_count_.store(0);
         paused_count_.store(0);
         in_flight_.store(0);
     }
 
+    // The model's cache pools, the scheduler's and the cache's alike.
+    static Pools pools_of(const infer::Model& model) {
+        Pools p;
+        for (size_t s = 0; s < model.kv_pools(); ++s) {
+            p.blocks.push_back(model.kv_pool_blocks(s));
+            p.block_tokens.push_back(model.kv_pool_block_tokens(s));
+        }
+        return p;
+    }
     // The draft rows a pass carries at most where requests draft, and the rows of a pass that want logits: a row a request and those drafts.
     // A caller asks the fit for both, so what the scheduler reserves is what was fitted.
     static size_t draft_rows(bool drafting) { return drafting ? kDraftRows : 0; }
@@ -874,6 +776,7 @@ public:
         {
             std::lock_guard<std::mutex> lk(m_);
             stopping_ = true;
+            cache_.stopping();
         }
         cv_.notify_all();
     }
@@ -1461,7 +1364,7 @@ private:
         if (again || job_rows) {
             std::lock_guard<std::mutex> lk(m_);
             recomputed_ += again;
-            cache_.reprefill_rows_ += job_rows;
+            cache_.job_rows_read(job_rows);
         }
         vacate(k);
     }
@@ -2072,13 +1975,13 @@ private:
             if (r.seq_.in_flight()) continue;
             const std::vector<size_t> step = kGrowth.step(pools_, r.params_.until_limit, decoding(r), r.seq_.length(), r.need_);
             if (step.empty()) continue;
-            if (yields(r)) {
+            if (yields(active, r)) {
                 turn_to_ = waiting()->admission_;
                 turned_ = Clock::now();
                 pause(active, i--, true);
                 continue;
             }
-            const Taken t = make_room(cache_.room(), cache_.ranked(), npos, false, holders(active), r.admission_, true, step, cache_.gain_of(active));
+            const Taken t = make_room(cache_.room(active), cache_.ranked(), npos, false, holders(active), r.admission_, true, step, cache_.gain_of(active));
             if (!t.enough || t.wait) {
                 r.stalled_ = true;
                 if (!last) continue;
@@ -2097,9 +2000,9 @@ private:
     }
 
     // What the empty-pass error says of the request left without a pass: its history, whether it could not grow, how many requests are active, and each pool's free blocks.
-    std::string left_out(const Request& r, size_t requests) const {
+    std::string left_out(const std::vector<std::shared_ptr<Request>>& active, const Request& r, size_t requests) const {
         std::string s = "a request of " + std::to_string(r.seq_.length()) + " tokens" + (r.stalled_ ? " could not grow" : " was not ready") + ", " + std::to_string(requests) + " active, blocks free";
-        const std::vector<size_t> free = cache_.room();
+        const std::vector<size_t> free = cache_.room(active);
         for (size_t p = 0; p < free.size(); ++p) s += " " + std::to_string(free[p]) + " of " + std::to_string(pools_.blocks[p]);
         return s;
     }
@@ -2111,14 +2014,14 @@ private:
     }
     // Whether `r`, whose growth step is due, gives the pool's edge up (Growth::yields): its turn is over, its history can be kept whole, and the one waiting fits once `r` holds nothing.
     // Kept whole means the copy its history would leave is one write_back keeps (host_room), and on a model that keeps a state a free checkpoint slot; a turn kept for want of host memory is counted and said.
-    bool yields(const Request& r) {
+    bool yields(const std::vector<std::shared_ptr<Request>>& active, const Request& r) {
         const Request* w = waiting();
         if (!w || !host_cap_) {
             end_memory_run();
             return false;
         }
         if (!kGrowth.yields(r.edge_steps_, turn_steps ? turn_steps : kGrowth.turn(swap_ms_, ms_since(r.stepped_)), true, !model_.keeps_state() || model_.checkpoints_free())) return false;
-        std::vector<size_t> free = cache_.room();
+        std::vector<size_t> free = cache_.room(active);
         add(free, cache_.promised(r));
         add(free, model_.freed({&r.seq_}).blocks);
         if (!make_room(free, cache_.ranked(), npos, false, {}, 0, false, pools_.blocks_for(kGrowth.entry(history_tokens(*w), true, 0, w->gen_.size())), cache_.gain_of({}, npos, 0, false, {&r.seq_})).enough)
@@ -2146,29 +2049,23 @@ private:
 
     // Takes what make_room chose for a growing request: the donors, then the requests it pauses, latest admitted first, and the donor a paused request's history became where make_room took that too.
     void take(const Taken& t, std::vector<std::shared_ptr<Request>>& active) {
-        {
-            std::vector<size_t> gone = t.donors;
-            std::sort(gone.begin(), gone.end(), std::greater<size_t>());
-            std::lock_guard<std::mutex> lk(m_);
-            for (size_t i : gone) cache_.drop_donor(i, true);
-        }
+        cache_.take(t);
         std::vector<std::pair<std::shared_ptr<Request>, bool>> victims;
         for (const auto& p : t.paused) victims.push_back({active[p.first], p.second});
         for (const auto& v : victims) {
             const size_t at = (size_t)(std::find(active.begin(), active.end(), v.first) - active.begin());
-            if (pause(active, at) && v.second) {
-                std::lock_guard<std::mutex> lk(m_);
-                cache_.drop_donor(cache_.donors_.size() - 1, true);
-            }
+            const uint64_t donor = pause(active, at);
+            if (donor && v.second) cache_.evict(donor);
         }
     }
 
 
 
-    // A paused request's history goes to a donor, even short of a full block, which it takes back whole on resuming unless something evicted it, and the request to the paused requests in order of first admission; whether it left a donor.
-    bool pause(std::vector<std::shared_ptr<Request>>& active, size_t i, bool yielded = false) {
+    // A paused request's history goes to a donor, even short of a full block, which it takes back whole on resuming unless something evicted it, and the request to the paused requests in order of first admission; the donor it left, or 0.
+    uint64_t pause(std::vector<std::shared_ptr<Request>>& active, size_t i, bool yielded = false) {
         auto r = active[i];
-        r->paused_as_ = r->donor_ = cache_.park(active, i, history(*r), 1);
+        r->paused_as_ = r->donor_ = cache_.park(active, lines(), i, history(*r), 1);
+        active_count_.store(requests(active));
         ++r->pauses_;
         r->stalled_ = false;
         yields_ += yielded;
@@ -2177,7 +2074,7 @@ private:
         r->line_ = yielded ? ++lines_ : 0;
         paused_.insert(std::upper_bound(paused_.begin(), paused_.end(), r, [](const auto& a, const auto& b) { return std::make_pair(a->line_, a->admission_) < std::make_pair(b->line_, b->admission_); }), r);
         paused_count_.store(paused_.size());
-        return r->donor_ != 0;
+        return r->donor_;
     }
 
     static constexpr size_t npos = std::numeric_limits<size_t>::max();
@@ -2199,9 +2096,7 @@ private:
     // A waiting request whose client left ends where it waits, and a paused one's own donor goes with it when it holds less than a block, which no fork can share; the position after it.
     // Under the lock.
     std::deque<std::shared_ptr<Request>>::iterator leave(std::deque<std::shared_ptr<Request>>& waiting, std::deque<std::shared_ptr<Request>>::iterator it) {
-        const size_t d = cache_.own_donor(**it);
-        if (d < cache_.donors_.size() && cache_.donors_[d].tokens.size() < model_.kv_block_tokens()) cache_.drop_donor(d);
-        if ((*it)->proof_) cache_.end_proof((*it)->proof_);
+        cache_.leave(lines(), **it);
         (*it)->proof_ = 0;
         (*it)->end("cancel");
         return waiting.erase(it);
@@ -2223,6 +2118,7 @@ private:
         if (rows < kMeasuredRows) return;
         const double per = std::min(ms_since(f.begun), since_retired) / (double)rows;
         prompt_ms_row_ = forget(prompt_ms_row_, per);
+        cache_.prompt_measured(prompt_ms_row_);
     }
 
 
@@ -2287,17 +2183,18 @@ private:
         if (r->job_) {
             // A failed job leaves the donor it forked and frees what it held.
             active.erase(active.begin() + (std::ptrdiff_t)i);
-            cache_.release(*r);
+            cache_.release(*r, active);
             r->seq_ = infer::Sequence{};
             return;
         }
         if (why == "error") {
             active.erase(active.begin() + (std::ptrdiff_t)i);
-            cache_.release(*r);
+            cache_.release(*r, active);
             r->seq_ = infer::Sequence{};
             active_count_.store(requests(active));
         } else {
-            r->parked_ = cache_.park(active, i, history(*r));
+            r->parked_ = cache_.park(active, lines(), i, history(*r));
+            active_count_.store(requests(active));
         }
         r->end(why, err);
         ++finished_;
@@ -2452,7 +2349,7 @@ private:
     infer::ExecContext ctx_;
     std::vector<Slot> slots_;
     LogitRows logit_rows_;
-    Pools pools_;                              // the model's cache pools, which never change size
+    const Pools pools_;                        // the model's cache pools, which never change size
     uint64_t formed_ = 0;                      // passes formed, which orders them
     std::vector<infer::BatchEntry> entries_;   // the pass being formed
     core::JobThreads samplers_;
@@ -2474,7 +2371,6 @@ private:
     RideRun ride_run_;    // the prompt passes the generated rows have ridden in a row
     std::atomic<uint64_t> apart_formed_{0}, between_{0};                         // Stats::apart and Stats::between, the second counted by the stages' threads
     std::atomic<uint64_t> prompt_passes_{0};                                     // Stats::prompt_passes
-    uint64_t admissions_ = 0;   // the scheduler thread's
     uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock
     // What a change of turn at the pool's edge takes (Growth::change over the last two timed, changed_ms_ the last), each from the yield (turned_) to the first pass retired that carries the request the turn went to.
     // That request is held by its first admission's number (turn_to_), given once and to no later request: met, it is set to 0; never met, its client gone before its pass, it is left and overwritten by the next yield.
@@ -2489,13 +2385,7 @@ private:
     size_t stalls_ = 0;         // under the lock
     size_t waits_ = 0;          // under the lock
     size_t recomputed_ = 0;     // under the lock
-    size_t taken_back_ = 0;     // under the lock
-    const std::vector<std::shared_ptr<Request>>* running_ = nullptr;   // the scheduler thread's: run's active requests, whose promises room counts
     bool stopping_ = false;
-    std::optional<std::chrono::steady_clock::time_point> idle_at_;   // when a server with nothing to do since may write ahead under keep (run), under m_
-    bool idled_ = false;   // a round has run idle since idle_at_ was set, under m_
-    BackgroundGrant::Demand demand_ = BackgroundGrant::Demand::none;   // under the lock, the foreground work the round found waiting, which a write's pieces give way to
-    double write_left_ = 0;            // under the lock, the background time the round left a write's pieces (BackgroundGrant::left_ms), less what they took since
     size_t job_rows_ = 0;              // the scheduler thread's: the job rows of the last pass that carried any, their part of its time, and the deepest history they reached (job_rows_at)
     double job_ms_ = 0;
     size_t job_end_ = 0;
@@ -2504,7 +2394,9 @@ private:
     double prompt_ms_row_ = 0;         // the scheduler thread's, a pass's milliseconds a prompt row, measured; 0 until a pass has
     double prompt_pass_ms_ = 0;        // the scheduler thread's, the last pass with prompt rows that was fed whole, its milliseconds whatever its size
     static constexpr size_t kMeasuredRows = 64;   // the prompt rows a pass needs for its time to give a row's
-    Cache cache_{model_, m_, pools_, max_seqs_, host_cap_, running_, write_left_, demand_, queue_, paused_, prompt_ms_row_, wait_bound_, recompute_row_ms_, limit_, taken_back_, admissions_, active_count_, stopping_, idle_at_, idled_, read_wait_, epoch_, cv_};
+    Cache cache_{model_, m_, pools_, max_seqs_, host_cap_, limit_, wait_bound_, read_wait_, recompute_row_ms_, epoch_, [this](bool generated) { hold(generated); }, [this] { release(); }};
+    // The waiting lines, as the cache's calls that search them take them.
+    Cache::Lines lines() { return {queue_, paused_}; }
 public:
     // The cache's handler of each loss (Cache::on_move), which tests set before run.
     std::function<void(const Moved&)>& on_move = cache_.on_move;

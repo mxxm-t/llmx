@@ -243,6 +243,7 @@ private:
     uint64_t disk_wait_ = 0;
     std::chrono::steady_clock::time_point disk_since_, disk_until_;
     bool disk_checked_ = false;
+    bool looked_ = false;   // a job prefetch has looked at since it joined the line, which reading waits for
     // The proof of another build's files on its history's path (Scheduler::prove): its id, where the slice that reaches it ends for the next comparison and whether that one takes the state there.
     // `unproved_` says its cache holds rows restored from those files, which leave with a proof that does not end equal.
     uint64_t proof_ = 0;
@@ -2164,83 +2165,83 @@ private:
         memory_run_ = 0;
     }
 
-    // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back whole, a fork of the donor best_donor found, or a fresh sequence.
+    // Admits a queued or paused request if make_room finds room without pausing anyone, reserving its history and max_tokens, or uncapped a growth step: its own donor taken back, a fork of what `served` found, or a fresh sequence.
     // A donor it takes back or shares every full block of goes first, one it forks otherwise last, and a forked donor make_room takes is consumed, the shared blocks counted once; under the lock.
     bool enter(const std::shared_ptr<Request>& r, std::vector<std::shared_ptr<Request>>& active) {
         std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(*r), r->params_.until_limit, (size_t)r->params_.max_tokens, r->gen_.size()));
         size_t shared = 0;
         size_t d = own_donor(*r);
         const bool take = d < donors_.size();
-        if (!take) d = best_donor(*r, shared);
-        // A job whose best source is in a pass waits for the round that pass has retired in: admitted now it would read what it could have forked, the whole prompt of the request it follows.
-        for (const auto& a : active) {
-            const bool source = a->job_ ? a != r : a == r->of_;
-            if (r->job_ && source && a->seq_.in_flight() && !a->classes_.empty() && shareable(*r, a->job_ ? a->prompt_ : history(*a), a->classes_, a->seq_) > shared) return false;
-        }
-        // A donor in host memory sharing more goes back to the devices first, as a donor of its own the request then forks; promoting it may evict device donors, so the best is found again whether or not it succeeds.
-        if (!take && !host_.empty()) {
-            size_t more = 0;
-            const size_t h = best_host(*r, more);
-            if (h < host_.size() && more > shared) {
-                // A request whose restore from host memory finds no room for it waits for the room, at most kWaitBound, rather than computing rows a copy holds (promise P2 in docs/CACHE-PLAN.md); a job does not wait.
-                bool room = true;
-                if (!promote(h, r->job_, &room, r) && !room && !r->job_ && waits_for_room(*r, more, "a copy in host memory")) return false;
-                d = best_donor(*r, shared);
-            }
-        }
-        // A message boundary sharing more takes its blocks from a donor holding its rows, a host donor holding them promoted first, and a checkpoint slot of its own (Model::fork with a state).
-        // It is pinned while room is made, so nothing that room drops is the one chosen, and renewed once the request is admitted.
+        const Request* from = nullptr;
+        // A message boundary is pinned while room is made, so nothing that room drops is the one chosen, and renewed once the request is admitted.
         struct Unpin {
             uint64_t& id;
             ~Unpin() { id = 0; }
         } unpin{pinned_bound_};
-        if (!take && !bounds_.empty()) {
-            size_t bp = 0;
-            const size_t b = best_bound(*r, bp);
-            if (b < bounds_.size() && bp > shared) {
-                pinned_bound_ = bounds_[b].id;
-                const auto source = [&]() -> size_t {
-                    const Boundary& bound = *find_bound(pinned_bound_);
-                    for (size_t k = 0; k < donors_.size(); ++k)
-                        if (holds(bound, donors_[k].tokens, donors_[k].classes, donors_[k].seq.length())) return k;
-                    return donors_.size();
-                };
-                size_t k = source();
-                if (k == donors_.size())
-                    for (size_t h = 0; h < host_.size(); ++h)
-                        if (holds(*find_bound(pinned_bound_), host_[h].tokens, host_[h].classes, host_[h].history.length)) {
-                            bool room = true;
-                            if (promote(h, r->job_, &room, r)) k = source();
-                            else if (!room && !r->job_ && waits_for_room(*r, bp, "a copy in host memory under a message boundary")) return false;
-                            break;
-                        }
-                if (k < donors_.size()) {
-                    const uint64_t id = donors_[k].id;
-                    const bool room = checkpoint_room_held(0, id);
-                    k = donors_.size();
-                    for (size_t i = 0; room && i < donors_.size(); ++i)
-                        if (donors_[i].id == id) k = i;
-                }
-                if (k < donors_.size()) {
-                    d = k;
-                    shared = bp;
-                } else {
-                    pinned_bound_ = 0;
-                    d = best_donor(*r, shared);
-                }
+        if (!take) {
+            const auto ask = asked(*r);
+            const std::vector<uint32_t>& mine = ask.first;
+            const std::vector<RowClass>& own = ask.second;
+            // A job whose best source is in a pass waits for the round that pass has retired in: admitted now it would read what it could have forked, the whole prompt of the request it follows.
+            const size_t held = served(mine, own, r.get(), true).tokens;
+            for (const auto& a : active) {
+                const bool source = a->job_ ? a != r : a == r->of_;
+                if (r->job_ && source && a->seq_.in_flight() && !a->classes_.empty() && shareable(*r, a->job_ ? a->prompt_ : history(*a), a->classes_, a->seq_) > held) return false;
             }
-        }
-        // A running job, as far as it has read, is a source too, and a job's own request while it runs, where no pass holds them.
-        const Request* from = nullptr;
-        for (const auto& a : active) {
-            const bool source = a->job_ ? a != r : r->job_ && a == r->of_;
-            if (take || !source || a->seq_.in_flight() || a->classes_.empty()) continue;
-            const size_t n = shareable(*r, a->job_ ? a->prompt_ : history(*a), a->classes_, a->seq_);
-            if (n > shared) {
-                shared = n;
-                d = donors_.size();
-                from = a.get();
+            // The holder serving most is used, and one that fails is passed over and the question asked again, once a holder (docs/CACHE-PLAN.md, section 4).
+            std::vector<uint64_t> skip;
+            for (;;) {
+                const Served s = served(mine, own, r.get(), true, skip);
+                // A host copy goes back to the devices as a donor of its own and the question is asked again; a request finding no room waits, at most kWaitBound, rather than computing rows a copy holds (P2), a job never.
+                const auto promoted = [&](size_t h, size_t tokens, const char* what) -> std::optional<bool> {
+                    bool room = true;
+                    const uint64_t id = host_[h].id;
+                    if (promote(h, r->job_, &room, r)) return true;
+                    if (!room && !r->job_ && waits_for_room(*r, tokens, what)) return std::nullopt;
+                    skip.push_back(id);
+                    return false;
+                };
+                if (s.kind == Served::Kind::host) {
+                    if (!promoted(s.index, s.tokens, "a copy in host memory")) return false;
+                    continue;
+                }
+                if (s.kind == Served::Kind::bound) {
+                    // A boundary takes its blocks from a donor holding its rows, a host copy holding them promoted first, and a checkpoint slot of its own (Model::fork with a state).
+                    const uint64_t b = bounds_[s.index].id;
+                    pinned_bound_ = b;
+                    const Boundary& bound = bounds_[s.index];
+                    size_t k = donors_.size();
+                    for (size_t i = 0; i < donors_.size() && k == donors_.size(); ++i)
+                        if (std::find(skip.begin(), skip.end(), donors_[i].id) == skip.end() && holds(bound, donors_[i].tokens, donors_[i].classes, donors_[i].seq.length())) k = i;
+                    if (k == donors_.size()) {
+                        for (size_t h = 0; h < host_.size(); ++h)
+                            if (std::find(skip.begin(), skip.end(), host_[h].id) == skip.end() && holds(bound, host_[h].tokens, host_[h].classes, host_[h].history.length)) {
+                                if (!promoted(h, s.tokens, "a copy in host memory under a message boundary")) return false;
+                                break;
+                            }
+                        continue;
+                    }
+                    const uint64_t id = donors_[k].id;
+                    k = donors_.size();
+                    if (checkpoint_room_held(0, id))
+                        for (size_t i = 0; i < donors_.size(); ++i)
+                            if (donors_[i].id == id) k = i;
+                    if (k == donors_.size()) {
+                        std::fprintf(stderr, "server: cache: a boundary of %zu tokens found no checkpoint slot; the next restore point is asked\n", s.tokens);
+                        pinned_bound_ = 0;
+                        skip.push_back(b);
+                        continue;
+                    }
+                    d = k;
+                    shared = s.tokens;
+                    break;
+                }
                 pinned_bound_ = 0;
+                // A running job, as far as it has read, is a source too, and a job's own request while it runs, where no pass holds them.
+                d = s.kind == Served::Kind::donor ? s.index : donors_.size();
+                if (s.kind == Served::Kind::running) from = (*running_)[s.index].get();
+                shared = s.tokens;
+                break;
             }
         }
         const bool keep = !from && (take || shared);
@@ -2408,7 +2409,14 @@ private:
     // Defined in server/reuse.hpp, the owner of the cache's moves between its places (docs/CACHE-PLAN.md, section 2).
     bool checkpoint_room(size_t keeps, uint64_t spare = 0);
     bool checkpoint_room_held(size_t keeps, uint64_t spare = 0);
-    size_t best_donor(const Request& r, size_t& tokens) const;
+    // What memory serves a history (served): the longest restore point a holder gives, the holder's kind and its index in donors_, host_, bounds_ or the running requests.
+    struct Served {
+        enum class Kind { none, donor, host, bound, running };
+        Kind kind = Kind::none;
+        size_t index = 0, tokens = 0;
+    };
+    Served served(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request* self, bool running, const std::vector<uint64_t>& skip = {}) const;
+    std::pair<std::vector<uint32_t>, std::vector<RowClass>> asked(const Request& r) const;
     size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, const infer::Sequence& seq) const;
     size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held, std::optional<size_t> kept) const;
 
@@ -2447,11 +2455,9 @@ private:
     Boundary* find_bound(uint64_t id);
     bool drop_oldest_bound();
     void drop_bound(size_t i);
-    size_t best_bound(const Request& r, size_t& tokens) const;
     bool holds(const Boundary& b, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held) const;
     bool holds(const std::vector<uint32_t>& bt, const std::vector<RowClass>& bc, size_t n, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes,
                size_t held) const;
-    size_t best_host(const Request& r, size_t& tokens) const;
     size_t copy_length(const Donor& d) const;
     // What write_back would do with a copy of `n` tokens of a donor that came back (`back`) or not: keep it after releasing `drops` ((a boundary, id), in order), or why not.
     struct HostRoom {
@@ -2555,7 +2561,6 @@ private:
     void stream_round();
     bool stream_room(size_t length, bool spare) const;
     Clock::time_point read_until(size_t rows, Clock::time_point now) const;
-    bool rows_held(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t* source = nullptr);
     uint64_t start_read(const DiskIndex::Path& path, bool state_only, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request& r, uint64_t source = 0, const DiskIndex::Path* whole = nullptr);
 
     // A pass of prompt rows measures the prompt rate a read's bound takes, a moving mean over passes of 64 rows or more.
@@ -2893,10 +2898,10 @@ private:
                 // Queued requests alone: a paused one has its own history and takes its own donor back.
                 for (const auto& r : queue_) {
                     if (wanted || r->cancel_.load() || !r->classes_.empty()) continue;
-                    size_t kept = 0, more = 0;
-                    best_donor(*r, kept);
-                    best_host(*r, more);
-                    if (shareable(*r, j->prompt_, j->classes_, j->seq_) <= std::max(kept, more)) continue;
+                    const auto ask = asked(*r);
+                    const std::vector<uint32_t>& mine = ask.first;
+                    const std::vector<RowClass>& own = ask.second;
+                    if (shareable(*r, j->prompt_, j->classes_, j->seq_) <= served(mine, own, r.get(), false).tokens) continue;
                     wanted = true;
                     covered = r->prompt_.size() >= j->prompt_.size() && std::equal(j->prompt_.begin(), j->prompt_.end(), r->prompt_.begin());
                 }
@@ -2910,7 +2915,11 @@ private:
             ++reprefill_handed_;
             moved(Move::job_handed);
             if (covered) j->finished_ = true;
-            else jobs_.push_front(j);
+            else {
+                // Back in the line, it is looked at again (prefetch), its history having moved.
+                j->disk_checked_ = j->looked_ = false;
+                jobs_.push_front(j);
+            }
         }
     }
 
@@ -2934,6 +2943,7 @@ private:
             any = true;
             std::lock_guard<std::mutex> lk(m_);
             moved(Move::job_gave_way);
+            j->disk_checked_ = j->looked_ = false;
             jobs_.push_front(j);
             ++reprefill_cancels_;
         }
@@ -2997,6 +3007,7 @@ private:
                 add(j->need_, more);
                 j->prompt_ = std::move(f.ids);
                 j->whole_ = f.whole;
+                j->disk_checked_ = j->looked_ = false;
                 continue;
             }
             server::SampleParams params;

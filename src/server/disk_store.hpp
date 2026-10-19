@@ -53,7 +53,7 @@ public:
         bool proved = false;         // adopt, unproved, the entries of a build other than this one whose model, layout and entry version are this store's (--disk-cache-adopt proved)
         uint64_t max_age = 0;        // seconds after an entry's last use when sweeps and adoption delete it, 0 for never (--disk-cache-max-age)
         std::chrono::milliseconds pace{0};   // a pause after each chunk written or read, a write's cut short by a cancel, which tests hold a call in flight with
-        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), the start's probe (probe) or a write's chunk (write), for tests
+        std::function<bool(const char* step)> fault;   // a step of a claim or an adoption fails where this says so (claim-sync, provenance, repair), the start's probe (probe) or a chunk of a write (write) or a read (read), for tests
     };
     // What a finished call reports: whether it succeeded, and if not, why.
     using Done = std::function<void(bool ok, const std::string& error)>;
@@ -814,6 +814,7 @@ private:
                 if (h->run_bytes != j.layout) return "an entry of another layout";
                 for (size_t b : h->run_bytes) payload += b;
                 for (uint64_t c = 0; c < h->crcs.size(); ++c) {
+                    if (options_.fault && options_.fault("read")) return "an injected read failure";
                     const size_t n = (size_t)std::min<uint64_t>(kChunk, payload - c * kChunk), padded = (size_t)round_up(n, kAlign);
                     if (r->read(h->size + c * kChunk, staging_.data(), padded) < n) return "an entry shorter than its header says";
                     if (core::crc32c(0, staging_.data(), n) != h->crcs[c]) return "an entry that fails its checksum";

@@ -624,14 +624,19 @@ p {
 .acceptance-number {
   font-size: 35px;
   font-weight: 600;
-  letter-spacing: -1px
+  letter-spacing: -1px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums
 }
+.acceptance > div { min-width: 0; flex: 1 }
+.acceptance p { min-height: 36px; margin-bottom: 0 }
 .acceptance-number small {
   font-size: 15px;
   color: var(--muted);
   margin-left: 3px
 }
 .ring {
+  flex-shrink: 0;
   height: 66px;
   width: 66px;
   transform: rotate(-90deg)
@@ -2385,12 +2390,12 @@ button[hidden] {
          <span id="acceptance">
           --
          </span>
-         <small>
+         <small id="acceptance-unit" hidden>
           %
          </small>
         </div>
-        <p>
-         Kept / drafted, since start
+        <p id="acceptance-basis">
+         Lifetime acceptance since start
         </p>
        </div>
        <svg aria-hidden="true" class="ring" viewbox="0 0 66 66">
@@ -3272,7 +3277,7 @@ function drawPositions(raw) {
   const target = $('positions');
   target.replaceChildren();
   const positions = get(raw, 'drafting.since_start.by_position');
-  if (!Array.isArray(positions) || !positions.length) {
+  if (!Array.isArray(positions) || !positions.some(p => ratio(p.kept, p.drafted) !== null)) {
     target.append(element('p', 'no-data', 'No position data available'));
     return
   }
@@ -3280,7 +3285,7 @@ function drawPositions(raw) {
     const item = element('div', 'position');
     const r = ratio(p.kept, p.drafted);
     item.title = 'Position ' + fmt(p.position) + ': ' + fmt(p.kept) + ' / ' + fmt(p.drafted) + ' kept';
-    item.append(element('strong', '', percentage(p.kept, p.drafted)));
+    item.append(element('strong', '', r === null ? 'No data': percentage(p.kept, p.drafted)));
     const track = element('div', 'position-track');
     const bar = element('i');
     bar.style.height = (r === null ? 0: Math.max(0, Math.min(100, r * 100))) + '%';
@@ -3850,7 +3855,10 @@ function render() {
   const draft = m('drafting.since_start.drafted'),
   kept = m('drafting.since_start.kept'),
   r = ratio(kept, draft);
-  txt('acceptance', r === null ? '--': fmt(r * 100));
+  txt('acceptance', r === null ? draft === 0 && kept === 0 ? 'No data': 'Unavailable': fmt(r * 100));
+  $('acceptance-unit').hidden = r === null;
+  txt('acceptance-basis', r === null ? 'Lifetime acceptance since start':
+    fmt(kept) + ' kept / ' + fmt(draft) + ' drafted since start');
   $('accept-ring').style.strokeDasharray = (r === null ? 0: Math.max(0, Math.min(1, r)) * 176) + ' 176';
   const sources = m('drafting.sources');
   txt('draft-sources', Array.isArray(sources) ? sources.join(' + '): 'Unavailable');

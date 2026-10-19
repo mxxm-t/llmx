@@ -37,15 +37,15 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
   that panel's counter; the selected-window summary continues to label
   completed-request counters separately.
 - Both rate panels have independent scales. With `requests.live.work`, aggregate
-  PP/TG and per-request PP/TG use cumulative counters from the same runtime
-  snapshots over a 10-second rolling window; the actual denominator follows the
-  selected snapshot timestamps. Per-request rates require the same exact start
-  and end samples as the aggregate window and remain unavailable if either is
-  missing or the request is absent between observed samples. The dashboard
-  does not interpolate or poll more often. Repeated snapshots retain the last
-  measured rate as stale briefly, then become unavailable; counter resets and
-  collector gaps are unavailable rather than zero. A new per-request rate warms
-  until it has a full ~10-second runtime window. Old APIs retain the
+  PP/TG and per-request PP/TG use cumulative counters from the same consecutive
+  distinct runtime snapshots. Each rate is the counter change divided by the
+  snapshots' actual elapsed time; per-request rates use those exact same
+  endpoints and remain unavailable if either is missing or the request is
+  absent in either endpoint. The dashboard does not interpolate or poll more
+  often. Repeated snapshots retain the last measured interval as stale briefly
+  in the headline and request cards, then become unavailable. Counter resets
+  and collector gaps are unavailable rather than zero. A new per-request rate
+  becomes available after two distinct snapshots. Old APIs retain the
   collector-time aggregate fallback, which can differ from per-request runtime
   rates. Long passes reveal prompt work only at retirement; zero does not
   establish that the engine was idle. Collection remains shared, every two
@@ -53,10 +53,10 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
 - When `requests.live` is present, the live-request cards show the capped
   request IDs, phase, elapsed time and prominent PP/TG rates. Expand a card's
   token-counter details for prompt/reused/prefilled/published counts.
-  Rates use counter changes across distinct runtime samples and their
-  `sample_elapsed_ms` timestamps, not browser poll timing. A new or reset
-  request has unavailable rates until a full ~10-second window is available;
-  unchanged counters across a fresh window produce a real zero rate. A repeated
+  Rates use counter changes across consecutive distinct runtime samples and
+  their `sample_elapsed_ms` timestamps, not browser poll timing. A new or reset
+  request has unavailable rates until two distinct snapshots are available;
+  unchanged counters across a fresh interval produce a real zero rate. A repeated
   runtime snapshot is shown as stale. The `prefill` phase means no output has
   been generated yet; it does not prove the scheduler is currently executing
   that request. The card list shows how many live requests the API omitted.

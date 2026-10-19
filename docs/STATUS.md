@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Dashboard throughput per sample interval (2026-10-19, branch feat/dashboard-sample-rates-20261019, UI only)
+
+- **Goal:** show throughput changes at each consecutive sample interval so brief activity is not hidden by a ten-second average.
+- **Done:** aggregate PP/TG and per-request rates now divide counter changes between the same adjacent distinct runtime snapshots by their actual elapsed time; legacy aggregate rates use adjacent collector samples. Real zeros, stale repeated snapshots and unavailable gaps remain distinct. Dashboard copy and the focused rate tests describe the interval semantics.
+- **Checks:** `python -m unittest tools.health_dashboard.test_ui_rates` passes 3 tests, including 34 shared aggregate/request-rate assertions and headless Chrome checks at 1440px and 390px. `docs` passes with 0 findings and 21 planted faults; `dead-code` passes with 5 known findings and 18 planted faults. Both use CLI `0.1.0+g112161de0f56`, SHA-256 `bab02f906829234a838cf8d9109cdae2e6f7118d77836111c870128557899c4f`; `src/cli`, `src/cli.hpp` and `src/main.cpp` are unchanged between that build and this tree. `git diff --check` passes.
+- **Left:** none for this UI change; reviewed and landed by fast-forward after the scoped checks above.
+- **Gotchas:** prompt work is exposed when a pass retires, so sample intervals cannot show progress inside a long pass. No collector, health API or runtime behavior changes.
+
 ## A restore from disk streamed to the devices (2026-10-18, branch fix/streamed-restore, A20, in progress)
 
 - **Goal:** a history larger than the host tier read from disk straight into its device storage through the read ring, with no whole host copy (the DESIGN of 2026-10-17 06:06 with XDEV's three points of 10:13, and the UPDATE of 2026-10-18 15:06), so a restart whose host memory holds no whole copy still reuses its kept history.

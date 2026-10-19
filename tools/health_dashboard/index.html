@@ -2923,7 +2923,7 @@ function drawLiveRequests(view) {
   }
   summary.className = 'live-request-summary';
   const ageText = number(live.sampleAgeMs) ? 'Runtime snapshot unchanged for ' + fmt(live.sampleAgeMs / 1000) + ' s.' : '';
-  summary.textContent = 'Showing ' + fmt(live.items.length) + (number(live.total) ? ' of ' + fmt(live.total) : '') + ' live requests' + (omitted > 0 ? '; ' + fmt(omitted) + ' omitted by the API limit.' : '.') + ' Rates use a 10 s rolling window.';
+  summary.textContent = 'Showing ' + fmt(live.items.length) + (number(live.total) ? ' of ' + fmt(live.total) : '') + ' live requests' + (omitted > 0 ? '; ' + fmt(omitted) + ' omitted by the API limit.' : '.') + ' Rates use consecutive runtime samples.';
   const fragment = document.createDocumentFragment();
   const valueText = value => number(value) ? fmt(value) : value === undefined || value === null ? '--' : String(value);
   const counter = (label, value) => {
@@ -2946,8 +2946,8 @@ function drawLiveRequests(view) {
       const metric = element('div', 'live-request-rate');
       metric.append(element('span', '', label));
       metric.append(element('strong', number(value) ? '' : 'live-rate-unavailable', formatRate(value)));
-      const status = element('span', 'live-rate-status' + (live.stale ? ' stale' : ''), live.stale && number(value) ? 'Stale / last measured' : number(value) ? '10 s average' : 'Rate unavailable');
-      status.title = live.stale ? ageText : 'A rate needs a continuous window with valid counters and matching aggregate endpoints.';
+      const status = element('span', 'live-rate-status' + (live.stale ? ' stale' : ''), live.stale && number(value) ? 'Stale / last measured' : number(value) ? 'Sample interval' : 'Rate unavailable');
+      status.title = live.stale ? ageText : 'Rate uses the counter change between consecutive distinct runtime snapshots and their elapsed time.';
       metric.append(status);
       rates.append(metric)
     }
@@ -2977,16 +2977,14 @@ function fill(id, a, b) {
   $(id).style.width = v === null ? '0%': Math.min(100, Math.max(0, v * 100)) + '%';
   $(id).parentElement.setAttribute('aria-label', v === null ? 'Occupancy unavailable': fmt(a) + ' of ' + fmt(b));
 }
-function rollingCounterRate(samples, endIndex, options) {
+function consecutiveCounterRate(samples, endIndex, options) {
   const clockAt = options.clock;
   const wallAt = options.wall;
   const valueAt = options.value;
   const resetAt = options.reset || (sample => sample.reset === true);
   const scale = options.scale || 1;
-  const windowMs = options.windowMs || 10000;
   const maxGap = options.maxGap;
   const staleAfter = options.staleAfter;
-  const requireFullWindow = options.requireFullWindow === true;
   if (endIndex < 1) return null;
   const observedClock = clockAt(samples[endIndex]);
   if (!number(observedClock) || resetAt(samples[endIndex])) return null;
@@ -2996,102 +2994,75 @@ function rollingCounterRate(samples, endIndex, options) {
   const endSample = samples[end];
   const endClock = clockAt(endSample);
   if (!number(endClock)) return null;
-  if (wallAt(samples[endIndex]) - wallAt(endSample) > staleAfter) return null;
-  const targetClock = endClock - windowMs;
   let base = end - 1;
-  for (let i = end - 1; i >= 0; i--) {
-    const sample = samples[i];
-    const clock = clockAt(sample);
-    const gap = wallAt(samples[i + 1]) - wallAt(sample);
-    if (resetAt(sample) || !number(clock) || gap < 0 || gap > maxGap || clock > endClock) return null;
-    if (clock === endClock) continue;
-    base = i;
-    if (clock <= targetClock) break
-  }
+  const previousClock = clockAt(samples[base]);
+  while (base > 0 && clockAt(samples[base - 1]) === previousClock) base--;
   const startClock = clockAt(samples[base]);
-  if (!number(startClock) || (requireFullWindow && startClock > targetClock)) return null;
+  const age = wallAt(samples[endIndex]) - wallAt(endSample);
+  if (age < 0 || age > staleAfter || resetAt(samples[base]) || !number(startClock) || endClock <= startClock) return null;
   const elapsed = (endClock - startClock) * scale;
   const firstValue = valueAt(samples[base]);
   const lastValue = valueAt(endSample);
   if (elapsed <= 0 || !number(firstValue) || !number(lastValue) || lastValue < firstValue) return null;
-  let previousClock = startClock;
+  let checkedClock = startClock;
   let previousValue = firstValue;
-  for (let i = base + 1; i <= end; i++) {
-    const sample = samples[i];
-    const clock = clockAt(sample);
-    const value = valueAt(sample);
-    const gap = wallAt(sample) - wallAt(samples[i - 1]);
-    if (resetAt(sample) || !number(clock) || gap < 0 || gap > maxGap || clock < previousClock) return null;
-    if (clock === previousClock) continue;
-    if (!number(value) || value < previousValue) return null;
-    previousClock = clock;
-    previousValue = value
+  for (let i = base + 1; i <= endIndex; i++) {
+    const clock = clockAt(samples[i]);
+    const value = valueAt(samples[i]);
+    const wallGap = wallAt(samples[i]) - wallAt(samples[i - 1]);
+    if (resetAt(samples[i]) || !number(clock) || clock < checkedClock || wallGap < 0 || wallGap > maxGap ||
+        !number(value) || value < previousValue || (clock === previousClock && value !== previousValue)) return null;
+    checkedClock = clock;
+    previousValue = value;
   }
-  return {rate: (lastValue - firstValue) / elapsed, elapsed, age: wallAt(samples[endIndex]) - wallAt(endSample),
+  return {rate: (lastValue - firstValue) / elapsed, elapsed, age,
     startClock, endClock}
 }
-function rollingRate(samples, i, path, clockField, requireFullWindow = false) {
-  const result = rollingRateMeasurement(samples, i, path, clockField, requireFullWindow);
+function sampleIntervalRate(samples, i, path, clockField) {
+  const result = sampleIntervalMeasurement(samples, i, path, clockField);
   return result ? result.rate : null
 }
-function rollingRateMeasurement(samples, i, path, clockField, requireFullWindow = false) {
+function sampleIntervalMeasurement(samples, i, path, clockField) {
   const gapLimit = Math.max(15, state.interval * 3);
   const metric = sample => sample.metrics[path];
-  return rollingCounterRate(samples, i, {
+  return consecutiveCounterRate(samples, i, {
     clock: sample => clockField ? sample.metrics[clockField] : sample.t,
     wall: sample => sample.t,
     value: metric,
     scale: clockField ? 0.001 : 1,
-    windowMs: clockField ? 10000 : 10,
     maxGap: gapLimit,
-    staleAfter: gapLimit,
-    requireFullWindow
+    staleAfter: gapLimit
   })
 }
 function rateUnavailableReason(samples, i, path, clockField) {
   if (i < 0) return 'Waiting for health samples';
   const current = samples[i];
-  if (current.reset) return 'Server reset / waiting for a new rate window';
+  if (current.reset) return 'Server reset / waiting for a new sample';
   if (!number(current.metrics[path]) || (clockField && !number(current.metrics[clockField]))) return 'Counter or runtime timestamp missing';
   if (i < 1) return 'Waiting for a second distinct sample';
-  const clock = sample => clockField ? sample.metrics[clockField] : sample.t;
-  const target = clock(current) - (clockField ? 10000 : 10);
   const gapLimit = Math.max(15, state.interval * 3);
+  const a = samples[i - 1], b = current;
+  const clock = sample => clockField ? sample.metrics[clockField] : sample.t;
+  if (b.reset || a.reset || clock(b) < clock(a) || (number(a.metrics[path]) && b.metrics[path] < a.metrics[path])) return 'Counter reset / waiting for a new sample';
   if (clockField && runtimeSampleAge(samples.slice(0, i + 1), clockField) > gapLimit) return current.metrics['requests.now.active'] === 0 ? 'No active requests / no new runtime snapshot' : 'Runtime snapshot unchanged / rate expired';
-  for (let j = i; j > 0; j--) {
-    const a = samples[j - 1], b = samples[j];
-    if (b.reset || a.reset || clock(b) < clock(a) || b.metrics[path] < a.metrics[path]) return 'Counter reset / waiting for a new rate window';
-    if (b.t - a.t > gapLimit || b.t <= a.t) return 'Collection gap / waiting for a continuous rate window';
-    if (!number(a.metrics[path]) || !number(clock(a))) return 'Missing counter in rate window';
-    if (clock(a) <= target) break
-  }
-  return 'Waiting for distinct runtime samples';
+  if (clockField && clock(a) === clock(b)) return 'Runtime snapshot unchanged / waiting for a distinct sample';
+  if (b.t - a.t > gapLimit || b.t <= a.t) return 'Collection gap / waiting for a continuous sample interval';
+  if (!number(a.metrics[path]) || !number(clock(a))) return 'Missing counter in sample interval';
+  return 'Waiting for a distinct sample';
 }
 function requestWindowRate(history, id, key, interval, alignedWindow = null) {
   let startIndex = history.length - 1;
   while (startIndex > 0 && history[startIndex - 1].items.has(id)) startIndex--;
   if (startIndex === history.length - 1 || !history[startIndex].items.has(id)) return null;
-  let requestHistory = history.slice(startIndex);
-  let windowMs = 10000;
-  if (alignedWindow) {
-    if (!number(alignedWindow.startClock) || !number(alignedWindow.endClock) || alignedWindow.endClock <= alignedWindow.startClock) return null;
-    if (alignedWindow.endClock - alignedWindow.startClock < 10000) return null;
-    const exactStart = requestHistory.findIndex(sample => sample.timestamp === alignedWindow.startClock);
-    const exactEnd = requestHistory.findIndex(sample => sample.timestamp === alignedWindow.endClock);
-    if (exactStart < 0 || exactEnd <= exactStart) return null;
-    requestHistory = requestHistory.slice(exactStart, exactEnd + 1);
-    windowMs = alignedWindow.endClock - alignedWindow.startClock
-  }
+  const requestHistory = history.slice(startIndex);
   const gapLimit = Math.max(15, interval * 3);
-  const measured = rollingCounterRate(requestHistory, requestHistory.length - 1, {
+  const measured = consecutiveCounterRate(requestHistory, requestHistory.length - 1, {
     clock: sample => sample.timestamp,
     wall: sample => sample.observedAt,
     value: sample => sample.items.get(id)?.[key],
     scale: 0.001,
-    windowMs,
     maxGap: gapLimit,
     staleAfter: gapLimit,
-    requireFullWindow: true,
     reset: () => false
   });
   if (!measured) return null;
@@ -3514,7 +3485,7 @@ const chartConfigurations = [{
   fields: ['requests.since_start.prompt_tokens'],
   labels: ['Completed prompt tok/s'],
   colors: ['#7aa9ff'],
-  values: (samples, i, config) => config.fields.map(path => rollingRate(samples, i, path, config.clockField)),
+  values: (samples, i, config) => config.fields.map(path => sampleIntervalRate(samples, i, path, config.clockField)),
   note: 'Includes cached prompt tokens; counted at request completion. Gaps indicate unavailable rates.'
 },
 {
@@ -3525,7 +3496,7 @@ const chartConfigurations = [{
   fields: ['requests.since_start.generated_tokens'],
   labels: ['Completed generated tok/s'],
   colors: ['#66dfd1'],
-  values: (samples, i, config) => config.fields.map(path => rollingRate(samples, i, path, config.clockField)),
+  values: (samples, i, config) => config.fields.map(path => sampleIntervalRate(samples, i, path, config.clockField)),
   note: 'Completed-request counter deltas; gaps mark missing samples or counter resets.'
 },
 {
@@ -3573,13 +3544,13 @@ function configureWorkRates(raw) {
     config.labels = [mode === 'completed' ? 'Completed ' + name.toLowerCase() + ' tok/s' : name + ' throughput tok/s'];
     config.note = mode === 'completed' ? 'Old API fallback: counters advance at request completion, not during ongoing work.' :
       mode === 'unavailable' ? 'Compatible live work counters are unavailable.' :
-      mode === 'runtime' ? '10 s rolling window from runtime snapshots; actual duration follows sample times. Prompt work appears at pass retirement, output at publication.' :
-      '10 s rolling window from collector samples; actual duration follows sample times. This legacy aggregate window differs from per-request runtime rates.';
+      mode === 'runtime' ? 'Consecutive distinct runtime snapshots; rate uses their actual elapsed time. Prompt work appears at pass retirement, output at publication.' :
+      'Consecutive collector samples; rate uses their actual elapsed time. This legacy aggregate rate differs from per-request runtime rates.';
     config.zeroHint = mode === 'completed' ? 'No completed tokens counted in the latest interval' :
       id === 'prompt' ? 'No client prompt rows retired in the latest interval' : 'No output tokens published in the latest interval';
     txt(id + '-mode', mode === 'runtime' || mode === 'live' && !missing ? 'LIVE THROUGHPUT' : mode === 'completed' ? 'COMPLETED REQUESTS / FALLBACK' : 'LIVE COUNTERS UNAVAILABLE');
     txt(id + '-title', id === 'prompt' ? 'Prompt processing (PP)' : 'Generation (TG)');
-    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'runtime' ? '10 s average' : mode === 'live' ? '10 s average / legacy API' : mode === 'completed' ? 'Completed-work fallback' :
+    txt(id + '-description', missing ? 'Live counter unavailable' : mode === 'runtime' ? 'Per-sample interval rate' : mode === 'live' ? 'Per-sample interval / legacy API' : mode === 'completed' ? 'Completed-work fallback' :
       'Waiting for compatible health data');
     $(id + '-total').dataset.m = config.fields[0];
     txt(id + '-total-label', mode === 'completed' ? 'Completed ' + (id === 'prompt' ? 'prompt' : 'generated') + ' tokens / lifetime' :
@@ -3587,14 +3558,14 @@ function configureWorkRates(raw) {
   }
   txt('token-rate-label', mode === 'completed' ? 'Completed token rate' : 'Live output throughput');
   txt('token-rate-note', mode === 'completed' ? 'Old API / completed requests only' : mode === 'runtime' ?
-    '10 s average' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
-    'Collector samples / 10 s rolling; legacy window' : 'Live counters unavailable');
+    'Per-sample interval' : mode === 'live' && number(get(raw, 'work.since_start.generated_tokens')) ?
+    'Collector sample interval / legacy API' : 'Live counters unavailable');
   txt('rate-explainer', mode === 'completed' ?
-    'Live PP/TG throughput is unavailable from this API. These fallback charts use completed-request counters over a 10 s collector-time window; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
+    'Live PP/TG throughput is unavailable from this API. These fallback charts show completed-request counter changes per collector sample interval; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
     mode === 'unavailable' ? 'Live throughput unavailable until compatible health counters arrive.' :
-    mode === 'runtime' ? 'PP/TG and per-request rates use the same cumulative runtime counters over a 10 s rolling window; actual duration follows snapshot times. Per-request rates require exact aggregate window endpoints; otherwise they remain unavailable. Gaps are unavailable. Repeated snapshots show the last measured rate as stale, then become unavailable after the freshness window. Prompt work appears at pass retirement, and zero does not establish idle hardware.' :
-    'Legacy live PP/TG uses collector-time samples over a 10 s rolling window; actual duration follows sample times. Per-request rates use runtime snapshots and can differ. Gaps are unavailable. Repeated snapshots show the last measured rate as stale, then become unavailable after the freshness window.');
-  txt('rate-footer', mode === 'completed' ? 'Old API: completed-work fallback, not live throughput.' : mode === 'runtime' ? 'Shared runtime window: 10 s rolling; actual duration follows snapshots.' :
+    mode === 'runtime' ? 'PP/TG and per-request rates use counter changes between the same consecutive distinct runtime snapshots, divided by their elapsed time. Gaps and missing counters are unavailable. Repeated snapshots show the last measured rate as stale in the headline, then unavailable after the freshness interval. Prompt work appears at pass retirement, and zero does not establish idle hardware.' :
+    'Legacy live PP/TG uses consecutive collector samples; per-request rates use runtime snapshots and can differ. Gaps are unavailable. Repeated snapshots show the last measured rate as stale, then become unavailable after the freshness interval.');
+  txt('rate-footer', mode === 'completed' ? 'Old API: completed-work fallback, not live throughput.' : mode === 'runtime' ? 'Shared consecutive runtime sample interval; duration follows snapshot timestamps.' :
     mode === 'unavailable' ? 'Live throughput unavailable / waiting for health counters.' : 'Legacy aggregate uses collector time; per-request rates use runtime time.');
   return mode;
 }
@@ -3854,11 +3825,12 @@ function render() {
   txt('capacity-status', !view.latest ? 'WAITING': number(paused) && paused > 0 ? 'PAUSED WORK': number(queued) && queued > 0 ? 'QUEUED WORK': 'CURRENT STATE');
   const outputField = chartConfigurations.find(config => config.id === 'throughput').fields[0];
   const throughputConfig = chartConfigurations.find(config => config.id === 'throughput');
-  txt('token-rate', workMode === 'unavailable' ? '--' : formatRate(rollingRate(view.samples, view.samples.length - 1, outputField, throughputConfig.clockField)));
+  const latestMeasured = sampleIntervalMeasurement(view.samples, view.samples.length - 1, outputField, throughputConfig.clockField);
+  txt('token-rate', workMode === 'unavailable' ? '--' : formatRate(latestMeasured?.rate ?? null));
   const sampleAge = runtimeSampleAge(view.samples, throughputConfig.clockField);
   if (workMode === 'runtime' && number(sampleAge) && sampleAge > 0) {
     const stale = sampleAge > Math.max(15, state.interval * 3);
-    const status = stale ? 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; rate unavailable.' : 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; showing last measured rate as stale.';
+    const status = stale ? 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; rate unavailable.' : 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; showing last measured sample interval as stale.';
     txt('token-rate-note', status);
     txt('rate-explainer', $('rate-explainer').textContent + ' ' + status)
   }
@@ -3955,9 +3927,9 @@ async function poll() {
     if (newest) state.samples = state.samples.filter(s => s.t >= newest.t - 3600);
     const workMode = configureWorkRates(state.latest || {});
     const alignedWindows = workMode === 'runtime' && state.samples.length ? {
-      prefilled_tokens: rollingRateMeasurement(state.samples, state.samples.length - 1,
+      prefilled_tokens: sampleIntervalMeasurement(state.samples, state.samples.length - 1,
         'requests.live.work.prefilled_tokens', 'requests.live.sample_elapsed_ms'),
-      generated_tokens: rollingRateMeasurement(state.samples, state.samples.length - 1,
+      generated_tokens: sampleIntervalMeasurement(state.samples, state.samples.length - 1,
         'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')
     } : null;
     updateLiveRequests(state.latest || {}, alignedWindows, workMode === 'runtime');

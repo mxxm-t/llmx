@@ -127,6 +127,18 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
         }
     } else if (type == quant::GGML_TYPE_MXFP4) {
         bytes = testq::mxfp4_matrix(rows * in, seed);
+    } else if (type == quant::GGML_TYPE_Q5_0) {
+        bytes.resize(rows * (in / 32) * 22, 0);
+        for (size_t b = 0; b < rows * (in / 32); ++b) {
+            uint8_t* dst = bytes.data() + b * 22;
+            const uint16_t h = uint16_t(0x2400u | ((b * 73 + seed) & 0x83ffu));
+            dst[0] = uint8_t(h); dst[1] = uint8_t(h >> 8);
+            for (unsigned j = 0; j < 32; ++j) {
+                const unsigned code = unsigned(j * 7 + b + seed) & 31;
+                dst[2 + j / 8] |= uint8_t((code >> 4) << (j % 8));
+                dst[6 + j % 16] |= uint8_t((code & 15) << (4 * (j / 16)));
+            }
+        }
     } else if (type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_1) {
         const size_t ts = type == quant::GGML_TYPE_Q8_0 ? quant::Q8_0_TYPESIZE : type == quant::GGML_TYPE_Q4_0 ? quant::Q4_0_TYPESIZE : type == quant::GGML_TYPE_Q5_1 ? quant::Q5_1_TYPESIZE : quant::Q4_1_TYPESIZE;
         bytes.resize(rows * (in / 32) * ts);
@@ -149,31 +161,48 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
     return bytes;
 }
 
-size_t check_q5_1_embedding(backend::Backend& vk) {
+size_t check_q5_embedding(backend::Backend& vk, uint32_t type) {
+    const bool symmetric = type == quant::GGML_TYPE_Q5_0;
     const uint16_t halves[] = {0, 0x8000, 1, 0x8201, 0x03ff, 0x0400, 0x3c00, 0xbc00, 0x7bff};
     std::vector<uint8_t> weights;
     std::vector<float> expected;
     std::vector<uint32_t> ids;
     for (uint16_t ds : halves) for (uint16_t ms : halves) for (unsigned shift = 0; shift < 32; ++shift) {
-        uint8_t block[24] = {uint8_t(ds), uint8_t(ds >> 8), uint8_t(ms), uint8_t(ms >> 8)};
+        if (symmetric && ms != 0) continue;
+        uint8_t block[24] = {uint8_t(ds), uint8_t(ds >> 8)};
+        const unsigned qoff = symmetric ? 6 : 8;
+        if (!symmetric) { block[2] = uint8_t(ms); block[3] = uint8_t(ms >> 8); }
         for (unsigned j = 0; j < 32; ++j) {
             const unsigned code = (j + shift) % 32;
-            block[4 + j / 8] |= uint8_t((code >> 4) << (j % 8));
-            block[8 + j % 16] |= uint8_t((code & 15) << (4 * (j / 16)));
-            expected.push_back(f16_to_f32(ds) * float(code) + f16_to_f32(ms));
+            block[qoff - 4 + j / 8] |= uint8_t((code >> 4) << (j % 8));
+            block[qoff + j % 16] |= uint8_t((code & 15) << (4 * (j / 16)));
+            if (symmetric) {
+                const unsigned e = (ds >> 10) & 31, f = ds & 1023;
+                const float d = std::copysign(float(std::ldexp(double(f + (e ? 1024 : 0)), int(e ? e : 1) - 25)), ds & 0x8000 ? -1.0f : 1.0f);
+                expected.push_back(d * float(int(code) - 16));
+            } else expected.push_back(f16_to_f32(ds) * float(code) + f16_to_f32(ms));
         }
-        weights.insert(weights.end(), block, block + sizeof(block));
+        weights.insert(weights.end(), block, block + (symmetric ? 22 : 24));
         ids.push_back(uint32_t(ids.size()));
     }
     const auto w = vk.adopt(weights.data(), weights.size());
     std::vector<float> got(expected.size() + 2, 19.0f);
     const auto y = vk.adopt(got.data(), got.size() * sizeof(float));
-    vk.embed({y.get(), 1}, quant::GGML_TYPE_Q5_1, {w.get(), 0}, 32, ids.size(), ids.data(), ids.size());
+    vk.embed({y.get(), 1}, type, {w.get(), 0}, 32, ids.size(), ids.data(), ids.size());
     vk.read(*y, 0, got.data(), got.size() * sizeof(float));
-    require(got.front() == 19.0f && got.back() == 19.0f, "Q5_1 embedding changed a guard");
+    require(got.front() == 19.0f && got.back() == 19.0f, "Q5 embedding changed a guard");
     require(std::memcmp(got.data() + 1, expected.data(), expected.size() * sizeof(float)) == 0,
-            "Q5_1 embedding differs from independent affine values");
-    return expected.size();
+            "Q5 embedding differs from independent values");
+    if (symmetric) {
+        std::fill(got.begin() + 1, got.end() - 1, 19.0f);
+        vk.write(*y, 0, got.data(), got.size() * sizeof(float));
+        const auto tokens = vk.adopt(ids.data(), ids.size() * sizeof(uint32_t));
+        vk.embed_ids({y.get(), 1}, type, {w.get(), 0}, 32, ids.size(), {tokens.get(), 0}, ids.size());
+        vk.read(*y, 0, got.data(), got.size() * sizeof(float));
+        require(got.front() == 19 && got.back() == 19 && std::memcmp(got.data() + 1, expected.data(), expected.size() * sizeof(float)) == 0,
+                "Q5_0 device-ID embedding differs bitwise");
+    }
+    return expected.size() * (symmetric ? 2 : 1);
 }
 
 // Choose the nearest BF16 neighbour independently; non-BF16 weights check that only inputs round.
@@ -297,44 +326,52 @@ size_t check_matrix_witness(backend::Backend& vk) {
     require(vk.dtype_path(backend::Dtype::f16) == half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");
-    std::vector<uint8_t> weights(18, 0x88);
-    weights[0] = 0; weights[1] = 0x3c; weights[3] = 0x89;
-    std::vector<float> x(96), out(6), ids(3, 0), gains(3, 1);
-    for (size_t r = 0; r < 3; ++r) { x[r * 32] = 2; x[r * 32 + 1] = r == 1 ? -1.005859375f : 1.005859375f; }
-    const auto w = vk.adopt(weights.data(), weights.size()), in = vk.adopt(x.data(), x.size() * sizeof(float)),
-               y = vk.alloc(out.size() * sizeof(float)), id = vk.adopt(ids.data(), ids.size() * sizeof(float)),
-               gain = vk.adopt(gains.data(), gains.size() * sizeof(float));
-    const backend::Backend::Routing route{{id.get(), 0}, {gain.get(), 0}, 1, 1};
-    const uint32_t type = quant::GGML_TYPE_Q4_0;
     size_t checked = 0;
-    for (auto dtype : {backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::f16}) {
-        for (bool tile : {false, true}) {
-            const backend::RowRun run[] = {{3, tile ? size_t(16384) : size_t(1)}};
-            for (int op = 0; op < 6; ++op) {
-                std::fill(out.begin(), out.end(), 0.0f);
-                vk.write(*y, 0, out.data(), out.size() * sizeof(float));
-                testq::take_matrix_paths(vk);
-                const backend::CSlice ws{w.get(), 0}, xs{in.get(), 0};
-                const backend::Slice ys{y.get(), 0};
-                const backend::RowRuns runs{run, 1};
-                if (op == 0) vk.matmul(type, ws, xs, ys, 32, 1, 3, runs, dtype);
-                if (op == 1) vk.matmul_logits(type, ws, xs, ys, 32, 1, 3, runs, dtype);
-                if (op == 2) vk.matmul_add(type, ws, xs, ys, 32, 1, 3, runs, dtype);
-                if (op == 3) vk.matmul_group({{type, ws, ys, 1}, {type, ws, {y.get(), 3}, 1}}, xs, 32, 3, runs, dtype);
-                if (op == 4) vk.matmul_experts({{type, ws, ys, 1}}, xs, 32, 3, route, runs, dtype);
-                if (op == 5) vk.matmul_experts_add(type, ws, xs, ys, 32, 1, 3, route, runs, dtype);
-                vk.read(*y, 0, out.data(), out.size() * sizeof(float));
-                const bool narrow = dtype == backend::Dtype::f16 && (!tile || integer);
-                const auto rounded = !narrow ? x : row_activations(x);
-                for (size_t r = 0; r < (op == 3 ? 6u : 3u); ++r) {
-                    const float expected = dtype == backend::Dtype::bf16 ? (r % 3 == 1 ? -1.0078125f : 1.0078125f)
-                                                                         : rounded[(r % 3) * 32 + 1];
-                    require(std::fabs(out[r] - expected) < 2e-6f, "matrix witness arithmetic differs");
+    for (const uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q5_0}) {
+        std::vector<uint8_t> weights(type == quant::GGML_TYPE_Q5_0 ? 22 : 18, 0x88);
+        weights[0] = 0; weights[1] = 0x3c;
+        if (type == quant::GGML_TYPE_Q5_0) {
+            std::fill(weights.begin() + 2, weights.begin() + 6, 0xff);
+            std::fill(weights.begin() + 6, weights.end(), 0);
+            weights[7] = 1; // code 17 at column 1; all other codes are 16.
+        } else weights[3] = 0x89;
+        std::vector<float> x(96), out(6), ids(3, 0), gains(3, 1);
+        for (size_t r = 0; r < 3; ++r) { x[r * 32] = 2; x[r * 32 + 1] = r == 1 ? -1.005859375f : 1.005859375f; }
+        const auto w = vk.adopt(weights.data(), weights.size()), in = vk.adopt(x.data(), x.size() * sizeof(float)),
+                   y = vk.alloc(out.size() * sizeof(float)), id = vk.adopt(ids.data(), ids.size() * sizeof(float)),
+                   gain = vk.adopt(gains.data(), gains.size() * sizeof(float));
+        const backend::Backend::Routing route{{id.get(), 0}, {gain.get(), 0}, 1, 1};
+        for (auto dtype : {backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::f16, backend::Dtype::int8}) {
+            // Native int8 is covered against its independent reconstruction in check_int8.
+            if (dtype == backend::Dtype::int8 && integer) continue;
+            for (bool tile : {false, true}) {
+                const backend::RowRun run[] = {{3, tile ? size_t(16384) : size_t(1)}};
+                for (int op = 0; op < 6; ++op) {
+                    std::fill(out.begin(), out.end(), 0.0f);
+                    vk.write(*y, 0, out.data(), out.size() * sizeof(float));
+                    testq::take_matrix_paths(vk);
+                    const backend::CSlice ws{w.get(), 0}, xs{in.get(), 0};
+                    const backend::Slice ys{y.get(), 0};
+                    const backend::RowRuns runs{run, 1};
+                    if (op == 0) vk.matmul(type, ws, xs, ys, 32, 1, 3, runs, dtype);
+                    if (op == 1) vk.matmul_logits(type, ws, xs, ys, 32, 1, 3, runs, dtype);
+                    if (op == 2) vk.matmul_add(type, ws, xs, ys, 32, 1, 3, runs, dtype);
+                    if (op == 3) vk.matmul_group({{type, ws, ys, 1}, {type, ws, {y.get(), 3}, 1}}, xs, 32, 3, runs, dtype);
+                    if (op == 4) vk.matmul_experts({{type, ws, ys, 1}}, xs, 32, 3, route, runs, dtype);
+                    if (op == 5) vk.matmul_experts_add(type, ws, xs, ys, 32, 1, 3, route, runs, dtype);
+                    vk.read(*y, 0, out.data(), out.size() * sizeof(float));
+                    const bool narrow = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && (!tile || integer);
+                    const auto rounded = !narrow ? x : row_activations(x);
+                    for (size_t r = 0; r < (op == 3 ? 6u : 3u); ++r) {
+                        const float expected = dtype == backend::Dtype::bf16 ? (r % 3 == 1 ? -1.0078125f : 1.0078125f)
+                                                                             : rounded[(r % 3) * 32 + 1];
+                        require(std::fabs(out[r] - expected) < 2e-6f, "matrix witness arithmetic differs");
+                    }
+                    const std::string path = dtype == backend::Dtype::bf16 ? "bf16" : !narrow ? "f32" : "block-int16";
+                    require(testq::take_matrix_paths(vk) == std::vector<std::string>{path}, "matrix witness differs from dispatched arithmetic");
+                    require(testq::take_matrix_paths(vk).empty(), "matrix witness crossed measurement boundary");
+                    ++checked;
                 }
-                const std::string path = dtype == backend::Dtype::bf16 ? "bf16" : !narrow ? "f32" : "block-int16";
-                require(testq::take_matrix_paths(vk) == std::vector<std::string>{path}, "matrix witness differs from dispatched arithmetic");
-                require(testq::take_matrix_paths(vk).empty(), "matrix witness crossed measurement boundary");
-                ++checked;
             }
         }
     }
@@ -365,7 +402,7 @@ size_t check_int8(backend::Backend& vk) {
     }
     Pair p(vk);
     size_t values = 0;
-    const uint32_t types[] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1,
+    const uint32_t types[] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1,
                               quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K};
     for (uint32_t type : types)
         for (size_t nin : {size_t(512), size_t(1280)}) {
@@ -1789,9 +1826,9 @@ size_t check_kernels(backend::Backend& vk) {
             const backend::Backend::Routing rc{ids.cs(), wts.cs(), k, n_expert}, rv{ids.vs(), wts.vs(), k, n_expert};
             const auto x = uniform(rows * nin, 91), x2 = uniform(entries * nin, 92), y0 = uniform(rows * nout, 93);
             Pair::In xi = p.in(x), x2i = p.in(x2);
-            for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1,
+            for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1,
                                   quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
-                from = type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_1 ? prof.moe_tile_from_q4
+                from = type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_Q5_1 ? prof.moe_tile_from_q4
                      : type == quant::GGML_TYPE_Q4_K ? prof.moe_tile_from_q4k
                      : type == quant::GGML_TYPE_Q5_K ? prof.moe_tile_from_q5k : prof.moe_tile_from;
                 // The row kernel reads the 16-bit twin; the tile reads the 16-bit twin where the integer dot takes quantized types, else floats.
@@ -1865,7 +1902,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
     // Remainders reach every narrower build, and 18 and 29 columns leave the widest Q8_0 build's second group partially filled.
     const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
-    const uint32_t q51 = quant::GGML_TYPE_Q5_1;
+    const uint32_t q50 = quant::GGML_TYPE_Q5_0, q51 = quant::GGML_TYPE_Q5_1;
     const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
     size_t columns = 0;
     auto floats = [&](const backend::BufferPtr& b, size_t n) {
@@ -1885,7 +1922,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
 
     struct Case { uint32_t type; size_t nin; };
     for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
-                          Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
+                          Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
                           Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280}}) {
         const uint32_t type = c.type;
         const size_t nin = c.nin, rows[3] = {nout, 37, 129};
@@ -1896,7 +1933,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
             const auto bytes = matrix(type, nin, rows[i], 302 + i);
             w.push_back(vk.adopt(bytes.data(), bytes.size()));
         }
-        const bool keeps_head = type == q40 || type == q41 || type == q51 || type == q6k;
+        const bool keeps_head = type == q40 || type == q41 || type == q50 || type == q51 || type == q6k;
         for (int head = 0; head <= (keeps_head ? 1 : 0); ++head) {
             try {
                 // n columns of X from col0 through projection i into y, as n generated tokens.
@@ -2368,7 +2405,7 @@ size_t check_weight_dispatch() {
     const Expected cases[] = {{0, "matmul_row_f32", ""}, {1, "matmul_row_wf16", ""}, {30, "matmul_row_wbf16", ""},
         {8, "matmul_row_q8w", "matmul_tile_q8"},
         {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
-        {7, "matmul_row_q5", "matmul_tile_q5"},
+        {6, "matmul_row_q50", "matmul_tile_q50"}, {7, "matmul_row_q5", "matmul_tile_q5"},
         {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
         {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
     size_t checks = 0;
@@ -2376,7 +2413,7 @@ size_t check_weight_dispatch() {
         if (e.type == 39 && !vk.supports_type(e.type)) continue;
         require(vk.supports_type(e.type), "an implemented weight type lost device support");
         for (size_t nin : {size_t(96), size_t(256), size_t(4096)}) {
-            if (nin == 96 && e.type != 2 && e.type != 8) continue;
+            if (nin == 96 && e.type != 2 && e.type != 6 && e.type != 7 && e.type != 8) continue;
             const size_t nout = 3;
             const auto bytes = matrix(e.type, nin, nout, 401);
             const auto xf = uniform(nin, 402);
@@ -2388,7 +2425,7 @@ size_t check_weight_dispatch() {
                 const bool fast = floating || e.type == 8;
                 const size_t dense_from = fast ? (nin < p.tile_narrow_nin ? p.tile_from_8bit_narrow : p.tile_from_8bit)
                                               : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
-                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 || e.type == 7 ? p.moe_tile_from_q4
+                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 || e.type == 6 || e.type == 7 ? p.moe_tile_from_q4
                                   : e.type == 12 ? p.moe_tile_from_q4k : e.type == 13 ? p.moe_tile_from_q5k : p.moe_tile_from;
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::int8}) {
                     // int8 reaches a device only where it is native; floating weights keep F32 products and MXFP4 keeps its 16-bit dot.
@@ -2442,22 +2479,24 @@ size_t check_weight_dispatch() {
             }
         }
     }
-    if (p.prefer_integer_dot) {
+    if (p.prefer_integer_dot) for (uint32_t type : {6u, 7u}) {
+        const bool symmetric = type == 6;
+        const size_t block_bytes = symmetric ? 22 : 24, qoff = symmetric ? 6 : 8;
         // A tall output with a final partial tile reaches the separate Q5 pipeline
         // specialization on the tuned integer-dot device. Raw affine blocks and a
         // one-hot input keep this oracle independent of the runtime's decoder.
-        const size_t nin = 256, nout = 65537, stride = 8 * 24;
+        const size_t nin = 256, nout = 65537, stride = 8 * block_bytes;
         std::vector<uint8_t> packed(nout * stride, 0);
         std::vector<float> input(nin, 0), output(nout + 2, 19.0f);
         input.back() = 0.5f;
         for (size_t r = 0; r < nout; ++r) {
             const uint8_t code = uint8_t(r % 32);
             for (size_t k = 0; k < 8; ++k) {
-                auto* b = packed.data() + r * stride + k * 24;
+                auto* b = packed.data() + r * stride + k * block_bytes;
                 b[1] = r % 2 ? 0xbc : 0x3c; // scale -1 or +1
-                b[3] = 0xbc;                // minimum -1
-                std::fill(b + 4, b + 8, code & 16 ? uint8_t(255) : uint8_t(0));
-                std::fill(b + 8, b + 24, uint8_t((code & 15) * 17));
+                if (!symmetric) b[3] = 0xbc; // Q5_1 minimum -1
+                std::fill(b + qoff - 4, b + qoff, code & 16 ? uint8_t(255) : uint8_t(0));
+                std::fill(b + qoff, b + block_bytes, uint8_t((code & 15) * 17));
             }
         }
         const uint32_t id = 0;
@@ -2469,10 +2508,10 @@ size_t check_weight_dispatch() {
             (void)backend::vulkan_kernel_times(vk);
             if (routed) {
                 const backend::Backend::Routing routing{{ids.get(), 0}, {}, 1, 1};
-                vk.matmul_experts({{7, {w.get(), 0}, {y.get(), 1}, nout}}, {x.get(), 0}, nin, 1, routing, {&run, 1}, dtype);
-            } else vk.matmul(7, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, nin, nout, 1, {&run, 1}, dtype);
+                vk.matmul_experts({{type, {w.get(), 0}, {y.get(), 1}, nout}}, {x.get(), 0}, nin, 1, routing, {&run, 1}, dtype);
+            } else vk.matmul(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, nin, nout, 1, {&run, 1}, dtype);
             const auto times = backend::vulkan_kernel_times(vk);
-            const std::string expected = dtype == backend::Dtype::int8 ? "matmul_tile_q5i8" : "matmul_tile_q5";
+            const std::string expected = std::string(symmetric ? "matmul_tile_q50" : "matmul_tile_q5") + (dtype == backend::Dtype::int8 ? "i8" : "");
             size_t products = 0;
             for (const auto& entry : times) {
                 if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
@@ -2484,7 +2523,7 @@ size_t check_weight_dispatch() {
             vk.read(*y, 0, output.data(), output.size() * sizeof(float));
             require(output.front() == 19.0f && output.back() == 19.0f, "Q5 affine tile changed a guard");
             for (size_t r = 0; r < nout; ++r) {
-                const float want = 0.5f * ((r % 2 ? -1.0f : 1.0f) * float(r % 32) - 1.0f);
+                const float want = 0.5f * ((r % 2 ? -1.0f : 1.0f) * float(int(r % 32) - (symmetric ? 16 : 0)) - (symmetric ? 0.0f : 1.0f));
                 require(std::abs(output[r + 1] - want) <= std::abs(want) / 32767.0f + 2e-6f,
                         "Q5 affine tile tail differs from independent signed scale/high-plane values");
             }
@@ -2923,7 +2962,7 @@ bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
 // Every pair of extents of one class gives the same bits through each dtype's matrix products and shared attention (row_classes::check).
 size_t check_row_classes(backend::Backend& vk) {
     return row_classes::check(vk,
-                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
+                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                                quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4},
                               [](uint32_t type, size_t nin, size_t rows, uint32_t seed) { return matrix(type, nin, rows, seed); });
 }
@@ -3288,7 +3327,7 @@ size_t check_drafter_ops(Pair& p) {
     }
     // Every type the device embeds: embed_ids gives embed's rows for the ids inside the table, through the same decoding, and a zero row past it.
     const size_t wide = 256;
-    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                           quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4}) {
         if (!p.vk.supports_type(type)) continue;
         const std::vector<uint8_t> bytes = matrix(type, wide, vocab, 340 + type);
@@ -3347,7 +3386,7 @@ size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
     const size_t tile_cols = std::max<size_t>(64, backend::tile_from_for(prof, false, nin));
     struct Case { uint32_t type; size_t nbatch; };
     std::vector<Case> cases;
-    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
+    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                           quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
         for (size_t cols : {size_t(1), size_t(3), size_t(9), tile_cols})
             if (dtype != backend::Dtype::f16 || cols == 3 || cols == tile_cols) cases.push_back({type, cols});
@@ -3368,6 +3407,7 @@ size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
             case quant::GGML_TYPE_Q8_0: quant::dequantize_row_q8_0(src, dst, nin / 32); break;
             case quant::GGML_TYPE_Q4_0: quant::dequantize_row_q4_0(src, dst, nin / 32); break;
             case quant::GGML_TYPE_Q4_1: quant::dequantize_row_q4_1(src, dst, nin / 32); break;
+            case quant::GGML_TYPE_Q5_0: quant::dequantize_row_q5_0(src, dst, nin / 32); break;
             case quant::GGML_TYPE_Q5_1: quant::dequantize_row_q5_1(src, dst, nin / 32); break;
             case quant::GGML_TYPE_Q4_K: quant::dequantize_row_q4_K(src, dst, nin / 256); break;
             case quant::GGML_TYPE_Q5_K: quant::dequantize_row_q5_K(src, dst, nin / 256); break;
@@ -3431,7 +3471,7 @@ size_t check_bf16_batch_split(backend::Backend& vk) {
     const auto xd = vk.adopt(x.data(), x.size() * sizeof(float));
     const auto yd = vk.alloc(2 * columns * nout * sizeof(float));
     size_t checked = 0;
-    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1,
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1,
                           quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4}) {
         if (!vk.supports_type(type)) {
             std::cout << "backend-vulkan: BF16 batch type " << type << " unsupported, skipped\n";
@@ -3846,7 +3886,8 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_half_weights(*b) << " finite half-weight values and exact F32-control products\n";
 
         std::cout << "backend-vulkan: " << testq::check_matrix_precision(*b) << " shared matrix precision values passed\n";
-        std::cout << "backend-vulkan: " << check_q5_1_embedding(*b) << " exact Q5_1 embedding values passed\n";
+        std::cout << "backend-vulkan: " << check_q5_embedding(*b, quant::GGML_TYPE_Q5_1) << " exact Q5_1 embedding values passed\n";
+        std::cout << "backend-vulkan: " << check_q5_embedding(*b, quant::GGML_TYPE_Q5_0) << " exact Q5_0 embedding values passed\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";
         const size_t int8_values = check_int8(*b);
         std::cout << "backend-vulkan: " << int8_values << " int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16\n";

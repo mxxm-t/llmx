@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-20",
+  "scope": "Q5_0 read-only CPU and format development checkpoint; not full format/model qualification",
+  "base": "f984840a461de65b12b5ea247d64e5b7e7483997",
+  "dependency": "Pending Q5_1/shared block-fixture landing; isolated feat/q5-0-20261020",
+  "runtime_delta": [
+    "src/quant/types.hpp: named id6 and32/22 constants; metadata layout unchanged",
+    "src/quant/quant.hpp: exact d*(code-16) decoder and read-only registry entry"
+  ],
+  "owners": "Existing registry-driven CPU embedding, dense/grouped and routed products; no backend dispatch/model/loader/CLI/Vulkan changes",
+  "build": {
+    "command": "cmake --build build-q5-0 --config Release --clean-first --target llmx llmx-q5-0-test llmx-backend-errors-test llmx-backend-group-test llmx-gguf-validation-test --parallel 1",
+    "compiler": "MSVC19.50.35728.0,Release,CPU-only",
+    "version": "llmx 0.1.0+gf984840a461d.dirty numerics e37517714ef08e90",
+    "exe_sha256": "efefe06a6383a3a9175dd5ccf3c95c2414a98bcd9fc5c033f787b07384d0b915",
+    "q5_0_test_sha256": "29f0fa9d7d8d4a2c982d9c528a01b0a8245c2994e915f9fe9f660a8e57f40c68",
+    "warnings": "Existing server/cache shadow warnings retained; initial native test int-to-float fill warning fixed before final clean build."
+  },
+  "tests": {
+    "native": {
+      "command": "ctest --test-dir build-q5-0 -C Release -R '^(q5-0|backend-errors|backend-group|gguf-validation)$' --output-on-failure",
+      "result": "4/4 PASS",
+      "q5_0_values": 4119585,
+      "row_class_pairs": 17914,
+      "scope": "Every finite binary16 scale/code, alternating22-byte alignment, guarded embeddings, six matrix calls, F32/F16/BF16/int8 requests and actual F32/BF16 paths; threads1/3; one-hot finite range and row classes"
+    },
+    "roundtrip": {
+      "result": "PASS",
+      "q5_0_values": 20480,
+      "blocks": 640,
+      "comparison": "Bitwise independent spec decode, signzero included",
+      "skip": "POSIX child file-size-limit injection unavailable on Windows; long Windows path check passes"
+    },
+    "raw_blocks": {
+      "result": "PASS",
+      "q5_0_values": 11264,
+      "scope": "Independent exact Fraction/ordered-zero oracle versus purePython andNumPy, isolatedhighbits and random16-type regression"
+    },
+    "reference_generator": "68 PASS; existing shared fixture/hash tests unchanged",
+    "architecture": "PASS31files/5architecture names",
+    "version": "PASS98fingerprinted source files/7 planted faults",
+    "dead_code": "PASS5 listed findings/18 planted faults",
+    "docs": "PASS0findings/21planted faults, final scoped docs/dead-code check"
+  },
+  "failures_retained": [
+    {
+      "where": "build-q5-0-red.log",
+      "failure": "Registry entry absent on unfixed source",
+      "result": "Expected red exit1"
+    },
+    {
+      "where": "build-q5-0-source-checks.log",
+      "failure": "New CTest q5-0 lacked AGENTS Tests description",
+      "fix": "Added scoped native test description; first recheck passes0findings/21planted faults"
+    },
+    {
+      "where": "controls-first-failed-LastTest.log",
+      "failure": "backend-errors expected implementedIDs excluded6",
+      "fix": "Added onlyid6 to expected support list; clean final4/4 native checks pass"
+    }
+  ],
+  "bounds": "No existing numerical/HF bounds, calibration or fixtures changed. New native references use independently specified F32 sum-of-magnitudes or one-hot rounding bounds.",
+  "precision": "CPU F16/int8 requests retain wider F32 products; BF16 rounds activations through existing owner. All six calls witness actual paths.",
+  "left": [
+    "Vulkan decoder/descriptor/row/tile support",
+    "Tiny and released file-exactHF/model and MTP-sidecar qualification",
+    "Matched performance and applicable landing/hosted gates"
+  ],
+  "docs_review": "Carry f984 reviewed unchanged Markdown identities; review changed AGENTS,STATUS,CPU and quant/type source guides. README support claim unchanged. Final docs/dead-code checks pass.",
+  "evidence": {
+    "build-q5-0-clean-build.log": {
+      "sha256": "5aa91f3f4a15fd7bb5f8e6b64d640f255ee3511cb2c0e7af99e8cd302ef65910",
+      "bytes": 5382
+    },
+    "build-q5-0-configure.log": {
+      "sha256": "b2c69373ef9622d5e3eac4aa3e4fcfa9692c11e56d9df94e8988a7864aab1774",
+      "bytes": 1922
+    },
+    "build-q5-0-controls-build.log": {
+      "sha256": "acc0d80734c20bb7c0dd16d1a7cec54002768445a26fdacc36bb5656a79f8adc",
+      "bytes": 2114
+    },
+    "build-q5-0-controls.log": {
+      "sha256": "66a96b02a5d9167ff1b9c68a93c5cde49d9c617a60723288298ff81edd0a9bd5",
+      "bytes": 2304
+    },
+    "build-q5-0-docs-final.log": {
+      "sha256": "fe7cf77eab4c56cc1cdcd6a1406da731b855b1290ac851c8138ee19276dbf738",
+      "bytes": 426
+    },
+    "build-q5-0-final-native.log": {
+      "sha256": "56309d7f45444356995f059b7446e086f18b96a942f7764941ab45c4bdb712c0",
+      "bytes": 1132
+    },
+    "build-q5-0-final-roundtrip.log": {
+      "sha256": "5868abcecdef555561ec3cfa76f11635d28b3f794e42e8c1cbce765367df0784",
+      "bytes": 4186
+    },
+    "build-q5-0-green-build.log": {
+      "sha256": "9e438e9815f77471ba5660c8916e2879bc19acac35d49ba1c2fccf01c039bff8",
+      "bytes": 3160
+    },
+    "build-q5-0-native-build.log": {
+      "sha256": "95bb4fa66ef5bdc9a884b9d3de9943f6b00c98832ce3d6b72c25c9323133514d",
+      "bytes": 646
+    },
+    "build-q5-0-native.log": {
+      "sha256": "4d6e4b15cc27a01660441041e69d88403268fb4c7ad87ce46df0664ea54606a7",
+      "bytes": 526
+    },
+    "build-q5-0-raw-blocks.log": {
+      "sha256": "bc8ba6d8feb40d5449de83fa379745634b54b2dc46e03fe12159bb479500184e",
+      "bytes": 2698
+    },
+    "build-q5-0-red-result.json": {
+      "sha256": "ff20212731f341d9916c799bc9c750e6f3146c889b53b3b08af41ae760a6de9c",
+      "bytes": 98
+    },
+    "build-q5-0-red.log": {
+      "sha256": "d25ed370ba3e2deb3691be6b3e96dfebcf464bd63b1d84c89db0296147aeb61d",
+      "bytes": 754
+    },
+    "build-q5-0-roundtrip.log": {
+      "sha256": "5868abcecdef555561ec3cfa76f11635d28b3f794e42e8c1cbce765367df0784",
+      "bytes": 4186
+    },
+    "build-q5-0-source-checks.log": {
+      "sha256": "c59e41fc6a56388f19cfb03ce0ba4a4a3b6863463d39f4894f234a8813d58af2",
+      "bytes": 4454
+    },
+    "build-q5-0-test-build.log": {
+      "sha256": "10c38ace0e962b1f7ddb90f6ac25c3965e894b1296a10f57a037f7b41784941e",
+      "bytes": 4458
+    },
+    "controls-first-failed-LastTest.log": {
+      "sha256": "7690b8ad44f6ca1d62a122d0b7494cf9e86714fc8a93a43ce757328c520de5b3",
+      "bytes": 3112
+    },
+    "final-native-LastTest.log": {
+      "sha256": "23a01271bafbd88d02ecbd0639f1aaf71913fecebc1b1ec506be461877e00f28",
+      "bytes": 3888
+    },
+    "final-docs-deadcode.log": {
+      "sha256": "34c431208466f57042dd2db6f564c81be12ff61fa1a9c89e46ccf755fdfa42ae",
+      "bytes": 426
+    }
+  },
+  "artifact_root": "build-q5-0/evidence",
+  "checked_sources": {
+    "src/quant/types.hpp": "9ea7a29528ced35551c52772daacd56e4fcbce6b8dbaad2db49354c51377706d",
+    "src/quant/quant.hpp": "e1f5b7c63a02eca03971405d306dc62ee63f81f47e8a6b120d14d28f1d3f33ad",
+    "src/core/fp16.hpp": "3cbe60800d9ec5acd3214e503225b508dd0dfda13871740665ab014cdaa52539",
+    "src/backends/cpu/cpu_backend.hpp": "b51da5bc736bcb33701fdca6486c2bc28d7d5a71cc72f60854efda54d6781798",
+    "tests/q5_0.cpp": "8c332585b6bd35688c8b5bf650c8a6920b6ea55562d46dd939d8145da1c0425e",
+    "tests/backend_errors.cpp": "2a60c5aa023ceb59e42be2a8cd58bae4e32bde3f8227a6e37b097291c690a067",
+    "tests/spec_decode.py": "789d8140841641c1ecf57e32d90467e43983bf7aa2dfdccf1c1aa859d8ee4d11",
+    "tests/raw_blocks.py": "6ae2dd7a3888ea5161fedd39dad58d6da4f446b881bc1cd8acb797fca48a0681",
+    "tests/roundtrip.py": "e988cd06f39b7f8294e24ceaecae6736a4f0d487d240f082cded7ec2d1dc77c6",
+    "tests/matrix_precision.hpp": "c7e5da4a2b0b5c28c04968ee752402859e57dcea98add666a2c07e387621458b",
+    "tests/row_classes.hpp": "ae575a5fa4fe6d5371729b9a2bdb45242eb76b920574908528da5932b99fe77f",
+    "cmake/tests.cmake": "fe5ab89f7e663e053eed11044a12a18672c56a8a1f0d9d0052e1e833193c39bd",
+    "CMakeLists.txt": "77ce29749032fb0b7cf64ad50455aad0d380cd5346451df9c21c22ea31db583c"
+  }
+}

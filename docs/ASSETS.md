@@ -319,7 +319,7 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q5_1 / Q4_K / Q5_K / Q6_K / IQ4_NL / MXFP4 / F32 / F16 / BF16** tensors (see
+llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q4_K / Q5_K / Q6_K / IQ4_NL / MXFP4 / F32 / F16 / BF16** tensors (see
 `docs/src/quant-quant.md`). GGUF metadata inspection recognizes 35 storage layouts
 independently of these decoders; this does not make the other types executable.
 Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;

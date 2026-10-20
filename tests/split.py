@@ -11,6 +11,7 @@ import mxfp4
 import iq4_nl
 import qwen35
 import tensor_split
+from block_fixture import write_fixture
 
 
 # The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends, raw logits compared bit for bit (AGENTS.md, Tests).
@@ -115,7 +116,7 @@ def run(require=False):
         for family, module in (("mxfp4", mxfp4), ("iq4-nl", iq4_nl)):
             for name, tied, routed in module.VARIANTS:
                 config, weights, packed = module.fixture(tied, routed)
-                model = module.write_fixture(os.path.join(directory, "tiny-" + family + "-" + name + ".gguf"), config, weights, packed, routed)
+                model = write_fixture(os.path.join(directory, "tiny-" + family + "-" + name + ".gguf"), config, weights, packed, routed)
                 models.append((model, ["cpu,cpu"]))
         models += [(qwen35.write_fixture(directory, spec), ["cpu,cpu", "cpu,cpu,cpu,cpu"]) for spec in qwen35.FIXTURES if not spec["mtp"]]
         for model, splits in models:

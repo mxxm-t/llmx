@@ -1,0 +1,145 @@
+{
+  "date": "2026-10-20",
+  "scope": "Focused Q5_0 Vulkan development; not full format/model/performance qualification",
+  "base": "afdbda44288065d05551e5dc5d1ca7f57e298441",
+  "dependency": "CPU/format checkpoint afdbda442 on pending quant landing f984840a461de65b12b5ea247d64e5b7e7483997; isolated feat/q5-0-20261020",
+  "owners": "qdecode per-value/high-plane/signed-byte decode; existing row/tile bodies selected by compile-time Q50 builds and WeightKernels; no loader/model/CLI branches",
+  "runtime_source_sha256": {
+    "CMakeLists.txt": "d654aeed43eb7397c6ce77d0e70e4a9a3a289aaff4606e42fb5c94fb210189e0",
+    "src/backends/vulkan/vulkan_backend.cpp": "3610f894190b82ca497f1028da149314535fa95b295e01e56bec06db3c331bec",
+    "tests/backend_vulkan.cpp": "09dd4f6c717258daea7022678bfb0b77c332f97edd28b4671270cd5c441480c9",
+    "tests/vulkan_quantization.cpp": "efa7532c2b732585ed46af3b03f97fabe94ad64d8ecb583258b18ceb82eefa07",
+    "src/backends/vulkan/shaders/embed.comp": "0d61e94db93ac3cfb5c110b9825d5c234cdcbd8af9f63882da12c44a61243049",
+    "src/backends/vulkan/shaders/matmul_row.comp": "1870b867ca0a49eb4bfd052a617c11970b12f2532b3d85669925b47e2c1cf573",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "acfe56cafee3d564cebd1e91225e78bcce48b7bff2fc5154dedc4cafa8022f1d",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "3fbf577b6cd573c6455d5c15cba3449efe58d7f3e08d3596d2dabb42a3a35046",
+    "src/backends/vulkan/shaders/q.glsl": "e20cd640051fa6b167fefe8ef499b5e67e628556423ef6b29d94bf1c512f6693",
+    "src/backends/vulkan/shaders/qdecode.glsl": "4d1479152a89f3367809b30f80c23e43d72bde9475e5579864a86144cbca9950"
+  },
+  "build": {
+    "directory": "build-q5-0-vulkan",
+    "configure": "cmake -S . -B build-q5-0-vulkan -DLLMX_HAS_BACKEND_VULKAN=ON",
+    "targets": "llmx-backend-vulkan-test llmx-vulkan-quantization-test llmx-vulkan-lifetime-test llmx",
+    "parallel": 1,
+    "compiler": "MSVC19.50.35728.0; VulkanSDK1.4.357.0; Release",
+    "version": "llmx 0.1.0+gafdbda442880.dirty numerics 834ee592ffbe8e93",
+    "exe_sha256": "cc0910e2fc16d8a8ecd9faadb162bb3e2c507ebf03083c171b39c9be32d77da1",
+    "backend_test_sha256": "01a35a304ee646cee2af37d04b495f72138037ff5ad50ca61b5ec5737250c4b4",
+    "quantization_test_sha256": "f89bb062fd40d9d7c21125832d8017194fdf690b282539019b31ae6c2285de10",
+    "verified_rebuilds": "Fresh configured build generated all modules and compiled vulkan_backend.cpp; centered retry regenerated shaders/recompiled backend and CLI; witness refresh recompiled backend_vulkan.cpp."
+  },
+  "device": "AMD Radeon VII; AMD proprietary26.5.2; Vulkan identity4098:26287; driver8388887/3708bcabde6c5dfebffc12b77baf8df2",
+  "regressions_preserved": [
+    {
+      "stage": "Unchanged Vulkan public loader",
+      "exit": 1,
+      "result": "Embedding typeQ5_0(6) unsupported; fixture setup indexing error occurred before this actual refusal and is separately recorded."
+    },
+    {
+      "stage": "First focused CTest",
+      "exit": 8,
+      "result": "backend-vulkan PASS39.02s and vulkan-buffer PASS0.03s; vulkan-quantization FAIL9.89s with189/79380decode offset-range failures. Tiny negative/positive scales beside65504 lost low residuals after unsigned dot followed by center subtraction."
+    },
+    {
+      "stage": "Centered retry first compile",
+      "exit": 1,
+      "result": "q5_signed_bytes unavailable because native Q50 include guards omitted qdecode; fixed includes before retry."
+    }
+  ],
+  "fix": "Center codes at16 BEFORE every dot. Centered32*16*32767 <2^24 keeps the float integer sum exact; shared signed-byte decode serves int8 rows and tiles. No tolerance/bound change. Old Q4/Q5_1/K native shader payloads remain normalized identical.",
+  "focused_native": {
+    "command": "ctest --test-dir build-q5-0-vulkan -C Release -R '^(backend-vulkan|vulkan-quantization)$' --output-on-failure",
+    "exit": 0,
+    "backend_vulkan_seconds": 29.33,
+    "vulkan_quantization_seconds": 17.33,
+    "exact_q5_0_embedding_values": 18432,
+    "matrix_witnesses_q4_0_and_q5_0": 96,
+    "offset_range": {
+      "f16_decode": 79380,
+      "f16_prompt": 1719900,
+      "f32_decode": 87318,
+      "f32_prompt": 1891890,
+      "failed": 0
+    },
+    "coverage": "Independent raw Q50 unit/signed-scale blocks, alternating22-byte alignment, code lanes and zero signs; embeddings/embed_ids, dense/logits/add/grouped/routed products; F32/BF16/F16 original or rounded-input double dots, decode-column and row-class identity, explicit int8 wider fallback witnesses."
+  },
+  "public_smoke": {
+    "fixture_sha256": "e256c4ca4f312821d83ffeb09c62d1e632c1802221e5467c681e9d7a5ae37b99",
+    "policies": {
+      "auto": 0,
+      "f32": 0,
+      "f16": 0,
+      "bf16": 0,
+      "int8": 0
+    },
+    "scope": "Existing tiny synthetic Qwen with Q50 embedding; public load/logits smoke only, no independent HF assertion."
+  },
+  "payload_proof": {
+    "path": "docs/benchmarks/q5-0-vulkan-payloads-20261020.json",
+    "sha256": "1670ad79d2b39849341dfe038ecd50d3144380f5148a56dee1b10cd9d252f9b4",
+    "normalization": "spirv-opt --strip-debug --compact-ids only; no arithmetic optimization",
+    "old_common_modules": 165,
+    "raw_identical": 83,
+    "additional_normalized_identical": 73,
+    "changed_generic_modules": [
+      "embed.inc",
+      "embed_ids.inc",
+      "matmul_row_float_x.inc",
+      "matmul_row_float_x_preserve.inc",
+      "matmul_row_mxfp4_float_x.inc",
+      "matmul_tile.inc",
+      "matmul_tile_bf16.inc",
+      "matmul_tile_bf16_preserve.inc",
+      "matmul_tile_preserve.inc"
+    ],
+    "new_q50_modules": [
+      "matmul_row_q50.inc",
+      "matmul_row_q50_dot.inc",
+      "matmul_row_q50_dot_preserve.inc",
+      "matmul_row_q50_i8.inc",
+      "matmul_row_q50_i8_preserve.inc",
+      "matmul_row_q50_preserve.inc",
+      "matmul_tile_q50.inc",
+      "matmul_tile_q50_preserve.inc",
+      "matmul_tile_q50i8.inc",
+      "matmul_tile_q50i8_preserve.inc"
+    ]
+  },
+  "source_checks": {
+    "arch_boundary": "PASS31files/0findings",
+    "dead_code": "PASS5listedfindings/18plantedfaults",
+    "docs": "PASS0findings/21plantedfaults",
+    "version": "PASS: numerical fingerprint834ee592ffbe8e93 over98files and7plantedfaults"
+  },
+  "limitations": [
+    "Radeon does not advertise native int8/prefer_integer_dot: native int8 and integer16 tile execution not qualified here; modules compile, native-device runs remain required.",
+    "No HF/tiny baseline generation, released file/depth/MTP sidecar check, matched speed screen, full gate, rig run, merge or push.",
+    "Light desktop3D/video activity recorded; native test timing is functional evidence only.",
+    "Without float-preservation capabilities the existing producer test intentionally skips2496/4992 subnormal values in its two negative-capability checks; preserved variants have zero skips."
+  ],
+  "logs": {
+    "directory": "build-q5-0/evidence",
+    "sha256": {
+      "vulkan-configure.log": "ed427698c16e555c541b2fefeeb5c6468f20012dbd583a4caecfd4356c9fc03d",
+      "vulkan-build.log": "c3beabe2ef784a60f894e045700e3fd094bdee151ebe6bfd94b719a4e31dbf7f",
+      "vulkan-test-refresh.log": "161ee98da81b9c12aff51f8f85cb2a150250bb8cad1170fd492c523ff520f59a",
+      "vulkan-native-first.log": "0c85118ed1d109c9867c1ef10308ad18273ed57f9180c23f512a4af803d03111",
+      "vulkan-native-first-LastTest.log": "d90523ad9b6fad0ab5a49c3c7120db00e42b4c3a19f91f97b93e3900e6baf77c",
+      "vulkan-centered-build.log": "590d3d783e551104c0224e6e32b558eadf1d686aa02845727592a4ca700d518b",
+      "vulkan-centered-build-retry.log": "ec5f73e4ed45ff8d59bc32c30ea98e0df9f99aba2694277f171e96ee261d4d6b",
+      "vulkan-witness-build.log": "fd5e6b6a07831faf58e405db2e1e05b9dfe461eadbbe2a2991ed18d66863b249",
+      "vulkan-native-centered.log": "0a575392109d427b71ff69ec82b8b9d441a6ab3a8c61dfaf742134fbfd717f38",
+      "vulkan-native-centered-LastTest.log": "aaaeea73aa507b5f4908344438ba78c54edef66e37fbd7215ebeb7a8148ffcc9",
+      "vulkan-red-result.json": "67444db63d6b58e20cf277b8120c71635496e87a43dcb03b6967abc62e5a08ce",
+      "vulkan-red.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "vulkan-red.stderr": "3aad4d9aaf751c2ead2f4b9622f2e5f5973189f97d898b72405fc614fa37c672",
+      "vulkan-green-result.json": "70746db8a3d0c40e82b38852acff465f4e196a8c76a46e5f2a561a3756cd02b1",
+      "vulkan-centered-test-preflight.json": "8a3ecbe12c08cb73487d25c18302bfb3b9e59ad548fde2f83576b41044880091",
+      "vulkan-arch.log": "0cc2047dfa90347eb31b0c3794ad5dcb461e4c6ba04be7fa97c1ea4e544f0e95",
+      "vulkan-dead-code.log": "221beb3ef17c7436c9a5f06b677a3cfe0f2b778bf4a1859739e73de3ae2b30b2",
+      "vulkan-docs.log": "34b1efad03b3292064cadc07bd7194fb6f903f7c91f43cd52a245375afd457b6",
+      "vulkan-version-actual.log": "ff11e6f9992613136b406beee329116ba579f600bac246f298195260f1ea6537",
+      "vulkan-docs-final.log": "34b1efad03b3292064cadc07bd7194fb6f903f7c91f43cd52a245375afd457b6"
+    }
+  }
+}

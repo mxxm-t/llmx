@@ -1,0 +1,1257 @@
+{
+  "date": "2026-10-20",
+  "status": "PASS; 22/22 measured model-benchmark calls completed. One pair per existing-path cell and one Q5_0 candidate/mx pair; neither MTP nor server throughput.",
+  "scope": "One P512/G128 pair per existing-path control and one new Q5_0 candidate/mx pair. Not MTP or server throughput.",
+  "evidence_path": "build-quant-resume-20261020/q50-matched-timing",
+  "source_and_build": {
+    "main_source_commit": "f984840a461de65b12b5ea247d64e5b7e7483997",
+    "main_archive_sha256": "5f2cb683234f13b7b75c2f80c6cac500eaa6f620459373e2a6fb24065c054cbe",
+    "main_binary_sha256": "cbaa124c85b965d2c1260d72a37c3c1689c4d15b7fc3f0fb5578dd92c439d908",
+    "main_version": "llmx 0.1.0+unknown numerics f5c78e79390aba99",
+    "main_library_sha256": "61920b7cf330ddfb62aeb0d0eb4705eeec5c61a3276e2089a6d6b2b7fb2a4361",
+    "candidate_source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "candidate_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+    "candidate_binary_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+    "candidate_version": "llmx 0.1.0+unknown numerics 834ee592ffbe8e93",
+    "candidate_library_sha256": "fb420b317acfdff8427fc1db0528fb13bed13ffdc0c547af99f1f51ed9566ba4",
+    "candidate_head_at_measurement": "711b92250",
+    "mx_revision": "eefc4e7321c869496146697d63362f073941aed6",
+    "mx_binary_sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+    "mx_reference_manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "main_build_log_sha256": "541814cc344483a0b0c6b34c00ce1ac731e49d8f778f7ab912b3a54b020497d2",
+    "matched_candidate_build_flags": true,
+    "main_source_manifest_sha256": "dc9307e274421c3b68592e009f95de80e199527cdeb95518efc444406627c112",
+    "candidate_source_manifest_sha256": "a3cdff84f5dbe718b0a50dbccbb698cdbbca8819555da3020a36bf13df54cd3d",
+    "candidate_original_manifest_sha256": "98a1c2ec9428ea0d10f83e94ac47014eba7a79057be406a9e758b08cfd108c6c",
+    "toolchain": {
+      "generator": "Unix Makefiles",
+      "cmake": "3.31",
+      "compiler": "GNU 14.2.0",
+      "configuration": "Release",
+      "cxx_flags": "-O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable",
+      "vulkan": "enabled",
+      "glslc": "shaderc 2025.2-1, spirv-tools 2025.1~rc1-1, glslang 15.1.0+1.4.309.0-1, Target: SPIR-V 1.0",
+      "base_candidate_flags_matched": true
+    }
+  },
+  "device_and_resources": {
+    "device": "MI50",
+    "gpu_node": "/dev/dri/renderD130",
+    "pci": "0000:c9:00.0",
+    "uuid": "00000000-c900-0000-0000-000000000000",
+    "driver": "Mesa 25.0.7-2+deb13u1",
+    "container_cpu_set": "4-7",
+    "container_cpu_quota": 4,
+    "container_memory_gib": 16,
+    "threads": 4,
+    "host_memory_minimum_gib": 8
+  },
+  "benchmark": {
+    "command": "llmx bench --model ... --device vulkan:0 --threads 4 --p 512 --n 128 --r 1 --ubatch 512 --cache-type-k f32 --cache-type-v f32 --dtype auto --load-mode auto",
+    "placement": "single MI50 GPU 8 (vulkan:0)",
+    "activation": "auto resolved to F16 on completed matrix-path witnesses",
+    "kv": "F32/F32",
+    "prompt_tokens": 512,
+    "decode_tokens": 128,
+    "repeats": 1,
+    "scope_note": "Model bench only, not MTP or server throughput. Existing formats compare current-main base to candidate; Q5_0 compares candidate to pinned mx."
+  },
+  "models": [
+    {
+      "name": "qwen3-q8_0",
+      "bytes": 639446688,
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    {
+      "name": "qwen3-q4_0",
+      "bytes": 382156480,
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+    },
+    {
+      "name": "qwen3-q5_k_m",
+      "bytes": 444415680,
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+    },
+    {
+      "name": "qwen3-q4_k_m",
+      "bytes": 396705472,
+      "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+    },
+    {
+      "name": "qwen35-q8_0",
+      "bytes": 811843840,
+      "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
+    },
+    {
+      "name": "qwen35-q4_k_m",
+      "bytes": 532517120,
+      "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+    },
+    {
+      "name": "qwen3-q5_1",
+      "bytes": 569888576,
+      "sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460"
+    },
+    {
+      "name": "qwen3-iq4_nl",
+      "bytes": 381566656,
+      "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+    },
+    {
+      "name": "qwen3-f16",
+      "bytes": 1509347136,
+      "sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2"
+    },
+    {
+      "name": "qwen3-bf16",
+      "bytes": 1198182848,
+      "sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e"
+    },
+    {
+      "name": "qwen3-q5_0",
+      "bytes": 522915648,
+      "sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89"
+    }
+  ],
+  "summary": {
+    "completed_calls": 22,
+    "all_calls_passed": true,
+    "q5_0_pp512_tps": 8154.82,
+    "q5_0_mx_pp512_tps": 5673.56,
+    "q5_0_pp512_change_percent": 43.73374036759987,
+    "q5_0_tg128_tps": 301.41,
+    "q5_0_mx_tg128_tps": 280.52,
+    "q5_0_tg128_change_percent": 7.446884357621575,
+    "existing_path_changes_percent_range": [
+      -1.047858324652251,
+      1.5281389450704674
+    ],
+    "interpretation": "One pair per cell; these differences do not establish causal regressions or speedups. No sample was discarded."
+  },
+  "monitor": {
+    "samples": 46,
+    "intervals": 45,
+    "flags": {
+      "cpu_busy": 0,
+      "iowait": 0,
+      "unrelated_cpu": 0,
+      "disk_activity": 9,
+      "sample_gap": 0
+    },
+    "unknown_cpu_intervals": 0,
+    "unknown_disk_intervals": 0,
+    "process_observation_limits": {
+      "new_processes_without_delta": 322,
+      "missed_process_observations": 17,
+      "unknown_process_roles": 0,
+      "appeared_processes": 322,
+      "disappeared_processes": 234
+    },
+    "limitations": [
+      "One paired sample per cell; repeat interleaved arms and use matching layout controls if an apparent shift needs attribution.",
+      "Main and candidate are source archives built at /work, version unknown, same image, compiler and flags. Runtime f984 vs a1fc.",
+      "Four threads, CPU4-7, ubatch512, F32 KV, auto/F16; production GPU0-3 excluded. No clock controls changed.",
+      "Identical LCG prompt/decode generators and existing warmups; each phase resets history. TG128 does not continue PP512.",
+      "mx revision eefc4e is pinned, not claimed latest. New Q5_0 speed deficits remain explicit; existing-path regressions require investigation.",
+      "Real production activity is monitored; missing monitoring remains unknown. No idle-machine claim.",
+      "This compact quant timing matrix does not replace the requested Flash MTP P16384/G256 topology comparison.",
+      "Activity intervals overlap whole calls, including loading and both phases; they do not attribute individual phase changes.",
+      "The single-pair existing-path variations do not establish causal regressions or speedups; no sample was discarded.",
+      "Small-format benchmark does not qualify released Flash resident PLE or MTP throughput."
+    ]
+  },
+  "measurements": [
+    {
+      "call": "00",
+      "direction": "forward",
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8860.69,
+        "tg128": 402.15
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8860.69,
+        "candidate_tps": 8829.83,
+        "change_percent": -0.3482798743664528
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 31,
+          "missed_process_observations": 2,
+          "appeared_processes": 31,
+          "disappeared_processes": 14
+        }
+      },
+      "raw_sha256": {
+        "00-base-qwen3-q8_0.stdout": "34e858ec984963ac813dcb9277148286d36ed8979e3762baa427de9e4f99b76b",
+        "00-base-qwen3-q8_0.stderr": "0ddfc45cd4e6226194db09d068f9db967a801c473beec6bab60df6c973ccc7bd",
+        "00-base-qwen3-q8_0.usage.json": "22dbbe243cf3d20b68195ef66cddd5fbe85b646539ab6981ec93d323123b9d90"
+      }
+    },
+    {
+      "call": "01",
+      "direction": "forward",
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8829.83,
+        "tg128": 400.01
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8860.69,
+        "candidate_tps": 8829.83,
+        "change_percent": -0.3482798743664528
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 47,
+          "missed_process_observations": 0,
+          "appeared_processes": 47,
+          "disappeared_processes": 21
+        }
+      },
+      "raw_sha256": {
+        "01-candidate-qwen3-q8_0.stdout": "82ecdc052969f0152249eb2462cb5ce1a9f13539db9cbd78ea92a0f976d9db39",
+        "01-candidate-qwen3-q8_0.stderr": "8e69ad11b2216eaa990c15fb927f771a99a69428878be86d437cf286ad8c1dc7",
+        "01-candidate-qwen3-q8_0.usage.json": "c46d082c32681f5f3f058784e575780a33813ae0641f1a40bc33a8e140ab6df3"
+      }
+    },
+    {
+      "call": "02",
+      "direction": "forward",
+      "model": "qwen3-q4_0",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8359.07,
+        "tg128": 348.73
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8359.07,
+        "candidate_tps": 8359.82,
+        "change_percent": 0.008972289979625181
+      },
+      "activity": {
+        "intervals": 2,
+        "samples": 3,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 31,
+          "missed_process_observations": 0,
+          "appeared_processes": 31,
+          "disappeared_processes": 7
+        }
+      },
+      "raw_sha256": {
+        "02-base-qwen3-q4_0.stdout": "3cd53a4b3e180fc04239f9e5ae2899ed368020fc1e8d265cbe8a2a7ea5daf477",
+        "02-base-qwen3-q4_0.stderr": "fc862688fa2251c63ac11b6047269d732a75ba78cdf0974ede2d106a459192c4",
+        "02-base-qwen3-q4_0.usage.json": "6a8cf6b18d10e71d02f77abd9fb68774c965e2fa476dfa54f4b164bb786d243d"
+      }
+    },
+    {
+      "call": "03",
+      "direction": "forward",
+      "model": "qwen3-q4_0",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8359.82,
+        "tg128": 349.16
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8359.07,
+        "candidate_tps": 8359.82,
+        "change_percent": 0.008972289979625181
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 28,
+          "missed_process_observations": 4,
+          "appeared_processes": 28,
+          "disappeared_processes": 18
+        }
+      },
+      "raw_sha256": {
+        "03-candidate-qwen3-q4_0.stdout": "0ab37dccea47939422662340d47e1220fadb996ae9c34c95a4fcfcfd414d2c63",
+        "03-candidate-qwen3-q4_0.stderr": "e3b82b7326d18dd1d45162d51d9668a965a37766fcf7027865cee6b616c8b810",
+        "03-candidate-qwen3-q4_0.usage.json": "ec75ae02e258f20514e8057d7b38095d1da9824e4ea91e46e4becaf42a2a2bb3"
+      }
+    },
+    {
+      "call": "04",
+      "direction": "forward",
+      "model": "qwen3-q5_k_m",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8134.36,
+        "tg128": 356.08
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8134.36,
+        "candidate_tps": 8130.0,
+        "change_percent": -0.05359979150172389
+      },
+      "activity": {
+        "intervals": 2,
+        "samples": 3,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 21,
+          "missed_process_observations": 1,
+          "appeared_processes": 21,
+          "disappeared_processes": 20
+        }
+      },
+      "raw_sha256": {
+        "04-base-qwen3-q5_k_m.stdout": "cbf1fb45aac1fc6a937731a9bd6b9c3e2fb1d051bac8c957ecce95bf7b638898",
+        "04-base-qwen3-q5_k_m.stderr": "b8d3cbc8af1dbbf38cb4f36aa468851bf3050109021ebc1a86baabb4b36f9a4c",
+        "04-base-qwen3-q5_k_m.usage.json": "236f68cb46150e476545529419984a9c257b74e62ad5ffd5fa9d469c12867a94"
+      }
+    },
+    {
+      "call": "05",
+      "direction": "forward",
+      "model": "qwen3-q5_k_m",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8130.0,
+        "tg128": 356.72
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8134.36,
+        "candidate_tps": 8130.0,
+        "change_percent": -0.05359979150172389
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 29,
+          "missed_process_observations": 1,
+          "appeared_processes": 29,
+          "disappeared_processes": 15
+        }
+      },
+      "raw_sha256": {
+        "05-candidate-qwen3-q5_k_m.stdout": "c9f1702dbccae6d96b5c128f0bdd7854a249ad6599f77fe100c24de427a4bbd0",
+        "05-candidate-qwen3-q5_k_m.stderr": "d9ad5ea6d59337a76d1a1d7c1f6a81f9718f2fa62fd0b682dd5c3efd2f53214b",
+        "05-candidate-qwen3-q5_k_m.usage.json": "5e5c29538150326d1fe85a5098a7928ccda0628ba3222f2a2421e01666f1e53f"
+      }
+    },
+    {
+      "call": "06",
+      "direction": "forward",
+      "model": "qwen3-q4_k_m",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8218.29,
+        "tg128": 364.29
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8218.29,
+        "candidate_tps": 8205.61,
+        "change_percent": -0.1542900043683071
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 2,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 31,
+          "missed_process_observations": 3,
+          "appeared_processes": 31,
+          "disappeared_processes": 18
+        }
+      },
+      "raw_sha256": {
+        "06-base-qwen3-q4_k_m.stdout": "df95337fafbb50d859a366aec41b47cae0b27e511a3ab30b6c56565943a2795d",
+        "06-base-qwen3-q4_k_m.stderr": "9b0286e461a52c9e0beda43125c80bdea9555783141a4264098e113081592d54",
+        "06-base-qwen3-q4_k_m.usage.json": "ef4487506c4d7081b0a99e7457f549ae232123d6989add7d6724424a66c39f0f"
+      }
+    },
+    {
+      "call": "07",
+      "direction": "forward",
+      "model": "qwen3-q4_k_m",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8205.61,
+        "tg128": 362.06
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8218.29,
+        "candidate_tps": 8205.61,
+        "change_percent": -0.1542900043683071
+      },
+      "activity": {
+        "intervals": 2,
+        "samples": 3,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 20,
+          "missed_process_observations": 0,
+          "appeared_processes": 20,
+          "disappeared_processes": 14
+        }
+      },
+      "raw_sha256": {
+        "07-candidate-qwen3-q4_k_m.stdout": "d91499a728f109c3417dcec4b5ca06bb061646b9f020be2ba1369f2c1b33e49a",
+        "07-candidate-qwen3-q4_k_m.stderr": "0be47e5d57e5a3bc8b66b2c98b2c7e2a768bb0eba9c0fc235ccc78dd88673abb",
+        "07-candidate-qwen3-q4_k_m.usage.json": "a17ca2259d57ef002d78c3bfc32a4976b4ad84701767a28c16c3d2b940e5379e"
+      }
+    },
+    {
+      "call": "08",
+      "direction": "forward",
+      "model": "qwen35-q8_0",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 7557.84,
+        "tg128": 349.9
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 7557.84,
+        "candidate_tps": 7545.27,
+        "change_percent": -0.16631736051569979
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 18,
+          "missed_process_observations": 0,
+          "appeared_processes": 18,
+          "disappeared_processes": 14
+        }
+      },
+      "raw_sha256": {
+        "08-base-qwen35-q8_0.stdout": "c86990abe1e37ac4078a4512c7d6c571b36930a136d5b8d1e6577ff8b195dbee",
+        "08-base-qwen35-q8_0.stderr": "211e00fe7e21a43eebcb88ce12971ed929b5327310fabece0d9189727df89359",
+        "08-base-qwen35-q8_0.usage.json": "ac8fcdaa1b74b9246175cd4da9b871abe30c33de9e6cb48a39fd491610ce837d"
+      }
+    },
+    {
+      "call": "09",
+      "direction": "forward",
+      "model": "qwen35-q8_0",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 7545.27,
+        "tg128": 350.69
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 7557.84,
+        "candidate_tps": 7545.27,
+        "change_percent": -0.16631736051569979
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 14,
+          "missed_process_observations": 0,
+          "appeared_processes": 14,
+          "disappeared_processes": 18
+        }
+      },
+      "raw_sha256": {
+        "09-candidate-qwen35-q8_0.stdout": "daa88e1d862a0cdfa37208e1e4f1c1feb0c4821b864f522f1510f0285dd171fe",
+        "09-candidate-qwen35-q8_0.stderr": "1213d7b626d5f9ca3cf36c0cc215621c61c39cd69d02d822f1c25660b6685a67",
+        "09-candidate-qwen35-q8_0.usage.json": "2bda012f4b52a2de1fef8ccdcba420ecf2f9d736e5d8f0557bccb63b9801bc0e"
+      }
+    },
+    {
+      "call": "10",
+      "direction": "forward",
+      "model": "qwen35-q4_k_m",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 7030.95,
+        "tg128": 311.49
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 7030.95,
+        "candidate_tps": 7046.82,
+        "change_percent": 0.22571629722867304
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 18,
+          "missed_process_observations": 0,
+          "appeared_processes": 18,
+          "disappeared_processes": 24
+        }
+      },
+      "raw_sha256": {
+        "10-base-qwen35-q4_k_m.stdout": "e9d3b10919a6926ea4ad3c272fe7b59b4dc149c99286ad0f9f1f0407e7ff7e20",
+        "10-base-qwen35-q4_k_m.stderr": "b6bf1807d9a741b445ec405415ad9ac4c2895bee118c1627bd32dd85f42cea5f",
+        "10-base-qwen35-q4_k_m.usage.json": "0d7dad1c4924cdd506abf974cada9cb7a503bded794f14afd785306104c382f7"
+      }
+    },
+    {
+      "call": "11",
+      "direction": "forward",
+      "model": "qwen35-q4_k_m",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 7046.82,
+        "tg128": 316.25
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 7030.95,
+        "candidate_tps": 7046.82,
+        "change_percent": 0.22571629722867304
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 11,
+          "missed_process_observations": 0,
+          "appeared_processes": 11,
+          "disappeared_processes": 11
+        }
+      },
+      "raw_sha256": {
+        "11-candidate-qwen35-q4_k_m.stdout": "b3e6feabaa1a6a980d6443c11b2e26a8729c41c49e14bdc870457db239245cdd",
+        "11-candidate-qwen35-q4_k_m.stderr": "94e85cffeba3844d3684d55efd3075df6acbfc0983b0c0634bdeb1e88c186e53",
+        "11-candidate-qwen35-q4_k_m.usage.json": "0db5824a205b355d810dacdd3adc7dbaecdf601282981935e24029f59f1c11da"
+      }
+    },
+    {
+      "call": "12",
+      "direction": "forward",
+      "model": "qwen3-q5_1",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8382.1,
+        "tg128": 353.88
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8382.1,
+        "candidate_tps": 8370.9,
+        "change_percent": -0.13361806707150592
+      },
+      "activity": {
+        "intervals": 2,
+        "samples": 3,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 16,
+          "missed_process_observations": 0,
+          "appeared_processes": 16,
+          "disappeared_processes": 12
+        }
+      },
+      "raw_sha256": {
+        "12-base-qwen3-q5_1.stdout": "2b70db7c49b82190e5fae3d887c6c1eb05e9a6ee65a9e16c4ae2085bf6c62c17",
+        "12-base-qwen3-q5_1.stderr": "3a9974ac1feb3c2c0ff4fa742ce4b93f4347a7f0c1b4a98773bdfda5704c9294",
+        "12-base-qwen3-q5_1.usage.json": "a7b5ad0400eaf4a2a6949ebc40dec7ec051c35faeba7c49be1bd539331641cf2"
+      }
+    },
+    {
+      "call": "13",
+      "direction": "forward",
+      "model": "qwen3-q5_1",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8370.9,
+        "tg128": 354.69
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 8382.1,
+        "candidate_tps": 8370.9,
+        "change_percent": -0.13361806707150592
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 29,
+          "missed_process_observations": 0,
+          "appeared_processes": 29,
+          "disappeared_processes": 28
+        }
+      },
+      "raw_sha256": {
+        "13-candidate-qwen3-q5_1.stdout": "323865480115cb1166bf1add9cdc21b4fc7e736183326337ba74bb9be9e02059",
+        "13-candidate-qwen3-q5_1.stderr": "e365e48d0d0a0a30bcb14b276b21c4f14126e7931a487d2cc5877d365d965d6e",
+        "13-candidate-qwen3-q5_1.usage.json": "4ce60ea9391790d7673ce69e880c9714b590b351c462d9b992f166506786c873"
+      }
+    },
+    {
+      "call": "14",
+      "direction": "forward",
+      "model": "qwen3-iq4_nl",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 4962.05,
+        "tg128": 143.66
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 4962.05,
+        "candidate_tps": 4965.99,
+        "change_percent": 0.07940266623673864
+      },
+      "activity": {
+        "intervals": 4,
+        "samples": 5,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 35,
+          "missed_process_observations": 0,
+          "appeared_processes": 35,
+          "disappeared_processes": 15
+        }
+      },
+      "raw_sha256": {
+        "14-base-qwen3-iq4_nl.stdout": "b48d5f251c92802acdbbf1fd61b230b170cce41ee7cd614e61c422faeb1bc434",
+        "14-base-qwen3-iq4_nl.stderr": "11ef81be7f2b536cb6f460c0299ecb72a2e21dc824f5ac8c70ccc59a6ff5e5c9",
+        "14-base-qwen3-iq4_nl.usage.json": "b164aa12045917b779400001b7f466fbd48f6ebcf73020520d7bff19ef118874"
+      }
+    },
+    {
+      "call": "15",
+      "direction": "forward",
+      "model": "qwen3-iq4_nl",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 4965.99,
+        "tg128": 143.69
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 4962.05,
+        "candidate_tps": 4965.99,
+        "change_percent": 0.07940266623673864
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 17,
+          "missed_process_observations": 0,
+          "appeared_processes": 17,
+          "disappeared_processes": 23
+        }
+      },
+      "raw_sha256": {
+        "15-candidate-qwen3-iq4_nl.stdout": "65f0014f81277aa1b7daa1be181470ae2a79af981b904e7130ccc7e1967c5266",
+        "15-candidate-qwen3-iq4_nl.stderr": "59fb2444e0038cd597f1d478ae9ff1df74e8aa3fcf46f3e8033a8c724dfa2bea",
+        "15-candidate-qwen3-iq4_nl.usage.json": "75b99f122991aec24634937956915c35e8680133b3e17de433696777a6f7877b"
+      }
+    },
+    {
+      "call": "16",
+      "direction": "forward",
+      "model": "qwen3-f16",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 1545.14,
+        "tg128": 223.82
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 1545.14,
+        "candidate_tps": 1537.16,
+        "change_percent": -0.5164580555807263
+      },
+      "activity": {
+        "intervals": 4,
+        "samples": 5,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 1,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 14,
+          "missed_process_observations": 0,
+          "appeared_processes": 14,
+          "disappeared_processes": 12
+        }
+      },
+      "raw_sha256": {
+        "16-base-qwen3-f16.stdout": "33c354ce3f004709d349a3193c19b2d450e17e8f0a1b896db5763c036ddbb1ca",
+        "16-base-qwen3-f16.stderr": "336bc0c1770ee6089718af8110bb8de762154a2e1f95e9b5a2ada75e4dd4c5ac",
+        "16-base-qwen3-f16.usage.json": "48686cd610c1f4fda8476a70a5ecebfea6876f76a450c2dd23efe75a6cbfd103"
+      }
+    },
+    {
+      "call": "17",
+      "direction": "forward",
+      "model": "qwen3-f16",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 1537.16,
+        "tg128": 223.81
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 1545.14,
+        "candidate_tps": 1537.16,
+        "change_percent": -0.5164580555807263
+      },
+      "activity": {
+        "intervals": 4,
+        "samples": 5,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 26,
+          "missed_process_observations": 7,
+          "appeared_processes": 26,
+          "disappeared_processes": 25
+        }
+      },
+      "raw_sha256": {
+        "17-candidate-qwen3-f16.stdout": "2f22866977262f170c9d0e439d67efe16e19a90ef4637ca008defab5a167c830",
+        "17-candidate-qwen3-f16.stderr": "abbbac8d67619ee21d53120abffa307a22a9c1740a80c26ade9d4d04aa983eef",
+        "17-candidate-qwen3-f16.usage.json": "46151b4672a4dfffb2cf89e62be519737c5a2835e923652da549d4d2647f4cb7"
+      }
+    },
+    {
+      "call": "18",
+      "direction": "forward",
+      "model": "qwen3-bf16",
+      "arm": "base",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 1533.38,
+        "tg128": 326.38
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 1533.38,
+        "candidate_tps": 1533.57,
+        "change_percent": 0.01239092723264168
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 21,
+          "missed_process_observations": 0,
+          "appeared_processes": 21,
+          "disappeared_processes": 13
+        }
+      },
+      "raw_sha256": {
+        "18-base-qwen3-bf16.stdout": "9c993b8a3b76fb6ee25cd4a91c17d97182729162fb4448a712ad87ba8153785e",
+        "18-base-qwen3-bf16.stderr": "14b2cdf69dd44f576d8690929530c1ff725d3e6b155d1fcf3a8a7c4573c5bef5",
+        "18-base-qwen3-bf16.usage.json": "a8624a6aadd52d68124417a692d3218a582e412ac046edf00724c4132e0b7e83"
+      }
+    },
+    {
+      "call": "19",
+      "direction": "forward",
+      "model": "qwen3-bf16",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 1533.57,
+        "tg128": 322.96
+      },
+      "comparison": {
+        "reference": "base",
+        "reference_tps": 1533.38,
+        "candidate_tps": 1533.57,
+        "change_percent": 0.01239092723264168
+      },
+      "activity": {
+        "intervals": 4,
+        "samples": 5,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 27,
+          "missed_process_observations": 0,
+          "appeared_processes": 27,
+          "disappeared_processes": 26
+        }
+      },
+      "raw_sha256": {
+        "19-candidate-qwen3-bf16.stdout": "3466bd4d9d0689a0b0f2e5164e262e788c5ee5512cc8f08a442f704c95514e9b",
+        "19-candidate-qwen3-bf16.stderr": "b623f0d16016fd5faa6c814bd37580e6dcf73f234cd9b424e0bdd88ef4f24fe8",
+        "19-candidate-qwen3-bf16.usage.json": "eec8371a4e7956a7d69628658ae61dba262e1d2e0a2a522e08b657df4eef9705"
+      }
+    },
+    {
+      "call": "20",
+      "direction": "forward",
+      "model": "qwen3-q5_0",
+      "arm": "candidate",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 8154.82,
+        "tg128": 301.41
+      },
+      "comparison": {
+        "reference": "mx",
+        "reference_tps": 5673.56,
+        "candidate_tps": 8154.82,
+        "change_percent": 43.73374036759987
+      },
+      "activity": {
+        "intervals": 2,
+        "samples": 3,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 10,
+          "missed_process_observations": 0,
+          "appeared_processes": 10,
+          "disappeared_processes": 10
+        }
+      },
+      "raw_sha256": {
+        "20-candidate-qwen3-q5_0.stdout": "96607382e6c67456d4f56f6fc3bb2bec2ebce873e8b3a6e0446452c7096a7b28",
+        "20-candidate-qwen3-q5_0.stderr": "961643aac5782c56f5e76422b8e1e727744e9c90cddc0433d916fcce3554dc88",
+        "20-candidate-qwen3-q5_0.usage.json": "928d0e810783d9f2f9a633e6903e1cb3acc9af8901e035c36f3c5fc9dc2e807e"
+      }
+    },
+    {
+      "call": "21",
+      "direction": "forward",
+      "model": "qwen3-q5_0",
+      "arm": "mx",
+      "status": "passed",
+      "returncode": 0,
+      "rates_tps": {
+        "pp512": 5673.56,
+        "tg128": 280.52
+      },
+      "comparison": {
+        "reference": "mx",
+        "reference_tps": 5673.56,
+        "candidate_tps": 8154.82,
+        "change_percent": 43.73374036759987
+      },
+      "activity": {
+        "intervals": 3,
+        "samples": 4,
+        "unbracketed_seconds": 0.3946874141693115,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 14,
+          "missed_process_observations": 0,
+          "appeared_processes": 14,
+          "disappeared_processes": 14
+        }
+      },
+      "raw_sha256": {
+        "21-mx-qwen3-q5_0.stdout": "41bb28b96c26c38346d0ba197d1fa01de52552e55d64ae1d69593f611561b929",
+        "21-mx-qwen3-q5_0.stderr": "7c303953144cb54239613442361ccaf29846d6cb1abeb4470f668f6df88822e7",
+        "21-mx-qwen3-q5_0.usage.json": "994ac682b4106eddd5ab5c04e9baca4652d17df4934b7e66bae8417cdf5f4da9"
+      }
+    }
+  ],
+  "raw_sha256": {
+    "00-base-qwen3-q8_0.stderr": "0ddfc45cd4e6226194db09d068f9db967a801c473beec6bab60df6c973ccc7bd",
+    "00-base-qwen3-q8_0.stdout": "34e858ec984963ac813dcb9277148286d36ed8979e3762baa427de9e4f99b76b",
+    "00-base-qwen3-q8_0.usage.json": "22dbbe243cf3d20b68195ef66cddd5fbe85b646539ab6981ec93d323123b9d90",
+    "01-candidate-qwen3-q8_0.stderr": "8e69ad11b2216eaa990c15fb927f771a99a69428878be86d437cf286ad8c1dc7",
+    "01-candidate-qwen3-q8_0.stdout": "82ecdc052969f0152249eb2462cb5ce1a9f13539db9cbd78ea92a0f976d9db39",
+    "01-candidate-qwen3-q8_0.usage.json": "c46d082c32681f5f3f058784e575780a33813ae0641f1a40bc33a8e140ab6df3",
+    "02-base-qwen3-q4_0.stderr": "fc862688fa2251c63ac11b6047269d732a75ba78cdf0974ede2d106a459192c4",
+    "02-base-qwen3-q4_0.stdout": "3cd53a4b3e180fc04239f9e5ae2899ed368020fc1e8d265cbe8a2a7ea5daf477",
+    "02-base-qwen3-q4_0.usage.json": "6a8cf6b18d10e71d02f77abd9fb68774c965e2fa476dfa54f4b164bb786d243d",
+    "03-candidate-qwen3-q4_0.stderr": "e3b82b7326d18dd1d45162d51d9668a965a37766fcf7027865cee6b616c8b810",
+    "03-candidate-qwen3-q4_0.stdout": "0ab37dccea47939422662340d47e1220fadb996ae9c34c95a4fcfcfd414d2c63",
+    "03-candidate-qwen3-q4_0.usage.json": "ec75ae02e258f20514e8057d7b38095d1da9824e4ea91e46e4becaf42a2a2bb3",
+    "04-base-qwen3-q5_k_m.stderr": "b8d3cbc8af1dbbf38cb4f36aa468851bf3050109021ebc1a86baabb4b36f9a4c",
+    "04-base-qwen3-q5_k_m.stdout": "cbf1fb45aac1fc6a937731a9bd6b9c3e2fb1d051bac8c957ecce95bf7b638898",
+    "04-base-qwen3-q5_k_m.usage.json": "236f68cb46150e476545529419984a9c257b74e62ad5ffd5fa9d469c12867a94",
+    "05-candidate-qwen3-q5_k_m.stderr": "d9ad5ea6d59337a76d1a1d7c1f6a81f9718f2fa62fd0b682dd5c3efd2f53214b",
+    "05-candidate-qwen3-q5_k_m.stdout": "c9f1702dbccae6d96b5c128f0bdd7854a249ad6599f77fe100c24de427a4bbd0",
+    "05-candidate-qwen3-q5_k_m.usage.json": "5e5c29538150326d1fe85a5098a7928ccda0628ba3222f2a2421e01666f1e53f",
+    "06-base-qwen3-q4_k_m.stderr": "9b0286e461a52c9e0beda43125c80bdea9555783141a4264098e113081592d54",
+    "06-base-qwen3-q4_k_m.stdout": "df95337fafbb50d859a366aec41b47cae0b27e511a3ab30b6c56565943a2795d",
+    "06-base-qwen3-q4_k_m.usage.json": "ef4487506c4d7081b0a99e7457f549ae232123d6989add7d6724424a66c39f0f",
+    "07-candidate-qwen3-q4_k_m.stderr": "0be47e5d57e5a3bc8b66b2c98b2c7e2a768bb0eba9c0fc235ccc78dd88673abb",
+    "07-candidate-qwen3-q4_k_m.stdout": "d91499a728f109c3417dcec4b5ca06bb061646b9f020be2ba1369f2c1b33e49a",
+    "07-candidate-qwen3-q4_k_m.usage.json": "a17ca2259d57ef002d78c3bfc32a4976b4ad84701767a28c16c3d2b940e5379e",
+    "08-base-qwen35-q8_0.stderr": "211e00fe7e21a43eebcb88ce12971ed929b5327310fabece0d9189727df89359",
+    "08-base-qwen35-q8_0.stdout": "c86990abe1e37ac4078a4512c7d6c571b36930a136d5b8d1e6577ff8b195dbee",
+    "08-base-qwen35-q8_0.usage.json": "ac8fcdaa1b74b9246175cd4da9b871abe30c33de9e6cb48a39fd491610ce837d",
+    "09-candidate-qwen35-q8_0.stderr": "1213d7b626d5f9ca3cf36c0cc215621c61c39cd69d02d822f1c25660b6685a67",
+    "09-candidate-qwen35-q8_0.stdout": "daa88e1d862a0cdfa37208e1e4f1c1feb0c4821b864f522f1510f0285dd171fe",
+    "09-candidate-qwen35-q8_0.usage.json": "2bda012f4b52a2de1fef8ccdcba420ecf2f9d736e5d8f0557bccb63b9801bc0e",
+    "10-base-qwen35-q4_k_m.stderr": "b6bf1807d9a741b445ec405415ad9ac4c2895bee118c1627bd32dd85f42cea5f",
+    "10-base-qwen35-q4_k_m.stdout": "e9d3b10919a6926ea4ad3c272fe7b59b4dc149c99286ad0f9f1f0407e7ff7e20",
+    "10-base-qwen35-q4_k_m.usage.json": "0d7dad1c4924cdd506abf974cada9cb7a503bded794f14afd785306104c382f7",
+    "11-candidate-qwen35-q4_k_m.stderr": "94e85cffeba3844d3684d55efd3075df6acbfc0983b0c0634bdeb1e88c186e53",
+    "11-candidate-qwen35-q4_k_m.stdout": "b3e6feabaa1a6a980d6443c11b2e26a8729c41c49e14bdc870457db239245cdd",
+    "11-candidate-qwen35-q4_k_m.usage.json": "0db5824a205b355d810dacdd3adc7dbaecdf601282981935e24029f59f1c11da",
+    "12-base-qwen3-q5_1.stderr": "3a9974ac1feb3c2c0ff4fa742ce4b93f4347a7f0c1b4a98773bdfda5704c9294",
+    "12-base-qwen3-q5_1.stdout": "2b70db7c49b82190e5fae3d887c6c1eb05e9a6ee65a9e16c4ae2085bf6c62c17",
+    "12-base-qwen3-q5_1.usage.json": "a7b5ad0400eaf4a2a6949ebc40dec7ec051c35faeba7c49be1bd539331641cf2",
+    "13-candidate-qwen3-q5_1.stderr": "e365e48d0d0a0a30bcb14b276b21c4f14126e7931a487d2cc5877d365d965d6e",
+    "13-candidate-qwen3-q5_1.stdout": "323865480115cb1166bf1add9cdc21b4fc7e736183326337ba74bb9be9e02059",
+    "13-candidate-qwen3-q5_1.usage.json": "4ce60ea9391790d7673ce69e880c9714b590b351c462d9b992f166506786c873",
+    "14-base-qwen3-iq4_nl.stderr": "11ef81be7f2b536cb6f460c0299ecb72a2e21dc824f5ac8c70ccc59a6ff5e5c9",
+    "14-base-qwen3-iq4_nl.stdout": "b48d5f251c92802acdbbf1fd61b230b170cce41ee7cd614e61c422faeb1bc434",
+    "14-base-qwen3-iq4_nl.usage.json": "b164aa12045917b779400001b7f466fbd48f6ebcf73020520d7bff19ef118874",
+    "15-candidate-qwen3-iq4_nl.stderr": "59fb2444e0038cd597f1d478ae9ff1df74e8aa3fcf46f3e8033a8c724dfa2bea",
+    "15-candidate-qwen3-iq4_nl.stdout": "65f0014f81277aa1b7daa1be181470ae2a79af981b904e7130ccc7e1967c5266",
+    "15-candidate-qwen3-iq4_nl.usage.json": "75b99f122991aec24634937956915c35e8680133b3e17de433696777a6f7877b",
+    "16-base-qwen3-f16.stderr": "336bc0c1770ee6089718af8110bb8de762154a2e1f95e9b5a2ada75e4dd4c5ac",
+    "16-base-qwen3-f16.stdout": "33c354ce3f004709d349a3193c19b2d450e17e8f0a1b896db5763c036ddbb1ca",
+    "16-base-qwen3-f16.usage.json": "48686cd610c1f4fda8476a70a5ecebfea6876f76a450c2dd23efe75a6cbfd103",
+    "17-candidate-qwen3-f16.stderr": "abbbac8d67619ee21d53120abffa307a22a9c1740a80c26ade9d4d04aa983eef",
+    "17-candidate-qwen3-f16.stdout": "2f22866977262f170c9d0e439d67efe16e19a90ef4637ca008defab5a167c830",
+    "17-candidate-qwen3-f16.usage.json": "46151b4672a4dfffb2cf89e62be519737c5a2835e923652da549d4d2647f4cb7",
+    "18-base-qwen3-bf16.stderr": "14b2cdf69dd44f576d8690929530c1ff725d3e6b155d1fcf3a8a7c4573c5bef5",
+    "18-base-qwen3-bf16.stdout": "9c993b8a3b76fb6ee25cd4a91c17d97182729162fb4448a712ad87ba8153785e",
+    "18-base-qwen3-bf16.usage.json": "a8624a6aadd52d68124417a692d3218a582e412ac046edf00724c4132e0b7e83",
+    "19-candidate-qwen3-bf16.stderr": "b623f0d16016fd5faa6c814bd37580e6dcf73f234cd9b424e0bdd88ef4f24fe8",
+    "19-candidate-qwen3-bf16.stdout": "3466bd4d9d0689a0b0f2e5164e262e788c5ee5512cc8f08a442f704c95514e9b",
+    "19-candidate-qwen3-bf16.usage.json": "eec8371a4e7956a7d69628658ae61dba262e1d2e0a2a522e08b657df4eef9705",
+    "20-candidate-qwen3-q5_0.stderr": "961643aac5782c56f5e76422b8e1e727744e9c90cddc0433d916fcce3554dc88",
+    "20-candidate-qwen3-q5_0.stdout": "96607382e6c67456d4f56f6fc3bb2bec2ebce873e8b3a6e0446452c7096a7b28",
+    "20-candidate-qwen3-q5_0.usage.json": "928d0e810783d9f2f9a633e6903e1cb3acc9af8901e035c36f3c5fc9dc2e807e",
+    "21-mx-qwen3-q5_0.stderr": "7c303953144cb54239613442361ccaf29846d6cb1abeb4470f668f6df88822e7",
+    "21-mx-qwen3-q5_0.stdout": "41bb28b96c26c38346d0ba197d1fa01de52552e55d64ae1d69593f611561b929",
+    "21-mx-qwen3-q5_0.usage.json": "994ac682b4106eddd5ab5c04e9baca4652d17df4934b7e66bae8417cdf5f4da9",
+    "activity.jsonl": "09b047c4ceacf72f65984391247a998859d7f71652e711fbb7969a638d9ec10c",
+    "build-flags.json": "019e978d71d9cabe88d1032f2771916aefcb26ec68acfa5fd430b02cc7b4e5b5",
+    "complete.json": "12ebb1851281d3acf00368f61f833e7ea9807fac97a77e8bc73f528fe8bc84d8",
+    "end-verification.json": "97021a992ccacad4b1d9c48a8f3afc5c5746674e2ba8defffe2d5f95be8d64ad",
+    "gpu-after.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "gpu-before.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "idle-owned-containers.json": "505847c62c86039acef984effa885b6b0cdec90ba9cfadc45071a5d0043d945f",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "mx-devices.txt": "45e9e1a45ef150bbd952a997e10dc3cc4689c9acfad804372a0a1b986e57780d",
+    "mx-linkage.txt": "fa79ba3ac62f1fdb1c57efa28bd73d6b9a481abab3531b7bead040fc867886ae",
+    "mx-reference.json": "fca9236ab9863d3954f2ffcf233e914ff99925ccccfae0c14194c1960e78e083",
+    "plan.json": "dd2542339d66b85faa54b4178e0e8df3949e37613dd591c97c24b3de79b0e303",
+    "preflight.json": "b6f6a675478f4a25ff1e96077abf53dd2fcb3a650f8dae3f98bf45aebe1cc7fa",
+    "progress.json": "f26a0eeb433e78e88875c07b8f0813df8e3f46320b032f847237eaaa913fad5d",
+    "qwen3-bf16-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-bf16-info.stdout": "2d77fcd6fe740237fd53b17b4518b8f9d1ab77fb3b269c538d3f99648e05b3e3",
+    "qwen3-f16-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-f16-info.stdout": "4d8afd975befa46d4c799ca676719ca38d0977fa195ae1ed35a0e989dcc4a943",
+    "qwen3-iq4_nl-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-iq4_nl-info.stdout": "aaaee7cec9c3ca5a8626b28bb8d6033047a3ecb5f6d087828e1ca87aed79e651",
+    "qwen3-q4_0-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q4_0-info.stdout": "fb1ad131f47c06c1522445ae97aed86f9cc6c9ade6b86b8d070df635c6509fb5",
+    "qwen3-q4_k_m-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q4_k_m-info.stdout": "e8ef4ae33e97e6dcdcbe1befcd3b1010f8cd765617e3e3d20d00a30545aa8924",
+    "qwen3-q5_0-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q5_0-info.stdout": "e5901b3c574761ed82bbe6727f36781d9dd12eb0e4ee7f3d55225df19ad245a3",
+    "qwen3-q5_1-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q5_1-info.stdout": "c7e9c5bd9646e2e97025ae6a997963de82c07e4575126e1c3f8e92d7c8b15616",
+    "qwen3-q5_k_m-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q5_k_m-info.stdout": "6ede5690076497dd3931201ad3b60c137df905e410038457ced785c4685be053",
+    "qwen3-q8_0-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q8_0-info.stdout": "a22cc53bd2f00831c45672ef901265ac3f03540c4c89843adf43c1fed1ac12ae",
+    "qwen35-q4_k_m-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen35-q4_k_m-info.stdout": "5fedb4fcdca358b2caa454c294312f3d05a2c19669c8e9df1796d3778cf40274",
+    "qwen35-q8_0-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen35-q8_0-info.stdout": "32b34b3ed389f6ae87ec2b1648e0c5df0a01586fd86902a1d9038e78f5b5723f",
+    "reference-wrapper.cpp": "6765e943a7e3963f6b1a6044adfae026e9d41a22f408535be0560520d8ee8f5c",
+    "source-verification.json": "66daa2fb1706d49a729dbc9775f279fd710f93c2ddc75a8a66646c94f5944675",
+    "vulkan-summary.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "vulkan-summary.txt": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb"
+  },
+  "provenance_sha256": {
+    "analysis.json": "43cf7ad0f86f90b1a01af11133a2aafd5ab4730ccc9b565a3b370a6a4ce1fd4a",
+    "launch-result.json": "9c88b31bde746d46912fe3d434fc005f339cde1a9fd1f1f30e6f7c476c78d2f6",
+    "main-build-result.json": "d22405f98e21cc8adda276202094ff901f5db4e0030e240f5f3dd0f62203a68f",
+    "candidate-source-manifest.json": "a3cdff84f5dbe718b0a50dbccbb698cdbbca8819555da3020a36bf13df54cd3d",
+    "round1/plan.json": "dd2542339d66b85faa54b4178e0e8df3949e37613dd591c97c24b3de79b0e303",
+    "round1/complete.json": "12ebb1851281d3acf00368f61f833e7ea9807fac97a77e8bc73f528fe8bc84d8",
+    "round1/preflight.json": "b6f6a675478f4a25ff1e96077abf53dd2fcb3a650f8dae3f98bf45aebe1cc7fa",
+    "round1/source-verification.json": "66daa2fb1706d49a729dbc9775f279fd710f93c2ddc75a8a66646c94f5944675",
+    "round1/build-flags.json": "019e978d71d9cabe88d1032f2771916aefcb26ec68acfa5fd430b02cc7b4e5b5"
+  },
+  "analysis_tool_sha256": "d73583a62e068a51061fa97e64e1bb5b9380fef68875c8b846ae5d1754164681",
+  "retention": "All 22 call stdout/stderr/usage files, 46 monitor samples, 45 intervals, and raw activity data remain in the evidence directory. This tracked record stores hashes and compact per-call flags, not giant process logs."
+}

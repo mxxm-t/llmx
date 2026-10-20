@@ -1,10 +1,12 @@
 import hashlib
+import json
+import tempfile
 import math
 import os
 
 import common
 import spec_decode as sd
-from f32 import TEXTS, VOCAB, hf_name, write_model
+from f32 import TEXTS, VOCAB, hf_name, weight_hash, write_model
 from tokenizer import build_byte_vocab
 
 
@@ -90,3 +92,34 @@ def device_skip(model):
         return False
     rc, out = common.run_f32_cache(["logits", model, TEXTS[0], "--top", "1"])
     return common.device_lacks_kernel(rc, out)
+
+
+def run_family(kind, label, make_fixture, family=None):
+    if common.f32_cache_skip(kind):
+        return common.SKIPPED
+    split = common.tensor_width() > 1
+    path = os.path.join(os.path.dirname(__file__), "data", "baseline_%s%s.json" % (label.lower(), "_split" if split else ""))
+    with open(path, encoding="utf-8") as f:
+        goldens = json.load(f)
+    assert goldens["transformers_version"] == "4.55.2", label + " reference version changed"
+    assert [x["name"] for x in goldens["fixtures"]] == [x[0] for x in VARIANTS], label + " fixture coverage changed"
+    worst, comparisons, models = 0.0, 0, []
+    with tempfile.TemporaryDirectory(prefix="llmx_%s_hf_" % label.lower()) as directory:
+        for (name, tied, moe), golden in zip(VARIANTS, goldens["fixtures"]):
+            assert [case["text"] for case in golden["cases"]] == TEXTS, label + " prompt coverage changed"
+            assert [case["context"] for case in golden["perplexity"]] == [4, 16], label + " NLL coverage changed"
+            config, weights, packed = make_fixture(tied, moe, split=split)
+            assert config == golden["config"] and weight_hash(weights) == golden["weights_sha256"], label + " decoded weights changed"
+            assert packed_hash(packed) == golden["packed_sha256"], label + " packed weights changed"
+            model = write_fixture(os.path.join(directory, name + ".gguf"), config, weights, packed, moe)
+            models.append((name, model, golden))
+        if device_skip(models[0][1]):
+            print("%s: SKIP - selected device has no %s kernel" % (kind, label))
+            return common.SKIPPED
+        for name, model, golden in models:
+            error, count = common.check_hf_fixture(label + " " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16), family=family)
+            worst = max(worst, error)
+            comparisons += count
+    assert comparisons == 150, label + " full-logit coverage changed"
+    print("%s: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error %.8f  [ok]" % (kind, worst))
+    return True

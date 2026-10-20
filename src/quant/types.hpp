@@ -15,6 +15,7 @@ constexpr uint32_t GGML_TYPE_F32  = 0;
 constexpr uint32_t GGML_TYPE_F16  = 1;
 constexpr uint32_t GGML_TYPE_Q4_0 = 2;
 constexpr uint32_t GGML_TYPE_Q4_1 = 3;
+constexpr uint32_t GGML_TYPE_Q5_0 = 6;
 constexpr uint32_t GGML_TYPE_Q5_1 = 7;
 constexpr uint32_t GGML_TYPE_Q8_0 = 8;
 constexpr uint32_t GGML_TYPE_Q4_K = 12;
@@ -28,6 +29,8 @@ constexpr size_t   Q4_0_BLOCK    = 32;   // values per block
 constexpr size_t   Q4_0_TYPESIZE = 18;   // 2-byte f16 scale + 32 nibbles
 constexpr size_t   Q4_1_BLOCK    = 32;   // values per block
 constexpr size_t   Q4_1_TYPESIZE = 20;   // f16 scale + f16 min + 32 nibbles
+constexpr size_t   Q5_0_BLOCK    = 32;
+constexpr size_t   Q5_0_TYPESIZE = 22;   // f16 scale + 32 high bits + 32 nibbles
 constexpr size_t   Q5_1_BLOCK    = 32;
 constexpr size_t   Q5_1_TYPESIZE = 24;   // f16 scale + f16 min + 32 high bits + 32 nibbles
 constexpr size_t   Q8_0_BLOCK    = 32;   // values per block
@@ -56,7 +59,7 @@ inline const StorageType* storage_type(uint32_t id) {
         {"F32", 1, 4}, {"F16", 1, 2},
         {"Q4_0", Q4_0_BLOCK, Q4_0_TYPESIZE}, {"Q4_1", Q4_1_BLOCK, Q4_1_TYPESIZE},
         {}, {},
-        {"Q5_0", 32, 22}, {"Q5_1", Q5_1_BLOCK, Q5_1_TYPESIZE},
+        {"Q5_0", Q5_0_BLOCK, Q5_0_TYPESIZE}, {"Q5_1", Q5_1_BLOCK, Q5_1_TYPESIZE},
         {"Q8_0", Q8_0_BLOCK, Q8_0_TYPESIZE}, {"Q8_1", 32, 36},
         {"Q2_K", 256, 84}, {"Q3_K", 256, 110},
         {"Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE}, {"Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE},

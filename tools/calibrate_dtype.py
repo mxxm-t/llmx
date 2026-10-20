@@ -8,6 +8,7 @@ Run once in the HF reference environment of tools/gen_baseline.py, then commit t
 
     python tools/calibrate_dtype.py --output FILE
     python tools/calibrate_dtype.py --family q5-1 --output FILE
+    python tools/calibrate_dtype.py --family q5-0 --output FILE
 """
 
 import argparse
@@ -132,12 +133,14 @@ def family_models(family):
     from gen_baseline import tiny_block_model
     from block_fixture import VARIANTS, packed_hash
     from f32 import weight_hash
+    import q5_0
     import q5_1
-    assert family == "q5-1", "unknown calibration family"
+    assert family in ("q5-0", "q5-1"), "unknown calibration family"
+    fixture = {"q5-0": q5_0.fixture, "q5-1": q5_1.fixture}[family]
     for split in (False, True):
         for name, tied, moe in VARIANTS:
             for seed in (12345,) + SEEDS:
-                config, weights, packed = q5_1.fixture(tied, moe, seed, split=split)
+                config, weights, packed = fixture(tied, moe, seed, split=split)
                 model = tiny_block_model(config, weights, tied, moe)
                 yield model, {"fixture": name, "split": split, "seed": seed,
                               "config": config, "weights_sha256": weight_hash(weights),
@@ -188,7 +191,7 @@ def family_budget(family, torch, transformers):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--output", required=True, help="new result file; never overwrites a frozen budget")
-    parser.add_argument("--family", choices=("q5-1",), help="extend the frozen budget for this raw-block fixture family only")
+    parser.add_argument("--family", choices=("q5-0", "q5-1"), help="extend the frozen budget for this raw-block fixture family only")
     args = parser.parse_args(argv)
     import torch
     import transformers

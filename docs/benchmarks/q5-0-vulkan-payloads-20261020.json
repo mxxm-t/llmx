@@ -1,0 +1,849 @@
+{
+  "normalization": "spirv-opt --strip-debug --compact-ids only",
+  "old_directory": "..\\quant-stack-20261020\\build-q5-tile-isolation\\generated\\vulkan",
+  "raw_identical": [
+    "add.inc",
+    "argmax_rows.inc",
+    "attention.inc",
+    "attention_g4.inc",
+    "attention_k16.inc",
+    "attention_k16_g4.inc",
+    "attention_kv16.inc",
+    "attention_kv16_g4.inc",
+    "attention_merge.inc",
+    "attention_tile.inc",
+    "attention_tile_d256.inc",
+    "attention_tile_d256_k16.inc",
+    "attention_tile_d256_kv16.inc",
+    "attention_tile_d256_v16.inc",
+    "attention_tile_k16.inc",
+    "attention_tile_kv16.inc",
+    "attention_tile_v16.inc",
+    "attention_v16.inc",
+    "attention_v16_g4.inc",
+    "attention_vec.inc",
+    "attention_vec_d256.inc",
+    "attention_vec_d256_g4.inc",
+    "attention_vec_d256_k16.inc",
+    "attention_vec_d256_k16_g4.inc",
+    "attention_vec_d256_kv16.inc",
+    "attention_vec_d256_kv16_g4.inc",
+    "attention_vec_d256_v16.inc",
+    "attention_vec_d256_v16_g4.inc",
+    "attention_vec_g4.inc",
+    "attention_vec_k16.inc",
+    "attention_vec_k16_g4.inc",
+    "attention_vec_kv16.inc",
+    "attention_vec_kv16_g4.inc",
+    "attention_vec_v16.inc",
+    "attention_vec_v16_g4.inc",
+    "causal_conv_silu.inc",
+    "delta_rule.inc",
+    "delta_rule_short.inc",
+    "dilated_conv_silu_add.inc",
+    "gated_rms_norm.inc",
+    "gather_rows.inc",
+    "group_rms_norm.inc",
+    "inject_streams.inc",
+    "kv_index_pool.inc",
+    "kv_index_scores.inc",
+    "kv_index_select.inc",
+    "kv_write.inc",
+    "kv_write_k16.inc",
+    "kv_write_kv16.inc",
+    "kv_write_v16.inc",
+    "matmul_reduce.inc",
+    "matmul_reduce_mxfp4.inc",
+    "matmul_reduce_preserve.inc",
+    "matmul_row.inc",
+    "matmul_row_preserve.inc",
+    "mix_streams.inc",
+    "moe_combine.inc",
+    "moe_group.inc",
+    "moe_route.inc",
+    "norm_rope_kv.inc",
+    "norm_rope_kv_k16.inc",
+    "norm_rope_kv_kv16.inc",
+    "norm_rope_kv_v16.inc",
+    "norm_rope_partial.inc",
+    "quantize_x.inc",
+    "quantize_xw.inc",
+    "rms_norm_rows.inc",
+    "sigmoid_mul.inc",
+    "signed_sqrt_gate.inc",
+    "silu_mul.inc",
+    "silu_scaled.inc",
+    "sparse_attention.inc",
+    "sparse_attention_k16.inc",
+    "sparse_attention_kv16.inc",
+    "sparse_attention_v16.inc",
+    "sparse_attention_vec.inc",
+    "sparse_attention_vec_d256.inc",
+    "sparse_attention_vec_d256_k16.inc",
+    "sparse_attention_vec_d256_kv16.inc",
+    "sparse_attention_vec_d256_v16.inc",
+    "sparse_attention_vec_k16.inc",
+    "sparse_attention_vec_kv16.inc",
+    "sparse_attention_vec_v16.inc"
+  ],
+  "normalized_identical": [
+    "copy_mxfp4.inc",
+    "embed_ids_mxfp4.inc",
+    "embed_ids_wbf16.inc",
+    "embed_ids_wf16.inc",
+    "embed_mxfp4.inc",
+    "embed_wbf16.inc",
+    "embed_wf16.inc",
+    "matmul_row_iq4_dot.inc",
+    "matmul_row_k.inc",
+    "matmul_row_k4.inc",
+    "matmul_row_k4_dot.inc",
+    "matmul_row_k4_dot_preserve.inc",
+    "matmul_row_k4_i8.inc",
+    "matmul_row_k4_i8_preserve.inc",
+    "matmul_row_k5.inc",
+    "matmul_row_k5_dot.inc",
+    "matmul_row_k5_dot_preserve.inc",
+    "matmul_row_k5_i8.inc",
+    "matmul_row_k5_i8_preserve.inc",
+    "matmul_row_k5_preserve.inc",
+    "matmul_row_k_dot.inc",
+    "matmul_row_k_dot_preserve.inc",
+    "matmul_row_k_i8.inc",
+    "matmul_row_k_i8_preserve.inc",
+    "matmul_row_k_preserve.inc",
+    "matmul_row_mxfp4.inc",
+    "matmul_row_mxfp4_dot.inc",
+    "matmul_row_q4.inc",
+    "matmul_row_q4_dot.inc",
+    "matmul_row_q4_dot_preserve.inc",
+    "matmul_row_q4_i8.inc",
+    "matmul_row_q4_i8_preserve.inc",
+    "matmul_row_q4_preserve.inc",
+    "matmul_row_q5.inc",
+    "matmul_row_q5_dot.inc",
+    "matmul_row_q5_dot_preserve.inc",
+    "matmul_row_q5_i8.inc",
+    "matmul_row_q5_i8_preserve.inc",
+    "matmul_row_q5_preserve.inc",
+    "matmul_row_q8w.inc",
+    "matmul_row_q8w_preserve.inc",
+    "matmul_row_wbf16.inc",
+    "matmul_row_wf16.inc",
+    "matmul_tile_iq4.inc",
+    "matmul_tile_mxfp4.inc",
+    "matmul_tile_mxfp4_bf16.inc",
+    "matmul_tile_q.inc",
+    "matmul_tile_q5.inc",
+    "matmul_tile_q5_preserve.inc",
+    "matmul_tile_q5i8.inc",
+    "matmul_tile_q5i8_preserve.inc",
+    "matmul_tile_q6.inc",
+    "matmul_tile_q6_preserve.inc",
+    "matmul_tile_q6i8.inc",
+    "matmul_tile_q6i8_preserve.inc",
+    "matmul_tile_q8.inc",
+    "matmul_tile_q8i8.inc",
+    "matmul_tile_q8mx.inc",
+    "matmul_tile_q_preserve.inc",
+    "matmul_tile_qi8.inc",
+    "matmul_tile_qi8_preserve.inc",
+    "matmul_tile_wbf16.inc",
+    "matmul_tile_wbf16_bf16.inc",
+    "matmul_tile_wbf16_bf16_preserve.inc",
+    "matmul_tile_wbf16_preserve.inc",
+    "matmul_tile_wf16.inc",
+    "matmul_tile_wf16_bf16.inc",
+    "matmul_tile_wf16_bf16_preserve.inc",
+    "matmul_tile_wf16_preserve.inc",
+    "matmul_vec_q8.inc",
+    "matmul_vec_q8_i8.inc",
+    "matmul_vec_q8_i8_preserve.inc",
+    "matmul_vec_q8_preserve.inc"
+  ],
+  "changed": [
+    "embed.inc",
+    "embed_ids.inc",
+    "matmul_row_float_x.inc",
+    "matmul_row_float_x_preserve.inc",
+    "matmul_row_mxfp4_float_x.inc",
+    "matmul_tile.inc",
+    "matmul_tile_bf16.inc",
+    "matmul_tile_bf16_preserve.inc",
+    "matmul_tile_preserve.inc"
+  ],
+  "new": [
+    "matmul_row_q50.inc",
+    "matmul_row_q50_dot.inc",
+    "matmul_row_q50_dot_preserve.inc",
+    "matmul_row_q50_i8.inc",
+    "matmul_row_q50_i8_preserve.inc",
+    "matmul_row_q50_preserve.inc",
+    "matmul_tile_q50.inc",
+    "matmul_tile_q50_preserve.inc",
+    "matmul_tile_q50i8.inc",
+    "matmul_tile_q50i8_preserve.inc"
+  ],
+  "hashes": {
+    "add.inc": [
+      "7f88070e6db28163c6d3600ce48e742c90f5e394f6d7bff3027cf27253627707",
+      "7f88070e6db28163c6d3600ce48e742c90f5e394f6d7bff3027cf27253627707"
+    ],
+    "argmax_rows.inc": [
+      "3f58a9a84b6fd98ae17fdd4c522b9eec27d8084ab228239459144195e1b04480",
+      "3f58a9a84b6fd98ae17fdd4c522b9eec27d8084ab228239459144195e1b04480"
+    ],
+    "attention.inc": [
+      "cc779a117b647abb53b18e09995f510b0c8dbb1cd62261e2ce0ee36f36fd6eba",
+      "cc779a117b647abb53b18e09995f510b0c8dbb1cd62261e2ce0ee36f36fd6eba"
+    ],
+    "attention_g4.inc": [
+      "71b741c02fad8ce6d8ba5683f18da05f9098adfd6c9a2a2710366b75db458fbd",
+      "71b741c02fad8ce6d8ba5683f18da05f9098adfd6c9a2a2710366b75db458fbd"
+    ],
+    "attention_k16.inc": [
+      "e0b540d8dafbf36ed5735025d40ccea77d364b882abc8086832b73531505a36a",
+      "e0b540d8dafbf36ed5735025d40ccea77d364b882abc8086832b73531505a36a"
+    ],
+    "attention_k16_g4.inc": [
+      "2a4c57a43a203aa1761f3e27ff8225220b59c6530ff4b2599528cc280d4978aa",
+      "2a4c57a43a203aa1761f3e27ff8225220b59c6530ff4b2599528cc280d4978aa"
+    ],
+    "attention_kv16.inc": [
+      "b496733ce02a51c95902fc1bd161c65b1a7caccf87f7799bcd2cfc97b7687793",
+      "b496733ce02a51c95902fc1bd161c65b1a7caccf87f7799bcd2cfc97b7687793"
+    ],
+    "attention_kv16_g4.inc": [
+      "37d2235ec587df8fd935cb7b43d8943041f4841747bb91c27b5f50bf60ffa390",
+      "37d2235ec587df8fd935cb7b43d8943041f4841747bb91c27b5f50bf60ffa390"
+    ],
+    "attention_merge.inc": [
+      "46bd46c9bf0aa86e59944847c393444ddd5526ef5e3c0c2cde188d4feeef16e0",
+      "46bd46c9bf0aa86e59944847c393444ddd5526ef5e3c0c2cde188d4feeef16e0"
+    ],
+    "attention_tile.inc": [
+      "516356fba25e472a791ebf7cae1cf1e01f97e67205d57df9413189ec2772796f",
+      "516356fba25e472a791ebf7cae1cf1e01f97e67205d57df9413189ec2772796f"
+    ],
+    "attention_tile_d256.inc": [
+      "bf827373eb5819046d829cf6ee20dfb8fddca407763a34bc5332aca4c38973b9",
+      "bf827373eb5819046d829cf6ee20dfb8fddca407763a34bc5332aca4c38973b9"
+    ],
+    "attention_tile_d256_k16.inc": [
+      "d65f632e57bf08a0c851e586c93be75b9bded49fb36847fd2691a287ea2a37fc",
+      "d65f632e57bf08a0c851e586c93be75b9bded49fb36847fd2691a287ea2a37fc"
+    ],
+    "attention_tile_d256_kv16.inc": [
+      "9e752ea35580cccc1b7566acaaca0ff09fdbbf4bc03d1aede61c6f9ab10f6ce0",
+      "9e752ea35580cccc1b7566acaaca0ff09fdbbf4bc03d1aede61c6f9ab10f6ce0"
+    ],
+    "attention_tile_d256_v16.inc": [
+      "904fd06bc683b79cb487cad242fe98c4f2614f329fd1ebcf894c1381ddc56054",
+      "904fd06bc683b79cb487cad242fe98c4f2614f329fd1ebcf894c1381ddc56054"
+    ],
+    "attention_tile_k16.inc": [
+      "773aa763297d33a6ab89473b8bdcad14c1198a51322ecfa1c2dbcfff2acfe2c5",
+      "773aa763297d33a6ab89473b8bdcad14c1198a51322ecfa1c2dbcfff2acfe2c5"
+    ],
+    "attention_tile_kv16.inc": [
+      "87240f9a201ea97ca08a1f46578f054a759c1e101f2d947e34998ff28e4afad6",
+      "87240f9a201ea97ca08a1f46578f054a759c1e101f2d947e34998ff28e4afad6"
+    ],
+    "attention_tile_v16.inc": [
+      "627d753b49a9c4b1e19210e0bd624760bafe5d047344023cd07e13a87779fb74",
+      "627d753b49a9c4b1e19210e0bd624760bafe5d047344023cd07e13a87779fb74"
+    ],
+    "attention_v16.inc": [
+      "edd5d85760a9667db4aee602afee9ec2ce3dbe84d6e977250cebb0e82227c945",
+      "edd5d85760a9667db4aee602afee9ec2ce3dbe84d6e977250cebb0e82227c945"
+    ],
+    "attention_v16_g4.inc": [
+      "c649230c7eca5684f0ba7c1177ac917807cd3dc6b7a064aa074076ace8d1ec13",
+      "c649230c7eca5684f0ba7c1177ac917807cd3dc6b7a064aa074076ace8d1ec13"
+    ],
+    "attention_vec.inc": [
+      "ca234409596fdee93232edee7a3a0e277da79d60446e03b4af4590b408a89a0f",
+      "ca234409596fdee93232edee7a3a0e277da79d60446e03b4af4590b408a89a0f"
+    ],
+    "attention_vec_d256.inc": [
+      "2e7029c5a4ec63d54af345915f9186292da50264857f5812c49da35c208ee727",
+      "2e7029c5a4ec63d54af345915f9186292da50264857f5812c49da35c208ee727"
+    ],
+    "attention_vec_d256_g4.inc": [
+      "9eccb5e9037f222d61734b09680abf4b3b1d8a4f3417ef220f23090c8f2cda64",
+      "9eccb5e9037f222d61734b09680abf4b3b1d8a4f3417ef220f23090c8f2cda64"
+    ],
+    "attention_vec_d256_k16.inc": [
+      "884fa15a526f1d9ea43e1b23a6333865e005a65ae45c0c7f0aada2ff66a4dced",
+      "884fa15a526f1d9ea43e1b23a6333865e005a65ae45c0c7f0aada2ff66a4dced"
+    ],
+    "attention_vec_d256_k16_g4.inc": [
+      "dccf007ceffc11215ee3a7bc1f8288bb78f38c4760d69b97b1e8c215d179d754",
+      "dccf007ceffc11215ee3a7bc1f8288bb78f38c4760d69b97b1e8c215d179d754"
+    ],
+    "attention_vec_d256_kv16.inc": [
+      "f87c50e1a33fa69d59d74e7bd075f30385d550e62878eec71a41c9730a2b999e",
+      "f87c50e1a33fa69d59d74e7bd075f30385d550e62878eec71a41c9730a2b999e"
+    ],
+    "attention_vec_d256_kv16_g4.inc": [
+      "46ef4583709f19fa673eb45ba569ba677c9321734cadcec60da5b4904cad332e",
+      "46ef4583709f19fa673eb45ba569ba677c9321734cadcec60da5b4904cad332e"
+    ],
+    "attention_vec_d256_v16.inc": [
+      "85b61d9f5a22ac359a3cc567c32ec3b5ec3133d9b1f9276baa58f31c2ad449e0",
+      "85b61d9f5a22ac359a3cc567c32ec3b5ec3133d9b1f9276baa58f31c2ad449e0"
+    ],
+    "attention_vec_d256_v16_g4.inc": [
+      "acc3de43a645405b14343583bbcb2e1666e82105129c181cf68bb0270c40c578",
+      "acc3de43a645405b14343583bbcb2e1666e82105129c181cf68bb0270c40c578"
+    ],
+    "attention_vec_g4.inc": [
+      "9a14cdd2563fa1ed6368734f9c1d1fda3b134189334648dca76d393c247b0b78",
+      "9a14cdd2563fa1ed6368734f9c1d1fda3b134189334648dca76d393c247b0b78"
+    ],
+    "attention_vec_k16.inc": [
+      "34b2d92902db78aad0662f9a82d986a7646e7f567d48d9174623c21577052a0a",
+      "34b2d92902db78aad0662f9a82d986a7646e7f567d48d9174623c21577052a0a"
+    ],
+    "attention_vec_k16_g4.inc": [
+      "84af8f4cc7437c81e29760918aa06ec43d40f29327e76e5ac5b51f2560af7862",
+      "84af8f4cc7437c81e29760918aa06ec43d40f29327e76e5ac5b51f2560af7862"
+    ],
+    "attention_vec_kv16.inc": [
+      "1071d6881f2a5538f1339e565f3e31ffc772a2c3b3a9a156bd169be9543795cc",
+      "1071d6881f2a5538f1339e565f3e31ffc772a2c3b3a9a156bd169be9543795cc"
+    ],
+    "attention_vec_kv16_g4.inc": [
+      "42fc23235817f3f184844e8bb649b898b85b6c7228739b8948d0a0bad0a346a9",
+      "42fc23235817f3f184844e8bb649b898b85b6c7228739b8948d0a0bad0a346a9"
+    ],
+    "attention_vec_v16.inc": [
+      "3209a3f703dcdbc521cba7da86bc4aab5ba84a99f96b6d5a00ead55901c8f29c",
+      "3209a3f703dcdbc521cba7da86bc4aab5ba84a99f96b6d5a00ead55901c8f29c"
+    ],
+    "attention_vec_v16_g4.inc": [
+      "75f00e9217599d81a70237f8157b5ddd018433604118b3532bcf7e5a2f19b277",
+      "75f00e9217599d81a70237f8157b5ddd018433604118b3532bcf7e5a2f19b277"
+    ],
+    "causal_conv_silu.inc": [
+      "e5fb37bff7ebc42e208fd7dd257bdf0bf532d36e5fa7c18b3616f9c2cbe6387d",
+      "e5fb37bff7ebc42e208fd7dd257bdf0bf532d36e5fa7c18b3616f9c2cbe6387d"
+    ],
+    "copy_mxfp4.inc": [
+      "4486a21acea40eb6a6a3e1e253ec67f41fc11a53aca7752ebe4d1ad38c7d8eec",
+      "705816bb5c70a3457f0ce038eab20426650c05af911a877c52ebabfc4022519e"
+    ],
+    "delta_rule.inc": [
+      "a10eab320d7d1c320b237ce2d33587f29e31c5d928320cfe99989d4d6a89f499",
+      "a10eab320d7d1c320b237ce2d33587f29e31c5d928320cfe99989d4d6a89f499"
+    ],
+    "delta_rule_short.inc": [
+      "1b243bcbfa0aff108087749c1562dad09a639cef193d6c617c7737b9ce7889b1",
+      "1b243bcbfa0aff108087749c1562dad09a639cef193d6c617c7737b9ce7889b1"
+    ],
+    "dilated_conv_silu_add.inc": [
+      "1849872ebbb3e57d756a085db2ffc25c1d226d9e838582c7d5af2acf008fb6a3",
+      "1849872ebbb3e57d756a085db2ffc25c1d226d9e838582c7d5af2acf008fb6a3"
+    ],
+    "embed.inc": [
+      "367c777d6c21d3fe34e8f084a14cb70eed4a724f5c2bc966294518160241b11f",
+      "71c96ffb85798b25acf5eb131427dc23b402a5785d9955df34acf4ce4a5962ca"
+    ],
+    "embed_ids.inc": [
+      "c9d533760588c097c3df528b733936db99d836820bdabef0614a14196d3f3cc0",
+      "4f0c5ee4f942ff94314033af499c4e3fb5d444e3f786ca2b9e44983e616e0a5f"
+    ],
+    "embed_ids_mxfp4.inc": [
+      "99cba2f89e6996e3ce43b6886a69f4d0e6ac3b6a9982df619a6fb1092a347152",
+      "e0f28e1ce1c0b6a7fc9192984d0e9d40477eceed668363bf0facdc5990095978"
+    ],
+    "embed_ids_wbf16.inc": [
+      "e96387451ae26fb5bbe228225644b0d4ca2ee3d9b908176ee90a7c19aa93cff9",
+      "7e24bb204b136dcee0a76be93014fc750c43c2ff57b9c455dcbd1de1bfba8a12"
+    ],
+    "embed_ids_wf16.inc": [
+      "d1424e53bb800f6454d54ec6cc20e57c37e072e13a535e3e77f7e72b3cb95097",
+      "e3c3cf531f5d51d6d324f2598f757ce7728c68cdd73f4a144f51c1868efd31f1"
+    ],
+    "embed_mxfp4.inc": [
+      "fca4c2934ef273af784a124c6c71fe507109c6557d0b9b4b0813c40e691df7fa",
+      "c2bd3e9d00b7597d18e60e66b8395bee22b8acb1ceea5193ef08369c658fc32f"
+    ],
+    "embed_wbf16.inc": [
+      "389639f3a4fa1eee762c9d6691533c7e2a64a12cf0ebb22c283bd28c8385b4ea",
+      "2688a1ac1f7cb24fc6e35846caa1189072723b08b3be5dea5b90b852d21b2f98"
+    ],
+    "embed_wf16.inc": [
+      "c13cf4519b7deeb93ed926a3e06675eeeecc1d00b64b10387f0f5cdffb3ac294",
+      "40c114f55b8794c3c543a4a058e221546015e857776fbdac1d02fef077327d9c"
+    ],
+    "gated_rms_norm.inc": [
+      "5295ea4f0dd81a88be98d285784acfd44188f82885a8e0fbfe9cbdb6416d5383",
+      "5295ea4f0dd81a88be98d285784acfd44188f82885a8e0fbfe9cbdb6416d5383"
+    ],
+    "gather_rows.inc": [
+      "ab24127c7776027fd7c43c1ed70ecc1b246a9b70927f12e756d4498b7c8a749e",
+      "ab24127c7776027fd7c43c1ed70ecc1b246a9b70927f12e756d4498b7c8a749e"
+    ],
+    "group_rms_norm.inc": [
+      "e050a32c6259e6af18da20a4e46213fe8dafc4101f1470f6d63856ebe9769de6",
+      "e050a32c6259e6af18da20a4e46213fe8dafc4101f1470f6d63856ebe9769de6"
+    ],
+    "inject_streams.inc": [
+      "cc1bf1dcc08e0865caa4ba4b4aeee2cfa37930a9e8e7ba81d1c91b1841c04a98",
+      "cc1bf1dcc08e0865caa4ba4b4aeee2cfa37930a9e8e7ba81d1c91b1841c04a98"
+    ],
+    "kv_index_pool.inc": [
+      "cb9d0680d84fee541bfa3c29276a3771250bb77eaba73047eec6a9677d732dcc",
+      "cb9d0680d84fee541bfa3c29276a3771250bb77eaba73047eec6a9677d732dcc"
+    ],
+    "kv_index_scores.inc": [
+      "5d5c6bb5437447fc04e79f8b712b4f7cc8ea82de1c90b67544843ba647af5b33",
+      "5d5c6bb5437447fc04e79f8b712b4f7cc8ea82de1c90b67544843ba647af5b33"
+    ],
+    "kv_index_select.inc": [
+      "d4fff54e4fad78a90a036fcb667b7a94eba5a05e6b4e2592b9489caa56131d79",
+      "d4fff54e4fad78a90a036fcb667b7a94eba5a05e6b4e2592b9489caa56131d79"
+    ],
+    "kv_write.inc": [
+      "5bf1f137234d9d6133054bf6a49daeac686edb6d02381174c08949abc488e79e",
+      "5bf1f137234d9d6133054bf6a49daeac686edb6d02381174c08949abc488e79e"
+    ],
+    "kv_write_k16.inc": [
+      "072e52c1181701913f9af85955e02a062a79ed35673807f660194a9413737e27",
+      "072e52c1181701913f9af85955e02a062a79ed35673807f660194a9413737e27"
+    ],
+    "kv_write_kv16.inc": [
+      "a6cdbf0f20968d8d24287cca037a1b46faa1896776704cfdfc28b8b2c3380772",
+      "a6cdbf0f20968d8d24287cca037a1b46faa1896776704cfdfc28b8b2c3380772"
+    ],
+    "kv_write_v16.inc": [
+      "88bf3c5b9fdb9998049714f6a702fb390d1967bb2bd27d9ff08aba9d56370334",
+      "88bf3c5b9fdb9998049714f6a702fb390d1967bb2bd27d9ff08aba9d56370334"
+    ],
+    "matmul_reduce.inc": [
+      "6b97de911594b757ff34b17b548271abbdfba8af826d08407d5ef91bd6ac2fc6",
+      "6b97de911594b757ff34b17b548271abbdfba8af826d08407d5ef91bd6ac2fc6"
+    ],
+    "matmul_reduce_mxfp4.inc": [
+      "580e5ae1f26eed633ce55239216e70c5b6edf55f6e3a51f9f051770fcdb801e6",
+      "580e5ae1f26eed633ce55239216e70c5b6edf55f6e3a51f9f051770fcdb801e6"
+    ],
+    "matmul_reduce_preserve.inc": [
+      "5d79172cec32944b1e44d2b291ac65879bbabd47a8e6c54a4711686e9f20ffdd",
+      "5d79172cec32944b1e44d2b291ac65879bbabd47a8e6c54a4711686e9f20ffdd"
+    ],
+    "matmul_row.inc": [
+      "893192ceaa3ae41ad457d7ed2016dece8ad761125f72b8b19d781a1c3243ec16",
+      "893192ceaa3ae41ad457d7ed2016dece8ad761125f72b8b19d781a1c3243ec16"
+    ],
+    "matmul_row_float_x.inc": [
+      "e7e317bc3532762835c1fe55a9be83e89979148c68408db4208a1ec598f6a14b",
+      "340bd7ca1e3de9a72a7f7cfa4dbba82316f75afd0256dcee69961d647a2d1802"
+    ],
+    "matmul_row_float_x_preserve.inc": [
+      "4c8ac28c254e721f5eaf75afa1b6da2de21f35932dca3a5ae575137b3a4426ad",
+      "65d32df32309913437d57df253ab20b0b31da1e066a8893ff40dce4c6690f216"
+    ],
+    "matmul_row_iq4_dot.inc": [
+      "2c580d2255ec78c6d2f30e4d351f8f6f7d489f211c9ce7cbf39ebbcdc60d086f",
+      "ca248f96ea16b865700d45d02ffd34dca3c8b4b332d779071438f2db687bae60"
+    ],
+    "matmul_row_k.inc": [
+      "c463b8f3cb1d0379e4a3a8395def6266584e54b2c830bcfbcd405979e329203a",
+      "652e1805524254d3c7db456a01e9f64c9fe5e073d8549b3bb3cf74179a021ed2"
+    ],
+    "matmul_row_k4.inc": [
+      "0effa324a2bdbfdce33dd8b61d4516389adf6c60c6ba43fded04b391812b7db3",
+      "9cf985b67721b4269c076490c8a5d072fd5627a36e226e3c0f0475d72fd7d973"
+    ],
+    "matmul_row_k4_dot.inc": [
+      "0a64c92c83c607561da7253372283c946dcb66883c6b736d0e705834afac1ed5",
+      "59b9f2717013ee9f580c17ccaea7f3ad9aa1f840b9ba179d812f7cd9e26f87d8"
+    ],
+    "matmul_row_k4_dot_preserve.inc": [
+      "28dfbdc5109421e5046a373ed4aca211a37fdfad89db10aff5c52fa5bf73e3d0",
+      "b619837840727e5c0b5675d762ab5d4b235badb6e29a52c4349532d09f5002a6"
+    ],
+    "matmul_row_k4_i8.inc": [
+      "bcba6d3e4efd374f4304aae5d37cfacd938c7c22f1e1d6152de3b95943fa8b0e",
+      "7f2c2a28c3c8a7196969e11714b31f2524c4835cb057ab47cb08b4d93fd968a7"
+    ],
+    "matmul_row_k4_i8_preserve.inc": [
+      "6ef37bc10de1913d0b8edd790af5cfe419a88adbe8e9efb03e5c853a7be67762",
+      "ab35bbee27c6e3c31d2b73e980a1d245f41522a3e869e8a469bda884e8d06f07"
+    ],
+    "matmul_row_k5.inc": [
+      "bb4f39956f1788f4f3557fb8aaec6111d860e0f9850009c56f393e3e231e32ec",
+      "cc1abbee1a0673fec81261cdf0b202054cd65627464a1c8bf9ae6b7f33968c29"
+    ],
+    "matmul_row_k5_dot.inc": [
+      "eb821a33eee2100c611a9a715c51d095010304cf18bcc879cbd547a39070df84",
+      "986e7730bcf55a778dbf502f64713a8d43425f8524c772e8d1f86ea5ef5789af"
+    ],
+    "matmul_row_k5_dot_preserve.inc": [
+      "cab338540009a7cbe2eec34018bec91cba2b543efb9a64acb2e51217217ac789",
+      "cf3c733c80d2b11856c587961160e3178ba203fd9b1b8056c49f6ec6e7723616"
+    ],
+    "matmul_row_k5_i8.inc": [
+      "8086757a89ee3a8ac128f5f718799de7307800d3893b9856963e9faf5750c1fd",
+      "0002515203e885396716519cc927ce2de8ec32927d3ec02d5ba7d2cbb8e654c6"
+    ],
+    "matmul_row_k5_i8_preserve.inc": [
+      "e7136bd23803d5acda73a25c688b5bfdc19cd25dfb815fbfc56a1a4e7a362383",
+      "3ddbd64ed8ab73b40bb563f83f450bcad8d27697a4ce29b5d8b9444994ed3551"
+    ],
+    "matmul_row_k5_preserve.inc": [
+      "d7e431b461392ce4c9af703413fd93ad3fc8fee68d85306d1a031740174410e2",
+      "088acfcc09acc245067f801f3c375e355e2f61e596fe14066965d6675ad99ba7"
+    ],
+    "matmul_row_k_dot.inc": [
+      "3eee1cbaacfbde8770a81e52597c4cb4ee06330fba256f6ea38582175d937c63",
+      "3030fc1b957ce12306c3e40716a63e7bfd747773a179230e0412b2f8fe9ba5ee"
+    ],
+    "matmul_row_k_dot_preserve.inc": [
+      "2b660e2c330f659c8aed1aa65f40c384dfd941ab90653ed90ec4e9ad256bdb29",
+      "3e4c49a835e20553ca1fabb2bb6f2147401b6a94da000be069f4b8f65eeeed18"
+    ],
+    "matmul_row_k_i8.inc": [
+      "2ff8f5cd61e739b9044f3f85fc5c0ab224557ddbe6f77f1ae6e43e02361bf0cd",
+      "50ec8c19c7217f143ca3d3097fa3fdb76ac4c3f90448b1ddff8432a51238a276"
+    ],
+    "matmul_row_k_i8_preserve.inc": [
+      "729d1557ace952754634130382fcb0ff4bfc67dabfbbb9a00bfad5f4c49fad36",
+      "9357f6f210fdc9efb52f610e4854ce6b3992af3b85b72b0d47c5b47181200bff"
+    ],
+    "matmul_row_k_preserve.inc": [
+      "c757d9b431d86aa81ceeb745b8bc203de9356197cfec6df6e8edbb780c6d7e88",
+      "2918e4c231f311d43dde6403ee8b8dc339bd97d46477c59af5dc1fc6e3972cac"
+    ],
+    "matmul_row_mxfp4.inc": [
+      "f036e24c6f9c3a150629af4cc3b9388dd2ec3b7a23985d0a1b2de4424511ca69",
+      "1bc6bf0b7b684bb1066f8cde00a8a0c88b441d965fec9c9472d5d5333eac17f0"
+    ],
+    "matmul_row_mxfp4_dot.inc": [
+      "20147065abef1174f92641332f766e5ceae57de159ffb97bbfeeb1fde1171a1e",
+      "82043627611babbd1f33142179c58bfe090e74014f64c9c807b99882624ed201"
+    ],
+    "matmul_row_mxfp4_float_x.inc": [
+      "7e8a79d90bc5f0ea591df86996e5bc6eb72454ce408b4cfe656a57b6c29fb5ce",
+      "680d204d619e9200c300eac287f6d5379e281179bfaac44998de7b3aaba5e7d6"
+    ],
+    "matmul_row_preserve.inc": [
+      "1daa64dd05746c6ed52e5ad5f752ff608233ba6f2297ea40c3d5ba9528beec51",
+      "1daa64dd05746c6ed52e5ad5f752ff608233ba6f2297ea40c3d5ba9528beec51"
+    ],
+    "matmul_row_q4.inc": [
+      "ee04b5eb31a702dd17d6a9d172c6727084d66e39bcf06df3caca7ab23dccb378",
+      "1f8b039550eae2e04f94fc1459be9674a3f1e86d33eb41beca6b1dd337a27f17"
+    ],
+    "matmul_row_q4_dot.inc": [
+      "1a6a39d0a9833107bd5532007c6e1e340a8781e6bfc7cb8516f151a5ff8f550d",
+      "1140888f09ef2e7b9d6c74110d571ad7d3a9b6f0cb674af2a2cbcc691a626f2b"
+    ],
+    "matmul_row_q4_dot_preserve.inc": [
+      "f19b2261cf5545d35bb36c9a25363d68178368a52c45709260d15041b5ee6f42",
+      "996986c20b40fbd1b390a36c7fb26a040e947f321b8a15ba519055a1695854d5"
+    ],
+    "matmul_row_q4_i8.inc": [
+      "e7a9dc3d1152d338f0e8f4bcc8a1ba712cc5a0c855c1f5065e872cdf6006331a",
+      "5693dde385738dad212398a73cd990160edeb277a83063cd2f597fe78f3dfa20"
+    ],
+    "matmul_row_q4_i8_preserve.inc": [
+      "3460a818d62d95b5618a45e55e83a86c828bff3a4c1e1fa2abbe56a9b6b0b798",
+      "9171e324be5742d049d5a3eb8cc5cf0b7faf511830d101e668f5750fbdeb8f37"
+    ],
+    "matmul_row_q4_preserve.inc": [
+      "ca00575977497ec2c867124ac76f06cb1694a073e4338585d6f037346313d7a8",
+      "861b3c2f2ae38d877c17418188fec1fdf6b08bc3b1ecb6e84efa091f106ae808"
+    ],
+    "matmul_row_q5.inc": [
+      "dad86af7f4c13e706ac11b3f71ea06db687f63922bedf6d0f5411afa71090bec",
+      "35af93759f9d70841cce3bdae354615b160c121e35a3e79f219161e1e276ca4f"
+    ],
+    "matmul_row_q5_dot.inc": [
+      "a175fc5795831547fdb32b27997824c735f57c4685bd18eba534a34a3db226a0",
+      "1d91abcd02e67950b707ea80ff8f7d633aabff0f1d445d044c444007c35d2788"
+    ],
+    "matmul_row_q5_dot_preserve.inc": [
+      "560da68a12d2ca463f13ff7c0f65fbb1a6ada1a4ab0c7353d9782d36b24cd621",
+      "b9e78b19f63be1c63b0df63074ccfb3b02df3b232a4c0e44483630a6da73f6ac"
+    ],
+    "matmul_row_q5_i8.inc": [
+      "29806cc0e91911c33d04ad6a209d5a9f45e947472731f757b4eaf8eafc155cc9",
+      "1c670aa6603f5a7c49f98815c2810892f4068e8f3cfaae1fc4b27796664ef3ef"
+    ],
+    "matmul_row_q5_i8_preserve.inc": [
+      "73061cde3668667691a89c02fbcc3bde018f9c7e3e8fafeb4218fe294c96b971",
+      "2747aa2fe085ae8f17d31faabad70493ae92c39d06743695d858857ee120f2d9"
+    ],
+    "matmul_row_q5_preserve.inc": [
+      "db9fd5418d5f6296244664757e76863447e824bd7a775f43d495cb27ce4b5949",
+      "df84a9521a933ffa69658e56266d2e2b9ce2ecede6f663c617561ad541904475"
+    ],
+    "matmul_row_q8w.inc": [
+      "ee3ad7c2cac6d1d816a3b996efe2a22af78e1499bebca0fa32281bbdc198b2f5",
+      "60d06713c2c4515786a52ae9d58025633c6e90a1412cf46c9b265edaf328e6be"
+    ],
+    "matmul_row_q8w_preserve.inc": [
+      "1f7c2e2767d59ac38092442a2aec33c53421710c48c22616bfa938850be18672",
+      "bc000c9c40d4af355f7e267e0ffb302fcee55b438c6e423b30f487a98e334cd1"
+    ],
+    "matmul_row_wbf16.inc": [
+      "084a027eb0a9946bcc0ffdc589499c6657c938c53132a796e250f1f4cbf0b12a",
+      "abd2f0216f3b0b6c582bd1ae39b74749f1a24f4a54392f5bc987bc017bbc0b15"
+    ],
+    "matmul_row_wf16.inc": [
+      "6c90abc4e2ddfef5496e10fc153f93c8bfd5971bd2189e8e0f9b0ebcc0734c6a",
+      "2b89c29e5d3ec7526f1c57acdc316d63fd156e11b020002c44f6712d809a8aed"
+    ],
+    "matmul_tile.inc": [
+      "5f917bfc1eccaebac1e4b56c2af9b2314585865f08d17279800911de44079429",
+      "01c34825a9728f248948a3963b24df5e639e3bc9e89a96fb82db729d1791df14"
+    ],
+    "matmul_tile_bf16.inc": [
+      "6a47896096c1d98e4bbc6e79ae777439ad714168194edf63fe2b3607c0d6f81b",
+      "f86ecc8ca3251a51bb7277fea8aede7dd9b86f82d6b148e11f75ede0685de98c"
+    ],
+    "matmul_tile_bf16_preserve.inc": [
+      "2a0d3d75d411400fff635ac3dcb73edc978a202abfae58f7bb760287886aaca9",
+      "ba21b522585b4e438f04d4357a3a51f7fdd30a55369bd352481cf0ff93b351bd"
+    ],
+    "matmul_tile_iq4.inc": [
+      "0b71c6388d9c3826652b957669d6680e14a85fdc1d0c9cb2cee2cdb63e277df2",
+      "d5677e7faaf7d739da9a24a96e1c2405e19618d54054c28168180b722bdcdb12"
+    ],
+    "matmul_tile_mxfp4.inc": [
+      "fc693a17ea053662087045b93bebd053baa3daca1dda9830adb370580ba8eb76",
+      "ce6c97abe0a7247e2e5b2773528b4161061358f4d7a9698eb1c12157d843aca1"
+    ],
+    "matmul_tile_mxfp4_bf16.inc": [
+      "40472e6c7cd822cdeade3935e36ad706f82a1b69c1cc40ac9eb865b3f1bf1e5c",
+      "d13f48ea47f8298d6c03081fcb473f00b3cd12250f9d30c7ab4430658928f36e"
+    ],
+    "matmul_tile_preserve.inc": [
+      "0f737d18b3e0d32945855730ca18714062376f4322423ab884c0a5bfc4c9059a",
+      "dd7e1b46709306ba1b7131a7d6dcffec9a064ccc0a9ac91856f91768dc1262bb"
+    ],
+    "matmul_tile_q.inc": [
+      "3591b72c0aab77542b77a251620410d8be86eb7f4fe918700900204fa246056f",
+      "fbef7dfaeeaf85a77f82c45028a9d3e5df2d5807d53cf2cd76911b6796eeab4d"
+    ],
+    "matmul_tile_q5.inc": [
+      "cc9021f10102a66de565128f0fada51f78cb2df9d9a7c8293ba6a08643eb5845",
+      "343d17925fdfd26b2c0259b80973599286f6cdcab2738c8c7cc692167ef7a147"
+    ],
+    "matmul_tile_q5_preserve.inc": [
+      "dbc463f96052e9be0894ef9522483aa8ab4f50cc7732e2cd99692f3e3ca8a0b7",
+      "f37eae5ec159df7a8f24cc9c21108c01a1963d0e1560bf902a08629c30aae491"
+    ],
+    "matmul_tile_q5i8.inc": [
+      "7d7f7bafc1f3e3523cde3aa580d50b197aeb847faf7c3697d2e055db4f696318",
+      "347b0cb415235ba191b50ad12e522b2c4b1a1c60a28c83140087f9c6270db79e"
+    ],
+    "matmul_tile_q5i8_preserve.inc": [
+      "b824cb2cbfffed6a8e1a1325f90cddaae95c944cebae866b07b305af4b10f27a",
+      "d135d6685bbbc49643f336a4e460b9b560e39eeb1bc557696ddddd2ece775927"
+    ],
+    "matmul_tile_q6.inc": [
+      "cc2916e944cbef89d4c18f347ff12b5b6b7ac2279b77be46214361fe69c0f92e",
+      "16a78c8a0b6183dddf89a970e76f0e13fa99f4d3722d07db4af9ead3137a54b5"
+    ],
+    "matmul_tile_q6_preserve.inc": [
+      "ec02b4e140392ff6f2b204516907007748006c46a94f397376debfbe7c8bd980",
+      "12d65f4c1ddcb66c9c65d3774b63c3a162c9e39d4b23d8b98c681a42c13307aa"
+    ],
+    "matmul_tile_q6i8.inc": [
+      "3833bf717bc539da453ac07216f642c2e133dc738a882ad9690d6795db03b4f2",
+      "35ee4796a2311b2882a94205e31c59b91faa8e2b26e58d966b9e86124da26b9a"
+    ],
+    "matmul_tile_q6i8_preserve.inc": [
+      "cc40bb51a5134a575143bda56df0a8031647f5b2cf1071e986f32532babf7e4a",
+      "c0a3b3f36fc54162818047c276a755646f11f54c6cd33e56b591ebd15c811783"
+    ],
+    "matmul_tile_q8.inc": [
+      "e396069d4e4c6b368ff1fcb0151a0637f7fd576db3de54338d5c6fe62e76c4bd",
+      "cd7fe01a7382ec9f95cb369b0ce4505d8e40f1d91804d632b147ddce93e702ac"
+    ],
+    "matmul_tile_q8i8.inc": [
+      "e7c4ff52e87fb892d44118526c0595b0d1513392158565d91948579019ccc906",
+      "9e8cab9b8704e883421d72a815c317308469827609da3e81f4720a93d4d263d0"
+    ],
+    "matmul_tile_q8mx.inc": [
+      "4740b6df405fc30ded21ec38faf4c85fca4f4939574f75645e84e3c818aeaf3f",
+      "6a0c7cbc8b4497d2d279c582c8b549c7588bdfd41498e738e47b16e8fa0520ea"
+    ],
+    "matmul_tile_q_preserve.inc": [
+      "ca726c7738d9d6cae37c03b1b4d8e4798b4f4743029e18da08231f29868309c3",
+      "441ee9adeea3af20b63d6d693f045d31a9debdc8fcde078f54241b8c536f921d"
+    ],
+    "matmul_tile_qi8.inc": [
+      "f2cc40b5ff34337ea0c32032b88ee38df2af0f977ce8683f54195b516e79b5c7",
+      "eaeba25a849bc50088f0459fabbc51d63a5287e51996968c684a52ba4bcc9520"
+    ],
+    "matmul_tile_qi8_preserve.inc": [
+      "f6a1b64e9a1f131f4c61280faa4c68064347893a18d7a0032362b83d8e61abb7",
+      "fa5c3031a6a3b906231bd0fa87681b4dfa6a7c7b867cfa928e623bc0afac8b3d"
+    ],
+    "matmul_tile_wbf16.inc": [
+      "e8532af50914aac82570c41967f1b4b558a5dc09f5d6806a6f8b88d25c5b17b3",
+      "174303fe1f74d1fc03023b07cbe84949722f0e691f3302c788731a8193779ea1"
+    ],
+    "matmul_tile_wbf16_bf16.inc": [
+      "129bb781d9ea783b13c26362f8f53813189fc1fc2cea4d6b79425281c356b5ff",
+      "287a9abf9ce495ae3ca42a99970363899b6e41cb13e7ab134582f9f4a455ef3f"
+    ],
+    "matmul_tile_wbf16_bf16_preserve.inc": [
+      "18d8da4a705df1ae9bd6a7b6f0538baf60324df6f7c73ecc530f8439e95873fa",
+      "64df770b855dfd7d2436a2838140ae75a98632fd9fd32dcae675667a9f2323be"
+    ],
+    "matmul_tile_wbf16_preserve.inc": [
+      "cc2d9135e3239f609ae0dd6275bb586c007dee95a7e1790813df1f627bcd1d3d",
+      "5681066f79566fb56cb478dd29ea37300dad4b63deef6241f16b42d0237590f4"
+    ],
+    "matmul_tile_wf16.inc": [
+      "b73c9068f7a240d986fc43b0f71f838e8cbbd73ae3aa73f742d8953ed4d1e724",
+      "7831565675dfc97c25a0237ff21252f475a6c88dfa75a89fb4c8f0db4e453d96"
+    ],
+    "matmul_tile_wf16_bf16.inc": [
+      "a2811a7f27bb632876f4d76e762443a95ee59cbcfc6c680ea61f5f0d8f526aef",
+      "f7f99968a8bf8c7e17a7f0f8c5d583661ea04f080a3e2b5acb6540a5a1e102fd"
+    ],
+    "matmul_tile_wf16_bf16_preserve.inc": [
+      "7af9b9cbed31cf8c691b769f448ac9c4dbc38e3edcd2237006509c0d2cb89f85",
+      "86569368fe8ca54bac9ecec8d31287c431f90698e449622a9abb8508bf152667"
+    ],
+    "matmul_tile_wf16_preserve.inc": [
+      "0ac748c57a893ad1ca50641982b0f6754d31570ccec7d6375b07128cb9900bea",
+      "186f7abd7112d7ad62df0f1e427491337e98829274b9a1887a8e81c169dabadc"
+    ],
+    "matmul_vec_q8.inc": [
+      "d707e42affbde399d4e84642efb7792655ad2f28b4a76119e1c6e9a8d9993d5d",
+      "e9f0162bfd6c60c71a2effd1131f399bdec3c9c9c9f73c84eb8691a4c56e99e5"
+    ],
+    "matmul_vec_q8_i8.inc": [
+      "80727f5728ad2b2eb73b12567a15a623cb48a87a2031550666a9f72ad555313d",
+      "97900a0c15fc44a7dbbb95cc64937e4af1b2097e5a462fed15aa35e0b5f6f272"
+    ],
+    "matmul_vec_q8_i8_preserve.inc": [
+      "3622cfb8e37d6be7ffd58fb787a521b354262d2c5baf5edc558c11f2aca91f71",
+      "42fa8a83857254b6c396282d23663b685f99c8eded44280cdc04969bf36d6ea8"
+    ],
+    "matmul_vec_q8_preserve.inc": [
+      "0fc657d81412580b9598ce4629af4ceb3a7b5cdaf586d49a5054e42bdb3f7712",
+      "c0a6eb6da6f4052ed1ceaf581b53bdbf6e8ea66661353e5bb766a72c6e791361"
+    ],
+    "mix_streams.inc": [
+      "fa43ca94b48cb024340cf357fe26c6d211e4c71e19726b8ca425db1eee56a475",
+      "fa43ca94b48cb024340cf357fe26c6d211e4c71e19726b8ca425db1eee56a475"
+    ],
+    "moe_combine.inc": [
+      "d2507f58159b6b3c1dfb2c927498ea53d29ec889b3e35d451999f6c09b5047b8",
+      "d2507f58159b6b3c1dfb2c927498ea53d29ec889b3e35d451999f6c09b5047b8"
+    ],
+    "moe_group.inc": [
+      "c532dae7fe317d53ae6d1fd7604d725f43e2a16496f96f3a64e6ae2b438c2830",
+      "c532dae7fe317d53ae6d1fd7604d725f43e2a16496f96f3a64e6ae2b438c2830"
+    ],
+    "moe_route.inc": [
+      "c5f144e18080f83ed32d05c8ca0ea3eb245216672a59871c49b97440515bf617",
+      "c5f144e18080f83ed32d05c8ca0ea3eb245216672a59871c49b97440515bf617"
+    ],
+    "norm_rope_kv.inc": [
+      "d174a0d1a7dcdc4347e36d39e1d127e9fddc4310c996485efc249bfa8f9cd5d0",
+      "d174a0d1a7dcdc4347e36d39e1d127e9fddc4310c996485efc249bfa8f9cd5d0"
+    ],
+    "norm_rope_kv_k16.inc": [
+      "363c9fbd57f8a873b1624d2e0231562148fcda4f2079d06af356b0e7fbec7fb1",
+      "363c9fbd57f8a873b1624d2e0231562148fcda4f2079d06af356b0e7fbec7fb1"
+    ],
+    "norm_rope_kv_kv16.inc": [
+      "237b351aa68343dfbe88c60d377d2f1b7afa1e6985cbf0bce91d6c95e2bd2c0f",
+      "237b351aa68343dfbe88c60d377d2f1b7afa1e6985cbf0bce91d6c95e2bd2c0f"
+    ],
+    "norm_rope_kv_v16.inc": [
+      "b32a9eb166d82bc0a258d900908abcbca03b53d1629d8267e97672f1477f3e1c",
+      "b32a9eb166d82bc0a258d900908abcbca03b53d1629d8267e97672f1477f3e1c"
+    ],
+    "norm_rope_partial.inc": [
+      "9558abc09240fe416a0a43cddf0b990cc58d4c4cf4c59ccaae306d0ae8818ef9",
+      "9558abc09240fe416a0a43cddf0b990cc58d4c4cf4c59ccaae306d0ae8818ef9"
+    ],
+    "quantize_x.inc": [
+      "f157f74b8344eb7744972097b812e2b92713f7c40dc8decd5ce5792bd16fbfac",
+      "f157f74b8344eb7744972097b812e2b92713f7c40dc8decd5ce5792bd16fbfac"
+    ],
+    "quantize_xw.inc": [
+      "0f0d1f7d52215ed4076db877659bdc297aa0eaa19449552db19e49ed3dabb0e9",
+      "0f0d1f7d52215ed4076db877659bdc297aa0eaa19449552db19e49ed3dabb0e9"
+    ],
+    "rms_norm_rows.inc": [
+      "4e14be2402a2882be3b8738911a9a3da739b95532dd778e76550d96e57e28b20",
+      "4e14be2402a2882be3b8738911a9a3da739b95532dd778e76550d96e57e28b20"
+    ],
+    "sigmoid_mul.inc": [
+      "11a911b71f34b2af3d1fdf8ca1639a0ee8c92d55e3fdad4bbbf65771a01f8932",
+      "11a911b71f34b2af3d1fdf8ca1639a0ee8c92d55e3fdad4bbbf65771a01f8932"
+    ],
+    "signed_sqrt_gate.inc": [
+      "370f2471f959d5027341301dfa5959892036097ba4550575b7b37eb92273c4fd",
+      "370f2471f959d5027341301dfa5959892036097ba4550575b7b37eb92273c4fd"
+    ],
+    "silu_mul.inc": [
+      "9cbbbbaa511d4d7d21d47aa76c0c62aedd793f248bfd3d9400789dc9d3faf64b",
+      "9cbbbbaa511d4d7d21d47aa76c0c62aedd793f248bfd3d9400789dc9d3faf64b"
+    ],
+    "silu_scaled.inc": [
+      "53ebd940a0e417b24eb606f4107b487ade6fa486adde605afa90eb58bd30c83c",
+      "53ebd940a0e417b24eb606f4107b487ade6fa486adde605afa90eb58bd30c83c"
+    ],
+    "sparse_attention.inc": [
+      "1ec50cb0a6d99c771c1ebaef397552b13beec5f903da662ef2f4c516195e902c",
+      "1ec50cb0a6d99c771c1ebaef397552b13beec5f903da662ef2f4c516195e902c"
+    ],
+    "sparse_attention_k16.inc": [
+      "e2f736a6aa5230b1822c35e93e7fda03b3c04d3e19eaeba67a5a909ac2519104",
+      "e2f736a6aa5230b1822c35e93e7fda03b3c04d3e19eaeba67a5a909ac2519104"
+    ],
+    "sparse_attention_kv16.inc": [
+      "efe906b30ad75a3fefa5d99137aa23b451552f7de635877a0cae3301444d8371",
+      "efe906b30ad75a3fefa5d99137aa23b451552f7de635877a0cae3301444d8371"
+    ],
+    "sparse_attention_v16.inc": [
+      "10eeb836402ad1dc0f19dfa2c0d1274450679678b195d07fb60ba94d8911917b",
+      "10eeb836402ad1dc0f19dfa2c0d1274450679678b195d07fb60ba94d8911917b"
+    ],
+    "sparse_attention_vec.inc": [
+      "a4a12e70d32f701bac47e16b662ab1ffdaf723675415fc651143cbe1dcc2c301",
+      "a4a12e70d32f701bac47e16b662ab1ffdaf723675415fc651143cbe1dcc2c301"
+    ],
+    "sparse_attention_vec_d256.inc": [
+      "70cc7ff8438d5566e8ed57ad5247248feb4e3e8c2ed7ee71ac2dd2e94edae514",
+      "70cc7ff8438d5566e8ed57ad5247248feb4e3e8c2ed7ee71ac2dd2e94edae514"
+    ],
+    "sparse_attention_vec_d256_k16.inc": [
+      "6f133d66f76c143696a53e8de63e035fbdd64972b6cdb91fdb4acb62e059eda2",
+      "6f133d66f76c143696a53e8de63e035fbdd64972b6cdb91fdb4acb62e059eda2"
+    ],
+    "sparse_attention_vec_d256_kv16.inc": [
+      "c29a6033b52cfa08165ec0f8bfcbc5feb864aa6d688631acc251195e104d934d",
+      "c29a6033b52cfa08165ec0f8bfcbc5feb864aa6d688631acc251195e104d934d"
+    ],
+    "sparse_attention_vec_d256_v16.inc": [
+      "4ebd3ba0382a6d04d12cf4f5ad088a4788c7b03cbe66c47fce3a351cb3c34b1b",
+      "4ebd3ba0382a6d04d12cf4f5ad088a4788c7b03cbe66c47fce3a351cb3c34b1b"
+    ],
+    "sparse_attention_vec_k16.inc": [
+      "2686e8c540a0b8304f96b2c594014d76b6b692a7c5d7ff3982b5f507026305af",
+      "2686e8c540a0b8304f96b2c594014d76b6b692a7c5d7ff3982b5f507026305af"
+    ],
+    "sparse_attention_vec_kv16.inc": [
+      "92eb6c8da3b21461027c1caa2a92552ddc256a4743df46ef3e95e49724522086",
+      "92eb6c8da3b21461027c1caa2a92552ddc256a4743df46ef3e95e49724522086"
+    ],
+    "sparse_attention_vec_v16.inc": [
+      "5b8a3a380628ccf26c4823382e105299fdf9b78581d932004f87fd24bb817bb0",
+      "5b8a3a380628ccf26c4823382e105299fdf9b78581d932004f87fd24bb817bb0"
+    ]
+  }
+}

@@ -1,0 +1,660 @@
+{
+  "date": "2026-10-20",
+  "scope": "Remaining Q5_0 landing functional checks only; no performance claim or full-suite branding. Original setup failures preserved.",
+  "landing_commit": "711b92250a2c63a2e5a20c73c7e07f1997f6b02d",
+  "runtime_source": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+  "source_equivalence": "Landing source/tests/tools/build inputs equal3b44a30ac; frozen runtimea1fc99258 with final five-file read-only test/tool overlay. No runtime or numerical-bound changes.",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "arm_pins": {
+    "main": {
+      "revision": "f984840a461de65b12b5ea247d64e5b7e7483997",
+      "cli_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a",
+      "tool_sha256": "c72dea7dce56094ff6196fd8a4051da59af7a5dcbd15436f3308fbdbdbb591ba",
+      "library_sha256": "61920b7cf330ddfb62aeb0d0eb4705eeec5c61a3276e2089a6d6b2b7fb2a4361"
+    },
+    "candidate": {
+      "revision": "711b92250a2c63a2e5a20c73c7e07f1997f6b02d",
+      "runtime_build_source": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+      "input_equivalence": "711b92250 runtime/tests/tools/build equal3b44a30ac, frozen runtimea1fc plus exact five-file test/tool overlay",
+      "cli_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+      "tool_sha256": "802a70d34afb5586f206ba6d1870aca50849803abe2e90d7bcaffca0e4ab0a94",
+      "library_sha256": "fb420b317acfdff8427fc1db0528fb13bed13ffdc0c547af99f1f51ed9566ba4"
+    }
+  },
+  "source_pin_counts": {
+    "main": 343,
+    "candidate": 346
+  },
+  "source_normalization": "Identity consumer unchanged: normalize CRLF to LF then hash. Corrected metadata generated from same exact revisions; all343 main hashes equal earlier passed lookup identity. Preparation integrity hashes use raw bytes.",
+  "original_attempts": {
+    "cpu-identity": {
+      "result": {
+        "passed": false,
+        "start": "2026-10-20T20:30:54.878027+00:00",
+        "end": "2026-10-20T20:30:56.161016+00:00",
+        "exit": 1,
+        "removed": true,
+        "mem_available_kib": 31226636,
+        "device_before": null,
+        "source_pins_sha256": "f052cc36c5f2eba62c227f05eba02688da21808fb94a40f399ef31a9b24e2820",
+        "preparation_sha256": "384216b1bcbc14c984d1fff2de8261c348dee189b745b3fd372d1568d76b8bc4",
+        "runner_sha256": "56e60addd84e59dc85ecc828d8be6d7c39ea0fdac7829e9cc354facd8e2c5a5a",
+        "oom_killed": false
+      },
+      "reason": "Pre-inference expected source metadata used rawCRLF hashes while unchanged consumer canonicalizesLF; corrected metadata only, no numeric calls executed."
+    },
+    "device-identity": {
+      "result": {
+        "passed": false,
+        "start": "2026-10-20T20:30:58.585658+00:00",
+        "end": "2026-10-20T20:30:59.856627+00:00",
+        "exit": 1,
+        "removed": true,
+        "mem_available_kib": 31204412,
+        "device_before": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "vram": 10932224,
+          "busy": 0
+        },
+        "device_after": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "vram": 10932224,
+          "busy": 0
+        },
+        "source_pins_sha256": "f052cc36c5f2eba62c227f05eba02688da21808fb94a40f399ef31a9b24e2820",
+        "preparation_sha256": "384216b1bcbc14c984d1fff2de8261c348dee189b745b3fd372d1568d76b8bc4",
+        "runner_sha256": "56e60addd84e59dc85ecc828d8be6d7c39ea0fdac7829e9cc354facd8e2c5a5a",
+        "oom_killed": false
+      },
+      "reason": "Pre-inference expected source metadata used rawCRLF hashes while unchanged consumer canonicalizesLF; corrected metadata only, no numeric calls executed."
+    },
+    "device-suite": {
+      "result": {
+        "passed": false,
+        "start": "2026-10-20T20:31:02.118111+00:00",
+        "end": "2026-10-20T20:37:20.447813+00:00",
+        "exit": 1,
+        "removed": true,
+        "mem_available_kib": 31255520,
+        "device_before": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "device_after": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "component_results": {
+          "perplexity": "PASS",
+          "f32": "PASS",
+          "half-weights": "PASS",
+          "moe": "PASS",
+          "int8": "PASS",
+          "mxfp4": "FAIL",
+          "q5-1": "PASS",
+          "iq4-nl": "PASS",
+          "qwen35": "PASS",
+          "decode-probe": "PASS",
+          "drafters": "PASS",
+          "shards": "PASS",
+          "server": "FAIL",
+          "chat": "PASS",
+          "baseline": "PASS"
+        },
+        "source_pins_sha256": "f052cc36c5f2eba62c227f05eba02688da21808fb94a40f399ef31a9b24e2820",
+        "preparation_sha256": "384216b1bcbc14c984d1fff2de8261c348dee189b745b3fd372d1568d76b8bc4",
+        "runner_sha256": "56e60addd84e59dc85ecc828d8be6d7c39ea0fdac7829e9cc354facd8e2c5a5a",
+        "oom_killed": false
+      },
+      "reasons": {
+        "mxfp4": "Required llmx-cpu-f32-check absent; built exact frozen owner only.",
+        "server": "256MiB tmpfs left263041024bytes free but disk-cache test requires268435456bytes; approved tmpfs1GiB within unchanged12GiB cap."
+      }
+    },
+    "server-tmpfs1g": {
+      "result": {
+        "passed": false,
+        "start": "2026-10-20T20:40:55.180328+00:00",
+        "end": "2026-10-20T20:42:48.599353+00:00",
+        "exit": 1,
+        "removed": true,
+        "mem_available_kib": 30575628,
+        "device_before": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "device_after": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "component_results": {
+          "server": "FAIL"
+        },
+        "source_pins_sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+        "preparation_sha256": "c7bf06d7efacb6d2bb616bc4a94c79890bbf7ad9079eb5ec118de21742da4b6a",
+        "runner_sha256": "dd46a86e639555c5466e56dc7413279900d49d08cc4b3644d613d4495c25660a",
+        "oom_killed": false
+      },
+      "reason": "Real kept-cache test needs4GiB disk capacity;1GiB tmpfs refused. Disk-backed ownedTMPDIR used subsequently."
+    }
+  },
+  "identity": {
+    "cpu": {
+      "launch_result": {
+        "passed": true,
+        "start": "2026-10-20T20:39:14.720166+00:00",
+        "end": "2026-10-20T20:49:05.056272+00:00",
+        "exit": 0,
+        "removed": true,
+        "mem_available_kib": 31129824,
+        "device_before": null,
+        "source_pins_sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+        "preparation_sha256": "a82ca409022916455c76d8f5f9fe02b9990a953289a373c4f58d8dec73a9b5d3",
+        "runner_sha256": "013326ad75d34af882bdc0b25ce7de71d54d762e67d702d977d5d2f1064ead1a",
+        "oom_killed": false
+      },
+      "result_json_sha256": "b34c68c1c0cf3e69ce323c56421bfbc0c04eab0297abc320f1ab567ecc629ffb",
+      "case_count": 10,
+      "rows": "247 prompt rows per Qwen3 control,243 per Qwen3.5; batched/per-token full vocab plus64greedy rows/IDs exact",
+      "cases": [
+        {
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3.5-0.8B-Q8_0.gguf",
+          "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+          "tokens": 243,
+          "passed": true
+        },
+        {
+          "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+          "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+          "tokens": 243,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q5_1.gguf",
+          "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-IQ4_NL.gguf",
+          "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-F16-converted.gguf",
+          "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-BF16.gguf",
+          "model_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+          "tokens": 247,
+          "passed": true
+        }
+      ]
+    },
+    "device": {
+      "launch_result": {
+        "passed": true,
+        "start": "2026-10-20T20:39:13.751728+00:00",
+        "end": "2026-10-20T20:40:19.853542+00:00",
+        "exit": 0,
+        "removed": true,
+        "mem_available_kib": 31147572,
+        "device_before": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "vram": 10932224,
+          "busy": 0
+        },
+        "device_after": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "vram": 10932224,
+          "busy": 0
+        },
+        "source_pins_sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+        "preparation_sha256": "a82ca409022916455c76d8f5f9fe02b9990a953289a373c4f58d8dec73a9b5d3",
+        "runner_sha256": "013326ad75d34af882bdc0b25ce7de71d54d762e67d702d977d5d2f1064ead1a",
+        "oom_killed": false
+      },
+      "result_json_sha256": "8fdc9635a4414922553d2f78aad47d09e3eb15427f14c23d11de9b38e3e44b04",
+      "case_count": 10,
+      "rows": "247 prompt rows per Qwen3 control,243 per Qwen3.5; batched/per-token full vocab plus64greedy rows/IDs exact",
+      "cases": [
+        {
+          "file": "Qwen3-0.6B-Q8_0.gguf",
+          "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_0.gguf",
+          "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q5_K_M.gguf",
+          "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q4_K_M.gguf",
+          "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3.5-0.8B-Q8_0.gguf",
+          "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+          "tokens": 243,
+          "passed": true
+        },
+        {
+          "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+          "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+          "tokens": 243,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q5_1.gguf",
+          "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-IQ4_NL.gguf",
+          "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-F16-converted.gguf",
+          "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+          "tokens": 247,
+          "passed": true
+        },
+        {
+          "file": "Qwen3-0.6B-BF16.gguf",
+          "model_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+          "tokens": 247,
+          "passed": true
+        }
+      ]
+    }
+  },
+  "components": {
+    "perplexity": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "f32": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "half-weights": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "moe": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "int8": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "q5-1": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "iq4-nl": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "qwen35": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "decode-probe": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "drafters": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "shards": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "chat": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "baseline": {
+      "status": "PASS",
+      "source": "original-device-suite",
+      "repeated": false
+    },
+    "mxfp4": {
+      "status": "PASS",
+      "source": "scoped-mxfp4-continuation",
+      "launch_result": {
+        "passed": true,
+        "start": "2026-10-20T20:39:56.450196+00:00",
+        "end": "2026-10-20T20:40:23.357732+00:00",
+        "exit": 0,
+        "removed": true,
+        "mem_available_kib": 29939104,
+        "device_before": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "device_after": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "component_results": {
+          "mxfp4": "PASS"
+        },
+        "source_pins_sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+        "preparation_sha256": "3e29bad40ead040cdd717bb73d3f08677fbdfba6709b202b2c74b680700ec56e",
+        "runner_sha256": "c6a014b639f97354e865a73e0893f8d0bda9b1038fb2a7199e42d94aafe9344a",
+        "oom_killed": false
+      }
+    },
+    "server": {
+      "status": "PASS",
+      "source": "scoped-server-continuation",
+      "launch_result": {
+        "passed": true,
+        "start": "2026-10-20T20:44:37.428895+00:00",
+        "end": "2026-10-20T20:46:55.369054+00:00",
+        "exit": 0,
+        "removed": true,
+        "mem_available_kib": 30995304,
+        "device_before": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "device_after": {
+          "physical": 9,
+          "render": 131,
+          "pci": "0000:cc:00.0",
+          "vram": 10919936,
+          "busy": 0
+        },
+        "component_results": {
+          "server": "PASS"
+        },
+        "source_pins_sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+        "preparation_sha256": "a50becdb9da1808e7602cafb89090f47861f95c35c458e9fb5e09b6db81540f5",
+        "runner_sha256": "cb9b883b491c2581112decc36c9df4afc674e0f5a59526f55c9628309cfc8684",
+        "test_tmp_removed": true,
+        "oom_killed": false
+      }
+    }
+  },
+  "reuse": {
+    "completed_separately": [
+      "q5-0"
+    ],
+    "cpu_group_components": [
+      "split",
+      "tensor-split"
+    ],
+    "host_mock_or_performance": [
+      "dead-code",
+      "docs",
+      "arch-boundary",
+      "version",
+      "cli",
+      "reference-generator",
+      "reference-consumer",
+      "device-reference",
+      "roundtrip",
+      "raw-blocks",
+      "perf",
+      "tokenizer",
+      "server-load",
+      "threads"
+    ],
+    "classification": "This is precise cross-component coverage with inherited results, NOT an uninterrupted current32/32device-suite claim; source docs and performance are handled by root at final landing."
+  },
+  "limitations": [
+    "Functional tests ran alongside production; no performance inference.",
+    "17 omitted components classified explicitly; this is cross-component coverage, not an uninterrupted current32/32MI50 suite.",
+    "Large binary full-logit payloads remain on rig; compact JSON hashes and logs retained locally."
+  ],
+  "evidence": {
+    "build-quant-resume-20261020/q50-final-landing-evidence/cpu-identity/launch-result.json": {
+      "sha256": "c948af665c96e7d871ea679f8c5e8c776623125e36ec4a4143ffcb2297bd18c2",
+      "bytes": 4949
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/cpu-identity/result.json": {
+      "sha256": "b34c68c1c0cf3e69ce323c56421bfbc0c04eab0297abc320f1ab567ecc629ffb",
+      "bytes": 271033
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/device-identity/launch-result.json": {
+      "sha256": "4e9032a44b45a19391eeb2bcb389252aa60f6e45c59d78b5f241acc1c5631d53",
+      "bytes": 5240
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/device-identity/result.json": {
+      "sha256": "8fdc9635a4414922553d2f78aad47d09e3eb15427f14c23d11de9b38e3e44b04",
+      "bytes": 271012
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/mxfp4/consumer.log": {
+      "sha256": "6a1b743df71b20c4448f888935a2f9a9cff2d769b7db5212c69063f4f3b4e477",
+      "bytes": 1022
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/mxfp4/launch-result.json": {
+      "sha256": "457f3c4ae72d7871c6e6bf6c469adbf148eb85a70191034b0e9b75720dcae931",
+      "bytes": 5997
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/original-cpu-identity/consumer.log": {
+      "sha256": "6bf77410bbedd85e478491574af5e0f780e15ee5b2d3c6f284a92cebae8e4320",
+      "bytes": 11325
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/original-cpu-identity/launch-result.json": {
+      "sha256": "c70f498ad5b2243141c473aa9174ff670d9c8e6c39a4e953a404ceaf559f7fc5",
+      "bytes": 4850
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/original-cpu-identity/result.json": {
+      "sha256": "46316fede7c1c8ebf5a02f4bd577b13fc06c4d864f51b2ac7ceffa5b920dac6d",
+      "bytes": 11605
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/original-device-identity/consumer.log": {
+      "sha256": "6bf77410bbedd85e478491574af5e0f780e15ee5b2d3c6f284a92cebae8e4320",
+      "bytes": 11325
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/original-device-identity/launch-result.json": {
+      "sha256": "a68d75b14f6e44dd716698af9f56e58b5df92c392adcd7bd056f7409c5f394a9",
+      "bytes": 5141
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/original-device-identity/result.json": {
+      "sha256": "596a2c95ca852083b4cd93c14aa4ad32db9670b7b4667af6737857805a632c25",
+      "bytes": 11610
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/server/consumer.log": {
+      "sha256": "4ed8d99ebf53079e25163da324c4a53e246499536334c56de776d317efed4a5b",
+      "bytes": 6395
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/server/launch-result.json": {
+      "sha256": "8150cce431bdd0a6d76d9948a2e1eb77ac73594bf3614d0e489a60c3bcfed021",
+      "bytes": 6258
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/server-tmpfs1g/consumer.log": {
+      "sha256": "2a1c7986e3d94f2a03df1affe23a1c20fdb5b92bcfb13ef09b79cecaafebcacd",
+      "bytes": 6511
+    },
+    "build-quant-resume-20261020/q50-final-landing-evidence/server-tmpfs1g/launch-result.json": {
+      "sha256": "bf8006aa417566d85b035d69d719ab8fea21749ff42d823613763d477b87f4e0",
+      "bytes": 5939
+    },
+    "build-quant-resume-20261020/q50-remaining-device-suite-original/consumer.log": {
+      "sha256": "905e5b9d305a231eb17fa2637db3323905895faecea2e3485afe7ec5b3d08ea3",
+      "bytes": 16963
+    },
+    "build-quant-resume-20261020/q50-remaining-device-suite-original/launch-result.json": {
+      "sha256": "ee0ff86519c10287d1140acb6880b17b4c3ddb3cecfe534695ce271648ffc5d6",
+      "bytes": 6262
+    },
+    "build-quant-resume-20261020/q50-native-f32-control-build/build.log": {
+      "sha256": "9e53d14201d9d8a53945ec00506ced776db609c96c72b09b50ebe318226bff66",
+      "bytes": 524
+    },
+    "build-quant-resume-20261020/q50-native-f32-control-build/result.json": {
+      "sha256": "66b08dc07de7a17f9c5b4b4577fd78711cee8b02f257b8fa19e76623adb96b7a",
+      "bytes": 2033
+    },
+    "build-quant-resume-20261020/q50-remaining-landing/preparation.json": {
+      "sha256": "384216b1bcbc14c984d1fff2de8261c348dee189b745b3fd372d1568d76b8bc4",
+      "bytes": 1269
+    },
+    "build-quant-resume-20261020/q50-remaining-landing/source-pins.json": {
+      "sha256": "f052cc36c5f2eba62c227f05eba02688da21808fb94a40f399ef31a9b24e2820",
+      "bytes": 75015
+    },
+    "build-quant-resume-20261020/q50-remaining-landing-canonical/preparation.json": {
+      "sha256": "a82ca409022916455c76d8f5f9fe02b9990a953289a373c4f58d8dec73a9b5d3",
+      "bytes": 1331
+    },
+    "build-quant-resume-20261020/q50-remaining-landing-canonical/source-pins.json": {
+      "sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+      "bytes": 75015
+    },
+    "build-quant-resume-20261020/q50-mxfp4-prerequisite-continuation/preparation.json": {
+      "sha256": "3e29bad40ead040cdd717bb73d3f08677fbdfba6709b202b2c74b680700ec56e",
+      "bytes": 1307
+    },
+    "build-quant-resume-20261020/q50-mxfp4-prerequisite-continuation/source-pins.json": {
+      "sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+      "bytes": 75015
+    },
+    "build-quant-resume-20261020/q50-server-tmpfs-continuation/preparation.json": {
+      "sha256": "c7bf06d7efacb6d2bb616bc4a94c79890bbf7ad9079eb5ec118de21742da4b6a",
+      "bytes": 1346
+    },
+    "build-quant-resume-20261020/q50-server-tmpfs-continuation/source-pins.json": {
+      "sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+      "bytes": 75015
+    },
+    "build-quant-resume-20261020/q50-server-disk-continuation/preparation.json": {
+      "sha256": "a50becdb9da1808e7602cafb89090f47861f95c35c458e9fb5e09b6db81540f5",
+      "bytes": 1382
+    },
+    "build-quant-resume-20261020/q50-server-disk-continuation/source-pins.json": {
+      "sha256": "e10c2607bfd190c048b0b136c5380654e67bdd0edce5afa7b943fee3453c1710",
+      "bytes": 75015
+    }
+  },
+  "prerequisite_build": {
+    "passed": true,
+    "start": "2026-10-20T20:34:21.692589+00:00",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "revision": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "source_inputs": 356,
+    "source_pins_sha256": "453db515d28f60214fa9345ccf7a9a45c5178f6fe4246ba9fbfad1c735580253",
+    "mem_available_kib": 30640008,
+    "removed": true,
+    "runner_sha256": "bdd0b960fc8f8d05a48adc3a5f168d865f17be78968bc69c35c6dd6607caaeeb",
+    "exit": 0,
+    "new_tool_sha256": {
+      "llmx-cpu-f32-check": "e01aa8db16ace84e350825c4a19a5158f8014b248eb8bf3ba1e5e7d9ff76e6e7"
+    },
+    "cli_unchanged": true,
+    "source_unchanged": true,
+    "config_unchanged": true,
+    "end": "2026-10-20T20:35:05.146466+00:00",
+    "cli_sha256_after": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+    "build_log_sha256": "9e53d14201d9d8a53945ec00506ced776db609c96c72b09b50ebe318226bff66"
+  },
+  "setup_lesson": "Disk-tier integration tests require real disk space:256MiB synthetic and4GiB real cache caps. Small tmpfs is inappropriate; bounded owned hostTMPDIR preserves12GiB memorycap.",
+  "docs_only_carry_forward": {
+    "head": "b5cde3195",
+    "tested_input_revision": "711b92250a2c63a2e5a20c73c7e07f1997f6b02d",
+    "source_tests_tools_build_inputs_identical": true,
+    "verification": "Root verified current landing input equality; test execution retains exact711b92250 naming."
+  },
+  "raw_remote_roots": [
+    "/zpool1/llmx-xdev-quant-20261020/q50-remaining-landing-711b92250",
+    "/zpool1/llmx-xdev-quant-20261020/q50-remaining-landing-canonical-711b92250",
+    "/zpool1/llmx-xdev-quant-20261020/q50-mxfp4-prerequisite-continuation-711b92250",
+    "/zpool1/llmx-xdev-quant-20261020/q50-server-tmpfs-continuation-711b92250",
+    "/zpool1/llmx-xdev-quant-20261020/q50-server-disk-continuation-711b92250",
+    "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/native-f32-control-build"
+  ],
+  "evidence_manifest": {
+    "path": "build-quant-resume-20261020/q50-final-landing-evidence/sha256-manifest.json",
+    "sha256": "250ac959b53d3d29ab41ec0223f0f5cb56ada398c002ee96bed547806078dc7a",
+    "files": 145
+  }
+}

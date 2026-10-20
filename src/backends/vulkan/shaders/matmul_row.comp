@@ -98,7 +98,7 @@ vec4 weight4(uint i) {
 #define WEIGHT4(i) uintBitsToFloat(w128s[pi].w128[i])
 #define WEIGHT1(i) wfs[pi].wf[i]
 #endif
-#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_IQ4)
+#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_Q50)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
@@ -140,9 +140,14 @@ int dot4(uint a, uint b) { return dotPacked4x8EXT(int(a), int(b)); }
 #define QDOT int
 // Two pairs of 16-bit values against two activation pair words.
 int pair_dot(uint a, uint b, uvec2 xw) {
-#ifdef LLMX_KQUANT
+#if defined(LLMX_KQUANT) || defined(LLMX_Q50)
+#ifdef LLMX_Q50
+    const int16_t center = int16_t(16);
+#else
+    const int16_t center = int16_t(32);
+#endif
     // A 32-bit offset would widen the dot operands and lose the native instruction.
-    return dotEXT(unpack16(int(a)) - i16vec2(32), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)) - i16vec2(32), unpack16(int(xw.y)));
+    return dotEXT(unpack16(int(a)) - i16vec2(center), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)) - i16vec2(center), unpack16(int(xw.y)));
 #else
     return dotEXT(unpack16(int(a)), unpack16(int(xw.x))) + dotEXT(unpack16(int(b)), unpack16(int(xw.y)));
 #endif
@@ -154,7 +159,9 @@ int byte_at(uint w, uint s) { return int(int8_t(w >> s)); }
 // The nibble and K-quant dots multiply as floats, because the chip's 32-bit integer multiply is quarter rate.
 // Callers pass at most six-bit quants against 16-bit activations, Q6_K centered before the dot, so the sums stay below 2^24 and are exact (the bound per type is in docs/VULKAN.md).
 float pair_dot(uint a, uint b, uvec2 xw) {
-#ifdef LLMX_KQUANT
+#ifdef LLMX_Q50
+    const float offset = 16.0;
+#elif defined(LLMX_KQUANT)
     const float offset = 32.0;
 #else
     const float offset = 0.0;
@@ -186,8 +193,13 @@ void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
 // Low and high go to separate dots since the K-quants scale them apart; `hb` carries Q5_K's fifth bit in bit 4 of each pair word, zero otherwise.
 void nibble_dots(uint w, uint hl0, uint hl1, uint hh0, uint hh1, XWT xl, XWT xh, inout QDOT pl, inout QDOT ph) {
 #ifdef LLMX_I8
+#ifdef LLMX_Q50
+    pl += dot4(q5_signed_bytes((w & 0x0F0F0F0Fu) | hl0 | (hl1 << 8u)), xl);
+    ph += dot4(q5_signed_bytes(((w >> 4u) & 0x0F0F0F0Fu) | hh0 | (hh1 << 8u)), xh);
+#else
     pl += dot4((w & 0x0F0F0F0Fu) | hl0 | (hl1 << 8u), xl);
     ph += dot4(((w >> 4u) & 0x0F0F0F0Fu) | hh0 | (hh1 << 8u), xh);
+#endif
 #else
     pl += pair_dot((w & 0x000F000Fu) | hl0, ((w >> 8u) & 0x000F000Fu) | hl1, xl);
     ph += pair_dot(((w >> 4u) & 0x000F000Fu) | hh0, ((w >> 12u) & 0x000F000Fu) | hh1, xh);
@@ -241,8 +253,13 @@ void scale_min_pair(uint s0, uint s1, uint s2, uint c, out float scl, out float 
 #endif
 
 #ifdef LLMX_Q4
-float q40_term(float d, vec2 xb, float dot) {
+float symmetric_term(float d, vec2 xb, float dot) {
+#ifdef LLMX_Q50
+    // Centered before the dot:32*16*32767 <2^24, avoiding offset cancellation.
+    precise float term = d * (xb.x * dot);
+#else
     precise float term = d * (xb.x * dot - 8.0 * xb.y);
+#endif
     return term;
 }
 #endif
@@ -336,6 +353,14 @@ int mxfp4_dot(uint pairs[16], uint a2) {
     float d = unpackHalf2x16(uint(w16s[pi].w16[(o) >> 1u])).x; \
     uint n0 = hword_at((o) + 2u), n1 = hword_at((o) + 6u), n2 = hword_at((o) + 10u), n3 = hword_at((o) + 14u);
 // Affine blocks carry d and m in word 0; Q5_1 inserts a high-bit word before the nibbles.
+#ifdef LLMX_Q50
+// Q5_0 offsets are bytes, not words: its 22-byte blocks alternate alignment.
+#define AFFINE_WEIGHTS(o) \
+    vec2 dm = vec2(unpackHalf2x16(uint(w16s[pi].w16[(o) >> 1u])).x, 0.0); \
+    uint hb = hword_at((o) + 2u); \
+    uint w1 = hword_at((o) + 6u), w2 = hword_at((o) + 10u); \
+    uint w3 = hword_at((o) + 14u), w4 = hword_at((o) + 18u);
+#else
 #define AFFINE_WEIGHTS(o) \
     uint w0 = w32s[pi].w32[o]; \
     uint qoff = AFFINE_Q5 ? 2u : 1u; \
@@ -343,6 +368,7 @@ int mxfp4_dot(uint pairs[16], uint a2) {
     uint w1 = w32s[pi].w32[(o) + qoff], w2 = w32s[pi].w32[(o) + qoff + 1u]; \
     uint w3 = w32s[pi].w32[(o) + qoff + 2u], w4 = w32s[pi].w32[(o) + qoff + 3u]; \
     vec2 dm = unpackHalf2x16(w0);
+#endif
 // A Q4 block's four nibble words against the column's activation pairs, into pl and ph.
 #define Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1) \
     nibble_dots(n0, 0u, 0u, 0u, 0u, XA(lo0), XA(hi0), pl, ph); \
@@ -365,8 +391,10 @@ void affine_nibble_dots(uint word, uint high, uint at, XWT lo, XWT hi, inout QDO
         affine_nibble_dots(n3, hb, 12u, XB(lo1), XB(hi1), pl, ph); \
     } else { Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1) }
 // Q4_0's term: the scaled dot less the offset of 8 through the block sum.
-#define Q40_TERM(d, xb) q40_term(d, xb, float(pl + ph))
-#ifdef LLMX_DOT
+#define Q40_TERM(d, xb) symmetric_term(d, xb, float(pl + ph))
+#ifdef LLMX_Q50
+#define Q41_ADD(acc, dm, xb) acc += symmetric_term((dm).x, xb, float(pl + ph))
+#elif defined(LLMX_DOT)
 #define Q41_ADD(acc, dm, xb) acc += (dm).x * ((xb).x * float(pl + ph)) + (dm).y * (xb).y
 #else
 // The minimum's term joins the sum before the scaled dot, as two additions: a driver that reassociates float sums then has one order to contract in every build (docs/VULKAN.md, batch invariance).
@@ -516,7 +544,11 @@ void main() {
             }
         } else {
             uint nblocks = p.nin / 32u;
+#ifdef LLMX_Q50
+            const uint words = Q5_0_BYTES;
+#else
             uint words = AFFINE_Q5 ? 6u : 5u;
+#endif
             uint wbr[ROWS];
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * words;
             for (uint b = l; b < nblocks; b += p.cluster) {
@@ -877,7 +909,11 @@ void main() {
         } else {
             // One lane per affine block, d and m in word 0.
             uint nblocks = p.nin / 32u;
+#ifdef LLMX_Q50
+            const uint words = Q5_0_BYTES;
+#else
             uint words = AFFINE_Q5 ? 6u : 5u;
+#endif
             uint wbase = wrow * nblocks * words;
             for (uint b = l; b < nblocks; b += p.cluster) {
                 uint o = wbase + b * words;

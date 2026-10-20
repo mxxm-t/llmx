@@ -238,7 +238,7 @@ def check_output_failures(d):
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
-TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_1": sd.Q5_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "mxfp4": sd.MXFP4}
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "mxfp4": sd.MXFP4}
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -320,6 +320,12 @@ def q4_1_blocks():
                     for k, (d, m) in enumerate(itertools.product(HALVES, HALVES)))
 
 
+def q5_0_blocks():
+    patterns = [1 << bit for bit in range(32)] + [0xFFFFFFFF ^ (1 << bit) for bit in range(32)]
+    return b"".join(struct.pack("<HI", d, high) + nibble_bytes(k, 16)
+                    for d in HALVES + (0, 0x8000) for k, high in enumerate(patterns))
+
+
 def q5_1_blocks():
     patterns = [1 << bit for bit in range(32)] + [0xFFFFFFFF ^ (1 << bit) for bit in range(32)]
     scales = HALVES + (0, 0x8000)
@@ -366,7 +372,7 @@ def mxfp4_blocks():
 def check_raw_decode(d):
     iq4 = b"".join(struct.pack("<H", h) + nibble_bytes(shift, 16)
                    for h in HALVES + (0, 0x8000) for shift in range(16))
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_1", q5_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("mxfp4", mxfp4_blocks())):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("mxfp4", mxfp4_blocks())):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block

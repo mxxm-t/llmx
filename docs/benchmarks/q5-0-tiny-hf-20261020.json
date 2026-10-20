@@ -1,0 +1,292 @@
+{
+  "date": "2026-10-20",
+  "scope": "Independent tiny file-exact Q5_0 HF development checkpoint, Windows CPU/Radeon only",
+  "base": "6355414ec541a33c2ffed2402306bac45d86eb24",
+  "runtime_unchanged": true,
+  "runtime_identity": {
+    "binary": "build-q5-0-vulkan/Release/llmx.exe",
+    "sha256": "cc0910e2fc16d8a8ecd9faadb162bb3e2c507ebf03083c171b39c9be32d77da1",
+    "version": "llmx 0.1.0+gafdbda442880.dirty numerics 834ee592ffbe8e93",
+    "numerics": "834ee592ffbe8e93",
+    "verified": "Every runtime/build/native-test source hash in the previous focused Vulkan manifest is unchanged; version component matches current numerics. No rebuild required."
+  },
+  "source_sha256": {
+    "tests/q5_0.py": "35d6769b6f5c9edf52f2f36b61e1b014f0c869e12d011cd8c84d04f753d8d49b",
+    "tests/block_fixture.py": "4631b1b460439ba9aeac9ff4b4e6f3a8f0e67c808df000ce32d851325023fc8c",
+    "tests/q5_1.py": "728d2f499ec3ee1d566b2ef9a99c964ba4b2565076f84fefbc8af86aed75015b",
+    "tests/iq4_nl.py": "c457a43c26b9915748cf6100392dd55a1b2908f589ead409f5ac4ee5eae4585b",
+    "tests/reference_generator.py": "d0a999e1d27cd8994d8bbb992943cb6edd5c019ec31b85ad21f872e99245f82c",
+    "tests/run_tests.py": "ab0271e6d8dc2747604725eff8962bfb4719088ea7b0810f9c70e19e103d8809",
+    "tools/gen_baseline.py": "df37801397ad912ca49dcf730e217a0e2274f7bab30c9f6a8d23fb0e3c16073e"
+  },
+  "owners": "Independent tests/q5_0.py raw producer; existing block_fixture fixture/consumer owner and gen_block_family HF owner; run_tests q5-0 registration. Q5_1 family budget and all existing golden files unchanged.",
+  "environment": {
+    "python": "3.12.1 Windows x64",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "isolated_venv": "build-q5-0/hf-venv",
+    "setup": "Exact generator-required core pins installed into isolated venv; transitive versions retained in pip freeze. Host package versions were refused as reference inputs. HF model generation uses offline synthetic weights, eager F32 and one CPU thread."
+  },
+  "generation": {
+    "command": "build-q5-0/hf-venv/Scripts/python.exe tools/gen_baseline.py q5-0 --output-dir tests/data",
+    "ordinary_routing_gap": 0.005189460049118787,
+    "split_moe": "All four experts selected by existing shared split fixture policy; no routing turnover.",
+    "files": {
+      "tests/data/baseline_q5_0.json": {
+        "sha256": "a3ab50806e10ce2a82c2b6b83b746157656271b2777ae350a4cc27e1b2c4628e",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "weights_sha256": "6fa872dc04b9ff77ff1d44be7f263be292ccf71621383380ddde5ef3f31afeaf",
+            "packed_sha256": "89b496fe604afbd5d0379d4750b1fd67a304d85ee734750133a8bb441ad6b727"
+          },
+          {
+            "name": "dense-tied",
+            "weights_sha256": "8efe1c5d4fe047be13bf86cb4c474fe480eb9081c834123a867dc0e3367200ae",
+            "packed_sha256": "10e995a53272449f75df6f444355b3ede8e99bd4cdccb99ed44cf48fc2f45693"
+          },
+          {
+            "name": "moe",
+            "weights_sha256": "2d9c06ca7ed122ff99a0e852382bf7d876cdeb26c634f4f8b9ac3f115f5e420d",
+            "packed_sha256": "a6ad98f9f73116008520bf8f234cdb08e926dc9d17253b2de12b72e0d407d345"
+          }
+        ]
+      },
+      "tests/data/baseline_q5_0_split.json": {
+        "sha256": "789ccaa5f9a868b42bdfb82bc882bf938b075fe9e6bdaa101e1b797d47c10336",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "weights_sha256": "74a2337cef58e72999fd0d973de420e349e516208a87dfd07a6abfd141838856",
+            "packed_sha256": "2b568ed603cfe3bd71a2a7315146e1773b1731f1011b0282a2abe00dbf12c7ef"
+          },
+          {
+            "name": "dense-tied",
+            "weights_sha256": "77c594c64b2453230973c7d55be798ead823243426a10851d889847b520cf179",
+            "packed_sha256": "89d880ee442ca657b46eb7293caa8cd6ff8187ab7c2313a3c225ba2f15c0892d"
+          },
+          {
+            "name": "moe",
+            "weights_sha256": "91ea0523b59cf5d74bba7717b854dbbcda4a35be560007806847ac28d57b2193",
+            "packed_sha256": "8d38d2a8736763f76154d06d98cdcf1356e5eaf46c85385e9a7f8c92fb380a3c"
+          }
+        ]
+      }
+    }
+  },
+  "consumer_commands": [
+    "python build-q5-0/evidence/run-hf-policies.py cpu",
+    "python build-q5-0/evidence/run-hf-policies.py vulkan:0"
+  ],
+  "per_policy_coverage": {
+    "full_logits": 150,
+    "nll": 12,
+    "variants": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "threads": [
+      1,
+      4
+    ],
+    "ubatches": [
+      1,
+      2,
+      3,
+      5,
+      16
+    ],
+    "cache": "F32"
+  },
+  "policies": {
+    "cpu": [
+      {
+        "dtype": "auto",
+        "passed": true,
+        "seconds": 2.5159623622894287,
+        "max_logit_error": 3.05e-06,
+        "max_nll_error": 4.66e-06,
+        "logit_bounds": [
+          "[2e-05]"
+        ],
+        "nll_bounds": [
+          "[1e-05]"
+        ]
+      },
+      {
+        "dtype": "f32",
+        "passed": true,
+        "seconds": 2.4117984771728516,
+        "max_logit_error": 3.05e-06,
+        "max_nll_error": 4.66e-06,
+        "logit_bounds": [
+          "[2e-05]"
+        ],
+        "nll_bounds": [
+          "[1e-05]"
+        ]
+      },
+      {
+        "dtype": "f16",
+        "passed": true,
+        "seconds": 2.4738552570343018,
+        "max_logit_error": 3.05e-06,
+        "max_nll_error": 4.66e-06,
+        "logit_bounds": [
+          "[2e-05]"
+        ],
+        "nll_bounds": [
+          "[1e-05]"
+        ]
+      },
+      {
+        "dtype": "bf16",
+        "passed": true,
+        "seconds": 2.569236993789673,
+        "max_logit_error": 0.0252906,
+        "max_nll_error": 0.00185466,
+        "logit_bounds": [
+          "[0.05409973859786987]"
+        ],
+        "nll_bounds": [
+          "[0.007924573802609913]"
+        ]
+      },
+      {
+        "dtype": "int8",
+        "passed": true,
+        "seconds": 2.5317180156707764,
+        "max_logit_error": 3.05e-06,
+        "max_nll_error": 4.66e-06,
+        "logit_bounds": [
+          "[2e-05]"
+        ],
+        "nll_bounds": [
+          "[1e-05]"
+        ]
+      }
+    ],
+    "radeon": [
+      {
+        "dtype": "auto",
+        "passed": true,
+        "seconds": 35.012184143066406,
+        "max_logit_error": 0.00039057,
+        "max_nll_error": 6.466e-05,
+        "logit_bounds": [
+          "[0.003304719924926758]"
+        ],
+        "nll_bounds": [
+          "[0.0002966423345469593]"
+        ]
+      },
+      {
+        "dtype": "f32",
+        "passed": true,
+        "seconds": 33.89024567604065,
+        "max_logit_error": 2.58e-06,
+        "max_nll_error": 4.66e-06,
+        "logit_bounds": [
+          "[2e-05]"
+        ],
+        "nll_bounds": [
+          "[1e-05]"
+        ]
+      },
+      {
+        "dtype": "f16",
+        "passed": true,
+        "seconds": 34.00892758369446,
+        "max_logit_error": 0.00039057,
+        "max_nll_error": 6.466e-05,
+        "logit_bounds": [
+          "[0.003304719924926758]"
+        ],
+        "nll_bounds": [
+          "[0.0002966423345469593]"
+        ]
+      },
+      {
+        "dtype": "bf16",
+        "passed": true,
+        "seconds": 34.313273906707764,
+        "max_logit_error": 0.0252906,
+        "max_nll_error": 0.00185466,
+        "logit_bounds": [
+          "[0.05409973859786987]"
+        ],
+        "nll_bounds": [
+          "[0.007924573802609913]"
+        ]
+      },
+      {
+        "dtype": "int8",
+        "passed": true,
+        "seconds": 33.84182262420654,
+        "max_logit_error": 0.00039057,
+        "max_nll_error": 6.466e-05,
+        "logit_bounds": [
+          "[0.003304719924926758]"
+        ],
+        "nll_bounds": [
+          "[0.0002966423345469593]"
+        ]
+      }
+    ]
+  },
+  "bounds": "Unchanged common.hf_bounds and dtype_budget.json; no Q5_0-specific budget, calibration or waiver. File-decoded HF F32 weights are the reference; original-HF quantization quality is not measured.",
+  "affected_existing_controls": {
+    "command": "python tests/run_tests.py --exe build-q5-0-vulkan/Release/llmx.exe --only q5-1,iq4-nl --device cpu --dtype f32 --require-device-types Q5_1,IQ4_NL --no-perf-floor",
+    "result": "Both PASS150 full-logit cases+12 NLL each; reference-generator checks preserve all six existing MXFP4/Q5_1/IQ4 ordinary/prompt/split golden configurations and hashes."
+  },
+  "checks": {
+    "reference_generator": "57 tests PASS",
+    "source": "dead-code/docs/arch-boundary/version PASS",
+    "suite_components": 32
+  },
+  "preserved_failures": [
+    "Regression-first Q5_0 generator selection refused as invalid kind before registration.",
+    "First scratch CPU runner used wrong parent index and stopped on import before any runtime test; corrected import path passed.",
+    "Extra CPU split attempt --device cpu,cpu --tensor-width2 refused because CLI disallows duplicate device names. Existing llmx-model-logits owner forms CPU groups; that tool was not built/run here. Split runtime remains unqualified."
+  ],
+  "remaining": [
+    "Native integer-dot rows/tiles/int8 require a suitable device; Radeon exercised existing wider paths.",
+    "Released-file/original-weight quality, model-split runtime, real MTP sidecar and matched performance remain open.",
+    "No known local Q5_0 released fixture; no model download, rig access, full gate, runtime edit, push or merge.",
+    "Light desktop GPU use is recorded; no speed claim."
+  ],
+  "logs": {
+    "directory": "build-q5-0/evidence",
+    "sha256": {
+      "hf-registration-red.log": "b3e31aa558abc72dbcf802bbc6e63956746879fd782f7ebf6e5ac07f44ec8eec",
+      "hf-registration-green.log": "469fe47411791c4c57341bd7ad481d5afe7b052a2ac994206bbb8414f0ded1db",
+      "hf-pinned-environment.log": "5687c617e1accee68db47ec25b8eea54d54fc1c9bf057f631dc36332632be1b8",
+      "hf-pinned-freeze.txt": "bad1bdb2e276aa556b47f6ae364f860d078e5ff02d34c2fff904303c1925053b",
+      "hf-q5-0-generation.log": "e40f0e1e0d2840d4f29d416140f38f833640016fc5ab6f134cc0c607df1c74cb",
+      "hf-cpu-policies-setup.log": "c8cb6b6cb4e8f7f323369747591a092f3813315291f7abdf03fa13e692f974f1",
+      "hf-cpu-result.json": "52524a8abfe3047c85e612c0d22c751929b45218d336929429c4b4262d88b6ba",
+      "hf-vulkan-0-result.json": "8fabba7f2af7c480038ae29ff8116c6d79b538644f7de66a70922a0c873624e8",
+      "hf-cpu-policies.log": "f35a9a79345d839d394f0c30a1c0a8eee636addd322e721f0c6995963a5a9082",
+      "hf-radeon-policies.log": "e95b274a0b9fcaab0ff18ffc1f10c2c08c156794b05d184baad26b3dc6477366",
+      "hf-radeon-preflight.json": "7061134a8300bfac4477cb764b80469f60562a3fe569bc4c8c5617326c12a8e4",
+      "hf-reference-generator.log": "8807ac53209b92d32875fa5e262aa9eddb7962dd6081e3da60326a47deb700f9",
+      "hf-existing-consumer-extraction.log": "206a6b03e71007bb715c9cd57c3c5c8fe08a985c65f03d7d6bd2a45b3bef70a9",
+      "hf-cpu-split-auto.log": "fb543b150955777412abacbfbd5e1f29a5c168e2cd5ad05f14f766dd1fabb562",
+      "hf-source-checks.log": "cad95efdc146d09314105f0dce3285039cbad05294fab245206f53c1524ba9e3",
+      "run-hf-policies.py": "56a9e5a6cadd8e9aa5a9c9f31550cb7aaacdbcdad41b882768b61d4b37a67fc5",
+      "hf-cpu-auto.log": "99d56f3b6be5d6fdcc8dfcc65bbaa7343ae750e2449a1d544a196cf89ed9c85b",
+      "hf-cpu-f32.log": "99d56f3b6be5d6fdcc8dfcc65bbaa7343ae750e2449a1d544a196cf89ed9c85b",
+      "hf-cpu-f16.log": "99d56f3b6be5d6fdcc8dfcc65bbaa7343ae750e2449a1d544a196cf89ed9c85b",
+      "hf-cpu-bf16.log": "e233cacad1e5353d3868bd7304530d5f31cf70d3ba57af9912893502e5903f84",
+      "hf-cpu-int8.log": "99d56f3b6be5d6fdcc8dfcc65bbaa7343ae750e2449a1d544a196cf89ed9c85b",
+      "hf-vulkan-0-auto.log": "b47517951a525c597e1d930206dc6448b05abd4e8f5370f24d14533298fd0965",
+      "hf-vulkan-0-f32.log": "20bf011d0fba56218ba197c7567a1611285d80bcf576625d0f7ebc43ab9ca3c4",
+      "hf-vulkan-0-f16.log": "b47517951a525c597e1d930206dc6448b05abd4e8f5370f24d14533298fd0965",
+      "hf-vulkan-0-bf16.log": "e233cacad1e5353d3868bd7304530d5f31cf70d3ba57af9912893502e5903f84",
+      "hf-vulkan-0-int8.log": "b47517951a525c597e1d930206dc6448b05abd4e8f5370f24d14533298fd0965",
+      "hf-docs-final.log": "c56af6463801b02677c71390544daba35cb1a002df59e1ca6f99a1bdebd2b13c"
+    }
+  }
+}

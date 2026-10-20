@@ -20,6 +20,7 @@ import int8
 import half_weights
 import moe
 import mxfp4
+import q5_0
 import q5_1
 import iq4_nl
 import qwen35
@@ -114,6 +115,7 @@ def main():
                   ("moe", moe.run),
                   ("int8", int8.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
+                  ("q5-0", q5_0.run),
                   ("q5-1", q5_1.run),
                   ("iq4-nl", iq4_nl.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),

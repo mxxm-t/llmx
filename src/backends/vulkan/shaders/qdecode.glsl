@@ -62,11 +62,25 @@ float q4_1_at(uint o, uint j, float d, float m) {
     return d * float(nib) + m;
 }
 
-float q5_1_at(uint o, uint j, float d, float m) {
-    uint byte = QBYTE(o + 8u + (j & 15u));
+// The common five-bit code, with high bits four bytes before the nibble plane.
+uint q5_code(uint o, uint j, uint qoff) {
+    uint byte = QBYTE(o + qoff + (j & 15u));
     uint low = j < 16u ? (byte & 15u) : (byte >> 4u);
-    uint high = (QBYTE(o + 4u + j / 8u) >> (j & 7u)) & 1u;
-    return d * float(low | (high << 4u)) + m;
+    uint high = (QBYTE(o + qoff - 4u + j / 8u) >> (j & 7u)) & 1u;
+    return low | (high << 4u);
+}
+// Four five-bit codes as signed bytes centered at16, shared by rows and tiles.
+uint q5_signed_bytes(uint codes) {
+    uint t = codes ^ 0x10101010u, neg = t & 0x10101010u;
+    return t | (neg << 1u) | (neg << 2u) | (neg << 3u);
+}
+float q5_0_at(uint o, uint j, float d) {
+    uint code = q5_code(o, j, 6u);
+    uint sign = (floatBitsToUint(d) ^ (code < 16u ? 0x80000000u : 0u)) & 0x80000000u;
+    return uintBitsToFloat((floatBitsToUint(float(int(code) - 16) * d) & 0x7fffffffu) | sign);
+}
+float q5_1_at(uint o, uint j, float d, float m) {
+    return d * float(q5_code(o, j, 8u)) + m;
 }
 
 // Q6_K, 256 values in 210 bytes: 128 low nibbles, 64 bytes of high bit pairs, 16 signed sub-scales, a half; value = d * sc * (q - 32).
@@ -126,6 +140,7 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     float d = half_at(QBYTE(scale), QBYTE(scale + 1u));
     if (type == TYPE_Q8_0) return d * float(int(QBYTE(o + 2u + j) << 24u) >> 24);
     if (type == TYPE_Q4_0) return q4_0_exact(o, j, d);
+    if (type == TYPE_Q5_0) return q5_0_at(o, j, d);
     if (type == TYPE_IQ4_NL) return iq4_nl_at(o, j, d);
     if (type == TYPE_Q6_K) return q6_k_at(o, j, d);
     float m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));

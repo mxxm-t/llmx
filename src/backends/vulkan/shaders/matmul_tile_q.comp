@@ -59,10 +59,10 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #define QBYTE(i) ((wm[pi].w[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #endif
-#ifdef LLMX_IQ4
+#if defined(LLMX_IQ4) || defined(LLMX_Q50)
 #define QBYTE(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #endif
-#if defined(LLMX_Q8MX) || defined(LLMX_IQ4)
+#if defined(LLMX_Q8MX) || defined(LLMX_IQ4) || defined(LLMX_Q50)
 #include "qdecode.glsl"
 #endif
 #ifdef LLMX_IQ4
@@ -395,8 +395,13 @@ void main() {
             // Q4_1, 20-byte blocks: a half scale and a half minimum stored negated since it is added, then Q4_0's nibbles without the offset; staged words w and w + 4 are the low and high nibbles of one source word, so a thread takes source words whole.
             const uint SPT = WW >= 2u ? WW / 2u : 1u;   // source words a thread takes
 #ifdef LLMX_Q5
+#ifdef LLMX_Q50
+            const bool q41 = false;
+            const uint bytes = Q5_0_BYTES, qoff = 6u;
+#else
             const bool q41 = true;
             const uint bytes = Q5_1_BYTES, qoff = 8u;
+#endif
 #else
             bool q41 = p.type == TYPE_Q4_1;
             uint bytes = q41 ? Q4_1_BYTES : Q4_0_BYTES, qoff = q41 ? 4u : 2u;
@@ -409,7 +414,12 @@ void main() {
                 uint kb = k0 + s;
                 uint q0 = (row < nout && kb < kend ? (wr * nblk + kb) * bytes : 0u) + qoff;
 #ifdef LLMX_Q5
+#ifdef LLMX_Q50
+                uint ho = q0 - 4u, hi = ho >> 2u;
+                high[s] = (ho & 3u) == 0u ? ws[pi].w32[hi] : (ws[pi].w32[hi] >> 16u) | (ws[pi].w32[hi + 1u] << 16u);
+#else
                 high[s] = ws[pi].w32[(q0 - 4u) >> 2u];
+#endif
 #endif
                 for (uint m = 0u; m < SPT; ++m) {
                     uint i = (q0 >> 2u) + (WW >= 2u ? wseg * SPT + m : (wseg & 3u));
@@ -437,8 +447,12 @@ void main() {
                         }
 #endif
                         // Q4_0's b - 8 per byte: flipping bit 3 gives b - 8 or b + 8, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
+#ifdef LLMX_Q50
+                        uint v = q5_signed_bytes(b);
+#else
                         uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
                         uint v = q41 ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
+#endif
                         wq[s * 8u + w + 4u * h][wrow] = WIDEN(ok ? v : 0u);
                     }
                 }

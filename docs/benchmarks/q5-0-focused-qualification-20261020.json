@@ -1,0 +1,2027 @@
+{
+  "date": "2026-10-20",
+  "status": "Applicable local Q5_0 checks complete: focused operators, tiny/split/depth/file-exact HF, released mixed-sidecar identity, ten-model CPU/device identity, selected device suite and matched timing. Hosted CI remains open; no merge claim. Repetition/layout controls are required only when attributing small timing differences.",
+  "runtime_source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+  "test_budget_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+  "runtime_binary_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+  "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+  "native_int8": {
+    "scope": "Three original-seed dense untied/tied/MoE fixtures, 150 full-vocabulary and 12 NLL cases",
+    "result": {
+      "stage": "native-int8",
+      "start": "2026-10-20T16:35:24.055654+00:00",
+      "argv": [
+        "timeout",
+        "--kill-after=10s",
+        "600s",
+        "docker",
+        "run",
+        "--init",
+        "--name",
+        "llmx-xdev-q50-native-int8-784bad9a5",
+        "--label",
+        "llmx.task=llmx-xdev-q50-native-int8-784bad9a5",
+        "--cidfile",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/native-int8.cid",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "4,5",
+        "--cpus",
+        "2",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--device",
+        "/dev/dri/renderD136",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/native-int8-evidence:/evidence",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+        "-w",
+        "/work",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "sh",
+        "/plan/native-int8.sh"
+      ],
+      "passed": true,
+      "source_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+      "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "mem_available_kib_before": 14701792,
+      "devices_before": [
+        {
+          "render": 136,
+          "pci": "0000:03:00.0",
+          "vram": 10932224,
+          "busy": 0
+        }
+      ],
+      "exit_code": 0,
+      "container_state_before_cleanup": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-20T16:35:24.307000391Z",
+        "FinishedAt": "2026-10-20T16:35:38.07951261Z"
+      },
+      "end": "2026-10-20T16:35:38.445803+00:00"
+    },
+    "max_logit_error": 0.08496448,
+    "max_nll_error": 0.00846154,
+    "limits": "Independent reviewed Q5_0 family only; old generic/other-family and real-file limits unchanged",
+    "evidence_sha256": {
+      "binaries.sha256": "125582a85f7026955efb93fc63d451eadb1580ce62a5f56e003d276c4a187e74",
+      "container-before-cleanup.json": "e1571cf79ef86e4ea3c941264360dfa4eb62084243c3e459093797a2927ddc61",
+      "q5-0-hf-int8.log": "ee9623b57f3abf93e717e843c7632e33851b3c6d4916b39f0d9d6629a7dc4726",
+      "resources.jsonl": "5fc3c9d221c07a508d547859a1cb8e1b95ea1beb06ac3e26e02e2a39ace2d254",
+      "result.json": "dc56d5e91a0ab34806fa3777d091aead1cd6c185f087128f44ef0f96e9fe394c",
+      "stage.log": "69ad8796b31f49781332005afa2649821634b7453d8b10e58db2bf72fb25a9f7",
+      "version.txt": "6f7abf0349d6e201289f642183d9d2fa1e22eaa8cc105f0253375b0c82f7f37b"
+    }
+  },
+  "split_handoff": {
+    "classification": "Requested immediate benchmark handoff, not a numerical failure or a split-policy PASS",
+    "test_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+    "runtime_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+    "native_int8": {
+      "status": "PASS",
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error": 0.08496448,
+      "max_nll_error": 0.00846154,
+      "local_evidence": "results/native-int8-evidence"
+    },
+    "split_auto": {
+      "status": "INTERRUPTED, no complete policy PASS",
+      "frozen_active_case": {
+        "fixture": "moe",
+        "threads": 4,
+        "ubatch": 16,
+        "text": "ab"
+      },
+      "last_guaranteed_completed_case": {
+        "fixture": "moe",
+        "threads": 4,
+        "ubatch": 16,
+        "text": "a"
+      },
+      "validated_prefix_by_harness_control_flow": {
+        "full_logit_cases": 146,
+        "nll_cases": 10
+      },
+      "limitations": "Stdout was buffered/empty at interruption; no per-case raw logit output/max-error summary retained for this partial prefix. Frozen active case is unverified and cannot be counted even if it ended during stop.",
+      "remaining_unverified_auto_cases": {
+        "logit_texts": [
+          "ab",
+          "abc",
+          "abcdefg",
+          "abcdefghijklm"
+        ],
+        "fixture": "moe",
+        "threads": 4,
+        "ubatch": 16,
+        "nll_contexts": [
+          4,
+          16
+        ]
+      },
+      "auto_f16_reuse": "Actual two-GPU full-vocabulary probe output/matrix witnesses identical; source resolves both requests to F16. Complete auto policy still pending six cases before full scope can be reused."
+    },
+    "release": {
+      "utc": "2026-10-20T16:49:27Z",
+      "stage_session": 75209,
+      "stage_exit": 143,
+      "stage_oom": false,
+      "boundary_watcher_session": 48972,
+      "boundary_watcher_exit": 1,
+      "boundary_watcher_reason": "Container stopped before boundary after urgent root/BOSS handoff; no watcher remains",
+      "owned_container_removed": true,
+      "gpus": [
+        {
+          "physical": 0,
+          "vram": 10932224,
+          "busy": 0
+        },
+        {
+          "physical": 1,
+          "vram": 10919936,
+          "busy": 0
+        }
+      ],
+      "cpus_released": "4,5"
+    },
+    "remaining": "Complete six unverified auto cases, reuse explicitF16 with recordedproof; remaining f32,bf16,int8 split policies; MI50 real-file consumer. No new rig action until root perfrelease.",
+    "remote_evidence_root": "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5",
+    "remote_handoff_files": [
+      "urgent-handoff.json",
+      "split-boundary-record.json",
+      "split-all-evidence/result.json",
+      "split-all-evidence/resources.jsonl",
+      "split-all-evidence/auto-f16-probe.json"
+    ]
+  },
+  "original_weight_quality": {
+    "scope": "Short HF-to-HF weight characterization only; separate from llmx file-exact runtime error",
+    "audit": {
+      "scope": "Short same-environment HF original-weight versus converted Q5_0-weight characterization; no runtime execution or quality-bound approval.",
+      "input_sha256": {
+        "half-bf16-file-reference\\remote-evidence\\output\\baseline_logits.json": "eb46718370bc091bfa18d182f91492a3a46ae90f2fdfd64b60361f2d64c768c2",
+        "half-bf16-file-reference\\remote-evidence\\output\\baseline_perplexity.json": "916f8d307b077ea9c95723d2a60682aed23fa4d707b7d3d6ed5f2b000ac22029",
+        "q50-real-reference\\reference-evidence\\goldens\\baseline_logits.json": "363db1ecbb76fc5e3787729fcb15176754a432a0cc03bbc8cc41bd26bf828c5d",
+        "q50-real-reference\\reference-evidence\\goldens\\baseline_perplexity.json": "b75e1fef53e08d78d580b0d0305ea80a122c5b5d3f226beb39648f35c51f426c"
+      },
+      "reference": {
+        "reference_repo": "Qwen/Qwen3-0.6B",
+        "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "reference_dtype": "float32",
+        "attention": "eager",
+        "device": "cpu",
+        "threads": 2,
+        "torch_version": "2.5.1+cpu",
+        "transformers_version": "4.55.2"
+      },
+      "original_weights": {
+        "file": "Qwen3-0.6B-BF16.gguf",
+        "sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+        "bytes": 1198182848,
+        "repo": "unsloth/Qwen3-0.6B-GGUF",
+        "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+        "types": {
+          "BF16": 197,
+          "F32": 113
+        },
+        "decoder": "tests/spec_decode.py, numpy form",
+        "tensors": 310,
+        "tensors_equal_to_reference": 310
+      },
+      "q50_weights": {
+        "file": "Qwen3-0.6B-Q5_0-converted.gguf",
+        "sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+        "bytes": 522915648,
+        "repo": null,
+        "revision": null,
+        "types": {
+          "F32": 113,
+          "Q5_0": 198
+        },
+        "decoder": "tests/spec_decode.py, numpy form",
+        "tensors": 311,
+        "tensors_equal_to_reference": 113,
+        "tied_output_verified": true
+      },
+      "continuous": {
+        "original_hf_nll": 3.3602852604933977,
+        "q50_weights_hf_nll": 3.4243193146296287,
+        "delta_nll": 0.06403405413623098,
+        "original_hf_ppl": 28.797404469488118,
+        "q50_weights_hf_ppl": 30.701739512399804,
+        "n_scored": 246
+      },
+      "windows": [
+        {
+          "context_size": 64,
+          "max_chunks": 0,
+          "used_tokens": 247,
+          "n_scored": 243,
+          "chunks": 4,
+          "original_hf_nll": 4.030360189548855,
+          "q50_weights_hf_nll": 4.076102920471055,
+          "delta_nll": 0.045742730922199826,
+          "original_hf_ppl": 56.281179489353484,
+          "q50_weights_hf_ppl": 58.91542379513254
+        },
+        {
+          "context_size": 64,
+          "max_chunks": 2,
+          "used_tokens": 128,
+          "n_scored": 126,
+          "chunks": 2,
+          "original_hf_nll": 3.7101572867691415,
+          "q50_weights_hf_nll": 3.7482745107146447,
+          "delta_nll": 0.03811722394550321,
+          "original_hf_ppl": 40.860232795596296,
+          "q50_weights_hf_ppl": 42.447775591569176
+        },
+        {
+          "context_size": 123,
+          "max_chunks": 0,
+          "used_tokens": 246,
+          "n_scored": 244,
+          "chunks": 2,
+          "original_hf_nll": 3.6307936441166335,
+          "q50_weights_hf_nll": 3.6810441244982273,
+          "delta_nll": 0.05025048038159374,
+          "original_hf_ppl": 37.742759052458794,
+          "q50_weights_hf_ppl": 39.68781146258316
+        }
+      ],
+      "rankings": [
+        {
+          "text": "The capital of France is",
+          "top1_same": true,
+          "strict_top5_overlap": 3,
+          "top5_order_same": false
+        },
+        {
+          "text": "Machine learning is",
+          "top1_same": true,
+          "strict_top5_overlap": 4,
+          "top5_order_same": false
+        },
+        {
+          "text": "def add(a, b):",
+          "top1_same": true,
+          "strict_top5_overlap": 5,
+          "top5_order_same": false
+        },
+        {
+          "text": "The three primary colors are red,",
+          "top1_same": true,
+          "strict_top5_overlap": 5,
+          "top5_order_same": false
+        },
+        {
+          "text": "In 1969, humans first walked on the",
+          "top1_same": true,
+          "strict_top5_overlap": 4,
+          "top5_order_same": false
+        },
+        {
+          "text": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "top1_same": true,
+          "strict_top5_overlap": 4,
+          "top5_order_same": false
+        }
+      ],
+      "limitations": [
+        "247-token corpus and six short prompts; not broad model-quality or long-context evidence.",
+        "Original checkpoint equality is established by all310 independently decoded BF16 tensors matching HF.",
+        "Q5_0 is an independent mx --pure conversion, not a provider-published file.",
+        "These HF-to-HF changes characterize weight quantization and are separate from llmx-to-file-exact-HF error.",
+        "No tolerances are changed and no original-weight quality gate pass is inferred."
+      ]
+    },
+    "audit_script_sha256": "6cc215a30a78c762285490821963e38ec4829e935feb5b805e43522f8b98e1a5",
+    "audit_json_sha256": "5b92dcdfc78f8844001c43f49bef28e54fba389f058d14460176713b82452427",
+    "local_review": "Recomputed four exact input hashes; original 310/310 tensor identity; matching token IDs, scoring, metadata and window counts; delta NLL arithmetic and ranking counts. No HF/runtime execution or threshold change.",
+    "ppl_ratio": 1.0661287042354597
+  },
+  "remaining": [
+    "Existing-path CPU/device identity and applicable device-suite coverage",
+    "Current-main integration and applicable hosted gates",
+    "No broad all-expert, HF sidecar quality, or performance qualification is established by the MTP functional check"
+  ],
+  "limitations": [
+    "The original split prefix is inferred from validated harness progression; its stdout was buffered and raw maxima were not retained. The original interrupted process is not relabelled PASS. Follow-up coverage/results are reported separately.",
+    "Urgent handoff, boundary and original interrupted-stage resources are now collected locally and pinned under continuation_checkpoint; original exit143 and scheduling-stop classification remain unchanged.",
+    "Original-weight quality is limited to247tokens and6shortprompts; top1is6/6 but strict top5overlapranges3to5 and orderdiffersinall6. No broadqualitygate or16K claim.",
+    "No runtime, test or budget source changes in this documentation/evidence checkpoint; recorded owned functional runs reuse unchanged inputs, with no production changes."
+  ],
+  "documentation_checks": {
+    "docs_component": "PASS, zero findings, 21 planted faults",
+    "dead_code_component": "PASS, five listed findings, 18 planted faults",
+    "log": "build-q5-0/evidence/q5-0-final-docs-dead-code.log",
+    "log_sha256": "01f74e78fe3b9059d08a6d043a210a1cfba27baf9d7d0a50c35e56fd7a592715",
+    "reviewed": "README, roadmap and adjacent half/Q5_1/IQ4_NL quant/Vulkan claims now reflect published support with measured speed follow-ups; Q5_0 stays isolated/unmerged. Older dated records retained. No runtime/test changes."
+  },
+  "resume_preparation": {
+    "local_only": true,
+    "manifest_sha256": "b05ff2dfddbb1ac6cb1b6bb1007ce63675a95de9831facea83c450ddf7a626fc",
+    "wrapper_sha256": "23ee4ece2958d1cf83f6f64970f5bfc699afa0765d0f58df21e26368b37668ac",
+    "changes": "Unreachable build branch removed; every resume artifact hash checked before execution; local syntax/hash assertions pass. No rig access."
+  },
+  "continuation_checkpoint": {
+    "auto-tail": {
+      "result": {
+        "stage": "auto-tail",
+        "start": "2026-10-20T17:26:24.444121+00:00",
+        "argv": [
+          "timeout",
+          "--kill-after=10s",
+          "180s",
+          "docker",
+          "run",
+          "--init",
+          "--name",
+          "llmx-xdev-q50-auto-tail-784bad9a5",
+          "--label",
+          "llmx.task=llmx-xdev-q50-auto-tail-784bad9a5",
+          "--cidfile",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/auto-tail.cid",
+          "--network",
+          "none",
+          "--cpuset-cpus",
+          "4,5",
+          "--cpus",
+          "2",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "256",
+          "--ulimit",
+          "core=0",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/auto-tail-evidence:/evidence",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+          "-w",
+          "/work",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "python3",
+          "/plan/auto-tail.py"
+        ],
+        "passed": true,
+        "source_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+        "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mem_available_kib_before": 17332128,
+        "devices_before": [
+          {
+            "render": 136,
+            "pci": "0000:03:00.0",
+            "vram": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 137,
+            "pci": "0000:44:00.0",
+            "vram": 10919936,
+            "busy": 0
+          }
+        ],
+        "exit_code": 0,
+        "container_state_before_cleanup": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-20T17:26:24.61496873Z",
+          "FinishedAt": "2026-10-20T17:26:57.277920564Z"
+        },
+        "end": "2026-10-20T17:26:57.840458+00:00"
+      },
+      "evidence_sha256": {
+        "00-command.json": "42e594dd74c2af3f0d551646f8a317b444309d617257a32344f56029e57c55d7",
+        "00.stderr": "42c00077a8053bdaf6d854b482b686a63ba3b3b4a3d0cbbe7cd0ee2820ed4cee",
+        "00.stdout": "9f40c9f5b7bf8ce0a24247e0261b21204afbde75891f5839088babf703fc036f",
+        "01-command.json": "781461950ae911519cc62e0d0d67734729b25e6592d1eedbe8e8c6c70abec274",
+        "01.stderr": "42c00077a8053bdaf6d854b482b686a63ba3b3b4a3d0cbbe7cd0ee2820ed4cee",
+        "01.stdout": "402c13657f601418e9804567a00a2e264b70fca78ba676f2249d1c121bfa85b5",
+        "02-command.json": "c550648deaab2782c14be39ca8a74ff73d9259e59489616965800ba90959ad1d",
+        "02.stderr": "42c00077a8053bdaf6d854b482b686a63ba3b3b4a3d0cbbe7cd0ee2820ed4cee",
+        "02.stdout": "bf39e49d0066621519185319991e0d94435f4fc8ca119ce208b932e35e3ebf2a",
+        "03-command.json": "be7dff16a3eff6cac0a2152fcbf6d72b790c536a620170e622a5fae80fb3a1d6",
+        "03.stderr": "42c00077a8053bdaf6d854b482b686a63ba3b3b4a3d0cbbe7cd0ee2820ed4cee",
+        "03.stdout": "13decc5525452e0ebb639298f435a13c41b0795ec6b7468a27f440709145283f",
+        "04-command.json": "c8ebc69b2e352e6b9f7e6dc3dfcfda5f27c4616a537cea795009f30c57588224",
+        "04.stderr": "42c00077a8053bdaf6d854b482b686a63ba3b3b4a3d0cbbe7cd0ee2820ed4cee",
+        "04.stdout": "5c5229752c4272042430033d4637cf1e0fffaa47f0f84854c43f904b39c9d689",
+        "05-command.json": "0dcece0ef0ae001f900a80b38fb09c453f57da019d59018f0e6911956d276999",
+        "05.stderr": "42c00077a8053bdaf6d854b482b686a63ba3b3b4a3d0cbbe7cd0ee2820ed4cee",
+        "05.stdout": "8b664c0d53093642011e3ab53aad06530e12e1b23b2358ea70a17b7025d78daa",
+        "checked-cases.json": "2e610937b14c1561f18cec47c23c20dc07fcb7c2e45956698dac386e0d62bd8b",
+        "container-before-cleanup.json": "20ce0d454bd9f2c689e49a322e459aa5636a7581cd9605d40340c9e456e03980",
+        "resources.jsonl": "ffb7c648184ee8b7c957c6df1297f3dea2a092bba6d8ae1ca9fc751d5f9facd7",
+        "result.json": "fe77913bacf89c3c917340db97bcce8f5164940128a17297f97f460d15be8cba",
+        "stage.log": "9b949a5ed9ba99d8fb8ed39330c1e670e9502ac833c64c7ca68f215b1ef869b1"
+      }
+    },
+    "split-f32": {
+      "result": {
+        "stage": "split-f32",
+        "start": "2026-10-20T17:27:17.570153+00:00",
+        "argv": [
+          "timeout",
+          "--kill-after=10s",
+          "1200s",
+          "docker",
+          "run",
+          "--init",
+          "--name",
+          "llmx-xdev-q50-split-f32-784bad9a5",
+          "--label",
+          "llmx.task=llmx-xdev-q50-split-f32-784bad9a5",
+          "--cidfile",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-f32.cid",
+          "--network",
+          "none",
+          "--cpuset-cpus",
+          "4,5",
+          "--cpus",
+          "2",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "256",
+          "--ulimit",
+          "core=0",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-f32-evidence:/evidence",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+          "-w",
+          "/work",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "sh",
+          "/plan/split-f32.sh"
+        ],
+        "passed": true,
+        "source_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+        "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mem_available_kib_before": 18588052,
+        "devices_before": [
+          {
+            "render": 136,
+            "pci": "0000:03:00.0",
+            "vram": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 137,
+            "pci": "0000:44:00.0",
+            "vram": 10919936,
+            "busy": 0
+          }
+        ],
+        "exit_code": 0,
+        "container_state_before_cleanup": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-20T17:27:17.746851055Z",
+          "FinishedAt": "2026-10-20T17:41:15.852152713Z"
+        },
+        "end": "2026-10-20T17:41:16.500776+00:00"
+      },
+      "evidence_sha256": {
+        "container-before-cleanup.json": "586c427f240d7aae8c8eabf7635ba382aba2d9c1834cfd71f11164ae27c7c683",
+        "q5-0-hf-split-f32.log": "8ac69aafb646c035e4313eb7a0bf495a6c41415606295c2ab1f3a2d52301e01d",
+        "resources.jsonl": "035d1bed7b28fd99b4e131ef04b3385cd2c9b1f611e421b9675272b771b68e9e",
+        "result.json": "2e4e72e03a5cce943e58bfee6767520d63989b5140c65db1d2402b7da42214a7",
+        "stage.log": "7d69a5c85bcfcabaa316bc77965e6b5099dbae68c9f1b59f7091ff09e2a59254"
+      }
+    },
+    "auto_accounting": {
+      "original_calls": 162,
+      "guaranteed_validated_prefix": {
+        "logits": 146,
+        "nll": 10
+      },
+      "resumed_tail": {
+        "logits": 4,
+        "nll": 2,
+        "indices": [
+          156,
+          157,
+          158,
+          159,
+          160,
+          161
+        ]
+      },
+      "remaining_auto_calls": 0,
+      "explicit_f16": "Recorded source/actual-probe reuse; no independent full F16 component rerun",
+      "limitation": "Original interrupted process exit143 and buffered-prefix/raw-maxima limitation remain. Combined coverage uses frozen source-order progression plus six newly captured cases, not a rewritten uninterrupted stage PASS.",
+      "auto_tail_max_logit_error": 0.0003769302062988089,
+      "auto_tail_max_nll_error": 4.802608430765076e-05
+    },
+    "split_f32": {
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error_printed": 4.85e-06,
+      "max_nll_error_printed": 5.01e-06,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      }
+    },
+    "original_interruption_sha256": {
+      "urgent-handoff.json": "ba4bee093efb09c510066b69f22a2bfb8b1c7ce068a86f97cd2670e3182fa5ec",
+      "split-boundary-record.json": "37e4ef99f801d7aaad86329ab03ae3664cf745784cf9a915715f47760125d93b"
+    },
+    "no_repeat_accounting_sha256": "9e6de8fa0acca2bc7313a897ec2705531a53c34b6730d2727aeb7f660054609f",
+    "documentation_check": {
+      "status": "PASS, zero findings and21planted faults",
+      "log_sha256": "9d62b38536503e1c72fadfb45e659e5d16722d690fd2d5db2a826cec9c465a34"
+    }
+  },
+  "default_depth": {
+    "kind": "q50",
+    "role": "selected-f16",
+    "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+    "rule_owner": "tests/common.py:hf_depth_top1",
+    "rule_source_sha256": "6f5ee60f31ac4816d82d5291ec8ae8b0ccc92236e50771c5d7ebe9f55503523f",
+    "top_two_tie_margin": 0.1,
+    "reference_report_sha256": "c2f469cb9d5a31d508cb75d3e202d4bdc8c09707e0c08f6bfbb0315ded704177",
+    "capture_report_sha256": "e780ceff68b442d2df309192c7d900bf53a2245b5dc4374ce31b329010690701",
+    "runtime_source": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "probe_sha256": "27823c48f1e786786b7882b395704ef3efd6f84bda354af63d8134ee42fa2f71",
+    "scope": "Selected-policy independent HF depth gate.",
+    "no_misses": true,
+    "comparison_sha256": "5033991dc24a53db026b892187d7e618fbe328080871ecced1bd363369a841f6",
+    "cells": [
+      {
+        "variant": "raw",
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      {
+        "variant": "chat",
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        }
+      }
+    ],
+    "local_rescore": "All 1024 row verdicts/gaps recomputed through unchanged common.hf_depth_top1; contiguous positions16383..16894, zero ties/misses",
+    "limitations": "Selected F16/F16KV default-policy depth only. Root F32 companion remains pending; no duplicate reference/runtime test.",
+    "review_note": "Root-owned selected F16/F16KV reference and capture, independently rescored locally from retained rows; F32 companion pending. Initial local hash-field interpretation failure is retained in scratch setup note, then exact whole-file owner hash verified before scoring.",
+    "rescore_script_sha256": "71f80857d81a250b632505f8a8556c6897debcd31b2c14460a02ab1427c83286"
+  },
+  "consolidated_checkpoint": {
+    "recorded_utc": "2026-10-20T18:09:50.968665+00:00",
+    "windows_native": {
+      "result": {
+        "source_commit": "1781a2120f7455588a6082fddaa392d753c34469",
+        "base_runtime": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+        "runtime_build_delta_since_base": [],
+        "build_directory": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q5-0-20261020\\build-q5-0-integration",
+        "build_route": "fresh MSVC Visual Studio 18 2026, Vulkan enabled, Release, parallel 2",
+        "version": "llmx 0.1.0+g1781a2120f74 numerics 834ee592ffbe8e93",
+        "binary_sha256": "d2c63138c4256d4ad9193268f86e839ed26d037d5560aca299abce60a371bed3",
+        "build_log_sha256": "caf967ebd9d4b9561aa527d3f1672b92e8e610f4febcc2797645b7a0ae7da325",
+        "ctest_log_sha256": "08f502c45d7ef4aa711d296cb42c464ee9f527b490451f69267556ef1b6b506b",
+        "generated_config_sha256": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+        "ctest_command": [
+          "ctest",
+          "--test-dir",
+          "build-q5-0-integration",
+          "-C",
+          "Release",
+          "--output-on-failure",
+          "--parallel",
+          "2"
+        ],
+        "ctest_exit": 0,
+        "passed": 67,
+        "skipped": 0,
+        "tests": [
+          {
+            "name": "format-output",
+            "status": "Passed",
+            "seconds": 0.06
+          },
+          {
+            "name": "hub-manifest",
+            "status": "Passed",
+            "seconds": 0.07
+          },
+          {
+            "name": "hub-transport",
+            "status": "Passed",
+            "seconds": 1.14
+          },
+          {
+            "name": "hub-pull",
+            "status": "Passed",
+            "seconds": 1.59
+          },
+          {
+            "name": "gguf-shards",
+            "status": "Passed",
+            "seconds": 0.74
+          },
+          {
+            "name": "shard",
+            "status": "Passed",
+            "seconds": 16.75
+          },
+          {
+            "name": "gguf-validation",
+            "status": "Passed",
+            "seconds": 1.9
+          },
+          {
+            "name": "json",
+            "status": "Passed",
+            "seconds": 1.02
+          },
+          {
+            "name": "tokenizer-encode",
+            "status": "Passed",
+            "seconds": 0.1
+          },
+          {
+            "name": "cli-output",
+            "status": "Passed",
+            "seconds": 0.07
+          },
+          {
+            "name": "load-progress",
+            "status": "Passed",
+            "seconds": 2.53
+          },
+          {
+            "name": "file-reader",
+            "status": "Passed",
+            "seconds": 0.49
+          },
+          {
+            "name": "context-cut",
+            "status": "Passed",
+            "seconds": 0.06
+          },
+          {
+            "name": "disk-index",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "disk-store",
+            "status": "Passed",
+            "seconds": 14.4
+          },
+          {
+            "name": "generation-stream",
+            "status": "Passed",
+            "seconds": 0.02
+          },
+          {
+            "name": "backend-group",
+            "status": "Passed",
+            "seconds": 0.49
+          },
+          {
+            "name": "fused-dot-overflow",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "quantize-range",
+            "status": "Passed",
+            "seconds": 0.04
+          },
+          {
+            "name": "q8-dots",
+            "status": "Passed",
+            "seconds": 0.43
+          },
+          {
+            "name": "qwen35-ops",
+            "status": "Passed",
+            "seconds": 0.55
+          },
+          {
+            "name": "backend-errors",
+            "status": "Passed",
+            "seconds": 1.04
+          },
+          {
+            "name": "prefill-scope",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "prefill-placement",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "chat-template",
+            "status": "Passed",
+            "seconds": 0.4
+          },
+          {
+            "name": "mxfp4",
+            "status": "Passed",
+            "seconds": 0.08
+          },
+          {
+            "name": "q5-0",
+            "status": "Passed",
+            "seconds": 0.2
+          },
+          {
+            "name": "iq4-nl",
+            "status": "Passed",
+            "seconds": 1.4
+          },
+          {
+            "name": "dtype",
+            "status": "Passed",
+            "seconds": 0.04
+          },
+          {
+            "name": "fp16",
+            "status": "Passed",
+            "seconds": 0.06
+          },
+          {
+            "name": "half-weights",
+            "status": "Passed",
+            "seconds": 1.56
+          },
+          {
+            "name": "cpus",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "host-memory",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "sampler",
+            "status": "Passed",
+            "seconds": 2.41
+          },
+          {
+            "name": "logprobs",
+            "status": "Passed",
+            "seconds": 0.8
+          },
+          {
+            "name": "model-validation",
+            "status": "Passed",
+            "seconds": 94.2
+          },
+          {
+            "name": "server-resume",
+            "status": "Passed",
+            "seconds": 143.9
+          },
+          {
+            "name": "server-resume-device",
+            "status": "Passed",
+            "seconds": 24.66
+          },
+          {
+            "name": "server-resume-cache",
+            "status": "Passed",
+            "seconds": 130.78
+          },
+          {
+            "name": "cache-scenario-production",
+            "status": "Passed",
+            "seconds": 17.65
+          },
+          {
+            "name": "server-spec",
+            "status": "Passed",
+            "seconds": 20.9
+          },
+          {
+            "name": "server-passes",
+            "status": "Passed",
+            "seconds": 5.07
+          },
+          {
+            "name": "job-threads",
+            "status": "Passed",
+            "seconds": 1.66
+          },
+          {
+            "name": "cache-scenario",
+            "status": "Passed",
+            "seconds": 65.06
+          },
+          {
+            "name": "spec",
+            "status": "Passed",
+            "seconds": 16.31
+          },
+          {
+            "name": "kv-cache",
+            "status": "Passed",
+            "seconds": 0.19
+          },
+          {
+            "name": "arch-qwen35",
+            "status": "Passed",
+            "seconds": 0.6
+          },
+          {
+            "name": "arch-qwen35-fit",
+            "status": "Passed",
+            "seconds": 50.47
+          },
+          {
+            "name": "placement",
+            "status": "Passed",
+            "seconds": 62.93
+          },
+          {
+            "name": "http",
+            "status": "Passed",
+            "seconds": 0.33
+          },
+          {
+            "name": "server-utf8",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "mxfp4-vulkan",
+            "status": "Passed",
+            "seconds": 6.29
+          },
+          {
+            "name": "iq4-nl-vulkan",
+            "status": "Passed",
+            "seconds": 2.9
+          },
+          {
+            "name": "backend-vulkan",
+            "status": "Passed",
+            "seconds": 38.2
+          },
+          {
+            "name": "vulkan-buffer",
+            "status": "Passed",
+            "seconds": 0.03
+          },
+          {
+            "name": "vulkan-lifetime",
+            "status": "Passed",
+            "seconds": 3.72
+          },
+          {
+            "name": "vulkan-quantization",
+            "status": "Passed",
+            "seconds": 18.05
+          },
+          {
+            "name": "weight-rows",
+            "status": "Passed",
+            "seconds": 0.06
+          },
+          {
+            "name": "stream-ops",
+            "status": "Passed",
+            "seconds": 0.08
+          },
+          {
+            "name": "dilated-conv",
+            "status": "Passed",
+            "seconds": 0.09
+          },
+          {
+            "name": "kv-auxiliary",
+            "status": "Passed",
+            "seconds": 0.05
+          },
+          {
+            "name": "kv-selection",
+            "status": "Passed",
+            "seconds": 0.12
+          },
+          {
+            "name": "sparse-attention",
+            "status": "Passed",
+            "seconds": 0.13
+          },
+          {
+            "name": "arch-qwen4exp",
+            "status": "Passed",
+            "seconds": 0.12
+          },
+          {
+            "name": "qwen4exp-mtp",
+            "status": "Passed",
+            "seconds": 0.79
+          },
+          {
+            "name": "qwen4exp-graph",
+            "status": "Passed",
+            "seconds": 0.11
+          },
+          {
+            "name": "server-passes-cpu",
+            "status": "Passed",
+            "seconds": 289.39
+          }
+        ],
+        "cpu_suite": "running separately, not yet passed"
+      },
+      "evidence_sha256": "bf14bdfcf08a05afc8248ad7f5c91ad01f6488d496a00b52839010fae4ada564",
+      "local_evidence": "build-q5-0-integration/native-integration-evidence.json"
+    },
+    "split_bf16": {
+      "result": {
+        "stage": "split-bf16",
+        "start": "2026-10-20T17:41:27.535528+00:00",
+        "argv": [
+          "timeout",
+          "--kill-after=10s",
+          "1200s",
+          "docker",
+          "run",
+          "--init",
+          "--name",
+          "llmx-xdev-q50-split-bf16-784bad9a5",
+          "--label",
+          "llmx.task=llmx-xdev-q50-split-bf16-784bad9a5",
+          "--cidfile",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-bf16.cid",
+          "--network",
+          "none",
+          "--cpuset-cpus",
+          "4,5",
+          "--cpus",
+          "2",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "256",
+          "--ulimit",
+          "core=0",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-bf16-evidence:/evidence",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+          "-w",
+          "/work",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "sh",
+          "/plan/split-bf16.sh"
+        ],
+        "passed": true,
+        "source_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+        "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mem_available_kib_before": 13120684,
+        "devices_before": [
+          {
+            "render": 136,
+            "pci": "0000:03:00.0",
+            "vram": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 137,
+            "pci": "0000:44:00.0",
+            "vram": 10919936,
+            "busy": 0
+          }
+        ],
+        "exit_code": 0,
+        "container_state_before_cleanup": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-20T17:41:27.725608293Z",
+          "FinishedAt": "2026-10-20T17:55:25.725702188Z"
+        },
+        "end": "2026-10-20T17:55:26.542410+00:00"
+      },
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error_printed": 0.04028185,
+      "max_nll_error_printed": 0.00330197,
+      "seconds": 839.006882,
+      "bounds": {
+        "logit": 0.08089685440063477,
+        "nll": 0.009054509466386307
+      },
+      "evidence_sha256": {
+        "container-before-cleanup.json": "0b4a57ec87e53359b50864be9785030c500e6aa704eb093b41566d115141e80c",
+        "q5-0-hf-split-bf16.log": "71786f26308ea994c390c7017d3e7fd319d111a2c90f669ba4312aec6d7608ec",
+        "resources.jsonl": "6bfe76a90d5ec4c8b2b415eafe3cec684303b42895f5e23656d87c3c7b605954",
+        "result.json": "334e61955fb7a60fb636d455e968c991f556064b106ba767c23a69a0541e5e03",
+        "stage.log": "2b7d663433a8b7c3c6a97ac124a240b440ee358cd1b449924fd8fdc61449349b"
+      },
+      "cleanup": "Exact owned container removed; GPU0/1 and CPU4/5 released at 17:55:26 UTC for root benchmark"
+    },
+    "f32_depth_companion": {
+      "kind": "q50",
+      "role": "original-f32",
+      "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+      "rule_owner": "tests/common.py:hf_depth_top1",
+      "rule_source_sha256": "6f5ee60f31ac4816d82d5291ec8ae8b0ccc92236e50771c5d7ebe9f55503523f",
+      "top_two_tie_margin": 0.1,
+      "reference_report_sha256": "3b7767293295e7fcd6133cb16f740c76634e11a6fec845bdd40fe318002a4ffa",
+      "capture_report_sha256": "e780ceff68b442d2df309192c7d900bf53a2245b5dc4374ce31b329010690701",
+      "runtime_source": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+      "probe_sha256": "27823c48f1e786786b7882b395704ef3efd6f84bda354af63d8134ee42fa2f71",
+      "variants_requested": "both",
+      "scope": "Same-file unrounded F32 HF companion; does not replace the selected-policy gate or measure original-checkpoint quantization quality.",
+      "no_misses": true,
+      "cells": [
+        {
+          "variant": "raw",
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ],
+      "comparison_sha256": "e032246b0ffbb4011937d36751af9fb359c49089fbb2b2d0c8a778641056622b",
+      "local_review": "All1024 retained verdicts/gaps rescored with unchanged common.hf_depth_top1; no new reference/runtime execution. File-exact Q5_0 weights, not original unquantized-weight quality."
+    },
+    "windows_cpu_suite": {
+      "status": "PENDING",
+      "owner": "root",
+      "session": 97618,
+      "flags": [
+        "--no-perf-floor",
+        "--require-baseline"
+      ],
+      "scope": "Full suite active; required files found; no terminal PASS inferred"
+    },
+    "remaining": [
+      "Matched performance and existing-path regression checks",
+      "Current-main/landing integration and applicable hosted gates",
+      "No all-expert, HF sidecar quality, or performance qualification from the released mixed-sidecar MTP check"
+    ],
+    "preserved_scope": "No runtime/test/budget changes. Earlier failed and interrupted evidence remains unchanged. F32 companion compares the same selected-F16 runtime capture to same-file unrounded F32 HF, not a F32 runtime capture or original-weight quality gate.",
+    "documentation_checks": {
+      "command": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "build-q5-0-integration/Release/llmx.exe",
+        "--only",
+        "docs,dead-code"
+      ],
+      "exit": 0,
+      "docs": "PASS; zero findings, 21 planted faults",
+      "dead_code": "PASS; five listed findings, 18 planted faults",
+      "log_sha256": "3d733cf4bd25f899f9e7011a9ea25825f41ee128eab66bcb28c065bed007f77f"
+    },
+    "split_int8": {
+      "runtime_source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+      "test_overlay_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+      "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "runner_sha256": "bd75e52bafbecb5bd8b3df526a4889ee14005fa51adbd714ad42778106426aaa",
+      "container_limits": {
+        "cpus": 2,
+        "memory_bytes": 4294967296,
+        "memory_swap_bytes": 4294967296,
+        "pids": 256,
+        "network": "none"
+      },
+      "status": "PASS",
+      "stage": "split-int8",
+      "result_record": "build-quant-resume-20261020/q50-remaining-results/split-int8-evidence/result.json",
+      "result_record_sha256": "bbc3e4210e9b6e460ce636735ce4b9d3fcaed28d48b4e671426f5cee2ae9b7d3",
+      "result_passed": true,
+      "exit_code": 0,
+      "start": "2026-10-20T19:40:22.247248+00:00",
+      "end": "2026-10-20T19:54:21.261117+00:00",
+      "command": [
+        "timeout",
+        "--kill-after=10s",
+        "1200s",
+        "docker",
+        "run",
+        "--init",
+        "--name",
+        "llmx-xdev-q50-split-int8-784bad9a5",
+        "--label",
+        "llmx.task=llmx-xdev-q50-split-int8-784bad9a5",
+        "--cidfile",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-int8.cid",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "8,9",
+        "--cpus",
+        "2",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--device",
+        "/dev/dri/renderD130",
+        "--device",
+        "/dev/dri/renderD131",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-int8-evidence:/evidence",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+        "-w",
+        "/work",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "sh",
+        "/plan/split-int8.sh"
+      ],
+      "prior_command": [
+        "timeout",
+        "--kill-after=10s",
+        "1200s",
+        "docker",
+        "run",
+        "--init",
+        "--name",
+        "llmx-xdev-q50-split-int8-784bad9a5",
+        "--label",
+        "llmx.task=llmx-xdev-q50-split-int8-784bad9a5",
+        "--cidfile",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-int8.cid",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "4,5",
+        "--cpus",
+        "2",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--device",
+        "/dev/dri/renderD136",
+        "--device",
+        "/dev/dri/renderD137",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/split-int8-evidence:/evidence",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+        "-w",
+        "/work",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "sh",
+        "/plan/split-int8.sh"
+      ],
+      "resources_before": {
+        "mem_available_kib": 31130456,
+        "devices": [
+          {
+            "render": 130,
+            "pci": "0000:c9:00.0",
+            "vram": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 131,
+            "pci": "0000:cc:00.0",
+            "vram": 10919936,
+            "busy": 0
+          }
+        ]
+      },
+      "container_state_before_cleanup": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-20T19:40:22.504275863Z",
+        "FinishedAt": "2026-10-20T19:54:20.039390507Z"
+      },
+      "raw_artifact_sha256": {
+        "container-before-cleanup.json": "357b826f2d3f650562c11f7cf0b649fba3c064b52f66eeb2dc760f2add09190f",
+        "q5-0-hf-split-int8.log": "93fa8f1c43b6a28df7f67cb60be77c4f957deb8e8f4429b3885488e77194c0d8",
+        "resources.jsonl": "53b0a85a5ff1615b0356451a2b845acada823fc336c3c01c41615cf02c684926",
+        "result.json": "bbc3e4210e9b6e460ce636735ce4b9d3fcaed28d48b4e671426f5cee2ae9b7d3",
+        "stage.log": "4ec593af931c2fc3dabc18ab0fb44a56f4eb7150e1b54b78991b7610ad50c08e"
+      },
+      "execution_scope": "Two-device tensor split, int8 request, dense tied/untied and MoE fixtures; same runtime and reviewed overlay as prior Q5_0 qualification.",
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error": 0.12624993,
+      "max_nll_error": 0.01280141,
+      "limits": "Existing independently reviewed Q5_0 family bounds; no budget or bound change.",
+      "resource_identity": {
+        "cpuset": "8,9",
+        "render_devices": [
+          "/dev/dri/renderD130",
+          "/dev/dri/renderD131"
+        ],
+        "cpu_threads": "8,9",
+        "pci": [
+          "0000:c9:00.0",
+          "0000:cc:00.0"
+        ]
+      },
+      "prior_attempt_preserved": "The earlier interrupted auto split and its unretained-prefix limitation remain separate historical evidence; this run is a distinct completed int8 split component."
+    },
+    "file_exact_consumer": {
+      "runtime_source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+      "test_overlay_commit": "784bad9a5a39b5e8bbb2bc1b0927d0ea7dd2c190",
+      "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "runner_sha256": "bd75e52bafbecb5bd8b3df526a4889ee14005fa51adbd714ad42778106426aaa",
+      "container_limits": {
+        "cpus": 2,
+        "memory_bytes": 4294967296,
+        "memory_swap_bytes": 4294967296,
+        "pids": 256,
+        "network": "none"
+      },
+      "status": "PASS",
+      "stage": "converted-file-exact",
+      "result_record": "build-quant-resume-20261020/q50-remaining-results/file-exact-evidence/result.json",
+      "result_record_sha256": "c06f9687ddb2ce94cdd79a2a4540986af319d027ad13c7a967fe2be860b6c748",
+      "result_passed": true,
+      "exit_code": 0,
+      "start": "2026-10-20T19:40:23.039456+00:00",
+      "end": "2026-10-20T19:40:38.142629+00:00",
+      "command": [
+        "timeout",
+        "--kill-after=10s",
+        "900s",
+        "docker",
+        "run",
+        "--init",
+        "--name",
+        "llmx-xdev-q50-file-exact-784bad9a5",
+        "--label",
+        "llmx.task=llmx-xdev-q50-file-exact-784bad9a5",
+        "--cidfile",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/file-exact.cid",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "10,11",
+        "--cpus",
+        "2",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--device",
+        "/dev/dri/renderD135",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/file-exact-evidence:/evidence",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q50-real-reference-a1fc99258:/reference:ro",
+        "-w",
+        "/work",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "/plan/file-exact.py"
+      ],
+      "prior_command": [
+        "timeout",
+        "--kill-after=10s",
+        "900s",
+        "docker",
+        "run",
+        "--init",
+        "--name",
+        "llmx-xdev-q50-file-exact-784bad9a5",
+        "--label",
+        "llmx.task=llmx-xdev-q50-file-exact-784bad9a5",
+        "--cidfile",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/file-exact.cid",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "4,5",
+        "--cpus",
+        "2",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--device",
+        "/dev/dri/renderD136",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-a1fc99258/src:/work:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5:/plan:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/file-exact-evidence:/evidence",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/q5_0.py:/work/tests/q5_0.py:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q5-0-followup-784bad9a5/overlay/tests/data/dtype_budget.json:/work/tests/data/dtype_budget.json:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q50-real-reference-a1fc99258:/reference:ro",
+        "-w",
+        "/work",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "/plan/file-exact.py"
+      ],
+      "resources_before": {
+        "mem_available_kib": 30567520,
+        "devices": [
+          {
+            "render": 135,
+            "pci": "0000:8c:00.0",
+            "vram": 10932224,
+            "busy": 0
+          }
+        ]
+      },
+      "container_state_before_cleanup": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-20T19:40:23.997690301Z",
+        "FinishedAt": "2026-10-20T19:40:36.936179573Z"
+      },
+      "raw_artifact_sha256": {
+        "calls/00.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/00.stdout": "be1081580e116ae2b357039d4a76bcd606a7e03c00e8bcd2cccbc58905ef4eb4",
+        "calls/01.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/01.stdout": "d7a95ddc3e65ffbc66c709c1cde8871b8e9e24fb66b5e3702104094643e6425d",
+        "calls/02.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/02.stdout": "b821cac7f302ea5404ef4bb33c99248aeb6580c1827e3500dc7e3ef9841224bf",
+        "calls/03.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/03.stdout": "dcecd3926f116581ba03dc9267a13a209b1c30fb92337f7b4d8be603d513a5d8",
+        "calls/04.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/04.stdout": "9cb7e8b01bece6d8ce6691b09d4214e5ef6c1ba9497bca15772048742db2a2ce",
+        "calls/05.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/05.stdout": "0d1ebe29a8244ec198b5b9485f3f7f16649aa850efd96e4d612b1a316d102258",
+        "calls/06.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "calls/06.stdout": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "calls/07.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/07.stdout": "2c3820f6acce1249dd66ca06c6886a0460f92bf4935c7ed9acc510c333bd6e3d",
+        "calls/08.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/08.stdout": "232f4bd918ad4dd97ec89ecd010513a028d9ed80fbb1eec0978fe6dfdd66daa5",
+        "calls/09.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/09.stdout": "8cb5507a251696cb79486b31779ce8c1a430b2cd83c55a51ed73f8f800f21e74",
+        "calls/10.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/10.stdout": "cf83bdf6775efc0f36b76d13e00f6f123b7a3203fccc0ae4ae515d50e386400d",
+        "calls/11.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/11.stdout": "424f5cf4812471489eb963de0e87ee385d3c5059a5fbcf635208666b4b5f862f",
+        "calls/12.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/12.stdout": "8c9ca290b01a485232fcd3e329df4a9395c195faa96c67bbd317e8a5037dc9d2",
+        "calls/13.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/13.stdout": "6a130975853fb7b4db4f3fd445b673d5236fc78345f4b364733a72b2d3e3c2b4",
+        "calls/14.stderr": "e5c1e3ef062fb562c7f06cf461495827f46ed67383e37e359f171b123afdef99",
+        "calls/14.stdout": "320e84746413c7886fe3a1e7fff49c391ca5f1afd262427a7386cdf1c2710099",
+        "calls/commands.json": "c62176d32be6560a94a3b10c119c0dffb4e40e63bdd9b38463c45ac4cbe76643",
+        "calls/exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "calls/invocation.json": "4970f5d1ce7c6856639b275827e8a8d7ac433a68ef87d060938ee32b0ee41c4e",
+        "container-before-cleanup.json": "95487ecc2ff0f018812e64f85c6713fc67b9aad70b4c7cbd8125da698237e1a4",
+        "resources.jsonl": "d5ba1de0e212da318002008e19bc22833061180823c29d912694f9d51f669d93",
+        "result.json": "c06f9687ddb2ce94cdd79a2a4540986af319d027ad13c7a967fe2be860b6c748",
+        "stage.log": "56c51501fcf0bce8695ddaead79607946222773d8019340e459b94489e5af5ad"
+      },
+      "execution_scope": "Converted Qwen3-0.6B Q5_0 file exact consumer against pinned HF reference.",
+      "rankings": {
+        "top1": "6/6",
+        "top5_set_at_least_5": "6/6",
+        "exact_order": "6/6"
+      },
+      "nll_cases": 8,
+      "nll_deltas": {
+        "context_0_batched": 0.000201,
+        "context_0_per_token": 7.1e-05,
+        "context_64_four_chunks_batched": 8.7e-05,
+        "context_64_four_chunks_per_token": 0.000107,
+        "context_64_two_chunks_batched": 6.5e-05,
+        "context_64_two_chunks_per_token": 0.000155,
+        "context_123_two_chunks_batched": 8.6e-05,
+        "context_123_two_chunks_per_token": 0.000116
+      },
+      "resource_identity": {
+        "cpuset": "10,11",
+        "render_device": "/dev/dri/renderD135",
+        "cpu_threads": "10,11",
+        "pci": "0000:8c:00.0"
+      },
+      "limitations": "This is converted-file consumer correctness, not original-weight quality or broad model approval."
+    },
+    "windows_cpu_combined_coverage": {
+      "original_full_suite_passed_components": 29,
+      "original_full_suite_failed_components": [
+        "cli",
+        "roundtrip",
+        "split"
+      ],
+      "scoped_rerun_components": {
+        "cli": "PASS",
+        "roundtrip": "PASS",
+        "split": "PASS"
+      },
+      "classification": "Combined coverage only; no uninterrupted full-suite PASS is claimed and no full-suite rerun is required for these unchanged components."
+    },
+    "mtp_run": {
+      "status": "RUNNING; no qualification result yet",
+      "runtime_source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+      "evidence_root": "/zpool1/llmx-xdev-quant-20261020/q50-released-mtp-a1fc99258",
+      "session_id": 80716,
+      "physical_devices": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "preflight_history": "The first invocation stopped before creating a container because the transferred inventory was missing. The pinned inventory was copied and the current invocation was started; do not treat the preflight attempt as a test result.",
+      "result_claim": null
+    }
+  },
+  "windows_cpu_scoped_recheck": {
+    "original_full_suite": {
+      "exit": 1,
+      "passed": 29,
+      "failed": [
+        "cli",
+        "roundtrip",
+        "split"
+      ],
+      "log_sha256": "ac1e1d6c2d2931b1e0305c9cda2f76498153b49763806e1631868b7abbe4cc8d",
+      "rows": [
+        [
+          "dead-code",
+          "PASS"
+        ],
+        [
+          "docs",
+          "PASS"
+        ],
+        [
+          "arch-boundary",
+          "PASS"
+        ],
+        [
+          "version",
+          "PASS"
+        ],
+        [
+          "cli",
+          "FAIL"
+        ],
+        [
+          "reference-generator",
+          "PASS"
+        ],
+        [
+          "reference-consumer",
+          "PASS"
+        ],
+        [
+          "device-reference",
+          "PASS"
+        ],
+        [
+          "roundtrip",
+          "FAIL"
+        ],
+        [
+          "raw-blocks",
+          "PASS"
+        ],
+        [
+          "perf",
+          "PASS"
+        ],
+        [
+          "tokenizer",
+          "PASS"
+        ],
+        [
+          "perplexity",
+          "PASS"
+        ],
+        [
+          "f32",
+          "PASS"
+        ],
+        [
+          "half-weights",
+          "PASS"
+        ],
+        [
+          "moe",
+          "PASS"
+        ],
+        [
+          "int8",
+          "PASS"
+        ],
+        [
+          "mxfp4",
+          "PASS"
+        ],
+        [
+          "q5-0",
+          "PASS"
+        ],
+        [
+          "q5-1",
+          "PASS"
+        ],
+        [
+          "iq4-nl",
+          "PASS"
+        ],
+        [
+          "qwen35",
+          "PASS"
+        ],
+        [
+          "split",
+          "FAIL"
+        ],
+        [
+          "tensor-split",
+          "PASS"
+        ],
+        [
+          "decode-probe",
+          "PASS"
+        ],
+        [
+          "drafters",
+          "PASS"
+        ],
+        [
+          "shards",
+          "PASS"
+        ],
+        [
+          "server",
+          "PASS"
+        ],
+        [
+          "server-load",
+          "PASS"
+        ],
+        [
+          "chat",
+          "PASS"
+        ],
+        [
+          "threads",
+          "PASS"
+        ],
+        [
+          "baseline",
+          "PASS"
+        ]
+      ]
+    },
+    "regression_before_fix": {
+      "error": "AttributeError: module 'iq4_nl' has no attribute 'write_fixture'",
+      "log_sha256": "74c102891fbc251bb9295a090df0d08d06ba0b8e4147d8e1929a696a8926341c"
+    },
+    "source_change": {
+      "path": "tests/split.py",
+      "owner": "tests/block_fixture.py:write_fixture",
+      "delta": "Import the shared writer and call it directly for MXFP4/IQ4_NL, rather than relying on an accidental format-module re-export.",
+      "runtime_changes": false,
+      "bounds_changed": false
+    },
+    "scoped_rerun": {
+      "exit": 0,
+      "rows": [
+        [
+          "cli",
+          "PASS"
+        ],
+        [
+          "roundtrip",
+          "PASS"
+        ],
+        [
+          "split",
+          "PASS"
+        ]
+      ],
+      "outside_sandbox": true,
+      "command": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "build-q5-0-integration/Release/llmx.exe",
+        "--only",
+        "cli,roundtrip,split",
+        "--require-tools"
+      ],
+      "log_sha256": "95f8a6231a0163bb58cb0fb41406ca9b7559017f0152205830f8a8671e92a825",
+      "binary_sha256": "d2c63138c4256d4ad9193268f86e839ed26d037d5560aca299abce60a371bed3",
+      "full_suite_repeated": false,
+      "rebuilt": false,
+      "native_split_runs": 138
+    },
+    "classification": "CLI and roundtrip pass outside the sandbox with no source changes to either component, consistent with the original Windows filesystem error5 output-path refusal. Split was a real shared-fixture caller regression; existing split coverage now passes after the direct-owner call fix.",
+    "coverage_rule": "Preserve original exit1 and scoped exit0 separately. Original29 component passes carry only for unchanged runtime/test/fixture inputs; this is not a newly executed uninterrupted full-suite PASS.",
+    "documentation_checks": {
+      "docs": "PASS; zero findings, 21 planted faults",
+      "dead_code": "PASS; five listed findings, 18 planted faults",
+      "exit": 0,
+      "log_sha256": "c208c3296e8a27b6098a2755b9a954d99b599d72f2ebf05b8c8f8d63f4354772"
+    }
+  },
+  "released_mtp_first_attempt": {
+    "passed": false,
+    "off_arm_passed": true,
+    "off_reply_tokens": [
+      64,
+      64
+    ],
+    "on_inference_started": false,
+    "refusal": "stage 0 needs 21.59 GiB and driver reports 12.44 GiB free",
+    "no_oom": true,
+    "removed": true,
+    "source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "binary_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+    "devices_before": [
+      {
+        "render": 134,
+        "pci": "0000:89:00.0",
+        "vram": 10932224,
+        "busy": 0
+      },
+      {
+        "render": 135,
+        "pci": "0000:8c:00.0",
+        "vram": 10932224,
+        "busy": 0
+      },
+      {
+        "render": 128,
+        "pci": "0000:c3:00.0",
+        "vram": 10919936,
+        "busy": 0
+      },
+      {
+        "render": 129,
+        "pci": "0000:c6:00.0",
+        "vram": 10919936,
+        "busy": 0
+      }
+    ],
+    "devices_after": [
+      {
+        "render": 134,
+        "pci": "0000:89:00.0",
+        "vram": 10932224,
+        "busy": 0
+      },
+      {
+        "render": 135,
+        "pci": "0000:8c:00.0",
+        "vram": 10932224,
+        "busy": 0
+      },
+      {
+        "render": 128,
+        "pci": "0000:c3:00.0",
+        "vram": 10919936,
+        "busy": 0
+      },
+      {
+        "render": 129,
+        "pci": "0000:c6:00.0",
+        "vram": 10919936,
+        "busy": 0
+      }
+    ],
+    "evidence_path": "/zpool1/llmx-xdev-quant-20261020/q50-released-mtp-a1fc99258/evidence",
+    "raw_sha256": {
+      "result.json": "04312e2868a0baec20d1f7b9182508e99a9da440f462f6c28551048282199f22",
+      "stage.log": "a477a861fa876b27e2d6a8bdfae3e20622df891c3b50e7e033e0018fa9fc1f1a",
+      "requests/complete.json": "7c86767c0c5c3249416e463837500cd9d340d3ea3602423dd54daad60dad0b64"
+    },
+    "followup": "The on-only continuation passed as a separate fresh-container run with a different runner/cache environment and fresh per-card VRAM observations. The initial fit refusal remains; no causal claim is made that draining cards or changing the cache environment fixed it."
+  },
+  "released_mtp_on_only": {
+    "status": "PASS; scoped released mixed-sidecar Q5_0 MTP functional check",
+    "scope": "Released mixed Q4_K_M sidecar Q5_0 MTP activation and target output identity; no HF sidecar quality/performance/all-expert execution claim",
+    "evidence_path": "build-quant-resume-20261020/q50-released-mtp-on-results",
+    "runtime_source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "runtime_binary_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+    "source_archive_sha256": "b64852ab3f3eee794759c88b98829dad3a92b75d85531b2eb9e5426a8d35a374",
+    "source_manifest_sha256": "98a1c2ec9428ea0d10f83e94ac47014eba7a79057be406a9e758b08cfd108c6c",
+    "model_manifest_sha256": "d3bff0d528e0d3d0ff09600b909b621f1bb42b069663756ff711672eaafc7c73",
+    "model_shard_sha256": {
+      "Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf": "4448186216b3af4cc558bbce2c3213f01608f8f8b2e5267a9767971dd3ec8082",
+      "Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf": "3f342f1c1580473f1ee94ddd5b28206e8c07a70fa1a366f59d1d6c922919a6c9",
+      "Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf": "56758f40269cad5cd9b0d3d6fbae0f40f6d5be6de49e4ab392dbe83157d9cbd3",
+      "Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf": "753bda48b98ba4f1636134a90a967de1b2d3908a236c026e464777342e53510a"
+    },
+    "sidecar_sha256": "23e69169dab2ce13c8123ed5423ded695794933f996f795e99836df8335f34ac",
+    "sidecar_bytes": 3258013472,
+    "runtime_and_model_pins_unchanged_from_off_baseline": true,
+    "changed_harness_pins": "The on-only preparation script and runner differ from the initial off/on harness; the shared runtime, source archive, model shards and MTP sidecar are unchanged.",
+    "off_baseline": {
+      "path": "build-quant-resume-20261020/q50-released-mtp-first-results/requests/complete.json",
+      "complete_sha256": "7c86767c0c5c3249416e463837500cd9d340d3ea3602423dd54daad60dad0b64",
+      "responses": 2,
+      "rerun": false
+    },
+    "on_only_result": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false
+    },
+    "host_memory_available_kib_before": 31093716,
+    "device_before_on": [
+      {
+        "utc": 1792526628.0088546,
+        "render": 134,
+        "pci": "0000:89:00.0",
+        "vram": 10932224,
+        "busy": 0
+      },
+      {
+        "utc": 1792526628.0092113,
+        "render": 135,
+        "pci": "0000:8c:00.0",
+        "vram": 10932224,
+        "busy": 0
+      },
+      {
+        "utc": 1792526628.0095365,
+        "render": 128,
+        "pci": "0000:c3:00.0",
+        "vram": 10919936,
+        "busy": 0
+      },
+      {
+        "utc": 1792526628.009859,
+        "render": 129,
+        "pci": "0000:c6:00.0",
+        "vram": 10919936,
+        "busy": 0
+      }
+    ],
+    "topology": "Four MI50s in two tensor groups: vulkan:0+1 and vulkan:2+3.",
+    "requests": [
+      {
+        "request_index": 1,
+        "off_tokens": 64,
+        "on_tokens": 64,
+        "token_ids_identical": true,
+        "logprobs_identical": true,
+        "top_logprobs_identical": true,
+        "text_identical": true
+      },
+      {
+        "request_index": 2,
+        "off_tokens": 64,
+        "on_tokens": 64,
+        "token_ids_identical": true,
+        "logprobs_identical": true,
+        "top_logprobs_identical": true,
+        "text_identical": true
+      }
+    ],
+    "mtp_counts": {
+      "drafted": 18,
+      "kept": 13,
+      "failed": 0,
+      "own_history": {
+        "drafted": 0,
+        "kept": 0
+      }
+    },
+    "cache_environment": {
+      "XDG_CACHE_HOME": "/tmp/llmx-test-cache"
+    },
+    "preflight_history": "A separate preflight attempt stopped before container creation because the transferred inventory was missing; the pinned inventory was copied afterward. It was setup-only, not a test result.",
+    "fresh_run_note": "On-only fresh container, configured cache directory, and fresh per-card VRAM observations. These changed conditions do not establish why the earlier run fit-refused.",
+    "qualification_limit": "This checks the released mixed Q4_K_M sidecar with Q5_0 MTP activation and target output identity only. It does not establish all-expert execution, HF sidecar quality, broad model quality, or performance.",
+    "raw_sha256": {
+      "result.json": "a179239055205f09545e41af8bfa17289cfb3ab3c9fba74e10627e1a4719717e",
+      "requests/complete.json": "fc4306173e719de4356c56c1f7e7c315922f20c936e9b94c35a849fd1827e347",
+      "requests/mtp.log": "872a10effaaea5ce8eb269199b818cda75e59f78b0608ecefaf5532c71b4e126",
+      "requests/progress.json": "1b1176d560bfb4ea58e892a5a4e2d0c38a2c49c6fbb8886760891897265d6cf6",
+      "requests/sidecar-inventory.json": "90e47c5ef5eb98a9fc24abf295ebf8a0fa02a869a067eb74010a99a204c9678f",
+      "resources.jsonl": "af7aa223b0146825b7b536ea362fe4c2db30a1855fcd7edec254f6439128d217",
+      "container-before-cleanup.json": "fc84041041267f346487ba5bab34d1dcb12eaa86b78cf37a0fc3b06d09999167",
+      "stage.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "released_mtp_first_attempt_log_note": {
+    "status": "Initial off/on attempt; both off replies passed, then MTP-on exited before inference on placement fit",
+    "evidence_path": "build-quant-resume-20261020/q50-released-mtp-first-results",
+    "raw_sha256": {
+      "result.json": "04312e2868a0baec20d1f7b9182508e99a9da440f462f6c28551048282199f22",
+      "requests/complete.json": "7c86767c0c5c3249416e463837500cd9d340d3ea3602423dd54daad60dad0b64",
+      "stage.log": "a477a861fa876b27e2d6a8bdfae3e20622df891c3b50e7e033e0018fa9fc1f1a"
+    },
+    "source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "binary_sha256": "e15c7ff166605da58aeea7b5cdfea409f17458821d33b30953601e5169ba9a95",
+    "exit": 1,
+    "removed": true,
+    "observation": "The stage log ends with an explicit placement refusal: stage 0 needs 21.59 GiB and reports 12.44 GiB free. Repeated Vulkan shader-cache messages say \"disabling\"; the logs do not support treating cache creation as the failure cause."
+  },
+  "matched_timing": {
+    "record": "benchmarks/q5-0-matched-timing-20261020.json",
+    "status": "PASS; 22/22 model-benchmark calls",
+    "scope": "One pair per existing-path cell and one Q5_0 candidate/mx pair on one MI50. Not MTP or server throughput.",
+    "summary": "Q5_0 P512 8154.82 vs mx 5673.56 tok/s (+43.73%); TG128 301.41 vs 280.52 (+7.45%). Existing-path changes range -1.05% to +1.53%. Single pairs do not establish causal regressions or speedups."
+  },
+  "windows_cpu_suite": {
+    "status": "Combined component coverage complete; not an uninterrupted full-suite PASS",
+    "original_full_suite": "29 components passed; CLI, roundtrip and split failed",
+    "scoped_rerun": "CLI, roundtrip and split pass 3/3 against unchanged inputs after the shared fixture-owner correction",
+    "interpretation": "Combined coverage of all components using retained original passes plus the scoped rerun; no full rerun is required solely for that history.",
+    "source": "docs/STATUS.md, Q5_0 Windows CPU suite diagnosis checkpoint"
+  },
+  "remaining_landing_record": "q5-0-remaining-landing-20261020.json",
+  "hosted_ci": {
+    "head": "b5cde3195a045543bc719fb61e62431ce75ea4b7",
+    "run_id": 39495248561,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/39495248561",
+    "status": "pending",
+    "final_delta": "Documentation only; runtime, tests, fixtures, workflow and build inputs unchanged."
+  }
+}

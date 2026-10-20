@@ -1,0 +1,105 @@
+{
+  "base": "34f3ba11fe9495d5ec1f35ef76c2b037e1cad69c",
+  "integrated_tested_head": "1eca8844f1f1c91f129f078620ce0dc7d2d91848",
+  "original_q50_head": "c7b260ffadb07d6d2631d1af3d3c177fb9227787",
+  "original_q50_hosted_head": "b5cde3195a045543bc719fb61e62431ce75ea4b7",
+  "original_q50_hosted_run": 39495248561,
+  "pacing_hosted_run": 39502741982,
+  "delta_from_q50": [
+    "docs/STATUS.md",
+    "docs/benchmarks/pacing-staircase-review-20261021.json",
+    "tests/server_passes.cpp",
+    "tests/server_passes_cpu.cpp"
+  ],
+  "scope": "Q5_0 runtime, other tests, fixtures, configuration, build inputs and workflow are unchanged. Only two pacing tests are integrated; both exactly match landed main. No numerical or performance gate repeated for this integration.",
+  "applicable_integrated_hosted": [
+    "CPU (ubuntu-24.04)",
+    "CPU (windows-2022)",
+    "CPU (macos-15-intel)",
+    "CPU (Linux UBSan)",
+    "CPU (Linux TSan)",
+    "Vulkan backend (build, Linux)"
+  ],
+  "carried_hf": "HF reference CPU does not run CTest. Its original Q5_0 result carries with unchanged producer, fixtures, runtime, Python suite and workflow. It is not an affected gate for this integration.",
+  "local": {
+    "command": "ctest --test-dir build-pacing-vs18 -C Release -R ^server-passes(-cpu)?$ --output-on-failure --parallel 2",
+    "output": "Test project C:/Users/Marko/Desktop/Projects/llmx/worktrees/q50-pacing-integration-20261021/build-pacing-vs18\r\n    Start 43: server-passes\r\n    Start 45: server-passes-cpu\r\n1/2 Test #43: server-passes ....................   Passed    5.25 sec\r\n2/2 Test #45: server-passes-cpu ................   Passed  287.17 sec\r\n\r\n100% tests passed, 0 tests failed out of 2\r\n\r\nTotal Test time (real) = 287.25 sec\r\n",
+    "log_sha256": "36adbd4ad58063c10ddb9835ad800f6d8ee83ba1755c5df5398f09b58bddfc67",
+    "compile_log_sha256": "c2cc6ae09fd5d4c3083d89445a6666803bef463c5f6c6fa143e601558804ae92",
+    "binaries": {
+      "llmx-server-passes-test.exe": "c00a33d64e84b2aeba5c3f40144c2412533b662e86f2121d556632f72d1ea70c",
+      "llmx-server-passes-cpu-test.exe": "96eb2dd86664a2b9190b9d0c5b794d510e57b70d4becf01d928254e914b393e0"
+    },
+    "compiler": "MSVC 19.50.35728.0, Visual Studio 18 2026",
+    "retained_setup_failure": "Initial Visual Studio 17 2022 configure refused: no installed instance. Fresh build-pacing-vs18 configured the installed toolchain; no compile or test ran in the refused build."
+  },
+  "hosted_status": "All seven jobs passed; all six applicable integration jobs passed. Final delta from the tested head is STATUS and this evidence record only.",
+  "docs_review": "All 115 Markdown pages retain their prior source review; integration delta review covers STATUS and pacing evidence. No new public behavior, flag, owner or feature claim.",
+  "hosted": {
+    "run": 39511221824,
+    "tested_head": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+    "jobs": [
+      {
+        "id": 118932430819,
+        "name": "CPU (Linux UBSan)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932430819",
+        "completed_at": "2026-10-20T23:30:59Z"
+      },
+      {
+        "id": 118932431131,
+        "name": "CPU (macos-15-intel)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932431131",
+        "completed_at": "2026-10-20T23:34:17Z"
+      },
+      {
+        "id": 118932431177,
+        "name": "Vulkan backend (build, Linux)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932431177",
+        "completed_at": "2026-10-20T23:28:29Z"
+      },
+      {
+        "id": 118932431194,
+        "name": "CPU (Linux TSan)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932431194",
+        "completed_at": "2026-10-20T23:07:22Z"
+      },
+      {
+        "id": 118932431264,
+        "name": "CPU (ubuntu-24.04)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932431264",
+        "completed_at": "2026-10-20T23:19:22Z"
+      },
+      {
+        "id": 118932431335,
+        "name": "CPU (windows-2022)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932431335",
+        "completed_at": "2026-10-20T23:32:49Z"
+      },
+      {
+        "id": 118932431446,
+        "name": "HF reference (CPU)",
+        "head_sha": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39511221824/job/118932431446",
+        "completed_at": "2026-10-20T23:27:42Z"
+      }
+    ],
+    "raw_sha256": {
+      "integrated-run-39511221824.json": "590d7477eca4252adb277008613c30187d6e01aa098272e1b47544d7e618b369",
+      "integrated-all-jobs-39511221824.json": "3a3ca5c748281365da37fe34f0ea7af7fb9914846272e529c2e669591cab1a73"
+    }
+  },
+  "landing": "One feature commit, fast-forward from main 34f3ba11fe9495d5ec1f35ef76c2b037e1cad69c; delete the unchanged temporary gate/q50-20261020 after verifying public main."
+}

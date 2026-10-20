@@ -139,7 +139,7 @@ change, or it does not exist as far as a user is concerned.
 
 The round-trip component (`tests/roundtrip.py`, under Tests below) checks the format and quantization paths.
 It builds a random F32 model, quantizes it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the error, and decodes the written blocks with the spec decoders of `tests/spec_decode.py`, written from the format descriptions, rather than with llmx's own reader.
-Q4_1, Q5_1, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included.
+Q4_1, Q5_0, Q5_1, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included.
 Under a negative scale Q4_0's nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
 Run it alone against the root `llmx.exe` that `build.bat` writes, or as part of the suite for a CMake build:
 ```
@@ -174,6 +174,15 @@ independent HF criterion over groups of two and four devices.
 `iq4-nl` uses that split layout and its own independently decoded blocks and HF
 goldens at tensor widths above one. The split MoE fixture selects all four experts
 so rounding cannot change its selected expert set; ordinary fixtures remain unchanged.
+
+`q5-0` uses the same raw-block fixture and consumer owner, with its own 22-byte
+blocks and independently decoded file-exact HF weights. Its dense tied/untied and
+MoE fixtures compare 150 full-logit cases and 12 NLL checks per selected dtype,
+using the existing execution-path budgets without a Q5_0-specific allowance.
+`tools/gen_baseline.py q5-0` requires the existing pinned CPU HF environment and
+writes ordinary and split-compatible goldens; split execution remains a separate
+qualification check. This tiny criterion does not establish released-file quality,
+real MTP-sidecar behavior, native integer-dot device coverage or performance.
 
 Run the native backend, model, chat-template, KV storage, loader and streaming checks
 after a CMake build:
@@ -289,6 +298,8 @@ which is what makes them fast and what lets a large activation reach infinity
 before a small scale could bound it. Those rows fall back to dequantizing.
 Sixteen cases, four for each of Q8_0/Q4_K/Q5_K/Q6_K (a tiny and a zero scale against a huge input, a tiny and an ordinary scale against an ordinary one), run with quantized activation dots enabled and disabled.
 Q8_0 keeps the float dots in both settings; the other types also run decode dots over quantized activations, scaled per block and bounded against the sum of magnitudes.
+
+`q5-0` checks CPU-only read support against independent mathematical binary16 values: every finite scale and all five-bit codes, alternating 22-byte block alignment, signed zeros, guarded embeddings, all six matrix calls and F32/F16/BF16/int8 requests with their actual wider F32 or BF16 witnesses. Products use double-dot references with a sum-of-magnitudes rounding bound; one-hot extremes and the shared row-class checks cover finite range and batch identity. This native component does not establish Vulkan, HF, real-sidecar or performance qualification.
 
 `quantize-range` checks Q4_0 packing from finite F32 inputs against exact integer expectations: every code from -7 to 7 at every position, with power-of-two scales across exponents -149 through 124, half-way rounding, rounded subnormal scales, output guards and a scale that underflows even in F32. Binary16 scale underflow and overflow remain format limits; this checks defined packed codes, not finite decoded weights for every magnitude. It runs with gradual underflow and does not establish nonfinite-input handling.
 
@@ -586,7 +597,7 @@ unchanged storage and a zero thread hint preserving the current pool.
 It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
 It checks `quant::row_bytes` against the block layouts over one row and over several, zero rows taking zero bytes however wide a whole-block row, and its refusals of an unknown type and a partial block, with rows or with none, and of a size that wraps in one row or across rows.
-It checks sizing of known layouts without decoders, refusal order and exact messages, and that the registry's metadata agrees with `quant::storage_type`. The decoder registry and CPU support must remain exactly F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_1, Q4_K, Q5_K, Q6_K, IQ4_NL and MXFP4; recognizing more storage layouts must not enable their execution.
+It checks sizing of known layouts without decoders, refusal order and exact messages, and that the registry's metadata agrees with `quant::storage_type`. The decoder registry and CPU support must remain exactly F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_0, Q5_1, Q4_K, Q5_K, Q6_K, IQ4_NL and MXFP4; recognizing more storage layouts must not enable their execution.
 Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, in order or not, are out of order or fall short of it, all before writing any output.
 It does not establish recovery of partially executed model sessions.
 
@@ -792,10 +803,10 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.
-  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q5_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for those types. MXFP4 additionally checks every exponent and code in every position through the actual dequantize CLI, against the independent spec decoder.
+  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q5_0, Q5_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for those types. MXFP4 additionally checks every exponent and code in every position through the actual dequantize CLI, against the independent spec decoder.
   Q4_0's raw blocks take each of the test's scales twice, negatives included, so every position takes every nibble, and under a negative scale nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
   Both types quantize and dequantize under a non-ASCII directory to the same bytes as under an ASCII one, and a type name quantize does not write is refused with exit status 2.
-- **Raw blocks** (`tests/raw_blocks.py`): the spec decoders of `tests/spec_decode.py`, one for each GGUF type the pinned fixtures and the MXFP4 writer's file hold (F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4), each in a pure form, the readable reference, and a numpy form for whole files.
+- **Raw blocks** (`tests/raw_blocks.py`): the spec decoders of `tests/spec_decode.py`, one for each GGUF type the pinned fixtures and the MXFP4 writer's file hold (F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_0, Q5_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4), each in a pure form, the readable reference, and a numpy form for whole files.
   They are written from the GGUF type layouts and, for MXFP4, the OCP Microscaling Formats (MX) v1.0 specification; the module also reads and writes GGUF files.
   Its bounded element-span reader decodes selected packed rows or experts without reading the whole tensor.
   The tests compare its values with the pure decoder, observe exact file offsets and read sizes, and refuse invalid or block-misaligned spans before IO and truncated spans after a short read.
@@ -807,7 +818,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Q3_K has each of its 96 scale bits cleared once and high bits keyed to each value's address, which catch a -4 subtracted on the wrong state of the bit; Q2_K takes every scale and min byte, with d and dmin paired over subnormals and negatives.
   A few blocks of these types decode to values written out by hand.
   Blocks of zero bytes must decode to zeros in every type, which a tensor group's zero rows rest on (docs/TENSOR-SPLIT.md, section 8, Covering blocks as built).
-  The numpy form must give the pure form's bits, NaN as NaN, on all of these, on the round trip's Q4_1, Q5_1, Q4_K, Q5_K and Q6_K raw blocks and on random blocks of every type.
+  The numpy form must give the pure form's bits, NaN as NaN, on all of these, on the round trip's Q4_1, Q5_0, Q5_1, Q4_K, Q5_K and Q6_K raw blocks and on random blocks of every type.
   The pure form's F16 and BF16 NaNs are Python floats, which keep no signalling NaN and, for F16, no payload, so only the numpy form keeps a NaN's bits.
   The MXFP4 writer's pure and numpy forms must write the same blocks, the E2M1 midpoints of both signs included, which decode to the values it intended.
   It runs no llmx binary; without numpy the numpy checks and the writer's file are skipped and reported, and under `--require-tools`, as in CI, which installs numpy, they fail instead.
@@ -1111,7 +1122,7 @@ The thread-count component also reads the completed perplexity matrix-path witne
 
 The dtype tests cover explicit overrides, emulation and wider fallback separately from auto; mixed-device placement must execute the per-device choices and refuse an incomplete device policy before allocation. The CLI checks all four dtype values on every non-server model command, plus missing, invalid and repeated values on all model commands. The server checks the exact health record and CLI/server generation parity at each value on the CPU. These focused checks do not replace conformance, independent HF or final merge gates.
 
-The `vulkan-quantization` offset-range regression checks zero rows beside a unit-weight row, independently encoded in Q4_0/Q4_1/Q5_1/Q4_K/Q5_K/Q6_K/Q8_0, through all six matrix calls with output guards. Nonzero cancelling minima, negative scales, odd block counts, guard boundaries and both activation signs are covered. The F16 policy is checked over finite binary16 inputs, including subnormal/normal boundaries and 65504, preserving zero exactly and the unit product within its independently bounded 16-bit reconstruction error. The original F32 extreme inputs are checked under explicit F32 on decode and prompts; decode must dispatch a row kernel and products keep F32 bounds. The backend test checks all seven quant types on original F32 inputs against double dots, with no activation-rounding allowance, at one, three and nine decode columns and a tile-width prompt; each decode column must equal the same column alone bit for bit. BF16 is checked through the same six matrix calls and through the double-dot and decode-batch checks against rounded inputs. A separate nearest-neighbour reference checks all finite BF16 encodings with five F32 tails and both signs, plus infinities and NaNs, using unit and non-BF16 F32 weights to prove that weights stay exact. It then runs F32 on the same backend as a control. Matrix sums can turn -0 into +0, so this checks zero values rather than a conversion's zero sign. This is additional range evidence, not the independent HF or full dtype-conformance gate. The BF16 batch-split regression holds F32, F16, BF16 and eight quantized weight types (Q8_0, Q4_0, Q4_1, Q5_1, Q4_K, Q5_K, Q6_K and MXFP4) bit for bit across batches 63/64/65 and 127/128/129, logical extents 1/3/65/129, mixed decode and prompt runs, and ordinary, logits, additive and grouped matrix calls. Each call must witness BF16; the same logical row alone supplies its identity reference.
+The `vulkan-quantization` offset-range regression checks zero rows beside a unit-weight row, independently encoded in Q4_0/Q4_1/Q5_0/Q5_1/Q4_K/Q5_K/Q6_K/Q8_0, through all six matrix calls with output guards. Nonzero cancelling minima, negative scales, odd block counts, guard boundaries and both activation signs are covered. The F16 policy is checked over finite binary16 inputs, including subnormal/normal boundaries and 65504, preserving zero exactly and the unit product within its independently bounded 16-bit reconstruction error. The original F32 extreme inputs are checked under explicit F32 on decode and prompts; decode must dispatch a row kernel and products keep F32 bounds. The backend test checks all eight quant types on original F32 inputs against double dots, with no activation-rounding allowance, at one, three and nine decode columns and a tile-width prompt; each decode column must equal the same column alone bit for bit. BF16 is checked through the same six matrix calls and through the double-dot and decode-batch checks against rounded inputs. A separate nearest-neighbour reference checks all finite BF16 encodings with five F32 tails and both signs, plus infinities and NaNs, using unit and non-BF16 F32 weights to prove that weights stay exact. It then runs F32 on the same backend as a control. Matrix sums can turn -0 into +0, so this checks zero values rather than a conversion's zero sign. This is additional range evidence, not the independent HF or full dtype-conformance gate. The BF16 batch-split regression holds F32, F16, BF16 and nine quantized weight types (Q8_0, Q4_0, Q4_1, Q5_0, Q5_1, Q4_K, Q5_K, Q6_K and MXFP4) bit for bit across batches 63/64/65 and 127/128/129, logical extents 1/3/65/129, mixed decode and prompt runs, and ordinary, logits, additive and grouped matrix calls. Each call must witness BF16; the same logical row alone supplies its identity reference.
 
 ## Architecture
 
@@ -1124,7 +1135,7 @@ matters: **each layer depends only on the layers below it** -
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from, threads that run a job over its indices |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
-| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_1/Q4_K/Q5_K/Q6_K/IQ4_NL/MXFP4 kernels |
+| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_0/Q5_1/Q4_K/Q5_K/Q6_K/IQ4_NL/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |
@@ -1304,3 +1315,5 @@ takes. Don't pick up "add the ROCm backend" expecting the "one file + one
 registry entry" experience Q4_0 had.
 
 Q5_1 raw-block checks cover all five-bit codes at every position, independent high-bit lanes and scale/minimum edge pairs. CPU row-class and grouped-matrix checks include Q5_1; Vulkan uses the existing affine row and tile families, extending their packed-code unpacking. The feature's current qualification status is recorded in STATUS.
+
+Q5_0 Vulkan focused checks extend the same backend and offset-range owners: independent 22-byte blocks exercise alternating alignment, all five-bit codes, signed scales and embedding zero signs. F32/BF16/F16 matrix checks include Q5_0 through ordinary, logits, additive, grouped and routed calls, decode-column identity and row classes. Execution witnesses check explicit int8 requests on wider-path devices; native int8 and integer-tile checks run only where the device advertises them. Center codes at 16 before the dot to retain a unit residual beside 65504 under a tiny scale; the existing offset-range bounds must not be relaxed. These checks do not establish HF, sidecar or matched performance qualification.

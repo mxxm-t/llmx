@@ -114,6 +114,26 @@ def iq4_nl_block(d, cs):
     return struct.pack("<H", d) + bytes(cs[j] | cs[j + 16] << 4 for j in range(16))
 
 
+def check_q5_0(rng):
+    payload, expected, runs = bytearray(), [], code_runs(rng, 32, 5)
+    for d in HALVES:
+        for _ in range(32):
+            cs = next(runs)
+            high = sum((c >> 4) << i for i, c in enumerate(cs))
+            payload += struct.pack("<HI", d, high)
+            payload += bytes((cs[j] & 15) | (cs[j + 16] & 15) << 4 for j in range(16))
+            expected += [cell(lambda h: h(d) * (c - 16)) for c in cs]
+    assert_values("Q5_0", expected, sd.decode(sd.Q5_0, payload, len(expected)))
+    assert_numpy_matches("Q5_0", sd.Q5_0, payload, len(expected))
+    for bit in range(32):
+        block = struct.pack("<HI", 0xBC00, 1 << bit) + bytes(16)
+        want = [0.0 if i == bit else 16.0 for i in range(32)]
+        want[bit] = -0.0
+        assert sd.pack_f32(sd.decode(sd.Q5_0, block, 32)) == sd.pack_f32(want)
+        assert_numpy_matches("Q5_0 isolated high bit", sd.Q5_0, block, 32)
+    print("raw-blocks: Q5_0 %d values, signed-zero/scale edges, every code and isolated high bits  [ok]" % len(expected))
+
+
 def check_q5_1(rng):
     payload, expected, runs = bytearray(), [], code_runs(rng, 32, 5)
     for d, m in itertools.product(HALVES, HALVES):
@@ -490,6 +510,7 @@ def run(require=False):
     """The checks above; without numpy the numpy form's are skipped, or with `require` fail."""
     rng = random.Random(20260925)
     check_16bit()
+    check_q5_0(random.Random(20261020))
     check_q5_1(rng)
     check_iq4(rng)
     check_mxfp4(rng)

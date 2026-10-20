@@ -388,7 +388,7 @@ From the comment at line 2:
 - A subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row (ROWS rows in a two-row build) whose work units its lanes stride over, reducing with xor shuffles; a lane keeps up to MAX_COLS batch columns in registers.
 - Quantized rows meet the activations as a signed 16-bit twin in blocks of 32 (xquant.glsl) with the block's scale and scaled sums; Q4 offsets and K-quant minima use the block sum; Q6_K's -32 is applied before its integer dot. F32 rows keep float activations. LLMX_FLOAT_X also reads quantized weights against the original F32 activations, using the shared qdecode.glsl values and this kernel's reduction.
 - The 8-bit builds (LLMX_I8, with LLMX_DOT), --dtype int8 of docs/PRECISION.md, read the 8-bit twin instead (xquant8_block) through the four-wide 8-bit dot, Q6_K's -32 taken into each weight byte; blocks, lanes, terms and reduction are the 16-bit builds'.
-- One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_Q4+LLMX_Q5 Q5_1, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
+- One module per family of types, since one module for all of them raised every path's registers: as is for F32 and narrow Q8_0, LLMX_Q8W wide Q8_0, LLMX_Q4 Q4_0 and Q4_1, LLMX_Q4+LLMX_Q5 Q5_1, LLMX_Q4+LLMX_Q5+LLMX_Q50 Q5_0, LLMX_K4 Q4_K, LLMX_K5 Q5_K, LLMX_KQUANT Q6_K.
 - Wide Q8_0: four lanes share a 68-byte block pair, lane t loading words t, t + 4, t + 8, t + 12 and lane 0 word 16; block 0's quants start two bytes into its words, so each lane shifts them by a half word with the next lane's word.
 - Q4_0 with an even block count: two lanes share a 36-byte pair.
 - Q4_1/Q5_1: one lane per 20/24-byte affine block; Q5_1 adds a contiguous high-bit plane.
@@ -433,7 +433,7 @@ From the comment at line 2:
 - A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or over one part when the call is split; matmul_reduce.comp adds the parts in order.
 - Each step stages, per row, the block's quants widened to the twin's signed 16-bit pairs with its scale and minimum, and per column the twin's 16 words of the block with its scale and scaled sum.
 - A thread forms (TILE_ROWS / 16) x 4 dots of 32 products, as two of 16 since Q6_K scales the halves apart.
-- Types: Q4_0, Q4_1, Q4_K and Q5_K share a build; Q5_1 (LLMX_Q5), Q6_K (LLMX_Q6) and Q8_0 (LLMX_Q8) have separate builds of the same tile algorithm.
+- Types: Q4_0, Q4_1, Q4_K and Q5_K share a build; Q5_1 (LLMX_Q5), Q5_0 (LLMX_Q5+LLMX_Q50), Q6_K (LLMX_Q6) and Q8_0 (LLMX_Q8) have separate builds of the same tile algorithm.
 - The 8-bit builds (LLMX_I8), --dtype int8 of docs/PRECISION.md, read the activations' 8-bit twin (xquant8_word) instead, its words four signed bytes in position order, against the quants as signed bytes through the four-wide 8-bit dot; the Q8_0 8-bit build stages four blocks a step in the shared memory the 16-bit build's two take.
 - The Q8_0 build stages one float scale per row and per column, since Q8_0 has one scale per block and no minimum, and takes no type branch.
 - Rows past nout and columns past nbatch read as zero and are not stored.
@@ -538,6 +538,8 @@ From the comment at line 164:
 
 
 Q5_1 uses the Q4 affine row and tile families with a separate fifth-bit plane. Its type descriptor selects compile-time Q5 row and tile builds for F16 and int8, and the existing decoded-weight float kernels for F32/BF16. `qdecode.glsl` owns the per-value decode used by embeddings and float products.
+
+Q5_0 reuses those families through `LLMX_Q50` builds, with a 22-byte block and no minimum. Half-word loads handle its alternating word alignment. Five-bit codes are centered at 16 before every dot, including the shared signed-byte staging used by rows and tiles. Centering after the float dot lost small residuals beside a large activation: the centered 16-bit dot instead stays below `32 * 16 * 32767 < 2^24`. Embeddings preserve the sign of zero; F32 products use the decoded weights, and BF16 products round inputs through the existing owner. F16/int8 select existing device capabilities and wider fallbacks, reported by matrix witnesses. Focused Radeon tests cover these wider paths, and MI50 operator tests cover actual integer16/int8 row and tile execution against independently rounded inputs. The original-seed native MI50 int8 tiny consumer passes. MI50 split-int8 and converted-file checks and a released mixed-sidecar output-identity check pass; this does not qualify all-expert execution, sidecar HF quality or performance. One matched P512/G128 MI50 model-benchmark screen is recorded in [STATUS](../STATUS.md) and its evidence record. It contains one pair per cell; the small differences are not attributed, and repetition/layout controls are appropriate if claiming a regression or speedup. This is not MTP or server-throughput qualification.
 
 ### `src/backends/vulkan/shaders/group_rms_norm.comp`
 

@@ -126,6 +126,20 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// Q5_0: half scale, four fifth-bit bytes, then 16 nibble bytes; d * (code - 16).
+// Byte loads handle the alternating two-byte alignment of consecutive 22-byte blocks.
+inline void dequantize_row_q5_0(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const uint8_t* y = src + b * Q5_0_TYPESIZE;
+        const float d = f16_to_f32(uint16_t(y[0] | (uint16_t(y[1]) << 8)));
+        for (size_t j = 0; j < Q5_0_BLOCK; ++j) {
+            const unsigned low = (y[6 + j % 16] >> (4 * (j / 16))) & 15;
+            const unsigned high = (y[2 + j / 8] >> (j % 8)) & 1;
+            dst[b * Q5_0_BLOCK + j] = d * float(int(low | (high << 4)) - 16);
+        }
+    }
+}
+
 // Q5_1 adds one high bit per value to Q4_1's affine codes, before the packed nibbles.
 inline void dequantize_row_q5_1(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; ++b) {
@@ -184,6 +198,8 @@ private:
         // Q4_1 and the K-quants are read-only: llmx loads files that carry them, a few Q6_K tensors in an otherwise Q4_0 file included, but produces none, so a quantizer would be unused code; the tests pack Q4_1 themselves (tests/quantizers.hpp).
         { GGML_TYPE_Q4_1,
           { *storage_type(GGML_TYPE_Q4_1), nullptr, dequantize_row_q4_1 } },
+        { GGML_TYPE_Q5_0,
+          { *storage_type(GGML_TYPE_Q5_0), nullptr, dequantize_row_q5_0 } },
         { GGML_TYPE_Q5_1,
           { *storage_type(GGML_TYPE_Q5_1), nullptr, dequantize_row_q5_1 } },
         { GGML_TYPE_Q4_K,

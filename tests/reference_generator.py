@@ -53,6 +53,23 @@ def write_routed_layer(path):
 
 
 class ReferenceGenerator(unittest.TestCase):
+    def test_q5_0_uses_shared_raw_block_reference(self):
+        selected = generator.parse_args(["q5-0"])
+        self.assertEqual(selected.output_dir, generator.OUT_DIR)
+        import q5_0
+        with patch.object(generator, "gen_block_family") as generate:
+            generator.gen_q5_0("output")
+        generate.assert_called_once_with("q5-0", "Q5_0", q5_0.fixture, "output")
+        import spec_decode as sd
+        for _, tied, moe in q5_0.VARIANTS:
+            config, weights, packed = q5_0.fixture(tied, moe)
+            self.assertTrue(packed)
+            self.assertTrue(all(kind == sd.Q5_0 and len(data) == math.prod(shape) // 32 * 22
+                                for _, shape, kind, data in packed))
+            decoded = {name: values for name, _, _, values in weights}
+            for name, shape, kind, data in packed:
+                self.assertEqual(decoded[name], sd.decode(kind, data, math.prod(shape)))
+
     def test_defaults_and_invalid_selection(self):
         default = generator.parse_args([])
         self.assertEqual(default.repo, "Qwen/Qwen3-0.6B")
@@ -78,6 +95,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["qwen35-tiny", "--threads", "2"], ["qwen35-tiny", "--revision", "c" * 40],
             ["qwen4exp-tiny", "--threads", "2"], ["qwen4exp-tiny", "--revision", "c" * 40],
             ["qwen4exp-tiny", "--repo", "Qwen/Qwen3.8-Flash-Next"],
+            ["q5-0", "--threads", "2"], ["q5-0", "--revision", "b" * 40],
             ["q5-1", "--threads", "2"], ["q5-1", "--revision", "b" * 40],
             ["iq4-nl", "--threads", "2"], ["iq4-nl", "--revision", "c" * 40],
             ["file-exact"],
@@ -104,10 +122,12 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertTrue(Path(write.call_args.args[0]).samefile(directory))
     def test_shared_block_fixtures_preserve_goldens(self):
         import mxfp4
+        import q5_0
         import q5_1
         import iq4_nl
 
         for module, filename, context, split in ((mxfp4, "baseline_mxfp4.json", 16, False), (mxfp4, "baseline_mxfp4_prompt.json", 128, False),
+                                                  (q5_0, "baseline_q5_0.json", 16, False), (q5_0, "baseline_q5_0_split.json", 16, True),
                                                   (q5_1, "baseline_q5_1.json", 16, False), (q5_1, "baseline_q5_1_split.json", 16, True),
                                                   (iq4_nl, "baseline_iq4_nl.json", 16, False), (iq4_nl, "baseline_iq4_nl_split.json", 16, True)):
             with open(Path(__file__).parent / "data" / filename, encoding="utf-8") as f:
@@ -1248,6 +1268,22 @@ class DtypeCalibration(unittest.TestCase):
         with patch.object(q5_1, "fixture", return_value=fixture) as source, \
                 patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
             for _, identity in self.calibration.family_models("q5-1"):
+                identities.append((identity["fixture"], identity["split"], identity["seed"]))
+        expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
+                    for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
+        self.assertEqual(set(identities), expected)
+        self.assertEqual(source.call_count, len(expected))
+
+    def test_q5_0_family_covers_frozen_shapes_variants_and_seeds(self):
+        self.assertEqual(self.calibration.SEEDS, (0, 1, 2, 3))
+        self.assertEqual(self.calibration.MARGIN, 2.0)
+        self.assertEqual(self.calibration.DTYPES, ("f16", "bf16", "int8"))
+        import q5_0
+        identities = []
+        fixture = ({"context_length": 16}, [], [])
+        with patch.object(q5_0, "fixture", return_value=fixture) as source, \
+                patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
+            for _, identity in self.calibration.family_models("q5-0"):
                 identities.append((identity["fixture"], identity["split"], identity["seed"]))
         expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
                     for split in (False, True) for seed in (12345, 0, 1, 2, 3)}

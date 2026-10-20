@@ -1,0 +1,220 @@
+{
+  "status": "Reviewed and activated for new Q5_0 family only; uncommitted development checkpoint",
+  "base_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+  "scope": "Existing calibration family registration only, no runtime change. Reference-only sweep runs on Windows CPU with pinned environment.",
+  "protocol": {
+    "scope": "Predeclared Q5_0 reference-only calibration proposal; candidate outputs excluded",
+    "family": "q5-0",
+    "seeds": [
+      12345,
+      0,
+      1,
+      2,
+      3
+    ],
+    "split": [
+      false,
+      true
+    ],
+    "variants": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "models": 30,
+    "dtypes": [
+      "f16",
+      "bf16",
+      "int8"
+    ],
+    "rounding": "Unchanged existing calibration owner; routers remain F32; observe exact selected expert sets",
+    "routing": "Keep all refused turnover rows; only stable rows may determine budget",
+    "rule": "Maximum accepted independent reference error times2.0, unchanged",
+    "threads": 1,
+    "versions": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6"
+    },
+    "output": "build-q5-0/evidence/dtype-budget-q5-0-proposed.json",
+    "tracked_budget_sha256": "d4f16d083a65b49f5347c74c362c8f57fe245095dacaccd8f6e259374709822d",
+    "source_sha256": {
+      "tools/calibrate_dtype.py": "9172e49d453c7167459c7d8eadaa1f5f6fae935a9012dcee44fdedfd4c14ee47",
+      "tests/q5_0.py": "35d6769b6f5c9edf52f2f36b61e1b014f0c869e12d011cd8c84d04f753d8d49b",
+      "tests/block_fixture.py": "4631b1b460439ba9aeac9ff4b4e6f3a8f0e67c808df000ce32d851325023fc8c",
+      "tests/spec_decode.py": "789d8140841641c1ecf57e32d90467e43983bf7aa2dfdccf1c1aa859d8ee4d11",
+      "tools/gen_baseline.py": "df37801397ad912ca49dcf730e217a0e2274f7bab30c9f6a8d23fb0e3c16073e",
+      "tests/reference_generator.py": "14570e3300d908b7ed3b1d68e22371ab018121e75ce2a86a0addf14108e972f1",
+      "tests/data/dtype_budget.json": "d4f16d083a65b49f5347c74c362c8f57fe245095dacaccd8f6e259374709822d"
+    }
+  },
+  "result": {
+    "scope": "Proposed, NOT activated; independent reference-only Q5_0 family sweep",
+    "old_budget_bytes_unchanged": true,
+    "old_budget_values_in_proposal_unchanged": true,
+    "dtypes": {
+      "f16": {
+        "max_logit_error": 0.005838274955749512,
+        "max_nll_error": 0.00038622868975846103,
+        "logit_budget": 0.011676549911499023,
+        "nll_budget": 0.0007724573795169221,
+        "runs": 30,
+        "refused": []
+      },
+      "bf16": {
+        "max_logit_error": 0.04044842720031738,
+        "max_nll_error": 0.004527254733193153,
+        "logit_budget": 0.08089685440063477,
+        "nll_budget": 0.009054509466386307,
+        "runs": 30,
+        "refused": []
+      },
+      "int8": {
+        "max_logit_error": 0.12625014781951904,
+        "max_nll_error": 0.014461530038002657,
+        "logit_budget": 0.2525002956390381,
+        "nll_budget": 0.028923060076005314,
+        "runs": 30,
+        "refused": [
+          {
+            "fixture": "moe",
+            "split": false,
+            "seed": 2,
+            "logit_error": 0.09169566631317139,
+            "nll_error": 0.02882907268619128,
+            "routing": {
+              "stable": false,
+              "calls": 18,
+              "first_change": {
+                "call": 15,
+                "original": {
+                  "router": "model.layers.1.mlp.gate",
+                  "experts": [
+                    [
+                      2,
+                      3
+                    ],
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      2,
+                      3
+                    ],
+                    [
+                      0,
+                      2
+                    ]
+                  ]
+                },
+                "rounded": {
+                  "router": "model.layers.1.mlp.gate",
+                  "experts": [
+                    [
+                      2,
+                      3
+                    ],
+                    [
+                      1,
+                      2
+                    ],
+                    [
+                      2,
+                      3
+                    ],
+                    [
+                      0,
+                      2
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "files": {
+      "q5-0-calibration-predeclared.json": "5c836121ec2ab89f51b94436231320ec4fe3839ae4ffba76d8cc46aac8888304",
+      "dtype-budget-before-q5-0.json": "d4f16d083a65b49f5347c74c362c8f57fe245095dacaccd8f6e259374709822d",
+      "dtype-budget-q5-0-proposed.json": "1bcd46bd403ccc3e8f67bcece2e768829e5eeaee19cdccda897fed2b1f7d5fbd",
+      "q5-0-calibration-sweep.log": "7dc4cb6f94e46fdf136f6525be020ec98c727c73af17686dcaef03a22b018411",
+      "q5-0-calibration-red.log": "e599aa1803436a8ff5553e25761e0657dee4a02993f3a569b09557fa2dbba124",
+      "q5-0-calibration-green.log": "550bfc63ab805f235774202a6f511d19e2fa04f65e8bc492f6decb470de06fde"
+    }
+  },
+  "original_failure_and_independent_proof": {
+    "source_commit": "a1fc9925806c1b60b47554d685155eb369eccc3c",
+    "finding": "Generic Q8-derived int8 calibration does not cover Q5_0 tied raw-block fixture. Independent existing int8 rounded HF reproduces failed original-HF gap; candidate matches rounded reference closely. No observed kernel defect in these scoped cases.",
+    "scope": "10 dense full-vocabulary cases at threads1/ubatch1 plus4 NLL cases; MoE/split int8 remain unqualified. Not a replacement acceptance gate.",
+    "max_logit_error_vs_rounded_reference": 1.472656249834614e-06,
+    "max_nll_error_vs_rounded_reference": 4.3277738459579496e-06,
+    "policy": "Existing tools/calibrate_dtype.py rounding, pinned torch2.5.1+cpu/transformers4.55.2, no candidate used in reference generation. Existing family calibration owner covers Q5_1 only, normal/split all3 variants at seeds12345,0,1,2,3 with routing stability refusal and maximum reference error times2.",
+    "changes": "No tracked source, reference fixtures or limits changed. Original failure retained. All owned rig resources released16:18:22UTC; container OOMfalse.",
+    "files": {
+      "build-q5-0/evidence/int8-rounded-hf-reference.json": "6ea6d2a5e23426a1f69a4ed905936ffd15092e6a9b855842a0edd12bbbe6e4e5",
+      "build-q5-0/evidence/diagnose-int8-rounded-hf.py": "dd82b9343121ae3827baaf707ad19020159492551ff3bf9b84cc6f7e5728ddde",
+      "build-q5-0/evidence/int8-rounded-hf-reference.log": "ce68cdacc98a04b1f5af0695856643bcd6dc3c51c4d830e01a35ef10f27a44a1",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/comparison.json": "c42752b0288621b85635119cebc8d159aa3775b977f8cf3107d2b1d7cf3d05ac",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/container-before-cleanup.json": "7d0a77763a758aa15eb4e4dc11b35e477b977c959ec349b9a3f80dedbbedd20c",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-10.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-10.stdout": "b100f60c9ec94a6fc5cc5cf9ed3e54cc5e0958392acd84b5820b25864d5002bf",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-11.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-11.stdout": "15c1bc867eacbbaab5b8b8286082fd2ee1a05866d9bf71121b9ab7b59fb27a04",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-7.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-7.stdout": "80cf675e6f366b73f1bab70800f5448c18c5e4fe8689bad19f673ead3b090c56",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-8.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-8.stdout": "2edda8e7205ccd1bd643155d3b307c2d63937491fe6d0a950a5a7f27391c7f6f",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-9.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-9.stdout": "5fae2ece3c02bb42dd7701a86fb030eb8c45c259985981c5d7813206762018f9",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-nll-16.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-nll-16.stdout": "abd52486959fd0a67c0ce7a45496b053a54183e1d59957fa9c8ee71925fdc61b",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-nll-4.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-tied-nll-4.stdout": "357ed693abbf487a820b9c2a2a1e0935320d39c627f52ce92c2695a2c85b3a04",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-0.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-0.stdout": "cfd0027a8b57512d7ebef1a5cfcc9a9d512eac67d53c2a54edfe23ce29642106",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-1.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-1.stdout": "e78adc68820cd1b7e9befde7b43e7aa0963020955eba09ec1ca1eff41915c051",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-2.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-2.stdout": "9e51a03a9f7b008ade35208633d7dec859407df477b46256965c1a9cf85d3703",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-3.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-3.stdout": "51511b49dd12744b8ee07024ca87c633f770ab0fac7af9e3125ba53b47bfe564",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-4.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-4.stdout": "5d86bf71f0b61bf619473e78bb707aae6c3b2b8c044f45731add271fd1c6c69f",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-nll-16.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-nll-16.stdout": "7511fb9762551181210ed3c19ff9266fc4149f6a3b4468b99001edc00c0d2742",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-nll-4.stderr": "e8068e361e94df9ec1d865db46bed3161e721626a1a6369b278210be7b858966",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/dense-untied-nll-4.stdout": "7d6559f75255a95403b5eaae51e67b86e7ebc00204fb18b4c33dae7e68312a1b",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/resources.jsonl": "87f4e099195be6a9252da148a8756d83d565719ec828c7f2922378786c05909e",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/result.json": "3679cd42e409160db6864c2fecfaecc63bf1ac2f64108e67934508143f52bc60",
+      "build-q5-0/rig-preparation-a1fc99258/results/int8-diagnostic-evidence/stage.log": "daefaeefb50fcbb3dfee5d5736c66b8a465b2f12b2e0dded6dc62de1e2c52a09",
+      "build-q5-0/rig-preparation-a1fc99258/results/native-hf-evidence/q5-0-hf-int8.log": "e246fb33d3d67eaeff60fb5d2383e3f3a0b23347c11fdf1d0f811db82b7c7fed"
+    }
+  },
+  "remaining": "Native int8 HF/MoE and model-split qualification remain open; original failed evidence and refused seed2 routing turnover retained. Rig released for root performance work; no runtime changes/rebuild.",
+  "activation": {
+    "status": "New Q5_0 family activated after root review of independent proposal; no runtime or other-budget changes",
+    "old_document_serialization_after_removing_new_family_matches_original_bytes": true,
+    "old_budget_sha256": "d4f16d083a65b49f5347c74c362c8f57fe245095dacaccd8f6e259374709822d",
+    "focused_results": {
+      "reference_generator": "PASS",
+      "reference_consumer": "PASS (4 existing skips)",
+      "docs": "PASS",
+      "dead_code": "PASS",
+      "cpu_int8": "150 full-logit +12 NLL PASS, actual wider F32",
+      "radeon_int8": "150 full-logit +12 NLL PASS, actual wider16bit path",
+      "setup_failure": "First Radeon invocation mistakenly used the CPU-only binary and refused before model execution; separate failure log retained; corrected invocation uses existing pinned Vulkan binary"
+    },
+    "files": {
+      "tests/data/dtype_budget.json": "b89c63064c5483c529c83a066c03953e35bbb196ff0b14f87fd6048a5786e22f",
+      "tests/q5_0.py": "2c81ff88abc9a6a844341da54d758c0786cf5370c8dfe4f1cf0d6f4f63da5ac6",
+      "tools/calibrate_dtype.py": "9172e49d453c7167459c7d8eadaa1f5f6fae935a9012dcee44fdedfd4c14ee47",
+      "tests/reference_generator.py": "14570e3300d908b7ed3b1d68e22371ab018121e75ce2a86a0addf14108e972f1",
+      "build-q5-0/evidence/q5-0-calibration-activated-checks.log": "8cc18fc977ba47c829e29ed746d4ddace403c31d9cd5fefdda777a717d6dd6ed",
+      "build-q5-0/evidence/q5-0-calibrated-cpu-int8.log": "d83b099fb935045bbb876d81e04f81f6d4a7a46583c27dd7fbf7a847b0fe1f86",
+      "build-q5-0/evidence/q5-0-calibrated-radeon-int8.log": "2f5cf95234ffe4b172c15f15423361279d49be89e959f1321a2da80aae4ee34d",
+      "build-q5-0/evidence/q5-0-calibrated-radeon-int8-vulkan.log": "50745aaea307ce12965b81d498eb41dbbfc070758596ac897ee5af1352a9b60e"
+    }
+  }
+}

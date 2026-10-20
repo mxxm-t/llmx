@@ -889,7 +889,7 @@ def block_reference(label, name, model, config, weights, packed, moe, torch, tex
     from f32 import weight_hash
 
     gaps, handles = [], []
-    if moe:
+    if moe and config["expert_used_count"] < config["expert_count"]:
         def watch(_, __, out):
             probabilities = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
             k = config["expert_used_count"]

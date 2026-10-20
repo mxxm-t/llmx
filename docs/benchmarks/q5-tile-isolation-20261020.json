@@ -1,0 +1,159 @@
+{
+  "scope": "Q5_1 compile-time integer-tile isolation; one matmul_tile_q algorithm",
+  "base_commit": "b4c381c8d8be324ef0b9744f5a85aa1c5f4e041f",
+  "source": "Uncommitted source at first focused checkpoint; source-hashes.json pins transferred build inputs.",
+  "owners": [
+    "CMakeLists.txt",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp",
+    "src/backends/vulkan/vulkan_backend.cpp",
+    "tests/backend_vulkan.cpp"
+  ],
+  "changes": "Q5 staging is compiled only in LLMX_Q5 tile variants. WeightKernels selects short/tall F16/int8 variants. Legacy Q4/K staging expressions restored. No scale, range, crossover, reduction or arithmetic policy changes.",
+  "regression_evidence": {
+    "screen": "build-quant-resume-20261020/expanded-screen-summary.json",
+    "shader_analysis": "build-quant-resume-20261020/q4-tile-readonly-20261020/spirv-summary.json",
+    "finding": "Retained Q4 T64 slowdown correlates with runtime Q5 staging in legacy integer tiles; exact hardware register/occupancy mechanism remains unproved."
+  },
+  "windows": {
+    "configure": "cmake -S . -B build-q5-tile-isolation -DLLMX_HAS_BACKEND_VULKAN=ON",
+    "build": "cmake --build build-q5-tile-isolation --config Release --parallel 2 --target llmx llmx-backend-vulkan-test llmx-vulkan-quantization-test",
+    "build_exit": 0,
+    "version": "llmx 0.1.0+gb4c381c8d8be.dirty numerics f5c78e79390aba99",
+    "glslc": "shaderc v2026.3 v2026.3\nspirv-tools v2026.3 v2022.4-1283-gb707790a\nglslang 11.1.0-1493-g168d452a\n\nTarget: SPIR-V 1.0",
+    "binaries": [
+      {
+        "path": "build-q5-tile-isolation\\Release\\llmx.exe",
+        "sha256": "15463da730edba7e2405be1970a8736d816792233e85486dc867d21dcc38e9b2"
+      },
+      {
+        "path": "build-q5-tile-isolation\\Release\\llmx-backend-vulkan-test.exe",
+        "sha256": "2fa17bf20fff515721ec5ccf8f5ac8c9653765ebdab38bfaf2d31df5d973071f"
+      },
+      {
+        "path": "build-q5-tile-isolation\\Release\\llmx-vulkan-quantization-test.exe",
+        "sha256": "8cff3511b46e85a6bda98d1727e71e84a236e7dee83443be37356be04f7386bc"
+      }
+    ],
+    "checks": {
+      "backend-vulkan": {
+        "result": "PASS",
+        "seconds": 40.42
+      },
+      "vulkan-quantization": {
+        "result": "PASS",
+        "seconds": 17.22
+      },
+      "dead-code": "PASS; existing allowlist unchanged",
+      "docs": "PASS",
+      "arch-boundary": "PASS"
+    },
+    "logs": [
+      {
+        "path": "build-q5-tile-isolation\\configure.log",
+        "sha256": "07c236d2013dc6f45b1a5224b071163b2fc2c7923cdd4392a3be04402153d78b"
+      },
+      {
+        "path": "build-q5-tile-isolation\\build.log",
+        "sha256": "d553e91b5c06a5cefd7a59dd6b220ed5d84abcee355fb880f14047cb08e597da"
+      },
+      {
+        "path": "build-q5-tile-isolation\\native-radeon.log",
+        "sha256": "dd3a63203dd65a953f5a9ba5a6bd506c62ff3595c1f797550e9a2653d9bf723d"
+      },
+      {
+        "path": "build-q5-tile-isolation\\source-checks.log",
+        "sha256": "57029b6d59cbdc86c407f22de4a2be1a9c88c57ce64345fa53d34369329008b9"
+      },
+      {
+        "path": "build-q5-tile-isolation\\Testing\\Temporary\\LastTest.log",
+        "sha256": "d4688f1f19b31b32f9939e4ae749c8948a62c394dae7ba6c04a5019e5d9633b0"
+      },
+      {
+        "path": "build-q5-tile-isolation/docs-final.log",
+        "sha256": "acadcab348f931d7b0947e9a0d019363b8669e41e3813a391bb9832dade16999"
+      }
+    ],
+    "activity": "Process and GPU-engine sample taken before functional tests. No timing claim. Radeon profile does not select integer tiles.",
+    "payload_proof": {
+      "path": "build-q5-tile-isolation\\payload-proof\\payload-proof.json",
+      "sha256": "4fdc938ee238d1cea882860e174f60013f5aea8c857a09f3b1b87232effe9714"
+    },
+    "existing_payload_count": 161,
+    "unchanged_existing_payloads": 157,
+    "changed_existing": [
+      "matmul_tile_q",
+      "matmul_tile_q_preserve",
+      "matmul_tile_qi8",
+      "matmul_tile_qi8_preserve"
+    ],
+    "added": [
+      "matmul_tile_q5",
+      "matmul_tile_q5_preserve",
+      "matmul_tile_q5i8",
+      "matmul_tile_q5i8_preserve"
+    ],
+    "removed": [],
+    "normalization": "spirv-opt --strip-debug --compact-ids; no arithmetic optimization",
+    "legacy_half_identity": {
+      "matmul_tile_q": true,
+      "matmul_tile_q_preserve": true,
+      "matmul_tile_qi8": true,
+      "matmul_tile_qi8_preserve": true
+    },
+    "changed_and_added_payload_hashes": {
+      "matmul_tile_q": {
+        "bytes": 26596,
+        "sha256": "3591b72c0aab77542b77a251620410d8be86eb7f4fe918700900204fa246056f",
+        "normalized_sha256": "d7999af94b3e1c9a15f05f8729dc2f198124b7c7b214fa2358a25c02c9849393"
+      },
+      "matmul_tile_q_preserve": {
+        "bytes": 26644,
+        "sha256": "ca726c7738d9d6cae37c03b1b4d8e4798b4f4743029e18da08231f29868309c3",
+        "normalized_sha256": "3e41dd54f2f053961027ae2bec1dc7921b8db9e195011ff53930e08725a548fb"
+      },
+      "matmul_tile_qi8": {
+        "bytes": 25564,
+        "sha256": "f2cc40b5ff34337ea0c32032b88ee38df2af0f977ce8683f54195b516e79b5c7",
+        "normalized_sha256": "1b00a925008432ae098fda077528bb8df9c2d98ae1f94f6177b8e2c6529fc14d"
+      },
+      "matmul_tile_qi8_preserve": {
+        "bytes": 25612,
+        "sha256": "f6a1b64e9a1f131f4c61280faa4c68064347893a18d7a0032362b83d8e61abb7",
+        "normalized_sha256": "5adbb9a492fb0755f86120c05f0a5be323dc1692d892d6c5943be9c3bee16f71"
+      },
+      "matmul_tile_q5": {
+        "bytes": 19752,
+        "sha256": "cc9021f10102a66de565128f0fada51f78cb2df9d9a7c8293ba6a08643eb5845",
+        "normalized_sha256": "a42decb3b64dc03658bb28b6b8099a287b179cc686587ecef0a276a1aaa6d565"
+      },
+      "matmul_tile_q5_preserve": {
+        "bytes": 19800,
+        "sha256": "dbc463f96052e9be0894ef9522483aa8ab4f50cc7732e2cd99692f3e3ca8a0b7",
+        "normalized_sha256": "c9c3db062178dd5c5747ef02294f89942e409448531b19634c3849b2c4c03438"
+      },
+      "matmul_tile_q5i8": {
+        "bytes": 18896,
+        "sha256": "7d7f7bafc1f3e3523cde3aa580d50b197aeb847faf7c3697d2e055db4f696318",
+        "normalized_sha256": "9efdbcc4c22765b24acc9063b360724015b99611e616cc00710df845b775b5f6"
+      },
+      "matmul_tile_q5i8_preserve": {
+        "bytes": 18944,
+        "sha256": "b824cb2cbfffed6a8e1a1325f90cddaae95c944cebae866b07b305af4b10f27a",
+        "normalized_sha256": "1f1df2c74000f673c3a7c1409cd672cea68f515ba9aa775d5e6d48aea0105917"
+      }
+    }
+  },
+  "new_coverage": "Existing dispatch conformance expects Q5 tile names. Native integer-dot profiles also check 65537 affine rows including a final partial tile, all 32 codes, signed scales, guards, one-hot inputs, F16/int8 dense/routed products and actual tile names; Radeon skips that native branch.",
+  "pending": [
+    "Same-toolchain Linux normalized payload proof",
+    "MI50 native short/tall Q5 execution and range checks",
+    "Matched Q4/Q5 performance recovery screen after coordination"
+  ],
+  "rig_staging": "Automatic approval review rejected source/script staging as sensitive egress; no transfer or retry performed. Coordinator notified. Prepared local archive and wrapper preserved.",
+  "limits": "No numerical bound changes, broad HF rerun, full gate, runtime knob, model/loader/CLI branch, merge or push. Prior CPU/float-only modules unchanged; binary layout changes are not a CPU performance claim.",
+  "source_manifest": {
+    "path": "build-q5-tile-isolation/source-hashes.json",
+    "sha256": "305c7ab62b58844acddf402d0e90ce014ec7347e634a9693db57b434835f0507",
+    "archive_sha256": "f8b5afc544511da04464d722cfeb4bc988baae7f70add960afad303a32da8e9c"
+  }
+}

@@ -55,15 +55,46 @@ def rounding(model, torch, dtype):
     return handles
 
 
-def errors(model, torch, dtype, texts=None, contexts=(4, 16)):
+def routing_hooks(model, trace):
+    """Record selected expert sets, ignoring their order, at every reference router call."""
+    routers = [(name, module) for name, module in model.named_modules() if name.endswith("mlp.gate")]
+    used = getattr(model.config, "num_experts_per_tok", 0)
+    if used and not routers:
+        raise ValueError("routed reference has no observed router")
+
+    def hook(name):
+        def record(_, args, output):
+            choices = output.topk(used, dim=-1).indices.sort(dim=-1).values.tolist()
+            trace.append({"router": name, "experts": choices})
+        return record
+    return [module.register_forward_hook(hook(name)) for name, module in routers]
+
+
+def errors(model, torch, dtype, texts=None, contexts=(4, 16), routing=None):
     """The largest full-vocabulary logit error and windowed NLL error of `dtype` against float32, over reference_outputs' texts."""
     from gen_baseline import reference_outputs
-    cases, nll = reference_outputs(model, torch, texts, contexts)
-    handles = rounding(model, torch, dtype)
+    trace = []
+    observers = routing_hooks(model, trace) if routing is not None else []
     try:
-        rcases, rnll = reference_outputs(model, torch, texts, contexts)
+        cases, nll = reference_outputs(model, torch, texts, contexts)
+        original = list(trace)
+        trace.clear()
+        handles = rounding(model, torch, dtype)
+        try:
+            rcases, rnll = reference_outputs(model, torch, texts, contexts)
+        finally:
+            for h in handles:
+                h.remove()
+        if routing is not None:
+            if len(original) != len(trace):
+                raise ValueError("reference router call count changed")
+            routing.update(stable=original == trace, calls=len(trace))
+            for at, (before, after) in enumerate(zip(original, trace)):
+                if before != after:
+                    routing["first_change"] = {"call": at, "original": before, "rounded": after}
+                    break
     finally:
-        for h in handles:
+        for h in observers:
             h.remove()
     logit = max(max(abs(a - b) for a, b in zip(c["logits"], r["logits"])) for c, r in zip(cases, rcases))
     return logit, max(abs(a["mean_nll"] - b["mean_nll"]) for a, b in zip(nll, rnll))
@@ -119,8 +150,11 @@ def budgets(runs):
         if not samples or any(not math.isfinite(r[key]) or r[key] < 0
                               for r in samples for key in ("logit_error", "nll_error")):
             raise ValueError("invalid reference errors for " + dtype)
-        logit = max(r["logit_error"] for r in samples)
-        nll = max(r["nll_error"] for r in samples)
+        accepted = [r for r in samples if r.get("status") != "refused"]
+        if not accepted:
+            raise ValueError("no routing-stable reference errors for " + dtype)
+        logit = max(r["logit_error"] for r in accepted)
+        nll = max(r["nll_error"] for r in accepted)
         result[dtype] = {"max_logit_error": logit, "max_nll_error": nll,
                          "logit_budget": logit * MARGIN, "nll_budget": nll * MARGIN, "runs": samples}
     return result
@@ -134,10 +168,14 @@ def family_budget(family, torch, transformers):
     runs = {d: [] for d in DTYPES}
     for model, identity in family_models(family):
         for dtype in DTYPES:
-            logit, nll = errors(model, torch, dtype)
-            runs[dtype].append(dict(identity, logit_error=logit, nll_error=nll))
-            print("%s %s split=%s seed=%d %s logit %.8f nll %.8f" %
-                  (family, identity["fixture"], identity["split"], identity["seed"], dtype, logit, nll), flush=True)
+            routing = {}
+            logit, nll = errors(model, torch, dtype, routing=routing)
+            if not isinstance(routing.get("stable"), bool):
+                raise ValueError("missing reference routing witness")
+            status = "accepted" if routing["stable"] else "refused"
+            runs[dtype].append(dict(identity, logit_error=logit, nll_error=nll, routing=routing, status=status))
+            print("%s %s split=%s seed=%d %s %s logit %.8f nll %.8f" %
+                  (family, identity["fixture"], identity["split"], identity["seed"], dtype, status, logit, nll), flush=True)
     measured = {"torch_version": torch.__version__, "transformers_version": transformers.__version__,
                 "threads": torch.get_num_threads(), "margin": MARGIN, "dtypes": budgets(runs)}
     families = doc.setdefault("families", {})

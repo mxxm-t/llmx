@@ -4112,8 +4112,9 @@ The manual file-exact fixtures are `tests/data/mxfp4-file-exact/` and `tests/dat
 The same command writes `tests/data/baseline_q5_1_split.json` for tensor groups:
 260 vocabulary entries, hidden width 128, four query/two KV heads of width 32
 and feed-forward width 256, dense tied/untied and MoE. These shapes split whole
-at widths two and four. The original reference values and packed/decoded hashes
-remain unchanged; the new MoE reference's minimum routing gap is 0.00686058.
+at widths two and four. Ordinary reference values and all packed/decoded hashes
+remain unchanged. The split MoE uses all four experts, preventing a rounding-induced
+change of selected experts; its minimum routing gap is null because no expert is excluded.
 The consumer requests the full reference vocabulary, including reserved entries.
 
-The consumer checks packed/decoded hashes and 150 full-logit plus 12 NLL cases against the existing completed-path precision budgets. This is file-exact runtime evidence, not an original-weight quantization-quality approval or released-model/long-context qualification. The [development record](benchmarks/q5-1-development-20261020.json) holds the golden and binary identities and the remaining checks.
+The consumer checks packed/decoded hashes and 150 full-logit plus 12 NLL cases against the frozen Q5_1 family budgets selected by the completed matrix paths; F32-only paths retain the strict F32 bounds. Calibration records 30 measurements per dtype across ordinary/split shapes, three variants and five seeds, with routing changes refused and retained in the record. This is file-exact runtime evidence, not an original-weight quantization-quality approval or released-model/long-context qualification. The [development record](benchmarks/q5-1-development-20261020.json) holds the original golden and binary identities and its remaining checks.

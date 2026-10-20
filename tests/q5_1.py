@@ -27,7 +27,10 @@ def raw_block(next_value, b):
 
 def fixture(tied, moe, seed=12345, context=16, split=False):
     """Raw Q5_1 matrices, F32 norms/router, and independently decoded HF weights."""
-    return block_fixture(tied, moe, sd.Q5_1, raw_block, seed, context, split)
+    config, weights, packed = block_fixture(tied, moe, sd.Q5_1, raw_block, seed, context, split)
+    if split and moe:
+        config["expert_used_count"] = config["expert_count"]
+    return config, weights, packed
 
 
 def run():
@@ -53,7 +56,7 @@ def run():
             print("q5-1: SKIP - selected device has no Q5_1 kernel")
             return common.SKIPPED
         for name, model, golden in models:
-            error, count = common.check_hf_fixture("Q5_1 " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16))
+            error, count = common.check_hf_fixture("Q5_1 " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16), family="q5-1")
             worst = max(worst, error)
             comparisons += count
     assert comparisons == 150, "Q5_1 full-logit coverage changed"

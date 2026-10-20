@@ -1,0 +1,81 @@
+{
+  "scope": "Released-file Q5_1 file-exact HF qualification reference and CPU/Radeon consumer results; this does not approve original-weight quantization quality or long-context behavior.",
+  "model": {
+    "file": "Qwen3-0.6B-Q5_1.gguf",
+    "sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+    "bytes": 569888576,
+    "reference_repo": "Qwen/Qwen3-0.6B",
+    "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "reference_weights": "The GGUF's own tensors, spec-decoded by tests/spec_decode.py; 311 tensors, 113 F32 and 198 Q5_1, with tied output verified."
+  },
+  "reference_environment": {
+    "python": "3.12.13",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "tokenizers": "0.21.4",
+    "attention": "eager",
+    "threads": 2,
+    "image": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "offline_cpu_only": true
+  },
+  "commands": {
+    "generator_source_commit": "7e26a5ed9af71d9abb349f34a798a02bf80c8d83",
+    "reference_generation": "python -X utf8 tools/gen_baseline.py file-exact --repo Qwen/Qwen3-0.6B --revision c1899de289a04d12100db370d81485cdf75e47ca --weights-gguf Qwen3-0.6B-Q5_1.gguf --output-dir tests/data/q5-1-file-exact --threads 2",
+    "cpu_consumer": "python -X utf8 tests/baseline.py --file-exact tests/data/q5-1-file-exact --model Qwen3-0.6B-Q5_1.gguf --exe build-quant-stack/Release/llmx.exe --device cpu",
+    "radeon_consumer": "python -X utf8 tests/baseline.py --file-exact tests/data/q5-1-file-exact --model Qwen3-0.6B-Q5_1.gguf --exe build-quant-stack/Release/llmx.exe --device vulkan:0"
+  },
+  "goldens": {
+    "tests/data/q5-1-file-exact/baseline_logits.json": {
+      "bytes": 3580,
+      "sha256": "3054e14f93f59ec2efaaf703f877a57e57a8975970cdbaf115ee165aec0d9b82"
+    },
+    "tests/data/q5-1-file-exact/baseline_perplexity.json": {
+      "bytes": 4854,
+      "sha256": "b4eb5bad24741c3481bc4d8771dc0a3c7047b952b3652ca36bd9e6dc7c8e2587"
+    }
+  },
+  "runtime": {
+    "build_record": "docs/benchmarks/quant-stack-models-20261020.json",
+    "version": "llmx 0.1.0+g6e95bc7af15e.dirty numerics 5ee2eee60792876b",
+    "llmx.exe_sha256": "6aab87af17f4c8671d394353b3a7564e6d8181e924e5da4fdb79d4f6a86f3671",
+    "llmx-model-logits.exe_sha256": "e54946e30c5fab0c4a56b77d21ec2b23dd8d80d93e2b98989e0b5694b4011226"
+  },
+  "results": {
+    "contract": "For both devices: six prompt rankings, top-1 6/6; top-5 set overlap at least 5 of 5 on all six prompts; identical top-5 order on all six prompts. The consumer requests top 10 but checks only top-1, the top-5 set bound, and exact order of the first five. Eight NLL checks (continuous plus three windows, batched and per-token).",
+    "cpu": {
+      "log": {"path": "build-q5-real-file-cpu.log", "sha256": "785bd10a3e82765c6771d3615c197841279590c043e7fa78aa9b8530c56fc16"},
+      "ranking": {"top1_matches": "6/6", "top5_set_overlap": ">=5 of 5 on each of 6 prompts", "top5_exact_order": "6/6"},
+      "nll": [
+        {"context": 0, "chunks": 1, "batched_delta": 0.000148, "per_token_delta": 0.000148, "bound": 0.010},
+        {"context": 64, "chunks": 4, "batched_delta": 0.000023, "per_token_delta": 0.000023, "bound": 0.020},
+        {"context": 64, "chunks": 2, "batched_delta": 0.000173, "per_token_delta": 0.000173, "bound": 0.020},
+        {"context": 123, "chunks": 2, "batched_delta": 0.000009, "per_token_delta": 0.000009, "bound": 0.020}
+      ]
+    },
+    "radeon_vii": {
+      "log": {"path": "build-q5-real-file-radeon.log", "sha256": "95cd06d8a7aab41506dce12d1375f5fda5de414e7f25224fed781cecdbd52070"},
+      "ranking": {"top1_matches": "6/6", "top5_set_overlap": ">=5 of 5 on each of 6 prompts", "top5_exact_order": "6/6"},
+      "nll": [
+        {"context": 0, "chunks": 1, "batched_delta": 0.000128, "per_token_delta": 0.000128, "bound": 0.010},
+        {"context": 64, "chunks": 4, "batched_delta": 0.000013, "per_token_delta": 0.000007, "bound": 0.020},
+        {"context": 64, "chunks": 2, "batched_delta": 0.000123, "per_token_delta": 0.000183, "bound": 0.020},
+        {"context": 123, "chunks": 2, "batched_delta": 0.000101, "per_token_delta": 0.000031, "bound": 0.020}
+      ]
+    }
+  },
+  "source_artifacts": {
+    "remote_evidence": "build-quant-resume-20261020/q5-file-reference/attempt-7e26a5ed9/remote-evidence",
+    "completion_source_commit": "7e26a5ed9af71d9abb349f34a798a02bf80c8d83",
+    "reference_exit": 0,
+    "completion_sha256": "77ceea3e0a2f632e3289a89a9e1b505a7d074f99fce82afa0693315ad9324c15",
+    "environment_sha256": "4091b90d162c6d46dfca2977c8e674d444a8598f8bc7a586fc89c2aec569c5d3",
+    "input_verification_sha256": "6a8385e1c7f39ef0c1c8dfdfa981133800f3e1fa76e1da9d2f6bfa789b88bcd6",
+    "reference_command_sha256": "e6ad29e40703a2ac437fab4e97a4a28bfb1caf589e19efd1a9ed6f9a3905bf95"
+  },
+  "limits": [
+    "These are file-exact results: HF reference weights are the released GGUF's decoded weights, so they measure runtime agreement on this file rather than its quantization loss against original F32 weights.",
+    "Long-context qualification remains open; the recorded windows are short (64-token context with 2 or 4 chunks, and 123-token context with 2 chunks).",
+    "No Q5_1 budgets or original-weight quality approval are changed by this record."
+  ]
+}

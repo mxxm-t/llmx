@@ -1,0 +1,6598 @@
+{
+  "scope": "Q4 shared-row recovery screen; not the integer prompt-tile, model or mx gate.",
+  "runtime_heads": {
+    "main": "7184ff13f",
+    "half": "b1c2fcd93",
+    "q5": "5a99a58bd"
+  },
+  "manifest": {
+    "started": "2026-10-20T10:14:42.967233+00:00",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "physical_gpu": 0,
+    "pci": "0000:03:00.0",
+    "cpuset": "2,3",
+    "iterations": 10,
+    "types": [
+      3,
+      2
+    ],
+    "order_per_type": [
+      "main",
+      "half",
+      "q5",
+      "half",
+      "q5",
+      "main",
+      "q5",
+      "main",
+      "half"
+    ],
+    "warmup_order_per_type": [
+      "main",
+      "half",
+      "q5"
+    ],
+    "scope": "Existing-path synthetic screen, not final model or mx comparison.",
+    "activity_flags": {
+      "system_cpu_busy_fraction": 0.7,
+      "disk_busy_fraction": 0.5,
+      "unrelated_cpu_cores": 2.0,
+      "nonproduction_other_gpu_percent": 5
+    },
+    "interpretation": "Retain every planned block. Changes within 6% remain unresolved by this small screen; larger repeatable differences need source diagnosis and controls before attribution.",
+    "sampler_sha256": "7ba4d705570e7b386f85eab9dad9dca41d8ed8816867858eff9ad5a558c00feb",
+    "arms": {
+      "main": {
+        "source_archive_sha256": "02cbf1ca8344bdb983e9dcb2eec585126e0132b928fdaebe1d985cf31b70de8c",
+        "version": "llmx 0.1.0+unknown numerics 814e17fd7b01ef84",
+        "cli_sha256": "24071a5606b390887280f2848b1bfcbb242c25ff8b07621e4e146245d4f6b980",
+        "bench_sha256": "7ac7a6e240329c7ab74503a0eb70592823653c4410efd537af9790bfedd84257",
+        "inputs": {
+          "tools/moe_kernel_bench.cpp": "dfdbd31f59ef5a8a2abada22ad5643d6626a23e5f2f2ac9f321ace186c4307a5",
+          "tools/bench_weights.hpp": "dfb2857558cfe88a1d3f4a204741e36d9c012b806050c213a21aba07c47124ce",
+          "build/CMakeFiles/llmx-moe-kernel-bench.dir/flags.make": "00737ffe3e12d205d4fc650db44158be9315a42c5e24091726a43f65bea20a84",
+          "build/CMakeFiles/llmx-vulkan.dir/flags.make": "00737ffe3e12d205d4fc650db44158be9315a42c5e24091726a43f65bea20a84"
+        }
+      },
+      "half": {
+        "source_archive_sha256": "3b946dcdb8640e801f40895829cbcb653eb92063647e724f6efdb93ca0be1d79",
+        "version": "llmx 0.1.0+unknown numerics c062203998f329c6",
+        "cli_sha256": "db52d31bd846e4ef3a41c54ddf84e21937029e8b2e8e35f3ab7f2ac25b0e546b",
+        "bench_sha256": "6f65894b47d85ffab64735139d96cd3acada19542c3e7fcf8331d0761aa11251",
+        "inputs": {
+          "tools/moe_kernel_bench.cpp": "dfdbd31f59ef5a8a2abada22ad5643d6626a23e5f2f2ac9f321ace186c4307a5",
+          "tools/bench_weights.hpp": "dfb2857558cfe88a1d3f4a204741e36d9c012b806050c213a21aba07c47124ce",
+          "build/CMakeFiles/llmx-moe-kernel-bench.dir/flags.make": "00737ffe3e12d205d4fc650db44158be9315a42c5e24091726a43f65bea20a84",
+          "build/CMakeFiles/llmx-vulkan.dir/flags.make": "00737ffe3e12d205d4fc650db44158be9315a42c5e24091726a43f65bea20a84"
+        }
+      },
+      "q5": {
+        "source_archive_sha256": "6ffc4eac26efb3987298ba752a4710feb7e28742a056089466cd42d551fd7a91",
+        "version": "llmx 0.1.0+unknown numerics 37fbd636740daacd",
+        "cli_sha256": "807402f073bae39d3ed689807f6008ae21453827f1aaabeb5e76f260d3bf90e3",
+        "bench_sha256": "b80ce5725e7406c8eaca4d542ec18f1fac7c8c3735f9f301ad080fcce2d55dfd",
+        "inputs": {
+          "tools/moe_kernel_bench.cpp": "dfdbd31f59ef5a8a2abada22ad5643d6626a23e5f2f2ac9f321ace186c4307a5",
+          "tools/bench_weights.hpp": "dfb2857558cfe88a1d3f4a204741e36d9c012b806050c213a21aba07c47124ce",
+          "build/CMakeFiles/llmx-moe-kernel-bench.dir/flags.make": "00737ffe3e12d205d4fc650db44158be9315a42c5e24091726a43f65bea20a84",
+          "build/CMakeFiles/llmx-vulkan.dir/flags.make": "00737ffe3e12d205d4fc650db44158be9315a42c5e24091726a43f65bea20a84"
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case": "3: floor silu_mul 2048",
+      "medians": {
+        "main": {
+          "wall_us": 18.8,
+          "device_us": 8.6
+        },
+        "half": {
+          "wall_us": 19.2,
+          "device_us": 8.6
+        },
+        "q5": {
+          "wall_us": 19.5,
+          "device_us": 8.7
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 2.127659574468077,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": 3.7234042553191404,
+          "device_us": 1.1627906976744207
+        },
+        "q5_vs_half": {
+          "wall_us": 1.5625,
+          "device_us": 1.1627906976744207
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 18.5,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 18.8,
+            "device_us": 8.7
+          },
+          {
+            "wall_us": 19.3,
+            "device_us": 8.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 19.4,
+            "device_us": 8.8
+          },
+          {
+            "wall_us": 18.8,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 19.2,
+            "device_us": 8.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 19.9,
+            "device_us": 8.7
+          },
+          {
+            "wall_us": 18.3,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 19.5,
+            "device_us": 8.7
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: floor add 2048",
+      "medians": {
+        "main": {
+          "wall_us": 15.5,
+          "device_us": 5.7
+        },
+        "half": {
+          "wall_us": 16.0,
+          "device_us": 5.7
+        },
+        "q5": {
+          "wall_us": 15.5,
+          "device_us": 5.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 3.2258064516129004,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": 0.0,
+          "device_us": 1.754385964912264
+        },
+        "q5_vs_half": {
+          "wall_us": -3.125,
+          "device_us": 1.754385964912264
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 15.5,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 15.3,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 16.1,
+            "device_us": 5.7
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 15.2,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 16.4,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 16.0,
+            "device_us": 5.7
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 16.4,
+            "device_us": 5.8
+          },
+          {
+            "wall_us": 15.5,
+            "device_us": 5.8
+          },
+          {
+            "wall_us": 15.4,
+            "device_us": 5.7
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: f32 tile 4096x2048 T=64",
+      "medians": {
+        "main": {
+          "wall_us": 891.3,
+          "device_us": 881.2
+        },
+        "half": {
+          "wall_us": 882.0,
+          "device_us": 871.2
+        },
+        "q5": {
+          "wall_us": 897.0,
+          "device_us": 886.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.043419723998651,
+          "device_us": -1.134816159782115
+        },
+        "q5_vs_main": {
+          "wall_us": 0.6395153147088495,
+          "device_us": 0.6468452110758083
+        },
+        "q5_vs_half": {
+          "wall_us": 1.7006802721088343,
+          "device_us": 1.8021120293847392
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 891.3,
+            "device_us": 881.2
+          },
+          {
+            "wall_us": 941.1,
+            "device_us": 930.4
+          },
+          {
+            "wall_us": 873.7,
+            "device_us": 864.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 882.0,
+            "device_us": 871.2
+          },
+          {
+            "wall_us": 909.5,
+            "device_us": 898.9
+          },
+          {
+            "wall_us": 864.8,
+            "device_us": 852.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 877.1,
+            "device_us": 865.6
+          },
+          {
+            "wall_us": 897.0,
+            "device_us": 886.9
+          },
+          {
+            "wall_us": 919.6,
+            "device_us": 907.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: f32 tile 4096x2080 T=64",
+      "medians": {
+        "main": {
+          "wall_us": 522.0,
+          "device_us": 512.9
+        },
+        "half": {
+          "wall_us": 521.3,
+          "device_us": 512.0
+        },
+        "q5": {
+          "wall_us": 525.8,
+          "device_us": 517.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.1340996168582409,
+          "device_us": -0.17547280171572588
+        },
+        "q5_vs_main": {
+          "wall_us": 0.7279693486589967,
+          "device_us": 0.8773640085786738
+        },
+        "q5_vs_half": {
+          "wall_us": 0.863226549012075,
+          "device_us": 1.0546874999999956
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 519.7,
+            "device_us": 511.2
+          },
+          {
+            "wall_us": 522.0,
+            "device_us": 512.9
+          },
+          {
+            "wall_us": 524.5,
+            "device_us": 516.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 520.1,
+            "device_us": 511.7
+          },
+          {
+            "wall_us": 521.3,
+            "device_us": 512.0
+          },
+          {
+            "wall_us": 523.1,
+            "device_us": 513.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 525.8,
+            "device_us": 517.4
+          },
+          {
+            "wall_us": 525.8,
+            "device_us": 517.2
+          },
+          {
+            "wall_us": 529.3,
+            "device_us": 518.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: f32 tile 4096x2048 T=512",
+      "medians": {
+        "main": {
+          "wall_us": 5874.3,
+          "device_us": 5865.0
+        },
+        "half": {
+          "wall_us": 5896.3,
+          "device_us": 5886.2
+        },
+        "q5": {
+          "wall_us": 5927.9,
+          "device_us": 5915.7
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.3745127078971011,
+          "device_us": 0.3614663256606976
+        },
+        "q5_vs_main": {
+          "wall_us": 0.9124491428765813,
+          "device_us": 0.8644501278772365
+        },
+        "q5_vs_half": {
+          "wall_us": 0.535929311602179,
+          "device_us": 0.5011722333593926
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 5890.7,
+            "device_us": 5880.8
+          },
+          {
+            "wall_us": 5860.4,
+            "device_us": 5851.0
+          },
+          {
+            "wall_us": 5874.3,
+            "device_us": 5865.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 5896.3,
+            "device_us": 5886.2
+          },
+          {
+            "wall_us": 5891.0,
+            "device_us": 5880.4
+          },
+          {
+            "wall_us": 5958.7,
+            "device_us": 5948.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 5899.9,
+            "device_us": 5890.6
+          },
+          {
+            "wall_us": 5927.9,
+            "device_us": 5915.7
+          },
+          {
+            "wall_us": 6028.9,
+            "device_us": 6018.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: f32 tile 4096x2080 T=512",
+      "medians": {
+        "main": {
+          "wall_us": 2309.8,
+          "device_us": 2300.4
+        },
+        "half": {
+          "wall_us": 2308.5,
+          "device_us": 2299.3
+        },
+        "q5": {
+          "wall_us": 2308.3,
+          "device_us": 2299.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.05628192917136454,
+          "device_us": -0.047817770822466965
+        },
+        "q5_vs_main": {
+          "wall_us": -0.06494068750541038,
+          "device_us": -0.05651191097201247
+        },
+        "q5_vs_half": {
+          "wall_us": -0.008663634394623365,
+          "device_us": -0.00869829948246803
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 2310.6,
+            "device_us": 2301.4
+          },
+          {
+            "wall_us": 2309.8,
+            "device_us": 2300.4
+          },
+          {
+            "wall_us": 2304.5,
+            "device_us": 2295.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 2299.4,
+            "device_us": 2289.9
+          },
+          {
+            "wall_us": 2311.3,
+            "device_us": 2300.8
+          },
+          {
+            "wall_us": 2308.5,
+            "device_us": 2299.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 2301.0,
+            "device_us": 2291.9
+          },
+          {
+            "wall_us": 2308.3,
+            "device_us": 2299.1
+          },
+          {
+            "wall_us": 2310.6,
+            "device_us": 2301.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: rms_norm T=1",
+      "medians": {
+        "main": {
+          "wall_us": 24.0,
+          "device_us": 14.1
+        },
+        "half": {
+          "wall_us": 24.1,
+          "device_us": 13.9
+        },
+        "q5": {
+          "wall_us": 24.1,
+          "device_us": 13.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.4166666666666652,
+          "device_us": -1.4184397163120477
+        },
+        "q5_vs_main": {
+          "wall_us": 0.4166666666666652,
+          "device_us": -2.127659574468077
+        },
+        "q5_vs_half": {
+          "wall_us": 0.0,
+          "device_us": -0.7194244604316502
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 24.0,
+            "device_us": 14.2
+          },
+          {
+            "wall_us": 23.8,
+            "device_us": 13.4
+          },
+          {
+            "wall_us": 24.3,
+            "device_us": 14.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 23.8,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 24.7,
+            "device_us": 13.9
+          },
+          {
+            "wall_us": 24.1,
+            "device_us": 13.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 23.6,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 24.6,
+            "device_us": 13.8
+          },
+          {
+            "wall_us": 24.1,
+            "device_us": 13.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 T=1",
+      "medians": {
+        "main": {
+          "wall_us": 28.3,
+          "device_us": 15.6
+        },
+        "half": {
+          "wall_us": 27.0,
+          "device_us": 15.2
+        },
+        "q5": {
+          "wall_us": 26.9,
+          "device_us": 15.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -4.59363957597173,
+          "device_us": -2.564102564102566
+        },
+        "q5_vs_main": {
+          "wall_us": -4.946996466431108,
+          "device_us": -0.6410256410256387
+        },
+        "q5_vs_half": {
+          "wall_us": -0.37037037037037646,
+          "device_us": 1.9736842105263275
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 28.8,
+            "device_us": 15.6
+          },
+          {
+            "wall_us": 27.0,
+            "device_us": 15.5
+          },
+          {
+            "wall_us": 28.3,
+            "device_us": 15.7
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 27.0,
+            "device_us": 15.4
+          },
+          {
+            "wall_us": 27.1,
+            "device_us": 15.2
+          },
+          {
+            "wall_us": 26.7,
+            "device_us": 15.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 26.9,
+            "device_us": 15.7
+          },
+          {
+            "wall_us": 27.9,
+            "device_us": 15.3
+          },
+          {
+            "wall_us": 26.9,
+            "device_us": 15.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: route T=1",
+      "medians": {
+        "main": {
+          "wall_us": 29.2,
+          "device_us": 19.3
+        },
+        "half": {
+          "wall_us": 29.2,
+          "device_us": 18.9
+        },
+        "q5": {
+          "wall_us": 29.7,
+          "device_us": 19.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.0,
+          "device_us": -2.0725388601036343
+        },
+        "q5_vs_main": {
+          "wall_us": 1.7123287671232834,
+          "device_us": 1.0362694300518172
+        },
+        "q5_vs_half": {
+          "wall_us": 1.7123287671232834,
+          "device_us": 3.1746031746031855
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 28.5,
+            "device_us": 18.8
+          },
+          {
+            "wall_us": 30.0,
+            "device_us": 19.7
+          },
+          {
+            "wall_us": 29.2,
+            "device_us": 19.3
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 28.4,
+            "device_us": 18.9
+          },
+          {
+            "wall_us": 29.2,
+            "device_us": 19.1
+          },
+          {
+            "wall_us": 29.4,
+            "device_us": 18.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 29.3,
+            "device_us": 19.5
+          },
+          {
+            "wall_us": 29.7,
+            "device_us": 19.0
+          },
+          {
+            "wall_us": 30.2,
+            "device_us": 19.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: silu_mul T=1",
+      "medians": {
+        "main": {
+          "wall_us": 17.2,
+          "device_us": 7.5
+        },
+        "half": {
+          "wall_us": 17.7,
+          "device_us": 7.6
+        },
+        "q5": {
+          "wall_us": 17.3,
+          "device_us": 7.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 2.9069767441860517,
+          "device_us": 1.3333333333333197
+        },
+        "q5_vs_main": {
+          "wall_us": 0.5813953488372103,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -2.259887005649708,
+          "device_us": -1.3157894736842035
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 17.0,
+            "device_us": 7.6
+          },
+          {
+            "wall_us": 17.2,
+            "device_us": 7.5
+          },
+          {
+            "wall_us": 17.6,
+            "device_us": 7.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 17.2,
+            "device_us": 7.5
+          },
+          {
+            "wall_us": 17.7,
+            "device_us": 7.6
+          },
+          {
+            "wall_us": 17.7,
+            "device_us": 7.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 17.3,
+            "device_us": 7.6
+          },
+          {
+            "wall_us": 17.2,
+            "device_us": 7.5
+          },
+          {
+            "wall_us": 17.5,
+            "device_us": 7.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: rms_norm T=32",
+      "medians": {
+        "main": {
+          "wall_us": 24.2,
+          "device_us": 13.9
+        },
+        "half": {
+          "wall_us": 23.9,
+          "device_us": 13.9
+        },
+        "q5": {
+          "wall_us": 24.2,
+          "device_us": 13.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.2396694214876103,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": 0.0,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": 1.2552301255230214,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 24.2,
+            "device_us": 13.9
+          },
+          {
+            "wall_us": 23.6,
+            "device_us": 13.9
+          },
+          {
+            "wall_us": 24.4,
+            "device_us": 14.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 23.9,
+            "device_us": 13.9
+          },
+          {
+            "wall_us": 24.3,
+            "device_us": 13.8
+          },
+          {
+            "wall_us": 23.9,
+            "device_us": 13.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 24.2,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 23.6,
+            "device_us": 13.9
+          },
+          {
+            "wall_us": 24.2,
+            "device_us": 13.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 T=32",
+      "medians": {
+        "main": {
+          "wall_us": 107.4,
+          "device_us": 93.8
+        },
+        "half": {
+          "wall_us": 106.0,
+          "device_us": 92.9
+        },
+        "q5": {
+          "wall_us": 105.7,
+          "device_us": 93.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.3035381750465591,
+          "device_us": -0.9594882729211052
+        },
+        "q5_vs_main": {
+          "wall_us": -1.582867783985109,
+          "device_us": -0.7462686567164201
+        },
+        "q5_vs_half": {
+          "wall_us": -0.2830188679245227,
+          "device_us": 0.21528525296015122
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 107.4,
+            "device_us": 94.1
+          },
+          {
+            "wall_us": 106.0,
+            "device_us": 93.6
+          },
+          {
+            "wall_us": 107.4,
+            "device_us": 93.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 105.2,
+            "device_us": 92.9
+          },
+          {
+            "wall_us": 106.1,
+            "device_us": 93.0
+          },
+          {
+            "wall_us": 106.0,
+            "device_us": 92.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 106.0,
+            "device_us": 93.4
+          },
+          {
+            "wall_us": 105.7,
+            "device_us": 93.1
+          },
+          {
+            "wall_us": 104.9,
+            "device_us": 92.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 rows T=32",
+      "medians": {
+        "main": {
+          "wall_us": 162.6,
+          "device_us": 139.1
+        },
+        "half": {
+          "wall_us": 162.8,
+          "device_us": 139.0
+        },
+        "q5": {
+          "wall_us": 161.2,
+          "device_us": 139.3
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.12300123001232066,
+          "device_us": -0.07189072609632419
+        },
+        "q5_vs_main": {
+          "wall_us": -0.8610086100861003,
+          "device_us": 0.14378145219267058
+        },
+        "q5_vs_half": {
+          "wall_us": -0.982800982801002,
+          "device_us": 0.21582733812950394
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 163.4,
+            "device_us": 139.0
+          },
+          {
+            "wall_us": 162.2,
+            "device_us": 140.1
+          },
+          {
+            "wall_us": 162.6,
+            "device_us": 139.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 164.2,
+            "device_us": 138.8
+          },
+          {
+            "wall_us": 161.7,
+            "device_us": 139.0
+          },
+          {
+            "wall_us": 162.8,
+            "device_us": 139.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 161.0,
+            "device_us": 139.3
+          },
+          {
+            "wall_us": 162.1,
+            "device_us": 139.2
+          },
+          {
+            "wall_us": 161.2,
+            "device_us": 139.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: route T=32",
+      "medians": {
+        "main": {
+          "wall_us": 27.7,
+          "device_us": 17.5
+        },
+        "half": {
+          "wall_us": 27.4,
+          "device_us": 17.4
+        },
+        "q5": {
+          "wall_us": 27.0,
+          "device_us": 17.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.0830324909747335,
+          "device_us": -0.5714285714285783
+        },
+        "q5_vs_main": {
+          "wall_us": -2.527075812274371,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -1.4598540145985384,
+          "device_us": 0.5747126436781658
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 28.5,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 27.0,
+            "device_us": 17.4
+          },
+          {
+            "wall_us": 27.7,
+            "device_us": 17.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 28.1,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 27.2,
+            "device_us": 17.4
+          },
+          {
+            "wall_us": 27.4,
+            "device_us": 17.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 27.1,
+            "device_us": 17.6
+          },
+          {
+            "wall_us": 27.0,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 26.9,
+            "device_us": 17.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: silu_mul T=32",
+      "medians": {
+        "main": {
+          "wall_us": 27.0,
+          "device_us": 16.0
+        },
+        "half": {
+          "wall_us": 26.7,
+          "device_us": 15.9
+        },
+        "q5": {
+          "wall_us": 26.2,
+          "device_us": 16.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.1111111111111183,
+          "device_us": -0.6249999999999978
+        },
+        "q5_vs_main": {
+          "wall_us": -2.9629629629629672,
+          "device_us": 0.6250000000000089
+        },
+        "q5_vs_half": {
+          "wall_us": -1.8726591760299671,
+          "device_us": 1.2578616352201255
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 27.0,
+            "device_us": 16.0
+          },
+          {
+            "wall_us": 26.7,
+            "device_us": 16.0
+          },
+          {
+            "wall_us": 27.3,
+            "device_us": 15.9
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 27.1,
+            "device_us": 15.9
+          },
+          {
+            "wall_us": 25.9,
+            "device_us": 15.8
+          },
+          {
+            "wall_us": 26.7,
+            "device_us": 16.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 26.2,
+            "device_us": 16.1
+          },
+          {
+            "wall_us": 26.1,
+            "device_us": 16.1
+          },
+          {
+            "wall_us": 26.7,
+            "device_us": 16.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: rms_norm T=128",
+      "medians": {
+        "main": {
+          "wall_us": 36.0,
+          "device_us": 25.5
+        },
+        "half": {
+          "wall_us": 36.1,
+          "device_us": 25.6
+        },
+        "q5": {
+          "wall_us": 35.4,
+          "device_us": 25.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.2777777777777768,
+          "device_us": 0.39215686274509665
+        },
+        "q5_vs_main": {
+          "wall_us": -1.6666666666666718,
+          "device_us": -1.176470588235301
+        },
+        "q5_vs_half": {
+          "wall_us": -1.939058171745156,
+          "device_us": -1.562500000000011
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 36.0,
+            "device_us": 25.3
+          },
+          {
+            "wall_us": 35.5,
+            "device_us": 25.5
+          },
+          {
+            "wall_us": 36.1,
+            "device_us": 25.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 37.8,
+            "device_us": 25.6
+          },
+          {
+            "wall_us": 35.7,
+            "device_us": 25.6
+          },
+          {
+            "wall_us": 36.1,
+            "device_us": 25.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 35.4,
+            "device_us": 25.3
+          },
+          {
+            "wall_us": 35.2,
+            "device_us": 25.2
+          },
+          {
+            "wall_us": 36.6,
+            "device_us": 25.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 T=128",
+      "medians": {
+        "main": {
+          "wall_us": 166.0,
+          "device_us": 152.9
+        },
+        "half": {
+          "wall_us": 175.6,
+          "device_us": 162.3
+        },
+        "q5": {
+          "wall_us": 164.9,
+          "device_us": 153.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 5.783132530120483,
+          "device_us": 6.147809025506867
+        },
+        "q5_vs_main": {
+          "wall_us": -0.6626506024096313,
+          "device_us": 0.1308044473512071
+        },
+        "q5_vs_half": {
+          "wall_us": -6.093394077448744,
+          "device_us": -5.668515095502169
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 166.0,
+            "device_us": 152.9
+          },
+          {
+            "wall_us": 179.3,
+            "device_us": 167.6
+          },
+          {
+            "wall_us": 150.1,
+            "device_us": 137.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 175.6,
+            "device_us": 162.3
+          },
+          {
+            "wall_us": 163.2,
+            "device_us": 150.9
+          },
+          {
+            "wall_us": 182.6,
+            "device_us": 170.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 184.2,
+            "device_us": 172.0
+          },
+          {
+            "wall_us": 164.9,
+            "device_us": 153.1
+          },
+          {
+            "wall_us": 158.0,
+            "device_us": 145.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 rows T=128",
+      "medians": {
+        "main": {
+          "wall_us": 579.9,
+          "device_us": 540.5
+        },
+        "half": {
+          "wall_us": 577.6,
+          "device_us": 538.8
+        },
+        "q5": {
+          "wall_us": 580.0,
+          "device_us": 540.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.39662010691497995,
+          "device_us": -0.3145235892692
+        },
+        "q5_vs_main": {
+          "wall_us": 0.017244352474565794,
+          "device_us": 0.07400555041627843
+        },
+        "q5_vs_half": {
+          "wall_us": 0.41551246537396835,
+          "device_us": 0.38975501113587274
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 577.6,
+            "device_us": 540.5
+          },
+          {
+            "wall_us": 580.1,
+            "device_us": 541.1
+          },
+          {
+            "wall_us": 579.9,
+            "device_us": 537.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 576.8,
+            "device_us": 538.8
+          },
+          {
+            "wall_us": 587.9,
+            "device_us": 538.8
+          },
+          {
+            "wall_us": 577.6,
+            "device_us": 538.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 583.4,
+            "device_us": 540.9
+          },
+          {
+            "wall_us": 580.0,
+            "device_us": 543.1
+          },
+          {
+            "wall_us": 577.5,
+            "device_us": 537.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: route T=128",
+      "medians": {
+        "main": {
+          "wall_us": 26.3,
+          "device_us": 16.6
+        },
+        "half": {
+          "wall_us": 26.4,
+          "device_us": 16.5
+        },
+        "q5": {
+          "wall_us": 26.2,
+          "device_us": 16.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.3802281368821214,
+          "device_us": -0.6024096385542244
+        },
+        "q5_vs_main": {
+          "wall_us": -0.38022813688213253,
+          "device_us": -0.6024096385542244
+        },
+        "q5_vs_half": {
+          "wall_us": -0.7575757575757569,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 25.7,
+            "device_us": 16.6
+          },
+          {
+            "wall_us": 26.3,
+            "device_us": 16.6
+          },
+          {
+            "wall_us": 26.5,
+            "device_us": 16.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 26.4,
+            "device_us": 16.6
+          },
+          {
+            "wall_us": 26.4,
+            "device_us": 16.5
+          },
+          {
+            "wall_us": 27.5,
+            "device_us": 16.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 19.6,
+            "device_us": 10.9
+          },
+          {
+            "wall_us": 26.2,
+            "device_us": 16.5
+          },
+          {
+            "wall_us": 27.6,
+            "device_us": 16.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: rms_norm T=512",
+      "medians": {
+        "main": {
+          "wall_us": 88.3,
+          "device_us": 79.4
+        },
+        "half": {
+          "wall_us": 94.5,
+          "device_us": 84.0
+        },
+        "q5": {
+          "wall_us": 93.9,
+          "device_us": 83.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 7.021517553793899,
+          "device_us": 5.793450881612072
+        },
+        "q5_vs_main": {
+          "wall_us": 6.34201585503964,
+          "device_us": 5.5415617128463435
+        },
+        "q5_vs_half": {
+          "wall_us": -0.6349206349206327,
+          "device_us": -0.23809523809523725
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 93.2,
+            "device_us": 84.2
+          },
+          {
+            "wall_us": 88.3,
+            "device_us": 79.4
+          },
+          {
+            "wall_us": 80.6,
+            "device_us": 70.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 93.8,
+            "device_us": 83.8
+          },
+          {
+            "wall_us": 94.5,
+            "device_us": 84.3
+          },
+          {
+            "wall_us": 96.0,
+            "device_us": 84.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 88.9,
+            "device_us": 79.9
+          },
+          {
+            "wall_us": 93.9,
+            "device_us": 84.1
+          },
+          {
+            "wall_us": 96.0,
+            "device_us": 83.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 T=512",
+      "medians": {
+        "main": {
+          "wall_us": 316.8,
+          "device_us": 308.1
+        },
+        "half": {
+          "wall_us": 322.5,
+          "device_us": 313.1
+        },
+        "q5": {
+          "wall_us": 320.8,
+          "device_us": 310.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 1.799242424242431,
+          "device_us": 1.6228497241155493
+        },
+        "q5_vs_main": {
+          "wall_us": 1.262626262626254,
+          "device_us": 0.778967867575453
+        },
+        "q5_vs_half": {
+          "wall_us": -0.5271317829457334,
+          "device_us": -0.8304056212072863
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 317.5,
+            "device_us": 308.9
+          },
+          {
+            "wall_us": 316.8,
+            "device_us": 308.0
+          },
+          {
+            "wall_us": 316.6,
+            "device_us": 308.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 317.6,
+            "device_us": 308.6
+          },
+          {
+            "wall_us": 322.5,
+            "device_us": 313.1
+          },
+          {
+            "wall_us": 338.6,
+            "device_us": 326.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 327.1,
+            "device_us": 317.9
+          },
+          {
+            "wall_us": 310.5,
+            "device_us": 301.5
+          },
+          {
+            "wall_us": 320.8,
+            "device_us": 310.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: router f32 rows T=512",
+      "medians": {
+        "main": {
+          "wall_us": 1157.4,
+          "device_us": 1096.8
+        },
+        "half": {
+          "wall_us": 1160.0,
+          "device_us": 1098.0
+        },
+        "q5": {
+          "wall_us": 1160.2,
+          "device_us": 1098.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.2246414377051975,
+          "device_us": 0.1094091903719896
+        },
+        "q5_vs_main": {
+          "wall_us": 0.24192154829789647,
+          "device_us": 0.11852662290299243
+        },
+        "q5_vs_half": {
+          "wall_us": 0.017241379310339866,
+          "device_us": 0.009107468123858986
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 1157.4,
+            "device_us": 1096.8
+          },
+          {
+            "wall_us": 1162.1,
+            "device_us": 1100.9
+          },
+          {
+            "wall_us": 1154.3,
+            "device_us": 1092.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 1159.5,
+            "device_us": 1098.0
+          },
+          {
+            "wall_us": 1162.1,
+            "device_us": 1099.2
+          },
+          {
+            "wall_us": 1160.0,
+            "device_us": 1097.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 1160.2,
+            "device_us": 1098.1
+          },
+          {
+            "wall_us": 1165.0,
+            "device_us": 1101.6
+          },
+          {
+            "wall_us": 1158.4,
+            "device_us": 1096.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: route T=512",
+      "medians": {
+        "main": {
+          "wall_us": 23.9,
+          "device_us": 10.9
+        },
+        "half": {
+          "wall_us": 24.3,
+          "device_us": 10.8
+        },
+        "q5": {
+          "wall_us": 23.8,
+          "device_us": 10.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 1.673640167364021,
+          "device_us": -0.917431192660545
+        },
+        "q5_vs_main": {
+          "wall_us": -0.4184100418409997,
+          "device_us": -0.917431192660545
+        },
+        "q5_vs_half": {
+          "wall_us": -2.0576131687242816,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 24.5,
+            "device_us": 10.9
+          },
+          {
+            "wall_us": 23.2,
+            "device_us": 10.9
+          },
+          {
+            "wall_us": 23.9,
+            "device_us": 10.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 24.5,
+            "device_us": 10.9
+          },
+          {
+            "wall_us": 24.2,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 24.3,
+            "device_us": 10.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 24.4,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 23.6,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 23.8,
+            "device_us": 10.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 12288x2048",
+      "medians": {
+        "main": {
+          "wall_us": 93.0,
+          "device_us": 81.8
+        },
+        "half": {
+          "wall_us": 93.2,
+          "device_us": 81.8
+        },
+        "q5": {
+          "wall_us": 92.5,
+          "device_us": 81.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.21505376344086446,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.5376344086021501,
+          "device_us": 0.12224938875307068
+        },
+        "q5_vs_half": {
+          "wall_us": -0.7510729613733891,
+          "device_us": 0.12224938875307068
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 93.0,
+            "device_us": 81.8
+          },
+          {
+            "wall_us": 92.4,
+            "device_us": 81.7
+          },
+          {
+            "wall_us": 94.1,
+            "device_us": 83.4
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 92.3,
+            "device_us": 81.7
+          },
+          {
+            "wall_us": 93.2,
+            "device_us": 81.8
+          },
+          {
+            "wall_us": 95.8,
+            "device_us": 83.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 92.5,
+            "device_us": 81.9
+          },
+          {
+            "wall_us": 92.5,
+            "device_us": 81.9
+          },
+          {
+            "wall_us": 107.6,
+            "device_us": 81.7
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 3072x8192",
+      "medians": {
+        "main": {
+          "wall_us": 101.2,
+          "device_us": 86.2
+        },
+        "half": {
+          "wall_us": 102.8,
+          "device_us": 86.1
+        },
+        "q5": {
+          "wall_us": 102.8,
+          "device_us": 86.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 1.5810276679841806,
+          "device_us": -0.11600928074246841
+        },
+        "q5_vs_main": {
+          "wall_us": 1.5810276679841806,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": 0.0,
+          "device_us": 0.11614401858304202
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 100.3,
+            "device_us": 86.2
+          },
+          {
+            "wall_us": 102.8,
+            "device_us": 86.4
+          },
+          {
+            "wall_us": 101.2,
+            "device_us": 85.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 102.8,
+            "device_us": 86.4
+          },
+          {
+            "wall_us": 101.4,
+            "device_us": 86.1
+          },
+          {
+            "wall_us": 103.2,
+            "device_us": 85.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 102.2,
+            "device_us": 86.2
+          },
+          {
+            "wall_us": 102.8,
+            "device_us": 86.4
+          },
+          {
+            "wall_us": 104.8,
+            "device_us": 86.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense down 2048x6144",
+      "medians": {
+        "main": {
+          "wall_us": 63.1,
+          "device_us": 47.6
+        },
+        "half": {
+          "wall_us": 65.7,
+          "device_us": 47.3
+        },
+        "q5": {
+          "wall_us": 63.2,
+          "device_us": 47.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 4.120443740095081,
+          "device_us": -0.630252100840345
+        },
+        "q5_vs_main": {
+          "wall_us": 0.15847860538826808,
+          "device_us": -0.21008403361344463
+        },
+        "q5_vs_half": {
+          "wall_us": -3.8051750380517557,
+          "device_us": 0.42283298097252064
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 65.0,
+            "device_us": 48.8
+          },
+          {
+            "wall_us": 62.9,
+            "device_us": 46.1
+          },
+          {
+            "wall_us": 63.1,
+            "device_us": 47.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 66.2,
+            "device_us": 49.4
+          },
+          {
+            "wall_us": 62.1,
+            "device_us": 46.0
+          },
+          {
+            "wall_us": 65.7,
+            "device_us": 47.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 61.8,
+            "device_us": 46.1
+          },
+          {
+            "wall_us": 63.2,
+            "device_us": 47.5
+          },
+          {
+            "wall_us": 65.4,
+            "device_us": 48.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 8192x8192",
+      "medians": {
+        "main": {
+          "wall_us": 218.1,
+          "device_us": 202.3
+        },
+        "half": {
+          "wall_us": 218.3,
+          "device_us": 202.4
+        },
+        "q5": {
+          "wall_us": 220.6,
+          "device_us": 202.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.09170105456213218,
+          "device_us": 0.049431537320798746
+        },
+        "q5_vs_main": {
+          "wall_us": 1.1462631820265967,
+          "device_us": 0.049431537320798746
+        },
+        "q5_vs_half": {
+          "wall_us": 1.0535959688501961,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 218.5,
+            "device_us": 202.3
+          },
+          {
+            "wall_us": 217.8,
+            "device_us": 202.4
+          },
+          {
+            "wall_us": 218.1,
+            "device_us": 202.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 216.4,
+            "device_us": 202.5
+          },
+          {
+            "wall_us": 219.0,
+            "device_us": 202.2
+          },
+          {
+            "wall_us": 218.3,
+            "device_us": 202.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 221.6,
+            "device_us": 202.3
+          },
+          {
+            "wall_us": 217.7,
+            "device_us": 202.4
+          },
+          {
+            "wall_us": 220.6,
+            "device_us": 202.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 24576x8192",
+      "medians": {
+        "main": {
+          "wall_us": 589.7,
+          "device_us": 579.6
+        },
+        "half": {
+          "wall_us": 590.2,
+          "device_us": 579.6
+        },
+        "q5": {
+          "wall_us": 589.9,
+          "device_us": 579.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.08478887569951521,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": 0.03391555027978388,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.05083022704168716,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 590.4,
+            "device_us": 579.6
+          },
+          {
+            "wall_us": 589.7,
+            "device_us": 579.6
+          },
+          {
+            "wall_us": 589.6,
+            "device_us": 579.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 590.2,
+            "device_us": 579.6
+          },
+          {
+            "wall_us": 590.2,
+            "device_us": 579.7
+          },
+          {
+            "wall_us": 592.3,
+            "device_us": 579.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 589.9,
+            "device_us": 579.6
+          },
+          {
+            "wall_us": 589.8,
+            "device_us": 579.6
+          },
+          {
+            "wall_us": 592.5,
+            "device_us": 579.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 8192x24576",
+      "medians": {
+        "main": {
+          "wall_us": 467.2,
+          "device_us": 457.6
+        },
+        "half": {
+          "wall_us": 479.9,
+          "device_us": 469.2
+        },
+        "q5": {
+          "wall_us": 462.7,
+          "device_us": 453.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 2.7183219178082085,
+          "device_us": 2.53496503496502
+        },
+        "q5_vs_main": {
+          "wall_us": -0.9631849315068441,
+          "device_us": -0.9615384615384692
+        },
+        "q5_vs_half": {
+          "wall_us": -3.5840800166701325,
+          "device_us": -3.4100596760443302
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 468.1,
+            "device_us": 458.9
+          },
+          {
+            "wall_us": 465.9,
+            "device_us": 456.6
+          },
+          {
+            "wall_us": 467.2,
+            "device_us": 457.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 469.1,
+            "device_us": 458.9
+          },
+          {
+            "wall_us": 479.9,
+            "device_us": 469.5
+          },
+          {
+            "wall_us": 482.0,
+            "device_us": 469.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 458.8,
+            "device_us": 449.5
+          },
+          {
+            "wall_us": 462.7,
+            "device_us": 453.2
+          },
+          {
+            "wall_us": 483.2,
+            "device_us": 470.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 2304x2048",
+      "medians": {
+        "main": {
+          "wall_us": 22.6,
+          "device_us": 14.0
+        },
+        "half": {
+          "wall_us": 23.8,
+          "device_us": 14.1
+        },
+        "q5": {
+          "wall_us": 24.0,
+          "device_us": 14.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 5.309734513274322,
+          "device_us": 0.7142857142857117
+        },
+        "q5_vs_main": {
+          "wall_us": 6.194690265486713,
+          "device_us": 0.7142857142857117
+        },
+        "q5_vs_half": {
+          "wall_us": 0.8403361344537785,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 21.3,
+            "device_us": 13.1
+          },
+          {
+            "wall_us": 22.6,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 22.6,
+            "device_us": 14.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 22.9,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 23.8,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 25.7,
+            "device_us": 14.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 22.5,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 49.4,
+            "device_us": 13.8
+          },
+          {
+            "wall_us": 24.0,
+            "device_us": 14.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 12288x2048 n=2",
+      "medians": {
+        "main": {
+          "wall_us": 112.9,
+          "device_us": 102.2
+        },
+        "half": {
+          "wall_us": 116.6,
+          "device_us": 106.3
+        },
+        "q5": {
+          "wall_us": 113.4,
+          "device_us": 102.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 3.2772364924712027,
+          "device_us": 4.011741682974557
+        },
+        "q5_vs_main": {
+          "wall_us": 0.44286979627989886,
+          "device_us": 0.29354207436398383
+        },
+        "q5_vs_half": {
+          "wall_us": -2.7444253859348122,
+          "device_us": -3.5747883349012244
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 112.9,
+            "device_us": 102.2
+          },
+          {
+            "wall_us": 120.6,
+            "device_us": 110.2
+          },
+          {
+            "wall_us": 112.3,
+            "device_us": 102.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 116.6,
+            "device_us": 106.3
+          },
+          {
+            "wall_us": 119.0,
+            "device_us": 107.8
+          },
+          {
+            "wall_us": 112.8,
+            "device_us": 102.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 112.3,
+            "device_us": 102.0
+          },
+          {
+            "wall_us": 113.4,
+            "device_us": 102.5
+          },
+          {
+            "wall_us": 118.1,
+            "device_us": 106.1
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 12288x2048 n=4",
+      "medians": {
+        "main": {
+          "wall_us": 193.0,
+          "device_us": 180.8
+        },
+        "half": {
+          "wall_us": 191.3,
+          "device_us": 180.4
+        },
+        "q5": {
+          "wall_us": 191.8,
+          "device_us": 181.0
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.8808290155440379,
+          "device_us": -0.22123893805310324
+        },
+        "q5_vs_main": {
+          "wall_us": -0.6217616580310836,
+          "device_us": 0.11061946902655162
+        },
+        "q5_vs_half": {
+          "wall_us": 0.261369576581294,
+          "device_us": 0.3325942350332456
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 193.0,
+            "device_us": 181.5
+          },
+          {
+            "wall_us": 190.4,
+            "device_us": 179.4
+          },
+          {
+            "wall_us": 237.4,
+            "device_us": 180.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 191.3,
+            "device_us": 180.4
+          },
+          {
+            "wall_us": 192.5,
+            "device_us": 181.1
+          },
+          {
+            "wall_us": 191.2,
+            "device_us": 180.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 191.1,
+            "device_us": 180.3
+          },
+          {
+            "wall_us": 191.8,
+            "device_us": 181.3
+          },
+          {
+            "wall_us": 192.3,
+            "device_us": 181.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: dense 12288x2048 n=8",
+      "medians": {
+        "main": {
+          "wall_us": 355.9,
+          "device_us": 345.2
+        },
+        "half": {
+          "wall_us": 357.2,
+          "device_us": 345.8
+        },
+        "q5": {
+          "wall_us": 356.5,
+          "device_us": 345.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.3652711435796707,
+          "device_us": 0.17381228273465332
+        },
+        "q5_vs_main": {
+          "wall_us": 0.16858668165216084,
+          "device_us": 0.17381228273465332
+        },
+        "q5_vs_half": {
+          "wall_us": -0.19596864501679745,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 385.0,
+            "device_us": 345.8
+          },
+          {
+            "wall_us": 355.9,
+            "device_us": 345.2
+          },
+          {
+            "wall_us": 354.5,
+            "device_us": 343.7
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 356.9,
+            "device_us": 345.8
+          },
+          {
+            "wall_us": 357.9,
+            "device_us": 346.3
+          },
+          {
+            "wall_us": 357.2,
+            "device_us": 345.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 355.5,
+            "device_us": 344.4
+          },
+          {
+            "wall_us": 356.5,
+            "device_us": 345.8
+          },
+          {
+            "wall_us": 359.4,
+            "device_us": 346.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed gate+up T=1",
+      "medians": {
+        "main": {
+          "wall_us": 95.6,
+          "device_us": 83.9
+        },
+        "half": {
+          "wall_us": 95.5,
+          "device_us": 84.1
+        },
+        "q5": {
+          "wall_us": 94.7,
+          "device_us": 83.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.10460251046024993,
+          "device_us": 0.23837902264598476
+        },
+        "q5_vs_main": {
+          "wall_us": -0.9414225941422494,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.8376963350785305,
+          "device_us": -0.23781212841853527
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 97.2,
+            "device_us": 82.4
+          },
+          {
+            "wall_us": 95.6,
+            "device_us": 84.3
+          },
+          {
+            "wall_us": 95.4,
+            "device_us": 83.9
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 95.5,
+            "device_us": 84.3
+          },
+          {
+            "wall_us": 93.9,
+            "device_us": 82.4
+          },
+          {
+            "wall_us": 96.7,
+            "device_us": 84.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 94.7,
+            "device_us": 83.9
+          },
+          {
+            "wall_us": 93.1,
+            "device_us": 82.4
+          },
+          {
+            "wall_us": 96.3,
+            "device_us": 84.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed down T=1",
+      "medians": {
+        "main": {
+          "wall_us": 90.9,
+          "device_us": 76.4
+        },
+        "half": {
+          "wall_us": 89.6,
+          "device_us": 74.9
+        },
+        "q5": {
+          "wall_us": 93.6,
+          "device_us": 77.0
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.4301430143014437,
+          "device_us": -1.963350785340312
+        },
+        "q5_vs_main": {
+          "wall_us": 2.9702970297029507,
+          "device_us": 0.785340314136107
+        },
+        "q5_vs_half": {
+          "wall_us": 4.464285714285721,
+          "device_us": 2.8037383177569986
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 90.9,
+            "device_us": 76.4
+          },
+          {
+            "wall_us": 93.1,
+            "device_us": 78.6
+          },
+          {
+            "wall_us": 90.1,
+            "device_us": 75.7
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 89.6,
+            "device_us": 74.9
+          },
+          {
+            "wall_us": 93.9,
+            "device_us": 78.8
+          },
+          {
+            "wall_us": 86.6,
+            "device_us": 70.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 90.7,
+            "device_us": 77.0
+          },
+          {
+            "wall_us": 93.6,
+            "device_us": 77.9
+          },
+          {
+            "wall_us": 93.8,
+            "device_us": 76.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed gate+up T=4",
+      "medians": {
+        "main": {
+          "wall_us": 306.5,
+          "device_us": 295.2
+        },
+        "half": {
+          "wall_us": 306.7,
+          "device_us": 295.1
+        },
+        "q5": {
+          "wall_us": 306.1,
+          "device_us": 295.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.06525285481240317,
+          "device_us": -0.03387533875337523
+        },
+        "q5_vs_main": {
+          "wall_us": -0.13050570962478414,
+          "device_us": -0.03387533875337523
+        },
+        "q5_vs_half": {
+          "wall_us": -0.19563090968371943,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 318.6,
+            "device_us": 295.2
+          },
+          {
+            "wall_us": 306.5,
+            "device_us": 295.2
+          },
+          {
+            "wall_us": 305.6,
+            "device_us": 295.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 305.7,
+            "device_us": 295.2
+          },
+          {
+            "wall_us": 306.7,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 308.5,
+            "device_us": 295.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 305.2,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 306.1,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 307.9,
+            "device_us": 295.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed down T=4",
+      "medians": {
+        "main": {
+          "wall_us": 205.6,
+          "device_us": 191.5
+        },
+        "half": {
+          "wall_us": 205.9,
+          "device_us": 191.4
+        },
+        "q5": {
+          "wall_us": 205.7,
+          "device_us": 191.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.14591439688715901,
+          "device_us": -0.05221932114882755
+        },
+        "q5_vs_main": {
+          "wall_us": 0.04863813229571967,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.09713453132589311,
+          "device_us": 0.052246603970740324
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 205.9,
+            "device_us": 191.4
+          },
+          {
+            "wall_us": 205.1,
+            "device_us": 191.5
+          },
+          {
+            "wall_us": 205.6,
+            "device_us": 191.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 205.9,
+            "device_us": 191.6
+          },
+          {
+            "wall_us": 205.8,
+            "device_us": 191.4
+          },
+          {
+            "wall_us": 207.7,
+            "device_us": 191.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 204.9,
+            "device_us": 191.5
+          },
+          {
+            "wall_us": 205.9,
+            "device_us": 191.3
+          },
+          {
+            "wall_us": 205.7,
+            "device_us": 191.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed gate+up T=8",
+      "medians": {
+        "main": {
+          "wall_us": 413.3,
+          "device_us": 403.4
+        },
+        "half": {
+          "wall_us": 424.4,
+          "device_us": 413.5
+        },
+        "q5": {
+          "wall_us": 422.2,
+          "device_us": 412.3
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 2.6857004597144796,
+          "device_us": 2.503718393653953
+        },
+        "q5_vs_main": {
+          "wall_us": 2.153399467699013,
+          "device_us": 2.2062469013386377
+        },
+        "q5_vs_half": {
+          "wall_us": -0.5183788878416529,
+          "device_us": -0.2902055622732713
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 409.5,
+            "device_us": 399.5
+          },
+          {
+            "wall_us": 427.6,
+            "device_us": 417.6
+          },
+          {
+            "wall_us": 413.3,
+            "device_us": 403.4
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 405.7,
+            "device_us": 395.7
+          },
+          {
+            "wall_us": 424.4,
+            "device_us": 413.5
+          },
+          {
+            "wall_us": 459.7,
+            "device_us": 447.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 419.0,
+            "device_us": 409.3
+          },
+          {
+            "wall_us": 422.2,
+            "device_us": 412.3
+          },
+          {
+            "wall_us": 440.9,
+            "device_us": 430.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed down T=8",
+      "medians": {
+        "main": {
+          "wall_us": 208.3,
+          "device_us": 196.6
+        },
+        "half": {
+          "wall_us": 210.2,
+          "device_us": 197.8
+        },
+        "q5": {
+          "wall_us": 208.8,
+          "device_us": 196.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.9121459433509171,
+          "device_us": 0.6103763987792554
+        },
+        "q5_vs_main": {
+          "wall_us": 0.2400384061449934,
+          "device_us": -0.050864699898267585
+        },
+        "q5_vs_half": {
+          "wall_us": -0.666032350142709,
+          "device_us": -0.6572295247725068
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 208.2,
+            "device_us": 196.5
+          },
+          {
+            "wall_us": 208.5,
+            "device_us": 196.6
+          },
+          {
+            "wall_us": 208.3,
+            "device_us": 196.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 209.3,
+            "device_us": 196.7
+          },
+          {
+            "wall_us": 220.4,
+            "device_us": 206.8
+          },
+          {
+            "wall_us": 210.2,
+            "device_us": 197.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 209.0,
+            "device_us": 196.5
+          },
+          {
+            "wall_us": 208.6,
+            "device_us": 196.6
+          },
+          {
+            "wall_us": 208.8,
+            "device_us": 196.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed gate+up T=32",
+      "medians": {
+        "main": {
+          "wall_us": 1289.4,
+          "device_us": 1279.0
+        },
+        "half": {
+          "wall_us": 1293.0,
+          "device_us": 1279.7
+        },
+        "q5": {
+          "wall_us": 1290.5,
+          "device_us": 1280.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.2791996277338171,
+          "device_us": 0.0547302580140796
+        },
+        "q5_vs_main": {
+          "wall_us": 0.08531099736310832,
+          "device_us": 0.1094605160281592
+        },
+        "q5_vs_half": {
+          "wall_us": -0.19334880123743625,
+          "device_us": 0.05470032038759065
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 1289.4,
+            "device_us": 1279.0
+          },
+          {
+            "wall_us": 1293.2,
+            "device_us": 1282.3
+          },
+          {
+            "wall_us": 1287.0,
+            "device_us": 1276.3
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 1289.0,
+            "device_us": 1278.1
+          },
+          {
+            "wall_us": 1293.6,
+            "device_us": 1282.9
+          },
+          {
+            "wall_us": 1293.0,
+            "device_us": 1279.7
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 1292.6,
+            "device_us": 1282.4
+          },
+          {
+            "wall_us": 1290.5,
+            "device_us": 1280.4
+          },
+          {
+            "wall_us": 1290.3,
+            "device_us": 1278.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "3: routed down T=32",
+      "medians": {
+        "main": {
+          "wall_us": 755.0,
+          "device_us": 741.9
+        },
+        "half": {
+          "wall_us": 754.6,
+          "device_us": 741.9
+        },
+        "q5": {
+          "wall_us": 754.3,
+          "device_us": 741.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.05298013245033095,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.0927152317880875,
+          "device_us": -0.013478905512875894
+        },
+        "q5_vs_half": {
+          "wall_us": -0.03975616220515121,
+          "device_us": -0.013478905512875894
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 755.6,
+            "device_us": 741.9
+          },
+          {
+            "wall_us": 754.7,
+            "device_us": 741.9
+          },
+          {
+            "wall_us": 755.0,
+            "device_us": 742.4
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 754.5,
+            "device_us": 741.9
+          },
+          {
+            "wall_us": 754.6,
+            "device_us": 741.9
+          },
+          {
+            "wall_us": 755.9,
+            "device_us": 742.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 754.3,
+            "device_us": 741.5
+          },
+          {
+            "wall_us": 753.7,
+            "device_us": 741.8
+          },
+          {
+            "wall_us": 756.2,
+            "device_us": 742.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: floor silu_mul 2048",
+      "medians": {
+        "main": {
+          "wall_us": 18.5,
+          "device_us": 8.6
+        },
+        "half": {
+          "wall_us": 19.5,
+          "device_us": 8.5
+        },
+        "q5": {
+          "wall_us": 18.8,
+          "device_us": 8.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 5.405405405405395,
+          "device_us": -1.1627906976744096
+        },
+        "q5_vs_main": {
+          "wall_us": 1.6216216216216273,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -3.589743589743588,
+          "device_us": 1.17647058823529
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 18.4,
+            "device_us": 8.8
+          },
+          {
+            "wall_us": 22.6,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 18.5,
+            "device_us": 8.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 18.3,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 19.5,
+            "device_us": 8.4
+          },
+          {
+            "wall_us": 23.6,
+            "device_us": 8.5
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 20.8,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 18.3,
+            "device_us": 8.6
+          },
+          {
+            "wall_us": 18.8,
+            "device_us": 8.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: floor add 2048",
+      "medians": {
+        "main": {
+          "wall_us": 15.2,
+          "device_us": 5.7
+        },
+        "half": {
+          "wall_us": 16.9,
+          "device_us": 5.6
+        },
+        "q5": {
+          "wall_us": 15.5,
+          "device_us": 5.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 11.184210526315773,
+          "device_us": -1.7543859649122862
+        },
+        "q5_vs_main": {
+          "wall_us": 1.9736842105263275,
+          "device_us": -1.7543859649122862
+        },
+        "q5_vs_half": {
+          "wall_us": -8.28402366863904,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 15.1,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 17.5,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 15.2,
+            "device_us": 5.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 15.4,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 17.1,
+            "device_us": 5.6
+          },
+          {
+            "wall_us": 16.9,
+            "device_us": 5.5
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 15.7,
+            "device_us": 5.6
+          },
+          {
+            "wall_us": 15.4,
+            "device_us": 5.7
+          },
+          {
+            "wall_us": 15.5,
+            "device_us": 5.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: f32 tile 4096x2048 T=64",
+      "medians": {
+        "main": {
+          "wall_us": 899.5,
+          "device_us": 889.2
+        },
+        "half": {
+          "wall_us": 887.6,
+          "device_us": 878.3
+        },
+        "q5": {
+          "wall_us": 881.2,
+          "device_us": 870.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.322957198443575,
+          "device_us": -1.2258209626630823
+        },
+        "q5_vs_main": {
+          "wall_us": -2.034463590883817,
+          "device_us": -2.147998200629786
+        },
+        "q5_vs_half": {
+          "wall_us": -0.7210455159981977,
+          "device_us": -0.9336217693270976
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 899.5,
+            "device_us": 889.2
+          },
+          {
+            "wall_us": 950.3,
+            "device_us": 938.2
+          },
+          {
+            "wall_us": 881.6,
+            "device_us": 871.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 887.6,
+            "device_us": 878.3
+          },
+          {
+            "wall_us": 893.6,
+            "device_us": 882.9
+          },
+          {
+            "wall_us": 872.0,
+            "device_us": 858.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 899.5,
+            "device_us": 887.9
+          },
+          {
+            "wall_us": 881.2,
+            "device_us": 870.1
+          },
+          {
+            "wall_us": 865.6,
+            "device_us": 854.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: f32 tile 4096x2080 T=64",
+      "medians": {
+        "main": {
+          "wall_us": 522.8,
+          "device_us": 512.6
+        },
+        "half": {
+          "wall_us": 520.6,
+          "device_us": 511.9
+        },
+        "q5": {
+          "wall_us": 527.2,
+          "device_us": 517.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.42081101759753325,
+          "device_us": -0.13655872024971316
+        },
+        "q5_vs_main": {
+          "wall_us": 0.8416220351951109,
+          "device_us": 0.9754194303550623
+        },
+        "q5_vs_half": {
+          "wall_us": 1.2677679600461067,
+          "device_us": 1.1134987302207522
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 522.8,
+            "device_us": 513.3
+          },
+          {
+            "wall_us": 524.0,
+            "device_us": 511.4
+          },
+          {
+            "wall_us": 522.2,
+            "device_us": 512.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 520.6,
+            "device_us": 511.9
+          },
+          {
+            "wall_us": 519.1,
+            "device_us": 510.1
+          },
+          {
+            "wall_us": 525.1,
+            "device_us": 513.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 527.7,
+            "device_us": 517.6
+          },
+          {
+            "wall_us": 527.2,
+            "device_us": 518.0
+          },
+          {
+            "wall_us": 525.0,
+            "device_us": 515.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: f32 tile 4096x2048 T=512",
+      "medians": {
+        "main": {
+          "wall_us": 5908.1,
+          "device_us": 5897.6
+        },
+        "half": {
+          "wall_us": 5869.3,
+          "device_us": 5859.4
+        },
+        "q5": {
+          "wall_us": 5947.3,
+          "device_us": 5936.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.6567255124320881,
+          "device_us": -0.6477211068909527
+        },
+        "q5_vs_main": {
+          "wall_us": 0.6634958785396217,
+          "device_us": 0.6646771568095566
+        },
+        "q5_vs_half": {
+          "wall_us": 1.328948937692731,
+          "device_us": 1.3209543639280508
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 5805.2,
+            "device_us": 5793.5
+          },
+          {
+            "wall_us": 5970.5,
+            "device_us": 5956.4
+          },
+          {
+            "wall_us": 5908.1,
+            "device_us": 5897.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 5869.3,
+            "device_us": 5859.4
+          },
+          {
+            "wall_us": 5874.4,
+            "device_us": 5864.0
+          },
+          {
+            "wall_us": 5845.4,
+            "device_us": 5832.5
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 5947.3,
+            "device_us": 5936.8
+          },
+          {
+            "wall_us": 5966.2,
+            "device_us": 5954.8
+          },
+          {
+            "wall_us": 5927.9,
+            "device_us": 5916.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: f32 tile 4096x2080 T=512",
+      "medians": {
+        "main": {
+          "wall_us": 2314.8,
+          "device_us": 2305.4
+        },
+        "half": {
+          "wall_us": 2308.4,
+          "device_us": 2299.5
+        },
+        "q5": {
+          "wall_us": 2308.7,
+          "device_us": 2298.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.2764817694833277,
+          "device_us": -0.2559208814088665
+        },
+        "q5_vs_main": {
+          "wall_us": -0.2635216865388146,
+          "device_us": -0.3036349440444175
+        },
+        "q5_vs_half": {
+          "wall_us": 0.012996014555533009,
+          "device_us": -0.0478364861926428
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 2309.8,
+            "device_us": 2300.8
+          },
+          {
+            "wall_us": 2321.6,
+            "device_us": 2308.6
+          },
+          {
+            "wall_us": 2314.8,
+            "device_us": 2305.4
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 2308.2,
+            "device_us": 2299.5
+          },
+          {
+            "wall_us": 2312.3,
+            "device_us": 2301.5
+          },
+          {
+            "wall_us": 2308.4,
+            "device_us": 2295.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 2300.3,
+            "device_us": 2291.0
+          },
+          {
+            "wall_us": 2311.2,
+            "device_us": 2301.3
+          },
+          {
+            "wall_us": 2308.7,
+            "device_us": 2298.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: rms_norm T=1",
+      "medians": {
+        "main": {
+          "wall_us": 25.9,
+          "device_us": 13.9
+        },
+        "half": {
+          "wall_us": 24.8,
+          "device_us": 13.7
+        },
+        "q5": {
+          "wall_us": 23.7,
+          "device_us": 13.3
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -4.247104247104239,
+          "device_us": -1.4388489208633115
+        },
+        "q5_vs_main": {
+          "wall_us": -8.494208494208488,
+          "device_us": -4.316546762589923
+        },
+        "q5_vs_half": {
+          "wall_us": -4.435483870967749,
+          "device_us": -2.9197080291970656
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 25.9,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 27.3,
+            "device_us": 13.6
+          },
+          {
+            "wall_us": 24.9,
+            "device_us": 13.9
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 23.1,
+            "device_us": 13.3
+          },
+          {
+            "wall_us": 24.8,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 27.8,
+            "device_us": 13.7
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 23.7,
+            "device_us": 13.2
+          },
+          {
+            "wall_us": 23.5,
+            "device_us": 13.3
+          },
+          {
+            "wall_us": 24.2,
+            "device_us": 13.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 T=1",
+      "medians": {
+        "main": {
+          "wall_us": 28.5,
+          "device_us": 15.7
+        },
+        "half": {
+          "wall_us": 27.9,
+          "device_us": 15.7
+        },
+        "q5": {
+          "wall_us": 27.6,
+          "device_us": 15.7
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -2.1052631578947434,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -3.157894736842104,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -1.075268817204289,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 28.4,
+            "device_us": 15.9
+          },
+          {
+            "wall_us": 30.1,
+            "device_us": 15.3
+          },
+          {
+            "wall_us": 28.5,
+            "device_us": 15.7
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 26.9,
+            "device_us": 15.9
+          },
+          {
+            "wall_us": 29.0,
+            "device_us": 15.7
+          },
+          {
+            "wall_us": 27.9,
+            "device_us": 15.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 28.9,
+            "device_us": 15.7
+          },
+          {
+            "wall_us": 27.6,
+            "device_us": 15.7
+          },
+          {
+            "wall_us": 27.6,
+            "device_us": 15.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: route T=1",
+      "medians": {
+        "main": {
+          "wall_us": 29.8,
+          "device_us": 18.9
+        },
+        "half": {
+          "wall_us": 29.7,
+          "device_us": 19.1
+        },
+        "q5": {
+          "wall_us": 30.0,
+          "device_us": 19.7
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.3355704697986628,
+          "device_us": 1.0582010582010692
+        },
+        "q5_vs_main": {
+          "wall_us": 0.6711409395973034,
+          "device_us": 4.232804232804233
+        },
+        "q5_vs_half": {
+          "wall_us": 1.0101010101010166,
+          "device_us": 3.141361256544495
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 29.8,
+            "device_us": 19.3
+          },
+          {
+            "wall_us": 30.5,
+            "device_us": 18.4
+          },
+          {
+            "wall_us": 29.8,
+            "device_us": 18.9
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 29.7,
+            "device_us": 19.5
+          },
+          {
+            "wall_us": 29.2,
+            "device_us": 18.8
+          },
+          {
+            "wall_us": 31.4,
+            "device_us": 19.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 30.0,
+            "device_us": 19.7
+          },
+          {
+            "wall_us": 29.8,
+            "device_us": 20.0
+          },
+          {
+            "wall_us": 30.2,
+            "device_us": 19.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: silu_mul T=1",
+      "medians": {
+        "main": {
+          "wall_us": 18.1,
+          "device_us": 7.6
+        },
+        "half": {
+          "wall_us": 18.1,
+          "device_us": 7.5
+        },
+        "q5": {
+          "wall_us": 17.8,
+          "device_us": 7.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.0,
+          "device_us": -1.3157894736842035
+        },
+        "q5_vs_main": {
+          "wall_us": -1.6574585635359185,
+          "device_us": -1.3157894736842035
+        },
+        "q5_vs_half": {
+          "wall_us": -1.6574585635359185,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 23.4,
+            "device_us": 7.6
+          },
+          {
+            "wall_us": 18.1,
+            "device_us": 7.6
+          },
+          {
+            "wall_us": 17.9,
+            "device_us": 7.4
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 17.1,
+            "device_us": 7.6
+          },
+          {
+            "wall_us": 18.4,
+            "device_us": 7.5
+          },
+          {
+            "wall_us": 18.1,
+            "device_us": 7.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 17.8,
+            "device_us": 7.5
+          },
+          {
+            "wall_us": 17.8,
+            "device_us": 7.5
+          },
+          {
+            "wall_us": 18.1,
+            "device_us": 7.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: rms_norm T=32",
+      "medians": {
+        "main": {
+          "wall_us": 25.3,
+          "device_us": 14.1
+        },
+        "half": {
+          "wall_us": 24.7,
+          "device_us": 14.0
+        },
+        "q5": {
+          "wall_us": 24.4,
+          "device_us": 14.0
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -2.371541501976293,
+          "device_us": -0.7092198581560294
+        },
+        "q5_vs_main": {
+          "wall_us": -3.5573122529644396,
+          "device_us": -0.7092198581560294
+        },
+        "q5_vs_half": {
+          "wall_us": -1.2145748987854255,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 25.3,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 26.3,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 24.8,
+            "device_us": 14.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 23.5,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 24.7,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 27.8,
+            "device_us": 14.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 24.5,
+            "device_us": 14.2
+          },
+          {
+            "wall_us": 24.1,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 24.4,
+            "device_us": 14.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 T=32",
+      "medians": {
+        "main": {
+          "wall_us": 106.2,
+          "device_us": 93.2
+        },
+        "half": {
+          "wall_us": 106.9,
+          "device_us": 94.0
+        },
+        "q5": {
+          "wall_us": 106.8,
+          "device_us": 94.3
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.6591337099811634,
+          "device_us": 0.8583690987124415
+        },
+        "q5_vs_main": {
+          "wall_us": 0.5649717514124131,
+          "device_us": 1.1802575107296098
+        },
+        "q5_vs_half": {
+          "wall_us": -0.0935453695042221,
+          "device_us": 0.31914893617019935
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 105.3,
+            "device_us": 92.7
+          },
+          {
+            "wall_us": 109.1,
+            "device_us": 93.8
+          },
+          {
+            "wall_us": 106.2,
+            "device_us": 93.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 106.8,
+            "device_us": 94.0
+          },
+          {
+            "wall_us": 106.9,
+            "device_us": 92.7
+          },
+          {
+            "wall_us": 111.6,
+            "device_us": 94.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 106.3,
+            "device_us": 92.9
+          },
+          {
+            "wall_us": 106.8,
+            "device_us": 94.3
+          },
+          {
+            "wall_us": 107.9,
+            "device_us": 94.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 rows T=32",
+      "medians": {
+        "main": {
+          "wall_us": 163.0,
+          "device_us": 139.0
+        },
+        "half": {
+          "wall_us": 162.7,
+          "device_us": 139.1
+        },
+        "q5": {
+          "wall_us": 162.2,
+          "device_us": 139.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.18404907975461127,
+          "device_us": 0.07194244604316058
+        },
+        "q5_vs_main": {
+          "wall_us": -0.4907975460122782,
+          "device_us": 0.07194244604316058
+        },
+        "q5_vs_half": {
+          "wall_us": -0.3073140749846326,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 162.0,
+            "device_us": 139.8
+          },
+          {
+            "wall_us": 167.0,
+            "device_us": 138.9
+          },
+          {
+            "wall_us": 163.0,
+            "device_us": 139.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 162.7,
+            "device_us": 140.2
+          },
+          {
+            "wall_us": 162.6,
+            "device_us": 139.1
+          },
+          {
+            "wall_us": 165.4,
+            "device_us": 139.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 163.3,
+            "device_us": 139.6
+          },
+          {
+            "wall_us": 162.2,
+            "device_us": 139.0
+          },
+          {
+            "wall_us": 162.1,
+            "device_us": 139.1
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: route T=32",
+      "medians": {
+        "main": {
+          "wall_us": 27.4,
+          "device_us": 17.5
+        },
+        "half": {
+          "wall_us": 28.2,
+          "device_us": 17.4
+        },
+        "q5": {
+          "wall_us": 27.9,
+          "device_us": 17.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 2.9197080291970767,
+          "device_us": -0.5714285714285783
+        },
+        "q5_vs_main": {
+          "wall_us": 1.8248175182481674,
+          "device_us": -0.5714285714285783
+        },
+        "q5_vs_half": {
+          "wall_us": -1.0638297872340496,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 27.0,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 30.1,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 27.4,
+            "device_us": 17.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 27.2,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 28.2,
+            "device_us": 17.4
+          },
+          {
+            "wall_us": 29.6,
+            "device_us": 17.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 27.9,
+            "device_us": 17.5
+          },
+          {
+            "wall_us": 27.2,
+            "device_us": 17.4
+          },
+          {
+            "wall_us": 27.9,
+            "device_us": 17.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: silu_mul T=32",
+      "medians": {
+        "main": {
+          "wall_us": 26.6,
+          "device_us": 16.0
+        },
+        "half": {
+          "wall_us": 26.7,
+          "device_us": 16.0
+        },
+        "q5": {
+          "wall_us": 26.5,
+          "device_us": 16.0
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.3759398496240518,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.3759398496240629,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.7490636704119868,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 25.9,
+            "device_us": 16.0
+          },
+          {
+            "wall_us": 29.1,
+            "device_us": 15.9
+          },
+          {
+            "wall_us": 26.6,
+            "device_us": 16.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 26.3,
+            "device_us": 16.0
+          },
+          {
+            "wall_us": 26.7,
+            "device_us": 16.0
+          },
+          {
+            "wall_us": 29.4,
+            "device_us": 16.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 26.5,
+            "device_us": 16.0
+          },
+          {
+            "wall_us": 26.4,
+            "device_us": 15.9
+          },
+          {
+            "wall_us": 26.5,
+            "device_us": 16.1
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: rms_norm T=128",
+      "medians": {
+        "main": {
+          "wall_us": 36.8,
+          "device_us": 25.5
+        },
+        "half": {
+          "wall_us": 37.6,
+          "device_us": 25.6
+        },
+        "q5": {
+          "wall_us": 36.0,
+          "device_us": 25.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 2.1739130434782705,
+          "device_us": 0.39215686274509665
+        },
+        "q5_vs_main": {
+          "wall_us": -2.1739130434782483,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -4.255319148936176,
+          "device_us": -0.390625
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 35.5,
+            "device_us": 25.3
+          },
+          {
+            "wall_us": 38.6,
+            "device_us": 25.5
+          },
+          {
+            "wall_us": 36.8,
+            "device_us": 25.6
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 36.7,
+            "device_us": 25.6
+          },
+          {
+            "wall_us": 37.6,
+            "device_us": 25.6
+          },
+          {
+            "wall_us": 40.0,
+            "device_us": 25.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 36.0,
+            "device_us": 25.5
+          },
+          {
+            "wall_us": 35.6,
+            "device_us": 25.3
+          },
+          {
+            "wall_us": 36.0,
+            "device_us": 25.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 T=128",
+      "medians": {
+        "main": {
+          "wall_us": 178.0,
+          "device_us": 165.8
+        },
+        "half": {
+          "wall_us": 155.4,
+          "device_us": 139.6
+        },
+        "q5": {
+          "wall_us": 156.4,
+          "device_us": 143.7
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -12.696629213483146,
+          "device_us": -15.802171290711708
+        },
+        "q5_vs_main": {
+          "wall_us": -12.134831460674157,
+          "device_us": -13.329312424607975
+        },
+        "q5_vs_half": {
+          "wall_us": 0.6435006435006496,
+          "device_us": 2.936962750716332
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 159.7,
+            "device_us": 148.0
+          },
+          {
+            "wall_us": 185.9,
+            "device_us": 169.9
+          },
+          {
+            "wall_us": 178.0,
+            "device_us": 165.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 155.4,
+            "device_us": 143.5
+          },
+          {
+            "wall_us": 141.1,
+            "device_us": 128.8
+          },
+          {
+            "wall_us": 156.7,
+            "device_us": 139.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 153.5,
+            "device_us": 141.1
+          },
+          {
+            "wall_us": 156.4,
+            "device_us": 143.7
+          },
+          {
+            "wall_us": 158.8,
+            "device_us": 145.7
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 rows T=128",
+      "medians": {
+        "main": {
+          "wall_us": 574.8,
+          "device_us": 537.1
+        },
+        "half": {
+          "wall_us": 575.8,
+          "device_us": 537.6
+        },
+        "q5": {
+          "wall_us": 575.0,
+          "device_us": 535.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.17397355601949105,
+          "device_us": 0.09309253397877804
+        },
+        "q5_vs_main": {
+          "wall_us": 0.03479471120391153,
+          "device_us": -0.22342208154906285
+        },
+        "q5_vs_half": {
+          "wall_us": -0.13893713094823568,
+          "device_us": -0.3162202380952439
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 573.7,
+            "device_us": 537.1
+          },
+          {
+            "wall_us": 581.1,
+            "device_us": 540.1
+          },
+          {
+            "wall_us": 574.8,
+            "device_us": 535.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 575.8,
+            "device_us": 537.6
+          },
+          {
+            "wall_us": 574.5,
+            "device_us": 535.8
+          },
+          {
+            "wall_us": 582.2,
+            "device_us": 543.2
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 575.7,
+            "device_us": 536.8
+          },
+          {
+            "wall_us": 575.0,
+            "device_us": 535.9
+          },
+          {
+            "wall_us": 574.4,
+            "device_us": 535.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: route T=128",
+      "medians": {
+        "main": {
+          "wall_us": 26.7,
+          "device_us": 16.5
+        },
+        "half": {
+          "wall_us": 26.3,
+          "device_us": 16.5
+        },
+        "q5": {
+          "wall_us": 26.2,
+          "device_us": 16.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.4981273408239626,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -1.8726591760299671,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.38022813688213253,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 26.0,
+            "device_us": 16.5
+          },
+          {
+            "wall_us": 27.8,
+            "device_us": 16.4
+          },
+          {
+            "wall_us": 26.7,
+            "device_us": 16.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 26.0,
+            "device_us": 16.5
+          },
+          {
+            "wall_us": 26.3,
+            "device_us": 16.6
+          },
+          {
+            "wall_us": 28.1,
+            "device_us": 16.5
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 26.2,
+            "device_us": 16.5
+          },
+          {
+            "wall_us": 25.9,
+            "device_us": 16.5
+          },
+          {
+            "wall_us": 26.4,
+            "device_us": 16.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: rms_norm T=512",
+      "medians": {
+        "main": {
+          "wall_us": 93.7,
+          "device_us": 84.0
+        },
+        "half": {
+          "wall_us": 94.2,
+          "device_us": 83.6
+        },
+        "q5": {
+          "wall_us": 93.7,
+          "device_us": 83.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.5336179295624355,
+          "device_us": -0.4761904761904856
+        },
+        "q5_vs_main": {
+          "wall_us": 0.0,
+          "device_us": -0.4761904761904856
+        },
+        "q5_vs_half": {
+          "wall_us": -0.5307855626326963,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 93.3,
+            "device_us": 83.3
+          },
+          {
+            "wall_us": 96.7,
+            "device_us": 84.0
+          },
+          {
+            "wall_us": 93.7,
+            "device_us": 84.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 93.1,
+            "device_us": 83.5
+          },
+          {
+            "wall_us": 94.2,
+            "device_us": 83.9
+          },
+          {
+            "wall_us": 95.0,
+            "device_us": 83.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 93.7,
+            "device_us": 83.6
+          },
+          {
+            "wall_us": 90.3,
+            "device_us": 81.0
+          },
+          {
+            "wall_us": 94.4,
+            "device_us": 83.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 T=512",
+      "medians": {
+        "main": {
+          "wall_us": 320.8,
+          "device_us": 312.1
+        },
+        "half": {
+          "wall_us": 322.8,
+          "device_us": 313.2
+        },
+        "q5": {
+          "wall_us": 319.6,
+          "device_us": 310.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.6234413965087171,
+          "device_us": 0.3524511374559225
+        },
+        "q5_vs_main": {
+          "wall_us": -0.37406483790523026,
+          "device_us": -0.4806151874399256
+        },
+        "q5_vs_half": {
+          "wall_us": -0.9913258983890949,
+          "device_us": -0.8301404853128913
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 320.7,
+            "device_us": 312.1
+          },
+          {
+            "wall_us": 333.7,
+            "device_us": 322.4
+          },
+          {
+            "wall_us": 320.8,
+            "device_us": 312.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 312.8,
+            "device_us": 304.3
+          },
+          {
+            "wall_us": 322.8,
+            "device_us": 313.2
+          },
+          {
+            "wall_us": 339.1,
+            "device_us": 328.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 325.9,
+            "device_us": 316.5
+          },
+          {
+            "wall_us": 319.6,
+            "device_us": 310.6
+          },
+          {
+            "wall_us": 317.6,
+            "device_us": 307.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: router f32 rows T=512",
+      "medians": {
+        "main": {
+          "wall_us": 1162.3,
+          "device_us": 1095.2
+        },
+        "half": {
+          "wall_us": 1163.0,
+          "device_us": 1099.5
+        },
+        "q5": {
+          "wall_us": 1159.7,
+          "device_us": 1097.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.060225415125181314,
+          "device_us": 0.3926223520818173
+        },
+        "q5_vs_main": {
+          "wall_us": -0.22369439903638932,
+          "device_us": 0.23739956172388332
+        },
+        "q5_vs_half": {
+          "wall_us": -0.28374892519346107,
+          "device_us": -0.15461573442474563
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 1156.0,
+            "device_us": 1095.2
+          },
+          {
+            "wall_us": 1162.3,
+            "device_us": 1094.0
+          },
+          {
+            "wall_us": 1162.6,
+            "device_us": 1099.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 1162.0,
+            "device_us": 1098.1
+          },
+          {
+            "wall_us": 1163.0,
+            "device_us": 1099.5
+          },
+          {
+            "wall_us": 1174.6,
+            "device_us": 1107.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 1162.5,
+            "device_us": 1098.9
+          },
+          {
+            "wall_us": 1159.7,
+            "device_us": 1097.8
+          },
+          {
+            "wall_us": 1159.0,
+            "device_us": 1096.6
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: route T=512",
+      "medians": {
+        "main": {
+          "wall_us": 27.1,
+          "device_us": 10.8
+        },
+        "half": {
+          "wall_us": 25.4,
+          "device_us": 10.8
+        },
+        "q5": {
+          "wall_us": 24.8,
+          "device_us": 10.8
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -6.273062730627322,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -8.487084870848715,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -2.3622047244094446,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 23.8,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 27.1,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 28.0,
+            "device_us": 10.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 24.4,
+            "device_us": 10.9
+          },
+          {
+            "wall_us": 25.4,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 25.9,
+            "device_us": 10.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 26.2,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 24.8,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 24.3,
+            "device_us": 10.8
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 12288x2048",
+      "medians": {
+        "main": {
+          "wall_us": 93.8,
+          "device_us": 81.9
+        },
+        "half": {
+          "wall_us": 94.7,
+          "device_us": 83.6
+        },
+        "q5": {
+          "wall_us": 94.2,
+          "device_us": 83.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.9594882729211163,
+          "device_us": 2.0757020757020683
+        },
+        "q5_vs_main": {
+          "wall_us": 0.4264392324093924,
+          "device_us": 2.0757020757020683
+        },
+        "q5_vs_half": {
+          "wall_us": -0.5279831045406524,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 92.8,
+            "device_us": 81.9
+          },
+          {
+            "wall_us": 96.0,
+            "device_us": 81.8
+          },
+          {
+            "wall_us": 93.8,
+            "device_us": 81.9
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 93.0,
+            "device_us": 81.9
+          },
+          {
+            "wall_us": 94.7,
+            "device_us": 83.6
+          },
+          {
+            "wall_us": 95.0,
+            "device_us": 83.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 94.2,
+            "device_us": 83.6
+          },
+          {
+            "wall_us": 94.5,
+            "device_us": 83.6
+          },
+          {
+            "wall_us": 93.0,
+            "device_us": 81.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 3072x8192",
+      "medians": {
+        "main": {
+          "wall_us": 102.3,
+          "device_us": 84.8
+        },
+        "half": {
+          "wall_us": 100.1,
+          "device_us": 84.7
+        },
+        "q5": {
+          "wall_us": 100.2,
+          "device_us": 83.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -2.1505376344086002,
+          "device_us": -0.1179245283018826
+        },
+        "q5_vs_main": {
+          "wall_us": -2.052785923753664,
+          "device_us": -2.004716981132082
+        },
+        "q5_vs_half": {
+          "wall_us": 0.09990009990010762,
+          "device_us": -1.8890200708382654
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 101.3,
+            "device_us": 84.8
+          },
+          {
+            "wall_us": 104.8,
+            "device_us": 84.6
+          },
+          {
+            "wall_us": 102.3,
+            "device_us": 84.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 100.7,
+            "device_us": 84.8
+          },
+          {
+            "wall_us": 100.0,
+            "device_us": 82.9
+          },
+          {
+            "wall_us": 100.1,
+            "device_us": 84.7
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 99.6,
+            "device_us": 83.0
+          },
+          {
+            "wall_us": 100.2,
+            "device_us": 83.1
+          },
+          {
+            "wall_us": 101.7,
+            "device_us": 84.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense down 2048x6144",
+      "medians": {
+        "main": {
+          "wall_us": 63.4,
+          "device_us": 46.2
+        },
+        "half": {
+          "wall_us": 64.5,
+          "device_us": 47.5
+        },
+        "q5": {
+          "wall_us": 63.9,
+          "device_us": 48.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 1.7350157728706739,
+          "device_us": 2.813852813852802
+        },
+        "q5_vs_main": {
+          "wall_us": 0.7886435331230235,
+          "device_us": 4.112554112554112
+        },
+        "q5_vs_half": {
+          "wall_us": -0.9302325581395321,
+          "device_us": 1.263157894736855
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 62.0,
+            "device_us": 46.2
+          },
+          {
+            "wall_us": 67.1,
+            "device_us": 48.3
+          },
+          {
+            "wall_us": 63.4,
+            "device_us": 46.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 61.5,
+            "device_us": 46.2
+          },
+          {
+            "wall_us": 64.5,
+            "device_us": 47.9
+          },
+          {
+            "wall_us": 158.4,
+            "device_us": 47.5
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 63.9,
+            "device_us": 48.1
+          },
+          {
+            "wall_us": 64.4,
+            "device_us": 48.4
+          },
+          {
+            "wall_us": 62.8,
+            "device_us": 46.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 8192x8192",
+      "medians": {
+        "main": {
+          "wall_us": 218.4,
+          "device_us": 201.9
+        },
+        "half": {
+          "wall_us": 219.0,
+          "device_us": 201.9
+        },
+        "q5": {
+          "wall_us": 217.9,
+          "device_us": 201.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.27472527472527375,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.22893772893772812,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.5022831050228271,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 218.4,
+            "device_us": 201.9
+          },
+          {
+            "wall_us": 223.0,
+            "device_us": 201.9
+          },
+          {
+            "wall_us": 218.4,
+            "device_us": 201.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 216.9,
+            "device_us": 201.9
+          },
+          {
+            "wall_us": 219.4,
+            "device_us": 201.9
+          },
+          {
+            "wall_us": 219.0,
+            "device_us": 201.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 218.2,
+            "device_us": 201.8
+          },
+          {
+            "wall_us": 217.9,
+            "device_us": 201.9
+          },
+          {
+            "wall_us": 216.8,
+            "device_us": 201.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 24576x8192",
+      "medians": {
+        "main": {
+          "wall_us": 590.2,
+          "device_us": 579.2
+        },
+        "half": {
+          "wall_us": 590.3,
+          "device_us": 579.2
+        },
+        "q5": {
+          "wall_us": 589.8,
+          "device_us": 579.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.016943409013880917,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.06777363605559028,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.0847026935456574,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 589.8,
+            "device_us": 579.1
+          },
+          {
+            "wall_us": 591.9,
+            "device_us": 579.3
+          },
+          {
+            "wall_us": 590.2,
+            "device_us": 579.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 589.3,
+            "device_us": 579.2
+          },
+          {
+            "wall_us": 590.3,
+            "device_us": 579.2
+          },
+          {
+            "wall_us": 591.0,
+            "device_us": 579.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 589.8,
+            "device_us": 579.1
+          },
+          {
+            "wall_us": 589.8,
+            "device_us": 579.2
+          },
+          {
+            "wall_us": 590.2,
+            "device_us": 579.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 8192x24576",
+      "medians": {
+        "main": {
+          "wall_us": 470.7,
+          "device_us": 460.9
+        },
+        "half": {
+          "wall_us": 468.4,
+          "device_us": 457.7
+        },
+        "q5": {
+          "wall_us": 470.6,
+          "device_us": 460.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.48863394943701177,
+          "device_us": -0.6942937730527232
+        },
+        "q5_vs_main": {
+          "wall_us": -0.021244954323340615,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": 0.4696840307429673,
+          "device_us": 0.6991479134804468
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 468.6,
+            "device_us": 457.5
+          },
+          {
+            "wall_us": 495.0,
+            "device_us": 481.7
+          },
+          {
+            "wall_us": 470.7,
+            "device_us": 460.9
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 467.1,
+            "device_us": 457.7
+          },
+          {
+            "wall_us": 468.4,
+            "device_us": 457.7
+          },
+          {
+            "wall_us": 496.0,
+            "device_us": 483.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 470.6,
+            "device_us": 460.9
+          },
+          {
+            "wall_us": 473.4,
+            "device_us": 463.1
+          },
+          {
+            "wall_us": 463.3,
+            "device_us": 453.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 2304x2048",
+      "medians": {
+        "main": {
+          "wall_us": 23.2,
+          "device_us": 14.0
+        },
+        "half": {
+          "wall_us": 23.4,
+          "device_us": 14.0
+        },
+        "q5": {
+          "wall_us": 23.1,
+          "device_us": 14.0
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.8620689655172376,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.4310344827586077,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -1.2820512820512664,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 23.1,
+            "device_us": 13.2
+          },
+          {
+            "wall_us": 25.5,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 23.2,
+            "device_us": 14.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 22.1,
+            "device_us": 13.1
+          },
+          {
+            "wall_us": 23.4,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 26.0,
+            "device_us": 14.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 23.2,
+            "device_us": 14.0
+          },
+          {
+            "wall_us": 23.0,
+            "device_us": 14.1
+          },
+          {
+            "wall_us": 23.1,
+            "device_us": 14.0
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 12288x2048 n=2",
+      "medians": {
+        "main": {
+          "wall_us": 116.0,
+          "device_us": 105.3
+        },
+        "half": {
+          "wall_us": 114.0,
+          "device_us": 103.0
+        },
+        "q5": {
+          "wall_us": 113.6,
+          "device_us": 103.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -1.7241379310344862,
+          "device_us": -2.1842355175688444
+        },
+        "q5_vs_main": {
+          "wall_us": -2.0689655172413834,
+          "device_us": -1.9943019943019835
+        },
+        "q5_vs_half": {
+          "wall_us": -0.35087719298245723,
+          "device_us": 0.1941747572815622
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 116.0,
+            "device_us": 105.3
+          },
+          {
+            "wall_us": 125.2,
+            "device_us": 111.3
+          },
+          {
+            "wall_us": 113.4,
+            "device_us": 103.0
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 112.9,
+            "device_us": 103.0
+          },
+          {
+            "wall_us": 114.0,
+            "device_us": 102.5
+          },
+          {
+            "wall_us": 115.3,
+            "device_us": 103.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 116.1,
+            "device_us": 105.5
+          },
+          {
+            "wall_us": 112.9,
+            "device_us": 102.7
+          },
+          {
+            "wall_us": 113.6,
+            "device_us": 103.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 12288x2048 n=4",
+      "medians": {
+        "main": {
+          "wall_us": 193.0,
+          "device_us": 179.6
+        },
+        "half": {
+          "wall_us": 191.9,
+          "device_us": 179.4
+        },
+        "q5": {
+          "wall_us": 190.5,
+          "device_us": 179.6
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.5699481865284906,
+          "device_us": -0.11135857461024301
+        },
+        "q5_vs_main": {
+          "wall_us": -1.2953367875647714,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": -0.7295466388744121,
+          "device_us": 0.11148272017835748
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 193.0,
+            "device_us": 180.0
+          },
+          {
+            "wall_us": 194.0,
+            "device_us": 179.6
+          },
+          {
+            "wall_us": 191.3,
+            "device_us": 179.5
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 190.5,
+            "device_us": 179.4
+          },
+          {
+            "wall_us": 191.9,
+            "device_us": 179.5
+          },
+          {
+            "wall_us": 192.0,
+            "device_us": 179.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 191.0,
+            "device_us": 179.6
+          },
+          {
+            "wall_us": 190.5,
+            "device_us": 179.6
+          },
+          {
+            "wall_us": 188.5,
+            "device_us": 177.3
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: dense 12288x2048 n=8",
+      "medians": {
+        "main": {
+          "wall_us": 357.5,
+          "device_us": 345.9
+        },
+        "half": {
+          "wall_us": 357.7,
+          "device_us": 345.9
+        },
+        "q5": {
+          "wall_us": 356.3,
+          "device_us": 345.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.055944055944046056,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.33566433566433185,
+          "device_us": -0.14455044810638418
+        },
+        "q5_vs_half": {
+          "wall_us": -0.3913894324853118,
+          "device_us": -0.14455044810638418
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 356.3,
+            "device_us": 345.7
+          },
+          {
+            "wall_us": 357.5,
+            "device_us": 345.9
+          },
+          {
+            "wall_us": 357.5,
+            "device_us": 346.2
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 356.8,
+            "device_us": 345.9
+          },
+          {
+            "wall_us": 357.7,
+            "device_us": 346.6
+          },
+          {
+            "wall_us": 359.3,
+            "device_us": 345.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 357.3,
+            "device_us": 345.7
+          },
+          {
+            "wall_us": 356.1,
+            "device_us": 345.4
+          },
+          {
+            "wall_us": 356.3,
+            "device_us": 345.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed gate+up T=1",
+      "medians": {
+        "main": {
+          "wall_us": 95.7,
+          "device_us": 84.3
+        },
+        "half": {
+          "wall_us": 95.3,
+          "device_us": 84.3
+        },
+        "q5": {
+          "wall_us": 95.5,
+          "device_us": 84.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.4179728317659448,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": -0.2089864158829724,
+          "device_us": -0.11862396204032066
+        },
+        "q5_vs_half": {
+          "wall_us": 0.20986358866736943,
+          "device_us": -0.11862396204032066
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 94.7,
+            "device_us": 82.4
+          },
+          {
+            "wall_us": 95.7,
+            "device_us": 84.3
+          },
+          {
+            "wall_us": 95.8,
+            "device_us": 84.3
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 94.5,
+            "device_us": 84.2
+          },
+          {
+            "wall_us": 95.3,
+            "device_us": 84.3
+          },
+          {
+            "wall_us": 97.7,
+            "device_us": 84.3
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 95.5,
+            "device_us": 84.3
+          },
+          {
+            "wall_us": 95.5,
+            "device_us": 82.5
+          },
+          {
+            "wall_us": 95.4,
+            "device_us": 84.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed down T=1",
+      "medians": {
+        "main": {
+          "wall_us": 85.6,
+          "device_us": 70.6
+        },
+        "half": {
+          "wall_us": 89.8,
+          "device_us": 76.2
+        },
+        "q5": {
+          "wall_us": 90.6,
+          "device_us": 75.9
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 4.90654205607477,
+          "device_us": 7.932011331444766
+        },
+        "q5_vs_main": {
+          "wall_us": 5.841121495327095,
+          "device_us": 7.507082152974531
+        },
+        "q5_vs_half": {
+          "wall_us": 0.8908685968819663,
+          "device_us": -0.3937007874015741
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 84.1,
+            "device_us": 70.5
+          },
+          {
+            "wall_us": 85.6,
+            "device_us": 70.6
+          },
+          {
+            "wall_us": 91.8,
+            "device_us": 77.3
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 89.8,
+            "device_us": 76.2
+          },
+          {
+            "wall_us": 85.4,
+            "device_us": 70.6
+          },
+          {
+            "wall_us": 93.2,
+            "device_us": 77.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 91.8,
+            "device_us": 77.2
+          },
+          {
+            "wall_us": 84.9,
+            "device_us": 70.7
+          },
+          {
+            "wall_us": 90.6,
+            "device_us": 75.9
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed gate+up T=4",
+      "medians": {
+        "main": {
+          "wall_us": 305.7,
+          "device_us": 295.1
+        },
+        "half": {
+          "wall_us": 306.1,
+          "device_us": 295.1
+        },
+        "q5": {
+          "wall_us": 306.3,
+          "device_us": 295.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.13084723585214952,
+          "device_us": 0.0
+        },
+        "q5_vs_main": {
+          "wall_us": 0.19627085377822429,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": 0.06533812479581069,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 305.4,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 306.9,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 305.7,
+            "device_us": 295.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 305.0,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 306.1,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 308.8,
+            "device_us": 295.1
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 306.3,
+            "device_us": 295.1
+          },
+          {
+            "wall_us": 305.7,
+            "device_us": 295.0
+          },
+          {
+            "wall_us": 306.5,
+            "device_us": 295.1
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed down T=4",
+      "medians": {
+        "main": {
+          "wall_us": 206.4,
+          "device_us": 192.1
+        },
+        "half": {
+          "wall_us": 206.7,
+          "device_us": 192.0
+        },
+        "q5": {
+          "wall_us": 207.0,
+          "device_us": 192.2
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.14534883720929148,
+          "device_us": -0.05205622071837723
+        },
+        "q5_vs_main": {
+          "wall_us": 0.29069767441860517,
+          "device_us": 0.05205622071837723
+        },
+        "q5_vs_half": {
+          "wall_us": 0.14513788098693414,
+          "device_us": 0.10416666666666075
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 205.5,
+            "device_us": 192.0
+          },
+          {
+            "wall_us": 207.3,
+            "device_us": 192.2
+          },
+          {
+            "wall_us": 206.4,
+            "device_us": 192.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 206.7,
+            "device_us": 192.0
+          },
+          {
+            "wall_us": 206.5,
+            "device_us": 191.9
+          },
+          {
+            "wall_us": 209.1,
+            "device_us": 192.0
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 207.3,
+            "device_us": 192.2
+          },
+          {
+            "wall_us": 206.1,
+            "device_us": 192.1
+          },
+          {
+            "wall_us": 207.0,
+            "device_us": 192.4
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed gate+up T=8",
+      "medians": {
+        "main": {
+          "wall_us": 433.2,
+          "device_us": 422.4
+        },
+        "half": {
+          "wall_us": 431.3,
+          "device_us": 421.3
+        },
+        "q5": {
+          "wall_us": 413.9,
+          "device_us": 403.4
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.43859649122806044,
+          "device_us": -0.26041666666666297
+        },
+        "q5_vs_main": {
+          "wall_us": -4.455216989843036,
+          "device_us": -4.498106060606066
+        },
+        "q5_vs_half": {
+          "wall_us": -4.034314862044985,
+          "device_us": -4.248753857108955
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 434.4,
+            "device_us": 424.6
+          },
+          {
+            "wall_us": 433.2,
+            "device_us": 422.4
+          },
+          {
+            "wall_us": 418.5,
+            "device_us": 408.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 414.4,
+            "device_us": 404.6
+          },
+          {
+            "wall_us": 431.3,
+            "device_us": 421.3
+          },
+          {
+            "wall_us": 452.6,
+            "device_us": 439.6
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 413.9,
+            "device_us": 403.4
+          },
+          {
+            "wall_us": 428.5,
+            "device_us": 418.0
+          },
+          {
+            "wall_us": 408.6,
+            "device_us": 398.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed down T=8",
+      "medians": {
+        "main": {
+          "wall_us": 209.0,
+          "device_us": 197.1
+        },
+        "half": {
+          "wall_us": 208.9,
+          "device_us": 196.9
+        },
+        "q5": {
+          "wall_us": 209.0,
+          "device_us": 197.1
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.04784688995215225,
+          "device_us": -0.10147133434803557
+        },
+        "q5_vs_main": {
+          "wall_us": 0.0,
+          "device_us": 0.0
+        },
+        "q5_vs_half": {
+          "wall_us": 0.04786979415987158,
+          "device_us": 0.1015744032503818
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 208.5,
+            "device_us": 196.7
+          },
+          {
+            "wall_us": 209.6,
+            "device_us": 197.1
+          },
+          {
+            "wall_us": 209.0,
+            "device_us": 197.1
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 208.4,
+            "device_us": 196.9
+          },
+          {
+            "wall_us": 208.9,
+            "device_us": 196.9
+          },
+          {
+            "wall_us": 211.8,
+            "device_us": 196.8
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 209.0,
+            "device_us": 197.1
+          },
+          {
+            "wall_us": 209.0,
+            "device_us": 197.0
+          },
+          {
+            "wall_us": 209.4,
+            "device_us": 197.2
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed gate+up T=32",
+      "medians": {
+        "main": {
+          "wall_us": 1279.8,
+          "device_us": 1269.5
+        },
+        "half": {
+          "wall_us": 1283.1,
+          "device_us": 1272.7
+        },
+        "q5": {
+          "wall_us": 1285.7,
+          "device_us": 1275.5
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": 0.25785278949834733,
+          "device_us": 0.2520677432059859
+        },
+        "q5_vs_main": {
+          "wall_us": 0.46100953273948697,
+          "device_us": 0.4726270185112291
+        },
+        "q5_vs_half": {
+          "wall_us": 0.20263424518744966,
+          "device_us": 0.22000471438672342
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 1279.8,
+            "device_us": 1269.5
+          },
+          {
+            "wall_us": 1295.3,
+            "device_us": 1279.9
+          },
+          {
+            "wall_us": 1278.7,
+            "device_us": 1268.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 1283.1,
+            "device_us": 1273.5
+          },
+          {
+            "wall_us": 1283.3,
+            "device_us": 1272.7
+          },
+          {
+            "wall_us": 1278.7,
+            "device_us": 1267.9
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 1286.9,
+            "device_us": 1275.6
+          },
+          {
+            "wall_us": 1284.5,
+            "device_us": 1272.2
+          },
+          {
+            "wall_us": 1285.7,
+            "device_us": 1275.5
+          }
+        ]
+      }
+    },
+    {
+      "case": "2: routed down T=32",
+      "medians": {
+        "main": {
+          "wall_us": 756.3,
+          "device_us": 743.3
+        },
+        "half": {
+          "wall_us": 756.2,
+          "device_us": 743.0
+        },
+        "q5": {
+          "wall_us": 758.4,
+          "device_us": 743.0
+        }
+      },
+      "changes_percent": {
+        "half_vs_main": {
+          "wall_us": -0.013222266296430973,
+          "device_us": -0.04036055428493501
+        },
+        "q5_vs_main": {
+          "wall_us": 0.2776675922253169,
+          "device_us": -0.04036055428493501
+        },
+        "q5_vs_half": {
+          "wall_us": 0.2909283258397233,
+          "device_us": 0.0
+        }
+      },
+      "samples": {
+        "main": [
+          {
+            "wall_us": 756.3,
+            "device_us": 743.2
+          },
+          {
+            "wall_us": 756.9,
+            "device_us": 743.3
+          },
+          {
+            "wall_us": 756.2,
+            "device_us": 743.8
+          }
+        ],
+        "half": [
+          {
+            "wall_us": 755.9,
+            "device_us": 743.0
+          },
+          {
+            "wall_us": 756.2,
+            "device_us": 742.9
+          },
+          {
+            "wall_us": 757.7,
+            "device_us": 743.4
+          }
+        ],
+        "q5": [
+          {
+            "wall_us": 758.8,
+            "device_us": 743.4
+          },
+          {
+            "wall_us": 758.4,
+            "device_us": 743.0
+          },
+          {
+            "wall_us": 755.9,
+            "device_us": 743.0
+          }
+        ]
+      }
+    }
+  ],
+  "activity": {
+    "scope": "Screen activity, all samples retained",
+    "limitations": [
+      "Short-lived processes between samples may be missed.",
+      "Disk maximum includes partitions; not a sum of physical-device load.",
+      "No GPU clock or temperature capture; production activity retained in raw samples."
+    ],
+    "samples": 128,
+    "errors": [],
+    "runs": [
+      {
+        "type": 3,
+        "phase": "warmup",
+        "ordinal": 0,
+        "arm": "main",
+        "samples": 6,
+        "flagged": 2,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.18134715025906734,
+        "peak_disk_busy": 0.0668197818518399,
+        "peak_other_cpu_cores": 1.1192313460183183
+      },
+      {
+        "type": 3,
+        "phase": "warmup",
+        "ordinal": 1,
+        "arm": "half",
+        "samples": 6,
+        "flagged": 1,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.1936842105263158,
+        "peak_disk_busy": 0.0668197818518399,
+        "peak_other_cpu_cores": 1.1192313460183183
+      },
+      {
+        "type": 3,
+        "phase": "warmup",
+        "ordinal": 2,
+        "arm": "q5",
+        "samples": 7,
+        "flagged": 3,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.2154811715481172,
+        "peak_disk_busy": 0.011570271342347041,
+        "peak_other_cpu_cores": 0.9752085845692507
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 0,
+        "arm": "main",
+        "samples": 6,
+        "flagged": 1,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.20547945205479456,
+        "peak_disk_busy": 0.07489482531725179,
+        "peak_other_cpu_cores": 1.0146227261428724
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 1,
+        "arm": "half",
+        "samples": 6,
+        "flagged": 2,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.1873015873015873,
+        "peak_disk_busy": 0.08003709785313891,
+        "peak_other_cpu_cores": 1.017138118550307
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 2,
+        "arm": "q5",
+        "samples": 7,
+        "flagged": 3,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.20299145299145294,
+        "peak_disk_busy": 0.08003709785313891,
+        "peak_other_cpu_cores": 1.1933842761324216
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 3,
+        "arm": "half",
+        "samples": 6,
+        "flagged": 2,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.19354838709677424,
+        "peak_disk_busy": 0.06555209404107668,
+        "peak_other_cpu_cores": 1.315494248705058
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 4,
+        "arm": "q5",
+        "samples": 6,
+        "flagged": 2,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.18115183246073296,
+        "peak_disk_busy": 0.01845625163104508,
+        "peak_other_cpu_cores": 1.1402651950026368
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 5,
+        "arm": "main",
+        "samples": 7,
+        "flagged": 1,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.19358178053830233,
+        "peak_disk_busy": 0.08108111286566527,
+        "peak_other_cpu_cores": 0.7550284758154806
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 6,
+        "arm": "q5",
+        "samples": 6,
+        "flagged": 0,
+        "flags": [],
+        "peak_cpu_busy": 0.22453222453222454,
+        "peak_disk_busy": 0.07587783317276267,
+        "peak_other_cpu_cores": 1.0906946149917007
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 7,
+        "arm": "main",
+        "samples": 6,
+        "flagged": 2,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.1821086261980831,
+        "peak_disk_busy": 0.06511800032732555,
+        "peak_other_cpu_cores": 1.185481544420542
+      },
+      {
+        "type": 3,
+        "phase": "measured",
+        "ordinal": 8,
+        "arm": "half",
+        "samples": 7,
+        "flagged": 1,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.17910447761194026,
+        "peak_disk_busy": 0.06511800032732555,
+        "peak_other_cpu_cores": 1.185481544420542
+      },
+      {
+        "type": 2,
+        "phase": "warmup",
+        "ordinal": 0,
+        "arm": "main",
+        "samples": 6,
+        "flagged": 3,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.17395944503735328,
+        "peak_disk_busy": 0.0803955646671682,
+        "peak_other_cpu_cores": 0.9971217338510097
+      },
+      {
+        "type": 2,
+        "phase": "warmup",
+        "ordinal": 1,
+        "arm": "half",
+        "samples": 5,
+        "flagged": 3,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.17395944503735328,
+        "peak_disk_busy": 0.011706046158489528,
+        "peak_other_cpu_cores": 0.9971217338510097
+      },
+      {
+        "type": 2,
+        "phase": "warmup",
+        "ordinal": 2,
+        "arm": "q5",
+        "samples": 7,
+        "flagged": 1,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.18086225026288116,
+        "peak_disk_busy": 0.08624764750440062,
+        "peak_other_cpu_cores": 0.9499746611038007
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 0,
+        "arm": "main",
+        "samples": 6,
+        "flagged": 4,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.1697905181918412,
+        "peak_disk_busy": 0.013889170094040523,
+        "peak_other_cpu_cores": 0.9375189813477356
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 1,
+        "arm": "half",
+        "samples": 6,
+        "flagged": 3,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.17524644030668124,
+        "peak_disk_busy": 0.06654988259835051,
+        "peak_other_cpu_cores": 1.1051859578094343
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 2,
+        "arm": "q5",
+        "samples": 6,
+        "flagged": 3,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.1909492273730684,
+        "peak_disk_busy": 0.015788370825849062,
+        "peak_other_cpu_cores": 1.2865879241321152
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 3,
+        "arm": "half",
+        "samples": 6,
+        "flagged": 4,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.18579234972677594,
+        "peak_disk_busy": 0.09638808194899381,
+        "peak_other_cpu_cores": 1.6634339934319908
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 4,
+        "arm": "q5",
+        "samples": 6,
+        "flagged": 6,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.1535087719298246,
+        "peak_disk_busy": 0.08086867158957123,
+        "peak_other_cpu_cores": 1.6634339934319908
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 5,
+        "arm": "main",
+        "samples": 7,
+        "flagged": 7,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.15842696629213482,
+        "peak_disk_busy": 0.08086867158957123,
+        "peak_other_cpu_cores": 1.506755249223978
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 6,
+        "arm": "q5",
+        "samples": 6,
+        "flagged": 6,
+        "flags": [
+          "disk",
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.15842696629213482,
+        "peak_disk_busy": 9.090807520821695,
+        "peak_other_cpu_cores": 1.506755249223978
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 7,
+        "arm": "main",
+        "samples": 6,
+        "flagged": 6,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.13916947250280587,
+        "peak_disk_busy": 0.012367378570504163,
+        "peak_other_cpu_cores": 1.2544055407225652
+      },
+      {
+        "type": 2,
+        "phase": "measured",
+        "ordinal": 8,
+        "arm": "half",
+        "samples": 6,
+        "flagged": 6,
+        "flags": [
+          "other_nonproduction_gpu"
+        ],
+        "peak_cpu_busy": 0.15701559020044542,
+        "peak_disk_busy": 0.08126691690003664,
+        "peak_other_cpu_cores": 1.2220213370135111
+      }
+    ]
+  },
+  "raw_artifacts": {
+    "activity-summary.json": "45f29a9a3b3f6603699696d32dcbf60df93db05cd65e099bb5d9f7e4db6966fb",
+    "activity.jsonl": "916bcad8266c0a2faaa977b1a1fe757ff4bbf68b26e29f673a1955711ef4c5c6",
+    "case-summary.json": "5cbc8272c9494a5a0f29546385370c09eb229e529100a908a1e2daf4017f2e3d",
+    "manifest.json": "21c323bb70590465556c60f11c27c78893feaf7a69f73050c25f8b9081a5fdc1",
+    "runs.json": "aa5ffac7e3e92efc49e8b1385a75b0e609a1c3647baa79b309218308c3ec4dbf"
+  },
+  "raw_root": "/zpool1/llmx-xdev-quant-20261020/q5-integration-screen-5a99",
+  "interpretation": [
+    "Q4_1 12288x2048 n4 device medians main/half/Q5: 180.8/180.4/181.0 us; the earlier 255-256 us shared-row regression is absent.",
+    "Q4_0 at the same shape: 179.6/179.4/179.6 us.",
+    "All 82 cells and planned samples retained; unrelated nonproduction GPU activity and one disk flag retained.",
+    "Most small differences remain within the declared unresolved band; no same-owner layout control yet.",
+    "Integer prompt-tile coverage was missing: old benchmark used at most 8 dense columns and 32 routed tokens across 128 experts.",
+    "The F32 router prompt cell cannot prove Q4 integer-tile performance."
+  ]
+}

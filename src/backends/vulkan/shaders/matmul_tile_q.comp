@@ -321,6 +321,7 @@ void main() {
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
         }
 #else
+#ifndef LLMX_Q5
         if (p.type == TYPE_Q4_K || p.type == TYPE_Q5_K) {
             // Q4_K, 144-byte blocks: block 32 is group g of a 256-value block; its nibbles are the low or high halves of 32 word-aligned bytes, so a quant word is one load, a shift and a mask.
             // Q5_K, 176-byte blocks: the same with a fifth bit per value, bit g of 32 word-aligned high-bit bytes before the nibbles; both take their scales from the 16-byte head of the 256-value block (two half scales, twelve packed sub-scale bytes).
@@ -350,18 +351,29 @@ void main() {
             scale_min_k4_words(h.yzw, ks & 7u, sc, mn);
             store_scales(wrow, wseg, oks, vec4(dd.x * float(sc), dd.x * float(sc), dd.y * float(mn), 0.0));
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
-        } else {
+        } else
+#endif
+        {
             // Q4_0, 18-byte blocks: a half scale, then 16 bytes whose low nibbles are values 0 to 15 and high nibbles 16 to 31; the offset of 8 goes into each byte, and the words are funnelled when they straddle.
             // Q4_1, 20-byte blocks: a half scale and a half minimum stored negated since it is added, then Q4_0's nibbles without the offset; staged words w and w + 4 are the low and high nibbles of one source word, so a thread takes source words whole.
             const uint SPT = WW >= 2u ? WW / 2u : 1u;   // source words a thread takes
-            bool affine = p.type != TYPE_Q4_0, q51 = p.type == TYPE_Q5_1;
-            uint bytes = block_bytes(p.type), qoff = q51 ? 8u : affine ? 4u : 2u;
+#ifdef LLMX_Q5
+            const bool q41 = true;
+            const uint bytes = Q5_1_BYTES, qoff = 8u;
+#else
+            bool q41 = p.type == TYPE_Q4_1;
+            uint bytes = q41 ? Q4_1_BYTES : Q4_0_BYTES, qoff = q41 ? 4u : 2u;
+#endif
             uint qv[STEP][SPT][2];
+#ifdef LLMX_Q5
             uint high[STEP];
+#endif
             for (uint s = 0u; s < STEP; ++s) {
                 uint kb = k0 + s;
                 uint q0 = (row < nout && kb < kend ? (wr * nblk + kb) * bytes : 0u) + qoff;
-                high[s] = q51 ? ws[pi].w32[(q0 - 4u) >> 2u] : 0u;
+#ifdef LLMX_Q5
+                high[s] = ws[pi].w32[(q0 - 4u) >> 2u];
+#endif
                 for (uint m = 0u; m < SPT; ++m) {
                     uint i = (q0 >> 2u) + (WW >= 2u ? wseg * SPT + m : (wseg & 3u));
                     qv[s][m][0] = ws[pi].w32[i];
@@ -380,20 +392,22 @@ void main() {
                     for (uint h = 0u; h < 2u; ++h) {
                         if (WW < 2u && h != (wseg >> 2u)) continue;
                         uint b = (nw >> (4u * h)) & 0x0F0F0F0Fu;
-                        if (q51) {
+#ifdef LLMX_Q5
+                        {
                             uint bits = high[s] >> (4u * w + 16u * h);
                             b |= ((bits & 1u) << 4u) | ((bits & 2u) << 11u) |
                                  ((bits & 4u) << 18u) | ((bits & 8u) << 25u);
                         }
+#endif
                         // Q4_0's b - 8 per byte: flipping bit 3 gives b - 8 or b + 8, and a set bit 3 then means negative, so it is copied into bits 4 to 7.
                         uint t = b ^ 0x08080808u, neg = t & 0x08080808u;
-                        uint v = affine ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
+                        uint v = q41 ? b : t | (neg << 1u) | (neg << 2u) | (neg << 3u) | (neg << 4u);
                         wq[s * 8u + w + 4u * h][wrow] = WIDEN(ok ? v : 0u);
                     }
                 }
             }
-            vec2 dm = unpackHalf2x16(!affine && (os & 3u) != 0u ? sw >> 16u : sw);
-            store_scales(wrow, wseg, oks, affine ? vec4(dm.x, dm.x, -dm.y, 0.0) : vec4(dm.x, dm.x, 0.0, 0.0));
+            vec2 dm = unpackHalf2x16(!q41 && (os & 3u) != 0u ? sw >> 16u : sw);
+            store_scales(wrow, wseg, oks, q41 ? vec4(dm.x, dm.x, -dm.y, 0.0) : vec4(dm.x, dm.x, 0.0, 0.0));
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
         }
 #endif

@@ -2385,7 +2385,7 @@ size_t check_weight_dispatch() {
     const Expected cases[] = {{0, "matmul_row_f32", ""}, {1, "matmul_row_wf16", ""}, {30, "matmul_row_wbf16", ""},
         {8, "matmul_row_q8w", "matmul_tile_q8"},
         {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
-        {7, "matmul_row_q5", "matmul_tile_q"},
+        {7, "matmul_row_q5", "matmul_tile_q5"},
         {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
         {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
     size_t checks = 0;
@@ -2457,6 +2457,55 @@ size_t check_weight_dispatch() {
                     }
                 }
             }
+        }
+    }
+    if (p.prefer_integer_dot) {
+        // A tall output with a final partial tile reaches the separate Q5 pipeline
+        // specialization on the tuned integer-dot device. Raw affine blocks and a
+        // one-hot input keep this oracle independent of the runtime's decoder.
+        const size_t nin = 256, nout = 65537, stride = 8 * 24;
+        std::vector<uint8_t> packed(nout * stride, 0);
+        std::vector<float> input(nin, 0), output(nout + 2, 19.0f);
+        input.back() = 0.5f;
+        for (size_t r = 0; r < nout; ++r) {
+            const uint8_t code = uint8_t(r % 32);
+            for (size_t k = 0; k < 8; ++k) {
+                auto* b = packed.data() + r * stride + k * 24;
+                b[1] = r % 2 ? 0xbc : 0x3c; // scale -1 or +1
+                b[3] = 0xbc;                // minimum -1
+                std::fill(b + 4, b + 8, code & 16 ? uint8_t(255) : uint8_t(0));
+                std::fill(b + 8, b + 24, uint8_t((code & 15) * 17));
+            }
+        }
+        const uint32_t id = 0;
+        const auto w = vk.adopt(packed.data(), packed.size()), x = vk.adopt(input.data(), nin * sizeof(float));
+        const auto ids = vk.adopt(&id, sizeof(id)), y = vk.alloc(output.size() * sizeof(float));
+        for (auto dtype : {backend::Dtype::f16, backend::Dtype::int8}) for (bool routed : {false, true}) {
+            vk.write(*y, 0, output.data(), output.size() * sizeof(float));
+            const backend::RowRun run{1, routed ? p.moe_tile_from_q4 : p.tile_from_other_narrow};
+            (void)backend::vulkan_kernel_times(vk);
+            if (routed) {
+                const backend::Backend::Routing routing{{ids.get(), 0}, {}, 1, 1};
+                vk.matmul_experts({{7, {w.get(), 0}, {y.get(), 1}, nout}}, {x.get(), 0}, nin, 1, routing, {&run, 1}, dtype);
+            } else vk.matmul(7, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, nin, nout, 1, {&run, 1}, dtype);
+            const auto times = backend::vulkan_kernel_times(vk);
+            const std::string expected = dtype == backend::Dtype::int8 ? "matmul_tile_q5i8" : "matmul_tile_q5";
+            size_t products = 0;
+            for (const auto& entry : times) {
+                if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
+                require(entry.first == expected || entry.first == expected + "_tall", "Q5 affine tail did not use its integer tile");
+                std::cout << "backend-vulkan: Q5 affine tail " << (routed ? "routed " : "dense ") << entry.first << "\n";
+                ++products;
+            }
+            require(products == 1, "Q5 affine tail has no unique tile witness");
+            vk.read(*y, 0, output.data(), output.size() * sizeof(float));
+            require(output.front() == 19.0f && output.back() == 19.0f, "Q5 affine tile changed a guard");
+            for (size_t r = 0; r < nout; ++r) {
+                const float want = 0.5f * ((r % 2 ? -1.0f : 1.0f) * float(r % 32) - 1.0f);
+                require(std::abs(output[r + 1] - want) <= std::abs(want) / 32767.0f + 2e-6f,
+                        "Q5 affine tile tail differs from independent signed scale/high-plane values");
+            }
+            checks += nout;
         }
     }
     for (uint32_t type : {4u, 10u, 25u, 42u, 43u, UINT32_MAX}) {

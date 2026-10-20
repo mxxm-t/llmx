@@ -183,7 +183,7 @@ output with `quantize` requires the shape rules above: GGUF can also hold scalar
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
 The decoder types are F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_1, Q4_K, Q5_K, Q6_K, IQ4_NL and MXFP4.
 F16 and BF16 are widened exactly; `quantize` does not write either format.
-IQ4_NL is read-only on the CPU, with primitive, tiny/0.6B file-exact HF, native, existing-type byte-identity and hosted coverage recorded at support `24349888`. STATUS retains the assessed performance tradeoffs and earlier device-suite scopes; original-weight quality approval and eventual landing-head checks remain pending. Vulkan development support uses block-int16 signed lookup rows on lookup-dot device profiles and tiles where the device prefers integer tiles, with wider F32 otherwise and the existing rounded-input tile under BF16. Radeon VII keeps F32 prompt tiles after its measured integer-tile regression. Final Vulkan qualification remains open.
+IQ4_NL is read-only on the CPU and supported Vulkan profiles. The published implementation uses block-int16 signed-lookup rows on lookup-dot profiles and tiles where the device prefers integer tiles, with wider F32 otherwise and the existing rounded-input tile under BF16; Radeon VII keeps F32 prompt tiles after its measured integer-tile regression. The 0.6B file-exact checks include CPU, MI50 and Radeon coverage. Remaining speed work, original-weight quality approval and exclusion of IQ4_NL real files from the hosted HF download gate are recorded in STATUS.
 A known storage layout without a decoder, including Q2_K, is refused
 by tensor name before mapping the payload or allocating decoded buffers;
 existing output files remain unchanged.

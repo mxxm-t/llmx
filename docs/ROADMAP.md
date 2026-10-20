@@ -29,8 +29,8 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
-- `IQ4_NL` has a read-only CPU decoder and fused float decode-row dot, with raw-format/native checks, independent tiny and 0.6B file-exact HF coverage. Original-weight quality approval and hosted download-gate inclusion remain pending. Vulkan has block-int16 signed lookup rows on lookup-dot profiles and tiles where the device prefers integer tiles, with wider float products as fallback; performance and device qualification remain open. `IQ4_XS` remains unimplemented; the separate F16 packed-dot work does not implement it.
-- Next, planned in `docs/STATUS-2026-09.md` (Quantization coverage): complete `F16` and `BF16` weight qualification on the CPU and Vulkan, then `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only. CPU and Vulkan half-weight decoders and widening products are implemented; their remaining gates are in STATUS. Activation dtype support is separate from these weight formats.
+- `IQ4_NL` support is published for CPU and Vulkan through the existing decoder and matrix owners, with raw-format/native, tiny and 0.6B file-exact HF checks. Its released-file and 16K checks are recorded in STATUS. Original-weight quality approval and hosted download-gate inclusion remain pending; new-type speed deficits remain follow-up work. Vulkan uses block-int16 signed-lookup rows on lookup-dot profiles and integer tiles where preferred, with wider float products as fallback. `IQ4_XS` remains unimplemented; the separate F16 packed-dot work does not implement it.
+- `F16` and `BF16` read-only weight support is published on CPU and Vulkan; the current storage, twin and released-file evidence is recorded in STATUS. Next unimplemented read-only formats are `IQ4_XS`, `Q3_K` and `Q2_K`. Activation dtype support is separate from these weight formats.
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
   MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
   They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
@@ -38,7 +38,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   Each type must meet the six conditions listed there.
 - The lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not planned: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
   `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS-2026-09.md`, Quantization coverage, question 11).
-  `Q5_1` is in development alongside IQ4_NL, requested 2026-10-20. Q5_0 and the remaining formats follow; the September deferral is historical.
+  `Q5_1` support was published on 2026-10-20. `Q5_0` remains unsupported for inference on current main and is being developed separately; the September deferral is historical.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
@@ -280,7 +280,7 @@ make a model usable: its architecture and tokenizer must also be implemented.
   schema, integer-range, tensor-extent and dtype checks before exposing data.
   No new dependency; see #3.
 - **BF16 / F16 tensors**: most HF safetensors are BF16.
-  `core/fp16.hpp` and `core/bf16.hpp` own conversion to and from F32. Their weight layouts have read-only decoder registry entries and CPU and Vulkan products that widen exactly to F32; release qualification remains under the quantization plan (#1).
+  `core/fp16.hpp` and `core/bf16.hpp` own conversion to and from F32. Their weight layouts have read-only decoder registry entries and CPU and Vulkan products that widen exactly to F32; GGUF weight support is published, while a native safetensors reader remains separate work.
   The native safetensors path will reuse those decoders and kernels; adding GGUF weight support does not implement a safetensors reader.
 - **`tokenizer.json`**: the HF tokenizer format. `bpe::Tokenizer` reads only
   GGUF-embedded `tokenizer.ggml.*`, so safetensors repos have no tokenizer path

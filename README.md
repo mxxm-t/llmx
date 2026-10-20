@@ -13,7 +13,7 @@ The tables below list models, file formats, quantization types, backends and mul
 | `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | Supported |
 | `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported, prefix reuse for follow-up turns |
 | `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | Supported, prefix reuse for follow-up turns |
-| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0, with its MTP drafter | Released-file CPU qualification pending | Supported | Supported, prefix reuse for follow-up turns |
+| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0 (released-file HF) and UD-Q4_K_XL (bounded serving smoke with Q8_0 MTP sidecar) | Released-file CPU qualification pending | Supported | Supported, prefix reuse for follow-up turns |
 | Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned |
 
 Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS.md) lists what is covered.

@@ -299,11 +299,7 @@ The step numbers are those of the plan in STATUS-2026-09.
 Type refusals below concern inference. `info`, `tokenize` and `detokenize`
 can open the known storage layouts, including BF16, F16, IQ4_NL and Q5_1,
 without those execution kernels; unknown type IDs are still refused at open.
-CPU and Vulkan F16/BF16 matrix support is implemented. Qwen3 dense/MoE,
-pinned BF16/F32 identity and device development checks are recorded in STATUS,
-alongside the remaining 30B correctness, memory and final integration gates.
-Those checks do not qualify every Qwen 3.5 family half-weight file. The table
-below retains the originally planned handling of those files.
+CPU and Vulkan F16/BF16 matrix support is published, as are Q5_1 and IQ4_NL. STATUS records the feature-level qualification and remaining performance work. The table below retains the per-model qualification history for larger Qwen3.5 files; a passed type-level gate does not establish every listed model file.
 
 | files | arch | tensor types | handling |
 |---|---|---|---|
@@ -314,10 +310,10 @@ below retains the originally planned handling of those files.
 | Qwen3.6-27B-MXFP4 (all 498 matrices MXFP4); Qwen3.6-35B-A3B-MXFP4 (120 expert tensors MXFP4, the rest Q8_0) | qwen35, qwen35moe | MXFP4 | awaits completed MXFP4 qualification and step 10; the private Vulkan dtype integration is not validation of these models; both are requantized from other quants, so they only compare one runtime with another on the same file |
 | Qwen3.6-35B-A3B-IQ4_NL (381 IQ4_NL tensors, plus Q5_K and Q6_K) | qwen35moe | IQ4_NL | CPU and initial Vulkan primitives implemented but this file is not qualified; real-file qualification remains in step 10 |
 | Qwen3.6-27B revision 6a9e13bd BF16 (50.9 GiB, with an MTP block); Qwen3.8-27B-UD-Q8_K_XL (BF16 `attn_q`, `attn_k`, `attn_v`, `output` and `eh_proj`); Qwen3.5-35B-A3B-UD-Q8_K_XL (311 BF16 tensors); Qwen3.6-35B-A3B-MTP Q8_0 and UD-Q4_K_XL (BF16 only in the MTP block's router and shared expert's gate; the UD-Q4_K_XL stores `ssm_alpha` and `ssm_beta` in F32); Qwen3.5-122B-A10B-UD-Q8_K_XL (F16, with an F16 `token_embd` and a Q8_0 `output`) | qwen35, qwen35moe | BF16, F16 | F16/BF16 CPU and Vulkan weight paths are implemented; released-file qualification remains tracked in STATUS |
-| Qwen3.6-27B-Q5_1 (497 Q5_1 tensors) | qwen35 | Q5_1 | Q5_1 CPU/Vulkan execution is in development; this released file still needs its model qualification (STATUS) |
+| Qwen3.6-27B-Q5_1 (497 Q5_1 tensors) | qwen35 | Q5_1 | Q5_1 CPU/Vulkan execution is published; this particular released file still needs its own model qualification (STATUS) |
 | Qwen3.6-27B revision 6a9e13bd Q4_S8X and Q4_H2I2-imatrix | qwen35 | type id 53, which is not a ggml type (experimental repacked quants) | refused as an unknown type |
 | Qwen3.6-35B-A3B-DFlash Q8_0 (6 blocks, block size 16, target layers 2, 7, ..., 38, a 4096-token sliding window on 5 of 6 layers); Qwen3.8-27B-DFlash2 Q8_0 (5 blocks, block size 8, non-causal attention, conv kernel 2, a selector of rank 256 at top 16, target layers 6, 20, 34, 48 and 62, a 2048-token window) | dflash | Q8_0 | another architecture: drafters that read the target's hidden rows from chosen layers; DFlash2 is step 5 of the speculative decoding plan in STATUS, and DFlash1 follows only if that plan measures a gain on the MoE target |
-| Qwen3.8-Flash-Next | qwen4exp | Q8_0, UD-Q4_K_XL | another architecture, its own module (`model/arch/qwen4exp.hpp`); the Q8_0 is qualified under the released-file contract of the [text-support plan](QWEN38-FLASH.md), section 6; the UD-Q4_K_XL's IQ4_NL per-layer embedding table is refused, naming the type |
+| Qwen3.8-Flash-Next | qwen4exp | Q8_0, UD-Q4_K_XL | another architecture, its own module (`model/arch/qwen4exp.hpp`); the Q8_0 is qualified under the released-file contract of the [text-support plan](QWEN38-FLASH.md), section 6. An earlier checkpoint reported the Q4 file's IQ4_NL table refused; the published runtime now completes a bounded four-GPU serving smoke with the same Q4_K_XL shards, Q8_0 MTP sidecar and `--lookup-storage file` (STATUS). That smoke is not HF or quantization-quality qualification for the Q4 file |
 
 The chat templates in these GGUFs are Unsloth's edits of the official templates.
 

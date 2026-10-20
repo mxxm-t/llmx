@@ -1,0 +1,3576 @@
+{
+  "scope": "Matched four-MI50 Flash Q4 server P4096/G256, MTP on, llmx int8 versus mx ROCm.",
+  "matrix": {
+    "start": 1792514993.892327,
+    "plan": {
+      "reviewed": true,
+      "window_seconds": 1320,
+      "configs": [
+        "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/matched-layer.json",
+        "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/matched-staged2x2.json",
+        "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/matched-tp4.json"
+      ],
+      "scope": "Prepared only; requires explicit new up-to25minute production pause, exact restoration."
+    },
+    "runs": [
+      {
+        "config": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/matched-layer.json",
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-layer",
+        "start": 1792514993.892421,
+        "exit": 0,
+        "end": 1792515195.0834641
+      },
+      {
+        "config": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/matched-staged2x2.json",
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-staged2x2",
+        "start": 1792515195.0839446,
+        "exit": 1,
+        "end": 1792515202.568701
+      }
+    ],
+    "passed": false,
+    "end": 1792515202.5688863
+  },
+  "continuation": {
+    "start": 1792515488.4098895,
+    "plan": {
+      "reviewed": true,
+      "window_seconds": 1090,
+      "configs": [
+        "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/continued-tp4.json",
+        "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/continued-staged2x2.json"
+      ],
+      "prior_pause_seconds": 230,
+      "remaining_pause_seconds": 1270,
+      "scope": "Authorized continuation of unfinished cells only; prior layer results and staged GPU-OOM retained."
+    },
+    "runs": [
+      {
+        "config": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/continued-tp4.json",
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-tp4",
+        "start": 1792515488.410013,
+        "exit": 0,
+        "end": 1792516057.9399931
+      },
+      {
+        "config": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/continued-staged2x2.json",
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-staged2x2-host-ple",
+        "start": 1792516057.9407763,
+        "exit": 0,
+        "end": 1792516382.7453773
+      }
+    ],
+    "passed": true,
+    "end": 1792516382.745893
+  },
+  "topologies": {
+    "layer": {
+      "evidence": {
+        "directory": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-layer",
+        "state_file": "complete.json",
+        "complete": true,
+        "run_passed": true,
+        "run_error": null,
+        "errors": [],
+        "missing_measured_requests": [],
+        "measured_row_count": 6,
+        "thresholds": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5,
+          "unrelated_process_cpu_above_pct_one_core": 100,
+          "whole_disk_bytes_per_second_above": 50000000
+        },
+        "rows": [
+          {
+            "arm": "llmx",
+            "label": "warmup",
+            "measured": false,
+            "start": 1792515031.7254436,
+            "end": 1792515048.819189,
+            "duration_seconds": 17.093745470046997,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 369.343,
+            "raw_tg": 42.531,
+            "raw_predicted_n": 255,
+            "prompt_ms": 11089.961,
+            "predicted_ms": 5995.633,
+            "after_first_tg_255": 42.5309554470729,
+            "output_sha256": "0264bf7adc9301fd82b62a6690292817d23efa94c3398b8a04b795af84c9ad9b",
+            "prompt_token_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 123,
+              "kept": 111,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 99,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792514997.791579,
+              "last_sample": 1792515095.808567,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 19,
+              "mean": {
+                "cpu_busy_pct": 3.14325633021161,
+                "cpu_system_pct": 1.8100237680748037,
+                "cpu_idle_pct": 96.76532794146281,
+                "iowait_pct": 0.09141572832556756,
+                "unrelated_cpu_pct_one_core": 16.98028504051257,
+                "whole_disk_read_write_bytes_per_second": 5587140.299189833
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 17.093745470046997,
+                "cpu_system_pct": 17.093745470046997,
+                "cpu_idle_pct": 17.093745470046997,
+                "iowait_pct": 17.093745470046997,
+                "unrelated_cpu_pct_one_core": 17.093745470046997,
+                "whole_disk_read_write_bytes_per_second": 17.093745470046997
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 1
+              },
+              "process_coverage": {
+                "missed_reads": 3,
+                "appeared": 72,
+                "disappeared": 58,
+                "new_without_cpu_delta": 72,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 46.34781294700226,
+                  "sampled_seconds": 17.093745470046997,
+                  "maximum_sampled_vram_bytes": 21061001216
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 58.125428325410915,
+                  "sampled_seconds": 17.093745470046997,
+                  "maximum_sampled_vram_bytes": 26142728192
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 64.49271271981502,
+                  "sampled_seconds": 17.093745470046997,
+                  "maximum_sampled_vram_bytes": 22248665088
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 52.06452719046496,
+                  "sampled_seconds": 17.093745470046997,
+                  "maximum_sampled_vram_bytes": 20798844928
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-1",
+            "measured": true,
+            "start": 1792515048.8289757,
+            "end": 1792515065.0424528,
+            "duration_seconds": 16.21347713470459,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 389.821,
+            "raw_tg": 44.727,
+            "raw_predicted_n": 255,
+            "prompt_ms": 10507.376,
+            "predicted_ms": 5701.267,
+            "after_first_tg_255": 44.72690017850418,
+            "output_sha256": "55829e798a0d7b07e77a32793d99730e8eade7862933a563493924b5a351f9cb",
+            "prompt_token_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 135,
+              "kept": 109,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 99,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792514997.791579,
+              "last_sample": 1792515095.808567,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 17,
+              "mean": {
+                "cpu_busy_pct": 2.6007458817147167,
+                "cpu_system_pct": 1.7480681689631898,
+                "cpu_idle_pct": 97.33265164977858,
+                "iowait_pct": 0.06660246850669314,
+                "unrelated_cpu_pct_one_core": 15.82592883553237,
+                "whole_disk_read_write_bytes_per_second": 2582881.1638274165
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 16.21347713470459,
+                "cpu_system_pct": 16.21347713470459,
+                "cpu_idle_pct": 16.21347713470459,
+                "iowait_pct": 16.21347713470459,
+                "unrelated_cpu_pct_one_core": 16.21347713470459,
+                "whole_disk_read_write_bytes_per_second": 16.21347713470459
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 3,
+                "appeared": 47,
+                "disappeared": 46,
+                "new_without_cpu_delta": 47,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 62.691414207452794,
+                  "sampled_seconds": 16.21347713470459,
+                  "maximum_sampled_vram_bytes": 21043404800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 61.08501115489073,
+                  "sampled_seconds": 16.21347713470459,
+                  "maximum_sampled_vram_bytes": 26125139968
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 61.269681475211286,
+                  "sampled_seconds": 16.21347713470459,
+                  "maximum_sampled_vram_bytes": 22231072768
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 49.127002029226055,
+                  "sampled_seconds": 16.21347713470459,
+                  "maximum_sampled_vram_bytes": 20781248512
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-2",
+            "measured": true,
+            "start": 1792515065.0530398,
+            "end": 1792515080.8840663,
+            "duration_seconds": 15.831026554107666,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 407.042,
+            "raw_tg": 44.237,
+            "raw_predicted_n": 255,
+            "prompt_ms": 10062.837,
+            "predicted_ms": 5764.407,
+            "after_first_tg_255": 44.23698742992991,
+            "output_sha256": "97555f49c67595341dd088e71435ff7ced30b9d57f346739860c6a3138581348",
+            "prompt_token_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 196,
+              "kept": 124,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 99,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792514997.791579,
+              "last_sample": 1792515095.808567,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 17,
+              "mean": {
+                "cpu_busy_pct": 2.2708288706307114,
+                "cpu_system_pct": 1.5084774859414118,
+                "cpu_idle_pct": 97.65759454382916,
+                "iowait_pct": 0.07157658554012941,
+                "unrelated_cpu_pct_one_core": 15.24132066067985,
+                "whole_disk_read_write_bytes_per_second": 2925027.616089773
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 15.831026554107666,
+                "cpu_system_pct": 15.831026554107666,
+                "cpu_idle_pct": 15.831026554107666,
+                "iowait_pct": 15.831026554107666,
+                "unrelated_cpu_pct_one_core": 15.831026554107666,
+                "whole_disk_read_write_bytes_per_second": 15.831026554107666
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 1,
+                "appeared": 53,
+                "disappeared": 52,
+                "new_without_cpu_delta": 53,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 67.42317443677602,
+                  "sampled_seconds": 15.831026554107666,
+                  "maximum_sampled_vram_bytes": 21043404800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 56.754305646172,
+                  "sampled_seconds": 15.831026554107666,
+                  "maximum_sampled_vram_bytes": 26125139968
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 57.449445602055825,
+                  "sampled_seconds": 15.831026554107666,
+                  "maximum_sampled_vram_bytes": 22231072768
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 50.27855957166836,
+                  "sampled_seconds": 15.831026554107666,
+                  "maximum_sampled_vram_bytes": 20781248512
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-3",
+            "measured": true,
+            "start": 1792515080.8940828,
+            "end": 1792515096.6222441,
+            "duration_seconds": 15.728161334991455,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 398.681,
+            "raw_tg": 46.795,
+            "raw_predicted_n": 255,
+            "prompt_ms": 10273.866,
+            "predicted_ms": 5449.244,
+            "after_first_tg_255": 46.795482088891596,
+            "output_sha256": "db23e323256b74a590ef3525fc293bceea533c60f10c7786a433a2b45800f279",
+            "prompt_token_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 227,
+              "kept": 141,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 99,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792514997.791579,
+              "last_sample": 1792515095.808567,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0.8136770725250244
+            },
+            "activity": {
+              "intervals": 15,
+              "mean": {
+                "cpu_busy_pct": 2.634548624598385,
+                "cpu_system_pct": 1.730744225493285,
+                "cpu_idle_pct": 97.32088937800498,
+                "iowait_pct": 0.04456199739665148,
+                "unrelated_cpu_pct_one_core": 17.25927259277582,
+                "whole_disk_read_write_bytes_per_second": 719725.4987990366
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 14.91448426246643,
+                "cpu_system_pct": 14.91448426246643,
+                "cpu_idle_pct": 14.91448426246643,
+                "iowait_pct": 14.91448426246643,
+                "unrelated_cpu_pct_one_core": 14.91448426246643,
+                "whole_disk_read_write_bytes_per_second": 14.91448426246643
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 5,
+                "appeared": 48,
+                "disappeared": 45,
+                "new_without_cpu_delta": 48,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 66.77823562264274,
+                  "sampled_seconds": 14.91448426246643,
+                  "maximum_sampled_vram_bytes": 21043404800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 52.2030241569134,
+                  "sampled_seconds": 14.91448426246643,
+                  "maximum_sampled_vram_bytes": 26125139968
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 53.00821037114,
+                  "sampled_seconds": 14.91448426246643,
+                  "maximum_sampled_vram_bytes": 22231072768
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 46.883528552655186,
+                  "sampled_seconds": 14.91448426246643,
+                  "maximum_sampled_vram_bytes": 20781248512
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "warmup",
+            "measured": false,
+            "start": 1792515139.0776656,
+            "end": 1792515154.5395885,
+            "duration_seconds": 15.461922883987427,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 430.63895213431226,
+            "raw_tg": 42.992109177702574,
+            "raw_predicted_n": 256,
+            "prompt_ms": 9511.448,
+            "predicted_ms": 5931.321,
+            "after_first_tg_255": 42.992109177702574,
+            "output_sha256": "ab17aa4cd0e6e53ff27ae6af7b7383d223622cb86b5648c24a4c7de763c9dbf5",
+            "prompt_token_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79",
+            "mtp": {
+              "drafted": 192,
+              "kept": 158,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 94,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515100.568415,
+              "last_sample": 1792515193.581161,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 16,
+              "mean": {
+                "cpu_busy_pct": 16.018284744664147,
+                "cpu_system_pct": 6.655145416096319,
+                "cpu_idle_pct": 83.8065320081598,
+                "iowait_pct": 0.1751832471760594,
+                "unrelated_cpu_pct_one_core": 66.07957961664034,
+                "whole_disk_read_write_bytes_per_second": 1778191893.2857435
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 15.461922883987427,
+                "cpu_system_pct": 15.461922883987427,
+                "cpu_idle_pct": 15.461922883987427,
+                "iowait_pct": 15.461922883987427,
+                "unrelated_cpu_pct_one_core": 15.461922883987427,
+                "whole_disk_read_write_bytes_per_second": 15.461922883987427
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 10
+              },
+              "process_coverage": {
+                "missed_reads": 3,
+                "appeared": 57,
+                "disappeared": 54,
+                "new_without_cpu_delta": 57,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 71.14498896371823,
+                  "sampled_seconds": 15.461922883987427,
+                  "maximum_sampled_vram_bytes": 21249384448
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 71.22397492567886,
+                  "sampled_seconds": 15.461922883987427,
+                  "maximum_sampled_vram_bytes": 24253415424
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 31.213437456559745,
+                  "sampled_seconds": 15.461922883987427,
+                  "maximum_sampled_vram_bytes": 23383973888
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 38.77898547623932,
+                  "sampled_seconds": 15.461922883987427,
+                  "maximum_sampled_vram_bytes": 20966260736
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-1",
+            "measured": true,
+            "start": 1792515154.5566545,
+            "end": 1792515168.18263,
+            "duration_seconds": 13.625975608825684,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 636.0796621447967,
+            "raw_tg": 35.556299216715644,
+            "raw_predicted_n": 256,
+            "prompt_ms": 6439.445,
+            "predicted_ms": 7171.725,
+            "after_first_tg_255": 35.556299216715644,
+            "output_sha256": "4bd2ec71a67311ab1465051d13b00d8870d27ca427afc58cd86a5e8ed77899ae",
+            "prompt_token_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3",
+            "mtp": {
+              "drafted": 224,
+              "kept": 143,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 94,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515100.568415,
+              "last_sample": 1792515193.581161,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 14,
+              "mean": {
+                "cpu_busy_pct": 15.780028843968925,
+                "cpu_system_pct": 6.05963488191292,
+                "cpu_idle_pct": 83.98994661984858,
+                "iowait_pct": 0.23002453618249466,
+                "unrelated_cpu_pct_one_core": 57.9709445643919,
+                "whole_disk_read_write_bytes_per_second": 1813328195.7094576
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 13.625975608825684,
+                "cpu_system_pct": 13.625975608825684,
+                "cpu_idle_pct": 13.625975608825684,
+                "iowait_pct": 13.625975608825684,
+                "unrelated_cpu_pct_one_core": 13.625975608825684,
+                "whole_disk_read_write_bytes_per_second": 13.625975608825684
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 12
+              },
+              "process_coverage": {
+                "missed_reads": 10,
+                "appeared": 43,
+                "disappeared": 53,
+                "new_without_cpu_delta": 43,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 44.018029995511576,
+                  "sampled_seconds": 13.625975608825684,
+                  "maximum_sampled_vram_bytes": 21249511424
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 57.72675587916492,
+                  "sampled_seconds": 13.625975608825684,
+                  "maximum_sampled_vram_bytes": 24253526016
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 14.71622329176964,
+                  "sampled_seconds": 13.625975608825684,
+                  "maximum_sampled_vram_bytes": 23384113152
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 29.310760102047393,
+                  "sampled_seconds": 13.625975608825684,
+                  "maximum_sampled_vram_bytes": 20966387712
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-2",
+            "measured": true,
+            "start": 1792515168.196466,
+            "end": 1792515180.3928926,
+            "duration_seconds": 12.196426630020142,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 747.4617596483426,
+            "raw_tg": 38.036799932697235,
+            "raw_predicted_n": 256,
+            "prompt_ms": 5479.879,
+            "predicted_ms": 6704.034,
+            "after_first_tg_255": 38.03679993269724,
+            "output_sha256": "29306f8003dfae9aa7cc1d562c36ce16b16230279c74db6424710c6e9ad969ac",
+            "prompt_token_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2",
+            "mtp": {
+              "drafted": 215,
+              "kept": 147,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 94,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515100.568415,
+              "last_sample": 1792515193.581161,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 13,
+              "mean": {
+                "cpu_busy_pct": 15.517657594035082,
+                "cpu_system_pct": 5.228981579405086,
+                "cpu_idle_pct": 84.29915967051504,
+                "iowait_pct": 0.18318273544986707,
+                "unrelated_cpu_pct_one_core": 48.22409636289171,
+                "whole_disk_read_write_bytes_per_second": 1467184941.5462053
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 12.196426630020142,
+                "cpu_system_pct": 12.196426630020142,
+                "cpu_idle_pct": 12.196426630020142,
+                "iowait_pct": 12.196426630020142,
+                "unrelated_cpu_pct_one_core": 12.196426630020142,
+                "whole_disk_read_write_bytes_per_second": 12.196426630020142
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 8
+              },
+              "process_coverage": {
+                "missed_reads": 8,
+                "appeared": 38,
+                "disappeared": 41,
+                "new_without_cpu_delta": 38,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 51.137604756288184,
+                  "sampled_seconds": 12.196426630020142,
+                  "maximum_sampled_vram_bytes": 21249998848
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 74.22795013660402,
+                  "sampled_seconds": 12.196426630020142,
+                  "maximum_sampled_vram_bytes": 24253997056
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 47.73273041242215,
+                  "sampled_seconds": 12.196426630020142,
+                  "maximum_sampled_vram_bytes": 23384649728
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 50.26218157371518,
+                  "sampled_seconds": 12.196426630020142,
+                  "maximum_sampled_vram_bytes": 20966875136
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-3",
+            "measured": true,
+            "start": 1792515180.411624,
+            "end": 1792515194.0984147,
+            "duration_seconds": 13.686790704727173,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 642.8794974490429,
+            "raw_tg": 34.94185538237489,
+            "raw_predicted_n": 256,
+            "prompt_ms": 6371.334,
+            "predicted_ms": 7297.838,
+            "after_first_tg_255": 34.94185538237489,
+            "output_sha256": "25115596986d84193929c143bc50c5ae7aabd1bdeb4e9903c823cbe469b77f9b",
+            "prompt_token_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6",
+            "mtp": {
+              "drafted": 239,
+              "kept": 134,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 94,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515100.568415,
+              "last_sample": 1792515193.581161,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0.5172536373138428
+            },
+            "activity": {
+              "intervals": 14,
+              "mean": {
+                "cpu_busy_pct": 16.534078960091577,
+                "cpu_system_pct": 6.253264511651313,
+                "cpu_idle_pct": 83.3007412789992,
+                "iowait_pct": 0.1651797609092452,
+                "unrelated_cpu_pct_one_core": 63.58367647165371,
+                "whole_disk_read_write_bytes_per_second": 1823542039.3771331
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 13.16953706741333,
+                "cpu_system_pct": 13.16953706741333,
+                "cpu_idle_pct": 13.16953706741333,
+                "iowait_pct": 13.16953706741333,
+                "unrelated_cpu_pct_one_core": 13.16953706741333,
+                "whole_disk_read_write_bytes_per_second": 13.16953706741333
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 9
+              },
+              "process_coverage": {
+                "missed_reads": 4,
+                "appeared": 61,
+                "disappeared": 43,
+                "new_without_cpu_delta": 61,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 66.02022521408732,
+                  "sampled_seconds": 13.16953706741333,
+                  "maximum_sampled_vram_bytes": 21250490368
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 88.49713295654028,
+                  "sampled_seconds": 13.16953706741333,
+                  "maximum_sampled_vram_bytes": 24254468096
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 49.07135516054607,
+                  "sampled_seconds": 13.16953706741333,
+                  "maximum_sampled_vram_bytes": 23385186304
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 69.89268270375521,
+                  "sampled_seconds": 13.16953706741333,
+                  "maximum_sampled_vram_bytes": 20967366656
+                }
+              }
+            }
+          }
+        ]
+      },
+      "plan": {
+        "reviewed": true,
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-layer",
+        "context": 4608,
+        "order": [
+          "llmx",
+          "mx"
+        ],
+        "cpuset": "0-7",
+        "window_seconds": 1200,
+        "server_load": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src/tools/server_load.py",
+        "server_load_sha256": "258705f725fa39fd970d2f4eaffdf67fdd545a5ee60be3d1fe0819265a6c80d6",
+        "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+        "model_pins": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/round2/model-files.json",
+        "sidecar_host_path": "/zpool1/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "sidecar_sha256": "7104778ae9eabd8ee878c01f25b475b986ef3bb4bda057d00a0e553ab66f9bce",
+        "llmx_source": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src",
+        "mx_source": "/opt/claude-work",
+        "llmx_binary_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a",
+        "mx_binary_relative": "build-ck/bin/llama-server",
+        "mx_binary_sha256": "e718294961d667b2ba675789469252668c6b474dff1f9ea10404edaa4fa4d7bc",
+        "llmx_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mx_image": "sha256:1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87",
+        "llmx_cache_extra_flags": [
+          "--load-mode",
+          "auto"
+        ],
+        "mx_server_flags": [
+          "-m",
+          "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+          "--spec-draft-model",
+          "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+          "--spec-type",
+          "draft-mtp",
+          "--spec-draft-n-max",
+          "2",
+          "--spec-draft-sampling",
+          "greedy",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "18192",
+          "-sm",
+          "layer",
+          "-ngl",
+          "999",
+          "--spec-draft-ngl",
+          "999",
+          "-t",
+          "8",
+          "-tb",
+          "8",
+          "--spec-draft-threads",
+          "8",
+          "--spec-draft-threads-batch",
+          "8",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-c",
+          "4608",
+          "-np",
+          "1",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "--spec-draft-type-k",
+          "f16",
+          "--spec-draft-type-v",
+          "f16",
+          "-lm",
+          "dio",
+          "-fa",
+          "on",
+          "--cache-ram",
+          "0",
+          "--cache-reuse",
+          "0",
+          "--no-context-shift"
+        ],
+        "review_notes": "Prepared matched four-card topology matrix, requires a new explicit production-pause grant. Same 32GiB host cap, eight threads, F16KV, ubatch512, natural P4096/G256, Q8MTP max2. llmx int8, target width1/2/4; mx FEATURES settings with direct loading and GPU PLE sharding. MX drafter remains one TP group as exact help recommends; actual target/draft placement must be recorded from startup logs, no identical kernel/draft-placement claim. Warmup plus three measured prompts per arm, all retained; not a full repeated ABBA.",
+        "prompts": [
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-0.txt",
+            "sha256": "8cf7559f695cbfbb8108560f5d254f8dd911788915a655d296bf91d351e9975d",
+            "tokens_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-1.txt",
+            "sha256": "d14d133684c4ff2c5a8f74e282baf0ec6fda64f4cccbfeb5e50a9a983fa9d49f",
+            "tokens_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-2.txt",
+            "sha256": "54f32e5eb9aa26740aacdd3a5c3a242c2b4255cf902971df114885c39a10dcda",
+            "tokens_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-3.txt",
+            "sha256": "8d0feb288457e2d8cdd197b28e384136ee7af9ca3d53dbe0b6f2e5053acd794f",
+            "tokens_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6"
+          }
+        ],
+        "dtype": "int8",
+        "tensor_width": 1,
+        "threads": 8,
+        "memory_gib": 32,
+        "model": "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "draft": "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "cards": {
+          "136": "0000:03:00.0",
+          "137": "0000:44:00.0",
+          "132": "0000:83:00.0",
+          "133": "0000:86:00.0"
+        },
+        "ubatch": 512,
+        "max_seqs": 1,
+        "output_tokens": 256,
+        "prompt_tokens": 4096,
+        "draft_max": 2,
+        "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "flags": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5
+        },
+        "token_hash_encoding": "4096 unsigned32 little-endian IDs",
+        "generation": "Reported real output count includes accepted MTP tokens; never count SSE events.",
+        "retention": "Keep all requests and activity including failures; no replacement samples."
+      },
+      "arms": {
+        "llmx": {
+          "complete": true,
+          "measured_requests": 3,
+          "pp_tok_s": 398.51466666666664,
+          "tg_tok_s": 45.253123232441894,
+          "mtp_drafted": 558,
+          "mtp_kept": 374,
+          "mtp_acceptance": 0.6702508960573477,
+          "activity_flags": {
+            "monitor_gap": 0,
+            "cpu_idle": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk": 0
+          }
+        },
+        "mx": {
+          "complete": true,
+          "measured_requests": 3,
+          "pp_tok_s": 675.473639747394,
+          "tg_tok_s": 36.17831817726259,
+          "mtp_drafted": 678,
+          "mtp_kept": 424,
+          "mtp_acceptance": 0.6253687315634219,
+          "activity_flags": {
+            "monitor_gap": 0,
+            "cpu_idle": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk": 29
+          }
+        }
+      },
+      "mx_collective_log": [],
+      "mx_collective_fallback": false,
+      "complete": true,
+      "llmx_delta_percent": {
+        "pp_tok_s": -41.00218821037952,
+        "tg_tok_s": 25.083545925809926
+      },
+      "reference_speed_met_in_this_block": {
+        "pp_tok_s": false,
+        "tg_tok_s": true
+      }
+    },
+    "staged2x2-gpu-ple-refused": {
+      "evidence": {
+        "directory": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-staged2x2",
+        "state_file": "complete.json",
+        "complete": true,
+        "run_passed": false,
+        "run_error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/flash-tp-mtp-run.py\", line 218, in run\n    assert server.poll() is None, 'Server exited before readiness'\n           ^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Server exited before readiness\n",
+        "errors": [],
+        "missing_measured_requests": [
+          [
+            "llmx",
+            "measured-1"
+          ],
+          [
+            "llmx",
+            "measured-2"
+          ],
+          [
+            "llmx",
+            "measured-3"
+          ],
+          [
+            "mx",
+            "measured-1"
+          ],
+          [
+            "mx",
+            "measured-2"
+          ],
+          [
+            "mx",
+            "measured-3"
+          ]
+        ],
+        "measured_row_count": 0,
+        "thresholds": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5,
+          "unrelated_process_cpu_above_pct_one_core": 100,
+          "whole_disk_bytes_per_second_above": 50000000
+        },
+        "rows": []
+      },
+      "plan": {
+        "reviewed": true,
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-staged2x2",
+        "context": 4608,
+        "order": [
+          "mx",
+          "llmx"
+        ],
+        "cpuset": "0-7",
+        "window_seconds": 1200,
+        "server_load": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src/tools/server_load.py",
+        "server_load_sha256": "258705f725fa39fd970d2f4eaffdf67fdd545a5ee60be3d1fe0819265a6c80d6",
+        "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+        "model_pins": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/round2/model-files.json",
+        "sidecar_host_path": "/zpool1/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "sidecar_sha256": "7104778ae9eabd8ee878c01f25b475b986ef3bb4bda057d00a0e553ab66f9bce",
+        "llmx_source": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src",
+        "mx_source": "/opt/claude-work",
+        "llmx_binary_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a",
+        "mx_binary_relative": "build-ck/bin/llama-server",
+        "mx_binary_sha256": "e718294961d667b2ba675789469252668c6b474dff1f9ea10404edaa4fa4d7bc",
+        "llmx_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mx_image": "sha256:1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87",
+        "llmx_cache_extra_flags": [
+          "--load-mode",
+          "auto"
+        ],
+        "mx_server_flags": [
+          "-m",
+          "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+          "--spec-draft-model",
+          "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+          "--spec-type",
+          "draft-mtp",
+          "--spec-draft-n-max",
+          "2",
+          "--spec-draft-sampling",
+          "greedy",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "18192",
+          "-sm",
+          "tensor",
+          "-tps",
+          "2",
+          "-tpsd",
+          "4",
+          "-ngl",
+          "999",
+          "--spec-draft-ngl",
+          "999",
+          "-t",
+          "8",
+          "-tb",
+          "8",
+          "--spec-draft-threads",
+          "8",
+          "--spec-draft-threads-batch",
+          "8",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-c",
+          "4608",
+          "-np",
+          "1",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "--spec-draft-type-k",
+          "f16",
+          "--spec-draft-type-v",
+          "f16",
+          "-lm",
+          "dio",
+          "-fa",
+          "on",
+          "--cache-ram",
+          "0",
+          "--cache-reuse",
+          "0",
+          "--no-context-shift"
+        ],
+        "review_notes": "Prepared matched four-card topology matrix, requires a new explicit production-pause grant. Same 32GiB host cap, eight threads, F16KV, ubatch512, natural P4096/G256, Q8MTP max2. llmx int8, target width1/2/4; mx FEATURES settings with direct loading and GPU PLE sharding. MX drafter remains one TP group as exact help recommends; actual target/draft placement must be recorded from startup logs, no identical kernel/draft-placement claim. Warmup plus three measured prompts per arm, all retained; not a full repeated ABBA.",
+        "prompts": [
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-0.txt",
+            "sha256": "8cf7559f695cbfbb8108560f5d254f8dd911788915a655d296bf91d351e9975d",
+            "tokens_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-1.txt",
+            "sha256": "d14d133684c4ff2c5a8f74e282baf0ec6fda64f4cccbfeb5e50a9a983fa9d49f",
+            "tokens_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-2.txt",
+            "sha256": "54f32e5eb9aa26740aacdd3a5c3a242c2b4255cf902971df114885c39a10dcda",
+            "tokens_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-3.txt",
+            "sha256": "8d0feb288457e2d8cdd197b28e384136ee7af9ca3d53dbe0b6f2e5053acd794f",
+            "tokens_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6"
+          }
+        ],
+        "dtype": "int8",
+        "tensor_width": 2,
+        "threads": 8,
+        "memory_gib": 32,
+        "model": "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "draft": "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "cards": {
+          "136": "0000:03:00.0",
+          "137": "0000:44:00.0",
+          "132": "0000:83:00.0",
+          "133": "0000:86:00.0"
+        },
+        "ubatch": 512,
+        "max_seqs": 1,
+        "output_tokens": 256,
+        "prompt_tokens": 4096,
+        "draft_max": 2,
+        "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "flags": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5
+        },
+        "token_hash_encoding": "4096 unsigned32 little-endian IDs",
+        "generation": "Reported real output count includes accepted MTP tokens; never count SSE events.",
+        "retention": "Keep all requests and activity including failures; no replacement samples."
+      },
+      "arms": {
+        "llmx": {
+          "complete": false,
+          "measured_requests": 0
+        },
+        "mx": {
+          "complete": false,
+          "measured_requests": 0
+        }
+      },
+      "mx_collective_log": [],
+      "mx_collective_fallback": false,
+      "complete": false
+    },
+    "staged2x2-host-ple": {
+      "evidence": {
+        "directory": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-staged2x2-host-ple",
+        "state_file": "complete.json",
+        "complete": true,
+        "run_passed": true,
+        "run_error": null,
+        "errors": [],
+        "missing_measured_requests": [],
+        "measured_row_count": 6,
+        "thresholds": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5,
+          "unrelated_process_cpu_above_pct_one_core": 100,
+          "whole_disk_bytes_per_second_above": 50000000
+        },
+        "rows": [
+          {
+            "arm": "mx",
+            "label": "warmup",
+            "measured": false,
+            "start": 1792516128.3881776,
+            "end": 1792516148.4667225,
+            "duration_seconds": 20.078544855117798,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 309.7870002604752,
+            "raw_tg": 37.2764400327331,
+            "raw_predicted_n": 256,
+            "prompt_ms": 13221.988,
+            "predicted_ms": 6840.782,
+            "after_first_tg_255": 37.2764400327331,
+            "output_sha256": "2655a7ef85c6eb33292cfba8f78ee69a2830402100a943a97ca07cb62b5a5334",
+            "prompt_token_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79",
+            "mtp": {
+              "drafted": 206,
+              "kept": 151,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 139,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516066.214459,
+              "last_sample": 1792516204.258258,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 21,
+              "mean": {
+                "cpu_busy_pct": 14.27556048102548,
+                "cpu_system_pct": 6.7238026719972925,
+                "cpu_idle_pct": 85.59009802513937,
+                "iowait_pct": 0.13434149383515961,
+                "unrelated_cpu_pct_one_core": 54.85544815162035,
+                "whole_disk_read_write_bytes_per_second": 1294777816.5735378
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 20.078544855117798,
+                "cpu_system_pct": 20.078544855117798,
+                "cpu_idle_pct": 20.078544855117798,
+                "iowait_pct": 20.078544855117798,
+                "unrelated_cpu_pct_one_core": 20.078544855117798,
+                "whole_disk_read_write_bytes_per_second": 20.078544855117798
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 14
+              },
+              "process_coverage": {
+                "missed_reads": 9,
+                "appeared": 80,
+                "disappeared": 134,
+                "new_without_cpu_delta": 80,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 39.4673462151947,
+                  "sampled_seconds": 20.078544855117798,
+                  "maximum_sampled_vram_bytes": 26385350656
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 39.418005179829024,
+                  "sampled_seconds": 20.078544855117798,
+                  "maximum_sampled_vram_bytes": 26139987968
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 21.792662281338853,
+                  "sampled_seconds": 20.078544855117798,
+                  "maximum_sampled_vram_bytes": 25918554112
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 21.79243467483862,
+                  "sampled_seconds": 20.078544855117798,
+                  "maximum_sampled_vram_bytes": 25968881664
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-1",
+            "measured": true,
+            "start": 1792516148.4836886,
+            "end": 1792516167.5516977,
+            "duration_seconds": 19.0680091381073,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 349.6025703299912,
+            "raw_tg": 34.76013462395669,
+            "raw_predicted_n": 256,
+            "prompt_ms": 11716.161,
+            "predicted_ms": 7335.99,
+            "after_first_tg_255": 34.76013462395669,
+            "output_sha256": "d0c19a61039c0de2756e4228c4ccc76095072e6e3be7d21bb89a5c67978421a8",
+            "prompt_token_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3",
+            "mtp": {
+              "drafted": 216,
+              "kept": 146,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 139,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516066.214459,
+              "last_sample": 1792516204.258258,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 20,
+              "mean": {
+                "cpu_busy_pct": 14.29111311035499,
+                "cpu_system_pct": 6.404383220048795,
+                "cpu_idle_pct": 85.5064853693116,
+                "iowait_pct": 0.20240152033338837,
+                "unrelated_cpu_pct_one_core": 49.889366599647204,
+                "whole_disk_read_write_bytes_per_second": 1314076026.9849424
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 19.0680091381073,
+                "cpu_system_pct": 19.0680091381073,
+                "cpu_idle_pct": 19.0680091381073,
+                "iowait_pct": 19.0680091381073,
+                "unrelated_cpu_pct_one_core": 19.0680091381073,
+                "whole_disk_read_write_bytes_per_second": 19.0680091381073
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 16
+              },
+              "process_coverage": {
+                "missed_reads": 6,
+                "appeared": 79,
+                "disappeared": 69,
+                "new_without_cpu_delta": 79,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 34.69055931523936,
+                  "sampled_seconds": 19.0680091381073,
+                  "maximum_sampled_vram_bytes": 26385481728
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 34.74723135182307,
+                  "sampled_seconds": 19.0680091381073,
+                  "maximum_sampled_vram_bytes": 26140119040
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 48.79073950823403,
+                  "sampled_seconds": 19.0680091381073,
+                  "maximum_sampled_vram_bytes": 25918685184
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 49.52432611679851,
+                  "sampled_seconds": 19.0680091381073,
+                  "maximum_sampled_vram_bytes": 25969012736
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-2",
+            "measured": true,
+            "start": 1792516167.56486,
+            "end": 1792516185.9971015,
+            "duration_seconds": 18.432241439819336,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 376.7708968030401,
+            "raw_tg": 33.77923692306388,
+            "raw_predicted_n": 256,
+            "prompt_ms": 10871.328,
+            "predicted_ms": 7549.016,
+            "after_first_tg_255": 33.779236923063884,
+            "output_sha256": "1cf900085100db3f674d44da9413371d678167182e83974e49b6a2bd8ade7132",
+            "prompt_token_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2",
+            "mtp": {
+              "drafted": 228,
+              "kept": 140,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 139,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516066.214459,
+              "last_sample": 1792516204.258258,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 19,
+              "mean": {
+                "cpu_busy_pct": 14.324458775509495,
+                "cpu_system_pct": 5.9829971754995075,
+                "cpu_idle_pct": 85.5080008258198,
+                "iowait_pct": 0.16754039867070417,
+                "unrelated_cpu_pct_one_core": 44.14712514645813,
+                "whole_disk_read_write_bytes_per_second": 1037754614.2979571
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 18.432241439819336,
+                "cpu_system_pct": 18.432241439819336,
+                "cpu_idle_pct": 18.432241439819336,
+                "iowait_pct": 18.432241439819336,
+                "unrelated_cpu_pct_one_core": 18.432241439819336,
+                "whole_disk_read_write_bytes_per_second": 18.432241439819336
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 13
+              },
+              "process_coverage": {
+                "missed_reads": 7,
+                "appeared": 68,
+                "disappeared": 63,
+                "new_without_cpu_delta": 68,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 38.90439040924158,
+                  "sampled_seconds": 18.432241439819336,
+                  "maximum_sampled_vram_bytes": 26385539072
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 38.48245073652681,
+                  "sampled_seconds": 18.432241439819336,
+                  "maximum_sampled_vram_bytes": 26140176384
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 31.219953780100855,
+                  "sampled_seconds": 18.432241439819336,
+                  "maximum_sampled_vram_bytes": 25918742528
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 31.16928573564672,
+                  "sampled_seconds": 18.432241439819336,
+                  "maximum_sampled_vram_bytes": 25969070080
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-3",
+            "measured": true,
+            "start": 1792516186.012898,
+            "end": 1792516205.0681007,
+            "duration_seconds": 19.05520272254944,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 353.18190946385243,
+            "raw_tg": 34.26309948835115,
+            "raw_predicted_n": 256,
+            "prompt_ms": 11597.423,
+            "predicted_ms": 7442.409,
+            "after_first_tg_255": 34.26309948835115,
+            "output_sha256": "78381c6094c7de2ac87c418e393dbd83c072ac3be997dff411820d64304bb6c4",
+            "prompt_token_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6",
+            "mtp": {
+              "drafted": 232,
+              "kept": 139,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 139,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516066.214459,
+              "last_sample": 1792516204.258258,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0.809842586517334
+            },
+            "activity": {
+              "intervals": 19,
+              "mean": {
+                "cpu_busy_pct": 14.450292776525599,
+                "cpu_system_pct": 6.441359225941024,
+                "cpu_idle_pct": 85.42141187414619,
+                "iowait_pct": 0.12829534932818215,
+                "unrelated_cpu_pct_one_core": 48.948548761028555,
+                "whole_disk_read_write_bytes_per_second": 1292304089.6506205
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 18.245360136032104,
+                "cpu_system_pct": 18.245360136032104,
+                "cpu_idle_pct": 18.245360136032104,
+                "iowait_pct": 18.245360136032104,
+                "unrelated_cpu_pct_one_core": 18.245360136032104,
+                "whole_disk_read_write_bytes_per_second": 18.245360136032104
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 12
+              },
+              "process_coverage": {
+                "missed_reads": 4,
+                "appeared": 67,
+                "disappeared": 61,
+                "new_without_cpu_delta": 67,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 53.40587098180662,
+                  "sampled_seconds": 18.245360136032104,
+                  "maximum_sampled_vram_bytes": 26385575936
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 53.62636929045326,
+                  "sampled_seconds": 18.245360136032104,
+                  "maximum_sampled_vram_bytes": 26140213248
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 16.826418287803687,
+                  "sampled_seconds": 18.245360136032104,
+                  "maximum_sampled_vram_bytes": 25918779392
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 16.716373212880903,
+                  "sampled_seconds": 18.245360136032104,
+                  "maximum_sampled_vram_bytes": 25969106944
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "warmup",
+            "measured": false,
+            "start": 1792516324.2188394,
+            "end": 1792516338.6472454,
+            "duration_seconds": 14.428406000137329,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 474.148,
+            "raw_tg": 44.115,
+            "raw_predicted_n": 255,
+            "prompt_ms": 8638.644,
+            "predicted_ms": 5780.39,
+            "after_first_tg_255": 44.114670463411635,
+            "output_sha256": "0264bf7adc9301fd82b62a6690292817d23efa94c3398b8a04b795af84c9ad9b",
+            "prompt_token_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 111,
+              "kept": 102,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 170,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516212.279657,
+              "last_sample": 1792516381.330132,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 16,
+              "mean": {
+                "cpu_busy_pct": 6.017177614488756,
+                "cpu_system_pct": 3.035518144634736,
+                "cpu_idle_pct": 93.84983922314701,
+                "iowait_pct": 0.1329831623642403,
+                "unrelated_cpu_pct_one_core": 45.00766015017555,
+                "whole_disk_read_write_bytes_per_second": 12348912.044093015
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 14.428406000137329,
+                "cpu_system_pct": 14.428406000137329,
+                "cpu_idle_pct": 14.428406000137329,
+                "iowait_pct": 14.428406000137329,
+                "unrelated_cpu_pct_one_core": 14.428406000137329,
+                "whole_disk_read_write_bytes_per_second": 14.428406000137329
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 1,
+                "disk": 1
+              },
+              "process_coverage": {
+                "missed_reads": 0,
+                "appeared": 132,
+                "disappeared": 51,
+                "new_without_cpu_delta": 132,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 73.29933968603694,
+                  "sampled_seconds": 14.428406000137329,
+                  "maximum_sampled_vram_bytes": 24724172800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 76.0766117244738,
+                  "sampled_seconds": 14.428406000137329,
+                  "maximum_sampled_vram_bytes": 24725159936
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 60.08464442649213,
+                  "sampled_seconds": 14.428406000137329,
+                  "maximum_sampled_vram_bytes": 22305669120
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 60.362087598317835,
+                  "sampled_seconds": 14.428406000137329,
+                  "maximum_sampled_vram_bytes": 22305648640
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-1",
+            "measured": true,
+            "start": 1792516338.6590195,
+            "end": 1792516353.2545903,
+            "duration_seconds": 14.595570802688599,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 526.012,
+            "raw_tg": 37.509,
+            "raw_predicted_n": 255,
+            "prompt_ms": 7786.896,
+            "predicted_ms": 6798.333,
+            "after_first_tg_255": 37.50919526889901,
+            "output_sha256": "9e2d8d8a11b122f88b65a667814f4313d196b6fdf1fee31454bfe26461e4cd2a",
+            "prompt_token_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 131,
+              "kept": 101,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 170,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516212.279657,
+              "last_sample": 1792516381.330132,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 15,
+              "mean": {
+                "cpu_busy_pct": 4.251132813825144,
+                "cpu_system_pct": 2.988974452930893,
+                "cpu_idle_pct": 95.4548196784513,
+                "iowait_pct": 0.29404750772354543,
+                "unrelated_cpu_pct_one_core": 21.26516409199589,
+                "whole_disk_read_write_bytes_per_second": 54364311.2909592
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 14.595570802688599,
+                "cpu_system_pct": 14.595570802688599,
+                "cpu_idle_pct": 14.595570802688599,
+                "iowait_pct": 14.595570802688599,
+                "unrelated_cpu_pct_one_core": 14.595570802688599,
+                "whole_disk_read_write_bytes_per_second": 14.595570802688599
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 4,
+                "appeared": 55,
+                "disappeared": 45,
+                "new_without_cpu_delta": 55,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 70.9685378518021,
+                  "sampled_seconds": 14.595570802688599,
+                  "maximum_sampled_vram_bytes": 24724172800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 71.44991764793842,
+                  "sampled_seconds": 14.595570802688599,
+                  "maximum_sampled_vram_bytes": 24725159936
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 83.65297718927364,
+                  "sampled_seconds": 14.595570802688599,
+                  "maximum_sampled_vram_bytes": 22305669120
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 84.65306770148207,
+                  "sampled_seconds": 14.595570802688599,
+                  "maximum_sampled_vram_bytes": 22305648640
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-2",
+            "measured": true,
+            "start": 1792516353.2642012,
+            "end": 1792516367.061671,
+            "duration_seconds": 13.797469854354858,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 542.312,
+            "raw_tg": 40.865,
+            "raw_predicted_n": 255,
+            "prompt_ms": 7552.846,
+            "predicted_ms": 6240.082,
+            "after_first_tg_255": 40.864847609374365,
+            "output_sha256": "51a0e3e4e4fc1841ac2a0e9875af1de0ad47f37dcb0e7f6a07e673bb7fc828ad",
+            "prompt_token_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 223,
+              "kept": 143,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 170,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516212.279657,
+              "last_sample": 1792516381.330132,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 15,
+              "mean": {
+                "cpu_busy_pct": 3.824493917417675,
+                "cpu_system_pct": 2.718366511371597,
+                "cpu_idle_pct": 95.83707939206778,
+                "iowait_pct": 0.33842669051453994,
+                "unrelated_cpu_pct_one_core": 19.539763431014357,
+                "whole_disk_read_write_bytes_per_second": 59745801.124460205
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 13.797469854354858,
+                "cpu_system_pct": 13.797469854354858,
+                "cpu_idle_pct": 13.797469854354858,
+                "iowait_pct": 13.797469854354858,
+                "unrelated_cpu_pct_one_core": 13.797469854354858,
+                "whole_disk_read_write_bytes_per_second": 13.797469854354858
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 3,
+                "appeared": 47,
+                "disappeared": 120,
+                "new_without_cpu_delta": 47,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 78.89077194618224,
+                  "sampled_seconds": 13.797469854354858,
+                  "maximum_sampled_vram_bytes": 24724172800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 78.89065364814573,
+                  "sampled_seconds": 13.797469854354858,
+                  "maximum_sampled_vram_bytes": 24725159936
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 51.476598061581434,
+                  "sampled_seconds": 13.797469854354858,
+                  "maximum_sampled_vram_bytes": 22305669120
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 50.92328396524374,
+                  "sampled_seconds": 13.797469854354858,
+                  "maximum_sampled_vram_bytes": 22305648640
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-3",
+            "measured": true,
+            "start": 1792516367.0721648,
+            "end": 1792516381.3903103,
+            "duration_seconds": 14.318145513534546,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 531.863,
+            "raw_tg": 38.592,
+            "raw_predicted_n": 255,
+            "prompt_ms": 7701.232,
+            "predicted_ms": 6607.502,
+            "after_first_tg_255": 38.59249683163168,
+            "output_sha256": "dea2f5e38082fdc447eecdc59a7785a9716a4ff8cffbf0a8e5e20478287b508c",
+            "prompt_token_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 171,
+              "kept": 111,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 170,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792516212.279657,
+              "last_sample": 1792516381.330132,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0.060178279876708984
+            },
+            "activity": {
+              "intervals": 15,
+              "mean": {
+                "cpu_busy_pct": 4.069929272081413,
+                "cpu_system_pct": 2.7482755440855064,
+                "cpu_idle_pct": 95.65541310099249,
+                "iowait_pct": 0.2746576269260896,
+                "unrelated_cpu_pct_one_core": 22.797611109225652,
+                "whole_disk_read_write_bytes_per_second": 51290411.64978675
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 14.257967233657837,
+                "cpu_system_pct": 14.257967233657837,
+                "cpu_idle_pct": 14.257967233657837,
+                "iowait_pct": 14.257967233657837,
+                "unrelated_cpu_pct_one_core": 14.257967233657837,
+                "whole_disk_read_write_bytes_per_second": 14.257967233657837
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 9,
+                "appeared": 57,
+                "disappeared": 53,
+                "new_without_cpu_delta": 57,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 95.4192134814194,
+                  "sampled_seconds": 14.257967233657837,
+                  "maximum_sampled_vram_bytes": 24724172800
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 95.55930968415586,
+                  "sampled_seconds": 14.257967233657837,
+                  "maximum_sampled_vram_bytes": 24725159936
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 63.36433791979964,
+                  "sampled_seconds": 14.257967233657837,
+                  "maximum_sampled_vram_bytes": 22305669120
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 62.31472227741803,
+                  "sampled_seconds": 14.257967233657837,
+                  "maximum_sampled_vram_bytes": 22305648640
+                }
+              }
+            }
+          }
+        ]
+      },
+      "plan": {
+        "reviewed": true,
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-staged2x2-host-ple",
+        "context": 4608,
+        "order": [
+          "mx",
+          "llmx"
+        ],
+        "cpuset": "0-7",
+        "window_seconds": 1200,
+        "server_load": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src/tools/server_load.py",
+        "server_load_sha256": "258705f725fa39fd970d2f4eaffdf67fdd545a5ee60be3d1fe0819265a6c80d6",
+        "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+        "model_pins": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/round2/model-files.json",
+        "sidecar_host_path": "/zpool1/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "sidecar_sha256": "7104778ae9eabd8ee878c01f25b475b986ef3bb4bda057d00a0e553ab66f9bce",
+        "llmx_source": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src",
+        "mx_source": "/opt/claude-work",
+        "llmx_binary_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a",
+        "mx_binary_relative": "build-ck/bin/llama-server",
+        "mx_binary_sha256": "e718294961d667b2ba675789469252668c6b474dff1f9ea10404edaa4fa4d7bc",
+        "llmx_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mx_image": "sha256:1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87",
+        "llmx_cache_extra_flags": [
+          "--load-mode",
+          "auto"
+        ],
+        "mx_server_flags": [
+          "-m",
+          "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+          "--spec-draft-model",
+          "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+          "--spec-type",
+          "draft-mtp",
+          "--spec-draft-n-max",
+          "2",
+          "--spec-draft-sampling",
+          "greedy",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "18192",
+          "-sm",
+          "tensor",
+          "-tps",
+          "2",
+          "-tpsd",
+          "4",
+          "-ngl",
+          "999",
+          "--spec-draft-ngl",
+          "999",
+          "-t",
+          "8",
+          "-tb",
+          "8",
+          "--spec-draft-threads",
+          "8",
+          "--spec-draft-threads-batch",
+          "8",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-c",
+          "4608",
+          "-np",
+          "1",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "--spec-draft-type-k",
+          "f16",
+          "--spec-draft-type-v",
+          "f16",
+          "-lm",
+          "dio",
+          "-fa",
+          "on",
+          "--cache-ram",
+          "0",
+          "--cache-reuse",
+          "0",
+          "--no-context-shift",
+          "-fit",
+          "off"
+        ],
+        "review_notes": "Prepared matched four-card topology matrix, requires a new explicit production-pause grant. Same 32GiB host cap, eight threads, F16KV, ubatch512, natural P4096/G256, Q8MTP max2. llmx int8, target width1/2/4; mx FEATURES settings with direct loading and GPU PLE sharding. MX drafter remains one TP group as exact help recommends; actual target/draft placement must be recorded from startup logs, no identical kernel/draft-placement claim. Warmup plus three measured prompts per arm, all retained; not a full repeated ABBA. Original GPU-PLE-sharded staged2x2 failed GPU allocation before requests. This separate cell uses documented host-resident PLE fallback (LLAMA_PLE_SHARD=0), retaining repack/custom AR/MTP flags; no equivalence to the failed placement claimed. User granted cumulative25minutes; prior completed pause consumes230seconds.",
+        "prompts": [
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-0.txt",
+            "sha256": "8cf7559f695cbfbb8108560f5d254f8dd911788915a655d296bf91d351e9975d",
+            "tokens_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-1.txt",
+            "sha256": "d14d133684c4ff2c5a8f74e282baf0ec6fda64f4cccbfeb5e50a9a983fa9d49f",
+            "tokens_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-2.txt",
+            "sha256": "54f32e5eb9aa26740aacdd3a5c3a242c2b4255cf902971df114885c39a10dcda",
+            "tokens_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-3.txt",
+            "sha256": "8d0feb288457e2d8cdd197b28e384136ee7af9ca3d53dbe0b6f2e5053acd794f",
+            "tokens_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6"
+          }
+        ],
+        "dtype": "int8",
+        "tensor_width": 2,
+        "threads": 8,
+        "memory_gib": 32,
+        "mx_ple_shard": 0,
+        "model": "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "draft": "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "cards": {
+          "136": "0000:03:00.0",
+          "137": "0000:44:00.0",
+          "132": "0000:83:00.0",
+          "133": "0000:86:00.0"
+        },
+        "ubatch": 512,
+        "max_seqs": 1,
+        "output_tokens": 256,
+        "prompt_tokens": 4096,
+        "draft_max": 2,
+        "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "flags": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5
+        },
+        "token_hash_encoding": "4096 unsigned32 little-endian IDs",
+        "generation": "Reported real output count includes accepted MTP tokens; never count SSE events.",
+        "retention": "Keep all requests and activity including failures; no replacement samples."
+      },
+      "arms": {
+        "llmx": {
+          "complete": true,
+          "measured_requests": 3,
+          "pp_tok_s": 533.3956666666667,
+          "tg_tok_s": 38.98884656996835,
+          "mtp_drafted": 525,
+          "mtp_kept": 355,
+          "mtp_acceptance": 0.6761904761904762,
+          "activity_flags": {
+            "monitor_gap": 0,
+            "cpu_idle": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk": 0
+          }
+        },
+        "mx": {
+          "complete": true,
+          "measured_requests": 3,
+          "pp_tok_s": 359.8517921989612,
+          "tg_tok_s": 34.26749034512391,
+          "mtp_drafted": 676,
+          "mtp_kept": 425,
+          "mtp_acceptance": 0.628698224852071,
+          "activity_flags": {
+            "monitor_gap": 0,
+            "cpu_idle": 0,
+            "iowait": 0,
+            "unrelated_cpu": 0,
+            "disk": 41
+          }
+        }
+      },
+      "mx_collective_log": [
+        "0.56.346.648 W NCCL init failed (unhandled system error (run with NCCL_DEBUG=INFO for details)); falling back to internal AllReduce",
+        "0.57.165.672 W NCCL init failed (unhandled system error (run with NCCL_DEBUG=INFO for details)); falling back to internal AllReduce",
+        "1.01.266.034 W NCCL init failed (unhandled system error (run with NCCL_DEBUG=INFO for details)); falling back to internal AllReduce"
+      ],
+      "mx_collective_fallback": true,
+      "complete": true,
+      "llmx_delta_percent": {
+        "pp_tok_s": 48.22648607840014,
+        "tg_tok_s": 13.777945736012342
+      },
+      "reference_speed_met_in_this_block": {
+        "pp_tok_s": true,
+        "tg_tok_s": true
+      }
+    },
+    "tp4": {
+      "evidence": {
+        "directory": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-tp4",
+        "state_file": "complete.json",
+        "complete": true,
+        "run_passed": true,
+        "run_error": null,
+        "errors": [],
+        "missing_measured_requests": [],
+        "measured_row_count": 6,
+        "thresholds": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5,
+          "unrelated_process_cpu_above_pct_one_core": 100,
+          "whole_disk_bytes_per_second_above": 50000000
+        },
+        "rows": [
+          {
+            "arm": "llmx",
+            "label": "warmup",
+            "measured": false,
+            "start": 1792515686.7633128,
+            "end": 1792515729.3549182,
+            "duration_seconds": 42.59160542488098,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 117.606,
+            "raw_tg": 32.887,
+            "raw_predicted_n": 255,
+            "prompt_ms": 34828.295,
+            "predicted_ms": 7753.862,
+            "after_first_tg_255": 32.886837552693095,
+            "output_sha256": "5036e0d9aa3ee6363d0d09349252f344d0c34d42d9b521ac8b772f282e2b801f",
+            "prompt_token_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 119,
+              "kept": 111,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 336,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515492.789311,
+              "last_sample": 1792515827.90635,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 44,
+              "mean": {
+                "cpu_busy_pct": 6.084449552954699,
+                "cpu_system_pct": 4.7982668282265974,
+                "cpu_idle_pct": 90.97650500715979,
+                "iowait_pct": 2.939045439885526,
+                "unrelated_cpu_pct_one_core": 35.786897991747516,
+                "whole_disk_read_write_bytes_per_second": 680536708.7198735
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 42.59160542488098,
+                "cpu_system_pct": 42.59160542488098,
+                "cpu_idle_pct": 42.59160542488098,
+                "iowait_pct": 42.59160542488098,
+                "unrelated_cpu_pct_one_core": 42.59160542488098,
+                "whole_disk_read_write_bytes_per_second": 42.59160542488098
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 4,
+                "unrelated_cpu": 0,
+                "disk": 29
+              },
+              "process_coverage": {
+                "missed_reads": 19,
+                "appeared": 182,
+                "disappeared": 154,
+                "new_without_cpu_delta": 182,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 38.40441203064175,
+                  "sampled_seconds": 42.59160542488098,
+                  "maximum_sampled_vram_bytes": 25456406528
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 37.11146706420183,
+                  "sampled_seconds": 42.59160542488098,
+                  "maximum_sampled_vram_bytes": 25456418816
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 31.59632603149332,
+                  "sampled_seconds": 42.59160542488098,
+                  "maximum_sampled_vram_bytes": 25455403008
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 32.27571057827839,
+                  "sampled_seconds": 42.59160542488098,
+                  "maximum_sampled_vram_bytes": 25456402432
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-1",
+            "measured": true,
+            "start": 1792515729.3664377,
+            "end": 1792515764.7087529,
+            "duration_seconds": 35.34231519699097,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 147.447,
+            "raw_tg": 33.761,
+            "raw_predicted_n": 255,
+            "prompt_ms": 27779.533,
+            "predicted_ms": 7553.012,
+            "after_first_tg_255": 33.7613656644528,
+            "output_sha256": "f8a37727679986b5dc7914e8b7753fb1a90006c59f5dfd8b2252dbfe65fd8e6d",
+            "prompt_token_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 209,
+              "kept": 134,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 336,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515492.789311,
+              "last_sample": 1792515827.90635,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 36,
+              "mean": {
+                "cpu_busy_pct": 6.7203251164477305,
+                "cpu_system_pct": 5.044128995503569,
+                "cpu_idle_pct": 90.7307299403634,
+                "iowait_pct": 2.548944943188874,
+                "unrelated_cpu_pct_one_core": 43.74008429011482,
+                "whole_disk_read_write_bytes_per_second": 589969498.2914021
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 35.34231519699097,
+                "cpu_system_pct": 35.34231519699097,
+                "cpu_idle_pct": 35.34231519699097,
+                "iowait_pct": 35.34231519699097,
+                "unrelated_cpu_pct_one_core": 35.34231519699097,
+                "whole_disk_read_write_bytes_per_second": 35.34231519699097
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 1,
+                "disk": 23
+              },
+              "process_coverage": {
+                "missed_reads": 17,
+                "appeared": 149,
+                "disappeared": 128,
+                "new_without_cpu_delta": 149,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 43.12045802726987,
+                  "sampled_seconds": 35.34231519699097,
+                  "maximum_sampled_vram_bytes": 25456406528
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 42.72545843560409,
+                  "sampled_seconds": 35.34231519699097,
+                  "maximum_sampled_vram_bytes": 25456418816
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 36.903312117358695,
+                  "sampled_seconds": 35.34231519699097,
+                  "maximum_sampled_vram_bytes": 25455403008
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 38.177768958981964,
+                  "sampled_seconds": 35.34231519699097,
+                  "maximum_sampled_vram_bytes": 25456402432
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-2",
+            "measured": true,
+            "start": 1792515764.7164538,
+            "end": 1792515794.5775173,
+            "duration_seconds": 29.861063480377197,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 178.895,
+            "raw_tg": 36.653,
+            "raw_predicted_n": 255,
+            "prompt_ms": 22896.106,
+            "predicted_ms": 6957.107,
+            "after_first_tg_255": 36.653166323300766,
+            "output_sha256": "5dfd5065f1ddb91b18fd3593f1c46ddfd3c29393c6dcb1e39c12bd7ffc7174c5",
+            "prompt_token_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 226,
+              "kept": 139,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 336,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515492.789311,
+              "last_sample": 1792515827.90635,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 31,
+              "mean": {
+                "cpu_busy_pct": 7.830625244482784,
+                "cpu_system_pct": 5.505976853945641,
+                "cpu_idle_pct": 89.93067515859288,
+                "iowait_pct": 2.2386995969243304,
+                "unrelated_cpu_pct_one_core": 61.7715647758713,
+                "whole_disk_read_write_bytes_per_second": 525130970.5529852
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 29.861063480377197,
+                "cpu_system_pct": 29.861063480377197,
+                "cpu_idle_pct": 29.861063480377197,
+                "iowait_pct": 29.861063480377197,
+                "unrelated_cpu_pct_one_core": 29.861063480377197,
+                "whole_disk_read_write_bytes_per_second": 29.861063480377197
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 1,
+                "unrelated_cpu": 3,
+                "disk": 21
+              },
+              "process_coverage": {
+                "missed_reads": 12,
+                "appeared": 117,
+                "disappeared": 319,
+                "new_without_cpu_delta": 117,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 44.993920742362704,
+                  "sampled_seconds": 29.861063480377197,
+                  "maximum_sampled_vram_bytes": 25456406528
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 44.99442625797929,
+                  "sampled_seconds": 29.861063480377197,
+                  "maximum_sampled_vram_bytes": 25456418816
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 36.68234560842949,
+                  "sampled_seconds": 29.861063480377197,
+                  "maximum_sampled_vram_bytes": 25455403008
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 38.99538198222387,
+                  "sampled_seconds": 29.861063480377197,
+                  "maximum_sampled_vram_bytes": 25456402432
+                }
+              }
+            }
+          },
+          {
+            "arm": "llmx",
+            "label": "measured-3",
+            "measured": true,
+            "start": 1792515794.587695,
+            "end": 1792515828.2478213,
+            "duration_seconds": 33.66012644767761,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": null,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 150.729,
+            "raw_tg": 39.349,
+            "raw_predicted_n": 255,
+            "prompt_ms": 27174.536,
+            "predicted_ms": 6480.506,
+            "after_first_tg_255": 39.348779246558834,
+            "output_sha256": "eb93a8b7653b71899ccf7de515cd2d06db5f654ac3ccc988cde6645aabc797f8",
+            "prompt_token_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6",
+            "mtp": {
+              "sources": [
+                "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf"
+              ],
+              "source": "health drafting deltas, own_history lookup subtracted",
+              "drafted": 210,
+              "kept": 142,
+              "failed": 0
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 336,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515492.789311,
+              "last_sample": 1792515827.90635,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0.34147143363952637
+            },
+            "activity": {
+              "intervals": 34,
+              "mean": {
+                "cpu_busy_pct": 5.798176743789681,
+                "cpu_system_pct": 4.766232277660073,
+                "cpu_idle_pct": 91.71978358828363,
+                "iowait_pct": 2.482039667926676,
+                "unrelated_cpu_pct_one_core": 32.895587576432895,
+                "whole_disk_read_write_bytes_per_second": 590933216.0340085
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 33.318655014038086,
+                "cpu_system_pct": 33.318655014038086,
+                "cpu_idle_pct": 33.318655014038086,
+                "iowait_pct": 33.318655014038086,
+                "unrelated_cpu_pct_one_core": 33.318655014038086,
+                "whole_disk_read_write_bytes_per_second": 33.318655014038086
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 25
+              },
+              "process_coverage": {
+                "missed_reads": 21,
+                "appeared": 122,
+                "disappeared": 126,
+                "new_without_cpu_delta": 122,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 43.51137005568458,
+                  "sampled_seconds": 33.318655014038086,
+                  "maximum_sampled_vram_bytes": 25456406528
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 43.33166534486421,
+                  "sampled_seconds": 33.318655014038086,
+                  "maximum_sampled_vram_bytes": 25456418816
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 38.51913897965667,
+                  "sampled_seconds": 33.318655014038086,
+                  "maximum_sampled_vram_bytes": 25455403008
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 39.81152103826924,
+                  "sampled_seconds": 33.318655014038086,
+                  "maximum_sampled_vram_bytes": 25456402432
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "warmup",
+            "measured": false,
+            "start": 1792515987.8796904,
+            "end": 1792516006.8571632,
+            "duration_seconds": 18.97747278213501,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 449.17604816974466,
+            "raw_tg": 25.920684940376837,
+            "raw_predicted_n": 256,
+            "prompt_ms": 9118.919,
+            "predicted_ms": 9837.703,
+            "after_first_tg_255": 25.920684940376834,
+            "output_sha256": "486ef192618f6adb6cfeced4a86a840a75fab7600248d0f7310a009ae5acc58f",
+            "prompt_token_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79",
+            "mtp": {
+              "drafted": 267,
+              "kept": 120,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 220,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515837.25485,
+              "last_sample": 1792516056.327515,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 20,
+              "mean": {
+                "cpu_busy_pct": 12.784154354633442,
+                "cpu_system_pct": 1.9130590989060936,
+                "cpu_idle_pct": 87.10196265991817,
+                "iowait_pct": 0.11388298544839799,
+                "unrelated_cpu_pct_one_core": 15.954879392336856,
+                "whole_disk_read_write_bytes_per_second": 1491924.2422207429
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 18.97747278213501,
+                "cpu_system_pct": 18.97747278213501,
+                "cpu_idle_pct": 18.97747278213501,
+                "iowait_pct": 18.97747278213501,
+                "unrelated_cpu_pct_one_core": 18.97747278213501,
+                "whole_disk_read_write_bytes_per_second": 18.97747278213501
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 9,
+                "appeared": 59,
+                "disappeared": 160,
+                "new_without_cpu_delta": 59,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 67.03687919525903,
+                  "sampled_seconds": 18.97747278213501,
+                  "maximum_sampled_vram_bytes": 33351024640
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 66.51102426979612,
+                  "sampled_seconds": 18.97747278213501,
+                  "maximum_sampled_vram_bytes": 33197133824
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 71.7806474315897,
+                  "sampled_seconds": 18.97747278213501,
+                  "maximum_sampled_vram_bytes": 33216921600
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 70.72794671778398,
+                  "sampled_seconds": 18.97747278213501,
+                  "maximum_sampled_vram_bytes": 33292464128
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-1",
+            "measured": true,
+            "start": 1792516006.8755279,
+            "end": 1792516023.0707026,
+            "duration_seconds": 16.19517469406128,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 517.2617808075421,
+            "raw_tg": 30.870474751583473,
+            "raw_predicted_n": 256,
+            "prompt_ms": 7918.621,
+            "predicted_ms": 8260.32,
+            "after_first_tg_255": 30.870474751583476,
+            "output_sha256": "95d3aa201861911cb5f871eb1fdd98e3d28628ba767ee68886156e9df76ec897",
+            "prompt_token_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3",
+            "mtp": {
+              "drafted": 224,
+              "kept": 142,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 220,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515837.25485,
+              "last_sample": 1792516056.327515,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 17,
+              "mean": {
+                "cpu_busy_pct": 13.179331551304722,
+                "cpu_system_pct": 1.590658991594505,
+                "cpu_idle_pct": 86.75236082933117,
+                "iowait_pct": 0.06830761936408788,
+                "unrelated_cpu_pct_one_core": 16.60895130841962,
+                "whole_disk_read_write_bytes_per_second": 766119.4151572294
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 16.19517469406128,
+                "cpu_system_pct": 16.19517469406128,
+                "cpu_idle_pct": 16.19517469406128,
+                "iowait_pct": 16.19517469406128,
+                "unrelated_cpu_pct_one_core": 16.19517469406128,
+                "whole_disk_read_write_bytes_per_second": 16.19517469406128
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 6,
+                "appeared": 58,
+                "disappeared": 64,
+                "new_without_cpu_delta": 58,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 67.85513749176584,
+                  "sampled_seconds": 16.19517469406128,
+                  "maximum_sampled_vram_bytes": 33351176192
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 66.682843289681,
+                  "sampled_seconds": 16.19517469406128,
+                  "maximum_sampled_vram_bytes": 33197285376
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 67.97509616357655,
+                  "sampled_seconds": 16.19517469406128,
+                  "maximum_sampled_vram_bytes": 33217073152
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 68.65283950005157,
+                  "sampled_seconds": 16.19517469406128,
+                  "maximum_sampled_vram_bytes": 33292615680
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-2",
+            "measured": true,
+            "start": 1792516023.086038,
+            "end": 1792516039.7686954,
+            "duration_seconds": 16.68265724182129,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 523.9826313061968,
+            "raw_tg": 28.806108792878316,
+            "raw_predicted_n": 256,
+            "prompt_ms": 7817.053,
+            "predicted_ms": 8852.289,
+            "after_first_tg_255": 28.806108792878316,
+            "output_sha256": "399e25bcec356ef077d6106f7a328702036dcd8203763c20022938b395dadc39",
+            "prompt_token_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2",
+            "mtp": {
+              "drafted": 232,
+              "kept": 138,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 220,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515837.25485,
+              "last_sample": 1792516056.327515,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0
+            },
+            "activity": {
+              "intervals": 18,
+              "mean": {
+                "cpu_busy_pct": 13.95818046778963,
+                "cpu_system_pct": 1.5150015163870711,
+                "cpu_idle_pct": 85.94401782687788,
+                "iowait_pct": 0.0978017053325167,
+                "unrelated_cpu_pct_one_core": 35.42073439846218,
+                "whole_disk_read_write_bytes_per_second": 1351563.559246123
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 16.68265724182129,
+                "cpu_system_pct": 16.68265724182129,
+                "cpu_idle_pct": 16.68265724182129,
+                "iowait_pct": 16.68265724182129,
+                "unrelated_cpu_pct_one_core": 16.68265724182129,
+                "whole_disk_read_write_bytes_per_second": 16.68265724182129
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 1,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 2,
+                "appeared": 54,
+                "disappeared": 69,
+                "new_without_cpu_delta": 54,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 80.74091203961531,
+                  "sampled_seconds": 16.68265724182129,
+                  "maximum_sampled_vram_bytes": 33351233536
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 78.75776604847393,
+                  "sampled_seconds": 16.68265724182129,
+                  "maximum_sampled_vram_bytes": 33197342720
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 78.82249065542318,
+                  "sampled_seconds": 16.68265724182129,
+                  "maximum_sampled_vram_bytes": 33217130496
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 76.89524764543418,
+                  "sampled_seconds": 16.68265724182129,
+                  "maximum_sampled_vram_bytes": 33292673024
+                }
+              }
+            }
+          },
+          {
+            "arm": "mx",
+            "label": "measured-3",
+            "measured": true,
+            "start": 1792516039.7865274,
+            "end": 1792516056.4646642,
+            "duration_seconds": 16.678136825561523,
+            "delivered": 256,
+            "prompt_tokens": 4096,
+            "cached_tokens": 0,
+            "valid_counts": true,
+            "recorded_cached_tokens": 0,
+            "response_tokens_cached": 4351,
+            "cache_counter_source": "response.timings.cache_n",
+            "harness_mapping_correction": false,
+            "evidence_complete": true,
+            "raw_pp": 523.3933574533846,
+            "raw_tg": 28.862991679648406,
+            "raw_predicted_n": 256,
+            "prompt_ms": 7825.854,
+            "predicted_ms": 8834.843,
+            "after_first_tg_255": 28.862991679648406,
+            "output_sha256": "31fe7713c029363338e753bced16c27ecfcc842a5aa7b0359c6633d4345c1a8a",
+            "prompt_token_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6",
+            "mtp": {
+              "drafted": 239,
+              "kept": 135,
+              "source": "response.timings.draft_n/draft_n_accepted"
+            },
+            "missing_evidence": [],
+            "monitor": {
+              "parse_errors": [],
+              "samples": 220,
+              "ticks_per_second": 100,
+              "start_event": true,
+              "stop_event": true,
+              "first_sample": 1792515837.25485,
+              "last_sample": 1792516056.327515,
+              "unobserved_head_seconds": 0,
+              "unobserved_tail_seconds": 0.13714933395385742
+            },
+            "activity": {
+              "intervals": 17,
+              "mean": {
+                "cpu_busy_pct": 13.077299212938396,
+                "cpu_system_pct": 1.6003461660791696,
+                "cpu_idle_pct": 86.85096840370994,
+                "iowait_pct": 0.0717323833516695,
+                "unrelated_cpu_pct_one_core": 14.877228710281061,
+                "whole_disk_read_write_bytes_per_second": 670782.0141674414
+              },
+              "known_seconds": {
+                "cpu_busy_pct": 16.540987491607666,
+                "cpu_system_pct": 16.540987491607666,
+                "cpu_idle_pct": 16.540987491607666,
+                "iowait_pct": 16.540987491607666,
+                "unrelated_cpu_pct_one_core": 16.540987491607666,
+                "whole_disk_read_write_bytes_per_second": 16.540987491607666
+              },
+              "flagged_intervals": {
+                "monitor_gap": 0,
+                "cpu_idle": 0,
+                "iowait": 0,
+                "unrelated_cpu": 0,
+                "disk": 0
+              },
+              "process_coverage": {
+                "missed_reads": 6,
+                "appeared": 51,
+                "disappeared": 53,
+                "new_without_cpu_delta": 51,
+                "unknown_role_active": 0,
+                "invalid_intervals": 0,
+                "unavailable_gpu_observations": 0
+              },
+              "gpu": {
+                "0000:83:00.0": {
+                  "mean_busy_pct": 62.944394377289726,
+                  "sampled_seconds": 16.540987491607666,
+                  "maximum_sampled_vram_bytes": 33351245824
+                },
+                "0000:86:00.0": {
+                  "mean_busy_pct": 60.65759354595907,
+                  "sampled_seconds": 16.540987491607666,
+                  "maximum_sampled_vram_bytes": 33197355008
+                },
+                "0000:03:00.0": {
+                  "mean_busy_pct": 63.046252633942814,
+                  "sampled_seconds": 16.540987491607666,
+                  "maximum_sampled_vram_bytes": 33217142784
+                },
+                "0000:44:00.0": {
+                  "mean_busy_pct": 63.348075144357864,
+                  "sampled_seconds": 16.540987491607666,
+                  "maximum_sampled_vram_bytes": 33292685312
+                }
+              }
+            }
+          }
+        ]
+      },
+      "plan": {
+        "reviewed": true,
+        "output": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-int8-matched-tp4",
+        "context": 4608,
+        "order": [
+          "llmx",
+          "mx"
+        ],
+        "cpuset": "0-7",
+        "window_seconds": 1200,
+        "server_load": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src/tools/server_load.py",
+        "server_load_sha256": "258705f725fa39fd970d2f4eaffdf67fdd545a5ee60be3d1fe0819265a6c80d6",
+        "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+        "model_pins": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/round2/model-files.json",
+        "sidecar_host_path": "/zpool1/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "sidecar_sha256": "7104778ae9eabd8ee878c01f25b475b986ef3bb4bda057d00a0e553ab66f9bce",
+        "llmx_source": "/zpool1/llmx-xdev-quant-20261020/release-f984840a4/src",
+        "mx_source": "/opt/claude-work",
+        "llmx_binary_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a",
+        "mx_binary_relative": "build-ck/bin/llama-server",
+        "mx_binary_sha256": "e718294961d667b2ba675789469252668c6b474dff1f9ea10404edaa4fa4d7bc",
+        "llmx_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "mx_image": "sha256:1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87",
+        "llmx_cache_extra_flags": [
+          "--load-mode",
+          "auto"
+        ],
+        "mx_server_flags": [
+          "-m",
+          "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+          "--spec-draft-model",
+          "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+          "--spec-type",
+          "draft-mtp",
+          "--spec-draft-n-max",
+          "2",
+          "--spec-draft-sampling",
+          "greedy",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "18192",
+          "-sm",
+          "tensor",
+          "-tps",
+          "4",
+          "-tpsd",
+          "4",
+          "-ngl",
+          "999",
+          "--spec-draft-ngl",
+          "999",
+          "-t",
+          "8",
+          "-tb",
+          "8",
+          "--spec-draft-threads",
+          "8",
+          "--spec-draft-threads-batch",
+          "8",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-c",
+          "4608",
+          "-np",
+          "1",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "--spec-draft-type-k",
+          "f16",
+          "--spec-draft-type-v",
+          "f16",
+          "-lm",
+          "dio",
+          "-fa",
+          "on",
+          "--cache-ram",
+          "0",
+          "--cache-reuse",
+          "0",
+          "--no-context-shift",
+          "-fit",
+          "off"
+        ],
+        "review_notes": "Prepared matched four-card topology matrix, requires a new explicit production-pause grant. Same 32GiB host cap, eight threads, F16KV, ubatch512, natural P4096/G256, Q8MTP max2. llmx int8, target width1/2/4; mx FEATURES settings with direct loading and GPU PLE sharding. MX drafter remains one TP group as exact help recommends; actual target/draft placement must be recorded from startup logs, no identical kernel/draft-placement claim. Warmup plus three measured prompts per arm, all retained; not a full repeated ABBA. User granted cumulative25minutes; prior completed pause consumes230seconds.",
+        "prompts": [
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-0.txt",
+            "sha256": "8cf7559f695cbfbb8108560f5d254f8dd911788915a655d296bf91d351e9975d",
+            "tokens_sha256": "a8e44a16a448dd01eb5caf53ead926b36ec008368170dae47441376c6fc3bb79"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-1.txt",
+            "sha256": "d14d133684c4ff2c5a8f74e282baf0ec6fda64f4cccbfeb5e50a9a983fa9d49f",
+            "tokens_sha256": "3666f789cefe84e953689e74a9bcd8dd7aeebeda99510c6486517309c9fb2ce3"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-2.txt",
+            "sha256": "54f32e5eb9aa26740aacdd3a5c3a242c2b4255cf902971df114885c39a10dcda",
+            "tokens_sha256": "5a76a6ba084986454e58f3f0ce385810ad4dcc2ff22f3a5f44574fa6c32414a2"
+          },
+          {
+            "file": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/prompt-3.txt",
+            "sha256": "8d0feb288457e2d8cdd197b28e384136ee7af9ca3d53dbe0b6f2e5053acd794f",
+            "tokens_sha256": "fa77d2d2ce9fa2046ac7a5e7131da18973f5744c18e9d25fa8a8e1278adad1b6"
+          }
+        ],
+        "dtype": "int8",
+        "tensor_width": 4,
+        "threads": 8,
+        "memory_gib": 32,
+        "mx_ple_shard": 1,
+        "model": "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "draft": "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+        "cards": {
+          "136": "0000:03:00.0",
+          "137": "0000:44:00.0",
+          "132": "0000:83:00.0",
+          "133": "0000:86:00.0"
+        },
+        "ubatch": 512,
+        "max_seqs": 1,
+        "output_tokens": 256,
+        "prompt_tokens": 4096,
+        "draft_max": 2,
+        "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "flags": {
+          "cpu_idle_below_pct": 25,
+          "iowait_above_pct": 5,
+          "unrelated_cpu_above_pct_one_core": 100,
+          "any_whole_disk_bytes_per_second_above": 50000000,
+          "monitor_gap_seconds_above": 2.5
+        },
+        "token_hash_encoding": "4096 unsigned32 little-endian IDs",
+        "generation": "Reported real output count includes accepted MTP tokens; never count SSE events.",
+        "retention": "Keep all requests and activity including failures; no replacement samples."
+      },
+      "arms": {
+        "llmx": {
+          "complete": true,
+          "measured_requests": 3,
+          "pp_tok_s": 159.02366666666668,
+          "tg_tok_s": 36.58777041143747,
+          "mtp_drafted": 645,
+          "mtp_kept": 415,
+          "mtp_acceptance": 0.6434108527131783,
+          "activity_flags": {
+            "monitor_gap": 0,
+            "cpu_idle": 0,
+            "iowait": 1,
+            "unrelated_cpu": 4,
+            "disk": 69
+          }
+        },
+        "mx": {
+          "complete": true,
+          "measured_requests": 3,
+          "pp_tok_s": 521.5459231890412,
+          "tg_tok_s": 29.513191741370065,
+          "mtp_drafted": 695,
+          "mtp_kept": 415,
+          "mtp_acceptance": 0.5971223021582733,
+          "activity_flags": {
+            "monitor_gap": 0,
+            "cpu_idle": 0,
+            "iowait": 0,
+            "unrelated_cpu": 1,
+            "disk": 0
+          }
+        }
+      },
+      "mx_collective_log": [
+        "2.24.151.670 W NCCL init failed (unhandled system error (run with NCCL_DEBUG=INFO for details)); falling back to internal AllReduce",
+        "2.28.383.500 W NCCL init failed (unhandled system error (run with NCCL_DEBUG=INFO for details)); falling back to internal AllReduce",
+        "TP custom AllReduce: auto-selected two-shot for 4-rank decode-sized tensors"
+      ],
+      "mx_collective_fallback": true,
+      "complete": true,
+      "llmx_delta_percent": {
+        "pp_tok_s": -69.5091727120976,
+        "tg_tok_s": 23.970903357601347
+      },
+      "reference_speed_met_in_this_block": {
+        "pp_tok_s": false,
+        "tg_tok_s": true
+      }
+    }
+  },
+  "limitations": [
+    "One matched block per topology, with three different measured prompts per arm; not repeated ABBA.",
+    "All planned requests and activity flags retained; incomplete cells are not gate passes.",
+    "Both arms have 32GiB host caps. Earlier llmx-only 12GiB screens are separate evidence.",
+    "TG uses 255/predicted_ms for 256 delivered tokens; raw counters are retained.",
+    "Target topology is matched; backend kernels and MTP drafter placement may differ.",
+    "mx staged2x2 GPU-PLE allocation failed before requests; the distinct host-PLE fallback is reported explicitly.",
+    "Performance and MTP acceptance do not establish HF correctness.",
+    "mx RCCL startup can fall back to internal AllReduce; recorded path evidence qualifies these reference figures."
+  ],
+  "final_reference_gate": false,
+  "rccl_diagnostic": {
+    "cause": "The benchmark container's private 64MiB /dev/shm fills during ncclCommInitAll.",
+    "failure": "failed to extend shared memory segment to 21234052 bytes: No space left on device",
+    "failure_evidence": "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation/rccl-ipc-diagnostic-r4",
+    "correction": "Use host IPC, explicit GGML_ENABLE_CUSTOM_AR=1 and NCCL_DEBUG=INFO; refuse a fallback.",
+    "checks": [
+      {
+        "label": "benchmark-host",
+        "image": "sha256:1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87",
+        "ipc": "host",
+        "cid": "0ac2428ccd4e1c246ad9a8194e60e020148b7679e91a474967d5d68b24de5906",
+        "argv": [
+          "docker",
+          "run",
+          "-d",
+          "--init",
+          "--name",
+          "llmx-xdev-rccl-benchmark-host-1792517097427157592",
+          "--label",
+          "llmx.rccl-probe=llmx-xdev-rccl-benchmark-host-1792517097427157592",
+          "--network",
+          "host",
+          "--ipc",
+          "host",
+          "--cpuset-cpus",
+          "6,7",
+          "--cpus",
+          "2",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "256",
+          "--ulimit",
+          "core=0",
+          "--device",
+          "/dev/kfd",
+          "--security-opt",
+          "seccomp=unconfined",
+          "--security-opt",
+          "apparmor=unconfined",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation:/probe:ro",
+          "-e",
+          "ROCR_VISIBLE_DEVICES=GPU-cdca890173497dd5,GPU-215e208173497dd3,GPU-cdf2716173497dd5,GPU-cde450c173497dd5",
+          "-e",
+          "NCCL_DEBUG=INFO",
+          "-e",
+          "HSA_FORCE_FINE_GRAIN_PCIE=1",
+          "-e",
+          "GPU_MAX_HW_QUEUES=8",
+          "-e",
+          "GGML_ENABLE_CUSTOM_AR=1",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "--device",
+          "/dev/dri/renderD132",
+          "--device",
+          "/dev/dri/renderD133",
+          "--entrypoint",
+          "/bin/sleep",
+          "sha256:1e1a116b443f2b474e7fe14933552013ef68003364d7ec194d6101efa92faa87",
+          "infinity"
+        ],
+        "availability": [
+          {
+            "render": 136,
+            "pci": "0000:03:00.0",
+            "vram_bytes": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 137,
+            "pci": "0000:44:00.0",
+            "vram_bytes": 10919936,
+            "busy": 0
+          },
+          {
+            "render": 132,
+            "pci": "0000:83:00.0",
+            "vram_bytes": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 133,
+            "pci": "0000:86:00.0",
+            "vram_bytes": 10932224,
+            "busy": 0
+          }
+        ],
+        "start": 1792517097.5668855,
+        "exit": 0,
+        "state": {
+          "Status": "running",
+          "Running": true,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 372917,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-20T17:24:57.493973667Z",
+          "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "end": 1792517103.5662007
+      },
+      {
+        "label": "prebuilt-host",
+        "image": "mxxm/mx-llama.cpp:gfx906-b11756-c4d12e2c0",
+        "ipc": "host",
+        "cid": "33a51813037a65589a86ccc795f6a940dcc2d3809a839ffb0d1bc65bc4a22221",
+        "argv": [
+          "docker",
+          "run",
+          "-d",
+          "--init",
+          "--name",
+          "llmx-xdev-rccl-prebuilt-host-1792517106568315575",
+          "--label",
+          "llmx.rccl-probe=llmx-xdev-rccl-prebuilt-host-1792517106568315575",
+          "--network",
+          "host",
+          "--ipc",
+          "host",
+          "--cpuset-cpus",
+          "6,7",
+          "--cpus",
+          "2",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "256",
+          "--ulimit",
+          "core=0",
+          "--device",
+          "/dev/kfd",
+          "--security-opt",
+          "seccomp=unconfined",
+          "--security-opt",
+          "apparmor=unconfined",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/flash-tp-rocm-p4096-g256/mtp-preparation:/probe:ro",
+          "-e",
+          "ROCR_VISIBLE_DEVICES=GPU-cdca890173497dd5,GPU-215e208173497dd3,GPU-cdf2716173497dd5,GPU-cde450c173497dd5",
+          "-e",
+          "NCCL_DEBUG=INFO",
+          "-e",
+          "HSA_FORCE_FINE_GRAIN_PCIE=1",
+          "-e",
+          "GPU_MAX_HW_QUEUES=8",
+          "-e",
+          "GGML_ENABLE_CUSTOM_AR=1",
+          "--device",
+          "/dev/dri/renderD136",
+          "--device",
+          "/dev/dri/renderD137",
+          "--device",
+          "/dev/dri/renderD132",
+          "--device",
+          "/dev/dri/renderD133",
+          "--entrypoint",
+          "/bin/sleep",
+          "mxxm/mx-llama.cpp:gfx906-b11756-c4d12e2c0",
+          "infinity"
+        ],
+        "availability": [
+          {
+            "render": 136,
+            "pci": "0000:03:00.0",
+            "vram_bytes": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 137,
+            "pci": "0000:44:00.0",
+            "vram_bytes": 10919936,
+            "busy": 0
+          },
+          {
+            "render": 132,
+            "pci": "0000:83:00.0",
+            "vram_bytes": 10932224,
+            "busy": 0
+          },
+          {
+            "render": 133,
+            "pci": "0000:86:00.0",
+            "vram_bytes": 10932224,
+            "busy": 0
+          }
+        ],
+        "start": 1792517106.723389,
+        "exit": 0,
+        "state": {
+          "Status": "running",
+          "Running": true,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 373438,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-20T17:25:06.646823823Z",
+          "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "end": 1792517113.19002
+      }
+    ],
+    "verified_sum": {
+      "ranks": 4,
+      "f32_values_per_rank": 64,
+      "expected_each": 10.0
+    },
+    "library_sha256": {
+      "benchmark": "971a41ecf25eb1c6242dacf3820825e2f2124ff6ec0fac1a4174a0b5dec80e94",
+      "prebuilt_gfx906": "52cf0559b593719ca8ed32d0a45eb733c1778de81a425e2c2495a1138cdad0bd"
+    },
+    "scope": "The standalone sum passes in both images; this does not replace a corrected full-model run.",
+    "prior_diagnostics": [
+      "First Python probe used the wrong library path and never initialized RCCL.",
+      "Corrected Python probe hit its 2GiB cgroup cap; it does not establish a communication failure.",
+      "A larger-memory attempt refused admission before launch.",
+      "The 4GiB private-IPC probe reproduced shared-memory exhaustion without OOM."
+    ],
+    "artifacts": {
+      "benchmark-host.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "benchmark-host.stdout": "0b166de1248acd9f1db5bc38d1436e8d904514ecdb7a41dc6e95fcfa6bcaac32",
+      "prebuilt-host.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "prebuilt-host.stdout": "e39a46410ee03b009c18c2fe496986c138f8500be53ae9f066b296c563ee496b",
+      "results.json": "f2f5b764a39e222bd7c140301e87381e750aaa50c0d11ea43e86361040be5700"
+    }
+  },
+  "next_workload": {
+    "prompt_tokens": 16384,
+    "generated_tokens": 256,
+    "mtp": true,
+    "prepared": true,
+    "executed": false,
+    "remaining": "Larger-context fit, corrected model RCCL witness, layer serving/bench investigation and matched timing."
+  }
+}

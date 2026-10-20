@@ -1204,9 +1204,16 @@ void automatic_by_hand() {
         require(none.next(512) == 512 && none.next(16) == 16, "a prompt's slice with nothing measured was not a ubatch");
         // A job's step beside replies goes only into a pass carrying generated rows (server::job_rides); with none waiting or only prompts it goes anywhere.
         require(!server::job_rides(true, 0) && server::job_rides(true, 3) && server::job_rides(false, 0), "a job's step beside replies went into a pass of its own");
-        // A job's grant (server::job_grant): what is left over the last pass's time a row, in steps of 16; none where one step costs more than is left or nothing is measured, every row with nothing waiting.
-        require(server::job_grant(100, 512, 64, 50) == 128 && server::job_grant(10, 512, 64, 50) == 0 && server::job_grant(10, 512, 0, 0) == 0 && server::job_grant(0, 512, 0, 0) == 0 &&
-                    server::job_grant(server::BackgroundGrant::kUnbounded, 512, 64, 50) == 512 && server::job_grant(1e6, 100, 64, 50) == 100,
+        // A job's grant (server::job_grant): what is left over the last pass's time a row, in steps of 16; none where nothing is measured, every row with nothing waiting.
+        // Where one step costs more than is left, one step on credit while the whole allowance is left, at most `most` rows, and none once any of it is spent.
+        const double whole = server::kBackgroundShare * G;
+        require(server::job_grant(whole, 512, 64, 500, true) == 16 && server::job_grant(whole, 8, 64, 500, true) == 8 && server::job_grant(whole - 1, 512, 64, 500, true) == 0 &&
+                    server::job_grant(whole, 512, 0, 0, true) == 0,
+                "a step costing more than the allowance was not granted once on credit, or was granted past it");
+        // Beside replies no credit: the step would ride a reply's pass and lengthen its gap by its whole cost; what fits is granted as before.
+        require(server::job_grant(whole, 512, 64, 500, false) == 0 && server::job_grant(100, 512, 64, 50, false) == 128, "a step was granted on credit beside replies");
+        require(server::job_grant(100, 512, 64, 50, false) == 128 && server::job_grant(10, 512, 64, 50, false) == 0 && server::job_grant(10, 512, 0, 0, false) == 0 && server::job_grant(0, 512, 0, 0, false) == 0 &&
+                    server::job_grant(server::BackgroundGrant::kUnbounded, 512, 64, 50, false) == 512 && server::job_grant(1e6, 100, 64, 50, false) == 100,
                 "a job's grant was not cut by its last pass's time");
         // A wait for a donor's write (server::write_wait_ms): the time waited, then the remaining bytes at the measured rate, half as long again and 2 s more, never past recomputing, and nothing to go by with no rate.
         require(server::write_wait_ms(1e9, 0, 0, 1e9) == 0 && server::write_wait_ms(1e9, 1e9, 0, 0) == 0, "a write's wait was bounded with no rate or no measure of recomputing");
@@ -1290,6 +1297,16 @@ void automatic_by_hand() {
                 "the time to the next service did not cap background work beside replies, or a gap with no service did not end the interval beside prompts");
         served.began(7120);
         require(beside.left_ms(Demand::replies, true, served, true, 7125) == B, "a service after a time cut did not make the allowance whole");
+        // A step on credit: counted apart, not an overrun, its interval's allowance filled and the 40 ms past it owed, repaid an allowance an interval before anything is granted.
+        server::BackgroundGrant owing;
+        owing.spent(B + 40, B, none, 9000, false, true);
+        require(owing.credits == 1 && !owing.overruns && owing.left_ms(Demand::prompts, true, none, true, 9050) == 0 && owing.left_ms(Demand::prompts, true, none, true, 9100) == 0 &&
+                    owing.left_ms(Demand::prompts, true, none, true, 9200) == B - 15 && owing.left_ms(Demand::prompts, true, none, true, 9300) == B,
+                "a step on credit was counted an overrun, or its debt was not repaid an allowance an interval");
+        // Charged in the interval that repays part of the debt, the rest is repaid first and the charge counts beside it.
+        owing.spent(5, B - 15, none, 9210);
+        require(owing.left_ms(Demand::prompts, true, none, true, 9250) == B - 20 && owing.left_ms(Demand::prompts, true, none, true, 9300) == B && !owing.overruns,
+                "a charge beside a debt's last repayment was not counted with it");
     }
     // A request is a prompt's before its first token and while its cache lacks more than its last token, as a resumed one's does; a reply's rows in a pass in flight, its cache one short or whole, keep it a reply.
     require(server::reads_prompt(0, 0, 40) && server::reads_prompt(0, 40, 40) && server::reads_prompt(30, 0, 70) && server::reads_prompt(30, 68, 70) && !server::reads_prompt(30, 69, 70) &&

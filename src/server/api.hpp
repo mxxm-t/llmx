@@ -290,7 +290,7 @@ private:
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +
                   ",\"since_start\":{\"gaps\":" + n(s.gaps) + ",\"gaps_above_target\":" + n(s.gaps_late) + ",\"deferred_by_floor\":" + n(s.floor_deferred) +
                   ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"stages\":" + slices_json(s.slices) + ",\"background\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"job_rows_left\":" + n(s.job_rows_left) +
-                  "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"first_steps\":" + n(s.background_first_steps) + ",\"ms\":" + jmini::number((float)s.background_ms) +
+                  "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"first_steps\":" + n(s.background_first_steps) + ",\"credits\":" + n(s.background_credits) + ",\"ms\":" + jmini::number((float)s.background_ms) +
                   ",\"largest_ms\":" + jmini::number((float)s.background_largest_ms) + "}}}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }

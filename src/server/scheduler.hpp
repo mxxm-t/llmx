@@ -462,7 +462,7 @@ public:
         Timing timing;   // a timed scheduler's, as of its last round
         size_t reprefills = 0;         // jobs that kept a reply's next turn as a donor
         size_t jobs = 0, job_rows_left = 0;   // jobs running or waiting to start now, and the ids they have yet to read
-        size_t background_grants = 0, background_overruns = 0, background_first_steps = 0;   // the grants of background time spent, those that cost more than was left, and jobs' first steps (BackgroundGrant)
+        size_t background_grants = 0, background_overruns = 0, background_first_steps = 0, background_credits = 0;   // the grants of background time spent, those that cost more than was left, jobs' first steps and steps on credit (BackgroundGrant)
         double background_ms = 0, background_largest_ms = 0;
         size_t room_waits = 0, room_wait_timeouts = 0;   // admissions that waited for a donor's write to disk or for room for a restore, and those that reached their bound
         double room_wait_ms = 0, room_wait_longest_ms = 0;
@@ -531,6 +531,7 @@ public:
         s.background_grants = background_.grants;
         s.background_overruns = background_.overruns;
         s.background_first_steps = background_.first_steps;
+        s.background_credits = background_.credits;
         s.background_ms = background_.total_ms;
         s.background_largest_ms = background_.largest_ms;
         s.finished = finished_.load();
@@ -829,6 +830,7 @@ private:
         size_t prompt_from = 0, prompt_end = 0;
         bool job_charged = false;   // its job rows were granted beside foreground work, so their part of the pass is the background budget's
         bool job_first = false;     // and they were a job's first step at a depth nothing measured (job_rows_at)
+        bool job_credit = false;    // or a step on credit, which cost more than the allowance it was granted (job_grant)
     };
 
     bool flying() const {
@@ -1088,6 +1090,7 @@ private:
         f.job_left = 0;
         f.job_charged = false;
         f.job_first = false;
+        f.job_credit = false;
         const BackgroundGrant::Demand others = jobs_beside(active);
         if (budget && !overlap_ && job_rides(others == BackgroundGrant::Demand::replies, f.decoders) &&
             std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->job_ && !r->seq_.in_flight(); })) {
@@ -1095,13 +1098,14 @@ private:
             double remaining = left;
             for (auto& r : active) {
                 if (!r->job_ || r->seq_.in_flight() || remaining <= 0) continue;
-                const auto [grant, row_ms, first] = job_rows_at(*r, remaining, budget);
+                const auto [grant, row_ms, first, credit] = job_rows_at(*r, remaining, budget, others == BackgroundGrant::Demand::prompts);
                 if (!grant) continue;
                 const size_t before = budget;
                 slice(r, std::min(budget, grant));
                 if (remaining < BackgroundGrant::kUnbounded) remaining -= (double)(before - budget) * row_ms;
                 f.job_charged = f.job_charged || (others != BackgroundGrant::Demand::none && before > budget);
                 f.job_first = f.job_first || (first && before > budget);
+                f.job_credit = f.job_credit || (credit && before > budget);
             }
             f.job_left = left;
         }
@@ -1359,7 +1363,7 @@ private:
             job_rows_ = job_rows;
             job_ms_ = ms;
             job_end_ = end;
-            if (f.job_charged) background_spent(ms, f.job_left, f.job_first);
+            if (f.job_charged) background_spent(ms, f.job_left, f.job_first, f.job_credit);
         }
         if (again || job_rows) {
             std::lock_guard<std::mutex> lk(m_);
@@ -2253,13 +2257,13 @@ private:
         return left;
     }
     // Granted background work cost `ms`: charged once to every stage's budget, and counted for the server.
-    void background_spent(double ms, double left, bool first = false) {
+    void background_spent(double ms, double left, bool first = false, bool credit = false) {
         for (auto& pace : pace_) {
             std::lock_guard<std::mutex> lk(pace->m);
-            pace->background.spent(ms, left, pace->clock, now_ms(), first);
+            pace->background.spent(ms, left, pace->clock, now_ms(), first, credit);
         }
         std::lock_guard<std::mutex> lk(m_);
-        background_.spent(ms, left, ServiceClock{}, now_ms(), first);
+        background_.spent(ms, left, ServiceClock{}, now_ms(), first, credit);
     }
 
 
@@ -2295,13 +2299,17 @@ private:
 
 
 
-    // The rows of job r that `left` ms buy, at most `most`, their price a row, and whether they are a first step: by the jobs' last share of their pass where it was measured at a history at least as deep as r's (job_grant).
+    // The rows of job r that `left` ms buy, at most `most`, their price, whether a first step and whether on credit, beside prompts alone (`prompts`): by the jobs' last share of a pass measured as deep as r (job_grant).
     // Otherwise a first step of one row, priced by the last pass of generated rows a row, since a job's rows ride that pass, so an underpriced step costs one row at r's depth (F2DEV, 2026-10-18 20:20).
-    std::tuple<size_t, double, bool> job_rows_at(const Request& r, double left, size_t most) {
-        if (left >= BackgroundGrant::kUnbounded) return {most, 0, false};
-        if (job_rows_ && job_ms_ > 0 && job_end_ >= r.seq_.length()) return {job_grant(left, most, job_rows_, job_ms_), job_ms_ / (double)job_rows_, false};
-        if (pass_row_ms_ > 0 && left >= pass_row_ms_) return {std::min<size_t>(1, most), pass_row_ms_, true};
-        return {0, 0, false};
+    std::tuple<size_t, double, bool, bool> job_rows_at(const Request& r, double left, size_t most, bool prompts) {
+        if (left >= BackgroundGrant::kUnbounded) return {most, 0, false, false};
+        if (job_rows_ && job_ms_ > 0 && job_end_ >= r.seq_.length()) {
+            const size_t grant = job_grant(left, most, job_rows_, job_ms_, prompts);
+            const double row_ms = job_ms_ / (double)job_rows_;
+            return {grant, row_ms, false, grant && (double)grant * row_ms > left};
+        }
+        if (pass_row_ms_ > 0 && left >= pass_row_ms_) return {std::min<size_t>(1, most), pass_row_ms_, true, false};
+        return {0, 0, false, false};
     }
 
 

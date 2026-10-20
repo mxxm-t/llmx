@@ -1239,7 +1239,7 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     };
     std::thread runner([&] { sched.run(); });
     const auto count = [&](server::Move k) { return sched.stats().moves[(size_t)k]; };
-    size_t done = 0, gave = 0, reused = 0;
+    size_t done = 0, gave = 0, reused = 0, credits = 0, overruns = 0;
     Reply rb, rc;
     Req next;
     try {
@@ -1269,6 +1269,8 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
         set(held, std::numeric_limits<size_t>::max());
         within_a_minute([&] { return count(server::Move::job_done) + count(server::Move::job_gave_way) >= 1; }, "the last-block leg: the job ended or gave way");
         done = count(server::Move::job_done);
+        credits = sched.stats().background_credits;
+        overruns = sched.stats().background_overruns;
         gave = count(server::Move::job_gave_way);
         set(false, std::numeric_limits<size_t>::max());
         slowed->store(false);
@@ -1287,6 +1289,9 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     sched.stop();
     runner.join();
     std::cout << "cache-scenario" << on_what << ": " << done << " jobs done, " << gave << " gave way, the next turn reused " << reused << "\n";
+    // A step costlier than the whole allowance runs on credit, which the health counts apart from the overruns.
+    if (mode == LastBlock::costly)
+        require(credits >= 1 && !overruns, "cache-scenario" + on_what + ": " + std::to_string(credits) + " steps on credit and " + std::to_string(overruns) + " overruns, against some and none");
     if (held)
         require(done == 1 && !gave && reused == 768, "cache-scenario" + on_what + ": " + std::to_string(done) + " jobs done and " + std::to_string(gave) + " gave way, the next turn reusing " +
                                                           std::to_string(reused) + ", against 1, 0 and the job's 768");

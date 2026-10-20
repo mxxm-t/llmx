@@ -497,6 +497,8 @@ struct BackgroundGrant {
     double used_ms = 0, since_ms = -1e300;   // spent in the interval that began at since_ms by the stage's clock, none charged before; an interval ends at a service or kServiceGapMs after it began
     uint64_t grants = 0, overruns = 0;  // grants spent, and those whose cost passed what was left
     uint64_t first_steps = 0;           // grants that were a job's first step at a depth nothing measured, whose cost is not counted an overrun
+    uint64_t credits = 0;               // grants of one step that cost more than a whole allowance, run on credit and not counted an overrun
+    double owed_ms = 0;                 // what credit steps cost past their interval's allowance, owed to the intervals after it
     double total_ms = 0, largest_ms = 0;
     enum class Demand { none, prompts, replies };   // the foreground work that waits: none, prompts alone, or generated rows
     static constexpr double kUnbounded = 1e300;
@@ -505,7 +507,7 @@ struct BackgroundGrant {
     double left_ms(Demand demand, bool paced, const ServiceClock& clock, bool floor_clear, double now_ms) const {
         if (demand == Demand::none) return kUnbounded;
         if (!paced || !floor_clear) return 0;
-        const double allowance = kBackgroundShare * kServiceGapMs - (interval(clock, now_ms) == since_ms ? used_ms : 0);
+        const double allowance = kBackgroundShare * kServiceGapMs - used_at(clock, now_ms);
         if (demand == Demand::prompts) return std::max(0.0, allowance);
         return std::max(0.0, std::min(allowance, kServiceGapMs - (now_ms - clock.last_ms)));
     }
@@ -524,26 +526,46 @@ struct BackgroundGrant {
         const double gaps = std::floor((now_ms - from) / kServiceGapMs);
         return gaps > 0 ? from + gaps * kServiceGapMs : from;
     }
+    // What the interval that pays at `now_ms` has spent: its own charges, or of credit owed, what the intervals since the last charge have not repaid, an allowance each, one a gap where no service ended them.
+    double used_at(const ServiceClock& clock, double now_ms) const {
+        if (interval(clock, now_ms) == since_ms) return used_ms;
+        return std::min(kBackgroundShare * kServiceGapMs, unrepaid(clock, now_ms));
+    }
+    double unrepaid(const ServiceClock& clock, double now_ms) const {
+        const double passed = std::max(1.0, std::floor((interval(clock, now_ms) - since_ms) / kServiceGapMs));
+        return std::max(0.0, owed_ms - (passed - 1) * kBackgroundShare * kServiceGapMs);
+    }
     // What granted work cost, whatever its unit, once: `left` is what left_ms gave when it was granted, and the clock and the time say which interval pays.
-    void spent(double ms, double left, const ServiceClock& clock, double now_ms, bool first = false) {
+    // A credit step (job_grant) fills its interval's allowance and owes the rest to the intervals after it, which repay it before they grant anything.
+    void spent(double ms, double left, const ServiceClock& clock, double now_ms, bool first = false, bool credit = false) {
         ++grants;
         if (first) ++first_steps;
+        else if (credit) ++credits;
         else if (ms > left) ++overruns;
         const double from = interval(clock, now_ms);
-        if (from != since_ms) used_ms = 0, since_ms = from;
-        used_ms += ms;
+        if (from != since_ms) {
+            const double unpaid = since_ms <= -1e299 ? 0 : unrepaid(clock, now_ms);
+            used_ms = std::min(kBackgroundShare * kServiceGapMs, unpaid);
+            owed_ms = unpaid - used_ms;
+            since_ms = from;
+        }
+        const double past = credit ? std::max(0.0, used_ms + ms - kBackgroundShare * kServiceGapMs) : 0;
+        owed_ms += past;
+        used_ms += ms - past;
         total_ms += ms;
         largest_ms = std::max(largest_ms, ms);
     }
 };
 
-// The rows of a job a grant of `left` ms buys, at most `most`, where a measurement took `ms` for `rows` rows: whole steps, none where one step costs more than is left or nothing is measured.
-inline size_t job_grant(double left, size_t most, size_t rows, double ms) {
+// The rows of a job a grant of `left` ms buys, at most `most`, where a measurement took `ms` for `rows` rows: whole steps, none where nothing is measured.
+// Where one step costs more than is left, one step on credit while the whole allowance is left and `credit` allows it (BackgroundGrant::spent), else none.
+inline size_t job_grant(double left, size_t most, size_t rows, double ms, bool credit) {
     if (left <= 0 || !most) return 0;
     if (left >= BackgroundGrant::kUnbounded) return most;
     if (!rows || !(ms > 0)) return 0;
     const double steps = std::floor(left * (double)rows / ms / (double)kPieceStep);
-    return steps < 1 ? 0 : (size_t)std::min((double)most, steps * (double)kPieceStep);
+    if (steps < 1) return credit && left >= kBackgroundShare * kServiceGapMs ? std::min(most, kPieceStep) : 0;
+    return (size_t)std::min((double)most, steps * (double)kPieceStep);
 }
 
 // The foreground demand background work gives way to (promise P6 in docs/CACHE-PLAN.md): none only where at most one request asks and no other is active, queued or paused.

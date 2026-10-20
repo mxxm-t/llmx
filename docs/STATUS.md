@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## A job's step costlier than the background allowance runs on credit (2026-10-20, branch feat/job-credit on feat/item14 568d028d6, F2DEV's DECISION of 01:25, lands by fast-forward as two commits after feat/item14)
+
+- **Why:** `job_grant` granted no step where one step cost more than was left, and a job's cost a step is measured only by its own passes, so beside waiting work a job whose step cost more than the 25 ms allowance never ran again; on the 27B at depth a 16-row step costs about 2 s, so every job, and one stall inside a pass measured as the job's step froze it the same way.
+- **The change:** beside prompts alone, while the whole allowance is left, a step costlier than it is granted on credit (`job_grant`, `Scheduler::job_rows_at` saying so, and offering credit only where the demand is prompts, F2DEV 01:41); `BackgroundGrant::spent` fills that interval's allowance with it and owes the rest (`owed_ms`), which each interval after it repays an allowance at a time, one a gap where no service ends them, before it grants anything (`used_at`, `unrepaid`). Such a step is counted in `credits`, not `overruns`, and the health gives it as `pacing.background.since_start.credits`. A job then reads at the quarter share over time in steps of its own size. Overruns that are not credit steps are not carried, as before.
+- **Tests:** the first commit, failing on 568d028d6 (the job holding 656 rows at the stop): the held last-block leg again with each submission spinning 30 ms, a step past the whole allowance; with the change the job completes, its steps counted as credit and no overrun. `server-passes` by hand: one step on credit at the whole allowance and none below it, none beside replies, a debt of 40 ms repaid over two intervals before the next grant, and a charge beside a debt's last repayment counted with it.
+- **Beside replies no credit, by rule (F2DEV 01:41):** a step would ride the reply's pass and lengthen its gap by the step's whole cost, about 2 s at 211k, so a job beside continuous replies at depth does not progress; that is the reply gap's target kept, not a defect.
+- **The jobs leg's bound** on the 27B (CACHE-PLAN, item 2's gate) stays `overruns` at 0, with steps on credit allowed only in windows without a reply.
+- **Left:** the 27B jobs leg, the hosted run, reviews.
+
 ## The cache behind one owner (2026-10-19, branch feat/item14 on feat/rank 1c5247c4b, item 14 of docs/CACHE-PLAN.md section 8, lands by fast-forward as two commits after feat/rank)
 
 - **Why:** the cache's decisions were members of `Scheduler` defined in `reuse.hpp`, so the holders, the round and pacing shared one class and every cache change touched the scheduler (the user's "one tight solution, all in one place").

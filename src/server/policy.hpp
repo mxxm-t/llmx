@@ -493,7 +493,7 @@ inline bool job_rides(bool replies, size_t decoders) { return !replies || decode
 // The time background work may still take of a stage in this service interval: work that reaches the device and is no request's own, as a read-ahead job's rows.
 // A file read or write on a thread of its own touches no stage and takes none of it, and a read for a waiting request is foreground, as its request is.
 struct BackgroundGrant {
-    double used_ms = 0, since_ms = 0;   // spent in the service interval that began at since_ms by the stage's clock; a later service makes the allowance whole
+    double used_ms = 0, since_ms = -1e300;   // spent in the interval that began at since_ms by the stage's clock, none charged before; an interval ends at a service or kServiceGapMs after it began
     uint64_t grants = 0, overruns = 0;  // grants spent, and those whose cost passed what was left
     uint64_t first_steps = 0;           // grants that were a job's first step at a depth nothing measured, whose cost is not counted an overrun
     double total_ms = 0, largest_ms = 0;
@@ -504,7 +504,7 @@ struct BackgroundGrant {
     double left_ms(Demand demand, bool paced, const ServiceClock& clock, bool floor_clear, double now_ms) const {
         if (demand == Demand::none) return kUnbounded;
         if (!paced || !floor_clear) return 0;
-        const double allowance = kBackgroundShare * kServiceGapMs - (clock.last_ms == since_ms ? used_ms : 0);
+        const double allowance = kBackgroundShare * kServiceGapMs - (interval(clock, now_ms) == since_ms ? used_ms : 0);
         if (demand == Demand::prompts) return std::max(0.0, allowance);
         return std::max(0.0, std::min(allowance, kServiceGapMs - (now_ms - clock.last_ms)));
     }
@@ -516,12 +516,20 @@ struct BackgroundGrant {
         if (unit_ms <= 0) return 1;
         return (size_t)std::min((double)at_most, left / unit_ms);
     }
-    // What granted work cost, whatever its unit, once: `left` is what left_ms gave when it was granted, and the clock says which service interval pays.
-    void spent(double ms, double left, const ServiceClock& clock, bool first = false) {
+    // The start of the interval that pays at `now_ms`: the later of the last service and the interval charged last, advanced by the whole gaps that passed with no service; `now_ms` before either.
+    double interval(const ServiceClock& clock, double now_ms) const {
+        const double from = std::max(clock.last_ms, since_ms);
+        if (from <= -1e299) return now_ms;
+        const double gaps = std::floor((now_ms - from) / kServiceGapMs);
+        return gaps > 0 ? from + gaps * kServiceGapMs : from;
+    }
+    // What granted work cost, whatever its unit, once: `left` is what left_ms gave when it was granted, and the clock and the time say which interval pays.
+    void spent(double ms, double left, const ServiceClock& clock, double now_ms, bool first = false) {
         ++grants;
         if (first) ++first_steps;
         else if (ms > left) ++overruns;
-        if (clock.last_ms != since_ms) used_ms = 0, since_ms = clock.last_ms;
+        const double from = interval(clock, now_ms);
+        if (from != since_ms) used_ms = 0, since_ms = from;
         used_ms += ms;
         total_ms += ms;
         largest_ms = std::max(largest_ms, ms);

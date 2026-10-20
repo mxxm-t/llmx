@@ -1250,20 +1250,38 @@ void automatic_by_hand() {
                 "background work beside a reply was not given the replies' rule");
         // The aggregate over several consumers of one interval: each spends from the same allowance, a probe included, until a service makes it whole.
         double left = grant.left_ms(Demand::replies, true, clock, true, 1010);
-        grant.spent(10, left, clock);
+        grant.spent(10, left, clock, 1010);
         require(grant.left_ms(Demand::replies, true, clock, true, 1020) == B - 10 && server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1020), 64, 0) == 1, "a second consumer of one interval was given a whole allowance");
         left = grant.left_ms(Demand::replies, true, clock, true, 1020);
-        grant.spent(20, left, clock);
+        grant.spent(20, left, clock, 1020);
         require(grant.left_ms(Demand::replies, true, clock, true, 1040) == 0 && server::BackgroundGrant::units(grant.left_ms(Demand::replies, true, clock, true, 1040), 64, 0) == 0 && grant.overruns == 1 && grant.grants == 2 &&
                     grant.largest_ms == 20 && grant.total_ms == 30,
                 "a grant that cost more than was left was not counted, or left an allowance behind");
         // A failed grant is charged as any other; the next service gives the allowance back.
-        grant.spent(5, 0, clock);
+        grant.spent(5, 0, clock, 1040);
         clock.began(1100);
         require(grant.left_ms(Demand::replies, true, clock, true, 1105) == B && grant.overruns == 2 && grant.total_ms == 35, "a service did not make the background allowance whole");
         // A job's first step at a depth nothing measured is counted apart, not as an overrun, whatever it cost.
-        grant.spent(148, 10, clock, true);
+        grant.spent(148, 10, clock, 1105, true);
         require(grant.first_steps == 1 && grant.overruns == 2 && grant.grants == 4, "a job's first step was counted an overrun");
+        // With no service an interval ends a gap after it began: beside prompts alone the allowance spent at 5000 is gone until 5100 and whole from then, each later gap the same.
+        server::BackgroundGrant alone;
+        const server::ServiceClock none;
+        require(alone.left_ms(Demand::prompts, true, none, true, 5000) == B, "a first grant beside prompts alone was not the whole allowance");
+        alone.spent(B, B, none, 5000);
+        require(alone.left_ms(Demand::prompts, true, none, true, 5099) == 0 && alone.left_ms(Demand::prompts, true, none, true, 5100) == B, "an interval with no service did not end a gap after it began");
+        alone.spent(10, B, none, 5150);
+        require(alone.left_ms(Demand::prompts, true, none, true, 5199) == B - 10 && alone.left_ms(Demand::prompts, true, none, true, 5250) == B, "a gap after a time cut did not end its interval alike");
+        // Beside replies the time to the next service still caps it: spent at 7010 after a service at 7000, nothing at 7050, nor at 7110 though the gap has passed, and the next service makes it whole.
+        server::BackgroundGrant beside;
+        server::ServiceClock served;
+        served.began(7000);
+        beside.spent(B, B, served, 7010);
+        require(beside.left_ms(Demand::replies, true, served, true, 7050) == 0 && beside.left_ms(Demand::replies, true, served, true, 7110) == 0 &&
+                    beside.left_ms(Demand::prompts, true, served, true, 7110) == B,
+                "the time to the next service did not cap background work beside replies, or a gap with no service did not end the interval beside prompts");
+        served.began(7120);
+        require(beside.left_ms(Demand::replies, true, served, true, 7125) == B, "a service after a time cut did not make the allowance whole");
     }
     // A request is a prompt's before its first token and while its cache lacks more than its last token, as a resumed one's does; a reply's rows in a pass in flight, its cache one short or whole, keep it a reply.
     require(server::reads_prompt(0, 0, 40) && server::reads_prompt(0, 40, 40) && server::reads_prompt(30, 0, 70) && server::reads_prompt(30, 68, 70) && !server::reads_prompt(30, 69, 70) &&

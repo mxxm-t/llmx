@@ -3061,10 +3061,10 @@ private:
     void background_spent(double ms, double left, bool first = false) {
         for (auto& pace : pace_) {
             std::lock_guard<std::mutex> lk(pace->m);
-            pace->background.spent(ms, left, pace->clock, first);
+            pace->background.spent(ms, left, pace->clock, now_ms(), first);
         }
         std::lock_guard<std::mutex> lk(m_);
-        background_.spent(ms, left, ServiceClock{}, first);
+        background_.spent(ms, left, ServiceClock{}, now_ms(), first);
     }
 
 

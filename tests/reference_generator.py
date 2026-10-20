@@ -99,6 +99,86 @@ class ReferenceGenerator(unittest.TestCase):
             write.assert_called_once()
             self.assertTrue(Path(write.call_args.args[0]).samefile(directory))
 
+    def _load_file_exact_weights(self, tensors, tied=True, reference_values=None, expose_head=True):
+        import numpy as np
+        import spec_decode as sd
+
+        class Parameter(np.ndarray):
+            def copy_(self, values):
+                self[...] = values
+                return self
+
+        initial = np.zeros((2, 32), dtype=np.float32) if reference_values is None else np.array(reference_values, dtype=np.float32).reshape(2, 32)
+        embedding = initial.copy().view(Parameter)
+        head = embedding if tied else initial.copy().view(Parameter)
+        params = [("model.embed_tokens.weight", embedding)] + ([] if tied or not expose_head else [("lm_head.weight", head)])
+        model = SimpleNamespace(named_parameters=lambda: iter(params), get_output_embeddings=lambda: SimpleNamespace(weight=head))
+        torch = SimpleNamespace(no_grad=contextlib.nullcontext, from_numpy=lambda values: values,
+                                equal=np.array_equal, int32=np.int32)
+        with tempfile.TemporaryDirectory(prefix="llmx_file_exact_tied_") as directory:
+            path = Path(directory) / "unregistered.gguf"
+            sd.write_gguf(path, {"general.architecture": (8, "qwen3")}, tensors)
+            args = SimpleNamespace(weights_gguf=str(path))
+            generator.load_gguf_weights(args, torch, model)
+            return args.weights, embedding.copy(), head.copy()
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which file-exact decodes with")
+    def test_file_exact_accepts_verified_redundant_tied_head(self):
+        import numpy as np
+        import spec_decode as sd
+
+        values = [i * 0.125 for i in range(16)] * 4
+        q4 = struct.pack("<ee", 0.125, 0.0) + bytes(i | (i << 4) for i in range(16))
+        embedding = ("token_embd.weight", [32, 2], sd.Q4_1, q4 * 2)
+        for kind, raw in ((sd.Q4_1, q4 * 2), (sd.F32, struct.pack("<64f", *values))):
+            head = ("output.weight", [32, 2], kind, raw)
+            for first in (False, True):
+                for reference in (None, values):
+                    with self.subTest(storage=kind, head_first=first, equal_reference=reference is not None):
+                        metadata, got, output = self._load_file_exact_weights([head, embedding] if first else [embedding, head], reference_values=reference)
+                        self.assertTrue(np.array_equal(got, np.array(values, dtype=np.float32).reshape(2, 32)))
+                        self.assertTrue(np.array_equal(got, output))
+                        self.assertEqual(metadata["tensors"], 2)
+                        self.assertEqual(sum(metadata["types"].values()), 2)
+                        self.assertEqual(metadata["tensors_equal_to_reference"], 0 if reference is None else 2)
+                        self.assertIs(metadata["tied_output_verified"], True)
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which file-exact decodes with")
+    def test_file_exact_refuses_nonidentical_tied_head(self):
+        import spec_decode as sd
+
+        values = [float(i) for i in range(64)]
+        embedding = ("token_embd.weight", [32, 2], sd.F32, struct.pack("<64f", *values))
+        altered = list(values)
+        altered[1] += 0.25
+        cases = [([32, 2], altered), ([2, 32], values), ([32, 2, 1], values), ([32, 2], [-0.0] + values[1:])]
+        for shape, data in cases:
+            head = ("output.weight", shape, sd.F32, struct.pack("<64f", *data))
+            for first in (False, True):
+                with self.subTest(shape=shape, head_first=first, zero_sign=data[0]), self.assertRaisesRegex(SystemExit, "lm_head.weight (is|differs)"):
+                    self._load_file_exact_weights([head, embedding] if first else [embedding, head])
+        head = ("output.weight", [32, 2], sd.F32, embedding[3])
+        for tensors in ([head], [embedding, head, head]):
+            with self.subTest(tensors=len(tensors)), self.assertRaises(SystemExit):
+                self._load_file_exact_weights(tensors)
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which file-exact decodes with")
+    def test_file_exact_keeps_implicit_and_untied_heads(self):
+        import numpy as np
+        import spec_decode as sd
+
+        embedding = ("token_embd.weight", [32, 2], sd.F32, struct.pack("<64f", *([1.0] * 64)))
+        metadata, _, _ = self._load_file_exact_weights([embedding])
+        self.assertEqual(metadata["tensors"], 1)
+        self.assertNotIn("tied_output_verified", metadata)
+        head = ("output.weight", [32, 2], sd.F32, struct.pack("<64f", *([2.0] * 64)))
+        metadata, got, output = self._load_file_exact_weights([head, embedding], tied=False)
+        self.assertTrue(np.all(got == 1.0) and np.all(output == 2.0))
+        self.assertEqual(metadata["tensors"], 2)
+        self.assertNotIn("tied_output_verified", metadata)
+        with self.assertRaisesRegex(SystemExit, "lm_head.weight"):
+            self._load_file_exact_weights([embedding, ("output.weight",) + embedding[1:]], tied=False, expose_head=False)
+
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:
             pinned, local = (os.path.join(directory, name) for name in ("Qwen3-0.6B-IQ4_XS.gguf", "local.gguf"))

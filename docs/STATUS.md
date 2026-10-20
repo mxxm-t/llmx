@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## File-exact redundant tied-head fix (2026-10-20)
+
+- **Goal:** independently port verified redundant-head validation onto main 7184ff13f, with no unmerged quant or runtime dependency.
+- **Done:** the main-supported Q4_1/F32 real-GGUF acceptance regression fails on unfixed main in all eight storage/order/provenance subcases with the original tied-head refusal. The tests also cover changed values/layout, zero signs, missing/repeated heads and unchanged implicit/untied behavior. The validation owner is unchanged from source-fix parent 5a99a58bd.
+- **Left:** commit the failing real-GGUF regression, apply the narrow validation fix, run focused generator/source checks and record provenance for scoped CI.
+- **Gotchas:** accept only actual HF parameter sharing, identical decoded dimensions and F32 bits including zero signs. Preserve missing/mismatched-head refusal and implicit/untied behavior. No runtime, budget or fixture registry edit; successful pinned Q5 reference source and evidence remain unchanged in their isolated tree.
+
+
 ## Qwen3.8-Flash-Next text support (2026-10-19, branch feat/qwen38-flash-finish on main, lands by fast-forward as two commits)
 
 - **Why:** llmx did not run Qwen3.8-Flash-Next (`qwen4exp`), a hybrid of GDN and sparse-attention layers with hyper-connection streams, per-layer embeddings read from bounded lookup rows, routed experts and an MTP block; design, contract and evidence are in [QWEN38-FLASH](QWEN38-FLASH.md).

@@ -447,6 +447,7 @@ The file is local and not hosted; regenerate it and compare the digest.
 
 `python tools/gen_baseline.py file-exact --weights-gguf FILE --output-dir DIR` loads the pinned `Qwen/Qwen3-0.6B` reference, replaces every parameter with the file's own tensors as the numpy spec decoder reads them, and writes logit and PPL goldens in the format of `tests/data`, labelled with the file's name, SHA-256, repository and tensor types.
 It runs on the CPU in float32 with eager attention.
+A file may repeat a tied output head explicitly. The generator accepts it only when the HF output parameter is the embedding itself, both file tensors have the same decoded shape and binary32 bits (including zero signs), and every required file parameter is present. The redundant tensor is counted and marked `tied_output_verified` in the reference metadata; a mismatched head is refused.
 `python -X utf8 tests/baseline.py --file-exact DIR --model FILE` then holds llmx on that file to the Q8_0 fixture's bounds, since the format's loss is on both sides.
 These goldens were generated on Windows with torch 2.5.1+cpu and transformers 4.55.2 and are not committed; each type's branch commits the ones it is gated on.
 A pinned qwen35 file takes its own checkpoint instead, with the converter's changes undone (The qwen35 real-model references, below).

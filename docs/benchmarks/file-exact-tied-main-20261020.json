@@ -1,0 +1,69 @@
+{
+  "scope": "Tools-only main port; no runtime, quant decoder, calibration, acceptance-budget or fixture-registry change.",
+  "base": "7184ff13f50ed783c75ce30c5fce2906d3f083a5",
+  "red_commit": "e6533a4da5949dee9d9a94e77da415ee029151db",
+  "owner": "tools/gen_baseline.py::load_gguf_weights",
+  "rule": "Require actual HF output/embedding object identity, every required file parameter, identical decoded dimensions and binary32 bits including zero signs. Accept either file order; count the verified redundant tensor and preserve implicit/untied behavior.",
+  "regression": {
+    "command": "python -m unittest discover -s tests -p reference_generator.py -k test_file_exact_accepts_verified_redundant_tied_head",
+    "before_exit": 1,
+    "before_subcase_errors": 8,
+    "before_reason": "Original tied-head refusal",
+    "after_command": "python -m unittest discover -s tests -p reference_generator.py -k test_file_exact_",
+    "after_exit": 0,
+    "after_tests": 5,
+    "encoding": "Existing Q4_1 embedding with identical Q4_1/F32 head; no Q5_1 spec decoder needed.",
+    "other_cases": [
+      "Original-HF equal/not-equal metadata counts",
+      "Altered value, reversed/extra dimensions and zero-sign mismatch refused",
+      "Missing embedding and repeated redundant output refused",
+      "Implicit tied and independently weighted untied head behavior retained",
+      "Equal-valued distinct HF output absent from named_parameters refused"
+    ]
+  },
+  "focused_checks": {
+    "command": "python tests/run_tests.py --exe ../quant-stack-20261020/build-quant-stack/Release/llmx.exe --only dead-code,docs,reference-generator",
+    "exit": 0,
+    "reference_generator_tests": 58,
+    "docs": "0 findings; 21 planted faults",
+    "dead_code": "5 listed findings; 18 planted faults",
+    "binary_role": "Unchanged existing binary supplies help text for docs check; no runtime inference gate or new native build for Python-only edit.",
+    "binary_version": "llmx 0.1.0+g6e95bc7af15e.dirty numerics 5ee2eee60792876b",
+    "binary_sha256": "6aab87af17f4c8671d394353b3a7564e6d8181e924e5da4fdb79d4f6a86f3671",
+    "final_documentation_recheck": "PASS after final STATUS/evidence edits; zero findings and 21 planted faults."
+  },
+  "provenance": {
+    "original_failed_source": "5a99a58bd4a3ac01d8bea6add78a4831e983576e",
+    "original_failed_reference_exit": 1,
+    "original_failed_reference_outputs": [],
+    "successful_reference_source": "7e26a5ed9af71d9abb349f34a798a02bf80c8d83",
+    "successful_reference_evidence_commit": "8c258658fc252b893eb99918260f8353c469e373",
+    "owner_identity": "Main pre-fix owner is identical to 5a; fixed owner is identical to successful7e source. Other generator components differ; entire-reference regeneration is not claimed for main.",
+    "public_model": "Qwen/Qwen3-0.6B",
+    "public_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "public_Q5_input_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+    "pinned_environment": "CPU-only Python3.12.13 / torch2.5.1+cpu / transformers4.55.2 / numpy2.2.6, image57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "resource_limits": "CPUs4,5; threads2; 12GiB memory+swap; timeout900s; network none; no GPU devices; core dumps disabled",
+    "reference_result": "Exit0, six logit prompts,247 sequence tokens, meanNLL3.421548182 / PPL30.616778700. Verified redundant tied head;311 tensors=198Q5_1+113F32. This is reference generation in the quant feature tree; no main Q5 runtime support or runtime/original-weight quality claim.",
+    "reference_archive_sha256": "fdbd4c868d13b11414a046acad7863ae3e3cb48128f533e69d4d5ab1aa781140",
+    "output_hashes": {
+      "baseline_logits.json": "3054e14f93f59ec2efaaf703f877a57e57a8975970cdbaf115ee165aec0d9b82",
+      "baseline_perplexity.json": "b4eb5bad24741c3481bc4d8771dc0a3c7047b952b3652ca36bd9e6dc7c8e2587"
+    }
+  },
+  "source_hashes": {
+    "tools/gen_baseline.py": "bba1274a69df4f1897bb43adcce8ee913f2deb91b1f12880e313ab24eb97d845",
+    "tests/reference_generator.py": "3bd1edc16983105b435e9995709097d832059f3f1e1c32c1ec96999905c4cbb2"
+  },
+  "log_hashes": {
+    "build-reference-fix/focused-checks.exit": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "build-reference-fix/focused-checks.log": "ed3f867eb66a40f352af11db633769669be165a143d0049e04f920973f005f66",
+    "build-reference-fix/regression-after.exit": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "build-reference-fix/regression-after.log": "5feaa0616a22ec442ab9c7bd74e25292241461f1e503746c0038e1a612d5a0a9",
+    "build-reference-fix/regression-before.exit": "f1b2f662800122bed0ff255693df89c4487fbdcf453d3524a42d4ec20c3d9c04",
+    "build-reference-fix/regression-before.log": "1a5cf50bb22fdfbd8bf99dbcd56f323b42e3449ae55c6137fcb4c40bc3478664",
+    "build-reference-fix/final-docs.log": "7da0672e77391b97134123ad4c9c0020e4cd0a7eca035f1775f8e22a0a669a9d",
+    "build-reference-fix/final-docs.exit": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+  },
+  "left": "Scoped hosted review/CI and main landing owned by coordinator; no push or merge performed."
+}

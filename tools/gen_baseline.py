@@ -403,31 +403,49 @@ def load_gguf_weights(args, torch, model):
     pinned = pinned_fixture(name)
     if pinned and pinned["sha256"] != sha256:
         raise SystemExit("%s is named like a pinned fixture but does not match its SHA-256" % args.weights_gguf)
-    # A tied head is the embedding's parameter, which named_parameters gives once, under the embedding's name.
+    # named_parameters lists an actually tied head once, under the embedding; a redundant file head is verified after that embedding is loaded.
     params = dict(model.named_parameters())
+    embedding = params.get("model.embed_tokens.weight")
+    tied_output, embedding_equal = None, False
     types, equal, loaded = {}, 0, set()
     with torch.no_grad():
         for key, shape, values, type_name in gguf_tensors(args.weights_gguf):
-            if key not in params:
+            alias = key == "lm_head.weight" and key not in params and embedding is not None and model.get_output_embeddings().weight is embedding
+            if key not in params and not alias:
                 raise SystemExit("%s holds %s, which the reference model %s" % (name, key, "ties to the embedding" if key == "lm_head.weight" else "does not have"))
             tensor = torch.from_numpy(values).reshape(shape)
-            if params[key].shape != tensor.shape:
-                raise SystemExit("%s: %s is %s in the file and %s in the reference" % (name, key, list(tensor.shape), list(params[key].shape)))
+            parameter = embedding if alias else params[key]
+            if parameter.shape != tensor.shape:
+                raise SystemExit("%s: %s is %s in the file and %s in the reference" % (name, key, list(tensor.shape), list(parameter.shape)))
+            types[type_name] = types.get(type_name, 0) + 1
+            if alias:
+                if tied_output is not None:
+                    raise SystemExit("%s repeats lm_head.weight" % name)
+                tied_output = tensor
+                continue
             # How many tensors are bit for bit the reference checkpoint's, as those of a file converted without rounding are.
             same = torch.equal(params[key], tensor)
             # A qwen35 file whose dt_bias is not the checkpoint's has its V heads in another order than the tiled one (docs/QWEN35.md).
             if key.endswith("linear_attn.dt_bias") and not same:
                 raise SystemExit("%s: %s is not the reference's in the tiled V-head order" % (name, key))
             equal += same
-            params[key].copy_(tensor)
+            if key == "model.embed_tokens.weight":
+                embedding_equal = same
+            parameter.copy_(tensor)
             loaded.add(key)
-            types[type_name] = types.get(type_name, 0) + 1
     if loaded != set(params):
         raise SystemExit("%s lacks %s" % (name, ", ".join(sorted(set(params) - loaded))))
+    if tied_output is not None:
+        if not torch.equal(tied_output.view(torch.int32), embedding.view(torch.int32)):
+            raise SystemExit("%s: lm_head.weight differs from the file's tied embedding" % name)
+        equal += embedding_equal
+        loaded.add("lm_head.weight")
     args.weights = {"file": name, "sha256": sha256, "bytes": os.path.getsize(args.weights_gguf),
                     "repo": pinned["repo"] if pinned else None, "revision": pinned["revision"] if pinned else None,
                     "types": dict(sorted(types.items())), "decoder": "tests/spec_decode.py, numpy form",
                     "tensors": len(loaded), "tensors_equal_to_reference": equal}
+    if tied_output is not None:
+        args.weights["tied_output_verified"] = True
 
 
 def reference_metadata(args, torch, transformers):

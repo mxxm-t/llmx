@@ -2,11 +2,11 @@
 
 ## File-exact redundant tied-head fix (2026-10-20)
 
-- **Goal:** independently port verified redundant-head validation onto main 7184ff13f, with no unmerged quant or runtime dependency.
-- **Done:** the main-supported Q4_1/F32 real-GGUF acceptance regression fails on unfixed main in all eight storage/order/provenance subcases with the original tied-head refusal. The tests also cover changed values/layout, zero signs, missing/repeated heads and unchanged implicit/untied behavior. The validation owner is unchanged from source-fix parent 5a99a58bd.
-- **Left:** commit the failing real-GGUF regression, apply the narrow validation fix, run focused generator/source checks and record provenance for scoped CI.
-- **Gotchas:** accept only actual HF parameter sharing, identical decoded dimensions and F32 bits including zero signs. Preserve missing/mismatched-head refusal and implicit/untied behavior. No runtime, budget or fixture registry edit; successful pinned Q5 reference source and evidence remain unchanged in their isolated tree.
-
+- **Goal:** accept verified redundant GGUF output heads through the existing reference weight-validation owner, independently on main 7184ff13f.
+- **Done:** red commit e6533a4da reproduces eight failures using main-supported Q4_1/F32 blocks. The narrow fix checks actual HF object sharing, all required parameters, identical decoded shape and F32 bits including zero signs before accepting either tensor order; implicit/untied behavior is retained. All five focused file-exact tests and 58 reference-generator tests pass. Docs reports zero findings with 21 planted faults; dead-code passes its five listed findings and 18 planted faults. The fixed owner is identical to the successful pinned CPU reference source 7e26a5ed9, whose original failure, rerun logs and output hashes remain preserved separately. [Evidence](benchmarks/file-exact-tied-main-20261020.json).
+- **Landing:** fast-forward main after the relevant hosted Python/source checks pass at this head and main is still its base. The workflow run is identified by this commit on GitHub. No runtime, device-numerical or inference-performance gate is required for this tools-only fix.
+- **Gotchas:** no unmerged quant decoder, runtime, calibration or fixture-registry dependency. The separately generated Q5 reference proves this owner on real tied weights; it does not give main Q5 runtime support, runtime acceptance or original-weight quality approval. No inference performance gate applies to this Python-only change.
+- **Docs review:** inventoried 115 tracked Markdown files and searched reference/tied-head claims across the tree; inspected the changed owner, reference tests and relevant ASSETS/architecture/precision guidance. ASSETS now describes explicit tied-head verification; unchanged runtime and historical tied-head descriptions remain valid. Mechanical source checks cover the full tracked tree; this is a scope-focused review, not a fresh full-text reading of all historical reports.
 
 ## Qwen3.8-Flash-Next text support (2026-10-19, branch feat/qwen38-flash-finish on main, lands by fast-forward as two commits)
 

@@ -2051,6 +2051,7 @@ public:
     struct Submission {
         VkCommandBuffer cmd = VK_NULL_HANDLE;
         Ticket ticket = 0;
+        bool dispatches = false;   // the command buffer holds a dispatch
         std::vector<VkSemaphore> signal, waits;
 
         // The queue's call alone; it touches nothing of the backend but the device's queue.
@@ -2085,6 +2086,7 @@ public:
         }
         Submission s;
         s.cmd = open();
+        s.dispatches = chunk_ > 0;
         chunk_ = 0;
         check(dev_->fn.vkEndCommandBuffer(s.cmd), "vkEndCommandBuffer");
         s.signal.reserve(1 + signals.size());
@@ -2105,6 +2107,7 @@ public:
             check(r, "vkQueueSubmit");
         }
         ring_ticket_[ring_index_] = s.ticket;
+        if (s.dispatches) dispatched_ = s.ticket;
         ring_index_ = (ring_index_ + 1) % kRing;
         return s.ticket;
     }
@@ -3864,6 +3867,10 @@ public:
 private:
     static constexpr uint32_t kRing = 16;
     uint32_t chunk_ = 0;
+    // The dispatches the open command buffer takes before it is submitted, and the last submission that held any (docs/VULKAN.md, Structure).
+    static constexpr uint32_t kFirstChunk = 8;
+    uint32_t chunk_limit_ = kFirstChunk;
+    Ticket dispatched_ = 0;
     bool unordered_ = false;   // barriers left out (unordered)
     static constexpr size_t kStagingBytes = size_t(64) << 20;
     static constexpr size_t kArenaBytes = size_t(1) << 20;
@@ -4108,7 +4115,7 @@ private:
         }
         if (!unordered_) barrier(cmd);
         // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
-        if (++chunk_ >= dev_->profile.dispatch_chunk) flush();
+        if (++chunk_ >= chunk_limit_) flush();
     }
 
     // The open command buffer, beginning the next ring slot once its last submission has retired.
@@ -4125,6 +4132,8 @@ private:
         bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
         open_ = true;
+        // A device with no dispatch left running starts on the first few, rather than waiting while the host records a whole chunk.
+        chunk_limit_ = done(dispatched_) ? kFirstChunk : dev_->profile.dispatch_chunk;
         return cmd;
     }
 

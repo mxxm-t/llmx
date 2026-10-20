@@ -3834,6 +3834,26 @@ int main(int argc, char** argv) {
         require(std::memcmp(window.data(), kept.data(), 64) == 0, "work before sync not retired");
         checks += 2;
 
+        // A command buffer opened with no dispatch running is submitted after its first 8 dispatches, one opened behind running dispatches after the profile's 64.
+        {
+            const size_t big = size_t(16) << 20;
+            const auto x = b->alloc(big * sizeof(float)), y = b->alloc(big * sizeof(float));
+            b->sync();
+            const backend::Ticket q0 = b->submit();
+            b->wait(q0);
+            for (int i = 0; i < 8; ++i) b->add(backend::Slice{y.get(), 0}, backend::CSlice{x.get(), 0}, 64);
+            const backend::Ticket q1 = b->submit();
+            require(q1 == q0 + 2, "8 dispatches on an idle device were not submitted on their own");
+            b->wait(q1);
+            // 8 adds of 16M floats keep the device busy while the host records the next 64, so those go as one chunk and the last call after them as another.
+            for (int i = 0; i < 8; ++i) b->add(backend::Slice{y.get(), 0}, backend::CSlice{x.get(), 0}, big);
+            for (int i = 0; i < 65; ++i) b->add(backend::Slice{y.get(), 0}, backend::CSlice{x.get(), 0}, 64);
+            const backend::Ticket q2 = b->submit();
+            require(q2 == q1 + 3, "dispatches behind running ones were not submitted in a chunk of 64");
+            b->wait(q2);
+            checks += 2;
+        }
+
         // A device holding between submissions (Backend::hold_between_submissions): work behind a hold runs once the next submission lets it go, also after an idle gap the watchdog ends, and a backend dropped with a hold pending tears down.
         {
             auto h = backend::make_vulkan_backend(0, false);

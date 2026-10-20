@@ -141,6 +141,8 @@ option is on. The layering rule holds: it depends on `backends/backend.hpp`,
   covers them all. Recording a Qwen3-0.6B decode token costs the host
   about 0.5 ms against 6 ms on the device, and chunks of 64 measured
   best of 16, 32, 64, 128 and 256.
+  A command buffer opened when no submitted dispatch is still running goes after its first 8 dispatches instead.
+  A stage of a layer split starts on a card whose last work retired a stage earlier, and waited idle while the host recorded its first 64 dispatches, 155 to 162 us a stage on Qwen3.8-Flash-Next over six MI50s, where an extra submission costs the device 10 to 36 us; the card now idles about 40 us before its stage (docs/STATUS.md, A stage's first chunk).
   `read` records a copy into staging, submits, waits, and copies out.
 - **Barriers.** A pass is a chain, so every op reads what the previous op
   wrote. The memory barrier orders compute and transfer writes before

@@ -81,7 +81,8 @@ The lifetime and packed-quantization tests include the implementation and use te
 - Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
   32-bit words; every op is
   recorded into a ring of 16 command buffers and submitted in chunks of 64
-  dispatches, so the device starts a pass while the host records the rest,
+  dispatches, the first after 8 where no submitted dispatch is still running,
+  so the device starts a pass while the host records the rest,
   and a host recording several stages ahead onto a busy device waits for a
   free slot only once 16 submissions are in flight.
   A backend asked to hold between submissions (a device of a placement over

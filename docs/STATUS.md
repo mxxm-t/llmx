@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## A stage's first chunk submitted after 8 dispatches on an idle card (2026-10-20, branch feat/flash-decode on main 0df5dba34, measured against 7184ff13f, item H2 of the Flash decode design, F2DEV's DECISIONs of 07:17 and 08:34, lands by fast-forward as one commit)
+
+- **Why:** a command buffer was submitted after 64 dispatches, so a stage that starts on a card with nothing running waited idle while the host recorded the first 64: on Qwen3.8-Flash-Next Q8_0 at `--dtype int8` over six MI50s in a layer split, 155 to 162 us a stage at main 7184ff13f, six stages a token (per-submission GPU timestamps of a local probe build).
+- **The change:** the Vulkan backend submits a command buffer opened while its last submission that held a dispatch has retired after 8 dispatches, and every other one after the device profile's `dispatch_chunk` (64), unchanged; asking costs a wait of no time on the timeline (`done`) once a command buffer.
+  8 is where the host's recording of the first chunk (about 32 us) meets what a submission boundary costs the device, 10 to 36 us measured.
+- **Measured, six MI50s (GPUs 1 to 6), Flash Q8_0 int8 TG256, layer split, six interleaved pairs:** main 28.80, 29.53, 29.56, 27.42, 28.86 and 27.69 tok/s against 29.73, 29.81, 29.28, 28.78, 29.79 and 28.77, means 28.64 and 29.36, 0.86 ms a token less; the probe build shows the card's GPU idle before and between a stage's submissions falling from 201 to 99 us a stage (the largest gap from 155 to 162 us to 39 to 44 us).
+  Staged 3x2 submits at every sum, so only its stage starts change: means 32.59 and 32.55 tok/s over three pairs, no change.
+  Qwen3-0.6B Q8_0 on one MI50: TG256 388.4 and 385.5 against 389.7 and 387.7 tok/s, PP512 8862 against 8862 and 8887; on the Radeon VII (Windows, AMD driver) three settled pairs 202.6, 202.4 and 201.0 against 204.2, 203.7 and 200.7, PP512 3224 to 3228 in both arms.
+- **Identity:** Qwen3-0.6B Q8_0 greedy 128 tokens byte-identical to main on the CPU, an MI50 and the Radeon VII; Flash on the six-card layer split gives the same 24 per-token logits rows as main.
+- **Tests:** `backend-vulkan` checks that 8 dispatches on an idle device are submitted on their own and that 65 behind 8 long-running dispatches go as a chunk of 64 and one more (by the tickets each `submit` returns); it passes on an MI50 and the Radeon VII, 63 storage and submission checks.
+- **Gates so far:** the suite with `--device vulkan:0` on an MI50 passes every component (baseline skipped, no fixture models in that container); F2DEV's review (2026-10-22 05:51) approves it.
+- **Layout control at main 0df5dba34, six MI50s (GPUs 4 to 9), six interleaved pairs:** main 28.85, 28.48, 29.31, 28.49, 28.61 and 29.37 tok/s against 28.93, 29.50, 30.21, 29.86, 29.89 and 30.15, means 28.85 and 29.76, every pair higher, 1.06 ms a token less; PP512 means 636.6 and 636.6.
+- **Hosted run:** 39742462460 green on all seven jobs at aac6773e4, whose code this head carries unchanged.
+- **Lands** by fast-forward as this one commit.
 ## README and quant support documentation (2026-10-21)
 
 - **Done:** reviewed the whole README for accuracy, section order and wording against public main `7cd7ea75fecfee6981e1a9d62efa247345afb494`. The support table uses consistent labels and family order, separates CPU/Vulkan inference from quantize writers, and identifies metadata-only layouts. Build and run instructions appear before the detailed backend and serving sections.

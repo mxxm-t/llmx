@@ -1031,8 +1031,8 @@ void pieces_fixed_cost(const gguf::GGUFModel& weights, uint32_t vocab) {
             what + ": slices of " + seen_text + " rows after the probe, against one step, two steps and then more");
 }
 
-// A prompt beside a reply on a device whose attention is a staircase, 100 ms a call to 48 rows, 175 to 96 and 300 past, as the 27B's at 211k (F2DEV, 2026-10-19 12:38): the target is the probe's 100 and 50 more.
-// The search doubles from the probe until a slice is over the target, then stays in that bracket while the depth holds, as here, where the cost is the rows' alone; how far it doubles follows the runner's time.
+// A prompt beside a reply on staircase attention: 100 ms through 48 rows, 175 through 96, and 300 past.
+// Actual CPU work and host wakeup delay also enter the measured cost, so later slow pieces can reopen an earlier bracket; deterministic policy tests check exact timing responses.
 void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
     const std::string what = "a prompt beside a reply whose attention is a staircase";
     const bpe::Tokenizer tok(weights);
@@ -1064,14 +1064,17 @@ void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
     std::string seen_text;
     for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
     std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe" << std::endl;
-    // The probe, its double, and doubling until the first slice over the target, which a turn down shows; after it every slice lies between the last within the target and that one, but the prompt's last, which may be short.
-    const auto turn = std::adjacent_find(cut.begin(), cut.end(), [](size_t a, size_t b) { return b < a; });
-    bool settles = cut.size() >= 4 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep && turn != cut.end() && turn != cut.begin();
-    if (settles) {
-        const size_t top = *turn, low = turn[-1];
-        for (auto it = turn + 1; settles && it != cut.end(); ++it) settles = *it <= top && (*it >= low || it + 1 == cut.end());
+    // After the probe doubles, measured host work can reopen the bracket at rounded-half of the current cut or grow it up to double.
+    // Only the final prompt tail may be shorter or unaligned; exact timing responses belong to the deterministic policy tests.
+    bool adaptive = cut.size() >= 2 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep;
+    for (size_t i = 1; adaptive && i < cut.size(); ++i) {
+        const size_t lower = std::max(server::kPieceStep, cut[i - 1] / 2 / server::kPieceStep * server::kPieceStep);
+        adaptive = cut[i] > 0 && cut[i] <= 2 * cut[i - 1] &&
+                   (i + 1 == cut.size() || (cut[i] % server::kPieceStep == 0 && cut[i] >= lower));
     }
-    require(settles, what + ": slices of " + seen_text + " rows after the probe, against the probe doubled up to a slice over the target, then every slice but the last within the bracket below it");
+    require(adaptive, what + ": slices of " + seen_text + " rows after the probe, against a doubled probe then step-aligned adaptive cuts, with only the final tail allowed short");
+    require(s.automatic && s.overlaps > 0 && s.between > 0 && s.longest_piece_ms > 0,
+            what + ": automatic service between measured prompt pieces did not run");
 }
 
 // The automatic rule (server::Pacing::automatic) on one device and on one tensor group of two, each no CPU's.

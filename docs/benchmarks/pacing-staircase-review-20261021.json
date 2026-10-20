@@ -1,0 +1,272 @@
+{
+  "scope": "Test-only pacing staircase integration repair; runtime policy unchanged.",
+  "base": "8bf47070dae4d51c134e04f5f253ee3a640d3aa8",
+  "status": "Local affected tests and all six applicable hosted jobs pass. Lands by fast-forward; runtime and output-equality assertions unchanged.",
+  "original_red": {
+    "exit": 1,
+    "seconds": 18.313,
+    "cuts": "16,32,64,48,32,16,...",
+    "requested_late_wait_ms": [
+      200,
+      200
+    ],
+    "output_equality": "passed before original fixed-bracket assertion failed",
+    "evidence": {
+      "path": "build-staircase/diagnostic-evidence.json",
+      "sha256": "69258645d0a9aabaa89a58581dc2fd98aaf0fb42661f2db133b870b45491c893"
+    },
+    "raw_log": {
+      "path": "build-staircase/injected.log",
+      "sha256": "c1d28c6ed63948a2ede520b1ff75de3462f6ddf5c45f49a2b441292c826a9fd6"
+    },
+    "binary": {
+      "path": "build-staircase/injected-red-binary.exe",
+      "sha256": "b4b26bbb3b4b04dde1aa2d00f72a8854429dcf77aad0130b2cb5e7cdff227c1b"
+    }
+  },
+  "green_instrumented": [
+    {
+      "tag": "green-control",
+      "exit": 0,
+      "seconds": 12.107530117034912,
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\pacing-staircase-review-20261021\\build-staircase-green\\Release\\llmx-server-passes-cpu-test.exe",
+        "staircase-diagnostic"
+      ],
+      "binary_sha256": "b06d9723fae84c6a54c31206dd8af954f4c7fd5508ff422eb09d1b49dc01edd0",
+      "log_sha256": "082fec2944c412f58064d9336195d5d6031007eb85878cf3ea4636c3444bc5b3"
+    },
+    {
+      "tag": "green-late",
+      "exit": 0,
+      "seconds": 18.164663791656494,
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\pacing-staircase-review-20261021\\build-staircase-green\\Release\\llmx-server-passes-cpu-test.exe",
+        "staircase-late"
+      ],
+      "binary_sha256": "b06d9723fae84c6a54c31206dd8af954f4c7fd5508ff422eb09d1b49dc01edd0",
+      "log_sha256": "418e286004e428f2b91f63dae2ca3863be9260bd949bcbbad7aab1f6acc6be3d"
+    },
+    {
+      "tag": "green-policy",
+      "exit": 0,
+      "seconds": 5.91031289100647,
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\pacing-staircase-review-20261021\\build-staircase-green\\Release\\llmx-server-passes-test.exe"
+      ],
+      "binary_sha256": "f619a458d028883f539c449af5c1fc269e58969e8028f404b261312ae47b8f83",
+      "log_sha256": "4bd99b17a008adf295f0948754f5d248ffe7cb58289a1807f999e4ec5e05423c"
+    }
+  ],
+  "clean_control": {
+    "exit": 0,
+    "seconds": 12.058680057525635,
+    "command": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\pacing-staircase-review-20261021\\build-staircase-green\\Release\\llmx-server-passes-cpu-test.exe",
+      "staircase"
+    ],
+    "binary_sha256": "5e3cf32c06b09a329d29e21bbc449bcac0f1eb346154ececc1652ecdacc7e791",
+    "log_sha256": "fb7ad45f5037c559e3db5c820d4372f8ed2b148462e3374ce10651e548eb234c"
+  },
+  "source": [
+    {
+      "path": "tests/server_passes.cpp",
+      "sha256": "f679d9d650d3053155bbf0973872622b426254389e4ca63c1fb2993fc3f7e922"
+    },
+    {
+      "path": "tests/server_passes_cpu.cpp",
+      "sha256": "949a98412321e7189fe31fd12e6f5eec82578b32a09298f41801f8219c8d97df"
+    },
+    {
+      "path": "src/server/policy.hpp",
+      "sha256": "f6c8ecb818d0ca0c4665af780427e3b2c120e892a13065a964978adca66629fc"
+    },
+    {
+      "path": "src/server/scheduler.hpp",
+      "sha256": "2a7948926082c106ac85cf60465a0336f0cd917ea0f8a22b51a74268332c40b7"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "build-staircase/control.log",
+      "sha256": "2e7f83443e48ecac1680e0198f2cdbb773a25bac3db72b5649e4b2e99905c089"
+    },
+    {
+      "path": "build-staircase/injected.log",
+      "sha256": "c1d28c6ed63948a2ede520b1ff75de3462f6ddf5c45f49a2b441292c826a9fd6"
+    },
+    {
+      "path": "build-staircase/green-control.log",
+      "sha256": "082fec2944c412f58064d9336195d5d6031007eb85878cf3ea4636c3444bc5b3"
+    },
+    {
+      "path": "build-staircase/green-late.log",
+      "sha256": "418e286004e428f2b91f63dae2ca3863be9260bd949bcbbad7aab1f6acc6be3d"
+    },
+    {
+      "path": "build-staircase/green-policy.log",
+      "sha256": "4bd99b17a008adf295f0948754f5d248ffe7cb58289a1807f999e4ec5e05423c"
+    },
+    {
+      "path": "build-staircase/clean-control.log",
+      "sha256": "fb7ad45f5037c559e3db5c820d4372f8ed2b148462e3374ce10651e548eb234c"
+    },
+    {
+      "path": "build-staircase/configure-green.log",
+      "sha256": "56da8ecf0bdda730de190301fb8711778eeceac3340efa995bcce4732cbda75a"
+    },
+    {
+      "path": "build-staircase/build-green.log",
+      "sha256": "49ae2a3be8a4cb2a87932b9b8d563336097bbc74ebc8ad368756eb7f3d3acc17"
+    },
+    {
+      "path": "build-staircase/build-review-clean.log",
+      "sha256": "336c9fa049a8d9f3bf3635fbeb6ab786e37f910cefa319a8e859bbb4bb805e1b"
+    },
+    {
+      "path": "build-staircase/instrumented-red.cpp",
+      "sha256": "1118f0e95230ff64dff34c0457f90341491cd6dd9153e64211d762ced8c9b859"
+    },
+    {
+      "path": "build-staircase/instrumented-green.cpp",
+      "sha256": "6aa6d77fdd157a6fef164ad323b0280bb4a0a95411a49a87c0e76468b5bfc24b"
+    },
+    {
+      "path": "build-staircase/instrumented-green-binary.exe",
+      "sha256": "b06d9723fae84c6a54c31206dd8af954f4c7fd5508ff422eb09d1b49dc01edd0"
+    },
+    {
+      "path": "build-staircase/build-final.log",
+      "sha256": "49ae2a3be8a4cb2a87932b9b8d563336097bbc74ebc8ad368756eb7f3d3acc17"
+    },
+    {
+      "path": "build-staircase/transition-proof.json",
+      "sha256": "4eb97e2460c8e5b6074eb1e21d0e913a5b8537f944f4e3aad62e5a3e6239ebe7"
+    },
+    {
+      "path": "build-staircase/final-full.log",
+      "sha256": "b270c4b8c4b8e3bac451c774a6f1cc4cd7a7fe4a9d2f8afecbbf9c1037e07047"
+    },
+    {
+      "path": "build-staircase/final-full-result.json",
+      "sha256": "94cce25b22eb6fcc0ea2f50ad29b1444b3dc7ec9698cdcb92ec2b9c499bab356"
+    },
+    {
+      "path": "build-staircase/docs-dead-code.log",
+      "sha256": "939a0d4b51701582a421fc4d9d1170e7e1a3d34c92e48a122b5e1413977e6406"
+    },
+    {
+      "path": "build-staircase/docs-final.log",
+      "sha256": "50be7a1420bf97ec65ed70251c94f8e8a5f0af25af7dc4ab9a480294a3861917"
+    }
+  ],
+  "invariant_proof": "After an accepted cut, next is at least the current cut and at most its double. After an over-target cut, an existing lower bracket is at least rounded-half of that cut (the cut was a double or midpoint), or add explicitly resets the lower bracket to rounded-half. next caps by remaining prompt rows, so only the final tail may be shorter/non-step-aligned.",
+  "coverage": [
+    "Full reply token/logprob/top-entry bit equality retained.",
+    "Initial probe 16 followed by 32; positive step-aligned cuts within rounded-half to double, except short final tail.",
+    "Automatic pacing, overlap, positive measured piece time and generated-row service between prompt pieces required.",
+    "Existing exact staircase, plateau, linear, moved-depth and apart-cost deterministic checks retained; explicit late-cost 48->32->16 reopening added."
+  ],
+  "limitations": [
+    "Actual macOS CI timing cause remains unproven.",
+    "Injected green uses retained scratch timing hooks; final full affected native test separately passed with no diagnostic seam or runtime instrumentation.",
+    "Native test build identity reports unknown; exact base, source, build logs and binary hashes identify these local tests.",
+    "No runtime change, broader suite, GPU test or performance claim."
+  ],
+  "transition_control": {
+    "reachable_states": 159,
+    "cost_outcome_transitions": 316,
+    "step": 16,
+    "most": 512,
+    "passed": true,
+    "scope": "All reachable non-tail states from the initial probe, taking both over/within-target outcomes; probe always meets its newly updated target."
+  },
+  "final_full_cpu": {
+    "exit": 0,
+    "seconds": 289.70843482017517,
+    "timeout_seconds": 600,
+    "command": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\pacing-staircase-review-20261021\\build-staircase-green\\Release\\llmx-server-passes-cpu-test.exe"
+    ],
+    "binary_sha256": "0cad98f138ab3c82c8cca42a3a541cb0517c5f6350f2c959ef2bd80f762a82eb",
+    "log_sha256": "b270c4b8c4b8e3bac451c774a6f1cc4cd7a7fe4a9d2f8afecbbf9c1037e07047",
+    "checks": 363057,
+    "carry_forward": "Only a comment-block shortening followed this complete final native PASS; no executed test/runtime code changed."
+  },
+  "source_checks": {
+    "dead_code": "PASS: five listed findings,18 planted faults",
+    "original_docs": "FAIL: three-sentence touched comment block; raw log preserved",
+    "docs_final": "PASS: zero findings,21 planted faults",
+    "cli": {
+      "cli": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q5-0-20261020\\build-q5-0-integration\\Release\\llmx.exe",
+      "sha256": "d2c63138c4256d4ad9193268f86e839ed26d037d5560aca299abce60a371bed3",
+      "version": "llmx 0.1.0+g1781a2120f74 numerics 834ee592ffbe8e93",
+      "cli_owner_identical": true,
+      "scope": "docs/dead-code read source; no runtime inference."
+    }
+  },
+  "hosted": {
+    "run": 39502741982,
+    "head": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "id": 118904025405,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904025405"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "id": 118904025842,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904025842"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "id": 118904025889,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904025889"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "id": 118904025976,
+        "status": "in_progress",
+        "conclusion": null,
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904025976"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "id": 118904026189,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904026189"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "id": 118904026288,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904026288"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "id": 118904026497,
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "1293accfa054e962f3313b5b7d0e9b44c5ce3951",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39502741982/job/118904026497"
+      }
+    ],
+    "applicability": "Test-only change. HF reference CPU is unrelated and was still running at the landing audit. No numerical or runtime change.",
+    "final_delta": "Only STATUS and this evidence record differ from the hosted head. Tests, runtime, fixtures, build inputs and workflow are identical."
+  }
+}

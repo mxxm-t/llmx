@@ -1200,6 +1200,14 @@ void automatic_by_hand() {
         require(search(stair, 7, 300) == std::vector<size_t>{16, 32, 64, 128, 256, 512, 512} &&
                     slices(moved, [](size_t r) { return r <= 128 ? 115.0 : r <= 288 ? 190.0 : 288.0; }, 8, 160) == std::vector<size_t>{160, 112, 128, 144, 128, 128, 128, 128},
                 "a prompt's slices did not take a reply's longer pass as the target, or did not open the bracket again when the step moved");
+        // Two late host waits push acceptable cuts over the unchanged target, reopening [32, 64] down to [16, 32].
+        server::PieceSearch late;
+        const std::vector<size_t> late_rows{16, 32, 64, 48, 32, 16, 16};
+        const std::vector<double> late_ms{100, 100, 175, 300, 300, 100, 100};
+        for (size_t i = 0; i < late_rows.size(); ++i) {
+            require((i ? late.next(512) : server::kPieceStep) == late_rows[i], "a late prompt piece did not reopen the staircase bracket below its former minimum");
+            late.add(late_rows[i], late_ms[i], 0);
+        }
         server::PieceSearch none;
         require(none.next(512) == 512 && none.next(16) == 16, "a prompt's slice with nothing measured was not a ubatch");
         // A job's step beside replies goes only into a pass carrying generated rows (server::job_rides); with none waiting or only prompts it goes anywhere.

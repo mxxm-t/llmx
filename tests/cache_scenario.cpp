@@ -1168,12 +1168,16 @@ void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, Users m
 }
 
 // A21: a read-ahead job with one block left when another conversation's request arrives that does not fit beside it, the turn's donor beyond the host tier.
-// `held`: the donor's write is held, so the request waits for a write in any case and the job reads its block first; `ended`: the write ends while the job is spared, so it gives way; `whole`: written before the request.
-enum class LastBlock { held, ended, whole };
+// `held`: the donor's write is held, so the request waits for a write and the job reads its block first, `costly` alike with steps past the allowance; `ended`: the write ends while the job is spared; `whole`: written before.
+enum class LastBlock { held, costly, ended, whole };
 void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v, LastBlock mode) {
     const std::string on_what = std::string(", a job with its last block left") +
-                                (mode == LastBlock::held ? ", the donor's write held" : mode == LastBlock::ended ? ", the write ending while the job is spared" : ", the donor whole on disk");
-    DiskRoot disk(mode == LastBlock::held ? "scenario-last-held" : mode == LastBlock::ended ? "scenario-last-ended" : "scenario-last-whole");
+                                (mode == LastBlock::held     ? ", the donor's write held"
+                                 : mode == LastBlock::costly ? ", the donor's write held, each step costing more than the allowance"
+                                 : mode == LastBlock::ended  ? ", the write ending while the job is spared"
+                                                             : ", the donor whole on disk");
+    DiskRoot disk(mode == LastBlock::held ? "scenario-last-held" : mode == LastBlock::costly ? "scenario-last-costly" : mode == LastBlock::ended ? "scenario-last-ended" : "scenario-last-whole");
+    const bool held = mode == LastBlock::held || mode == LastBlock::costly;
     // A write's chunks wait while `writes` is held, and a pass's retirement while `retires` is 0, so the test acts between two rounds.
     struct Gate {
         std::mutex m;
@@ -1228,9 +1232,10 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
         if (gate->retires != std::numeric_limits<size_t>::max()) --gate->retires;
         gate->waiting = false;
     };
-    // Under `held` a step of the job costs more than half of a gap's background allowance, spun, not slept, since sleeps round up to the timer's tick.
-    slow[0]->hook = [slowed] {
-        for (const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(8); slowed->load() && std::chrono::steady_clock::now() < until;) {}
+    // Under `held` a step of the job costs more than half of a gap's background allowance and under `costly` more than the whole, spun, not slept, since sleeps round up to the timer's tick.
+    const auto spin = std::chrono::milliseconds(mode == LastBlock::costly ? 30 : 8);
+    slow[0]->hook = [slowed, spin] {
+        for (const auto until = std::chrono::steady_clock::now() + spin; slowed->load() && std::chrono::steady_clock::now() < until;) {}
     };
     std::thread runner([&] { sched.run(); });
     const auto count = [&](server::Move k) { return sched.stats().moves[(size_t)k]; };
@@ -1242,12 +1247,12 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
         const Handle h = sched.submit(turn.prompt, params_of(turn));
         // The job forks the turn's 640 prompt rows and reads to 768, one block, its ids the turn, its reply and 52 more.
         const std::vector<uint32_t> ids = joined(joined(turn.prompt, ids_of(drain(*h))), prompt_of(46, 52, v));
-        slowed->store(mode == LastBlock::held);
+        slowed->store(held);
         if (mode == LastBlock::whole) within_a_minute([&] { return count(server::Move::write_whole) >= 1; }, "the last-block leg: the turn's files whole on disk");
-        set(mode != LastBlock::whole, mode == LastBlock::held ? std::numeric_limits<size_t>::max() : 0);
-        armed->store(mode == LastBlock::held);
+        set(mode != LastBlock::whole, held ? std::numeric_limits<size_t>::max() : 0);
+        armed->store(held);
         sched.follow(h, ids, true);
-        if (mode == LastBlock::held) {
+        if (held) {
             within_a_minute([&] { return sent.load(); }, "the last-block leg: the other request sent as the job's first pass retired");
         } else {
             at_retire("the job's first pass held");
@@ -1261,7 +1266,7 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
             set(false, 0);
             within_a_minute([&] { return !disk.files(".kv").empty(); }, "the last-block leg: the turn's files written");
         }
-        set(mode == LastBlock::held, std::numeric_limits<size_t>::max());
+        set(held, std::numeric_limits<size_t>::max());
         within_a_minute([&] { return count(server::Move::job_done) + count(server::Move::job_gave_way) >= 1; }, "the last-block leg: the job ended or gave way");
         done = count(server::Move::job_done);
         gave = count(server::Move::job_gave_way);
@@ -1282,7 +1287,7 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     sched.stop();
     runner.join();
     std::cout << "cache-scenario" << on_what << ": " << done << " jobs done, " << gave << " gave way, the next turn reused " << reused << "\n";
-    if (mode == LastBlock::held)
+    if (held)
         require(done == 1 && !gave && reused == 768, "cache-scenario" + on_what + ": " + std::to_string(done) + " jobs done and " + std::to_string(gave) + " gave way, the next turn reusing " +
                                                           std::to_string(reused) + ", against 1, 0 and the job's 768");
     else
@@ -1319,7 +1324,7 @@ int main(int argc, char** argv) {
             for (const bool leave : {false, true}) restart(one, tok, (uint32_t)kCpu.vocab, leave);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const Users mode : {Users::room, Users::cycle, Users::returning}) many_users(one, tok, (uint32_t)kCpu.vocab, mode);
-            for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
+            for (const LastBlock mode : {LastBlock::held, LastBlock::costly, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {768, 512, 1152, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {768, 512, 1152, true});

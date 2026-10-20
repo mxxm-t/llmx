@@ -1,0 +1,397 @@
+{
+  "scope": "CLI mean NLL summary formatting only; no inference math, quantization or tolerance change.",
+  "base": "8bf47070dae4d51c134e04f5f253ee3a640d3aa8",
+  "test_first_commit": "5caf9eadbc10",
+  "red": {
+    "base": "8bf47070dae4d51c134e04f5f253ee3a640d3aa8",
+    "baseline_cli": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q5-0-20261020\\build-q5-0-integration\\Release\\llmx.exe",
+    "baseline_cli_sha256": "d2c63138c4256d4ad9193268f86e839ed26d037d5560aca299abce60a371bed3",
+    "baseline_version": "llmx 0.1.0+g1781a2120f74 numerics 834ee592ffbe8e93",
+    "cli_source_identical_to_baseline_tree": true,
+    "test_sha256": "90072ebf7a01e9259faff50e01ef91d59f9c92b85075f212c93d13a355993f05",
+    "red_log_sha256": "5acc63e828e375a07efb74faf7378929149551aeb1b3ad05b5d04d799141dfde",
+    "red_expected": 12.616171432876087,
+    "red_observed": 12.6162,
+    "bound": 1e-05,
+    "provenance": "The original red binary is the Q5_0 development build, not exact main; only its CLI source was byte-identical to main. The separate retained-release red below establishes exact f984 attribution."
+  },
+  "green": {
+    "exit": 0,
+    "seconds": 26.85076379776001,
+    "timeout_seconds": 180,
+    "cli_sha256": "ae877d0d8011112cbfb447a86b528545de35e775addb1f9aa4ec99ba24a236f7",
+    "version": "llmx 0.1.0+g5caf9eadbc10.dirty numerics f5c78e79390aba99",
+    "log_sha256": "e17836bce7968975b280bdee3560404de53d16cd9401618cba115fa32eb67e67"
+  },
+  "coverage": [
+    "Full existing perplexity component: analytic mean NLL and perplexity, all nine window cases, verbose per-window values and matching summaries, file parity, invalid flags, logits file/ID input.",
+    "Analytic Q8 fixture uses exact half-representable output scales twice their prior value; every tested expected mean NLL exceeds ten, preserving the existing absolute 1e-5 NLL and relative 1e-5 perplexity bounds.",
+    "Docs: zero findings,21 planted faults. Dead-code: five listed findings,18 planted faults."
+  ],
+  "source": [
+    {
+      "path": "src/cli/main.cpp",
+      "sha256": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b"
+    },
+    {
+      "path": "tests/perplexity.py",
+      "sha256": "90072ebf7a01e9259faff50e01ef91d59f9c92b85075f212c93d13a355993f05"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "build-nll-evidence/red.log",
+      "sha256": "ec72dc92605450db00aebc772b4c9daa83608058489dc7de10470710ef1fe469"
+    },
+    {
+      "path": "build-nll-evidence/red-analytic.log",
+      "sha256": "5acc63e828e375a07efb74faf7378929149551aeb1b3ad05b5d04d799141dfde"
+    },
+    {
+      "path": "build-nll-evidence/red-evidence.json",
+      "sha256": "5802a0c7775c04b3924323c6a857c3cc329e512393b3068abff332e3e8665abd"
+    },
+    {
+      "path": "build-nll-evidence/configure.log",
+      "sha256": "9459dac6323f00f3db96ed179654159d99feb91fb65b79a4fcde04a38ea73445"
+    },
+    {
+      "path": "build-nll-evidence/build.log",
+      "sha256": "dfb45c70ae435e719446686de6bed68b0775dcd2fa80f22c440a4097f3a46e3b"
+    },
+    {
+      "path": "build-nll-evidence/green.log",
+      "sha256": "e17836bce7968975b280bdee3560404de53d16cd9401618cba115fa32eb67e67"
+    },
+    {
+      "path": "build-nll-evidence/green-result.json",
+      "sha256": "1907be1cf7db7de8ee307c4db4cfda87a53e0576a05176e548b3b766ef61e046"
+    }
+  ],
+  "limitations": [
+    "Hosted landing run remains pending; no merge or push. Current-main pacing test-input delta is recorded separately.",
+    "No GPU mounts or device numerical gate; this generic CLI formatting change uses the host/runtime scope. Native GPU-only skips and optional Python unit skips remain explicit.",
+    "Windows full affected perplexity/docs/dead-code checks pass; generic host code does not require a separate full Windows inference gate.",
+    "Inference math, model/cache policies and all correctness bounds remain unchanged."
+  ],
+  "final_source_checks": {
+    "cli_sha256": "ae877d0d8011112cbfb447a86b528545de35e775addb1f9aa4ec99ba24a236f7",
+    "docs_dead_code_log": "build-nll-evidence/landing/final-docs.log",
+    "docs_dead_code_log_sha256": "bc6aac23706a3863d37e80012b5b8685aece4792dae12b52fc34cf05a846f7aa",
+    "docs_after_final_provenance_audit_log": "build-nll-evidence/landing/final-docs-audit.log",
+    "docs_after_final_provenance_audit_log_sha256": "7da0672e77391b97134123ad4c9c0020e4cd0a7eca035f1775f8e22a0a669a9d",
+    "result": "Docs zero findings/21 planted; dead-code five listed findings/18 planted; diff whitespace check passes."
+  },
+  "linux_landing": {
+    "tested_revision": "00537e11455d7437f623cd04e3880fed7ac77020",
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/nll-output-00537e114",
+    "local_artifacts": "build-nll-evidence/landing",
+    "artifact_manifest_sha256": "4b3e45a191bc3d0260b60a1fcce7fdf1862760b0060dac469b560ef1f784c896",
+    "artifact_count": 78,
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_set": "4-7",
+    "gpu_devices": [],
+    "candidate": {
+      "version": "llmx 0.1.0+unknown numerics f5c78e79390aba99",
+      "cli_sha256": "be1d2ca84109e48ef788544c753c6e95aa4b574f9ce20b346687de737e1f4fa3"
+    },
+    "baseline": {
+      "version": "llmx 0.1.0+gf984840a461d numerics f5c78e79390aba99",
+      "cli_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a"
+    },
+    "source_reconstruction": "Exact retained f984 source plus 20 tracked public source/test/doc files reconstructs all 2101 final source pins. Only src/cli/main.cpp and tests/perplexity.py differ among the 343 baseline code/test/build inputs.",
+    "reuse": "Library, config and every native target flags file are unchanged and reverified. Native binaries retain their released f984 identity. The archive build changes the generated build-info revision from f984 to unknown, with the same numerics and flags; source/test/build controls are unchanged outside the recorded CLI/test delta. CLI was rebuilt; the capture tool was subsequently rebuilt only to align its embedded version with the CLI.",
+    "library_sha256": "61920b7cf330ddfb62aeb0d0eb4705eeec5c61a3276e2089a6d6b2b7fb2a4361",
+    "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "original_capture_tool_sha256": "c72dea7dce56094ff6196fd8a4051da59af7a5dcbd15436f3308fbdbdbb591ba",
+    "rebuilt_capture_tool_sha256": "df51610f067af979baa183ca9a7fdd16d73502ee5df45a9b48cb1ccbea998238",
+    "stages": {
+      "build": {
+        "exit": 0,
+        "passed": false,
+        "removed": false,
+        "seconds": 84.351966,
+        "peak_memory_bytes": 1707085824,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "f916553b939dbe7260d5d029103deaef7e66e5a5f4948372b4fcf431085559f7",
+        "log_sha256": "d4702a01764ff4c7c1bd12b517b56394346370c4d50cb4b0ebfd1dcf619d6e67"
+      },
+      "native": {
+        "exit": 0,
+        "passed": true,
+        "removed": true,
+        "seconds": 1076.944239,
+        "peak_memory_bytes": 1121517568,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "9b2e844892156e13ae371ca9b7d011e15f988e056685af7bd35b6d4373aa219c",
+        "log_sha256": "9124b56f5f10b8dff37d2dbcc8a7fcd9ccf18dee35681ad9fb42567ca08a42c8"
+      },
+      "suite": {
+        "exit": 1,
+        "passed": false,
+        "removed": true,
+        "seconds": 1691.950662,
+        "peak_memory_bytes": 10828615680,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "0034763d7f896c2cfb0474d26deadfe02bda1523fd064e47cfffc96d27c71ee6",
+        "log_sha256": "c3a24868b89e18d3a7a83bf3d755c6fc1fe9a1ecfb2ce90a5be854788869af69"
+      },
+      "identity": {
+        "exit": 0,
+        "passed": true,
+        "removed": true,
+        "seconds": 16.880464,
+        "peak_memory_bytes": 320401408,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "f5a718076177ff7f5a259158b23c8ba3abe7f7d7211da8e3df30967b9744280b",
+        "log_sha256": "0230bcd8ca45fcd8061568869b7d06b4335c8728867f62bb48da53eccf82476d"
+      },
+      "capture-build": {
+        "exit": 0,
+        "passed": true,
+        "removed": true,
+        "seconds": 41.509602,
+        "peak_memory_bytes": 1033691136,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "1a760c922d1ae964a32f306f3e1a1b4247bbfb07fe7652585fb50cfe67bd25f5",
+        "log_sha256": "6cbb6e491c5f9332e208860565eef655466142904f3cf77194a7505b13333649"
+      },
+      "device-reference": {
+        "exit": 0,
+        "passed": true,
+        "removed": true,
+        "seconds": 24.161894,
+        "peak_memory_bytes": 30531584,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "408997fc6a6db980432a80fd05034940e5bf164f968a864bec87886705a9cc41",
+        "log_sha256": "858220c8c679545fab6cf7df4d2c64cfd166c8323a53196777ad1b5ffe2088d3"
+      },
+      "raw-blocks": {
+        "exit": 0,
+        "passed": true,
+        "removed": true,
+        "seconds": 5.656898,
+        "peak_memory_bytes": 62660608,
+        "memory_max_oom_oom_kill_events": 0,
+        "result_sha256": "90fa17d2c41367e7ad334d023b56c697e90a7413a18826c83826892298812ce3",
+        "log_sha256": "4de48be0fcd87cfcca6936a882e1475e2d086f0fce7330564eaf465907d726cb"
+      }
+    },
+    "native": {
+      "passed": 60,
+      "skipped": [
+        "mxfp4-vulkan",
+        "iq4-nl-vulkan",
+        "backend-vulkan",
+        "vulkan-lifetime",
+        "vulkan-quantization"
+      ]
+    },
+    "cpu_suite": {
+      "original_components": {
+        "dead-code": "PASS",
+        "docs": "PASS",
+        "arch-boundary": "PASS",
+        "version": "PASS",
+        "cli": "PASS",
+        "reference-generator": "PASS",
+        "reference-consumer": "PASS",
+        "device-reference": "FAIL",
+        "roundtrip": "PASS",
+        "raw-blocks": "FAIL",
+        "perf": "PASS",
+        "tokenizer": "PASS",
+        "perplexity": "PASS",
+        "f32": "PASS",
+        "half-weights": "PASS",
+        "moe": "PASS",
+        "int8": "PASS",
+        "mxfp4": "PASS",
+        "q5-1": "PASS",
+        "iq4-nl": "PASS",
+        "qwen35": "PASS",
+        "split": "PASS",
+        "tensor-split": "PASS",
+        "decode-probe": "PASS",
+        "drafters": "PASS",
+        "shards": "PASS",
+        "server": "PASS",
+        "server-load": "PASS",
+        "chat": "PASS",
+        "threads": "PASS",
+        "baseline": "PASS"
+      },
+      "final_passed_components": 31,
+      "scope": "29 original passes plus only the two failed components rerun after demonstrated setup repairs; no complete-suite rerun.",
+      "device_reference": "Original three metadata-version failures: retained f984 capture tool versus unknown-revision rebuilt CLI. Matching capture-tool-only rebuild gives 15/15 passing tests.",
+      "raw_blocks": "Original pure-form checks passed, then require-tools refused missing numpy. Scoped rerun on pinned Python 3.12.13/numpy 2.2.6 passes pure/numpy parity and writer checks without installation.",
+      "optional_unit_skips": [
+        "reference-generator: five numpy-dependent cases and one Windows short-path case on system Python.",
+        "reference-consumer: width-two server group requires two configured devices; duplicate CPU entries are refused."
+      ],
+      "released_baselines": "Five Qwen3 files pass ranking/NLL; Qwen3.5 Q8_0 passes 59 checks and Q4_K_M passes 114 checks."
+    },
+    "exact_release_red": {
+      "exit": 1,
+      "case": [
+        "ab",
+        "12.6162",
+        12.616171432876087
+      ],
+      "log_sha256": "f676881d130da155ff6ce0d19d78ddd12f302cee8eaa72cee4b00f6da5f3a00e",
+      "scope": "Expected analytic regression failure on exact retained f984 CLI; independent expected NLL exceeds its six-significant-digit summary precision."
+    },
+    "identity": {
+      "prompt_tokens": 247,
+      "prompt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "final_position_printed_logits": 151936,
+      "tokenizer_and_logits_stdout_identical": true,
+      "greedy_tokens": 64,
+      "greedy_ids_and_text_identical": true,
+      "greedy_text_sha256": "230d4ed2f3e19a6b961cebeaf646fd4718f2f47ac95e033c60c64ffe46c325b9",
+      "limitation": "Compares CLI printed full-vocabulary logits, not raw binary32 captures. Generation timings are excluded from output-text equality."
+    },
+    "setup_failure_preserved": "Initial CLI build succeeded but helper flags-loop variable shadowing broke cleanup bookkeeping; exact exited CID was verified and removed, with separate cleanup-recovery.json. No rebuild or original-result overwrite.",
+    "main_delta": "Main advanced to 34f3ba11f with pacing tests/docs only while these checks ran. Runtime is unchanged; native pacing here used the older inputs. Root separately passed the new pacing tests/hosted gates; final integration must account for that test delta.",
+    "cleanup": "All stage exact-CID removals verified; final docker ps -a label=llmx.nll query is empty.",
+    "performance": "No performance claim; suite uses --no-perf-floor and concurrent production/reference work remains on disjoint resources."
+  },
+  "sequential_q5_integration": {
+    "base": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+    "original_checkpoint": "3edb8470c4b1116ceca1ec71c48ac9acadc4309d",
+    "dependency": "Sequential landing only: Q5_0 must land first. The output precision fix has no functional quantization dependency.",
+    "conflicts": "Only STATUS conflicted; original Q5_0 and pacing sections were preserved byte for byte.",
+    "delta_audit": {
+      "base": "b1c6617713470af2d9e6563c58ca1e8241878ed1",
+      "original_checkpoint": "3edb8470c4b1116ceca1ec71c48ac9acadc4309d",
+      "source_revision": "0c768cc37ea2c72273975d3ff912330932c7f057",
+      "changed_paths": [
+        "docs/STATUS.md",
+        "docs/USAGE.md",
+        "docs/benchmarks/nll-output-precision-20261021.json",
+        "src/cli/main.cpp",
+        "tests/perplexity.py"
+      ],
+      "preserved_base_status_body": true,
+      "inherited_pacing_and_build_inputs_unchanged": true,
+      "runtime_delta": "Only mean NLL summary printf formatting; no math/quant/backend change.",
+      "source": {
+        "src/cli/main.cpp": "0681fa7b64a672aecddbe347ad94791e797105b7db90d9c47977f361a373796d",
+        "tests/perplexity.py": "b5b108cc3b3de87492cb7006bc01d7c7d98487ff7a871f63655e5b6764638a6b"
+      }
+    },
+    "focused": {
+      "exit": 0,
+      "seconds": 26.346084117889404,
+      "timeout_seconds": 180,
+      "argv": [
+        "python",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nll-output-q50-integration-20261021\\build-nll-integration\\Release\\llmx.exe",
+        "--only",
+        "perplexity,docs,dead-code"
+      ],
+      "source_revision": "0c768cc37ea2c72273975d3ff912330932c7f057",
+      "version": "llmx 0.1.0+g0c768cc37ea2 numerics 834ee592ffbe8e93",
+      "cli_sha256": "7530b20bb97736d204d8371ba5791d89d53863155f4ca820f005295368b34f35",
+      "files": {
+        "build-nll-integration-evidence\\configure.log": "8e35005506448f324d9e90c79d89e7fb1f8582d55c401f183e2a10a103fa7296",
+        "build-nll-integration-evidence\\build.log": "e7df9b70d2c18fb376b50b74ac210203be3a5bc6e0298ded0e0d2790754452fd",
+        "build-nll-integration-evidence\\focused.log": "4d2705849bbb091393ee5d568234862924b4bc0b6c582a9ffd16af7b62fb3b93",
+        "build-nll-integration-evidence\\delta-audit.json": "45f26e11abebec4d97cca869d5822261f1509c33766329fca2b477be333aa98a",
+        "build-nll-integration\\generated\\config.hpp": "456ddbf41ab388da0794bb6920a8f9a28a0b44ab4326d01f7523ff38ebb9dea5",
+        "build-nll-integration\\generated\\llmx-build-info.hpp": "59937cba10428c2e544f121615b90cf71409d69c87183586d743be9a86adced5"
+      }
+    },
+    "build": "Fresh Windows CPU-only build directory, MSVC Release, llmx target only, two workers; main.cpp compilation is retained in the build log.",
+    "carry_forward": "Original host landing evidence remains scoped to its recorded source. Q5_0 and pacing input changes are covered by their separate parent gates; this integration reruns the affected full perplexity component and source checks.",
+    "final_delta": "After the tested revision, only STATUS and this evidence record changed.",
+    "remaining": "At this checkpoint, root review, Q5_0 landing, and the final hosted run were pending; see final_landing for their resolution."
+  },
+  "final_landing": {
+    "current_main_base": "31800429b3b148d109680c42cad2db839f9a971a",
+    "pre_final_docs_checkpoint": "9b3c82d83d0c84f6905429f1b7d3e3f06bbfb556",
+    "hosted_head": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+    "hosted_run": "https://github.com/mxxm-t/llmx/actions/runs/39512529168",
+    "hosted_result": "All seven jobs passed: Vulkan, Ubuntu, Windows, UBSan, HF reference, macOS, and TSan.",
+    "final_tree_delta_from_hosted_head": [
+      "docs/STATUS.md",
+      "docs/benchmarks/nll-output-precision-20261021.json",
+      "docs/benchmarks/q5-0-pacing-integration-20261021.json"
+    ],
+    "delta_scope": "Documentation-only reconciliation; source, tests, fixtures and build inputs are unchanged from the hosted head.",
+    "focused_docs_dead_code": {
+      "command": "python tests/run_tests.py --exe ..\\nll-output-q50-integration-20261021\\build-nll-integration\\Release\\llmx.exe --only docs,dead-code",
+      "cli_sha256": "7530b20bb97736d204d8371ba5791d89d53863155f4ca820f005295368b34f35",
+      "log": "build-quant-resume-20261020/nll-hosted-ci/final-docs-dead-code.log",
+      "log_sha256": "9175529959673c682c662314931db354e0bdfc0fe3e1165f04c32c0870bf9d55",
+      "result": "docs PASS: zero findings/21 planted faults; dead-code PASS: five listed findings/18 planted faults."
+    },
+    "landing": "Two commits (failing test, then fix) fast-forward from main 31800429b3b148d109680c42cad2db839f9a971a; verify public main before deleting unchanged gate/nll-output-20261021.",
+    "hosted_jobs": [
+      {
+        "id": 118936787658,
+        "name": "Vulkan backend (build, Linux)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936787658",
+        "completed_at": "2026-10-20T23:36:38Z"
+      },
+      {
+        "id": 118936787855,
+        "name": "CPU (ubuntu-24.04)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936787855",
+        "completed_at": "2026-10-20T23:33:17Z"
+      },
+      {
+        "id": 118936787900,
+        "name": "CPU (windows-2022)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936787900",
+        "completed_at": "2026-10-20T23:37:29Z"
+      },
+      {
+        "id": 118936787951,
+        "name": "CPU (Linux UBSan)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936787951",
+        "completed_at": "2026-10-20T23:32:12Z"
+      },
+      {
+        "id": 118936787976,
+        "name": "HF reference (CPU)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936787976",
+        "completed_at": "2026-10-20T23:40:45Z"
+      },
+      {
+        "id": 118936788018,
+        "name": "CPU (macos-15-intel)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936788018",
+        "completed_at": "2026-10-20T23:53:45Z"
+      },
+      {
+        "id": 118936788060,
+        "name": "CPU (Linux TSan)",
+        "head_sha": "0ad86cbec7235780bfcd35f41c6ce543999a1cee",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39512529168/job/118936788060",
+        "completed_at": "2026-10-20T23:24:12Z"
+      }
+    ],
+    "hosted_artifact_sha256": {
+      "run-39512529168.json": "34993013a4a852cb5a93522c97854c622b6ba956f1ba213a83a147acc3b7ff2c",
+      "jobs-39512529168.json": "fb695052718be528591be959cba8016c4b84c55d509172bd67b6d8b2a1e205e1"
+    },
+    "root_review": "PASS: one summary formatter change, independent analytic regression above ten, unchanged 1e-5 bound; no inference arithmetic or quant changes."
+  }
+}

@@ -798,7 +798,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
     std::cout << "scored tokens: " << result.scored_tokens << "\n";
     std::cout << "chunks: " << result.windows.size() << "\n";
     std::cout << "context size: " << result.context << "\n";
-    std::cout << "mean NLL: " << mean_nll << "\n";
+    printf("mean NLL: %.9f\n", mean_nll);
     std::cout << "perplexity: " << ppl << "\n";
     matrix_record(*loaded);
     return 0;

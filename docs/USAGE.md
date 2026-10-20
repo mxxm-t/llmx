@@ -275,6 +275,7 @@ llmx perplexity model.gguf --file "corpus.txt" --ctx-size 512 --chunks 4 --threa
   window's first token), `scored tokens`, `chunks`, `context size`, `mean NLL`
   and `perplexity`. Unused suffixes and singleton tails appear in input tokens
   but not used/scored tokens.
+- The summary prints `mean NLL` to nine decimals.
 - With `--verbose`, a line for each window comes first, in order: `chunk K: scored N, mean NLL X`, its scored targets and their mean NLL to nine decimals, so two builds can be compared window by window.
 
 Flags:

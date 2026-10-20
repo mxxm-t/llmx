@@ -2,7 +2,6 @@
 // Exits 77 when no supported device opens, which CTest reports as skipped.
 #include <algorithm>
 #include <cctype>
-#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <functional>
@@ -119,13 +118,21 @@ std::vector<float> fed(const std::vector<float>& x, uint32_t type, bool idot, bo
     return row_activations(x);
 }
 
-// `rows` rows of `in` values of a type: F32 and the block quantizers from seeded floats, the K-quants from a byte pattern with small half scales, as the matmul checks build them.
+// `rows` rows of `in` values: floats and block quantizers from seeded floats, half weights and K-quants from bounded bit patterns.
 std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed) {
     const auto f = uniform(rows * in, seed);
     std::vector<uint8_t> bytes;
     if (type == quant::GGML_TYPE_F32) {
         bytes.resize(f.size() * sizeof(float));
         std::memcpy(bytes.data(), f.data(), bytes.size());
+    } else if (type == quant::GGML_TYPE_F16) {
+        bytes.resize(f.size() * 2);
+        for (size_t i = 0; i < f.size(); ++i) {
+            const uint16_t bits = uint16_t((i % 3 == 0 ? 0x8000u : 0) | ((11 + (i + seed) % 5) << 10) |
+                                           ((i * 73 + seed) & 1023u));
+            bytes[2 * i] = uint8_t(bits);
+            bytes[2 * i + 1] = uint8_t(bits >> 8);
+        }
     } else if (type == quant::GGML_TYPE_BF16) {
         bytes.resize(f.size() * sizeof(uint16_t));
         for (size_t i = 0; i < f.size(); ++i) {
@@ -1426,7 +1433,7 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(r2.first, r2.second, tol_of(quant::GGML_TYPE_Q4_0, false), "matmul from the SiLU's twin differs beyond its bound");
         }
         bool rejected = false;
-        try { p.vk.matmul(1u /* F16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
+        try { p.vk.matmul(25u /* I16, no kernel */, wqi.vs(), wqi.vs(), p.out(8).vs(), nin, 1, 1); }
         catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "unsupported matrix type accepted");
         // Row runs out of order are refused even when every run takes the same kernel, so nothing would have split them.
@@ -2347,7 +2354,8 @@ size_t check_weight_dispatch() {
     backend::Backend& vk = *owner;
     const backend::DeviceProfile p = backend::vulkan_device_profile(vk);
     struct Expected { uint32_t type; const char* row; const char* integer_tile; };
-    const Expected cases[] = {{0, "matmul_row_f32", ""}, {30, "matmul_row_float_x", ""}, {8, "matmul_row_q8w", "matmul_tile_q8"},
+    const Expected cases[] = {{0, "matmul_row_f32", ""}, {1, "matmul_row_wf16", ""}, {30, "matmul_row_wbf16", ""},
+        {8, "matmul_row_q8w", "matmul_tile_q8"},
         {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
         {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
         {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
@@ -2364,25 +2372,27 @@ size_t check_weight_dispatch() {
             const auto w = vk.adopt(bytes.data(), bytes.size()), x = vk.adopt(xf.data(), xf.size() * sizeof(float));
             const auto ids = vk.adopt(&id, sizeof(id)), y = vk.alloc(nout * sizeof(float));
             for (bool routed : {false, true}) {
-                const bool fast = e.type == 0 || e.type == 8 || e.type == 30;
+                const bool floating = e.type == 0 || e.type == 1 || e.type == 30;
+                const bool fast = floating || e.type == 8;
                 const size_t dense_from = fast ? (nin < p.tile_narrow_nin ? p.tile_from_8bit_narrow : p.tile_from_8bit)
                                               : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
                 const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 ? p.moe_tile_from_q4
                                   : e.type == 12 ? p.moe_tile_from_q4k : e.type == 13 ? p.moe_tile_from_q5k : p.moe_tile_from;
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::int8}) {
-                    // int8 reaches a device only where it is native, which takes the integer dot; there every type but F32 and MXFP4 takes its 8-bit builds.
+                    // int8 reaches a device only where it is native; floating weights keep F32 products and MXFP4 keeps its 16-bit dot.
                     if (dtype == backend::Dtype::int8 && !p.prefer_integer_dot) continue;
-                    const bool i8 = dtype == backend::Dtype::int8 && e.type != 0 && e.type != 30 && e.type != 39;
+                    const bool i8 = dtype == backend::Dtype::int8 && !floating && e.type != 39;
                     for (size_t extent : {size_t(1), from - 1, from}) {
                         const bool tile = dtype == backend::Dtype::bf16 || extent >= from;
-                        const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && e.type != 0 && e.type != 30 &&
+                        const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && !floating &&
                                              !(routed && e.type == 39);
                         std::string expected;
                         if (tile) {
-                            expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" : "matmul_tile";
+                            expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
+                                       e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
                             if (dtype == backend::Dtype::bf16) expected += "_bf16";
                             if (i8) expected += "i8";
-                        } else if (dtype == backend::Dtype::f32 && e.type != 0) {
+                        } else if (dtype == backend::Dtype::f32 && !floating) {
                             expected = e.type == 39 ? "matmul_row_mxfp4_float_x" : "matmul_row_float_x";
                         } else if (i8) {
                             expected = e.type == 8 ? "matmul_vec_q8_i8" : std::string(e.row) + "_i8";
@@ -2390,7 +2400,7 @@ size_t check_weight_dispatch() {
                             expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
                             if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
                             else if ((e.type == 39 && p.mxfp4_integer_dot) ||
-                                     (p.prefer_integer_dot && e.type != 0 && e.type != 8 && e.type != 30 && e.type != 39)) expected += "_dot";
+                                     (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39)) expected += "_dot";
                         }
                         (void)backend::vulkan_kernel_times(vk);
                         const backend::RowRun run{1, extent};
@@ -2420,7 +2430,7 @@ size_t check_weight_dispatch() {
             }
         }
     }
-    for (uint32_t type : {1u, 4u, 10u, 42u, 43u, UINT32_MAX}) {
+    for (uint32_t type : {4u, 10u, 25u, 42u, 43u, UINT32_MAX}) {
         require(!vk.supports_type(type), "metadata-only or unknown weight type acquired a kernel");
         const std::string expected = "vulkan: unsupported matrix type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)";
@@ -2433,11 +2443,136 @@ size_t check_weight_dispatch() {
     return checks;
 }
 
+// The finite value from its integer significand and exponent, independently of the runtime's conversion helpers.
+float half_weight_value(uint32_t type, uint16_t bits) {
+    const unsigned fraction_bits = type == 1 ? 10 : 7, bias = type == 1 ? 15 : 127;
+    const unsigned exponent = (bits & 0x7fffu) >> fraction_bits, fraction = bits & ((1u << fraction_bits) - 1);
+    require(exponent != 2 * bias + 1, "half weight oracle received a nonfinite value");
+    const double magnitude = std::ldexp(double(fraction + (exponent ? 1u << fraction_bits : 0)),
+                                       int(exponent ? exponent : 1) - int(bias) - int(fraction_bits));
+    return std::copysign(float(magnitude), bits & 0x8000u ? -1.0f : 1.0f);
+}
+
+size_t check_half_weights(backend::Backend& vk) {
+    const auto profile = backend::vulkan_device_profile(vk);
+    size_t checked = 0;
+    for (uint32_t type : {1u, 30u}) {
+        require(vk.supports_type(type), "half weight format has no Vulkan kernel");
+        std::vector<uint8_t> bytes(1, 0xa5);
+        std::vector<float> wide;
+        for (unsigned bits = 0; bits < 65536; ++bits) {
+            const unsigned mask = type == 1 ? 0x7c00u : 0x7f80u;
+            if ((bits & mask) == mask) continue;
+            bytes.push_back(uint8_t(bits));
+            bytes.push_back(uint8_t(bits >> 8));
+            wide.push_back(half_weight_value(type, uint16_t(bits)));
+        }
+        const size_t n = wide.size();
+        const float input = 0.5f;
+        const uint32_t id = 0;
+        const auto weights = vk.adopt(bytes.data() + 1, n * 2), control = vk.adopt(wide.data(), n * sizeof(float));
+        const auto x = vk.adopt(&input, sizeof(input)), y = vk.alloc(n * sizeof(float)), ref = vk.alloc(n * sizeof(float));
+        std::vector<float> actual(n), expected(n);
+        vk.embed({y.get(), 0}, type, {weights.get(), 0}, n, 1, &id, 1);
+        vk.read(*y, 0, actual.data(), n * sizeof(float));
+        checked += exact(wide, actual, "finite half embedding differs from independent widening bits");
+        const uint32_t ids[] = {0, 1, UINT32_MAX, 0};
+        const auto device_ids = vk.adopt(ids, sizeof(ids)), gathered = vk.alloc(4 * n * sizeof(float));
+        std::vector<float> device_rows(4 * n, 17.0f), expected_rows(4 * n, 0.0f);
+        vk.write(*gathered, 0, device_rows.data(), device_rows.size() * sizeof(float));
+        std::copy(wide.begin(), wide.end(), expected_rows.begin());
+        std::copy(wide.begin(), wide.end(), expected_rows.begin() + 3 * n);
+        vk.embed_ids({gathered.get(), 0}, type, {weights.get(), 0}, n, 1, {device_ids.get(), 0}, 4);
+        vk.read(*gathered, 0, device_rows.data(), device_rows.size() * sizeof(float));
+        checked += exact(expected_rows, device_rows, "finite half device-ID embedding or invalid-ID zero row differs");
+        vk.matmul(type, {weights.get(), 0}, {x.get(), 0}, {y.get(), 0}, 1, n, 1);
+        vk.matmul(0, {control.get(), 0}, {x.get(), 0}, {ref.get(), 0}, 1, n, 1);
+        vk.read(*y, 0, actual.data(), n * sizeof(float));
+        vk.read(*ref, 0, expected.data(), n * sizeof(float));
+        checked += exact(expected, actual, "finite half rows differ from the device's widened F32 rows");
+        if (type == 1) {
+            backend::CpuBackend cpu;
+            cpu.set_threads(1);
+            const auto cw = cpu.adopt(wide.data(), n * sizeof(float)), cx = cpu.adopt(&input, sizeof(input));
+            const auto cy = cpu.alloc(n * sizeof(float), backend::Memory::device);
+            cpu.matmul(0, {cw.get(), 0}, {cx.get(), 0}, {cy.get(), 0}, 1, n, 1);
+            cpu.read(*cy, 0, expected.data(), n * sizeof(float));
+            checked += exact(expected, actual, "finite F16 weight products, including subnormals, differ from CPU F32");
+        }
+        for (size_t nin : {size_t(7), size_t(32), size_t(65), size_t(256), size_t(4096)}) {
+            const size_t nout = 7, experts = 3, k = 2;
+            auto packed = matrix(type, nin, experts * nout, 523);
+            std::vector<float> values(packed.size() / 2);
+            for (size_t i = 0; i < values.size(); ++i) {
+                if (i < nin) {
+                    const uint16_t bits = uint16_t((i % 3 ? 0x8000u : 0) | (1 + i % (type == 1 ? 1023 : 127)));
+                    packed[2 * i] = uint8_t(bits);
+                    packed[2 * i + 1] = uint8_t(bits >> 8);
+                }
+                values[i] = half_weight_value(type, uint16_t(packed[2 * i] | (unsigned(packed[2 * i + 1]) << 8)));
+            }
+            const auto hw = vk.adopt(packed.data(), packed.size()), fw = vk.adopt(values.data(), values.size() * sizeof(float));
+            for (size_t batch : {size_t(1), size_t(3), size_t(9)}) {
+                const size_t entries = batch * k;
+                const auto inputs = uniform(entries * nin, 524);
+                std::vector<uint32_t> ids(entries);
+                std::vector<float> scales(entries);
+                for (size_t i = 0; i < entries; ++i) { ids[i] = uint32_t(i % experts); scales[i] = i % k ? 0.75f : 0.25f; }
+                const auto xb = vk.adopt(inputs.data(), inputs.size() * sizeof(float));
+                const auto ib = vk.adopt(ids.data(), ids.size() * sizeof(uint32_t)), sb = vk.adopt(scales.data(), scales.size() * sizeof(float));
+                const backend::Backend::Routing route{{ib.get(), 0}, {sb.get(), 0}, k, experts};
+                for (auto dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16}) {
+                    if (dtype == backend::Dtype::bf16 && !vk.emulates_dtype(dtype)) continue;
+                    for (int op = 0; op < 6; ++op) {
+                        const size_t columns = op == 4 ? entries : batch;
+                        const bool paired = op == 3 || op == 4;
+                        const size_t first = 64, second = first + ((columns * nout + 63) & ~size_t(63));
+                        const size_t end = paired ? second + columns * (nout - 2) : first + columns * nout;
+                        const std::vector<float> initial(end + 64, 0.125f);
+                        const auto a = vk.adopt(initial.data(), initial.size() * sizeof(float));
+                        const auto b = vk.adopt(initial.data(), initial.size() * sizeof(float));
+                        const size_t from = op >= 4 ? profile.moe_tile_from : backend::tile_from_for(profile, true, nin);
+                        const backend::RowRun run_rows{batch, batch == 9 ? from : 1};
+                        auto run = [&](uint32_t t, const backend::BufferPtr& w, const backend::BufferPtr& out) {
+                            const backend::CSlice ws{w.get(), 0}, xs{xb.get(), 0};
+                            const backend::Slice ys{out.get(), first};
+                            const backend::RowRuns rows{&run_rows, 1};
+                            if (op == 0) vk.matmul(t, ws, xs, ys, nin, nout, batch, rows, dtype);
+                            else if (op == 1) vk.matmul_add(t, ws, xs, ys, nin, nout, batch, rows, dtype);
+                            else if (op == 2) vk.matmul_logits(t, ws, xs, ys, nin, nout, batch, rows, dtype);
+                            else if (op == 3) vk.matmul_group({{t, ws, ys, nout}, {0, {fw.get(), 0}, {out.get(), second}, nout - 2}},
+                                                             xs, nin, batch, rows, dtype);
+                            else if (op == 4) vk.matmul_experts({{t, ws, ys, nout}, {t, ws, {out.get(), second}, nout - 2}},
+                                                               xs, nin, batch, route, rows, dtype);
+                            else vk.matmul_experts_add(t, ws, xs, ys, nin, nout, batch, route, rows, dtype);
+                        };
+                        (void)testq::take_matrix_paths(vk);
+                        run(type, hw, a);
+                        require(testq::take_matrix_paths(vk) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : "f32"},
+                                "half weights reported quantized activation arithmetic");
+                        run(0, fw, b);
+                        std::vector<float> result(initial.size()), reference(initial.size());
+                        vk.read(*a, 0, result.data(), result.size() * sizeof(float));
+                        vk.read(*b, 0, reference.data(), reference.size() * sizeof(float));
+                        for (size_t i = 0; i < result.size(); ++i)
+                            if (i < first || i >= end || (paired && i >= first + columns * nout && i < second))
+                                require(result[i] == initial[i], "half product wrote outside its output");
+                        if (std::memcmp(result.data(), reference.data(), result.size() * sizeof(float)) != 0)
+                            std::fprintf(stderr, "half weight mismatch: type %u, width %zu, batch %zu, op %d, dtype %d\n", type, nin, batch, op, int(dtype));
+                        checked += exact(reference, result, "half product differs from exactly widened F32 storage");
+                    }
+                }
+            }
+        }
+    }
+    return checked;
+}
+
 size_t check_refusals(backend::Backend& vk) {
     require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
     const bool integer_dot = prof.prefer_integer_dot;
-    const uint32_t q8 = quant::GGML_TYPE_Q8_0, f32 = quant::GGML_TYPE_F32, f16 = 1;   // F16 has no kernel
+    const uint32_t q8 = quant::GGML_TYPE_Q8_0, f32 = quant::GGML_TYPE_F32, i16 = 25;   // Valid storage without an execution kernel.
     const size_t nin = 64, nout = 8, rows = 3, n_expert = 4, k = 2, entries = rows * k, nrows = 4, partial = 48;
     const size_t row_bytes = nin / quant::Q8_0_BLOCK * quant::Q8_0_TYPESIZE;
     auto quantized = [&](size_t n, uint32_t seed) {
@@ -2528,7 +2663,7 @@ size_t check_refusals(backend::Backend& vk) {
 
     refused("matmul of a type without a kernel accepted", [&](const Out& out) {
         const auto wb = in(wq.data(), wq.size()), xb = floats(xf);
-        vk.matmul(f16, at(wb), at(xb), out(rows * nout), nin, nout, rows);
+        vk.matmul(i16, at(wb), at(xb), out(rows * nout), nin, nout, rows);
     });
     refused("matmul of weights shorter than the call accepted", [&](const Out& out) {
         const auto wb = in(wq.data(), wq.size() - row_bytes), xb = floats(xf);
@@ -2578,7 +2713,7 @@ size_t check_refusals(backend::Backend& vk) {
             vk.matmul_experts_add(type, at(sb), at(xb), out(rows * nout), width, nout, rows, {at(idb), at(wtb), k, n_expert}, runs);
         });
     };
-    routed("routed product of a type without a kernel accepted", f16, stack.size(), nin, {});
+    routed("routed product of a type without a kernel accepted", i16, stack.size(), nin, {});
     routed("routed product of a stack short of its experts accepted", q8, stack.size() - row_bytes, nin, {});
     routed("routed product of a row ending inside a block accepted", q8, stack.size(), partial, {});
     routed("routed product with row runs out of order accepted", q8, stack.size(), nin, {disordered, 3});
@@ -2586,7 +2721,7 @@ size_t check_refusals(backend::Backend& vk) {
     const uint32_t first[1] = {0}, past[1] = {uint32_t(nrows)};
     refused("embedding of a type without a kernel accepted", [&](const Out& out) {
         const auto tb = floats(tf);
-        vk.embed(out(nin), f16, at(tb), nin, nrows, first, 1);
+        vk.embed(out(nin), i16, at(tb), nin, nrows, first, 1);
     });
     refused("F32 embedding table shorter than its rows accepted", [&](const Out& out) {
         const auto tb = floats(tf);
@@ -3092,12 +3227,14 @@ size_t check_drafter_ops(Pair& p) {
     }
     // Every type the device embeds: embed_ids gives embed's rows for the ids inside the table, through the same decoding, and a zero row past it.
     const size_t wide = 256;
-    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
                           quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4}) {
         if (!p.vk.supports_type(type)) continue;
         const std::vector<uint8_t> bytes = matrix(type, wide, vocab, 340 + type);
         const backend::BufferPtr tv = p.vk.adopt(bytes.data(), bytes.size()), iv = ids_on(p.vk, ids);
         const backend::BufferPtr dv = p.vk.alloc(ids.size() * wide * sizeof(float), backend::Memory::device), ev = p.vk.alloc(ids.size() * wide * sizeof(float), backend::Memory::device);
+        const std::vector<float> sentinel(ids.size() * wide, 17.0f);
+        p.vk.write(*dv, 0, sentinel.data(), sentinel.size() * sizeof(float));
         const std::vector<uint32_t> inside = {4, 0, 0, 0, 8};
         p.vk.embed_ids({dv.get(), 0}, type, {tv.get(), 0}, wide, vocab, {iv.get(), 0}, ids.size());
         p.vk.embed({ev.get(), 0}, type, {tv.get(), 0}, wide, vocab, inside.data(), inside.size());
@@ -3232,7 +3369,7 @@ size_t check_bf16_batch_split(backend::Backend& vk) {
     const auto xd = vk.adopt(x.data(), x.size() * sizeof(float));
     const auto yd = vk.alloc(2 * columns * nout * sizeof(float));
     size_t checked = 0;
-    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1,
                           quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4}) {
         if (!vk.supports_type(type)) {
             std::cout << "backend-vulkan: BF16 batch type " << type << " unsupported, skipped\n";
@@ -3644,6 +3781,7 @@ int main(int argc, char** argv) {
 
         checks += check_refusals(*b);
         std::cout << "backend-vulkan: " << check_weight_dispatch() << " expected weight dispatches and type refusals\n";
+        std::cout << "backend-vulkan: " << check_half_weights(*b) << " finite half-weight values and exact F32-control products\n";
 
         std::cout << "backend-vulkan: " << testq::check_matrix_precision(*b) << " shared matrix precision values passed\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";

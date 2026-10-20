@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-20",
+  "base": "53a7e81e2945391b3440fc562909b123316915b8",
+  "reused_commit": "d31f01133",
+  "adaptation_commit": "d40146451",
+  "scope": "Focused local CPU development checkpoint; not release qualification. No GPU, performance, model transfer, public push or full gate performed.",
+  "binary": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-weights-20261020\\build-half\\Release\\llmx.exe",
+    "sha256": "63357c44c15edcea7e4a86eebf828d96e64f7968006db9027fc17b0c489ba832",
+    "version": "llmx 0.1.0+gcd499ea190a9.dirty numerics c6f3c46263517983"
+  },
+  "capture_tool_sha256": "3c7943f750c7ed32103ebe214bbe239c8a333ffb207091211a000623b7631b7c",
+  "build_logs": [
+    "build-half/focused-build.log",
+    "build-half/capture-build.log"
+  ],
+  "checks": {
+    "native": {
+      "command": "ctest --test-dir build-half -C Release --output-on-failure -R '^(half-weights|model-validation|backend-errors)$'",
+      "passed": 3,
+      "failed": 0,
+      "half_weight_exact_values": 2342944,
+      "dtypes": [
+        "f32",
+        "f16",
+        "bf16",
+        "int8"
+      ],
+      "log": "build-half/focused-ctest.log"
+    },
+    "model_identity": {
+      "passed_capture_sets": 48,
+      "formats": [
+        "F16",
+        "BF16",
+        "mixed"
+      ],
+      "architectures": [
+        "qwen3",
+        "qwen3moe"
+      ],
+      "heads": [
+        "tied",
+        "untied"
+      ],
+      "cpu_tensor_widths": [
+        1,
+        2
+      ],
+      "ubatches": [
+        3,
+        16
+      ],
+      "greedy_rows": 64,
+      "unavailable_formats": 0,
+      "log": "build-half/half-models-groups.log",
+      "first_group_attempt": {
+        "passed": false,
+        "error": "model-logits: inference: a tensor width of 2 does not divide the 257 vocabulary rows of output.weight",
+        "correction": "Use new independently sized group fixtures with vocabulary258, embedding40, FF20 and expertFF12; preserve original width1 fixtures."
+      }
+    },
+    "source": {
+      "docs": "pass, zero findings",
+      "dead_code": "pass, 5 existing listed findings",
+      "reference_generator": "42 passed",
+      "log": "build-half/source-checks.log"
+    }
+  },
+  "open": [
+    "30B supplemental default-policy CPU/device logit and top-five criteria remain failed at historical pins; no bound, arithmetic or policy changed.",
+    "Current-head Vulkan build/dispatch and GPU qualification require coordinated resources.",
+    "Radeon performance attribution, final integration and hosted CI remain open."
+  ],
+  "diagnosis": {
+    "file_decode": "Finite F16/BF16 widening and fixed-storage CPU products match independently widened F32; historical same-backend real-shape probes also pass.",
+    "supplemental30b": "Saved default-policy comparison crosses backend activation implementations and routed trajectories. Q4 control itself retains top-five misses; a separate F32-activation diagnostic passes but cannot replace default-policy qualification. No half-specific defect established.",
+    "reference_policy": "Further full-model comparison must predeclare arithmetic and retain original-HF quality separately. No tolerance fitting or failing-criterion waiver authorized."
+  }
+}

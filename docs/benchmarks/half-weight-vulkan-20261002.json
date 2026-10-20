@@ -1,0 +1,2304 @@
+{
+  "scope": "Focused half-weight development checkpoint; not a complete release gate",
+  "recorded_utc": "2026-10-02T18:27:52.302994+00:00",
+  "base": "5835886c92250317a69e7139ec7164f13874456d",
+  "cpu_checkpoint": "a3a810b1aa74c9148f5221c48c04e36444ea57a0",
+  "vulkan": {
+    "complete": true,
+    "at": 1790964822.8764324,
+    "binary": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-half-vulkan\\Release\\llmx.exe",
+      "sha256": "42de83a9ff9916e15658a72f2ab4dc11a7463da7cbe5119173e01ce22dc5deda",
+      "version": "llmx 0.1.0+ga3a810b1aa74.dirty"
+    },
+    "device": {
+      "name": "AMD Radeon VII",
+      "uuid": "00000000-2d00-0000-0000-000000000000"
+    },
+    "native": {
+      "passed": 5,
+      "skipped": 0,
+      "cpu_proof": "ctest-cpu.log",
+      "current_device_proof": "ctest-vulkan-cross-batch.log",
+      "half_weight_values": 420354,
+      "dispatch_and_refusal_checks": 402,
+      "bf16_batch_outputs_all10_types": 31142400,
+      "bf16_batch_outputs_added_half_types": 6228480
+    },
+    "model_checks": {
+      "passed": 24,
+      "skipped": 0,
+      "cross_ubatch": [
+        3,
+        16
+      ],
+      "capture_phases": [
+        "batched",
+        "decode",
+        "greedy64"
+      ],
+      "greedy_ids_exact": true,
+      "proof": "python-half-weights-cross-batch.log"
+    },
+    "source_delta": "Only tests/backend_vulkan.cpp type list adds F16/BF16 to existing check_bf16_batch_split; production source unchanged. Parent adds transitive cross-ubatch assertions in tests/half_weights.py.",
+    "source_hashes": {
+      "tests/backend_vulkan.cpp": "f626b7e518185630972d3ea5643d6f77ab88795002ac0cfe16b12c3de3b40486",
+      "tests/half_weights.py": "35f73875a897b11d1deba8eaa3a301458d253e09de5c456216675ac9ba04eb95"
+    },
+    "binaries": {
+      "llmx.exe": "42de83a9ff9916e15658a72f2ab4dc11a7463da7cbe5119173e01ce22dc5deda",
+      "llmx-model-logits.exe": "afa6d8ed2a696091f5cd62d347592c33146cbf09f4f34aa6f15d9e0de236fd29",
+      "llmx-backend-vulkan-test.exe": "730188da6c84132a32ba3f320299a12da7819acde3e041eca179638290077671"
+    },
+    "shader_proof": "attempt-4/shader-comparison.json: all99 prior modules unchanged,12 new; macro-fix-identity.json: all111 unchanged by selection-macro relocation",
+    "auditor_recovery": "All build/test children exited0. Initial wrapper then failed only because it expected the words cross-ubatch identity rather than the actual identical across ubatch 3/16 summary. This audit verifies actual wording, counts, source and binary identities without rerunning inference; original wrapper/error retained in cross-batch-state.json.",
+    "earlier_complete_scope": "final-audit.json remains the earlier same-ubatch checkpoint, not the strengthened result.",
+    "no_performance_claim": true,
+    "resources": "All own test/build/model processes terminal; Radeon released."
+  },
+  "cpu_cross_ubatch": {
+    "capture_sets": 24,
+    "unavailable_formats": 0,
+    "ubatches": [
+      3,
+      16
+    ],
+    "proof": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\half-cross-ubatch-cpu.log"
+  },
+  "ud_q8_hf": {
+    "binary": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-half-vulkan\\Release\\llmx.exe",
+    "binary_sha256": "3a15735784856444adf81afe601c0a74172865cdf919b569dd098479a62631cf",
+    "version": "llmx 0.1.0+ga3a810b1aa74.dirty",
+    "fixture": {
+      "family": "qwen3",
+      "repo": "unsloth/Qwen3-0.6B-GGUF",
+      "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
+      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+      "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad",
+      "size": 844288704,
+      "gate": true,
+      "hosted": true,
+      "top5_overlap": 5,
+      "continuous_nll": 0.01,
+      "window_nll": 0.02
+    },
+    "rankings": {
+      "cases": 12,
+      "top1_matches": 12,
+      "minimum_top5_overlap": 5
+    },
+    "nll": [
+      {
+        "cache": "f16",
+        "context": 0,
+        "chunks": 1,
+        "mode": "batched",
+        "delta": 0.0036355802490644074,
+        "bound": 0.01,
+        "headroom": 0.006364419750935593
+      },
+      {
+        "cache": "f16",
+        "context": 0,
+        "chunks": 1,
+        "mode": "per-token",
+        "delta": 0.003625580249064342,
+        "bound": 0.01,
+        "headroom": 0.006374419750935658
+      },
+      {
+        "cache": "f16",
+        "context": 64,
+        "chunks": 4,
+        "mode": "batched",
+        "delta": 0.0015903464182827065,
+        "bound": 0.02,
+        "headroom": 0.018409653581717294
+      },
+      {
+        "cache": "f16",
+        "context": 64,
+        "chunks": 4,
+        "mode": "per-token",
+        "delta": 0.0015503464182824445,
+        "bound": 0.02,
+        "headroom": 0.018449653581717556
+      },
+      {
+        "cache": "f16",
+        "context": 64,
+        "chunks": 2,
+        "mode": "batched",
+        "delta": 0.0037473653130319917,
+        "bound": 0.02,
+        "headroom": 0.01625263468696801
+      },
+      {
+        "cache": "f16",
+        "context": 64,
+        "chunks": 2,
+        "mode": "per-token",
+        "delta": 0.0037073653130321738,
+        "bound": 0.02,
+        "headroom": 0.016292634686967827
+      },
+      {
+        "cache": "f16",
+        "context": 123,
+        "chunks": 2,
+        "mode": "batched",
+        "delta": 0.00029609536676034054,
+        "bound": 0.02,
+        "headroom": 0.01970390463323966
+      },
+      {
+        "cache": "f16",
+        "context": 123,
+        "chunks": 2,
+        "mode": "per-token",
+        "delta": 0.00031609536676047156,
+        "bound": 0.02,
+        "headroom": 0.01968390463323953
+      },
+      {
+        "cache": "f32",
+        "context": 0,
+        "chunks": 1,
+        "mode": "batched",
+        "delta": 0.0036755802490646694,
+        "bound": 0.01,
+        "headroom": 0.006324419750935331
+      },
+      {
+        "cache": "f32",
+        "context": 0,
+        "chunks": 1,
+        "mode": "per-token",
+        "delta": 0.0036755802490646694,
+        "bound": 0.01,
+        "headroom": 0.006324419750935331
+      },
+      {
+        "cache": "f32",
+        "context": 64,
+        "chunks": 4,
+        "mode": "batched",
+        "delta": 0.001620346418282459,
+        "bound": 0.02,
+        "headroom": 0.01837965358171754
+      },
+      {
+        "cache": "f32",
+        "context": 64,
+        "chunks": 4,
+        "mode": "per-token",
+        "delta": 0.001620346418282459,
+        "bound": 0.02,
+        "headroom": 0.01837965358171754
+      },
+      {
+        "cache": "f32",
+        "context": 64,
+        "chunks": 2,
+        "mode": "batched",
+        "delta": 0.003657365313031846,
+        "bound": 0.02,
+        "headroom": 0.016342634686968154
+      },
+      {
+        "cache": "f32",
+        "context": 64,
+        "chunks": 2,
+        "mode": "per-token",
+        "delta": 0.003657365313031846,
+        "bound": 0.02,
+        "headroom": 0.016342634686968154
+      },
+      {
+        "cache": "f32",
+        "context": 123,
+        "chunks": 2,
+        "mode": "batched",
+        "delta": 0.00028609536676027503,
+        "bound": 0.02,
+        "headroom": 0.019713904633239725
+      },
+      {
+        "cache": "f32",
+        "context": 123,
+        "chunks": 2,
+        "mode": "per-token",
+        "delta": 0.00028609536676027503,
+        "bound": 0.02,
+        "headroom": 0.019713904633239725
+      }
+    ],
+    "full_commands_and_outputs": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\ud-q8-cpu-final\\result.json",
+    "scope_note": "Checked before selection macros moved from f16.glsl to weight consumers; all111 shader modules remain identical and CPU source is unchanged."
+  },
+  "cpu_initial": {
+    "scope": "Initial 0.6B CPU screen; every planned call retained, no reruns or sample exclusions.",
+    "plan": {
+      "prepared_only": false,
+      "purpose": "Initial CPU half-weight screen, not the complete feature gate",
+      "main_head": "5835886c92250317a69e7139ec7164f13874456d",
+      "candidate_head": "a3a810b1aa74c9148f5221c48c04e36444ea57a0",
+      "root": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002",
+      "container": "llmx-xdev-vulkan-weight-dispatch-20261002",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "cpu_set": "0-3",
+      "quota": 4,
+      "memory_gib": 32,
+      "minimum_host_available_gib": 8,
+      "threads": 4,
+      "pp": 512,
+      "tg": 128,
+      "repeats": 1,
+      "ubatch": 512,
+      "cache": "f16",
+      "dtype": "auto",
+      "call_timeout_seconds": 300,
+      "build_evidence": "complete.json",
+      "library_path": "/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+      "executables": {
+        "main": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/base/build/llmx",
+          "head": "5835886c92250317a69e7139ec7164f13874456d",
+          "version": "llmx 0.1.0+g5835886c9225",
+          "sha256": "f670b1aa1272abe846626b9d6dde4f627c65c8ffb7366b5e5c0204212171db70"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "head": "a3a810b1aa74c9148f5221c48c04e36444ea57a0",
+          "version": "llmx 0.1.0+ga3a810b1aa74",
+          "sha256": "da8e2d7b008615adc7170840bc2cfeaba5f9403e4e83aa0ad23786f2fc5300a7"
+        },
+        "mx": {
+          "path": "/fixtures/dtype-cpu-reference-20261001/mx-cli-bench-cpu",
+          "sha256": "c2c3bff9f0181b8f7010bf75816cf083c47901a21a9cc7cb00dd868ce7c5159e",
+          "revision": "eefc4e7321c869496146697d63362f073941aed6",
+          "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/dtype-cpu-reference-20261001/done.json",
+          "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+        }
+      },
+      "models": {
+        "bf16": {
+          "path": "/models/llmx-xdev-half-weights-20261002/Qwen3-0.6B-BF16.gguf",
+          "bytes": 1198182848,
+          "sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e"
+        },
+        "f32": {
+          "path": "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+          "bytes": 3012480832,
+          "sha256": "41583f438fd2af4ac7fa30c63701a4d1f4010bc68f6cabf773a924c23d377265"
+        },
+        "q8": {
+          "path": "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "bytes": 639446688,
+          "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+        }
+      },
+      "calls": [
+        {
+          "block": "half",
+          "direction": "forward",
+          "arm": "candidate-bf16",
+          "exe": "candidate",
+          "model": "bf16"
+        },
+        {
+          "block": "half",
+          "direction": "forward",
+          "arm": "candidate-f32",
+          "exe": "candidate",
+          "model": "f32"
+        },
+        {
+          "block": "half",
+          "direction": "forward",
+          "arm": "mx-bf16",
+          "exe": "mx",
+          "model": "bf16"
+        },
+        {
+          "block": "half",
+          "direction": "reverse",
+          "arm": "mx-bf16",
+          "exe": "mx",
+          "model": "bf16"
+        },
+        {
+          "block": "half",
+          "direction": "reverse",
+          "arm": "candidate-f32",
+          "exe": "candidate",
+          "model": "f32"
+        },
+        {
+          "block": "half",
+          "direction": "reverse",
+          "arm": "candidate-bf16",
+          "exe": "candidate",
+          "model": "bf16"
+        },
+        {
+          "block": "q8",
+          "direction": "forward",
+          "arm": "main-q8",
+          "exe": "main",
+          "model": "q8"
+        },
+        {
+          "block": "q8",
+          "direction": "forward",
+          "arm": "candidate-q8",
+          "exe": "candidate",
+          "model": "q8"
+        },
+        {
+          "block": "q8",
+          "direction": "reverse",
+          "arm": "candidate-q8",
+          "exe": "candidate",
+          "model": "q8"
+        },
+        {
+          "block": "q8",
+          "direction": "reverse",
+          "arm": "main-q8",
+          "exe": "main",
+          "model": "q8"
+        }
+      ],
+      "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+      "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "activity_flags": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "retention": "Keep all 10 planned rows, logs, failures, resource usage and activity. No activity-based filtering, replacements or global idle requirement. Missing process/GPU observations remain unknown.",
+      "analysis": "Report both directional paired pp/tg ratios: candidate BF16/F32, candidate BF16/mx BF16, and candidate/main Q8; medians and all raw rates alongside activity coverage per arm. Larger is faster. A small Q8 difference needs the existing same-owner emitted-code/control rule before classification.",
+      "rig_inspection_before_launch": [
+        "Confirm parent build complete.json passed and the BF16 transfer is terminal; runner verifies exact heads, binary versions/hashes, matching CXX flags, all model hashes, and reference library hashes before sampling.",
+        "Recheck the pinned CPU wrapper source at /opt/claude-work/llmx-p2-x-mxfp4-cpu/dtype-cpu-reference-20261001/wrapper.cpp against done.json wrapper_sha256 59ff1ce390a2bf059c6f2ea49a0c768dca3f894247fe456263cde3618d614b29; verify CPU device, zero GPU/op/KV offload, token histories, warm-up and 512-context behavior. Runner retains same-container ldd with the explicit library path.",
+        "The native mx Vulkan benchmark is /opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/llama-bench, SHA d1e9fbc78d7150e37b7381be5e76a8e1cb05d7e20d4aead45bb735356daa39a1. It is not used for this matched-token CPU screen; the pinned CPU wrapper uses that build's same reference libraries.",
+        "Parent confirms resource ownership and no competing owned build/test/transfer. Runner requires the owned container process list clear, CPU0-3 with actual cpu.max quota4, sufficient memory/disk, and retains background activity without excluding contended samples. GPU allocation is inherited but these commands use CPU only."
+      ],
+      "limitations": [
+        "Initial 0.6B CPU screen only; no GPU, 8B, whole release, correctness or reference-parity conclusion.",
+        "BF16 and F32 tensor values are independently verified identical. The F32 fixture has an extra output.weight identical to its embedding; BF16 ties the head, so storage layout and working-set differences remain part of the file comparison.",
+        "The retained mx CLI wrapper matches llmx synthetic token histories/warm-up, unlike native llama-bench. Reinspect its source, CPU-only dispatch and library resolution before reuse on BF16.",
+        "llmx bench has fit_kv=false, identical explicit 512/128 workloads and demand-backed KV; mx reserves 512 in its own layout. Verify BF16/F32 context metadata and wrapper behavior before launching; do not claim equal logical capacities without that proof."
+      ],
+      "verified_build_sha256": "2e5195ecc3ef90852ebf8abac3dce85b022ac594d854e7ee41ec85fd8047a388",
+      "build_flags": {
+        "base": [
+          "CXX_DEFINES = ",
+          "CXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable"
+        ],
+        "candidate": [
+          "CXX_DEFINES = ",
+          "CXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable"
+        ]
+      }
+    },
+    "medians": {
+      "candidate-bf16": {
+        "pp512": 227.12,
+        "tg128": 27.32
+      },
+      "candidate-f32": {
+        "pp512": 237.185,
+        "tg128": 14.05
+      },
+      "mx-bf16": {
+        "pp512": 187.14999999999998,
+        "tg128": 25.69
+      },
+      "main-q8": {
+        "pp512": 222.595,
+        "tg128": 46.989999999999995
+      },
+      "candidate-q8": {
+        "pp512": 224.98000000000002,
+        "tg128": 46.925
+      }
+    },
+    "comparisons": [
+      {
+        "ratio": "candidate-bf16/candidate-f32",
+        "phase": "pp512",
+        "forward_reverse_percent": [
+          -5.029585798816571,
+          -3.4613281742860824
+        ],
+        "median_paired_percent": -4.245456986551327,
+        "range_percent": [
+          -5.029585798816571,
+          -3.4613281742860824
+        ],
+        "ratio_of_medians_percent": -4.243522988384596
+      },
+      {
+        "ratio": "candidate-bf16/candidate-f32",
+        "phase": "tg128",
+        "forward_reverse_percent": [
+          93.90070921985816,
+          95.0
+        ],
+        "median_paired_percent": 94.45035460992908,
+        "range_percent": [
+          93.90070921985816,
+          95.0
+        ],
+        "ratio_of_medians_percent": 94.44839857651243
+      },
+      {
+        "ratio": "candidate-bf16/mx-bf16",
+        "phase": "pp512",
+        "forward_reverse_percent": [
+          19.974371295851356,
+          22.742099352975774
+        ],
+        "median_paired_percent": 21.358235324413563,
+        "range_percent": [
+          19.974371295851356,
+          22.742099352975774
+        ],
+        "ratio_of_medians_percent": 21.35720010686617
+      },
+      {
+        "ratio": "candidate-bf16/mx-bf16",
+        "phase": "tg128",
+        "forward_reverse_percent": [
+          6.133540372670798,
+          6.557377049180335
+        ],
+        "median_paired_percent": 6.345458710925566,
+        "range_percent": [
+          6.133540372670798,
+          6.557377049180335
+        ],
+        "ratio_of_medians_percent": 6.344881276761383
+      },
+      {
+        "ratio": "candidate-q8/main-q8",
+        "phase": "pp512",
+        "forward_reverse_percent": [
+          2.950268206200568,
+          -0.7637316282580686
+        ],
+        "median_paired_percent": 1.0932682889712497,
+        "range_percent": [
+          -0.7637316282580686,
+          2.950268206200568
+        ],
+        "ratio_of_medians_percent": 1.0714526381994327
+      },
+      {
+        "ratio": "candidate-q8/main-q8",
+        "phase": "tg128",
+        "forward_reverse_percent": [
+          0.06395224898743113,
+          -0.33991926917358306
+        ],
+        "median_paired_percent": -0.13798351009307597,
+        "range_percent": [
+          -0.33991926917358306,
+          0.06395224898743113
+        ],
+        "ratio_of_medians_percent": -0.13832730368162904
+      }
+    ],
+    "sample_count": 166,
+    "interval_count": 165,
+    "precision": {
+      "llmx": "Completed matrix-path record is f16 policy / f32 matrix arithmetic. BF16 weight bits widen exactly; original F32 matrix inputs and sums are retained. This is weight storage, not BF16 activation selection.",
+      "mx": "Pinned ggml/src/ggml-cpu/ggml-cpu.c:395-399 sets BF16 from_float to ggml_cpu_fp32_to_bf16, vec_dot to ggml_vec_dot_bf16 and vec_dot_type to BF16. The active ordinary matmul conversion at1351 rounds an F32 RHS to that type. The optional llamafile/sgemm.cpp:3910-3917 AVX2 BF16 path also requires Btype BF16 and computes with float accumulators. No new numeric comparison was run here.",
+      "interpretation": "These are the published/default runtime paths, so the throughput comparison is useful. It is not an equal-precision kernel comparison: mx BF16 dot inputs are BF16 while llmx retains F32 activations. Both use the same BF16 weight file and F16 KV."
+    },
+    "assessment": [
+      "Candidate BF16 beats pinned mx BF16 in both directions: pp +19.97/+22.74 percent and tg +6.13/+6.56 percent. This supports advancing the initial CPU screen, not declaring the complete speed gate passed.",
+      "Against the equivalent F32 fixture, BF16 trades pp -5.03/-3.46 percent for tg +93.90/+95.00 percent. Storage footprint, tied/duplicated head layout and kernel work all differ, so these are whole-model effects, not isolated conversion costs.",
+      "Q8 candidate/main pp varies +2.95/-0.76 percent and tg +0.06/-0.34 percent. No material existing-path slowdown is demonstrated by these two pairs; they do not establish exact nonregression or a small speedup.",
+      "No predeclared activity threshold is crossed. Measured host idle ranges66.44-97.75 percent and observed aggregate unrelated CPU peaks62.96 percent of one core; missing short-lived processes still limit coverage.",
+      "Production GPU activity is visible on DRM card0/PCIc3:00.0 and card7/PCI8c:00.0, not the assigned PCI03:00.0 (DRMcard8), which remains0percent busy. Numeric DRM indices are not the users rocm-smi indices.",
+      "Forward first-touch calls have more major faults (BF16291115, F32734017, mainQ8154663); reverse calls have0. F32 and mainQ8 forward block-input counts are0, so major faults alone do not establish physical disk reads. Whole-child counters cannot attribute this to timed phases."
+    ],
+    "limitations": [
+      "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "Only two observations per arm and one repetition per call; no broad speed gate or small-difference significance claim.",
+      "Whole-call activity and rusage include loading, warm-up and both phases, so they do not isolate timed prefill or decode.",
+      "Intervals bracketing adjacent calls may occur in more than one per-call total; arm counts are not globally additive.",
+      "Missing/new/departed processes are retained as unknown work, not zero. Whole-device disk counters are not summed across layered devices.",
+      "GPU ranges are descriptive; this CPU runner does not attribute production GPU work to a process. Parent announced peer build on cores8-11 and production GPU8/9 activity.",
+      "F32 fixture has an extra head exactly equal to embedding; BF16 ties its head. Storage/working-set differences are part of the file comparison.",
+      "llmx KV logical capacity and mx512 context differ; explicit token histories, F16 KV, microbatch512 and four threads match.",
+      "This screen does not prove inference identity, HF correctness, 8B performance or GPU half-weight support."
+    ],
+    "artifacts_sha256": {
+      "00-candidate-bf16.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "00-candidate-bf16.stdout": "b01135e834fee22bd1ec9bf1f18fbc22413b91b4e3e56a7b8b09006a9577684e",
+      "00-candidate-bf16.usage.json": "fa914ee6a50458138f1b4557972dc6809db74894799eddb13868f264449f6fb8",
+      "01-candidate-f32.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "01-candidate-f32.stdout": "e71787a71b71d4410311110bd059230201b4940dc3a98202b5cdcd317245c3d1",
+      "01-candidate-f32.usage.json": "5472a2f5c8c80f1697828e48e088d64e001b7e847d3141cef4fc4abb9dc43d9e",
+      "02-mx-bf16.stderr": "5a530b6212eef3152c467238087ea312502c7171337d67f08dec2e69eff60c13",
+      "02-mx-bf16.stdout": "3400e6ea8a3ab1a796dedd27593a9b4f8e3f578cd094d1e5f60169dac20aaf6c",
+      "02-mx-bf16.usage.json": "288d0adbac3c0f21eccfd4df6ab40a6a995f7147e7631246a5f4e4bf02780f7e",
+      "03-mx-bf16.stderr": "9ad3380c0740a9037ae11fe002abfa70a4431a8103355af6eaa27d752a08dc81",
+      "03-mx-bf16.stdout": "5da9630da1eab799fb887ad3634b1863dc9ad5d449040f175ec2996c1e3b2c6a",
+      "03-mx-bf16.usage.json": "ba9ba7d129b6d910f4d6c42744b2353e9926296b1dbcd8f00ce0acafc104f07d",
+      "04-candidate-f32.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "04-candidate-f32.stdout": "2edb41aae5ac84ede6f3ad4bd45773a6f040e15d3a22f8e173dd0c931a717f26",
+      "04-candidate-f32.usage.json": "18dda6ae5514ec5091d4df7992997907fd4d30683de3c1cfc8807fe58a1c5e27",
+      "05-candidate-bf16.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "05-candidate-bf16.stdout": "e3314ae383a9adaee1f522b97e4e851b4674d7ba859944b3793a3e04ee57b550",
+      "05-candidate-bf16.usage.json": "6f17694befabdcd106dcdf34e1cd128d88b9e724b676600652494ef60a357c11",
+      "06-main-q8.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "06-main-q8.stdout": "bf99583e49713750e5fca13013eb3138d45e4656a72cf31f172c518be5727e33",
+      "06-main-q8.usage.json": "d329d24ff10bb134afdf92d6698bdf50da3d5ae9a3acc62cd65c1298b4a648bb",
+      "07-candidate-q8.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "07-candidate-q8.stdout": "f8d4d84f6aa55336e2c91ec8f282672b111c5aa1d961c6aa9f8b9ab6967ebc44",
+      "07-candidate-q8.usage.json": "3cfb18b6b48c0b32f4310e0197103cae1845231670b79b8c6937e6ff737dddda",
+      "08-candidate-q8.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "08-candidate-q8.stdout": "bf09780714cdd57714c0c4a8f8046a6815dfabe2e082279abb97668885a67031",
+      "08-candidate-q8.usage.json": "0769fa4d7d46735e902f7dc10e1d16bf9dc07ce9802e27c41bcfeb061546ca5d",
+      "09-main-q8.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "09-main-q8.stdout": "9f2c1fa3f87ad3c30edf325b415376934bed2d7843f13b4ddaac6fcdc6e636bc",
+      "09-main-q8.usage.json": "fc12ccd288499d01373cbd59ffcb35b1975f066f5ba56fe7c9985683d4644c47",
+      "activity.jsonl": "4500f7483ed00f283d413b5b0b93b3b086e17fc66161cc90ede043c9c4fdd097",
+      "analyze.py": "7ae44f9b5525eb3cc34a31f6517f485d29548692847b34c3f1a2201647176672",
+      "complete.json": "5f693691aab09660a0b4bea7660dcdbc502099432a6c494e84b14f1f9e176374",
+      "end-verification.json": "85af109c6bb06fcb25e15792d86921628644add9be881a48eab41799c79dd8b7",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "mx-linkage.txt": "25d9c819f5bcb18ba888dac6b690f725215dfcfaea3d06acb2e1bba741ee2077",
+      "mx-reference.json": "80dc199d3abeb35273aed2e65f49d603ee84f4342d462c67bc547995cca43023",
+      "plan.json": "8c6443d4e554d09878cf9272dc5ebc218c75406088f7464e88b779fe68007e4b",
+      "preflight.json": "52bd1e8145e6984fe68a2a6dcfa633ba873dc59cabb703efe6732cf563c21297",
+      "progress.json": "dfc562731257c605094d1770113717cb03d110acf54af47d75a8b1310686ade4"
+    },
+    "calls": [
+      {
+        "index": 0,
+        "arm": "candidate-bf16",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/00-candidate-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-0.6B-BF16.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962614.596003,
+        "end": 1790962631.7924247,
+        "returncode": 0,
+        "rates": {
+          "pp512": 224.7,
+          "tg128": 27.34
+        },
+        "stdout": "00-candidate-bf16.stdout",
+        "stderr": "00-candidate-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 54.930929,
+          "ru_stime": 2.841488,
+          "ru_maxrss": 1387704,
+          "ru_minflt": 56233,
+          "ru_majflt": 291115,
+          "ru_inblock": 1168,
+          "ru_oublock": 0,
+          "ru_nvcsw": 4432,
+          "ru_nivcsw": 453
+        }
+      },
+      {
+        "index": 1,
+        "arm": "candidate-f32",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/01-candidate-f32.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962631.7933953,
+        "end": 1790962663.0648487,
+        "returncode": 0,
+        "rates": {
+          "pp512": 236.6,
+          "tg128": 14.1
+        },
+        "stdout": "01-candidate-f32.stdout",
+        "stderr": "01-candidate-f32.stderr",
+        "child_usage": {
+          "ru_utime": 88.733096,
+          "ru_stime": 8.560529,
+          "ru_maxrss": 3159180,
+          "ru_minflt": 56188,
+          "ru_majflt": 734017,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 12571,
+          "ru_nivcsw": 544
+        }
+      },
+      {
+        "index": 2,
+        "arm": "mx-bf16",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/02-mx-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/fixtures/dtype-cpu-reference-20261001/mx-cli-bench-cpu",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-0.6B-BF16.gguf",
+          "4",
+          "512",
+          "128",
+          "1",
+          "f16"
+        ],
+        "start": 1790962663.065891,
+        "end": 1790962680.0100718,
+        "returncode": 0,
+        "rates": {
+          "pp512": 187.29,
+          "tg128": 25.76
+        },
+        "stdout": "02-mx-bf16.stdout",
+        "stderr": "02-mx-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 61.916507,
+          "ru_stime": 1.307693,
+          "ru_maxrss": 1338548,
+          "ru_minflt": 338918,
+          "ru_majflt": 1011,
+          "ru_inblock": 11319,
+          "ru_oublock": 0,
+          "ru_nvcsw": 107,
+          "ru_nivcsw": 508
+        }
+      },
+      {
+        "index": 3,
+        "arm": "mx-bf16",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/03-mx-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/fixtures/dtype-cpu-reference-20261001/mx-cli-bench-cpu",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-0.6B-BF16.gguf",
+          "4",
+          "512",
+          "128",
+          "1",
+          "f16"
+        ],
+        "start": 1790962680.0110474,
+        "end": 1790962696.9550266,
+        "returncode": 0,
+        "rates": {
+          "pp512": 187.01,
+          "tg128": 25.62
+        },
+        "stdout": "03-mx-bf16.stdout",
+        "stderr": "03-mx-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 62.071498,
+          "ru_stime": 1.170228,
+          "ru_maxrss": 1338704,
+          "ru_minflt": 341789,
+          "ru_majflt": 0,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 17,
+          "ru_nivcsw": 447
+        }
+      },
+      {
+        "index": 4,
+        "arm": "candidate-f32",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/04-candidate-f32.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-mxfp4-20260928/Qwen3-0.6B-F32.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962696.9560468,
+        "end": 1790962720.2129943,
+        "returncode": 0,
+        "rates": {
+          "pp512": 237.77,
+          "tg128": 14.0
+        },
+        "stdout": "04-candidate-f32.stdout",
+        "stderr": "04-candidate-f32.stderr",
+        "child_usage": {
+          "ru_utime": 88.378287,
+          "ru_stime": 0.641386,
+          "ru_maxrss": 3159528,
+          "ru_minflt": 102061,
+          "ru_majflt": 0,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 19347,
+          "ru_nivcsw": 569
+        }
+      },
+      {
+        "index": 5,
+        "arm": "candidate-bf16",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/05-candidate-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-half-weights-20261002/Qwen3-0.6B-BF16.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962720.2144644,
+        "end": 1790962734.654788,
+        "returncode": 0,
+        "rates": {
+          "pp512": 229.54,
+          "tg128": 27.3
+        },
+        "stdout": "05-candidate-bf16.stdout",
+        "stderr": "05-candidate-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 54.784845,
+          "ru_stime": 0.31626899999999997,
+          "ru_maxrss": 1387756,
+          "ru_minflt": 74451,
+          "ru_majflt": 0,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 3787,
+          "ru_nivcsw": 333
+        }
+      },
+      {
+        "index": 6,
+        "arm": "main-q8",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/06-main-q8.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/base/build/llmx",
+          "bench",
+          "--model",
+          "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962734.6558006,
+        "end": 1790962746.7393484,
+        "returncode": 0,
+        "rates": {
+          "pp512": 219.98,
+          "tg128": 46.91
+        },
+        "stdout": "06-main-q8.stdout",
+        "stderr": "06-main-q8.stderr",
+        "child_usage": {
+          "ru_utime": 39.820256,
+          "ru_stime": 1.599008,
+          "ru_maxrss": 842088,
+          "ru_minflt": 56263,
+          "ru_majflt": 154663,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 3975,
+          "ru_nivcsw": 247
+        }
+      },
+      {
+        "index": 7,
+        "arm": "candidate-q8",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/07-candidate-q8.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962746.7404165,
+        "end": 1790962757.2231388,
+        "returncode": 0,
+        "rates": {
+          "pp512": 226.47,
+          "tg128": 46.94
+        },
+        "stdout": "07-candidate-q8.stdout",
+        "stderr": "07-candidate-q8.stderr",
+        "child_usage": {
+          "ru_utime": 39.52252,
+          "ru_stime": 0.27324499999999996,
+          "ru_maxrss": 842080,
+          "ru_minflt": 65927,
+          "ru_majflt": 0,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 3335,
+          "ru_nivcsw": 247
+        }
+      },
+      {
+        "index": 8,
+        "arm": "candidate-q8",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/08-candidate-q8.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962757.2242813,
+        "end": 1790962767.8074937,
+        "returncode": 0,
+        "rates": {
+          "pp512": 223.49,
+          "tg128": 46.91
+        },
+        "stdout": "08-candidate-q8.stdout",
+        "stderr": "08-candidate-q8.stderr",
+        "child_usage": {
+          "ru_utime": 39.789114,
+          "ru_stime": 0.23137,
+          "ru_maxrss": 841932,
+          "ru_minflt": 65928,
+          "ru_majflt": 0,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 3067,
+          "ru_nivcsw": 269
+        }
+      },
+      {
+        "index": 9,
+        "arm": "main-q8",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-initial/09-main-q8.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/base/build/llmx",
+          "bench",
+          "--model",
+          "/fixtures/fixtures/Qwen3-0.6B-Q8_0.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790962767.8087804,
+        "end": 1790962778.341305,
+        "returncode": 0,
+        "rates": {
+          "pp512": 225.21,
+          "tg128": 47.07
+        },
+        "stdout": "09-main-q8.stdout",
+        "stderr": "09-main-q8.stderr",
+        "child_usage": {
+          "ru_utime": 39.645613,
+          "ru_stime": 0.262406,
+          "ru_maxrss": 842084,
+          "ru_minflt": 65930,
+          "ru_majflt": 0,
+          "ru_inblock": 0,
+          "ru_oublock": 0,
+          "ru_nvcsw": 2860,
+          "ru_nivcsw": 250
+        }
+      }
+    ],
+    "activity": {
+      "candidate-bf16": {
+        "calls": 2,
+        "intervals": 34,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "minimum_host_idle_percent": 66.6247642991829,
+        "maximum_observed_unrelated_cpu_percent": 45.969875748503725
+      },
+      "candidate-f32": {
+        "calls": 2,
+        "intervals": 56,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "minimum_host_idle_percent": 66.4366373902133,
+        "maximum_observed_unrelated_cpu_percent": 62.956454601657875
+      },
+      "mx-bf16": {
+        "calls": 2,
+        "intervals": 36,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "minimum_host_idle_percent": 69.40438871473354,
+        "maximum_observed_unrelated_cpu_percent": 42.977881862570186
+      },
+      "main-q8": {
+        "calls": 2,
+        "intervals": 24,
+        "unbracketed_seconds": 0.6200885772705078,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "minimum_host_idle_percent": 69.96865203761756,
+        "maximum_observed_unrelated_cpu_percent": 45.978606660494364
+      },
+      "candidate-q8": {
+        "calls": 2,
+        "intervals": 23,
+        "unbracketed_seconds": 0,
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "minimum_host_idle_percent": 71.90237797246559,
+        "maximum_observed_unrelated_cpu_percent": 35.9833689131978
+      }
+    }
+  },
+  "failures_retained": [
+    "Initial Vulkan test compilation needed explicit Memory::device on CpuBackend::alloc.",
+    "Unused shader type constants shifted39 existing modules; removal restored99/99 byte identity.",
+    "Shared conversion include tested weight macros in unrelated cache shaders; moving selections to weight consumers fixed dead-code, preserving111/111 modules.",
+    "UD-Q8 scratch harness first passed stderr into stdout parsing, then repeated an existing threads flag; corrected harness passed unchanged runtime and bounds.",
+    "Cross-ubatch audit wrapper expected different summary wording; retained successful child outputs were reparsed without rerunning inference."
+  ],
+  "cpu_8b": {
+    "scope": "Required 8B CPU BF16 timing cell; all four planned calls retained, no rerun/exclusion.",
+    "plan": {
+      "prepared_only": false,
+      "purpose": "Required 8B CPU BF16 performance cell, following initial 0.6B screen; incomplete whole-feature gate",
+      "main_head": "5835886c92250317a69e7139ec7164f13874456d",
+      "candidate_head": "a3a810b1aa74c9148f5221c48c04e36444ea57a0",
+      "root": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002",
+      "container": "llmx-xdev-vulkan-weight-dispatch-20261002",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "cpu_set": "0-3",
+      "quota": 4,
+      "memory_gib": 32,
+      "minimum_host_available_gib": 8,
+      "threads": 4,
+      "pp": 512,
+      "tg": 128,
+      "repeats": 1,
+      "ubatch": 512,
+      "cache": "f16",
+      "dtype": "auto",
+      "call_timeout_seconds": 1200,
+      "monitor_seconds": 5040,
+      "build_evidence": "complete.json",
+      "library_path": "/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+      "executables": {
+        "main": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/base/build/llmx",
+          "head": "5835886c92250317a69e7139ec7164f13874456d",
+          "version": "llmx 0.1.0+g5835886c9225",
+          "sha256": "f670b1aa1272abe846626b9d6dde4f627c65c8ffb7366b5e5c0204212171db70"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "head": "a3a810b1aa74c9148f5221c48c04e36444ea57a0",
+          "version": "llmx 0.1.0+ga3a810b1aa74",
+          "sha256": "da8e2d7b008615adc7170840bc2cfeaba5f9403e4e83aa0ad23786f2fc5300a7"
+        },
+        "mx": {
+          "path": "/fixtures/dtype-cpu-reference-20261001/mx-cli-bench-cpu",
+          "sha256": "c2c3bff9f0181b8f7010bf75816cf083c47901a21a9cc7cb00dd868ce7c5159e",
+          "revision": "eefc4e7321c869496146697d63362f073941aed6",
+          "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/dtype-cpu-reference-20261001/done.json",
+          "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+        }
+      },
+      "models": {
+        "bf16": {
+          "path": "/models/llmx-xdev-mxfp4-20260927/cache/models--unsloth--Qwen3-8B-GGUF/snapshots/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-BF16.gguf",
+          "sha256": "5e416a2020fe63e76ea13c8979be35fc6070aaf3578f7876400c55c2f5c3eb30",
+          "bytes": 16388044384
+        }
+      },
+      "calls": [
+        {
+          "block": "half8b",
+          "direction": "forward",
+          "arm": "candidate-bf16",
+          "exe": "candidate",
+          "model": "bf16"
+        },
+        {
+          "block": "half8b",
+          "direction": "forward",
+          "arm": "mx-bf16",
+          "exe": "mx",
+          "model": "bf16"
+        },
+        {
+          "block": "half8b",
+          "direction": "reverse",
+          "arm": "mx-bf16",
+          "exe": "mx",
+          "model": "bf16"
+        },
+        {
+          "block": "half8b",
+          "direction": "reverse",
+          "arm": "candidate-bf16",
+          "exe": "candidate",
+          "model": "bf16"
+        }
+      ],
+      "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+      "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "activity_flags": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "retention": "Keep all four planned rows, logs, failures, resource usage and activity; no filtering or replacements.",
+      "analysis": "Both paired candidate/mx pp512/tg128 ratios and all raw rates, with activity flags, coverage and unknowns. Larger is faster.",
+      "rig_inspection_before_launch": [
+        "Confirm parent build complete.json passed and the BF16 transfer is terminal; runner verifies exact heads, binary versions/hashes, matching CXX flags, all model hashes, and reference library hashes before sampling.",
+        "Recheck the pinned CPU wrapper source at /opt/claude-work/llmx-p2-x-mxfp4-cpu/dtype-cpu-reference-20261001/wrapper.cpp against done.json wrapper_sha256 59ff1ce390a2bf059c6f2ea49a0c768dca3f894247fe456263cde3618d614b29; verify CPU device, zero GPU/op/KV offload, token histories, warm-up and 512-context behavior. Runner retains same-container ldd with the explicit library path.",
+        "The native mx Vulkan benchmark is /opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/llama-bench, SHA d1e9fbc78d7150e37b7381be5e76a8e1cb05d7e20d4aead45bb735356daa39a1. It is not used for this matched-token CPU screen; the pinned CPU wrapper uses that build's same reference libraries.",
+        "Parent confirms resource ownership and no competing owned build/test/transfer. Runner requires the owned container process list clear, CPU0-3 with actual cpu.max quota4, sufficient memory/disk, and retains background activity without excluding contended samples. GPU allocation is inherited but these commands use CPU only."
+      ],
+      "limitations": [
+        "8B BF16 CPU only, four threads, same fixture and retained reference API adapter. No GPU or correctness conclusion from timing.",
+        "llmx auto retains F32 activations on float-storage products; mx BF16 weights request BF16 dot inputs. This is a default-runtime performance comparison, not equal arithmetic.",
+        "Logical context capacities follow each runtime as in the initial 0.6B plan; active timed histories match."
+      ],
+      "output": "timing-cpu-8b",
+      "verified_build_sha256": "2e5195ecc3ef90852ebf8abac3dce85b022ac594d854e7ee41ec85fd8047a388",
+      "build_flags": {
+        "base": [
+          "CXX_DEFINES = ",
+          "CXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable"
+        ],
+        "candidate": [
+          "CXX_DEFINES = ",
+          "CXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable"
+        ]
+      }
+    },
+    "medians": {
+      "candidate-bf16": {
+        "pp512": 10.195,
+        "tg128": 1.73
+      },
+      "mx-bf16": {
+        "pp512": 13.195,
+        "tg128": 1.855
+      }
+    },
+    "comparisons": [
+      {
+        "phase": "pp512",
+        "forward_reverse_percent": [
+          -22.972972972972972,
+          -22.49426166794185
+        ],
+        "median_paired_percent": -22.733617320457412,
+        "range_percent": [
+          -22.972972972972972,
+          -22.49426166794185
+        ]
+      },
+      {
+        "phase": "tg128",
+        "forward_reverse_percent": [
+          -24.479166666666664,
+          12.290502793296065
+        ],
+        "median_paired_percent": -6.0943319366852995,
+        "range_percent": [
+          -24.479166666666664,
+          12.290502793296065
+        ]
+      }
+    ],
+    "sample_count": 1083,
+    "interval_count": 1082,
+    "precision": "llmx records auto->f16 policy with f32 matrix arithmetic: exact BF16 weight widening, original F32 inputs and F32 sums. Pinned mx eefc4e CPU BF16 traits select BF16 RHS conversion and dot; optional AVX2 SGEMM also requires BF16 RHS. This remains a useful default-runtime comparison, not an equal-precision kernel comparison. Same weight file and F16 KV are used.",
+    "limitations": [
+      "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "Two observations per arm with one timed repetition per phase; this is not the complete feature acceptance gate.",
+      "Rusage and cgroup/activity counters include loading, warm-up and both phases; no phase-specific causal attribution.",
+      "Boundary observations may be shared by calls. Missing/new/departed processes are unknown work, never zero activity.",
+      "GPU busy/VRAM ranges are retained per call without a new activity threshold or process attribution.",
+      "Major faults do not by themselves prove physical disk reads; input-block and cgroup IO records remain alongside them.",
+      "llmx logical context and mx512 capacity differ; actual token histories, microbatch512, threads4 and cache precision match.",
+      "No main comparison, F32-file comparison or correctness/HF inference is made for this 8B timing cell."
+    ],
+    "artifacts_sha256": {
+      "00-candidate-bf16.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "00-candidate-bf16.stdout": "6f39c88f3cb006a4fa21346ec1978a04089726a62c3e9e8616c5ac4c6fd7aa07",
+      "00-candidate-bf16.usage.json": "d69aeb4d2708791148163ea6425aba6b1d3c2e37df05c0d73f5c3d80ca6eb124",
+      "01-mx-bf16.stderr": "47d0d4a2e7156860d8e749b1446b574a66c074d0aa18f1f47ff5836f7e83b0ae",
+      "01-mx-bf16.stdout": "fedc5e12b5d3ee6eda19ac61924e55d2ef885fe2311576ead635187f98b33834",
+      "01-mx-bf16.usage.json": "aa6e5c07ffd5d6437f0ed6e6744dd04cedc8ec8f94f07507552e0cea1aa276d6",
+      "02-mx-bf16.stderr": "b0a588b46ae41c000eaf439b4c66888e21e3625fb1012e7e181eed33fc54779e",
+      "02-mx-bf16.stdout": "4bfab490aab034f759617f3e8a45e8b190ea8a53e4a71b94afd515519b2e9c93",
+      "02-mx-bf16.usage.json": "7a27a7dfbe6f053c4846259636675077b05138a58db596fd2fa7151191879f93",
+      "03-candidate-bf16.stderr": "7014a43f3e80fb82376c4cef02052c811216394c7d5e9725563a9ac0d204efb4",
+      "03-candidate-bf16.stdout": "1c95bbf5a74d5511ef9b968578e297f50bcb31ecc64973d7be054251f0d82038",
+      "03-candidate-bf16.usage.json": "850c3546f84faf8d4cef99f9494812d654488a013bb93ef19e8590826702907f",
+      "activity.jsonl": "84470fe3c92ea099704f3faf1d6f757fa9a291d4f54ef6218c86b86d0a0c21b0",
+      "complete.json": "355179d5d1815bcb62b9f25e77c38c01f66312cc44a28cda434c577240741a63",
+      "end-posted.json": "129e994737f428acab2cb3f8f3e3b84e724d7ba19fb0e56b551bd78309841b41",
+      "end-verification.json": "8cb182b215c09fbecb14ce3af1d4b46b5f048bc8f440e09406d244942b2eb892",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "mx-linkage.txt": "8ce29e7c11821fae2f553652974efc0665b98a8ccfa65df87338c3b776023425",
+      "mx-reference.json": "80dc199d3abeb35273aed2e65f49d603ee84f4342d462c67bc547995cca43023",
+      "plan.json": "828a167ad9e8c8e03c183b7c42ead1eceeae027bd9d8d1cdb64c1cc35b4a16ee",
+      "preflight.json": "ba7d67c7395b6ddc8e55afc301553fbd10badc8dbfa20e5df386d813250d836a",
+      "progress.json": "646aa1fb6e418d072a261c9a1ecd48fd9adad584b37280eb22baadecae4767a1"
+    },
+    "calls": [
+      {
+        "index": 0,
+        "arm": "candidate-bf16",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-8b/00-candidate-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "1200s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-mxfp4-20260927/cache/models--unsloth--Qwen3-8B-GGUF/snapshots/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-BF16.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790963780.759338,
+        "end": 1790964087.5685737,
+        "returncode": 0,
+        "rates": {
+          "pp512": 10.26,
+          "tg128": 1.45
+        },
+        "stdout": "00-candidate-bf16.stdout",
+        "stderr": "00-candidate-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 968.433115,
+          "ru_stime": 40.351066,
+          "ru_maxrss": 16321228,
+          "ru_minflt": 83089,
+          "ru_majflt": 3999763,
+          "ru_inblock": 20746168,
+          "ru_oublock": 0,
+          "ru_nvcsw": 140551,
+          "ru_nivcsw": 33506
+        }
+      },
+      {
+        "index": 1,
+        "arm": "mx-bf16",
+        "direction": "forward",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-8b/01-mx-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "1200s",
+          "/fixtures/dtype-cpu-reference-20261001/mx-cli-bench-cpu",
+          "/models/llmx-xdev-mxfp4-20260927/cache/models--unsloth--Qwen3-8B-GGUF/snapshots/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-BF16.gguf",
+          "4",
+          "512",
+          "128",
+          "1",
+          "f16"
+        ],
+        "start": 1790964087.5695202,
+        "end": 1790964342.4034126,
+        "returncode": 0,
+        "rates": {
+          "pp512": 13.32,
+          "tg128": 1.92
+        },
+        "stdout": "01-mx-bf16.stdout",
+        "stderr": "01-mx-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 897.268691,
+          "ru_stime": 27.783336,
+          "ru_maxrss": 16266852,
+          "ru_minflt": 4082759,
+          "ru_majflt": 1591,
+          "ru_inblock": 49940481,
+          "ru_oublock": 0,
+          "ru_nvcsw": 2088,
+          "ru_nivcsw": 28242
+        }
+      },
+      {
+        "index": 2,
+        "arm": "mx-bf16",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-8b/02-mx-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "1200s",
+          "/fixtures/dtype-cpu-reference-20261001/mx-cli-bench-cpu",
+          "/models/llmx-xdev-mxfp4-20260927/cache/models--unsloth--Qwen3-8B-GGUF/snapshots/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-BF16.gguf",
+          "4",
+          "512",
+          "128",
+          "1",
+          "f16"
+        ],
+        "start": 1790964342.4044254,
+        "end": 1790964587.9810684,
+        "returncode": 0,
+        "rates": {
+          "pp512": 13.07,
+          "tg128": 1.79
+        },
+        "stdout": "02-mx-bf16.stdout",
+        "stderr": "02-mx-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 889.413825,
+          "ru_stime": 17.674706,
+          "ru_maxrss": 16271888,
+          "ru_minflt": 4083332,
+          "ru_majflt": 3397,
+          "ru_inblock": 49639419,
+          "ru_oublock": 0,
+          "ru_nvcsw": 1114,
+          "ru_nivcsw": 36162
+        }
+      },
+      {
+        "index": 3,
+        "arm": "candidate-bf16",
+        "direction": "reverse",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-vulkan-weight-dispatch-20261002",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/timing-cpu-8b/03-candidate-bf16.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "0-3",
+          "timeout",
+          "--kill-after=10s",
+          "1200s",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-weights-20261002/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/models/llmx-xdev-mxfp4-20260927/cache/models--unsloth--Qwen3-8B-GGUF/snapshots/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-BF16.gguf",
+          "--device",
+          "cpu",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "auto"
+        ],
+        "start": 1790964587.9821177,
+        "end": 1790964861.9353461,
+        "returncode": 0,
+        "rates": {
+          "pp512": 10.13,
+          "tg128": 2.01
+        },
+        "stdout": "03-candidate-bf16.stdout",
+        "stderr": "03-candidate-bf16.stderr",
+        "child_usage": {
+          "ru_utime": 817.448537,
+          "ru_stime": 39.458019,
+          "ru_maxrss": 16321036,
+          "ru_minflt": 83030,
+          "ru_majflt": 3999778,
+          "ru_inblock": 3478362,
+          "ru_oublock": 0,
+          "ru_nvcsw": 149352,
+          "ru_nivcsw": 29459
+        }
+      }
+    ],
+    "activity": {
+      "candidate-bf16": {
+        "intervals": 582,
+        "flags": {
+          "cpu_busy": 1,
+          "iowait": 39,
+          "unrelated_cpu": 450,
+          "disk_activity": 174,
+          "sample_gap": 0
+        },
+        "unbracketed_seconds": 0.1843554973602295,
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 3015,
+          "missed_process_observations": 232,
+          "appeared_processes": 3015,
+          "disappeared_processes": 2481
+        },
+        "minimum_host_idle_percent": 23.577749683944376,
+        "maximum_observed_unrelated_cpu_percent": 737.394692553174,
+        "hot_unrelated_names": [
+          "cc1plus",
+          "containerd",
+          "dockerd",
+          "llama-server",
+          "llmx",
+          "llmx-hub-pull-t",
+          "llmx-sampler-te",
+          "llmx-server-pas",
+          "llmx-server-res",
+          "llmx-spec-test",
+          "python3"
+        ]
+      },
+      "mx-bf16": {
+        "intervals": 501,
+        "flags": {
+          "cpu_busy": 261,
+          "iowait": 0,
+          "unrelated_cpu": 431,
+          "disk_activity": 155,
+          "sample_gap": 0
+        },
+        "unbracketed_seconds": 0,
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 2136,
+          "missed_process_observations": 491,
+          "appeared_processes": 2136,
+          "disappeared_processes": 2663
+        },
+        "minimum_host_idle_percent": 0.0,
+        "maximum_observed_unrelated_cpu_percent": 2014.2025301342812,
+        "hot_unrelated_names": [
+          "cc1plus",
+          "containerd",
+          "dockerd",
+          "kswapd0",
+          "llama-server",
+          "python3",
+          "z_wr_iss"
+        ]
+      }
+    },
+    "assessment": "Prefill deficit repeats in both directions. Decode is inconclusive: paired changes have opposite signs amid substantial imbalanced unrelated activity. All calls and 1083 activity samples retained; no complete feature-gate claim."
+  },
+  "artifacts": [
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\vulkan-checks\\cross-batch-audit.json",
+      "bytes": 2570,
+      "sha256": "7311a3c63fb5558c0ee4a5433027c8a77cc086b0819d5d0998d5c6b8888526ed"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\vulkan-checks\\compiled-source-final.json",
+      "bytes": 14810,
+      "sha256": "2212e6ba207832f1b8f3e90f4e9a6bf1fc242e2b1b2e59e4571f19cc65fd69e2"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\vulkan-checks\\attempt-4\\shader-comparison.json",
+      "bytes": 21444,
+      "sha256": "97fefc096a0c0abf2dce5a3302b5287f86eb8642b299e53a7e7848781e6d9efe"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\vulkan-checks\\macro-fix-identity.json",
+      "bytes": 313,
+      "sha256": "421ecc95018fc69a0a8834e078ccf4c0d595f6aef49b5455aad1191b31761380"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\half-cross-ubatch-cpu.log",
+      "bytes": 442,
+      "sha256": "fe7c4d6d39bbf0707751b4f9655bb8285ba7bc1e342b4b15ce667fafee8c2a2a"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\ud-q8-cpu-final\\result.json",
+      "bytes": 30515,
+      "sha256": "a831a9783209261efeb504d3c6094af237895d0f75cd48bc2b449f5d704e7269"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\cpu-initial\\analysis.json",
+      "bytes": 402816,
+      "sha256": "07a985cc35bb35a9799921c77abf2b8e6d6eb610433c8c2bbc24751053644679"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\cpu-initial\\report.txt",
+      "bytes": 22858,
+      "sha256": "238c368d9afa4fbdffc1c512c47faa7bac18ed51d4af969dbc5229eed3479fd4"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\cpu-8b\\analysis.json",
+      "bytes": 1719492,
+      "sha256": "8e635861069646367464b4df303b0e0677745baf7ec323aa72f5270bddc01f63"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\cpu-8b\\report.txt",
+      "bytes": 4024,
+      "sha256": "0e7c668afb70a7a5685cb1cac61b674b5b2795222519336ca55a90123d383400"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\cpu-8b\\static-comparison.txt",
+      "bytes": 4513,
+      "sha256": "b971822d2db43daaa8056000e5c81d7a5d7cd028e289cf4ed3f36a81c0b48fa5"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-reference-initial\\report.md",
+      "bytes": 2727,
+      "sha256": "e1fdc1f6ce94145c619a19ccab039bf0df70aa59afa139066e651387fbe025ef"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\docs-checkpoint-review\\review.md",
+      "bytes": 3677,
+      "sha256": "edc132c8ea9fbf82d6d4d78e4e7e3705e82fa7172a3c9f07c39572e9bb2afd68"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-row-width\\report.json",
+      "bytes": 12305,
+      "sha256": "d9e356d7fdfee318d279354df40b9470ed53722df0e7a173c85054ffb42b174b"
+    }
+  ],
+  "windows_row_width_probe": {
+    "success": true,
+    "scope": "Shape diagnostic only, all cells and samples retained; no model or release verdict",
+    "cells": 18,
+    "individual_times": 90,
+    "checked_outputs": 37748736,
+    "device": {
+      "name": "AMD Radeon VII",
+      "index": 0,
+      "uuid": "00000000-2d00-0000-0000-000000000000",
+      "driver": "AMD proprietary 26.5.2"
+    },
+    "compile": {
+      "started": 1790965072.8094287,
+      "command": [
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe",
+        "/nologo",
+        "/std:c++17",
+        "/O2",
+        "/arch:AVX2",
+        "/MD",
+        "/EHsc",
+        "/W4",
+        "/we4505",
+        "/we4101",
+        "/we4189",
+        "/IC:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-half-vulkan\\generated",
+        "/IC:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\src",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\gpu-screen-prep\\row_width.cpp",
+        "/FoC:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-row-width\\row_width.obj",
+        "/FeC:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-row-width\\half-row-width.exe",
+        "/link",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-half-vulkan\\Release\\llmx-vulkan.lib"
+      ],
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\gpu-screen-prep\\row_width.cpp",
+      "source_sha256": "08356ec334f50a7a0c7851aeff3e66a406467b50cc5edd3d925898f5b610ae06",
+      "library": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-half-vulkan\\Release\\llmx-vulkan.lib",
+      "library_sha256": "f5e1effc1d0898f8580dec0a08f636b01798e2e4c18800707b1a13099078cff9",
+      "config_sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb",
+      "pid": 45144,
+      "returncode": 0,
+      "ended": 1790965074.9220252,
+      "exe_sha256": "fc8e96a53b99698b9432a08c276b905d12ac3a1f72d2f3ef0cff2455492ba124"
+    },
+    "clocks": {
+      "changed_by_this_task": false,
+      "policy_verified": false,
+      "reason": "Existing Windows monitor has no clock or tuning-policy counters"
+    },
+    "table": [
+      {
+        "width": 2048,
+        "storage": "F32",
+        "forward": {
+          "wall_ms": [
+            4.1674,
+            4.261,
+            4.0441,
+            4.6043,
+            4.6078
+          ],
+          "median_ms": 4.261,
+          "gflops": [
+            2061.221527091232,
+            2015.9433447547524,
+            2124.0658223090427,
+            1865.6331238190387,
+            1864.2160232648987
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            4.1666,
+            3.9463,
+            4.6742,
+            4.1873,
+            4.8787
+          ],
+          "median_ms": 4.1873,
+          "gflops": [
+            2061.6172879566075,
+            2176.705925043712,
+            1837.7336425484575,
+            2051.425642299334,
+            1760.7015377047164
+          ]
+        }
+      },
+      {
+        "width": 2048,
+        "storage": "F16",
+        "forward": {
+          "wall_ms": [
+            7.7653,
+            7.3156,
+            8.3474,
+            7.3246,
+            7.2467
+          ],
+          "median_ms": 7.3246,
+          "gflops": [
+            1106.1948143664765,
+            1174.1941319919076,
+            1029.0551060210364,
+            1172.7513573437457,
+            1185.3581067244402
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            7.7509,
+            7.9272,
+            7.8711,
+            8.3011,
+            7.83
+          ],
+          "median_ms": 7.8711,
+          "gflops": [
+            1108.2499570372472,
+            1083.602607730346,
+            1091.325811131862,
+            1034.7947370830373,
+            1097.0542263090676
+          ]
+        }
+      },
+      {
+        "width": 2048,
+        "storage": "BF16",
+        "forward": {
+          "wall_ms": [
+            7.8119,
+            7.3393,
+            7.8628,
+            8.2061,
+            8.0153
+          ],
+          "median_ms": 7.8628,
+          "gflops": [
+            1099.5960767546946,
+            1170.4024351096155,
+            1092.4778185887978,
+            1046.7743010687173,
+            1071.6922126433196
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            7.8906,
+            7.2924,
+            8.9196,
+            8.4035,
+            7.7562
+          ],
+          "median_ms": 7.8906,
+          "gflops": [
+            1088.6288231566675,
+            1177.929706543799,
+            963.0403372348536,
+            1022.1853503897186,
+            1107.4926629019365
+          ]
+        }
+      },
+      {
+        "width": 2064,
+        "storage": "F32",
+        "forward": {
+          "wall_ms": [
+            3.3245,
+            4.2307,
+            4.1108,
+            3.7222,
+            3.2408
+          ],
+          "median_ms": 3.7222,
+          "gflops": [
+            2604.013673033539,
+            2046.2437554069068,
+            2105.9266945606696,
+            2325.7867540701736,
+            2671.267420390027
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            3.7262,
+            4.3713,
+            4.5699,
+            4.8167,
+            3.8424
+          ],
+          "median_ms": 4.3713,
+          "gflops": [
+            2323.2900692394396,
+            1980.4276659117425,
+            1894.361683187816,
+            1797.297622023377,
+            2253.0302560899436
+          ]
+        }
+      },
+      {
+        "width": 2064,
+        "storage": "F16",
+        "forward": {
+          "wall_ms": [
+            3.8231,
+            3.7797,
+            4.7232,
+            4.1719,
+            4.185
+          ],
+          "median_ms": 4.1719,
+          "gflops": [
+            2264.40413695692,
+            2290.404914675768,
+            1832.8767479674798,
+            2075.0841237805316,
+            2068.5886394265235
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            3.3058,
+            3.3561,
+            3.6252,
+            4.0737,
+            3.6454
+          ],
+          "median_ms": 3.6252,
+          "gflops": [
+            2618.743861092625,
+            2579.495085366944,
+            2388.018166170142,
+            2125.1057898225204,
+            2374.7856081637133
+          ]
+        }
+      },
+      {
+        "width": 2064,
+        "storage": "BF16",
+        "forward": {
+          "wall_ms": [
+            3.7787,
+            4.3539,
+            4.3792,
+            4.2965,
+            4.2035
+          ],
+          "median_ms": 4.2965,
+          "gflops": [
+            2291.0110503612354,
+            1988.3422807138427,
+            1976.8550091340885,
+            2014.9059597346677,
+            2059.484585702391
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            4.7021,
+            4.5491,
+            5.4059,
+            5.2058,
+            5.1424
+          ],
+          "median_ms": 5.1424,
+          "gflops": [
+            1841.1015197464963,
+            1903.023335604845,
+            1601.4065106642743,
+            1662.9612078835146,
+            1683.4636465463598
+          ]
+        }
+      },
+      {
+        "width": 2080,
+        "storage": "F32",
+        "forward": {
+          "wall_ms": [
+            3.3042,
+            4.2282,
+            3.6111,
+            3.7621,
+            3.3771
+          ],
+          "median_ms": 3.6111,
+          "gflops": [
+            2640.3221112523456,
+            2063.3253677687903,
+            2415.9265376201156,
+            2318.9581138194094,
+            2583.3266175120666
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            3.1638,
+            3.6225,
+            3.4749,
+            3.3915,
+            3.1665
+          ],
+          "median_ms": 3.3915,
+          "gflops": [
+            2757.4917251406537,
+            2408.3236218081433,
+            2510.6196782641227,
+            2572.35804806133,
+            2755.1404768672037
+          ]
+        }
+      },
+      {
+        "width": 2080,
+        "storage": "F16",
+        "forward": {
+          "wall_ms": [
+            3.8201,
+            3.4304,
+            3.9007,
+            3.8303,
+            3.9998
+          ],
+          "median_ms": 3.8303,
+          "gflops": [
+            2283.749723829219,
+            2543.1880597014924,
+            2236.560699361653,
+            2277.66815131974,
+            2181.147137356868
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            5.1546,
+            5.3067,
+            5.5034,
+            5.3514,
+            5.6766
+          ],
+          "median_ms": 5.3514,
+          "gflops": [
+            1692.4984130679393,
+            1643.9882262046092,
+            1585.229552640186,
+            1630.256067571103,
+            1536.862262621992
+          ]
+        }
+      },
+      {
+        "width": 2080,
+        "storage": "BF16",
+        "forward": {
+          "wall_ms": [
+            4.8855,
+            4.8662,
+            5.4364,
+            5.8586,
+            5.5042
+          ],
+          "median_ms": 5.4364,
+          "gflops": [
+            1785.72353290349,
+            1792.8059512556,
+            1604.7664483849605,
+            1489.1189567473457,
+            1584.9991497401984
+          ]
+        },
+        "reverse": {
+          "wall_ms": [
+            3.7329,
+            3.2405,
+            3.734,
+            3.5839,
+            3.6398
+          ],
+          "median_ms": 3.6398,
+          "gflops": [
+            2337.0977845642797,
+            2692.2241382502702,
+            2336.409298339582,
+            2434.262205976729,
+            2396.8768393867795
+          ]
+        }
+      }
+    ],
+    "assessment": "The repeated 2048 half-storage penalty warrants one scoped padding A/B: F16 and BF16 are slower than their nearby widths and the F32 control in both directions. This does not prove a padding or memory-bank cause: storage conversion differs, F32 already pads, the run is short, clocks are unverified, and nearby-width rates vary between directions. No runtime change or padding result is claimed.",
+    "activity": {
+      "unique_overlapping_samples": 3,
+      "per_cell_summary": "activity-summary.json",
+      "raw": "monitor.jsonl",
+      "note": "The same 1Hz intervals span multiple cells. All cells overlap ordinary unrelated CPU activity flags and unknown process observations; no disk or unrelated GPU threshold fires. Codex/Code activity includes parent documentation/evidence work, not a competing model workload.",
+      "peak_system_cpu_percent": 34.5557259268817,
+      "peak_disk_mib_per_second": 1.9222600286837455,
+      "peak_unrelated_gpu_engine_percent": 5.854555565891194
+    },
+    "limitations": [
+      "One forward/reverse process; no code-layout control or model/reference parity claim.",
+      "Cell receive timestamps bracket preparation, warmups, measurement and output validation, not just the timed kernel.",
+      "1Hz monitor cannot resolve each fast cell or timed repeat; unknown activity is not zero.",
+      "F32 retains existing padded-copy policy; half weights retain compact storage. No causal attribution from timings alone.",
+      "No reported samples removed or replaced. Every raw cell checks the last identical timed output; each timed output is not read back separately.",
+      "Unknown Windows process/counter observations and unverified clock policy remain limitations."
+    ],
+    "evidence": {
+      "compile.json": "52c27dd786616c03c31ab3a6acc7f5adddaee66f3177fa6b2068f4b2ecebf021",
+      "plan.json": "99b7ed1ed3b2fbb8394dfa91285c7faa82116efe52a8fdf34f2fd9d05ae9275b",
+      "calls.json": "6bd6cae878d812c92320f0e9b0b4f8c1a08373cde89f15785a51313c3a41ece2",
+      "probe.stdout": "adf28bf2ace4c0ef8ffa1c06c6f0563c5f78d77bb61e51806f34b61c9cd239ee",
+      "probe.stderr": "688f7dbed2b2fc23f2445e3130643495475af1a271eb8e4ad6a3e0c3caa67f39",
+      "monitor.jsonl": "55eb321d85830115af4158daebc4a8e8c654b78bf9de33b54ce55a11c938273f",
+      "activity-summary.json": "cf23a942b236cc32ea4bed6888f0144fffae1b7c518281e8ebbd08b4edbbef12",
+      "complete.json": "09d62a57972a485278fa28e0adb7af59d1e691300a5bf548b5ec6d548ad5bcc5",
+      "vulkan-summary.txt": "78ff6eff2bf2546aa00c07de33c702e4200acc324c3a4435f5cc6f97e44d5bc6",
+      "tui-start.json": "35c4512e68db46d37fc553b2e56841a1fb3b2481242f4087a484d8292cf30a18",
+      "tui-end.json": "f7fda50b34cf181d0acb2e771febb5832b8caa52bb3fb4bfa3e2cec65b3c6cbf"
+    }
+  }
+}

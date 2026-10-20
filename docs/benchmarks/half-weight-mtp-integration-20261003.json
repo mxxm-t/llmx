@@ -1,0 +1,175 @@
+{
+  "head": "d1c1ad35db763f8a2a11483fb06678963f325370",
+  "source_tree": "eb2cfb3eb228d01f1c1345aefb0402a59efaa274",
+  "version": "llmx 0.1.0+gd1c1ad35db76.dirty",
+  "compiler": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+  "cmake": "cmake version 3.31.6\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).",
+  "inputs": {
+    "head": "d1c1ad35db763f8a2a11483fb06678963f325370",
+    "base": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+    "files": {
+      "head.tar.gz": {
+        "sha256": "f0f0a26a3c8da3b2f96cd9111bf1796a3bf804efd1ac3d8b36bc4f5d508cc35c",
+        "bytes": 12945025
+      },
+      "head.bundle": {
+        "sha256": "c1a73be1c76af1290fc769fa15f5e307e27ea3d451d54e9d0ba2958eb0e9c87a",
+        "bytes": 147531
+      },
+      "working.patch": {
+        "sha256": "7e8ea83f13392ef3e688f1543075155e78a63366b0aefaa454f01ea66b84aeb4",
+        "bytes": 32655
+      }
+    }
+  },
+  "canonical_archive_files_verified": 1845,
+  "binaries": {
+    "llmx": {
+      "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-mtp-d1c1ad35-dev-r2/build/llmx",
+      "bytes": 4957064,
+      "sha256": "8a892ce22b81b7758630a6bb611720c7180c803572b90151bfca88417872c641"
+    },
+    "llmx-backend-vulkan-test": {
+      "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-mtp-d1c1ad35-dev-r2/build/llmx-backend-vulkan-test",
+      "bytes": 3897344,
+      "sha256": "74a439f8f24febcb57a5f7eaf3b97b5307e5a99efff27e9fbd8d65f8e16b1443"
+    },
+    "llmx-half-weights-test": {
+      "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-mtp-d1c1ad35-dev-r2/build/llmx-half-weights-test",
+      "bytes": 393736,
+      "sha256": "ee11e3300e0e6c02946a9daa36c7527b5c8eb45ddc3d0e27a144a44169e2909c"
+    }
+  },
+  "dirty_status_before": "M AGENTS.md\n M CMakeLists.txt\n M docs/STATUS.md\n M docs/src/backends-vulkan.md\n M src/backends/vulkan/vulkan_backend.cpp\n M tests/backend_vulkan.cpp",
+  "dirty_status_after": "M AGENTS.md\n M CMakeLists.txt\n M docs/STATUS.md\n M docs/src/backends-vulkan.md\n M src/backends/vulkan/vulkan_backend.cpp\n M tests/backend_vulkan.cpp",
+  "native": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "shaders": {
+    "main_count": 103,
+    "candidate_count": 117,
+    "all_old_identical": true,
+    "new": [
+      "embed_ids_wbf16.inc",
+      "embed_ids_wf16.inc",
+      "embed_wbf16.inc",
+      "embed_wf16.inc",
+      "matmul_row_wbf16.inc",
+      "matmul_row_wf16.inc",
+      "matmul_tile_wbf16.inc",
+      "matmul_tile_wbf16_bf16.inc",
+      "matmul_tile_wbf16_bf16_preserve.inc",
+      "matmul_tile_wbf16_preserve.inc",
+      "matmul_tile_wf16.inc",
+      "matmul_tile_wf16_bf16.inc",
+      "matmul_tile_wf16_bf16_preserve.inc",
+      "matmul_tile_wf16_preserve.inc"
+    ]
+  },
+  "remote_root": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-mtp-d1c1ad35-dev-r2",
+  "validation_scope": "Dirty development only: build, shader identity and two focused native tests; no model matrix or timing.",
+  "preserved_harness_failures": [
+    "Windows Git archive line-ending conversion before compile in first attempt",
+    "Post-build shader filename discovery assumed .spv instead of CMake .inc; native tests had not started"
+  ],
+  "build_seconds": 92.92844533920288,
+  "focused_check_seconds": 19.698995113372803,
+  "gpu_released": true,
+  "allocation_retained_for_clean_candidate": true,
+  "artifacts": {
+    "build.log": {
+      "sha256": "78fa6363485cd18acf3536d6fe98219cfe7044dddb95b05f0050b59c5180c9bc",
+      "bytes": 4441
+    },
+    "bundle-verify.log": {
+      "sha256": "248fcc37800b55e1c93dd5ca7dff249ec9e456e12b4359d6ee1f0bc6d684d500",
+      "bytes": 296
+    },
+    "checkout.log": {
+      "sha256": "cae6af3f4e69e63b49f6f7ba2ebfaa575138334d7269195c5f3eee9c71362baa",
+      "bytes": 165
+    },
+    "checks-complete.json": {
+      "sha256": "d10e14799ca7325c390789eaf1d513d1fb8b8e243717cb0c499f17783def8180",
+      "bytes": 1553
+    },
+    "checks-state.json": {
+      "sha256": "d10e14799ca7325c390789eaf1d513d1fb8b8e243717cb0c499f17783def8180",
+      "bytes": 1553
+    },
+    "clone-base.log": {
+      "sha256": "dacee08b157aae5217c0e3350ecead58fc50b930044efc960036581729a3011f",
+      "bytes": 593
+    },
+    "complete.json": {
+      "sha256": "79530bf0531a54da662f2532dee33af31a8e8ef872198638185337cfa392f724",
+      "bytes": 12270
+    },
+    "configure.log": {
+      "sha256": "c8351fc44be34679b57186e00f41ce268a7f9729c4702b3f2bf23692d67f4436",
+      "bytes": 560
+    },
+    "fetch-head.log": {
+      "sha256": "8a4b557e4bc079114fe8dcab68b8683ff657cc5eb05f20083867fce15fee32ed",
+      "bytes": 149
+    },
+    "focused-native.log": {
+      "sha256": "4865c76d007ce75785b6f25b6ec073aa1b63d679d4ac6fef6423670bc3e34e11",
+      "bytes": 514
+    },
+    "head-source-hashes.json": {
+      "sha256": "5505d0ce45da5de74f2ef59f40cad25c6ab938860393a0fd86bc55c85f7aca5a",
+      "bytes": 236165
+    },
+    "inputs.json": {
+      "sha256": "c3a46849a6436e2d626738c92f55fece548ae6dc08db79825f9b19ebf534564a",
+      "bytes": 551
+    },
+    "LastTest.log": {
+      "sha256": "5beba8197e9e24c6dee84fe422ac7fe3a800e9772ec1c06bed3196d37c7a0a2b",
+      "bytes": 59792
+    },
+    "launch.json": {
+      "sha256": "287246c7c30201b3bb22307aa540391de89b9fd7461ad95845336016fe0d7b1b",
+      "bytes": 575
+    },
+    "line-endings.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "patch-apply.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "patch-check.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "shader-hashes.json": {
+      "sha256": "0c774e90e47d0b79f47763ad3a94a824b7a46f841a6c3073be71b403d51c0523",
+      "bytes": 50741
+    },
+    "state.json": {
+      "sha256": "79530bf0531a54da662f2532dee33af31a8e8ef872198638185337cfa392f724",
+      "bytes": 12270
+    },
+    "supervisor.log": {
+      "sha256": "4a75c5e0d362d903b97c2ea53a35f772881453c59a6e355659bda94387f26906",
+      "bytes": 1420
+    }
+  },
+  "source_summary_sha256": "748f4af042e5e03b1dc228d79957afbc87380519379db1c95a7e4fe091e1d8ef",
+  "pre_rebase_full_suite_completion": {
+    "runtime": "36fb1548df86b0b4092ef6939b84424b264a2c39",
+    "linux_native_passed": 43,
+    "linux_cpu_components_passed": 26,
+    "linux_vulkan_components_passed": 26,
+    "component_or_required_half_format_skips": 0,
+    "platform_subcase_skip": "Windows-specific short-path alias check on Linux",
+    "summary_path": ".tmp-half-weight-fixture-20261002/linux-full-36fb1548/summary.json",
+    "summary_sha256": "7ae1d88ef782371bc1c38ea40d76efd2a72d670e49b3951448d375af6f693be7",
+    "scope": "Historical pre-MTP runtime; not clean integration qualification."
+  }
+}

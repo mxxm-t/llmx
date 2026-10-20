@@ -1,0 +1,250 @@
+{
+  "status": "DIAGNOSTIC_COMPLETED_RUNTIME_FAILED",
+  "diagnostic_only": true,
+  "fit_pass": false,
+  "performance_claim": false,
+  "source_head": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+  "argv": [
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+    "bench",
+    "--model",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+    "--device",
+    "vulkan:0",
+    "--threads",
+    "6",
+    "--p",
+    "4096",
+    "--n",
+    "1",
+    "--r",
+    "1",
+    "--ubatch",
+    "512",
+    "--cache-type-k",
+    "f32",
+    "--cache-type-v",
+    "f32",
+    "--dtype",
+    "auto",
+    "--load-mode",
+    "auto",
+    "--n-cpu-moe",
+    "31"
+  ],
+  "model": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+    "bytes": 35989944896,
+    "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a"
+  },
+  "execution": {
+    "supervisor_pid": 32988,
+    "child_pid": 43632,
+    "started": 1790990016.2390387,
+    "ended": 1790990054.559157,
+    "elapsed_seconds": 38.32011818885803,
+    "returncode": 1,
+    "stop_reason": null,
+    "timeout_seconds": 300,
+    "timeout_or_trace_cap_triggered": false,
+    "runtime_command_unchanged": true,
+    "runtime_caps_changed": false
+  },
+  "allocation": {
+    "failure": {
+      "bytes": 8388608,
+      "memory_type": 0,
+      "result": "VK_ERROR_OUT_OF_DEVICE_MEMORY",
+      "live_bytes": 15590904320,
+      "live_count": 633,
+      "live_bytes_by_type": {
+        "0": 15502216192,
+        "3": 88688128
+      }
+    },
+    "allocation_calls": 1119,
+    "successful_allocations": 1118,
+    "frees": 1118,
+    "remaining_memory_handles": 0,
+    "peak_live_api_bytes": 15590904320,
+    "replay_matches_saved_analysis": true,
+    "memory_type0": "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, heap0, from retained physical-memory properties.",
+    "inference": "The8MiB request matches one4096-position F32 K or V buffer:4096*4KVheads*128headwidth*4bytes. This is a source/size-based KV-growth inference, not a captured allocation stack."
+  },
+  "trace": {
+    "input_bytes": 45733103,
+    "filtered_bytes": 2799912,
+    "filtered_sha256": "92dcbbd2fd5dde56aed2d6ff1a0ef399d4acb58124f85c2eb1bf3b214026f1d9",
+    "full_stream_sha256_recorded": "36d23aa03a77dc81d3ea3d05d01670bf082038638de57478f7f9fd1561757854",
+    "hash_limitation": "The full stdout stream was counted/hashed while read but not retained. Its recorded digest/count cannot be independently recomputed from the filtered subset; the retained filtered file was independently hashed and replayed.",
+    "byte_cap": 134217728,
+    "filtered_byte_cap": 8388608,
+    "reader_errors": null
+  },
+  "pressure": {
+    "samples": 38,
+    "process_read_errors": 0,
+    "minimum_physical_bytes": 214241280,
+    "minimum_physical_GiB": 0.19952774047851562,
+    "minimum_commit_bytes": 6839504896,
+    "minimum_commit_GiB": 6.369785308837891,
+    "maximum_sampled_private_bytes": 15604690944,
+    "maximum_sampled_private_GiB": 14.533000946044922,
+    "peak_working_set_bytes": 15652196352,
+    "peak_working_set_GiB": 14.57724380493164,
+    "peak_pagefile_usage_bytes": 16006737920,
+    "first_faults": 491,
+    "last_faults": 5705973,
+    "total_commit_range_bytes": [
+      58562465792,
+      72707391488
+    ],
+    "before": {
+      "timestamp": 1790990016.2390387,
+      "length": 64,
+      "load": 57,
+      "total_physical": 34282377216,
+      "available_physical": 14504275968,
+      "total_commit": 58562465792,
+      "available_commit": 9582895104,
+      "total_virtual": 140737488224256,
+      "available_virtual": 140733078032384,
+      "extended": 0
+    },
+    "after": {
+      "timestamp": 1790990054.559157,
+      "length": 64,
+      "load": 50,
+      "total_physical": 34282377216,
+      "available_physical": 16883572736,
+      "total_commit": 61976719360,
+      "available_commit": 13070307328,
+      "total_virtual": 140737488224256,
+      "available_virtual": 140733073764352,
+      "extended": 0
+    },
+    "raw_sha256": "5150e69aea1b1ebc5014e175c7656bcd8c565cedb1cccb215fc654c42beee415"
+  },
+  "unchanged_artifacts": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe": {
+      "expected": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+      "actual": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512"
+    },
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-allocation-diagnostic\\vk_layer_settings.txt": {
+      "expected": "2ecf51bc72ed80c815eb62c3b09b5502038fca321074e5b9e7c442d870a76bf6",
+      "actual": "2ecf51bc72ed80c815eb62c3b09b5502038fca321074e5b9e7c442d870a76bf6"
+    },
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu31-prep\\memory.py": {
+      "expected": "86a690ceb5e4064975041c9ce81d5a6276c652a3f0fd547bf20067e16fd8756f",
+      "actual": "86a690ceb5e4064975041c9ce81d5a6276c652a3f0fd547bf20067e16fd8756f"
+    },
+    "C:\\VulkanSDK\\1.4.357.0\\Bin\\VkLayer_api_dump.dll": {
+      "expected": "3f8e7655d171daf0829a064bc2107267821a69f04f5baa63acf9e0df74f432c7",
+      "actual": "3f8e7655d171daf0829a064bc2107267821a69f04f5baa63acf9e0df74f432c7"
+    },
+    "C:\\VulkanSDK\\1.4.357.0\\Bin\\VkLayer_api_dump.json": {
+      "expected": "b42764d7d94e837b0e1345fa6175937f69f02fe5b3e7e33d5947e7a49d4f8ead",
+      "actual": "b42764d7d94e837b0e1345fa6175937f69f02fe5b3e7e33d5947e7a49d4f8ead"
+    }
+  },
+  "artifact_hashes_unchanged_verified": true,
+  "runtime_stderr": "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers); vulkan:0 native: block-int16 (quantized rows), f32 (tiles, F32 weights, routers)\nload: auto, 13.37 GiB read from 1 file direct; construct 1.29 s, read 2.49 s, upload 0.35 s (13.37 GiB copied from the reads), waiting for reads 2.14 s\nerror: bad allocation\n",
+  "setup": {
+    "vulkaninfo": "Retained preliminary enumeration is ordinary vulkaninfo output with no API call trace; unsuccessful tracing setup, not a model run.",
+    "devices": "Retained llmx devices invocation failed with unknown command: devices; no model ran.",
+    "tiny_synthetic": {
+      "allocation_calls": 47,
+      "successful_allocations": 47,
+      "frees": 47,
+      "api_errors": 0,
+      "scope": "Tracing setup succeeds; no performance claim."
+    }
+  },
+  "widened_main_control": {
+    "gpu_payload_bytes": 14358937600,
+    "cpu_payload_bytes": 21625036800,
+    "added_gpu_widened_bytes": 3855613952,
+    "added_cpu_widened_bytes": 3623878656,
+    "gpu_widened_payload_bytes": 18214551552,
+    "physical_GPU_bytes": 17179869184,
+    "scope": "CPU31 FFN placement, matched tensor roles from place.hpp/qwen3.hpp; weights alone, excluding buffers/driver overhead. Source file metadata only; no conversion or model execution.",
+    "excess_over_hardware_bytes": 1034682368,
+    "conversion_attempted": false,
+    "capture_attempted": false,
+    "conclusion": "CPU31 exact-widened main weights alone exceed16GiB GPU hardware, before KV/runtime/driver buffers; no conversion or capture attempted."
+  },
+  "original_untraced": {
+    "artifact": ".tmp-half-weight-perf-20261003\\windows-30b-cpu31-prep\\qualification-candidate-pp4096-tg1.json",
+    "sha256": "74f0e326acfb888bfdc8070ee7544b1686888f45756ba249c1efa5042c54635d",
+    "inference_limit": "This traced run identifies its own Vulkan allocation failure only. It does not retroactively prove the allocation source of the original untraced failure."
+  },
+  "limitations": [
+    "API live request bytes are not physical residency or all driver overhead; imported host allocations are included by Vulkan memory type.",
+    "Zero replayed live memory handles proves cleanup of traced VkDeviceMemory objects, not a system-wide leak audit.",
+    "Pressure is sampled at1second; fault counts combine soft/hard faults. Windows commit limit changed without any harness cap/pagefile adjustment. Background contention is not attributed by this diagnostic.",
+    "Model hash/size were checked by the diagnostic runner before launch; report rechecks only retained evidence and small executable/configuration artifacts.",
+    "Tracing can perturb execution. This is not timing, numerical validation or a full fit pass. Reference qualification and16 prepared timing calls remain unstarted."
+  ],
+  "artifacts": {
+    "complete.json": {
+      "bytes": 4279,
+      "sha256": "c0e754a0572614ccdd328bc710b2d10fcd93a6f6e9fb7cbd79fe3dce4bf61fb3"
+    },
+    "plan.json": {
+      "bytes": 2488,
+      "sha256": "aeaac36da0bf871413282bac76ff8411ff03edec855d14d1ae5e82433b12d66e"
+    },
+    "allocations.txt": {
+      "bytes": 2799912,
+      "sha256": "92dcbbd2fd5dde56aed2d6ff1a0ef399d4acb58124f85c2eb1bf3b214026f1d9"
+    },
+    "allocation-analysis.json": {
+      "bytes": 2761,
+      "sha256": "3b8e3ac06e12c9bbae067714aecb4720e47072b18b51db7703294f2898fbc741"
+    },
+    "pressure.jsonl": {
+      "bytes": 24279,
+      "sha256": "5150e69aea1b1ebc5014e175c7656bcd8c565cedb1cccb215fc654c42beee415"
+    },
+    "widened-fit.json": {
+      "bytes": 440,
+      "sha256": "862cb3c2e58f75c2fc2fd9e40e49dd4a720d07447177a731cf32e099143dea59"
+    },
+    "trace.py": {
+      "bytes": 5573,
+      "sha256": "5649ddbdc6fe699c6b1420a67cbefa5c7135688ab39f759acd0db484bbe11a43"
+    },
+    "vk_layer_settings.txt": {
+      "bytes": 305,
+      "sha256": "2ecf51bc72ed80c815eb62c3b09b5502038fca321074e5b9e7c442d870a76bf6"
+    },
+    "runtime.stderr": {
+      "bytes": 422,
+      "sha256": "c284814d6d2d3870986c188c406498fdbbacbfd9b48250f55316eb35c98f6e1e"
+    },
+    "devices.stderr": {
+      "bytes": 26,
+      "sha256": "19b3061727e8d3e137d963e1d4fe38a4231abc5e08f6a82137d62715a3580bb6"
+    },
+    "devices.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "enumeration-trace.txt": {
+      "bytes": 3769,
+      "sha256": "78ff6eff2bf2546aa00c07de33c702e4200acc324c3a4435f5cc6f97e44d5bc6"
+    },
+    "enumeration.stderr": {
+      "bytes": 581,
+      "sha256": "215c60572f7d169766e16a61f596651b456d3191539197185883e69c8f6536fe"
+    },
+    "synthetic.stdout": {
+      "bytes": 1387528,
+      "sha256": "76e2524733349052f81501e98cfd3c6aa709607c01d1c5bfa44f5e82b473995f"
+    },
+    "synthetic.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

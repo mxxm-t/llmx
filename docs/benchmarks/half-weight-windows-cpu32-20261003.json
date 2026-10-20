@@ -1,0 +1,4941 @@
+{
+  "qualification": {
+    "status": "QUALIFICATIONS_PASSED",
+    "terminal": true,
+    "tested_fit_pass": true,
+    "performance_gate_pass": false,
+    "qualification_rates_are_diagnostic_only": true,
+    "heads": {
+      "candidate": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+      "mx": "eefc4e7321c869496146697d63362f073941aed6"
+    },
+    "candidate": {
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release",
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+      "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-model-logits.exe",
+      "exe_sha256": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+      "tool_sha256": "31a61819f3132f054e26f0b312f5318c5acada93a6a52f952a5ee4fbc6e6361e",
+      "version": "llmx 0.1.0+ge98453f9e562",
+      "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json",
+      "build_manifest_sha256": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+    },
+    "reference": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\mx-cli-bench-placement.exe",
+      "bytes": 45568,
+      "sha256": "f595e3670c29d16f7e94d78ff89f28585b8b32b03bb6f14134d8bf9c0cfcd6f0"
+    },
+    "reference_source": {
+      "reference_revision": "eefc4e7321c869496146697d63362f073941aed6",
+      "original_wrapper_sha256": "6765e943a7e3963f6b1a6044adfae026e9d41a22f408535be0560520d8ee8f5c",
+      "adapter_sha256": "e2240e4cc329e95563008bb64a96f879f0c19f84e2aeeb878df2179b3c2ab7f4",
+      "unchanged_body_from": "auto cp = llama_context_default_params();",
+      "unchanged_body_sha256": "6bc153cf3060e28dbb64b602af04697873a441428adb1013e259ced9eb2bd874",
+      "workload_body_exact_source_identity": true,
+      "scope": "Two-line loader-mode adapter built successfully with unchanged pinned inputs; raw benchmark body unchanged.",
+      "prior_adapter_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\reference-placements\\reference-placement.cpp",
+      "prior_adapter_sha256": "864033355c54630ed69d32a492e7b4716dc8f16edbf89d6df985d929900b5af9",
+      "only_changes": [
+        "mp.load_mode: LLAMA_LOAD_MODE_NONE -> LLAMA_LOAD_MODE_MMAP",
+        "placement request label: load_mode=none -> load_mode=mmap"
+      ],
+      "build_script_byte_identical": true,
+      "raw_body_sha256": "6bc153cf3060e28dbb64b602af04697873a441428adb1013e259ced9eb2bd874",
+      "raw_body_scope": "Raw source bytes from the first byte of auto cp through end of file, including CRLF; exactly identical in both adapters."
+    },
+    "model": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+      "bytes": 35989944896,
+      "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a"
+    },
+    "settings": {
+      "cpu_expert_layers": 32,
+      "threads": 6,
+      "ubatch": 512,
+      "cache_type_k": "f32",
+      "cache_type_v": "f32",
+      "dtype": "auto",
+      "load_mode": "auto",
+      "sequences": 1,
+      "depth": 0,
+      "reference_load_mode": "mmap"
+    },
+    "admission_policy": {
+      "minimum_live_weight_and_KV_bytes": 14521458688,
+      "conservative_free_gpu_bytes": 15877579776,
+      "gpu_reserve_is_hard": true,
+      "scope": "Trace-derived CPU32 estimate includes full2048->4096 old/new KV overlap, observed516MiB budget/accounting difference and256MiB extra margin. Fresh qualification remains required.",
+      "projected_type0_peak_bytes": 15068081152,
+      "observed_budget_minus_failure_type0_bytes": 541063168,
+      "additional_gpu_margin_bytes": 268435456,
+      "available_commit_floor_bytes": {
+        "candidate": 3221225472,
+        "mx": 3221225472
+      },
+      "available_physical_floor_bytes": 3221225472,
+      "advisory_available_commit_bytes": 18027540480,
+      "advisory_prior_private_peak_bytes": 15880056832,
+      "advisory_margin_bytes": 2147483648,
+      "host_commit_rationale": "Parent explicitly retains the original3GiB physical/commit hard floors for both mapped arms. NONE required owned expert payload+3GiB; explicit MMAP uses read-only file-backed CPU buffers with no BF16/Q8_0 repack on this AVX2 host. Prior process private peak+2GiB is retained as advisory, not a proven system commit delta or guaranteed upper bound. Do not change pagefile/policy. Preserve pressure and any failure.",
+      "reference_mapped_cpu_expert_bytes": 22234005504,
+      "reference_owned_full_cpu_expert_duplicate_bytes": 0,
+      "reference_mapping_scope": "Pinned mx mapping branch and AVX2 repack eligibility establish absence of a mandatory full private expert copy, not zero total private/driver/runtime allocations."
+    },
+    "calls": [
+      {
+        "name": "qualification-candidate-pp4096-tg1",
+        "arm": "candidate",
+        "started": true,
+        "accepted_by_runner": true,
+        "expected_argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+          "bench",
+          "--model",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "6",
+          "--p",
+          "4096",
+          "--n",
+          "1",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto",
+          "--n-cpu-moe",
+          "32"
+        ],
+        "process": {
+          "name": "qualification-candidate-pp4096-tg1",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "6",
+            "--p",
+            "4096",
+            "--n",
+            "1",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto",
+            "--n-cpu-moe",
+            "32"
+          ],
+          "started": "2026-10-03T01:45:23.672792+00:00",
+          "monotonic_start": 487659.954459,
+          "pid": 37892,
+          "returncode": 0,
+          "ended": "2026-10-03T01:46:57.469027+00:00",
+          "monotonic_end": 487753.7508237
+        },
+        "admission_before": {
+          "timestamp": "2026-10-03T01:45:23.671796+00:00",
+          "arm": "candidate",
+          "gpu": {
+            "budget": 16043869184,
+            "usage": 589824,
+            "free": 16043279360
+          },
+          "host": {
+            "timestamp": 1790991923.6717963,
+            "length": 64,
+            "load": 52,
+            "total_physical": 34282377216,
+            "available_physical": 16455315456,
+            "total_commit": 60889235456,
+            "available_commit": 12011139072,
+            "total_virtual": 140737488224256,
+            "available_virtual": 140733067964416,
+            "extended": 0
+          },
+          "disk_free": 1873901494272,
+          "required_available_commit_bytes": 3221225472,
+          "planning_reserve_met": true,
+          "advisory_available_commit_bytes": 18027540480,
+          "advisory_commit_met": false,
+          "limitation": "GPU reserve is a hard admission based on the retained allocation trace. Host commit peak-plus-margin is advisory only: process private peak is not a proven system commit delta. Both mapped arms retain the original3GiB hard physical/commit floors. Successful execution proves tested fit; before/after GPU budget is not a peak allocation trace. Pressure samples observe host process memory only. No clocks or runtime caps changed."
+        },
+        "admission_after": {
+          "timestamp": "2026-10-03T01:46:57.595316+00:00",
+          "arm": "candidate",
+          "gpu": {
+            "budget": 16043869184,
+            "usage": 589824,
+            "free": 16043279360
+          },
+          "host": {
+            "timestamp": 1790992017.5953162,
+            "length": 64,
+            "load": 47,
+            "total_physical": 34282377216,
+            "available_physical": 18058477568,
+            "total_commit": 61763723264,
+            "available_commit": 12547588096,
+            "total_virtual": 140737488224256,
+            "available_virtual": 140733074059264,
+            "extended": 0
+          },
+          "disk_free": 1873016393728,
+          "required_available_commit_bytes": 3221225472,
+          "planning_reserve_met": true,
+          "advisory_available_commit_bytes": 18027540480,
+          "advisory_commit_met": false,
+          "limitation": "GPU reserve is a hard admission based on the retained allocation trace. Host commit peak-plus-margin is advisory only: process private peak is not a proven system commit delta. Both mapped arms retain the original3GiB hard physical/commit floors. Successful execution proves tested fit; before/after GPU budget is not a peak allocation trace. Pressure samples observe host process memory only. No clocks or runtime caps changed."
+        },
+        "diagnostic_rates": [
+          {
+            "phase": "pp",
+            "tokens": 4096,
+            "tokens_per_second": 117.66,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 1,
+            "tokens_per_second": 19.13,
+            "sd": 0.0
+          }
+        ],
+        "performance_claim": false,
+        "timed_out": false,
+        "status": "QUALIFICATION_ACCEPTED",
+        "exact_error_lines": [],
+        "stderr_tail": "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers); vulkan:0 native: block-int16 (quantized rows), f32 (tiles, F32 weights, routers)\nload: auto, 12.77 GiB read from 1 file buffered; construct 1.31 s, read 3.17 s, upload 0.99 s (12.77 GiB copied from the reads), waiting for reads 2.20 s\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\"],[\"f32\",\"block-int16\"]]}\n",
+        "activity": {
+          "overlapping_samples": 94,
+          "flags": {
+            "unknown_counter_samples": 3,
+            "unknown_process_samples": 94,
+            "unrelated_cpu_samples": 56,
+            "disk_busy_samples": 9,
+            "disk_rate_samples": 28,
+            "unrelated_gpu_samples": 3
+          },
+          "unknown_process_observations": 12026,
+          "unknown_unique_pids": 194,
+          "peak_system_cpu_percent": 92.51917338327483,
+          "peak_disk_MiB_per_second": 1261.3766215272926,
+          "peak_unrelated_gpu_engine_percent": 50.89824167968604,
+          "top_unrelated_cpu": [
+            {
+              "pid": 1304,
+              "name": "explorer.exe",
+              "peak_percent": 124.82611402045586
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 95.76813108922815
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 92.70556929613895
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 90.89173087285144
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 88.125642068116
+            },
+            {
+              "pid": 16648,
+              "name": "firefox.exe",
+              "peak_percent": 75.16978006300597
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 50.89824167968604
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 94,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.pressure.jsonl",
+            "bytes": 60154,
+            "sha256": "84a2e6075ab13a1f22ed4b7182cb771be671f131848120b740dfdb23f23424c1"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 483975168,
+          "minimum_available_commit_bytes": 7169122304,
+          "maximum_sampled_private_bytes": 15561404416,
+          "peak_working_set_bytes": 17141993472,
+          "peak_pagefile_usage_bytes": 15561404416,
+          "total_commit_range_bytes": [
+            60889235456,
+            72839843840
+          ],
+          "first_faults": 407,
+          "last_faults": 5215128
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.stdout",
+          "bytes": 95,
+          "sha256": "5d0eb2548a8dbf1dd64061fe12768025f861fab5c2bf57605cd60b8423334280"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.stderr",
+          "bytes": 474,
+          "sha256": "f3acde8ea1b3860ab118d2c76dfa55e87702751b8e84b6e9ab9e1f4ac469a9af"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "name": "qualification-mx-pp4096-tg1",
+        "arm": "mx",
+        "started": true,
+        "accepted_by_runner": true,
+        "expected_argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\mx-cli-bench-placement.exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+          "6",
+          "4096",
+          "1",
+          "1",
+          "--devices",
+          "0",
+          "--n-cpu-moe",
+          "32"
+        ],
+        "process": {
+          "name": "qualification-mx-pp4096-tg1",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\mx-cli-bench-placement.exe",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+            "6",
+            "4096",
+            "1",
+            "1",
+            "--devices",
+            "0",
+            "--n-cpu-moe",
+            "32"
+          ],
+          "started": "2026-10-03T01:46:57.701579+00:00",
+          "monotonic_start": 487753.9832677,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 39032,
+          "returncode": 0,
+          "ended": "2026-10-03T01:49:15.834164+00:00",
+          "monotonic_end": 487892.1156176
+        },
+        "admission_before": {
+          "timestamp": "2026-10-03T01:46:57.700578+00:00",
+          "arm": "mx",
+          "gpu": {
+            "budget": 16043869184,
+            "usage": 589824,
+            "free": 16043279360
+          },
+          "host": {
+            "timestamp": 1790992017.700579,
+            "length": 64,
+            "load": 47,
+            "total_physical": 34282377216,
+            "available_physical": 18050494464,
+            "total_commit": 61763723264,
+            "available_commit": 12539379712,
+            "total_virtual": 140737488224256,
+            "available_virtual": 140733074059264,
+            "extended": 0
+          },
+          "disk_free": 1873016320000,
+          "required_available_commit_bytes": 3221225472,
+          "planning_reserve_met": true,
+          "advisory_available_commit_bytes": 18027540480,
+          "advisory_commit_met": false,
+          "limitation": "GPU reserve is a hard admission based on the retained allocation trace. Host commit peak-plus-margin is advisory only: process private peak is not a proven system commit delta. Both mapped arms retain the original3GiB hard physical/commit floors. Successful execution proves tested fit; before/after GPU budget is not a peak allocation trace. Pressure samples observe host process memory only. No clocks or runtime caps changed."
+        },
+        "admission_after": {
+          "timestamp": "2026-10-03T01:49:15.961383+00:00",
+          "arm": "mx",
+          "gpu": {
+            "budget": 16043869184,
+            "usage": 589824,
+            "free": 16043279360
+          },
+          "host": {
+            "timestamp": 1790992155.9613833,
+            "length": 64,
+            "load": 43,
+            "total_physical": 34282377216,
+            "available_physical": 19365748736,
+            "total_commit": 61876252672,
+            "available_commit": 12776173568,
+            "total_virtual": 140737488224256,
+            "available_virtual": 140733074059264,
+            "extended": 0
+          },
+          "disk_free": 1872884170752,
+          "required_available_commit_bytes": 3221225472,
+          "planning_reserve_met": true,
+          "advisory_available_commit_bytes": 18027540480,
+          "advisory_commit_met": false,
+          "limitation": "GPU reserve is a hard admission based on the retained allocation trace. Host commit peak-plus-margin is advisory only: process private peak is not a proven system commit delta. Both mapped arms retain the original3GiB hard physical/commit floors. Successful execution proves tested fit; before/after GPU budget is not a peak allocation trace. Pressure samples observe host process memory only. No clocks or runtime caps changed."
+        },
+        "diagnostic_rates": [
+          {
+            "phase": "pp",
+            "tokens": 4096,
+            "tokens_per_second": 87.77,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 1,
+            "tokens_per_second": 12.77,
+            "sd": 0.0
+          }
+        ],
+        "performance_claim": false,
+        "timed_out": false,
+        "status": "QUALIFICATION_ACCEPTED",
+        "exact_error_lines": [],
+        "stderr_tail": "ze() = 2\nsched_reserve: reserving ...\nsched_reserve: max_nodes = 4632\nsched_reserve: reserving full memory module\nsched_reserve: worst-case: n_tokens = 512, n_seqs = 1, n_outputs = 1\ngraph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1\nresolve_fused_ops: Flash Attention enabled\nresolve_fused_ops: resolving fused DeepSeek V4 HC support:\ngraph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1\nresolve_fused_ops: fused DeepSeek V4 HC pre enabled\ngraph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1\nresolve_fused_ops: fused DeepSeek V4 HC comb enabled\ngraph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1\nresolve_fused_ops: fused DeepSeek V4 HC post enabled\ngraph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512\ngraph_reserve: reserving a graph for ubatch with n_tokens =    1, n_seqs =  1, n_outputs =    1\ngraph_reserve: reserving a graph for ubatch with n_tokens =  512, n_seqs =  1, n_outputs =  512\nsched_reserve:    Vulkan0 compute buffer size =   440.51 MiB\nsched_reserve: Vulkan_Host compute buffer size =    12.01 MiB\nsched_reserve: graph nodes  = 3126\nsched_reserve: graph splits = 98 (with bs=512), 66 (with bs=1)\nsched_reserve: reserve took 112.94 ms, sched copies = 1\n~llama_context:    Vulkan0 compute buffer size of 448.5098 MiB, does not match expectation of 440.5098 MiB\n~llama_context: Vulkan_Host compute buffer size is  12.0137 MiB, matches expectation of  12.0137 MiB\n",
+        "activity": {
+          "overlapping_samples": 139,
+          "flags": {
+            "unknown_counter_samples": 1,
+            "unknown_process_samples": 139,
+            "unrelated_cpu_samples": 100,
+            "disk_busy_samples": 20,
+            "disk_rate_samples": 53,
+            "unrelated_gpu_samples": 3
+          },
+          "unknown_process_observations": 17849,
+          "unknown_unique_pids": 202,
+          "peak_system_cpu_percent": 35.91741651833684,
+          "peak_disk_MiB_per_second": 1621.5737634578766,
+          "peak_unrelated_gpu_engine_percent": 64.05031148212377,
+          "top_unrelated_cpu": [
+            {
+              "pid": 25724,
+              "name": "Code.exe",
+              "peak_percent": 129.5912266763202
+            },
+            {
+              "pid": 24212,
+              "name": "SteelSeriesSonar.exe",
+              "peak_percent": 117.3909267416726
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 93.67210227545893
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 72.93809287934091
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 71.9906890382118
+            },
+            {
+              "pid": 24160,
+              "name": "claude.exe",
+              "peak_percent": 64.53886133760994
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 64.05031148212377
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 137,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.pressure.jsonl",
+            "bytes": 87715,
+            "sha256": "bd87a5acb148442ef49bd1bac761732e325631f7702abb4856c3ab808133bfdf"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 7671808,
+          "minimum_available_commit_bytes": 6594981888,
+          "maximum_sampled_private_bytes": 16063115264,
+          "peak_working_set_bytes": 20708577280,
+          "peak_pagefile_usage_bytes": 16063172608,
+          "total_commit_range_bytes": [
+            61763723264,
+            73716424704
+          ],
+          "first_faults": 404,
+          "last_faults": 8719981
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.stdout",
+          "bytes": 89,
+          "sha256": "ae90bf20479bfdc1c1dabab9ec2bca28192922283fd3891eeef69f5c15862fe0"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.stderr",
+          "bytes": 106929,
+          "sha256": "ee1a852fb1d228f23a612e5cca61409cefc3d5da2302ee8b9349b8f8be29a18f"
+        },
+        "placement": {
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "transformer_and_output_layers": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48
+          ],
+          "kv_layers": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "cache_type": "f32",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "actual_load_mode": "mmap",
+          "input_embedding": "host storage, by reference policy",
+          "limitation": "CPU override applies to expert tensors; llmx CPU placement includes the whole FFN roles. Override logs precede the mmap conversion of Vulkan_Host to default CPU; final CPU_Mapped storage is required separately. Reference layer assignment alone does not prove expert placement.",
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_placement_record": "qualification-calls.json",
+          "allocated_buffer_lines": [
+            "load_tensors:   CPU_Mapped model buffer size = 22497.34 MiB",
+            "load_tensors:      Vulkan0 model buffer size = 12519.49 MiB",
+            "llama_context: Vulkan_Host  output buffer size =     0.58 MiB",
+            "llama_kv_cache:    Vulkan0 KV buffer size =   768.00 MiB",
+            "sched_reserve:    Vulkan0 compute buffer size =   440.51 MiB",
+            "sched_reserve: Vulkan_Host compute buffer size =    12.01 MiB",
+            "~llama_context:    Vulkan0 compute buffer size of 448.5098 MiB, does not match expectation of 440.5098 MiB",
+            "~llama_context: Vulkan_Host compute buffer size is  12.0137 MiB, matches expectation of  12.0137 MiB"
+          ]
+        }
+      }
+    ],
+    "terminal_complete": {
+      "success": true,
+      "ended": "2026-10-03T01:49:16.766501+00:00",
+      "calls": 0,
+      "qualification_calls": 2,
+      "monitor_returncode": 0,
+      "arms": {
+        "candidate": {
+          "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\source",
+          "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-model-logits.exe",
+          "exe_sha256": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+          "tool_sha256": "31a61819f3132f054e26f0b312f5318c5acada93a6a52f952a5ee4fbc6e6361e",
+          "version": "llmx 0.1.0+ge98453f9e562",
+          "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json",
+          "build_manifest_sha256": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+        }
+      },
+      "source_clean": true
+    },
+    "terminal_failure": null,
+    "monitor_complete": {
+      "pid": 42300,
+      "returncode": 0,
+      "ended": "2026-10-03T01:49:16.655473+00:00"
+    },
+    "monitor": {
+      "metadata": {
+        "kind": "metadata",
+        "pid": 42300,
+        "logical_cpus": 16,
+        "interval_seconds": 1.0,
+        "initial_counter_collection_bracket": [
+          487657.1100135,
+          487657.1105391
+        ],
+        "counters": {
+          "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+          "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+          "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+          "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+        },
+        "unavailable": {},
+        "process_cpu_units": "100 percent equals one logical CPU",
+        "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+      },
+      "end": {
+        "kind": "end",
+        "elapsed_seconds": 236.02526820002822,
+        "monitor_cpu_seconds": 6.5
+      },
+      "total_samples": 236,
+      "activity_flags": {
+        "unrelated_cpu_percent_one_core": 25,
+        "disk_busy_percent": 80,
+        "disk_bytes_per_second": 104857600,
+        "unrelated_gpu_engine_percent": 10,
+        "unknown": "Missing counters, inaccessible/new process deltas and invalid samples are unknown, never zero"
+      },
+      "maximum_sample_gap_seconds": 1.0058848999906331,
+      "maximum_collection_seconds": 0.09529840003233403
+    },
+    "timing_proposal": {
+      "calls": 16,
+      "started": 0,
+      "plan_sha256": "b839dff8198424159a849988c6ed16b83c2495653e1bc841bf8544edfd631cac",
+      "requires_separate_scheduling": true
+    },
+    "pin_checks": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json": {
+        "expected": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7",
+        "actual": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe": {
+        "expected": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+        "actual": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\reference-placement.cpp": {
+        "expected": "e2240e4cc329e95563008bb64a96f879f0c19f84e2aeeb878df2179b3c2ab7f4",
+        "actual": "e2240e4cc329e95563008bb64a96f879f0c19f84e2aeeb878df2179b3c2ab7f4"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\complete.json": {
+        "expected": "0ab298992c2b474f0c37e73da31259071d7600a8bc53c580971098b89a6fc775",
+        "actual": "0ab298992c2b474f0c37e73da31259071d7600a8bc53c580971098b89a6fc775"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\mx-cli-bench-placement.exe": {
+        "expected": "f595e3670c29d16f7e94d78ff89f28585b8b32b03bb6f14134d8bf9c0cfcd6f0",
+        "actual": "f595e3670c29d16f7e94d78ff89f28585b8b32b03bb6f14134d8bf9c0cfcd6f0"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml-base.dll": {
+        "expected": "9abe0397529b77a87a07726a1b3e9e90a1a8e064dd59780df00bd763afc29697",
+        "actual": "9abe0397529b77a87a07726a1b3e9e90a1a8e064dd59780df00bd763afc29697"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml-cpu.dll": {
+        "expected": "199b3dcbdf120a8ce51c4bb092aba9eb77b89c8c9994e1ca547250e75b86b372",
+        "actual": "199b3dcbdf120a8ce51c4bb092aba9eb77b89c8c9994e1ca547250e75b86b372"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml-vulkan.dll": {
+        "expected": "1c765c39ac41faf3922e01e4ddfef66d1c15e570f1a20a64e1201d7bb064b534",
+        "actual": "1c765c39ac41faf3922e01e4ddfef66d1c15e570f1a20a64e1201d7bb064b534"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml.dll": {
+        "expected": "fe24236c80794f84455d56f28dc27e9cf287d4f28afaf3c787cf2ab0710cfc19",
+        "actual": "fe24236c80794f84455d56f28dc27e9cf287d4f28afaf3c787cf2ab0710cfc19"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\llama-bench-impl.dll": {
+        "expected": "6ef57ffb315abe5778af769243f6b1365891afb12c10a13d4cfa6f95d89f5a68",
+        "actual": "6ef57ffb315abe5778af769243f6b1365891afb12c10a13d4cfa6f95d89f5a68"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\llama-common.dll": {
+        "expected": "2cdcbdd433a37a32f6bc2c984a20cd26570a6965fc399f5ee9ccdc572aa84bef",
+        "actual": "2cdcbdd433a37a32f6bc2c984a20cd26570a6965fc399f5ee9ccdc572aa84bef"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\llama.dll": {
+        "expected": "001ae622f9065841607c29bf10a3e25c17f5306247c5342ba291be2023684c2d",
+        "actual": "001ae622f9065841607c29bf10a3e25c17f5306247c5342ba291be2023684c2d"
+      }
+    },
+    "pins_still_match": true,
+    "artifacts": {
+      "complete.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\complete.json",
+        "bytes": 1252,
+        "sha256": "dd0afc1b3fab510fc89e24e3a62a0588f8cb6d9bac1c8a91ebaf4b987492d63a"
+      },
+      "launch-plan-final.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\launch-plan-final.json",
+        "bytes": 18014,
+        "sha256": "aace55a8d45eb8cf9b0e89d6a54aea8c9c1aec6d3704856fbadef13d80698453"
+      },
+      "launch-plan.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\launch-plan.json",
+        "bytes": 17707,
+        "sha256": "8daa4d96ad98a1bbb13b2416928213bf068a3f352f5f18dffe6ab77d88b6ff4e"
+      },
+      "monitor-complete.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\monitor-complete.json",
+        "bytes": 90,
+        "sha256": "642ae44b51447c30d3b68dab6044b7bc72529338c834b08d53cdec99bbbf3343"
+      },
+      "monitor-process.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\monitor-process.json",
+        "bytes": 72,
+        "sha256": "1475e6c40d3d3ec7f16704132ec86ff0efb68309b42663294838d4d90021506f"
+      },
+      "monitor.jsonl": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\monitor.jsonl",
+        "bytes": 30300656,
+        "sha256": "84b765721734768d8c58a659b9ea709d989abc1c4a278b179b7c989edb0cdff8"
+      },
+      "monitor.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\monitor.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "monitor.stdout": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\monitor.stdout",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "preflight-admission.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\preflight-admission.json",
+        "bytes": 1162,
+        "sha256": "2fabf73ddd2e69aff04e4e5e6592f2e204d62ce8c46d4c0be2b13cf461576da8"
+      },
+      "preflight-vulkaninfo.txt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\preflight-vulkaninfo.txt",
+        "bytes": 64752,
+        "sha256": "ead6bde06f68e67608ef3549a6a476ce10b5d2be5225836f2fb96bd84a002feb"
+      },
+      "process-preflight.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\process-preflight.json",
+        "bytes": 180766,
+        "sha256": "f205e228867ba2223270a7111435d2b3e8130a30f521b5bb85d4b4866fecd5f8"
+      },
+      "qualification-calls.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-calls.json",
+        "bytes": 17937,
+        "sha256": "0dbdfe893e5d835faa8d77ee903aab0c2ea9e6bd821911ecf92361035578df96"
+      },
+      "qualification-candidate-pp4096-tg1-after-admission.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1-after-admission.json",
+        "bytes": 1162,
+        "sha256": "698d76a7c11f7963141d052bcb0db9f7c69502afab4d00ee108b6c340019ec01"
+      },
+      "qualification-candidate-pp4096-tg1-after-vulkaninfo.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1-after-vulkaninfo.stderr",
+        "bytes": 345,
+        "sha256": "d380aa63a237054542032da5e39714a560945751ad70cad0d29b432fda7f1125"
+      },
+      "qualification-candidate-pp4096-tg1-after-vulkaninfo.txt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1-after-vulkaninfo.txt",
+        "bytes": 64785,
+        "sha256": "439dd466757cac342f7d9a1510370572bd54f91c0599f8238f19996e4165368c"
+      },
+      "qualification-candidate-pp4096-tg1-before-admission.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1-before-admission.json",
+        "bytes": 1162,
+        "sha256": "62969c6bec0f0f1c96f1fb5671dee260bd485abbe159506301072c1af7e89722"
+      },
+      "qualification-candidate-pp4096-tg1-before-vulkaninfo.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1-before-vulkaninfo.stderr",
+        "bytes": 345,
+        "sha256": "d380aa63a237054542032da5e39714a560945751ad70cad0d29b432fda7f1125"
+      },
+      "qualification-candidate-pp4096-tg1-before-vulkaninfo.txt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1-before-vulkaninfo.txt",
+        "bytes": 64752,
+        "sha256": "ead6bde06f68e67608ef3549a6a476ce10b5d2be5225836f2fb96bd84a002feb"
+      },
+      "qualification-candidate-pp4096-tg1.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.json",
+        "bytes": 891,
+        "sha256": "7327002b6f2f8eac6ff1f73c9c21a02d06213fa1091517a687323a8f2e9f4c4c"
+      },
+      "qualification-candidate-pp4096-tg1.pressure.jsonl": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.pressure.jsonl",
+        "bytes": 60154,
+        "sha256": "84a2e6075ab13a1f22ed4b7182cb771be671f131848120b740dfdb23f23424c1"
+      },
+      "qualification-candidate-pp4096-tg1.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.stderr",
+        "bytes": 474,
+        "sha256": "f3acde8ea1b3860ab118d2c76dfa55e87702751b8e84b6e9ab9e1f4ac469a9af"
+      },
+      "qualification-candidate-pp4096-tg1.stdout": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-candidate-pp4096-tg1.stdout",
+        "bytes": 95,
+        "sha256": "5d0eb2548a8dbf1dd64061fe12768025f861fab5c2bf57605cd60b8423334280"
+      },
+      "qualification-complete.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-complete.json",
+        "bytes": 19539,
+        "sha256": "c8cc7123dd0c7394b20739db2f60cd4610f05ccee0c67d3c3c67714df26bf03b"
+      },
+      "qualification-mx-pp4096-tg1-after-admission.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1-after-admission.json",
+        "bytes": 1155,
+        "sha256": "8e4cdedc9cc25267a0b5d5c816847f7eaedc9c594919a52b6a4921b077ae3232"
+      },
+      "qualification-mx-pp4096-tg1-after-vulkaninfo.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1-after-vulkaninfo.stderr",
+        "bytes": 345,
+        "sha256": "d380aa63a237054542032da5e39714a560945751ad70cad0d29b432fda7f1125"
+      },
+      "qualification-mx-pp4096-tg1-after-vulkaninfo.txt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1-after-vulkaninfo.txt",
+        "bytes": 64785,
+        "sha256": "439dd466757cac342f7d9a1510370572bd54f91c0599f8238f19996e4165368c"
+      },
+      "qualification-mx-pp4096-tg1-before-admission.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1-before-admission.json",
+        "bytes": 1154,
+        "sha256": "0312563a916651663a42035d65b8db70b592be0e931b9bc52d9afe5d277d1129"
+      },
+      "qualification-mx-pp4096-tg1-before-vulkaninfo.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1-before-vulkaninfo.stderr",
+        "bytes": 345,
+        "sha256": "d380aa63a237054542032da5e39714a560945751ad70cad0d29b432fda7f1125"
+      },
+      "qualification-mx-pp4096-tg1-before-vulkaninfo.txt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1-before-vulkaninfo.txt",
+        "bytes": 64785,
+        "sha256": "439dd466757cac342f7d9a1510370572bd54f91c0599f8238f19996e4165368c"
+      },
+      "qualification-mx-pp4096-tg1.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.json",
+        "bytes": 778,
+        "sha256": "acc4365ca38dd9cea5dfc65e8cfc07b2ac73635b9782a54e679c2f85806be7a5"
+      },
+      "qualification-mx-pp4096-tg1.pressure.jsonl": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.pressure.jsonl",
+        "bytes": 87715,
+        "sha256": "bd87a5acb148442ef49bd1bac761732e325631f7702abb4856c3ab808133bfdf"
+      },
+      "qualification-mx-pp4096-tg1.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.stderr",
+        "bytes": 106929,
+        "sha256": "ee1a852fb1d228f23a612e5cca61409cefc3d5da2302ee8b9349b8f8be29a18f"
+      },
+      "qualification-mx-pp4096-tg1.stdout": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-mx-pp4096-tg1.stdout",
+        "bytes": 89,
+        "sha256": "ae90bf20479bfdc1c1dabab9ec2bca28192922283fd3891eeef69f5c15862fe0"
+      },
+      "qualification-plan.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-plan.json",
+        "bytes": 17546,
+        "sha256": "01645ef199c12200d5c1eb68159c04a10a49ded0fbe66e127f64247821db95df"
+      },
+      "reference-devices.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\reference-devices.json",
+        "bytes": 565,
+        "sha256": "86fedb9844fc57391c153c9be39e489958967c47fd182a83da0d0bbd7abfe7db"
+      },
+      "reference-devices.stderr": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\reference-devices.stderr",
+        "bytes": 428,
+        "sha256": "f149eed44ced9144339e7c2ebf1f4df2eec3fd4d19d7f1e7564e91b96954f25f"
+      },
+      "report-retained.py": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\report-retained.py",
+        "bytes": 14514,
+        "sha256": "dad98e7275c9f80a3f63a898f6c83fb2f178b50269a2815d57b02c552c1010e6"
+      },
+      "run.py": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\run.py",
+        "bytes": 16421,
+        "sha256": "7ff7b08f5c4dfb3e446748438c454b16dd41f7da2f2f162f7861da960386744f"
+      },
+      "runner.patch": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\runner.patch",
+        "bytes": 7923,
+        "sha256": "d8b801406d25d14e1d592276867acc0e7c68f6a747923d04667b8130180d4647"
+      },
+      "runtime-plan.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\runtime-plan.json",
+        "bytes": 18984,
+        "sha256": "4a50a476879c2ad2e99b3ebe7c84406ac526ae22834fd9f333eebab2e079d151"
+      },
+      "timing-proposal.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing-proposal.json",
+        "bytes": 27271,
+        "sha256": "b839dff8198424159a849988c6ed16b83c2495653e1bc841bf8544edfd631cac"
+      },
+      "tui-start.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\tui-start.json",
+        "bytes": 171,
+        "sha256": "404ad98d526e51028b069c529b9fe1e94675bd0bc0890bd6d2b832fa4f03396c"
+      },
+      "verified.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\verified.json",
+        "bytes": 2627,
+        "sha256": "b829a0c3e224e9df7b85bfbeff5c331f73ebff1557fad4d897e078c6d04e5568"
+      }
+    },
+    "limitations": [
+      "All calls, errors, pressure and activity are retained through raw artifact hashes; no discarded samples or automatic retries.",
+      "Qualification pp4096/tg1 rates are diagnostic only. They are not the sixteen matched performance calls and provide no speed or parity acceptance.",
+      "Mapped reference CPU32 is a separate declared placement/load-policy experiment from the preserved CPU31/NONE failure.",
+      "Candidate CPU layer mapping is source/argv-derived; completed backend paths are separate runtime evidence. Reference pre-mmap overrides and final CPU_Mapped buffers are checked separately by the final runner.",
+      "Pressure is sampled; fault counts combine soft and hard faults. Windows commit changes are observed, not a harness cap/pagefile modification.",
+      "Before/after GPU budgets are not peak allocation traces. A successful qualification proves only this tested workload fits.",
+      "Activity counters can miss short-lived work. Inaccessible/new process CPU deltas and invalid counters remain unknown; disk totals and System GPU engines do not identify a cause.",
+      "The reporter reads retained evidence and small binary/configuration hashes only; no model inference, model rehash, process query, TUI or remote access."
+    ]
+  },
+  "timing": {
+    "status": "TIMING_BLOCK_COMPLETE",
+    "terminal": true,
+    "planned_calls": 16,
+    "accepted_calls": 16,
+    "started_calls": 16,
+    "unstarted_calls": [],
+    "rows": [
+      {
+        "number": 1,
+        "name": "call-01-30b-ud-q8-candidate-pp64-tg128",
+        "arm": "candidate",
+        "direction": "forward",
+        "prompt": 64,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T01:50:54.314296+00:00",
+          "monotonic_start": 487990.5960727,
+          "pid": 38364,
+          "returncode": 0,
+          "ended": "2026-10-03T01:51:24.170968+00:00",
+          "monotonic_end": 488020.4528913
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 64,
+            "tokens_per_second": 50.76,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 17.73,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 31,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 31,
+            "unrelated_cpu_samples": 16,
+            "disk_busy_samples": 5,
+            "disk_rate_samples": 19,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 3981,
+          "unknown_unique_pids": 141,
+          "peak_system_cpu_percent": 53.99896488872553,
+          "peak_disk_MiB_per_second": 1707.3375041267554,
+          "peak_unrelated_gpu_engine_percent": 69.94105534846227,
+          "top_unrelated_cpu": [
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 97.29393796340256
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 95.86159909997365
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 48.438914415792944
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 46.14829813451942
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 45.39817998479207
+            },
+            {
+              "pid": 29720,
+              "name": "codex.exe",
+              "peak_percent": 42.228026238118154
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 69.94105534846227
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 30,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-01-30b-ud-q8-candidate-pp64-tg128.pressure.jsonl",
+            "bytes": 19177,
+            "sha256": "215c14ca1c06e0221f4e68eedf520e65f204e53ff29577c2429d5eec2607732f"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 3390414848,
+          "minimum_available_commit_bytes": 7049195520,
+          "maximum_sampled_private_bytes": 14217203712,
+          "peak_working_set_bytes": 15068000256,
+          "peak_pagefile_usage_bytes": 14217203712,
+          "total_commit_range_bytes": [
+            60302737408,
+            71171244032
+          ],
+          "first_faults": 407,
+          "last_faults": 3713802
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-01-30b-ud-q8-candidate-pp64-tg128.stdout",
+          "bytes": 95,
+          "sha256": "806d4b9c247a58afac1065534efb6df6bb598ad268934710a684e755aae85e61"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-01-30b-ud-q8-candidate-pp64-tg128.stderr",
+          "bytes": 474,
+          "sha256": "42da21830be123a78160ecde1aedde2c0c954a5ef74a253a2cb3ab27730c00d7"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 2,
+        "name": "call-02-30b-ud-q8-mx-pp64-tg128",
+        "arm": "mx",
+        "direction": "forward",
+        "prompt": 64,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T01:51:24.182002+00:00",
+          "monotonic_start": 488020.4634973,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 35404,
+          "returncode": 0,
+          "ended": "2026-10-03T01:52:30.641613+00:00",
+          "monotonic_end": 488086.9231879
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 64,
+            "tokens_per_second": 6.74,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 12.44,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 68,
+          "flags": {
+            "unknown_counter_samples": 6,
+            "unknown_process_samples": 68,
+            "unrelated_cpu_samples": 49,
+            "disk_busy_samples": 11,
+            "disk_rate_samples": 54,
+            "unrelated_gpu_samples": 5
+          },
+          "unknown_process_observations": 8783,
+          "unknown_unique_pids": 190,
+          "peak_system_cpu_percent": 94.52577413186411,
+          "peak_disk_MiB_per_second": 1923.8583639942624,
+          "peak_unrelated_gpu_engine_percent": 67.42931347287691,
+          "top_unrelated_cpu": [
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 189.40693682457825
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 145.5635176390293
+            },
+            {
+              "pid": 1304,
+              "name": "explorer.exe",
+              "peak_percent": 127.08767712125629
+            },
+            {
+              "pid": 26500,
+              "name": "Code.exe",
+              "peak_percent": 123.59132175771866
+            },
+            {
+              "pid": 24212,
+              "name": "SteelSeriesSonar.exe",
+              "peak_percent": 120.83523695553825
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 107.6009028230348
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 67.42931347287691
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 67,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-02-30b-ud-q8-mx-pp64-tg128.pressure.jsonl",
+            "bytes": 42874,
+            "sha256": "1ba2befa2d319d84f409137449d8ced752b541fedb03057bfc51b3a3a3b27780"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 23998464,
+          "minimum_available_commit_bytes": 6656081920,
+          "maximum_sampled_private_bytes": 14926086144,
+          "peak_working_set_bytes": 22645272576,
+          "peak_pagefile_usage_bytes": 14926086144,
+          "total_commit_range_bytes": [
+            61284630528,
+            72770801664
+          ],
+          "first_faults": 404,
+          "last_faults": 8355900
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-02-30b-ud-q8-mx-pp64-tg128.stdout",
+          "bytes": 88,
+          "sha256": "9f1a13d790683dcca8323f452040100bd6663fa1c442514865df45f690788a65"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-02-30b-ud-q8-mx-pp64-tg128.stderr",
+          "bytes": 106916,
+          "sha256": "cc19093fb66d177070fcba372434edda5db8a7603a97062d6f5154c3c46e3457"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 3,
+        "name": "call-03-30b-ud-q8-candidate-pp247-tg32",
+        "arm": "candidate",
+        "direction": "forward",
+        "prompt": 247,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T01:52:30.658737+00:00",
+          "monotonic_start": 488086.9400838,
+          "pid": 45744,
+          "returncode": 0,
+          "ended": "2026-10-03T01:52:47.881319+00:00",
+          "monotonic_end": 488104.1636398
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 247,
+            "tokens_per_second": 102.9,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 17.87,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 18,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 18,
+            "unrelated_cpu_samples": 18,
+            "disk_busy_samples": 2,
+            "disk_rate_samples": 9,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 2342,
+          "unknown_unique_pids": 141,
+          "peak_system_cpu_percent": 56.77296537258504,
+          "peak_disk_MiB_per_second": 3843.1809066742603,
+          "peak_unrelated_gpu_engine_percent": 62.61653975161635,
+          "top_unrelated_cpu": [
+            {
+              "pid": 24212,
+              "name": "SteelSeriesSonar.exe",
+              "peak_percent": 101.99090258412448
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 101.38433714522074
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 97.08363272742962
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 84.31029185394033
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 62.089877733932916
+            },
+            {
+              "pid": 29720,
+              "name": "codex.exe",
+              "peak_percent": 54.56381973635947
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 62.61653975161635
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 18,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-03-30b-ud-q8-candidate-pp247-tg32.pressure.jsonl",
+            "bytes": 11477,
+            "sha256": "2a11a9d37df1265ba9b5a343afd9354ffb8b1c41e4ce4cdeb70337931ef644f0"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 4042244096,
+          "minimum_available_commit_bytes": 7217684480,
+          "maximum_sampled_private_bytes": 14289670144,
+          "peak_working_set_bytes": 15767175168,
+          "peak_pagefile_usage_bytes": 14289670144,
+          "total_commit_range_bytes": [
+            60070174720,
+            69621256192
+          ],
+          "first_faults": 407,
+          "last_faults": 3885778
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-03-30b-ud-q8-candidate-pp247-tg32.stdout",
+          "bytes": 95,
+          "sha256": "38e9d312a209058f01153cb40149fd6d2fb0e66b30e4eaa0b6e98d5e62f2957c"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-03-30b-ud-q8-candidate-pp247-tg32.stderr",
+          "bytes": 474,
+          "sha256": "d1c524fc8df87e482ea9b75c7adf08209e0721991b862b331058c86f58b2f15d"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 4,
+        "name": "call-04-30b-ud-q8-mx-pp247-tg32",
+        "arm": "mx",
+        "direction": "forward",
+        "prompt": 247,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T01:52:47.893319+00:00",
+          "monotonic_start": 488104.1751196,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 38424,
+          "returncode": 0,
+          "ended": "2026-10-03T01:53:36.189997+00:00",
+          "monotonic_end": 488152.4723099
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 247,
+            "tokens_per_second": 32.91,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 12.65,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 49,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 49,
+            "unrelated_cpu_samples": 35,
+            "disk_busy_samples": 6,
+            "disk_rate_samples": 41,
+            "unrelated_gpu_samples": 1
+          },
+          "unknown_process_observations": 6259,
+          "unknown_unique_pids": 156,
+          "peak_system_cpu_percent": 47.79930938076967,
+          "peak_disk_MiB_per_second": 1431.61373425436,
+          "peak_unrelated_gpu_engine_percent": 86.69153013642341,
+          "top_unrelated_cpu": [
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 100.9365600586554
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 64.03762778608008
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 54.69941900500846
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 51.46415714218801
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 48.50962896592673
+            },
+            {
+              "pid": 24212,
+              "name": "SteelSeriesSonar.exe",
+              "peak_percent": 44.98906461545571
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 86.69153013642341
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 48,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-04-30b-ud-q8-mx-pp247-tg32.pressure.jsonl",
+            "bytes": 30709,
+            "sha256": "11fb824be67b32d5a3add92a4570a6fa48543df757859efaf6c4607e87949bf7"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 154648576,
+          "minimum_available_commit_bytes": 6602399744,
+          "maximum_sampled_private_bytes": 15103311872,
+          "peak_working_set_bytes": 20213276672,
+          "peak_pagefile_usage_bytes": 15103311872,
+          "total_commit_range_bytes": [
+            60127186944,
+            70927683584
+          ],
+          "first_faults": 404,
+          "last_faults": 7984703
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-04-30b-ud-q8-mx-pp247-tg32.stdout",
+          "bytes": 89,
+          "sha256": "7bb533010072888b7e459ba9972af84b327075dd0c3738d3e6e2dfd5546171cf"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-04-30b-ud-q8-mx-pp247-tg32.stderr",
+          "bytes": 106916,
+          "sha256": "8bc633d873dbbb4995250df41333966854ac3f0ff17514ccd27214de61050373"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 5,
+        "name": "call-05-30b-ud-q8-candidate-pp512-tg32",
+        "arm": "candidate",
+        "direction": "forward",
+        "prompt": 512,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T01:53:36.204073+00:00",
+          "monotonic_start": 488152.4865557,
+          "pid": 36228,
+          "returncode": 0,
+          "ended": "2026-10-03T01:53:56.040874+00:00",
+          "monotonic_end": 488172.3224508
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 512,
+            "tokens_per_second": 122.24,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 18.33,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 21,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 21,
+            "unrelated_cpu_samples": 18,
+            "disk_busy_samples": 2,
+            "disk_rate_samples": 9,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 2681,
+          "unknown_unique_pids": 141,
+          "peak_system_cpu_percent": 48.43522599346631,
+          "peak_disk_MiB_per_second": 3766.282218717743,
+          "peak_unrelated_gpu_engine_percent": 76.17012997470727,
+          "top_unrelated_cpu": [
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 99.75353846247292
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 85.87364435668289
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 67.17163451467214
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 45.79962033309009
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 43.691680346057794
+            },
+            {
+              "pid": 29720,
+              "name": "codex.exe",
+              "peak_percent": 42.02952781751567
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 76.17012997470727
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 20,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-05-30b-ud-q8-candidate-pp512-tg32.pressure.jsonl",
+            "bytes": 12772,
+            "sha256": "66d9a0b13e9dcb4eb57e9336bea9e0940fef2683d7b83523d89ba2b5bea42217"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 3630796800,
+          "minimum_available_commit_bytes": 7289712640,
+          "maximum_sampled_private_bytes": 14488092672,
+          "peak_working_set_bytes": 16433573888,
+          "peak_pagefile_usage_bytes": 14488092672,
+          "total_commit_range_bytes": [
+            60811735040,
+            70928228352
+          ],
+          "first_faults": 407,
+          "last_faults": 4051286
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-05-30b-ud-q8-candidate-pp512-tg32.stdout",
+          "bytes": 95,
+          "sha256": "af55447ee2c4d93776435c2d271839f411f0fd033a6c0a9c3529ce646c707558"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-05-30b-ud-q8-candidate-pp512-tg32.stderr",
+          "bytes": 474,
+          "sha256": "dec54d6f12937b508327c9713c80611d132d93bef27411eb695e17bfd80277b7"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 6,
+        "name": "call-06-30b-ud-q8-mx-pp512-tg32",
+        "arm": "mx",
+        "direction": "forward",
+        "prompt": 512,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T01:53:56.051877+00:00",
+          "monotonic_start": 488172.3333693,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 42380,
+          "returncode": 0,
+          "ended": "2026-10-03T01:54:51.614037+00:00",
+          "monotonic_end": 488227.8962186
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 512,
+            "tokens_per_second": 49.8,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 12.33,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 57,
+          "flags": {
+            "unknown_counter_samples": 5,
+            "unknown_process_samples": 57,
+            "unrelated_cpu_samples": 45,
+            "disk_busy_samples": 5,
+            "disk_rate_samples": 47,
+            "unrelated_gpu_samples": 5
+          },
+          "unknown_process_observations": 7362,
+          "unknown_unique_pids": 181,
+          "peak_system_cpu_percent": 73.1458297418405,
+          "peak_disk_MiB_per_second": 1447.5918494146017,
+          "peak_unrelated_gpu_engine_percent": 72.266579716465,
+          "top_unrelated_cpu": [
+            {
+              "pid": 25724,
+              "name": "Code.exe",
+              "peak_percent": 143.44417701544043
+            },
+            {
+              "pid": 24212,
+              "name": "SteelSeriesSonar.exe",
+              "peak_percent": 111.12284178255699
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 110.95990280703612
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 93.11534443746608
+            },
+            {
+              "pid": 1304,
+              "name": "explorer.exe",
+              "peak_percent": 93.069582969792
+            },
+            {
+              "pid": 26500,
+              "name": "Code.exe",
+              "peak_percent": 67.04019258311234
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 72.266579716465
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 56,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-06-30b-ud-q8-mx-pp512-tg32.pressure.jsonl",
+            "bytes": 35815,
+            "sha256": "ed604a07e3ee73d6f746d64b02c7562fd9168e0c9701b6c6ddc3846805738458"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 35250176,
+          "minimum_available_commit_bytes": 6691500032,
+          "maximum_sampled_private_bytes": 15229284352,
+          "peak_working_set_bytes": 22211358720,
+          "peak_pagefile_usage_bytes": 15229284352,
+          "total_commit_range_bytes": [
+            60620582912,
+            71248449536
+          ],
+          "first_faults": 405,
+          "last_faults": 8639549
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-06-30b-ud-q8-mx-pp512-tg32.stdout",
+          "bytes": 89,
+          "sha256": "0d6be4adabb85a6625899c97a90a884a431cd705d8c69f9fc0fc69fe7fc0c501"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-06-30b-ud-q8-mx-pp512-tg32.stderr",
+          "bytes": 106916,
+          "sha256": "d6d4e325a2e77757606bc782b1ab7fc0595fa1d7b7227ada1f95bcac46adfba0"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 7,
+        "name": "call-07-30b-ud-q8-candidate-pp4096-tg128",
+        "arm": "candidate",
+        "direction": "forward",
+        "prompt": 4096,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T01:54:51.629038+00:00",
+          "monotonic_start": 488227.9105859,
+          "pid": 23960,
+          "returncode": 0,
+          "ended": "2026-10-03T01:56:26.040199+00:00",
+          "monotonic_end": 488322.3224958
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 4096,
+            "tokens_per_second": 119.91,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 18.33,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 95,
+          "flags": {
+            "unknown_counter_samples": 3,
+            "unknown_process_samples": 95,
+            "unrelated_cpu_samples": 65,
+            "disk_busy_samples": 3,
+            "disk_rate_samples": 12,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 12154,
+          "unknown_unique_pids": 177,
+          "peak_system_cpu_percent": 54.88620706860774,
+          "peak_disk_MiB_per_second": 3860.0034512944217,
+          "peak_unrelated_gpu_engine_percent": 60.75241239525043,
+          "top_unrelated_cpu": [
+            {
+              "pid": 24212,
+              "name": "SteelSeriesSonar.exe",
+              "peak_percent": 100.9134789033177
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 93.46513695720847
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 88.70428609039911
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 75.09440549270136
+            },
+            {
+              "pid": 1304,
+              "name": "explorer.exe",
+              "peak_percent": 62.71006618044845
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 58.122614587604566
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 60.75241239525043
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 94,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-07-30b-ud-q8-candidate-pp4096-tg128.pressure.jsonl",
+            "bytes": 60249,
+            "sha256": "8b490859a0f9b4d489be48e7c801287853a6354c44a488cb4cc579d63eb59ef5"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 2020134912,
+          "minimum_available_commit_bytes": 6800404480,
+          "maximum_sampled_private_bytes": 15561564160,
+          "peak_working_set_bytes": 17877229568,
+          "peak_pagefile_usage_bytes": 15561564160,
+          "total_commit_range_bytes": [
+            60191965184,
+            71077855232
+          ],
+          "first_faults": 408,
+          "last_faults": 4404791
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-07-30b-ud-q8-candidate-pp4096-tg128.stdout",
+          "bytes": 97,
+          "sha256": "772bf039cb47eda57c8ec96a2e43891349b769f885a4579f79ab1e2200b9d778"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-07-30b-ud-q8-candidate-pp4096-tg128.stderr",
+          "bytes": 474,
+          "sha256": "d9206f786c4eb6d41b9adc055367df8ce0c29d4aba24342ce4188b64f63368e6"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 8,
+        "name": "call-08-30b-ud-q8-mx-pp4096-tg128",
+        "arm": "mx",
+        "direction": "forward",
+        "prompt": 4096,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T01:56:26.052199+00:00",
+          "monotonic_start": 488322.3343914,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 42912,
+          "returncode": 0,
+          "ended": "2026-10-03T01:59:08.436892+00:00",
+          "monotonic_end": 488484.7187612
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 4096,
+            "tokens_per_second": 88.56,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 12.13,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 164,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 164,
+            "unrelated_cpu_samples": 71,
+            "disk_busy_samples": 8,
+            "disk_rate_samples": 61,
+            "unrelated_gpu_samples": 4
+          },
+          "unknown_process_observations": 20968,
+          "unknown_unique_pids": 218,
+          "peak_system_cpu_percent": 64.46561323007228,
+          "peak_disk_MiB_per_second": 1473.6398966718473,
+          "peak_unrelated_gpu_engine_percent": 73.9853219198272,
+          "top_unrelated_cpu": [
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 113.92098735282828
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 85.8666342669272
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 70.7719515061189
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 65.27065864767282
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 49.00659707278448
+            },
+            {
+              "pid": 1488,
+              "name": "Code.exe",
+              "peak_percent": 46.96342743838057
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 73.9853219198272
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 162,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-08-30b-ud-q8-mx-pp4096-tg128.pressure.jsonl",
+            "bytes": 103721,
+            "sha256": "1648ba2ab8b837e79488d7b67fc8918a710f9aaf97f1879497d638ef15c409c0"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 13045760,
+          "minimum_available_commit_bytes": 6730039296,
+          "maximum_sampled_private_bytes": 15985590272,
+          "peak_working_set_bytes": 19719786496,
+          "peak_pagefile_usage_bytes": 15985651712,
+          "total_commit_range_bytes": [
+            62033293312,
+            72024489984
+          ],
+          "first_faults": 404,
+          "last_faults": 9126532
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-08-30b-ud-q8-mx-pp4096-tg128.stdout",
+          "bytes": 91,
+          "sha256": "c6081ec0d9893b71a3946d3cd58947e6d620480e3bf26c92a4f1c2eab956119e"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-08-30b-ud-q8-mx-pp4096-tg128.stderr",
+          "bytes": 106929,
+          "sha256": "ed015b9b68983a820e8359886151a081f0fdf53b4d511b90e535ce392d75a7d2"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 9,
+        "name": "call-09-30b-ud-q8-mx-pp4096-tg128",
+        "arm": "mx",
+        "direction": "reverse",
+        "prompt": 4096,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T01:59:08.455893+00:00",
+          "monotonic_start": 488484.7378244,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 44128,
+          "returncode": 0,
+          "ended": "2026-10-03T02:01:38.030996+00:00",
+          "monotonic_end": 488634.3132115
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 4096,
+            "tokens_per_second": 87.93,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 12.69,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 150,
+          "flags": {
+            "unknown_counter_samples": 3,
+            "unknown_process_samples": 150,
+            "unrelated_cpu_samples": 64,
+            "disk_busy_samples": 66,
+            "disk_rate_samples": 59,
+            "unrelated_gpu_samples": 3
+          },
+          "unknown_process_observations": 19636,
+          "unknown_unique_pids": 200,
+          "peak_system_cpu_percent": 59.77890296202253,
+          "peak_disk_MiB_per_second": 1558.6992523433382,
+          "peak_unrelated_gpu_engine_percent": 64.25191399144887,
+          "top_unrelated_cpu": [
+            {
+              "pid": 25724,
+              "name": "Code.exe",
+              "peak_percent": 106.71635231746389
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 100.1893980339294
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 93.6648586439738
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 71.12730596444997
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 57.727334862900804
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 48.97080182781087
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 64.25191399144887
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 149,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-09-30b-ud-q8-mx-pp4096-tg128.pressure.jsonl",
+            "bytes": 95384,
+            "sha256": "bc2827a5ec5c7f312d7493575c4ebd99d0664e88dac1cddf21ad28eb1476deb7"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 116674560,
+          "minimum_available_commit_bytes": 6517813248,
+          "maximum_sampled_private_bytes": 15986081792,
+          "peak_working_set_bytes": 22011277312,
+          "peak_pagefile_usage_bytes": 15986114560,
+          "total_commit_range_bytes": [
+            60423217152,
+            72349708288
+          ],
+          "first_faults": 405,
+          "last_faults": 8187907
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-09-30b-ud-q8-mx-pp4096-tg128.stdout",
+          "bytes": 91,
+          "sha256": "deefcfc36e692d7b38cb3c8e9751a372cc561994da7b75b7d4ff56b08ba3e1f4"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-09-30b-ud-q8-mx-pp4096-tg128.stderr",
+          "bytes": 106928,
+          "sha256": "1aa77335d00f910a3c9d2bf866be1a72374540498fccfbf6aed8364d61963482"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 10,
+        "name": "call-10-30b-ud-q8-candidate-pp4096-tg128",
+        "arm": "candidate",
+        "direction": "reverse",
+        "prompt": 4096,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T02:01:38.052509+00:00",
+          "monotonic_start": 488634.3341135,
+          "pid": 45268,
+          "returncode": 0,
+          "ended": "2026-10-03T02:03:09.845699+00:00",
+          "monotonic_end": 488726.1274575
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 4096,
+            "tokens_per_second": 118.36,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 18.0,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 93,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 93,
+            "unrelated_cpu_samples": 49,
+            "disk_busy_samples": 12,
+            "disk_rate_samples": 10,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 12015,
+          "unknown_unique_pids": 159,
+          "peak_system_cpu_percent": 49.531276630305754,
+          "peak_disk_MiB_per_second": 3231.826174710069,
+          "peak_unrelated_gpu_engine_percent": 80.61916176779293,
+          "top_unrelated_cpu": [
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 97.61486208286851
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 90.72176383081128
+            },
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 57.596817195741515
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 56.42777004715967
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 54.49405699846318
+            },
+            {
+              "pid": 34288,
+              "name": "firefox.exe",
+              "peak_percent": 42.245727286666
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 80.61916176779293
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 92,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-10-30b-ud-q8-candidate-pp4096-tg128.pressure.jsonl",
+            "bytes": 58946,
+            "sha256": "ef5f24a27a9858d1b428c68eb7c0f03b57d93b758795e200abe8c9fad79a711e"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 1371496448,
+          "minimum_available_commit_bytes": 7201710080,
+          "maximum_sampled_private_bytes": 15560728576,
+          "peak_working_set_bytes": 17877270528,
+          "peak_pagefile_usage_bytes": 15560728576,
+          "total_commit_range_bytes": [
+            61251391488,
+            72106979328
+          ],
+          "first_faults": 408,
+          "last_faults": 4404699
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-10-30b-ud-q8-candidate-pp4096-tg128.stdout",
+          "bytes": 97,
+          "sha256": "5438493c4cd4370a74d658c45496578d25f88f800346c47769060214025f1bd2"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-10-30b-ud-q8-candidate-pp4096-tg128.stderr",
+          "bytes": 474,
+          "sha256": "b80318eac4be016212554b87076fc1a24673aac5d4cab527451a64ed81d2870a"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 11,
+        "name": "call-11-30b-ud-q8-mx-pp512-tg32",
+        "arm": "mx",
+        "direction": "reverse",
+        "prompt": 512,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T02:03:09.865246+00:00",
+          "monotonic_start": 488726.1468488,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 30028,
+          "returncode": 0,
+          "ended": "2026-10-03T02:04:03.068219+00:00",
+          "monotonic_end": 488779.3501212
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 512,
+            "tokens_per_second": 67.31,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 12.63,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 54,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 54,
+            "unrelated_cpu_samples": 27,
+            "disk_busy_samples": 38,
+            "disk_rate_samples": 48,
+            "unrelated_gpu_samples": 1
+          },
+          "unknown_process_observations": 7015,
+          "unknown_unique_pids": 158,
+          "peak_system_cpu_percent": 52.23089031547645,
+          "peak_disk_MiB_per_second": 1551.6025516928798,
+          "peak_unrelated_gpu_engine_percent": 87.01373379879362,
+          "top_unrelated_cpu": [
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 100.98339651732796
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 100.20230846146906
+            },
+            {
+              "pid": 40792,
+              "name": "Code.exe",
+              "peak_percent": 84.21539498380668
+            },
+            {
+              "pid": 1488,
+              "name": "Code.exe",
+              "peak_percent": 43.299824712276
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 42.12063769810645
+            },
+            {
+              "pid": 26500,
+              "name": "Code.exe",
+              "peak_percent": 39.163121809104744
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 87.01373379879362
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 53,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-11-30b-ud-q8-mx-pp512-tg32.pressure.jsonl",
+            "bytes": 33911,
+            "sha256": "bc4c3018e5c67a0738e41ac2d1c75ddb46ef0d817eba0af1aedcf0c3a07e4e4d"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 333365248,
+          "minimum_available_commit_bytes": 6922194944,
+          "maximum_sampled_private_bytes": 15229235200,
+          "peak_working_set_bytes": 20148604928,
+          "peak_pagefile_usage_bytes": 15229235200,
+          "total_commit_range_bytes": [
+            61627793408,
+            72502697984
+          ],
+          "first_faults": 404,
+          "last_faults": 8032751
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-11-30b-ud-q8-mx-pp512-tg32.stdout",
+          "bytes": 89,
+          "sha256": "e1f4adb8966070ceb446183163cd92d9d1f80b6df35226b4b97e3d25086a1f10"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-11-30b-ud-q8-mx-pp512-tg32.stderr",
+          "bytes": 106916,
+          "sha256": "60f8b19977ec73f8cac703d3fb6835c696bbe9f90bb99e2854594d87cc31e6b4"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 12,
+        "name": "call-12-30b-ud-q8-candidate-pp512-tg32",
+        "arm": "candidate",
+        "direction": "reverse",
+        "prompt": 512,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T02:04:03.103912+00:00",
+          "monotonic_start": 488779.3859406,
+          "pid": 46864,
+          "returncode": 0,
+          "ended": "2026-10-03T02:04:22.549696+00:00",
+          "monotonic_end": 488798.8313108
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 512,
+            "tokens_per_second": 121.56,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 17.79,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 21,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 21,
+            "unrelated_cpu_samples": 12,
+            "disk_busy_samples": 4,
+            "disk_rate_samples": 6,
+            "unrelated_gpu_samples": 3
+          },
+          "unknown_process_observations": 2755,
+          "unknown_unique_pids": 137,
+          "peak_system_cpu_percent": 50.40279619409359,
+          "peak_disk_MiB_per_second": 3865.275884887809,
+          "peak_unrelated_gpu_engine_percent": 74.69551614275213,
+          "top_unrelated_cpu": [
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 87.82616000946288
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 71.54194363559549
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 42.943935960624415
+            },
+            {
+              "pid": 26500,
+              "name": "Code.exe",
+              "peak_percent": 39.679593064388186
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 36.141013663381976
+            },
+            {
+              "pid": 1304,
+              "name": "explorer.exe",
+              "peak_percent": 25.07131535668695
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 74.69551614275213
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 20,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-12-30b-ud-q8-candidate-pp512-tg32.pressure.jsonl",
+            "bytes": 12767,
+            "sha256": "1cca601677af6206766cba942cd3957676d9af0ec46ce7a0f0e34871774c8661"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 3339780096,
+          "minimum_available_commit_bytes": 7417745408,
+          "maximum_sampled_private_bytes": 14487232512,
+          "peak_working_set_bytes": 16433614848,
+          "peak_pagefile_usage_bytes": 14487232512,
+          "total_commit_range_bytes": [
+            61438910464,
+            71248146432
+          ],
+          "first_faults": 407,
+          "last_faults": 4051279
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-12-30b-ud-q8-candidate-pp512-tg32.stdout",
+          "bytes": 95,
+          "sha256": "8ccaeb6e3874fe09a7ef9b856e84f3a0dd94b43d4a42f5654b6b17534bbbf105"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-12-30b-ud-q8-candidate-pp512-tg32.stderr",
+          "bytes": 474,
+          "sha256": "41f96b58f411cb1b63bf7ecbc8259e844b6f08cbf62d3b96244277b31764b952"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 13,
+        "name": "call-13-30b-ud-q8-mx-pp247-tg32",
+        "arm": "mx",
+        "direction": "reverse",
+        "prompt": 247,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T02:04:22.573695+00:00",
+          "monotonic_start": 488798.8555364,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 46396,
+          "returncode": 0,
+          "ended": "2026-10-03T02:05:21.444979+00:00",
+          "monotonic_end": 488857.7267183
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 247,
+            "tokens_per_second": 19.45,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 12.36,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 60,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 60,
+            "unrelated_cpu_samples": 27,
+            "disk_busy_samples": 54,
+            "disk_rate_samples": 54,
+            "unrelated_gpu_samples": 3
+          },
+          "unknown_process_observations": 7925,
+          "unknown_unique_pids": 169,
+          "peak_system_cpu_percent": 58.58140311626896,
+          "peak_disk_MiB_per_second": 1464.7079212127132,
+          "peak_unrelated_gpu_engine_percent": 62.922793610367776,
+          "top_unrelated_cpu": [
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 162.7718778628757
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 99.91619029534363
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 72.49691478434279
+            },
+            {
+              "pid": 25604,
+              "name": "Code.exe",
+              "peak_percent": 61.01896642439053
+            },
+            {
+              "pid": 34288,
+              "name": "firefox.exe",
+              "peak_percent": 51.835559359935786
+            },
+            {
+              "pid": 26500,
+              "name": "Code.exe",
+              "peak_percent": 48.2604949831295
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 62.922793610367776
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 59,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-13-30b-ud-q8-mx-pp247-tg32.pressure.jsonl",
+            "bytes": 37742,
+            "sha256": "990ba6ce01f218164679a66e75cfb230d9a093e260aab6805d85fd8af4fcdb21"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 95260672,
+          "minimum_available_commit_bytes": 6659203072,
+          "maximum_sampled_private_bytes": 15103234048,
+          "peak_working_set_bytes": 22311841792,
+          "peak_pagefile_usage_bytes": 15103234048,
+          "total_commit_range_bytes": [
+            61642989568,
+            72485228544
+          ],
+          "first_faults": 404,
+          "last_faults": 9180832
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-13-30b-ud-q8-mx-pp247-tg32.stdout",
+          "bytes": 89,
+          "sha256": "e25ae8e13374552e531c3484d18d6241c6875d023396fab0ec81f1447da593c0"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-13-30b-ud-q8-mx-pp247-tg32.stderr",
+          "bytes": 106916,
+          "sha256": "123d9999cfb6232cd60e6c1a8b1c014007c88c7e4f17bdbd3ba8b0dd093e321d"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 14,
+        "name": "call-14-30b-ud-q8-candidate-pp247-tg32",
+        "arm": "candidate",
+        "direction": "reverse",
+        "prompt": 247,
+        "decode": 32,
+        "process": {
+          "started": "2026-10-03T02:05:21.473981+00:00",
+          "monotonic_start": 488857.7562519,
+          "pid": 45552,
+          "returncode": 0,
+          "ended": "2026-10-03T02:05:37.682170+00:00",
+          "monotonic_end": 488873.9644346
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 247,
+            "tokens_per_second": 83.03,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 32,
+            "tokens_per_second": 17.49,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 17,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 17,
+            "unrelated_cpu_samples": 12,
+            "disk_busy_samples": 17,
+            "disk_rate_samples": 8,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 2258,
+          "unknown_unique_pids": 144,
+          "peak_system_cpu_percent": 56.232746948847236,
+          "peak_disk_MiB_per_second": 3657.472044013802,
+          "peak_unrelated_gpu_engine_percent": 50.927441410264215,
+          "top_unrelated_cpu": [
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 71.64717630890341
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 48.41136754488564
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 42.37761445363317
+            },
+            {
+              "pid": 1304,
+              "name": "explorer.exe",
+              "peak_percent": 31.183233578421632
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 24.995100960735556
+            },
+            {
+              "pid": 24636,
+              "name": "RuneLite.exe",
+              "peak_percent": 23.70352226015965
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 50.927441410264215
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 17,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-14-30b-ud-q8-candidate-pp247-tg32.pressure.jsonl",
+            "bytes": 10843,
+            "sha256": "d9a15bb58460672647c9ef672f555ed880e39095b05285a37b8612a873d48e3b"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 6048989184,
+          "minimum_available_commit_bytes": 6614765568,
+          "maximum_sampled_private_bytes": 14295052288,
+          "peak_working_set_bytes": 15767273472,
+          "peak_pagefile_usage_bytes": 14297178112,
+          "total_commit_range_bytes": [
+            61994295296,
+            71171887104
+          ],
+          "first_faults": 408,
+          "last_faults": 3885768
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-14-30b-ud-q8-candidate-pp247-tg32.stdout",
+          "bytes": 95,
+          "sha256": "d306e487a53c2ced37446a9ed6cc9e861481a0ed0801021fc481263c681d96a0"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-14-30b-ud-q8-candidate-pp247-tg32.stderr",
+          "bytes": 474,
+          "sha256": "921bc390258a9667bd59406ee9c82c6405026d443e5abe93a83c427ec8c82eb2"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      },
+      {
+        "number": 15,
+        "name": "call-15-30b-ud-q8-mx-pp64-tg128",
+        "arm": "mx",
+        "direction": "reverse",
+        "prompt": 64,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T02:05:37.699168+00:00",
+          "monotonic_start": 488873.9805242,
+          "reference_child_PATH_prefix": "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release",
+          "pid": 37416,
+          "returncode": 0,
+          "ended": "2026-10-03T02:06:37.796208+00:00",
+          "monotonic_end": 488934.0782769
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 64,
+            "tokens_per_second": 11.53,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 12.86,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 61,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 61,
+            "unrelated_cpu_samples": 30,
+            "disk_busy_samples": 60,
+            "disk_rate_samples": 48,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 7928,
+          "unknown_unique_pids": 152,
+          "peak_system_cpu_percent": 57.11631935136157,
+          "peak_disk_MiB_per_second": 1488.294262007662,
+          "peak_unrelated_gpu_engine_percent": 85.01309533320581,
+          "top_unrelated_cpu": [
+            {
+              "pid": 34788,
+              "name": "Code.exe",
+              "peak_percent": 131.39874337048724
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 99.70554957490812
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 84.40445347104178
+            },
+            {
+              "pid": 26500,
+              "name": "Code.exe",
+              "peak_percent": 51.75426247892387
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 39.46281075226525
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 37.5431746496198
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 85.01309533320581
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 60,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-15-30b-ud-q8-mx-pp64-tg128.pressure.jsonl",
+            "bytes": 38393,
+            "sha256": "f4ca1bfb29b0ffaaffc4ade53c9aa9f175df8e4af51773af7ce510da3d7a8410"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 120205312,
+          "minimum_available_commit_bytes": 6900404224,
+          "maximum_sampled_private_bytes": 14926209024,
+          "peak_working_set_bytes": 22076538880,
+          "peak_pagefile_usage_bytes": 14926209024,
+          "total_commit_range_bytes": [
+            61438144512,
+            72298541056
+          ],
+          "first_faults": 404,
+          "last_faults": 7465964
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-15-30b-ud-q8-mx-pp64-tg128.stdout",
+          "bytes": 89,
+          "sha256": "91e5d583695a9994529f3a0482bb26f345b77fe50bbf601e1a4819a0a23ca6e6"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-15-30b-ud-q8-mx-pp64-tg128.stderr",
+          "bytes": 106916,
+          "sha256": "2a6290ccd3293ef211a15f16939dc78517ca25f77dacd875ddf1511dcce25388"
+        },
+        "placement": {
+          "actual_load_mode": "mmap",
+          "mapped_cpu_model_MiB": [
+            22497.34
+          ],
+          "device_line": "reference_device index=0 name=Vulkan0 description=AMD Radeon VII id=unknown type=1 memory_total=17163091968",
+          "cache_type": "f32",
+          "transformer_and_output_count": 49,
+          "kv_layer_count": 48,
+          "expert_override_count": 96,
+          "override_buffer_counts": {
+            "Vulkan_Host": 96
+          },
+          "full_witness_artifact": "calls.json"
+        }
+      },
+      {
+        "number": 16,
+        "name": "call-16-30b-ud-q8-candidate-pp64-tg128",
+        "arm": "candidate",
+        "direction": "reverse",
+        "prompt": 64,
+        "decode": 128,
+        "process": {
+          "started": "2026-10-03T02:06:37.845210+00:00",
+          "monotonic_start": 488934.1269898,
+          "pid": 25620,
+          "returncode": 0,
+          "ended": "2026-10-03T02:07:03.505578+00:00",
+          "monotonic_end": 488959.7873644
+        },
+        "accepted_by_runner": true,
+        "rates": [
+          {
+            "phase": "pp",
+            "tokens": 64,
+            "tokens_per_second": 57.02,
+            "sd": 0.0
+          },
+          {
+            "phase": "tg",
+            "tokens": 128,
+            "tokens_per_second": 16.65,
+            "sd": 0.0
+          }
+        ],
+        "status": "COMPLETED",
+        "exact_error_lines": [],
+        "activity": {
+          "overlapping_samples": 27,
+          "flags": {
+            "unknown_counter_samples": 1,
+            "unknown_process_samples": 27,
+            "unrelated_cpu_samples": 15,
+            "disk_busy_samples": 5,
+            "disk_rate_samples": 7,
+            "unrelated_gpu_samples": 2
+          },
+          "unknown_process_observations": 3482,
+          "unknown_unique_pids": 142,
+          "peak_system_cpu_percent": 100.0,
+          "peak_disk_MiB_per_second": 3598.596950007461,
+          "peak_unrelated_gpu_engine_percent": 77.02100971966142,
+          "top_unrelated_cpu": [
+            {
+              "pid": 25724,
+              "name": "Code.exe",
+              "peak_percent": 144.90648882050934
+            },
+            {
+              "pid": 15364,
+              "name": "firefox.exe",
+              "peak_percent": 100.5953231173431
+            },
+            {
+              "pid": 13876,
+              "name": "cpptools.exe",
+              "peak_percent": 85.59671379927664
+            },
+            {
+              "pid": 34148,
+              "name": "Code.exe",
+              "peak_percent": 43.06832319530883
+            },
+            {
+              "pid": 43820,
+              "name": "Code.exe",
+              "peak_percent": 35.80119768010338
+            },
+            {
+              "pid": 13644,
+              "name": "firefox.exe",
+              "peak_percent": 28.645170976443698
+            }
+          ],
+          "unrelated_gpu_flags": [
+            {
+              "pid": 4,
+              "name": "System",
+              "peak_engine_percent": 77.02100971966142
+            }
+          ],
+          "unbracketed_start_seconds": 0,
+          "unbracketed_end_seconds": 0
+        },
+        "pressure": {
+          "samples": 26,
+          "raw": {
+            "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-16-30b-ud-q8-candidate-pp64-tg128.pressure.jsonl",
+            "bytes": 16617,
+            "sha256": "6b5fbf2b2497be806364243d3783ee68c4e7ccbf04ab66259a54510f2c1115bb"
+          },
+          "process_read_errors": 0,
+          "minimum_available_physical_bytes": 5979918336,
+          "minimum_available_commit_bytes": 6539472896,
+          "maximum_sampled_private_bytes": 14208147456,
+          "peak_working_set_bytes": 15054557184,
+          "peak_pagefile_usage_bytes": 14208147456,
+          "total_commit_range_bytes": [
+            63907201024,
+            71550648320
+          ],
+          "first_faults": 407,
+          "last_faults": 3710251
+        },
+        "raw_stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-16-30b-ud-q8-candidate-pp64-tg128.stdout",
+          "bytes": 95,
+          "sha256": "fa65f8afa203ef4bf0238a91a796e006f9106089174c613187b2251fd52b9399"
+        },
+        "raw_stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing\\call-16-30b-ud-q8-candidate-pp64-tg128.stderr",
+          "bytes": 474,
+          "sha256": "8258c324a1723168e40e37e47132b64aff759b4b15c91b8b57e7e5b696f42b07"
+        },
+        "placement": {
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "actual_device_order": [
+            "cpu",
+            "vulkan:0"
+          ],
+          "source_derived_ffn_CPU": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "source_derived_ffn_GPU": [
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47
+          ],
+          "source_derived_mixers_head_embedding": "vulkan:0",
+          "limitation": "Exact FFN layer map follows pinned place.hpp and argv; bench emits no per-layer CPU-expert plan. Completed execution is the separate actual backend witness."
+        }
+      }
+    ],
+    "cells": [
+      {
+        "prompt": 64,
+        "decode": 128,
+        "phase": "pp",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 1,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 50.76
+              },
+              {
+                "call": 16,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 57.02
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 53.89,
+            "minimum": 50.76,
+            "maximum": 57.02,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 2,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 6.74
+              },
+              {
+                "call": 15,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 11.53
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 9.135,
+            "minimum": 6.74,
+            "maximum": 11.53,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 1,
+            "reference_call": 2,
+            "complete": true,
+            "candidate_rate": 50.76,
+            "reference_rate": 6.74,
+            "candidate_percent": 653.1157270029672
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 16,
+            "reference_call": 15,
+            "complete": true,
+            "candidate_rate": 57.02,
+            "reference_rate": 11.53,
+            "candidate_percent": 394.5359930615785
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 489.92884510125896,
+        "mean_paired_percent": 523.8258600322729,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 64,
+        "decode": 128,
+        "phase": "tg",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 1,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 17.73
+              },
+              {
+                "call": 16,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 16.65
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 17.189999999999998,
+            "minimum": 16.65,
+            "maximum": 17.73,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 2,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 12.44
+              },
+              {
+                "call": 15,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 12.86
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 12.649999999999999,
+            "minimum": 12.44,
+            "maximum": 12.86,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 1,
+            "reference_call": 2,
+            "complete": true,
+            "candidate_rate": 17.73,
+            "reference_rate": 12.44,
+            "candidate_percent": 42.52411575562702
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 16,
+            "reference_call": 15,
+            "complete": true,
+            "candidate_rate": 16.65,
+            "reference_rate": 12.86,
+            "candidate_percent": 29.471228615863133
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 35.8893280632411,
+        "mean_paired_percent": 35.997672185745074,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 247,
+        "decode": 32,
+        "phase": "pp",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 3,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 102.9
+              },
+              {
+                "call": 14,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 83.03
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 92.965,
+            "minimum": 83.03,
+            "maximum": 102.9,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 4,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 32.91
+              },
+              {
+                "call": 13,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 19.45
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 26.18,
+            "minimum": 19.45,
+            "maximum": 32.91,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 3,
+            "reference_call": 4,
+            "complete": true,
+            "candidate_rate": 102.9,
+            "reference_rate": 32.91,
+            "candidate_percent": 212.67092069279857
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 14,
+            "reference_call": 13,
+            "complete": true,
+            "candidate_rate": 83.03,
+            "reference_rate": 19.45,
+            "candidate_percent": 326.88946015424165
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 255.09931245225363,
+        "mean_paired_percent": 269.78019042352014,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 247,
+        "decode": 32,
+        "phase": "tg",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 3,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 17.87
+              },
+              {
+                "call": 14,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 17.49
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 17.68,
+            "minimum": 17.49,
+            "maximum": 17.87,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 4,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 12.65
+              },
+              {
+                "call": 13,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 12.36
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 12.504999999999999,
+            "minimum": 12.36,
+            "maximum": 12.65,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 3,
+            "reference_call": 4,
+            "complete": true,
+            "candidate_rate": 17.87,
+            "reference_rate": 12.65,
+            "candidate_percent": 41.26482213438736
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 14,
+            "reference_call": 13,
+            "complete": true,
+            "candidate_rate": 17.49,
+            "reference_rate": 12.36,
+            "candidate_percent": 41.50485436893203
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 41.383446621351474,
+        "mean_paired_percent": 41.384838251659694,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 512,
+        "decode": 32,
+        "phase": "pp",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 5,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 122.24
+              },
+              {
+                "call": 12,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 121.56
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 121.9,
+            "minimum": 121.56,
+            "maximum": 122.24,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 6,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 49.8
+              },
+              {
+                "call": 11,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 67.31
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 58.555,
+            "minimum": 49.8,
+            "maximum": 67.31,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 5,
+            "reference_call": 6,
+            "complete": true,
+            "candidate_rate": 122.24,
+            "reference_rate": 49.8,
+            "candidate_percent": 145.46184738955822
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 12,
+            "reference_call": 11,
+            "complete": true,
+            "candidate_rate": 121.56,
+            "reference_rate": 67.31,
+            "candidate_percent": 80.59723666617144
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 108.18034326701391,
+        "mean_paired_percent": 113.02954202786484,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 512,
+        "decode": 32,
+        "phase": "tg",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 5,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 18.33
+              },
+              {
+                "call": 12,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 17.79
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 18.06,
+            "minimum": 17.79,
+            "maximum": 18.33,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 6,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 12.33
+              },
+              {
+                "call": 11,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 12.63
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 12.48,
+            "minimum": 12.33,
+            "maximum": 12.63,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 5,
+            "reference_call": 6,
+            "complete": true,
+            "candidate_rate": 18.33,
+            "reference_rate": 12.33,
+            "candidate_percent": 48.66180048661799
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 12,
+            "reference_call": 11,
+            "complete": true,
+            "candidate_rate": 17.79,
+            "reference_rate": 12.63,
+            "candidate_percent": 40.85510688836103
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 44.71153846153844,
+        "mean_paired_percent": 44.75845368748951,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 4096,
+        "decode": 128,
+        "phase": "pp",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 7,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 119.91
+              },
+              {
+                "call": 10,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 118.36
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 119.13499999999999,
+            "minimum": 118.36,
+            "maximum": 119.91,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 8,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 88.56
+              },
+              {
+                "call": 9,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 87.93
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 88.245,
+            "minimum": 87.93,
+            "maximum": 88.56,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 7,
+            "reference_call": 8,
+            "complete": true,
+            "candidate_rate": 119.91,
+            "reference_rate": 88.56,
+            "candidate_percent": 35.399728997289955
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 10,
+            "reference_call": 9,
+            "complete": true,
+            "candidate_rate": 118.36,
+            "reference_rate": 87.93,
+            "candidate_percent": 34.60707380871146
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 35.00481613689159,
+        "mean_paired_percent": 35.00340140300071,
+        "paired_count": 2,
+        "summary_partial": false
+      },
+      {
+        "prompt": 4096,
+        "decode": 128,
+        "phase": "tg",
+        "arms": {
+          "candidate": {
+            "raw": [
+              {
+                "call": 7,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 18.33
+              },
+              {
+                "call": 10,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 18.0
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 18.165,
+            "minimum": 18.0,
+            "maximum": 18.33,
+            "complete": true
+          },
+          "mx": {
+            "raw": [
+              {
+                "call": 8,
+                "direction": "forward",
+                "status": "COMPLETED",
+                "rate": 12.13
+              },
+              {
+                "call": 9,
+                "direction": "reverse",
+                "status": "COMPLETED",
+                "rate": 12.69
+              }
+            ],
+            "accepted_count": 2,
+            "mean": 12.41,
+            "minimum": 12.13,
+            "maximum": 12.69,
+            "complete": true
+          }
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "candidate_call": 7,
+            "reference_call": 8,
+            "complete": true,
+            "candidate_rate": 18.33,
+            "reference_rate": 12.13,
+            "candidate_percent": 51.11294311624071
+          },
+          {
+            "direction": "reverse",
+            "candidate_call": 10,
+            "reference_call": 9,
+            "complete": true,
+            "candidate_rate": 18.0,
+            "reference_rate": 12.69,
+            "candidate_percent": 41.843971631205676
+          }
+        ],
+        "ratio_of_complete_arm_means_percent": 46.37389202256244,
+        "mean_paired_percent": 46.47845737372319,
+        "paired_count": 2,
+        "summary_partial": false
+      }
+    ],
+    "percent_convention": "100*(candidate/mx-1); positive means candidate faster. Ratio of means and mean paired percentages are separate.",
+    "means_policy": "Means use every completed accepted call, including all slow/activity-flagged calls. Failed or unstarted calls stay in raw rows and make their summary explicitly partial; no replacement is run.",
+    "heads": {
+      "candidate": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+      "mx": "eefc4e7321c869496146697d63362f073941aed6"
+    },
+    "candidate": {
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release",
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+      "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-model-logits.exe",
+      "exe_sha256": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+      "tool_sha256": "31a61819f3132f054e26f0b312f5318c5acada93a6a52f952a5ee4fbc6e6361e",
+      "version": "llmx 0.1.0+ge98453f9e562",
+      "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json",
+      "build_manifest_sha256": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+    },
+    "reference": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\mx-cli-bench-placement.exe",
+      "bytes": 45568,
+      "sha256": "f595e3670c29d16f7e94d78ff89f28585b8b32b03bb6f14134d8bf9c0cfcd6f0"
+    },
+    "model": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\models\\Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+      "bytes": 35989944896,
+      "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a"
+    },
+    "settings": {
+      "cpu_expert_layers": 32,
+      "threads": 6,
+      "ubatch": 512,
+      "cache_type_k": "f32",
+      "cache_type_v": "f32",
+      "dtype": "auto",
+      "load_mode": "auto",
+      "sequences": 1,
+      "depth": 0,
+      "reference_load_mode": "mmap"
+    },
+    "qualification": {
+      "report": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\retained-results.json",
+        "bytes": 49131,
+        "sha256": "efa86e847ac4747b72613ac24c0893894119ec945a6b994a19b1ce97b7cef15e"
+      },
+      "reused": true,
+      "rerun": false,
+      "diagnostic_only_rates": true,
+      "qualification_calls_added_to_timing": 0
+    },
+    "original_CPU31_failure": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu31-prep\\retained-results.json",
+      "bytes": 29898,
+      "sha256": "d4c0610cfdf9643a9fc84b7932a721ad21b10bfd49b63e32726b5d40f4de17ec"
+    },
+    "correctness_waived": false,
+    "release_acceptance": false,
+    "complete": {
+      "success": true,
+      "ended": "2026-10-03T02:07:04.553336+00:00",
+      "calls": 16,
+      "qualification_calls": 0,
+      "reused_qualification_calls": 2,
+      "qualification_evidence": {
+        "qualification": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\qualification-complete.json",
+          "sha256": "c8cc7123dd0c7394b20739db2f60cd4610f05ccee0c67d3c3c67714df26bf03b"
+        },
+        "complete": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\complete.json",
+          "sha256": "dd0afc1b3fab510fc89e24e3a62a0588f8cb6d9bac1c8a91ebaf4b987492d63a"
+        }
+      },
+      "monitor_returncode": 0,
+      "arms": {
+        "candidate": {
+          "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\source",
+          "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-model-logits.exe",
+          "exe_sha256": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+          "tool_sha256": "31a61819f3132f054e26f0b312f5318c5acada93a6a52f952a5ee4fbc6e6361e",
+          "version": "llmx 0.1.0+ge98453f9e562",
+          "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json",
+          "build_manifest_sha256": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+        }
+      },
+      "source_clean": true
+    },
+    "failure": null,
+    "monitor_complete": {
+      "pid": 13848,
+      "returncode": 0,
+      "ended": "2026-10-03T02:07:04.426266+00:00"
+    },
+    "block_activity": {
+      "overlapping_samples": 971,
+      "flags": {
+        "unknown_counter_samples": 25,
+        "unknown_process_samples": 971,
+        "unrelated_cpu_samples": 543,
+        "disk_busy_samples": 296,
+        "disk_rate_samples": 490,
+        "unrelated_gpu_samples": 35
+      },
+      "unknown_process_observations": 125603,
+      "unknown_unique_pids": 571,
+      "peak_system_cpu_percent": 100.0,
+      "peak_disk_MiB_per_second": 3865.275884887809,
+      "peak_unrelated_gpu_engine_percent": 87.01373379879362,
+      "top_unrelated_cpu": [
+        {
+          "pid": 43820,
+          "name": "Code.exe",
+          "peak_percent": 189.40693682457825
+        },
+        {
+          "pid": 34788,
+          "name": "Code.exe",
+          "peak_percent": 162.7718778628757
+        },
+        {
+          "pid": 25724,
+          "name": "Code.exe",
+          "peak_percent": 144.90648882050934
+        },
+        {
+          "pid": 1304,
+          "name": "explorer.exe",
+          "peak_percent": 127.08767712125629
+        },
+        {
+          "pid": 26500,
+          "name": "Code.exe",
+          "peak_percent": 123.59132175771866
+        },
+        {
+          "pid": 24212,
+          "name": "SteelSeriesSonar.exe",
+          "peak_percent": 120.83523695553825
+        }
+      ],
+      "unrelated_gpu_flags": [
+        {
+          "pid": 4,
+          "name": "System",
+          "peak_engine_percent": 87.01373379879362
+        }
+      ],
+      "unbracketed_start_seconds": 0,
+      "unbracketed_end_seconds": 0
+    },
+    "monitor": {
+      "metadata": {
+        "kind": "metadata",
+        "pid": 13848,
+        "logical_cpus": 16,
+        "interval_seconds": 1.0,
+        "initial_counter_collection_bracket": [
+          487987.8464887,
+          487987.8470332
+        ],
+        "counters": {
+          "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+          "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+          "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+          "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+        },
+        "unavailable": {},
+        "process_cpu_units": "100 percent equals one logical CPU",
+        "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+      },
+      "end": {
+        "kind": "end",
+        "elapsed_seconds": 973.032232699974,
+        "monitor_cpu_seconds": 19.734375
+      },
+      "total_samples": 973,
+      "activity_flags": {
+        "unrelated_cpu_percent_one_core": 25,
+        "disk_busy_percent": 80,
+        "disk_bytes_per_second": 104857600,
+        "unrelated_gpu_engine_percent": 10,
+        "unknown": "Missing counters, inaccessible/new process deltas and invalid samples are unknown, never zero"
+      },
+      "maximum_sample_gap_seconds": 1.001758800004609,
+      "maximum_collection_seconds": 0.083450400037691
+    },
+    "preflight": {
+      "timestamp": "2026-10-03T01:50:51.179680+00:00",
+      "arm": "candidate",
+      "gpu": {
+        "budget": 16043869184,
+        "usage": 589824,
+        "free": 16043279360
+      },
+      "host": {
+        "timestamp": 1790992251.1806812,
+        "length": 64,
+        "load": 46,
+        "total_physical": 34282377216,
+        "available_physical": 18285047808,
+        "total_commit": 60302737408,
+        "available_commit": 11507625984,
+        "total_virtual": 140737488224256,
+        "available_virtual": 140733072437248,
+        "extended": 0
+      },
+      "disk_free": 1874458898432,
+      "required_available_commit_bytes": 3221225472,
+      "planning_reserve_met": true,
+      "advisory_available_commit_bytes": 18027540480,
+      "advisory_commit_met": false,
+      "limitation": "GPU reserve is a hard admission based on the retained allocation trace. Host commit peak-plus-margin is advisory only: process private peak is not a proven system commit delta. Both mapped arms retain the original3GiB hard physical/commit floors. Successful execution proves tested fit; before/after GPU budget is not a peak allocation trace. Pressure samples observe host process memory only. No clocks or runtime caps changed."
+    },
+    "pins_still_match": true,
+    "pin_checks": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json": {
+        "expected": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7",
+        "actual": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe": {
+        "expected": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+        "actual": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\reference-placement.cpp": {
+        "expected": "e2240e4cc329e95563008bb64a96f879f0c19f84e2aeeb878df2179b3c2ab7f4",
+        "actual": "e2240e4cc329e95563008bb64a96f879f0c19f84e2aeeb878df2179b3c2ab7f4"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\complete.json": {
+        "expected": "0ab298992c2b474f0c37e73da31259071d7600a8bc53c580971098b89a6fc775",
+        "actual": "0ab298992c2b474f0c37e73da31259071d7600a8bc53c580971098b89a6fc775"
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\reference-placements-mmap\\windows\\mx-cli-bench-placement.exe": {
+        "expected": "f595e3670c29d16f7e94d78ff89f28585b8b32b03bb6f14134d8bf9c0cfcd6f0",
+        "actual": "f595e3670c29d16f7e94d78ff89f28585b8b32b03bb6f14134d8bf9c0cfcd6f0"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml-base.dll": {
+        "expected": "9abe0397529b77a87a07726a1b3e9e90a1a8e064dd59780df00bd763afc29697",
+        "actual": "9abe0397529b77a87a07726a1b3e9e90a1a8e064dd59780df00bd763afc29697"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml-cpu.dll": {
+        "expected": "199b3dcbdf120a8ce51c4bb092aba9eb77b89c8c9994e1ca547250e75b86b372",
+        "actual": "199b3dcbdf120a8ce51c4bb092aba9eb77b89c8c9994e1ca547250e75b86b372"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml-vulkan.dll": {
+        "expected": "1c765c39ac41faf3922e01e4ddfef66d1c15e570f1a20a64e1201d7bb064b534",
+        "actual": "1c765c39ac41faf3922e01e4ddfef66d1c15e570f1a20a64e1201d7bb064b534"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\ggml.dll": {
+        "expected": "fe24236c80794f84455d56f28dc27e9cf287d4f28afaf3c787cf2ab0710cfc19",
+        "actual": "fe24236c80794f84455d56f28dc27e9cf287d4f28afaf3c787cf2ab0710cfc19"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\llama-bench-impl.dll": {
+        "expected": "6ef57ffb315abe5778af769243f6b1365891afb12c10a13d4cfa6f95d89f5a68",
+        "actual": "6ef57ffb315abe5778af769243f6b1365891afb12c10a13d4cfa6f95d89f5a68"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\llama-common.dll": {
+        "expected": "2cdcbdd433a37a32f6bc2c984a20cd26570a6965fc399f5ee9ccdc572aa84bef",
+        "actual": "2cdcbdd433a37a32f6bc2c984a20cd26570a6965fc399f5ee9ccdc572aa84bef"
+      },
+      "C:\\Users\\Marko\\AppData\\Local\\Temp\\llmx-mx-vulkan-reference-20260929\\build\\bin\\Release\\llama.dll": {
+        "expected": "001ae622f9065841607c29bf10a3e25c17f5306247c5342ba291be2023684c2d",
+        "actual": "001ae622f9065841607c29bf10a3e25c17f5306247c5342ba291be2023684c2d"
+      }
+    },
+    "analysis_reuse": {
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\report-retained.py",
+      "sha256": "dad98e7275c9f80a3f63a898f6c83fb2f178b50269a2815d57b02c552c1010e6",
+      "functions": [
+        "activity",
+        "artifact",
+        "pressure",
+        "read",
+        "sha",
+        "values"
+      ]
+    },
+    "artifact_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261003\\windows-30b-cpu32-mmap\\timing",
+    "artifacts": {
+      "call-01-30b-ud-q8-candidate-pp64-tg128.json": {
+        "bytes": 896,
+        "sha256": "77d97ec32265246a8eba6697b717a94eb8fa02f158af2557de181d2ffe1beda1"
+      },
+      "call-01-30b-ud-q8-candidate-pp64-tg128.pressure.jsonl": {
+        "bytes": 19177,
+        "sha256": "215c14ca1c06e0221f4e68eedf520e65f204e53ff29577c2429d5eec2607732f"
+      },
+      "call-01-30b-ud-q8-candidate-pp64-tg128.stderr": {
+        "bytes": 474,
+        "sha256": "42da21830be123a78160ecde1aedde2c0c954a5ef74a253a2cb3ab27730c00d7"
+      },
+      "call-01-30b-ud-q8-candidate-pp64-tg128.stdout": {
+        "bytes": 95,
+        "sha256": "806d4b9c247a58afac1065534efb6df6bb598ad268934710a684e755aae85e61"
+      },
+      "call-02-30b-ud-q8-mx-pp64-tg128.json": {
+        "bytes": 782,
+        "sha256": "14aad36e7661c7dabfdc15ff7c05f9960455b6258fa68da8ef37330a33898d6f"
+      },
+      "call-02-30b-ud-q8-mx-pp64-tg128.pressure.jsonl": {
+        "bytes": 42874,
+        "sha256": "1ba2befa2d319d84f409137449d8ced752b541fedb03057bfc51b3a3a3b27780"
+      },
+      "call-02-30b-ud-q8-mx-pp64-tg128.stderr": {
+        "bytes": 106916,
+        "sha256": "cc19093fb66d177070fcba372434edda5db8a7603a97062d6f5154c3c46e3457"
+      },
+      "call-02-30b-ud-q8-mx-pp64-tg128.stdout": {
+        "bytes": 88,
+        "sha256": "9f1a13d790683dcca8323f452040100bd6663fa1c442514865df45f690788a65"
+      },
+      "call-03-30b-ud-q8-candidate-pp247-tg32.json": {
+        "bytes": 896,
+        "sha256": "bfc3c80a853e556edd8206bf413e543626d5567a947b363b4505a9b5ea7ca5d4"
+      },
+      "call-03-30b-ud-q8-candidate-pp247-tg32.pressure.jsonl": {
+        "bytes": 11477,
+        "sha256": "2a11a9d37df1265ba9b5a343afd9354ffb8b1c41e4ce4cdeb70337931ef644f0"
+      },
+      "call-03-30b-ud-q8-candidate-pp247-tg32.stderr": {
+        "bytes": 474,
+        "sha256": "d1c524fc8df87e482ea9b75c7adf08209e0721991b862b331058c86f58b2f15d"
+      },
+      "call-03-30b-ud-q8-candidate-pp247-tg32.stdout": {
+        "bytes": 95,
+        "sha256": "38e9d312a209058f01153cb40149fd6d2fb0e66b30e4eaa0b6e98d5e62f2957c"
+      },
+      "call-04-30b-ud-q8-mx-pp247-tg32.json": {
+        "bytes": 782,
+        "sha256": "4b08a2198b2585b67b14d305419b509978e089459cf87004c2f16c0354ffca91"
+      },
+      "call-04-30b-ud-q8-mx-pp247-tg32.pressure.jsonl": {
+        "bytes": 30709,
+        "sha256": "11fb824be67b32d5a3add92a4570a6fa48543df757859efaf6c4607e87949bf7"
+      },
+      "call-04-30b-ud-q8-mx-pp247-tg32.stderr": {
+        "bytes": 106916,
+        "sha256": "8bc633d873dbbb4995250df41333966854ac3f0ff17514ccd27214de61050373"
+      },
+      "call-04-30b-ud-q8-mx-pp247-tg32.stdout": {
+        "bytes": 89,
+        "sha256": "7bb533010072888b7e459ba9972af84b327075dd0c3738d3e6e2dfd5546171cf"
+      },
+      "call-05-30b-ud-q8-candidate-pp512-tg32.json": {
+        "bytes": 896,
+        "sha256": "fd4367e1634b66d6ee089562d8d1dcf81de2e2370f4c1ec41e79c389f1ebcc92"
+      },
+      "call-05-30b-ud-q8-candidate-pp512-tg32.pressure.jsonl": {
+        "bytes": 12772,
+        "sha256": "66d9a0b13e9dcb4eb57e9336bea9e0940fef2683d7b83523d89ba2b5bea42217"
+      },
+      "call-05-30b-ud-q8-candidate-pp512-tg32.stderr": {
+        "bytes": 474,
+        "sha256": "dec54d6f12937b508327c9713c80611d132d93bef27411eb695e17bfd80277b7"
+      },
+      "call-05-30b-ud-q8-candidate-pp512-tg32.stdout": {
+        "bytes": 95,
+        "sha256": "af55447ee2c4d93776435c2d271839f411f0fd033a6c0a9c3529ce646c707558"
+      },
+      "call-06-30b-ud-q8-mx-pp512-tg32.json": {
+        "bytes": 782,
+        "sha256": "51308db6e186c8e9a5dea055e17b4847ee98d8420fec2dfcae3acc5a29b0191b"
+      },
+      "call-06-30b-ud-q8-mx-pp512-tg32.pressure.jsonl": {
+        "bytes": 35815,
+        "sha256": "ed604a07e3ee73d6f746d64b02c7562fd9168e0c9701b6c6ddc3846805738458"
+      },
+      "call-06-30b-ud-q8-mx-pp512-tg32.stderr": {
+        "bytes": 106916,
+        "sha256": "d6d4e325a2e77757606bc782b1ab7fc0595fa1d7b7227ada1f95bcac46adfba0"
+      },
+      "call-06-30b-ud-q8-mx-pp512-tg32.stdout": {
+        "bytes": 89,
+        "sha256": "0d6be4adabb85a6625899c97a90a884a431cd705d8c69f9fc0fc69fe7fc0c501"
+      },
+      "call-07-30b-ud-q8-candidate-pp4096-tg128.json": {
+        "bytes": 900,
+        "sha256": "72c55a644ac268521742de6cd3588ec6cf721d950618a44130fe89c19ff3b0dc"
+      },
+      "call-07-30b-ud-q8-candidate-pp4096-tg128.pressure.jsonl": {
+        "bytes": 60249,
+        "sha256": "8b490859a0f9b4d489be48e7c801287853a6354c44a488cb4cc579d63eb59ef5"
+      },
+      "call-07-30b-ud-q8-candidate-pp4096-tg128.stderr": {
+        "bytes": 474,
+        "sha256": "d9206f786c4eb6d41b9adc055367df8ce0c29d4aba24342ce4188b64f63368e6"
+      },
+      "call-07-30b-ud-q8-candidate-pp4096-tg128.stdout": {
+        "bytes": 97,
+        "sha256": "772bf039cb47eda57c8ec96a2e43891349b769f885a4579f79ab1e2200b9d778"
+      },
+      "call-08-30b-ud-q8-mx-pp4096-tg128.json": {
+        "bytes": 786,
+        "sha256": "4b61230590cc82e84de4ddd65b809d98c5d60a1f5443b523f71f99bed6408bc3"
+      },
+      "call-08-30b-ud-q8-mx-pp4096-tg128.pressure.jsonl": {
+        "bytes": 103721,
+        "sha256": "1648ba2ab8b837e79488d7b67fc8918a710f9aaf97f1879497d638ef15c409c0"
+      },
+      "call-08-30b-ud-q8-mx-pp4096-tg128.stderr": {
+        "bytes": 106929,
+        "sha256": "ed015b9b68983a820e8359886151a081f0fdf53b4d511b90e535ce392d75a7d2"
+      },
+      "call-08-30b-ud-q8-mx-pp4096-tg128.stdout": {
+        "bytes": 91,
+        "sha256": "c6081ec0d9893b71a3946d3cd58947e6d620480e3bf26c92a4f1c2eab956119e"
+      },
+      "call-09-30b-ud-q8-mx-pp4096-tg128.json": {
+        "bytes": 786,
+        "sha256": "832037b47b4c17a6794259da408bf653d2bc3c1876543b112e11b7335b9eaa3c"
+      },
+      "call-09-30b-ud-q8-mx-pp4096-tg128.pressure.jsonl": {
+        "bytes": 95384,
+        "sha256": "bc2827a5ec5c7f312d7493575c4ebd99d0664e88dac1cddf21ad28eb1476deb7"
+      },
+      "call-09-30b-ud-q8-mx-pp4096-tg128.stderr": {
+        "bytes": 106928,
+        "sha256": "1aa77335d00f910a3c9d2bf866be1a72374540498fccfbf6aed8364d61963482"
+      },
+      "call-09-30b-ud-q8-mx-pp4096-tg128.stdout": {
+        "bytes": 91,
+        "sha256": "deefcfc36e692d7b38cb3c8e9751a372cc561994da7b75b7d4ff56b08ba3e1f4"
+      },
+      "call-10-30b-ud-q8-candidate-pp4096-tg128.json": {
+        "bytes": 900,
+        "sha256": "2471dbe35e4def6054200b16e25f861fd3487562f20dc2c3a178c63c89be6c21"
+      },
+      "call-10-30b-ud-q8-candidate-pp4096-tg128.pressure.jsonl": {
+        "bytes": 58946,
+        "sha256": "ef5f24a27a9858d1b428c68eb7c0f03b57d93b758795e200abe8c9fad79a711e"
+      },
+      "call-10-30b-ud-q8-candidate-pp4096-tg128.stderr": {
+        "bytes": 474,
+        "sha256": "b80318eac4be016212554b87076fc1a24673aac5d4cab527451a64ed81d2870a"
+      },
+      "call-10-30b-ud-q8-candidate-pp4096-tg128.stdout": {
+        "bytes": 97,
+        "sha256": "5438493c4cd4370a74d658c45496578d25f88f800346c47769060214025f1bd2"
+      },
+      "call-11-30b-ud-q8-mx-pp512-tg32.json": {
+        "bytes": 782,
+        "sha256": "74d5e282957d82217349cb55c21a5f7f299960418aa1a61187747ec9a0c36461"
+      },
+      "call-11-30b-ud-q8-mx-pp512-tg32.pressure.jsonl": {
+        "bytes": 33911,
+        "sha256": "bc4c3018e5c67a0738e41ac2d1c75ddb46ef0d817eba0af1aedcf0c3a07e4e4d"
+      },
+      "call-11-30b-ud-q8-mx-pp512-tg32.stderr": {
+        "bytes": 106916,
+        "sha256": "60f8b19977ec73f8cac703d3fb6835c696bbe9f90bb99e2854594d87cc31e6b4"
+      },
+      "call-11-30b-ud-q8-mx-pp512-tg32.stdout": {
+        "bytes": 89,
+        "sha256": "e1f4adb8966070ceb446183163cd92d9d1f80b6df35226b4b97e3d25086a1f10"
+      },
+      "call-12-30b-ud-q8-candidate-pp512-tg32.json": {
+        "bytes": 896,
+        "sha256": "dcd2ffe5f5844be4369471e5db6c64d2664c86daa3bf24f71e2ec8fb7c339725"
+      },
+      "call-12-30b-ud-q8-candidate-pp512-tg32.pressure.jsonl": {
+        "bytes": 12767,
+        "sha256": "1cca601677af6206766cba942cd3957676d9af0ec46ce7a0f0e34871774c8661"
+      },
+      "call-12-30b-ud-q8-candidate-pp512-tg32.stderr": {
+        "bytes": 474,
+        "sha256": "41f96b58f411cb1b63bf7ecbc8259e844b6f08cbf62d3b96244277b31764b952"
+      },
+      "call-12-30b-ud-q8-candidate-pp512-tg32.stdout": {
+        "bytes": 95,
+        "sha256": "8ccaeb6e3874fe09a7ef9b856e84f3a0dd94b43d4a42f5654b6b17534bbbf105"
+      },
+      "call-13-30b-ud-q8-mx-pp247-tg32.json": {
+        "bytes": 782,
+        "sha256": "16ee4e9d6dabbbeabb4a9cdfce27bb476cac44608a14d6ff48a02ff4b95ced27"
+      },
+      "call-13-30b-ud-q8-mx-pp247-tg32.pressure.jsonl": {
+        "bytes": 37742,
+        "sha256": "990ba6ce01f218164679a66e75cfb230d9a093e260aab6805d85fd8af4fcdb21"
+      },
+      "call-13-30b-ud-q8-mx-pp247-tg32.stderr": {
+        "bytes": 106916,
+        "sha256": "123d9999cfb6232cd60e6c1a8b1c014007c88c7e4f17bdbd3ba8b0dd093e321d"
+      },
+      "call-13-30b-ud-q8-mx-pp247-tg32.stdout": {
+        "bytes": 89,
+        "sha256": "e25ae8e13374552e531c3484d18d6241c6875d023396fab0ec81f1447da593c0"
+      },
+      "call-14-30b-ud-q8-candidate-pp247-tg32.json": {
+        "bytes": 896,
+        "sha256": "1d6406a9b904b2541e16a5a919164405cb8f797c0ac6ff286a18d9581aa9d16b"
+      },
+      "call-14-30b-ud-q8-candidate-pp247-tg32.pressure.jsonl": {
+        "bytes": 10843,
+        "sha256": "d9a15bb58460672647c9ef672f555ed880e39095b05285a37b8612a873d48e3b"
+      },
+      "call-14-30b-ud-q8-candidate-pp247-tg32.stderr": {
+        "bytes": 474,
+        "sha256": "921bc390258a9667bd59406ee9c82c6405026d443e5abe93a83c427ec8c82eb2"
+      },
+      "call-14-30b-ud-q8-candidate-pp247-tg32.stdout": {
+        "bytes": 95,
+        "sha256": "d306e487a53c2ced37446a9ed6cc9e861481a0ed0801021fc481263c681d96a0"
+      },
+      "call-15-30b-ud-q8-mx-pp64-tg128.json": {
+        "bytes": 782,
+        "sha256": "b4791a8d680120665ef200de939296bb19d7ef385410d05dff38eebb98ee7862"
+      },
+      "call-15-30b-ud-q8-mx-pp64-tg128.pressure.jsonl": {
+        "bytes": 38393,
+        "sha256": "f4ca1bfb29b0ffaaffc4ade53c9aa9f175df8e4af51773af7ce510da3d7a8410"
+      },
+      "call-15-30b-ud-q8-mx-pp64-tg128.stderr": {
+        "bytes": 106916,
+        "sha256": "2a6290ccd3293ef211a15f16939dc78517ca25f77dacd875ddf1511dcce25388"
+      },
+      "call-15-30b-ud-q8-mx-pp64-tg128.stdout": {
+        "bytes": 89,
+        "sha256": "91e5d583695a9994529f3a0482bb26f345b77fe50bbf601e1a4819a0a23ca6e6"
+      },
+      "call-16-30b-ud-q8-candidate-pp64-tg128.json": {
+        "bytes": 896,
+        "sha256": "12192f278c950383bc28a39317d831c78bc4ad70414b255d133a38b21f21b55f"
+      },
+      "call-16-30b-ud-q8-candidate-pp64-tg128.pressure.jsonl": {
+        "bytes": 16617,
+        "sha256": "6b5fbf2b2497be806364243d3783ee68c4e7ccbf04ab66259a54510f2c1115bb"
+      },
+      "call-16-30b-ud-q8-candidate-pp64-tg128.stderr": {
+        "bytes": 474,
+        "sha256": "8258c324a1723168e40e37e47132b64aff759b4b15c91b8b57e7e5b696f42b07"
+      },
+      "call-16-30b-ud-q8-candidate-pp64-tg128.stdout": {
+        "bytes": 95,
+        "sha256": "fa65f8afa203ef4bf0238a91a796e006f9106089174c613187b2251fd52b9399"
+      },
+      "calls.json": {
+        "bytes": 123028,
+        "sha256": "671dfb4be04fe436db05a79e4649d6f21a16fff134c55b8a41d7905ee95d8831"
+      },
+      "complete.json": {
+        "bytes": 1828,
+        "sha256": "d4bbe63c71fab627d4db7810fb75e15fa69239e85e1a245d276f257d072f7c11"
+      },
+      "launch-plan.json": {
+        "bytes": 30388,
+        "sha256": "bf5b2ad806f991206155c7b5e6b69124b0cef1345c92489eedae3fa58f4dbdfd"
+      },
+      "monitor-complete.json": {
+        "bytes": 90,
+        "sha256": "a99230a2cec1825f4c48b2ab9f68741bf438a0d34e19e9f82eae3e208eafd2a2"
+      },
+      "monitor-process.json": {
+        "bytes": 72,
+        "sha256": "31d5a4727ab35364b0626b4507326790fd4606bb9eca71f8b9832c0cb86d48fb"
+      },
+      "monitor.jsonl": {
+        "bytes": 118581227,
+        "sha256": "d2b0a8731b1c8630204e0cd944fc34c6817b7eb87309b044fadd9845bf4c1099"
+      },
+      "monitor.stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "monitor.stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "plan.json": {
+        "bytes": 31033,
+        "sha256": "34f32835446418c2a4d9e942b434ffc46aab59cbac89f2c1501083a2d21a5e94"
+      },
+      "preflight-admission.json": {
+        "bytes": 1162,
+        "sha256": "c0f0960992f67a931a797d3a4a7390c46cf9a97ba9045d8a3b372a6ecadd831f"
+      },
+      "preflight-vulkaninfo.txt": {
+        "bytes": 64752,
+        "sha256": "ead6bde06f68e67608ef3549a6a476ce10b5d2be5225836f2fb96bd84a002feb"
+      },
+      "process-preflight.json": {
+        "bytes": 175777,
+        "sha256": "8e02224b7888c3f1470bec2193350c6b49023a4e5d7db8ebdbd016198777316d"
+      },
+      "report-retained.py": {
+        "bytes": 13426,
+        "sha256": "dd9b9381a130b441c2ba7c5f25fb68d20675db68dceb5141e3282de715e68006"
+      },
+      "reused-qualifications.json": {
+        "bytes": 19985,
+        "sha256": "d6c70f8001af1f41c89f2efb7d92b40d4a80f9e8256b40a5f8648753914cc1bb"
+      },
+      "run.py": {
+        "bytes": 17224,
+        "sha256": "c74a3963a01759a0187e90e67eff8caccb967beac00a12e01f0ba48a4ee060b6"
+      },
+      "runner.patch": {
+        "bytes": 6896,
+        "sha256": "976b68c5099e7a60f3d3e66e81db91825969da10932ba1f9351cc2dd607fb1e5"
+      },
+      "runtime-plan.json": {
+        "bytes": 31818,
+        "sha256": "5424f51bc20726dfaef7ad61ab07b582b50748ad7b3906a6622078f81c9ae2c0"
+      },
+      "tui-start.json": {
+        "bytes": 178,
+        "sha256": "2cb703b848ea58043f379ee9228e41edb6906fbbffa9335b78de535f0e89af88"
+      },
+      "verified.json": {
+        "bytes": 2627,
+        "sha256": "ad6d6658ef6a660d4bee6f606bcc10a0529540ece8428720af08b1d13df58ee0"
+      }
+    },
+    "limitations": [
+      "All16 proposed calls retain a row even on failure; every raw rate, pressure file and monitoring sample remains preserved by artifact hash.",
+      "Two directional calls per arm/cell, r1. Reported SD0 is not an estimate of repeatability. No new layout-control or exact nonregression claim.",
+      "CPU32 plus explicit reference mmap is a declared experiment; the original CPU31/NONE failure remains retained and is not erased or attributed by these timings.",
+      "llmx assigns FFN roles to CPU; reference overrides expert tensors. Candidate mapping is source/argv-derived, completed backend paths are runtime evidence; reference mapped-buffer witnesses are separate.",
+      "One-second monitoring may miss brief work; inaccessible/new process deltas and invalid counters remain unknown. Aggregate disk and System GPU-engine activity cannot establish causal attribution.",
+      "Pressure samples can miss peaks. Fault counts combine soft and hard faults; before/after GPU budget is not peak allocation tracing. No clock controls changed; clock policy remains unverified.",
+      "Numerical correctness failures and all independent release requirements remain unchanged. Completion of this timing block is not release approval."
+    ]
+  },
+  "raw_reports": {
+    "qualification_sha256": "efa86e847ac4747b72613ac24c0893894119ec945a6b994a19b1ce97b7cef15e",
+    "timing_sha256": "bf08a583e71aef536937c35ffbf64aea8877891e5552705db357764584292d0e"
+  },
+  "release_acceptance": false,
+  "correctness_waived": false,
+  "checkpoint_validation": {
+    "docs": {
+      "command": "python -X utf8 tests/run_tests.py --exe ../.tmp-half-weight-regression-20261003/candidate-e98453f9/build/Release/llmx.exe --only docs",
+      "exit_code": 0,
+      "known_findings": 13,
+      "planted_faults": 16,
+      "log_sha256": "add728451b24625dc488a3f3c278f1a28ee11f7e889b93f2009a40e4b74fdae4"
+    },
+    "dead_code": {
+      "command": "python -X utf8 tests/dead_code.py",
+      "exit_code": 0,
+      "known_findings": 7,
+      "planted_faults": 18,
+      "log_sha256": "4acf677e3045a1ff354a3990eabc90c7a24016744ede3c7230d279c7cb0ef4ed"
+    },
+    "retained_setup_failures": [
+      {
+        "command": "python -X utf8 tests/docs.py",
+        "reason": "No such script; no test ran",
+        "exit_code": 2,
+        "log_sha256": "0582a6c453c1b8fbcc65f3da63df72994f75fb220418a952875a097d2bbed844"
+      },
+      {
+        "command": "python -X utf8 tests/docs_check.py",
+        "reason": "Default executable absent; corrected suite invocation explicitly selects tested e984 executable",
+        "exit_code": 1,
+        "log_sha256": "2e5607f8e5c41a3c1a9491105355d80aa9b7369791f16b053a6597ba289479ff"
+      }
+    ]
+  }
+}

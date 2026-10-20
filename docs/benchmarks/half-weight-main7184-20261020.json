@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-20",
+  "scope": "Focused half-weight integration onto Flash main; not final landing qualification",
+  "base": "7184ff13f50ed783c75ce30c5fce2906d3f083a5",
+  "source": "Uncommitted integration of fc77f1ffc with shared CPU dot_float and compile-time Vulkan BF16 owner",
+  "version": "llmx 0.1.0+g7184ff13f50e.dirty numerics c062203998f329c6",
+  "environment": {
+    "os": "Windows",
+    "compiler": "MSVC 19.50 / Visual Studio 18 2026",
+    "vulkan_sdk": "1.4.357.0",
+    "device": "Radeon VII"
+  },
+  "binaries": {
+    "llmx.exe": "482d88325c7468bb4ffa985aba920e72829ff6f1cd4a61a99a8d2671b8784c19",
+    "llmx-model-logits.exe": "146250b70015c4339ac4269da063d64bf625dcd5361125f0452fae8130b6d985"
+  },
+  "checks": {
+    "native": {
+      "tests": [
+        "backend-group",
+        "backend-errors",
+        "half-weights",
+        "backend-vulkan",
+        "vulkan-quantization"
+      ],
+      "passed": 5,
+      "failed": 0,
+      "seconds": 52.51
+    },
+    "model_twins": {
+      "cpu_capture_sets": 48,
+      "vulkan_capture_sets": 24,
+      "unavailable_formats": 0,
+      "criterion": "Exact binary32 full-vocabulary and 64-token replies against exactly widened F32 weights, same backend/policy; dense/MoE, tied/untied, mixed weights, ubatch3/16; CPU widths1/2"
+    },
+    "consumer_policy": {
+      "focused_checks": 3,
+      "result": "pass",
+      "rejects": [
+        "missing or invalid phase witnesses",
+        "cross-policy comparisons including calibration"
+      ],
+      "permits": "same effective phase path sets at different device counts or selected dtype"
+    },
+    "existing_device_reference": {
+      "checks": 12,
+      "result": "pass"
+    },
+    "reference_consumer": {
+      "checks": 66,
+      "skipped": 7,
+      "result": "pass"
+    },
+    "source_checks": [
+      "dead-code PASS",
+      "docs PASS",
+      "arch-boundary PASS"
+    ]
+  },
+  "precision_decision": "Historical30B cross-policy CPU/device figures are not half-storage acceptance; raw failures and controls retained. No numerical bounds change. Existing HF policy and FILE_EXACT_BOUNDS remain required.",
+  "open": [
+    "Current-main Flash output identity",
+    "MI50 integration revalidation",
+    "Released-file HF qualification",
+    "Matched timing",
+    "Applicable landing checks and hosted CI"
+  ],
+  "artifacts": {
+    "build-half-compile.log": "412bf688a35269a4175cae6dfdd9f416db01b9538a8593be921ff1cdd4998f5c",
+    "build-half-native.log": "17fcf66c9e958e1a4ba0699405bd76329d955b305960c92523e15fe989bcd45c",
+    "build-half-model-cpu.log": "586479210a01d8821bc6ac3cf10ab80255d2f2a388eb0fcf47f47857605163af",
+    "build-half-model-device.log": "99e3864424bcdaff9b00c56246f1ad2b6efd63896a1e372f239179c49258a71f",
+    "build-half-doc-checks.log": "fe765aac0f02b2cd5f3eec20cc7cf8b1b66f49d17381bfbd49eb9c1b07289d53"
+  }
+}

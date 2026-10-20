@@ -294,11 +294,11 @@ invalid storage offset: inference: invalid tensor storage token_embd.weight
 invalid storage offset: inference: invalid tensor storage token_embd.weight
 truncated blob: inference: invalid tensor storage output.weight
 missing second layer: inference: missing tensor blk.1.attn_norm.weight
-unsupported tensor type: inference: embedding needs tensor token_embd.weight of type F16 (1), which the backend of device 0 does not support
+unsupported tensor type: inference: embedding needs tensor token_embd.weight of type I16 (25), which the backend of device 0 does not support
 oversized vocabulary: inference: invalid tensor storage token_embd.weight
 zero vocabulary: inference: invalid vocabulary dimension
 overflowing tensor extent: GGUF size multiplication overflow
-unsupported unused tensor: inference: unused tensor unused of type F16 (1) is not supported by any model backend
+unsupported unused tensor: inference: unused tensor unused of type I16 (25) is not supported by any model backend
 missing qwen3moe.block_count: inference: missing metadata qwen3moe.block_count
 missing qwen3moe.embedding_length: inference: missing metadata qwen3moe.embedding_length
 missing qwen3moe.attention.head_count: inference: missing metadata qwen3moe.attention.head_count

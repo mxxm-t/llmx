@@ -25,12 +25,12 @@ Follow [ADDING-AN-ARCHITECTURE](ADDING-AN-ARCHITECTURE.md), [ARCHITECTURE](ARCHI
 ## 1. Scope and evidence
 
 The production target is Vulkan with enough devices and host memory for the selected file.
-The CPU backend runs the complete graph, which the tiny fixtures check against HF, and serves the operator tests; it has no decoder for the released file's BF16 tensors, so the released model does not run on the CPU alone.
+The CPU backend runs the complete graph, which the tiny fixtures check against HF, and serves the operator tests; F16/BF16 weight decoding is implemented, but released-model CPU-only execution has not been qualified against the required corpus.
 
 | Capability | Support | Evidence |
 |---|---|---|
 | Text prefill, decode, chat and scoring | Yes | Tiny HF fixture; the released Q8_0 file under the contract of section 6 |
-| CPU-only released model | No: the CPU has no decoder for the file's BF16 tensors | Tiny full-graph CPU fixtures |
+| CPU-only released model | Unqualified: BF16 decoding exists; released-file CPU corpus checks remain | Tiny full-graph CPU fixtures |
 | CPU experts beside Vulkan | `--n-cpu-moe` or `--cpu-moe` beside one device, through the existing placement | Tiny HF fixture with a witness of where the routed rows ran (`tests/qwen4exp_model.cpp`) |
 | Host experts streamed to Vulkan | `--moe-stream-from`, copying whole expert stacks into their windows | Tiny HF fixture with a witness of the window copies (`tests/qwen4exp_model.cpp`) |
 | Lookup table on the devices or read from its file | `--lookup-storage` `auto`, `device` or `file` (section 3) | Tiny HF fixture in every load mode and lookup storage; the released file qualified with its rows read from the file (section 6) |

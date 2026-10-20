@@ -1,6 +1,24 @@
-// f32 to f16 with round-to-nearest-even in the bits, so the device stores what the CPU does (core/fp16.hpp); packHalf2x16 leaves the rounding to the driver.
+// Half storage conversion in integer bits, matching core/fp16.hpp and core/bf16.hpp without depending on the driver's half rounding or subnormal mode.
 #ifndef LLMX_F16_GLSL
 #define LLMX_F16_GLSL
+// Widen in integer bits so subnormal half weights and signed zeros do not depend on the device's half arithmetic mode.
+float f16_to_f32(uint h) {
+    uint sign = (h & 0x8000u) << 16u;
+    uint e = (h >> 10u) & 31u, m = h & 1023u;
+    uint bits;
+    if (e == 0u) {
+        if (m == 0u) bits = sign;
+        else {
+            uint shift = uint(10 - findMSB(m));
+            bits = sign | ((113u - shift) << 23u) | (((m << shift) & 1023u) << 13u);
+        }
+    } else if (e == 31u) bits = sign | 0x7f800000u | (m << 13u);
+    else bits = sign | ((e + 112u) << 23u) | (m << 13u);
+    return uintBitsToFloat(bits);
+}
+
+float bf16_to_f32(uint h) { return uintBitsToFloat(h << 16u); }
+
 uint f16_bits(float f) {
     uint x = floatBitsToUint(f);
     uint sign = (x >> 16u) & 0x8000u;

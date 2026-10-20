@@ -3,7 +3,7 @@
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
 llmx is a dependency-free LLM inference runtime in C++17 for CPUs and GPUs, run from the command line or as an OpenAI-compatible server, and able to run one model over several devices of one machine.
-The tables below list the supported models, file formats, quantization types, backends and multi-device modes, each marked **Supported** (works today) or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not yet qualified for release).
+The tables below list the supported models, file formats, quantization types, backends and multi-device modes, marked **Supported** (works today), **Planned** (on the [ROADMAP](docs/ROADMAP.md)) or explicitly awaiting release qualification.
 
 ## Supported models
 
@@ -13,7 +13,7 @@ The tables below list the supported models, file formats, quantization types, ba
 | `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | Supported |
 | `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported, prefix reuse for follow-up turns |
 | `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | Supported, prefix reuse for follow-up turns |
-| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0, with its MTP drafter | Planned (its BF16 tensors need a CPU decoder) | Supported | Supported, prefix reuse for follow-up turns |
+| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0, with its MTP drafter | Released-file CPU qualification pending | Supported | Supported, prefix reuse for follow-up turns |
 | Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned |
 
 Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS.md) lists what is covered.
@@ -25,10 +25,11 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | F32, Q8_0, Q4_0 | Supported | Supported | Q8_0, Q4_0 |
 | Q4_1, Q4_K, Q5_K, Q6_K (so Q4_K_M and Q5_K_M files) | Supported | Supported | No |
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
-| F16, BF16, IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
+| F16, BF16 | Implemented; release qualification pending | Implemented; release qualification pending | No |
+| IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
 
-Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including F16 and BF16. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary.
-Activation precision is selected with `--dtype auto|f16|bf16|f32|int8`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices, and `int8` rounds the inputs of quantized matrix products that have an 8-bit build to 8 bits for speed, below the default precision; it runs so on a Vulkan device that prefers the integer dot product, the MI50 under Mesa, and elsewhere runs as `f16` and says so. This does not add F16 or BF16 weight execution; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
+Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including IQ4_NL and Q2_K. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary. F16/BF16 weights widen to F32 through the existing CPU and Vulkan product paths. CPU and device development checks include pinned BF16/F32 output identity. Remaining 30B correctness, memory and final integration gates are recorded in [STATUS](docs/STATUS.md).
+Activation precision is selected with `--dtype auto|f16|bf16|f32|int8`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices, and `int8` rounds the inputs of quantized matrix products that have an 8-bit build to 8 bits for speed, below the default precision; it runs so on a Vulkan device that prefers the integer dot product, the MI50 under Mesa, and elsewhere runs as `f16` and says so. Activation precision is separate from weight storage; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
 The KV cache is stored as `f16` (default) or `f32` on every backend, independently of activation precision.
 
 ## File formats

@@ -18,6 +18,49 @@ sys.path.insert(0, str(Path(common.ROOT) / "tools"))
 import check_device
 
 
+class StorageComparisonPolicy(unittest.TestCase):
+    tool = check_device
+
+    def capture(self, dtype="f16", paths=None):
+        return {"prefix": "unused", "metadata": {
+            "architecture": "qwen3", "vocab": 6, "greedy": [0] * 64,
+            "dtype": dtype, "matrix_paths": {
+                phase: paths if paths is not None else [["f32"]]
+                for phase in ("batched", "decode", "greedy")}}}
+
+    def test_cross_policy_refused_before_reading(self):
+        for phase in ("batched", "decode", "greedy"):
+            candidate = self.capture()
+            candidate["metadata"]["matrix_paths"][phase] = [["f32", "block-int16"]]
+            with self.subTest(phase=phase), patch.object(self.tool, "captured_rows") as rows:
+                with self.assertRaisesRegex(ValueError, "activation policies differ"):
+                    self.tool.compare_pair(self.capture(), candidate, [0, 1], calibration=True)
+                rows.assert_not_called()
+
+    def test_absent_or_invalid_witness_refused(self):
+        for paths in (None, {}, {"batched": [["f32"]]},
+                      {p: [] for p in ("batched", "decode", "greedy")}):
+            candidate = self.capture()
+            candidate["metadata"]["matrix_paths"] = paths
+            with self.subTest(paths=paths), patch.object(self.tool, "captured_rows") as rows:
+                with self.assertRaises(ValueError):
+                    self.tool.compare_pair(self.capture(), candidate, [0, 1])
+                rows.assert_not_called()
+        for paths in ([[]], [["unknown"]], [["bf16"]], [["f32", "f32"]]):
+            with self.subTest(paths=paths), patch.object(self.tool, "captured_rows") as rows:
+                with self.assertRaisesRegex(ValueError, "invalid capture matrix-path witness"):
+                    self.tool.compare_pair(self.capture(), self.capture(paths=paths), [0, 1])
+                rows.assert_not_called()
+
+    def test_same_paths_allow_different_device_counts_and_selected_dtype(self):
+        with patch.object(self.tool, "captured_rows", return_value=iter(())) as rows, \
+                patch.object(common, "check_device_rows", return_value={"checked": True}), \
+                patch.object(common, "check_device_greedy", return_value={"checked": True}):
+            result = self.tool.compare_pair(self.capture("f32"), self.capture(paths=[["f32"], [], ["f32"]]), [0, 1])
+            self.assertEqual(rows.call_count, 6)
+            self.assertEqual(set(result), {"batched", "decode", "greedy"})
+
+
 class DeviceReference(unittest.TestCase):
     row = [8.0, 6.0, 5.0, 4.0, 3.0, 1.0, -1.0, -3.0]
     ids = [0, 1, 2, 3]
@@ -258,7 +301,7 @@ class NativeCapture(unittest.TestCase):
 
 def run(require=False):
     tool = Path(common.EXE).with_name("llmx-model-logits" + (".exe" if os.name == "nt" else ""))
-    cases = [DeviceReference] + ([NativeCapture] if tool.exists() else [])
+    cases = [StorageComparisonPolicy, DeviceReference] + ([NativeCapture] if tool.exists() else [])
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in cases)
     ok = unittest.TextTestRunner(stream=sys.stdout).run(suite).wasSuccessful()
     if not tool.exists():

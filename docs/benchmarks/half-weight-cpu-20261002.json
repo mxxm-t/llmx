@@ -1,0 +1,414 @@
+{
+  "started_utc": "2026-10-02T17:14:07.758448+00:00",
+  "kind": "CPU correctness identity only, no timing claim",
+  "arms": [
+    {
+      "label": "main-f32",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-vulkan-dispatch-integration-20261002\\windows-d4db25155861\\build\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\cpu-identity\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\cpu-identity\\main-f32",
+        "cpu",
+        "f32",
+        "16",
+        "0"
+      ],
+      "binary_sha256": "0f9d52377d1e4b276993b092a6be3fd22a25b149ae7e175cd82d408f97732766",
+      "metadata": {
+        "version": "0.1.0+gd4db25155861",
+        "architecture": "qwen3",
+        "vocab": 151936,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0
+        ],
+        "greedy": [
+          198,
+          13874,
+          19324,
+          1986,
+          374,
+          264,
+          4285,
+          3110,
+          315,
+          1246,
+          311,
+          990,
+          279,
+          1565,
+          455,
+          63,
+          1714,
+          311,
+          17179,
+          264,
+          897,
+          504,
+          264,
+          10997,
+          13,
+          576,
+          10997,
+          374,
+          24758,
+          1667,
+          279,
+          1376,
+          11,
+          323,
+          279,
+          897,
+          374,
+          5927,
+          13,
+          758,
+          419,
+          1142,
+          11,
+          279,
+          1376,
+          374,
+          330,
+          606,
+          1,
+          323,
+          279,
+          897,
+          374,
+          330,
+          61686,
+          3263,
+          576,
+          1102,
+          374,
+          16709,
+          311,
+          279,
+          2339,
+          13
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "captures": {
+        "batched": {
+          "sha256": "7e208913faa0811dd2f196fd197d95bf4ea4bb3e77463978f63bc7a399f74d63",
+          "bytes": 7900672
+        },
+        "decode": {
+          "sha256": "283c6f23d57474cf8fe1f92384f38d8d13222f63f3e8d7c91fe9ff4a14241605",
+          "bytes": 7900672
+        },
+        "greedy": {
+          "sha256": "56b13f498e1c1f880814fffd11969510cfdb287770c619ec0965fed41daf93a9",
+          "bytes": 38895616
+        }
+      }
+    },
+    {
+      "label": "candidate-f32",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-dev\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\AppData\\Local\\Temp\\Qwen3-0.6B-F32.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\cpu-identity\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\cpu-identity\\candidate-f32",
+        "cpu",
+        "f32",
+        "16",
+        "0"
+      ],
+      "binary_sha256": "7524e6d17ef042cf8bb75756d6149b44ea81cc9d8208545e96518ec88cdcebeb",
+      "metadata": {
+        "version": "0.1.0+gdf0f8fc9ebdf.dirty",
+        "architecture": "qwen3",
+        "vocab": 151936,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0
+        ],
+        "greedy": [
+          198,
+          13874,
+          19324,
+          1986,
+          374,
+          264,
+          4285,
+          3110,
+          315,
+          1246,
+          311,
+          990,
+          279,
+          1565,
+          455,
+          63,
+          1714,
+          311,
+          17179,
+          264,
+          897,
+          504,
+          264,
+          10997,
+          13,
+          576,
+          10997,
+          374,
+          24758,
+          1667,
+          279,
+          1376,
+          11,
+          323,
+          279,
+          897,
+          374,
+          5927,
+          13,
+          758,
+          419,
+          1142,
+          11,
+          279,
+          1376,
+          374,
+          330,
+          606,
+          1,
+          323,
+          279,
+          897,
+          374,
+          330,
+          61686,
+          3263,
+          576,
+          1102,
+          374,
+          16709,
+          311,
+          279,
+          2339,
+          13
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "captures": {
+        "batched": {
+          "sha256": "7e208913faa0811dd2f196fd197d95bf4ea4bb3e77463978f63bc7a399f74d63",
+          "bytes": 7900672
+        },
+        "decode": {
+          "sha256": "283c6f23d57474cf8fe1f92384f38d8d13222f63f3e8d7c91fe9ff4a14241605",
+          "bytes": 7900672
+        },
+        "greedy": {
+          "sha256": "56b13f498e1c1f880814fffd11969510cfdb287770c619ec0965fed41daf93a9",
+          "bytes": 38895616
+        }
+      }
+    },
+    {
+      "label": "candidate-bf16",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weights-20261002\\build-dev\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--unsloth--Qwen3-0.6B-GGUF\\snapshots\\50968a4468ef4233ed78cd7c3de230dd1d61a56b\\Qwen3-0.6B-BF16.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\cpu-identity\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\cpu-identity\\candidate-bf16",
+        "cpu",
+        "f32",
+        "16",
+        "0"
+      ],
+      "binary_sha256": "7524e6d17ef042cf8bb75756d6149b44ea81cc9d8208545e96518ec88cdcebeb",
+      "metadata": {
+        "version": "0.1.0+gdf0f8fc9ebdf.dirty",
+        "architecture": "qwen3",
+        "vocab": 151936,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          30
+        ],
+        "greedy": [
+          198,
+          13874,
+          19324,
+          1986,
+          374,
+          264,
+          4285,
+          3110,
+          315,
+          1246,
+          311,
+          990,
+          279,
+          1565,
+          455,
+          63,
+          1714,
+          311,
+          17179,
+          264,
+          897,
+          504,
+          264,
+          10997,
+          13,
+          576,
+          10997,
+          374,
+          24758,
+          1667,
+          279,
+          1376,
+          11,
+          323,
+          279,
+          897,
+          374,
+          5927,
+          13,
+          758,
+          419,
+          1142,
+          11,
+          279,
+          1376,
+          374,
+          330,
+          606,
+          1,
+          323,
+          279,
+          897,
+          374,
+          330,
+          61686,
+          3263,
+          576,
+          1102,
+          374,
+          16709,
+          311,
+          279,
+          2339,
+          13
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "captures": {
+        "batched": {
+          "sha256": "7e208913faa0811dd2f196fd197d95bf4ea4bb3e77463978f63bc7a399f74d63",
+          "bytes": 7900672
+        },
+        "decode": {
+          "sha256": "283c6f23d57474cf8fe1f92384f38d8d13222f63f3e8d7c91fe9ff4a14241605",
+          "bytes": 7900672
+        },
+        "greedy": {
+          "sha256": "56b13f498e1c1f880814fffd11969510cfdb287770c619ec0965fed41daf93a9",
+          "bytes": 38895616
+        }
+      }
+    }
+  ],
+  "finished_utc": "2026-10-02T17:14:24.739404+00:00",
+  "all_binary32_captures_and_64_tokens_exact": true
+}

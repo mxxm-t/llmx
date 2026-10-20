@@ -1,0 +1,2275 @@
+{
+  "date": "2026-10-03",
+  "runtime": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+  "main": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+  "scope": "Completed fixed-routing operator diagnostics and one existing-path main/candidate timing round per platform. New30B default-policy correctness still fails. No mx comparison in this timing round. No source/library or numerical bound changed.",
+  "probes": {
+    "source_sha256": "26dd24f73e17322c568b815dc747452e201c2f4f1769e92a12003dd57aeb16ec",
+    "source": {
+      "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-source-e98453f9/probe.cpp",
+      "sha256": "26dd24f73e17322c568b815dc747452e201c2f4f1769e92a12003dd57aeb16ec"
+    },
+    "oracle": "Independent exact BF16 widening by uint32 shift16/memcpy; compare to the same device F32 products with memcmp, finite output and changed-output checks.",
+    "routing": {
+      "experts": 128,
+      "topk": 8,
+      "fixed": true,
+      "includes_last_expert": true
+    },
+    "activation_policy": "f16",
+    "completed_arithmetic": "f32",
+    "cases": [
+      {
+        "operation": "gate-up",
+        "nin": 2048,
+        "nout": 768,
+        "rows": 1,
+        "prompt_extent": 1,
+        "exact_values": 12288
+      },
+      {
+        "operation": "gate-up",
+        "nin": 2048,
+        "nout": 768,
+        "rows": 128,
+        "prompt_extent": 247,
+        "exact_values": 1572864
+      },
+      {
+        "operation": "down-add",
+        "nin": 768,
+        "nout": 2048,
+        "rows": 1,
+        "prompt_extent": 1,
+        "exact_values": 2048
+      },
+      {
+        "operation": "down-add",
+        "nin": 768,
+        "nout": 2048,
+        "rows": 128,
+        "prompt_extent": 247,
+        "exact_values": 262144
+      }
+    ],
+    "exact_values_per_device": 1849344,
+    "guard_positions_per_arm": 640,
+    "scope_limit": "Synthetic finite normal weights and fixed routes at real tensor dimensions; not model-produced routing, HF or default-policy model acceptance.",
+    "windows": {
+      "passed": true,
+      "device": "Radeon VII UUID00000000-2d00-0000-0000-000000000000",
+      "library_sha256": "f453c1c2b0bbc33122e5f39587929869e87fb66c78cfe30a0270a95db9e16e58",
+      "exe_sha256": "752ebbd48773bcdef5ccf1b530ff51f46bb5465b531ad301ef32aff0454b4109",
+      "compile_attempts": 1,
+      "gpu_probe_attempts": 1,
+      "witnesses": [
+        {
+          "operation": "gate-up",
+          "storage": "bf16",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_row_wbf16_1col"
+          ]
+        },
+        {
+          "operation": "gate-up",
+          "storage": "f32",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_row_f32_1col"
+          ]
+        },
+        {
+          "operation": "gate-up",
+          "storage": "bf16",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_group",
+            "matmul_tile_wbf16_tall"
+          ]
+        },
+        {
+          "operation": "gate-up",
+          "storage": "f32",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_tile_tall"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "bf16",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_combine",
+            "matmul_row_wbf16_1col"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "f32",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_combine",
+            "matmul_row_f32_1col"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "bf16",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_combine",
+            "moe_group",
+            "matmul_tile_wbf16_tall"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "f32",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_tile_tall",
+            "moe_combine"
+          ]
+        }
+      ],
+      "setup_only_holds": [
+        "Initial3.85GiB available RAM below unchanged6GiB threshold, no compile/GPU",
+        "First run wrapper saw peer llmx.exe and held before child; verified CPU-only build/backend selection and permitted it on second preflight"
+      ],
+      "production_artifacts_unchanged": true,
+      "evidence": [
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-windows-e98453f9/completion-audit.json",
+          "sha256": "d9dab8cb16e80b717e01af4253eb0e6caf2376879e89277ce27e64b6fa7c41a3"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-windows-e98453f9/run-r2.stdout",
+          "sha256": "f4d8bb0e5fab22ea09de5cc2cea0056501341bfbb2b2fa8f52cb45a27103d556"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-windows-e98453f9/run-r2.stderr",
+          "sha256": "57678f8a11ebaabe0c35ed22b872ea09ca0ecdbfa05a9b2aefcd3563ffd22494"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-windows-e98453f9/compile.json",
+          "sha256": "ba80c6c122cb7e29cb67da3428aafd923e4016f9df57fe63f5c3f16fd719a2be"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-windows-e98453f9/preflight-hold.json",
+          "sha256": "a6d06d7b508cde70da6e797aeb1c787133b3aa0f559f17a5c8dfcb8b077f01f7"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-windows-e98453f9/run.json",
+          "sha256": "ac4935657dfb5407ad9b1b3f30adbc7f2c26f707cfbfb01a6e4e2babfe634c7f"
+        }
+      ]
+    },
+    "linux": {
+      "passed": true,
+      "device": "MI50 RADV VEGA20, renderD136, PCI0000:03:00.0",
+      "library_sha256": "a3d48442a75a1dcadb0ac9650143ce39af5c27e3300df1287e07f8202fe7feda",
+      "exe_sha256": "7e909576382305a60dc0ca90be2af48ce31796073daa502b07eb9499ef55e58b",
+      "compile_attempts": 1,
+      "gpu_probe_attempts": 1,
+      "steps": [
+        {
+          "label": "compile",
+          "pid": 4193626,
+          "returncode": 0
+        },
+        {
+          "label": "run",
+          "pid": 4193712,
+          "returncode": 0
+        }
+      ],
+      "witnesses": [
+        {
+          "operation": "gate-up",
+          "storage": "bf16",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_row_wbf16_1col"
+          ]
+        },
+        {
+          "operation": "gate-up",
+          "storage": "f32",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_row_f32_1col"
+          ]
+        },
+        {
+          "operation": "gate-up",
+          "storage": "bf16",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_group",
+            "matmul_tile_wbf16_tall"
+          ]
+        },
+        {
+          "operation": "gate-up",
+          "storage": "f32",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_tile_tall"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "bf16",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_combine",
+            "matmul_row_wbf16_1col"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "f32",
+          "rows": 1,
+          "extent": 1,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_combine",
+            "matmul_row_f32_1col"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "bf16",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "moe_combine",
+            "moe_group",
+            "matmul_tile_wbf16_tall"
+          ]
+        },
+        {
+          "operation": "down-add",
+          "storage": "f32",
+          "rows": 128,
+          "extent": 247,
+          "matrix_paths": [
+            "f32"
+          ],
+          "kernels": [
+            "matmul_tile_tall",
+            "moe_combine"
+          ]
+        }
+      ],
+      "production_artifacts_unchanged": true,
+      "terminal_idle_resources": {
+        "at": 1790979776.7548177,
+        "memory_available": 38211543040,
+        "processes": "PID                 COMMAND\n3617039             docker-init\n3617053             sleep\n",
+        "container_id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+        "cpu_set": "0-3",
+        "nanocpus": 4000000000,
+        "memory": 34359738368,
+        "memory_swap": 34359738368,
+        "clock": "auto",
+        "gpu_clients": false
+      },
+      "evidence": [
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-source-e98453f9/linux-results/complete.json",
+          "sha256": "d82cf52fd43c3335ca1301d7975918c28128eb133343adef60de1d1842dbe58e"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-source-e98453f9/linux-results/run.stdout",
+          "sha256": "276161e0f2cabed1204cf9477bd7f5a9100554579b5cf2291196da511f3eb475"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-source-e98453f9/linux-results/run.stderr",
+          "sha256": "80d7b0ff214b3ccd7548e566bdc8039017282701010c5a54631a2d4e5ef11d84"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-source-e98453f9/linux-results/compile.stdout",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": ".tmp-half-weight-fixture-20261002/bf16-routed-probe-source-e98453f9/linux-results/compile.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    }
+  },
+  "existing_path_timing": {
+    "shared": {
+      "prompt_tokens": 512,
+      "decode_tokens": 128,
+      "repeats": 1,
+      "ubatch": 512,
+      "kv": "f16",
+      "activation_dtype": "auto",
+      "load_mode": "auto",
+      "order": [
+        "base",
+        "candidate",
+        "candidate",
+        "base"
+      ],
+      "all_calls_retained": true,
+      "repeated_calls": 0,
+      "mx_measured": false,
+      "model_sha256": {
+        "0.6b-q8_0": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "30b-q4_k_m": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5"
+      }
+    },
+    "linux": {
+      "calls_retained": 16,
+      "threads": 4,
+      "cpuset": "0-3",
+      "cpu_quota": 4,
+      "memory_gib": 32,
+      "device": "CPU and MI50 renderD136/PCI0000:03:00.0",
+      "clocks": "auto verified",
+      "arms": {
+        "base": {
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/source",
+          "build": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build",
+          "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx",
+          "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx-model-logits",
+          "exe_sha256": "d5d5832a920ae2e36caa50c2a3cf8d1daa52df7d838ac49d65b9cd702d353a6e",
+          "tool_sha256": "ff77349ecd7986e4fad7e76536edc72c6904914d35f3c1a027ebf1b8dcd7a1dc",
+          "version": "llmx 0.1.0+gf22367c6fc8f"
+        },
+        "candidate": {
+          "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/source",
+          "build": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build",
+          "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx",
+          "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-model-logits",
+          "exe_sha256": "ea7b848aead33c509308d7989e011ee9859646b2c39f79a3f5aedb5fd6891386",
+          "tool_sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb",
+          "version": "llmx 0.1.0+ge98453f9e562"
+        }
+      },
+      "comparisons": [
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "cpu",
+          "phase": "pp512",
+          "raw_ordered_rates": [
+            224.59,
+            226.85,
+            220.3,
+            225.24
+          ],
+          "medians": {
+            "base": 224.91500000000002,
+            "candidate": 223.575
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                1.0062781067723403,
+                -2.1932161250222015
+              ],
+              "median_paired_percent": -0.5934690091249306
+            }
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "cpu",
+          "phase": "tg128",
+          "raw_ordered_rates": [
+            45.45,
+            45.96,
+            45.99,
+            45.95
+          ],
+          "medians": {
+            "base": 45.7,
+            "candidate": 45.975
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                1.1221122112211157,
+                0.08705114254623503
+              ],
+              "median_paired_percent": 0.6045816768836754
+            }
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "vulkan:0",
+          "phase": "pp512",
+          "raw_ordered_rates": [
+            8770.5,
+            8778.83,
+            8641.4,
+            8779.38
+          ],
+          "medians": {
+            "base": 8774.939999999999,
+            "candidate": 8710.115
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                0.09497748132945016,
+                -1.571637177112728
+              ],
+              "median_paired_percent": -0.7383298478916389
+            }
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "vulkan:0",
+          "phase": "tg128",
+          "raw_ordered_rates": [
+            393.12,
+            398.41,
+            389.92,
+            389.59
+          ],
+          "medians": {
+            "base": 391.355,
+            "candidate": 394.165
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                1.3456450956450983,
+                0.08470443286532348
+              ],
+              "median_paired_percent": 0.7151747642552109
+            }
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "cpu",
+          "phase": "pp512",
+          "raw_ordered_rates": [
+            27.96,
+            28.63,
+            28.48,
+            29.08
+          ],
+          "medians": {
+            "base": 28.52,
+            "candidate": 28.555
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                2.3962804005722482,
+                -2.063273727647863
+              ],
+              "median_paired_percent": 0.16650333646219262
+            }
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "cpu",
+          "phase": "tg128",
+          "raw_ordered_rates": [
+            13.09,
+            13.44,
+            13.44,
+            12.36
+          ],
+          "medians": {
+            "base": 12.725,
+            "candidate": 13.44
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                2.6737967914438387,
+                8.737864077669899
+              ],
+              "median_paired_percent": 5.705830434556869
+            }
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "vulkan:0",
+          "phase": "pp512",
+          "raw_ordered_rates": [
+            1129.91,
+            1129.02,
+            1129.02,
+            1128.96
+          ],
+          "medians": {
+            "base": 1129.435,
+            "candidate": 1129.02
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                -0.07876733545150172,
+                0.005314625850338928
+              ],
+              "median_paired_percent": -0.036726354800581396
+            }
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "vulkan:0",
+          "phase": "tg128",
+          "raw_ordered_rates": [
+            126.41,
+            126.08,
+            126.17,
+            126.2
+          ],
+          "medians": {
+            "base": 126.305,
+            "candidate": 126.125
+          },
+          "comparisons": {
+            "candidate/base": {
+              "forward_reverse_percent": [
+                -0.2610552962582058,
+                -0.023771790808246873
+              ],
+              "median_paired_percent": -0.14241354353322633
+            }
+          }
+        }
+      ],
+      "calls": [
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "cpu",
+          "arm": "base",
+          "rates": {
+            "pp512": 224.59,
+            "tg128": 45.45
+          },
+          "log": "Qwen3-0.6B-Q8_0-cpu-0-base.log",
+          "resources": {
+            "wall_seconds": 12.152318477630615,
+            "cpu_seconds": 41.655588,
+            "major_faults": 154877,
+            "minor_faults": 56172,
+            "input_blocks": 1008,
+            "max_rss_kib": 841468,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 10530
+          },
+          "activity": {
+            "intervals": 14,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 14,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 45,
+              "missed_process_observations": 8,
+              "appeared_processes": 45,
+              "disappeared_processes": 44
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 15,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "cpu",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 226.85,
+            "tg128": 45.96
+          },
+          "log": "Qwen3-0.6B-Q8_0-cpu-1-candidate.log",
+          "resources": {
+            "wall_seconds": 10.471293449401855,
+            "cpu_seconds": 40.076667,
+            "major_faults": 181,
+            "minor_faults": 65857,
+            "input_blocks": 0,
+            "max_rss_kib": 841492,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 17428
+          },
+          "activity": {
+            "intervals": 11,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 11,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 30,
+              "missed_process_observations": 0,
+              "appeared_processes": 30,
+              "disappeared_processes": 41
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 12,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "cpu",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 220.3,
+            "tg128": 45.99
+          },
+          "log": "Qwen3-0.6B-Q8_0-cpu-2-candidate.log",
+          "resources": {
+            "wall_seconds": 10.710285663604736,
+            "cpu_seconds": 40.407916,
+            "major_faults": 0,
+            "minor_faults": 65864,
+            "input_blocks": 0,
+            "max_rss_kib": 841500,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 14754
+          },
+          "activity": {
+            "intervals": 12,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 12,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 40,
+              "missed_process_observations": 3,
+              "appeared_processes": 40,
+              "disappeared_processes": 51
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 13,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "cpu",
+          "arm": "base",
+          "rates": {
+            "pp512": 225.24,
+            "tg128": 45.95
+          },
+          "log": "Qwen3-0.6B-Q8_0-cpu-3-base.log",
+          "resources": {
+            "wall_seconds": 10.525852918624878,
+            "cpu_seconds": 40.091860000000004,
+            "major_faults": 0,
+            "minor_faults": 65865,
+            "input_blocks": 0,
+            "max_rss_kib": 841432,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 18991
+          },
+          "activity": {
+            "intervals": 12,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 12,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 76,
+              "missed_process_observations": 0,
+              "appeared_processes": 76,
+              "disappeared_processes": 32
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 91.0,
+            "known": 13,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "vulkan:0",
+          "arm": "base",
+          "rates": {
+            "pp512": 8770.5,
+            "tg128": 393.12
+          },
+          "log": "Qwen3-0.6B-Q8_0-vulkan-0-0-base.log",
+          "resources": {
+            "wall_seconds": 1.280639886856079,
+            "cpu_seconds": 0.817591,
+            "major_faults": 111,
+            "minor_faults": 46632,
+            "input_blocks": 403,
+            "max_rss_kib": 201536,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 2,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 2,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 67,
+              "missed_process_observations": 0,
+              "appeared_processes": 67,
+              "disappeared_processes": 14
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 91.0,
+            "known": 3,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "vulkan:0",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 8778.83,
+            "tg128": 398.41
+          },
+          "log": "Qwen3-0.6B-Q8_0-vulkan-0-1-candidate.log",
+          "resources": {
+            "wall_seconds": 1.2271299362182617,
+            "cpu_seconds": 0.77872,
+            "major_faults": 118,
+            "minor_faults": 46648,
+            "input_blocks": 0,
+            "max_rss_kib": 201960,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 3,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 3,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 34,
+              "missed_process_observations": 4,
+              "appeared_processes": 34,
+              "disappeared_processes": 17
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 92.0,
+            "known": 4,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "vulkan:0",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 8641.4,
+            "tg128": 389.92
+          },
+          "log": "Qwen3-0.6B-Q8_0-vulkan-0-2-candidate.log",
+          "resources": {
+            "wall_seconds": 1.2542016506195068,
+            "cpu_seconds": 0.795029,
+            "major_faults": 0,
+            "minor_faults": 46665,
+            "input_blocks": 0,
+            "max_rss_kib": 202060,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 2,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 2,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 17,
+              "missed_process_observations": 0,
+              "appeared_processes": 17,
+              "disappeared_processes": 8
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 92.0,
+            "known": 3,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-0.6B-Q8_0.gguf",
+          "device": "vulkan:0",
+          "arm": "base",
+          "rates": {
+            "pp512": 8779.38,
+            "tg128": 389.59
+          },
+          "log": "Qwen3-0.6B-Q8_0-vulkan-0-3-base.log",
+          "resources": {
+            "wall_seconds": 1.2625644207000732,
+            "cpu_seconds": 0.813094,
+            "major_faults": 0,
+            "minor_faults": 46639,
+            "input_blocks": 0,
+            "max_rss_kib": 201592,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 2,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 2,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 28,
+              "missed_process_observations": 0,
+              "appeared_processes": 28,
+              "disappeared_processes": 8
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 92.0,
+            "known": 3,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "cpu",
+          "arm": "base",
+          "rates": {
+            "pp512": 27.96,
+            "tg128": 13.09
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-cpu-0-base.log",
+          "resources": {
+            "wall_seconds": 71.42550134658813,
+            "cpu_seconds": 268.899199,
+            "major_faults": 3244217,
+            "minor_faults": 201133,
+            "input_blocks": 0,
+            "max_rss_kib": 13198620,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 49892
+          },
+          "activity": {
+            "intervals": 73,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 73,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 230,
+              "missed_process_observations": 28,
+              "appeared_processes": 230,
+              "disappeared_processes": 212
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 84.0,
+            "known": 74,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "cpu",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 28.63,
+            "tg128": 13.44
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-cpu-1-candidate.log",
+          "resources": {
+            "wall_seconds": 56.58908653259277,
+            "cpu_seconds": 221.345184,
+            "major_faults": 6,
+            "minor_faults": 404326,
+            "input_blocks": 0,
+            "max_rss_kib": 13198732,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 121115
+          },
+          "activity": {
+            "intervals": 57,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 57,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 150,
+              "missed_process_observations": 14,
+              "appeared_processes": 150,
+              "disappeared_processes": 169
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 58,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "cpu",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 28.48,
+            "tg128": 13.44
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-cpu-2-candidate.log",
+          "resources": {
+            "wall_seconds": 56.70087122917175,
+            "cpu_seconds": 221.668612,
+            "major_faults": 0,
+            "minor_faults": 402939,
+            "input_blocks": 0,
+            "max_rss_kib": 13198872,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 154231
+          },
+          "activity": {
+            "intervals": 58,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 58,
+              "disk_activity": 0,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 164,
+              "missed_process_observations": 17,
+              "appeared_processes": 164,
+              "disappeared_processes": 169
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 59,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "cpu",
+          "arm": "base",
+          "rates": {
+            "pp512": 29.08,
+            "tg128": 12.36
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-cpu-3-base.log",
+          "resources": {
+            "wall_seconds": 56.7667715549469,
+            "cpu_seconds": 221.868377,
+            "major_faults": 0,
+            "minor_faults": 408650,
+            "input_blocks": 0,
+            "max_rss_kib": 13198824,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 130828
+          },
+          "activity": {
+            "intervals": 58,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 5,
+              "disk_activity": 25,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 209,
+              "missed_process_observations": 15,
+              "appeared_processes": 209,
+              "disappeared_processes": 188
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 0.0,
+            "known": 59,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "vulkan:0",
+          "arm": "base",
+          "rates": {
+            "pp512": 1129.91,
+            "tg128": 126.41
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-0-base.log",
+          "resources": {
+            "wall_seconds": 9.304092168807983,
+            "cpu_seconds": 11.399854000000001,
+            "major_faults": 41,
+            "minor_faults": 46833,
+            "input_blocks": 6080073,
+            "max_rss_kib": 202408,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 11,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 1,
+              "disk_activity": 11,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 80,
+              "missed_process_observations": 5,
+              "appeared_processes": 80,
+              "disappeared_processes": 53
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 12,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "vulkan:0",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 1129.02,
+            "tg128": 126.08
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-1-candidate.log",
+          "resources": {
+            "wall_seconds": 8.747358798980713,
+            "cpu_seconds": 11.426216,
+            "major_faults": 43,
+            "minor_faults": 46825,
+            "input_blocks": 1183312,
+            "max_rss_kib": 202272,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 9,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 5,
+              "disk_activity": 9,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 61,
+              "missed_process_observations": 3,
+              "appeared_processes": 61,
+              "disappeared_processes": 40
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 10,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "vulkan:0",
+          "arm": "candidate",
+          "rates": {
+            "pp512": 1129.02,
+            "tg128": 126.17
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-2-candidate.log",
+          "resources": {
+            "wall_seconds": 8.776864767074585,
+            "cpu_seconds": 11.347136,
+            "major_faults": 0,
+            "minor_faults": 46833,
+            "input_blocks": 1911233,
+            "max_rss_kib": 202288,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 10,
+            "unbracketed_seconds": 0,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 3,
+              "disk_activity": 10,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 71,
+              "missed_process_observations": 6,
+              "appeared_processes": 71,
+              "disappeared_processes": 37
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 11,
+            "unknown": 0
+          }
+        },
+        {
+          "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+          "device": "vulkan:0",
+          "arm": "base",
+          "rates": {
+            "pp512": 1128.96,
+            "tg128": 126.2
+          },
+          "log": "Qwen3-30B-A3B-Q4_K_M-vulkan-0-3-base.log",
+          "resources": {
+            "wall_seconds": 9.08637285232544,
+            "cpu_seconds": 11.491563000000001,
+            "major_faults": 0,
+            "minor_faults": 46841,
+            "input_blocks": 3938664,
+            "max_rss_kib": 202144,
+            "memory_events_delta": {
+              "max": 0,
+              "oom": 0,
+              "oom_kill": 0
+            },
+            "cpu_throttled_usec": 0
+          },
+          "activity": {
+            "intervals": 9,
+            "unbracketed_seconds": 0.9740571975708008,
+            "flagged_intervals": {
+              "cpu_busy": 0,
+              "iowait": 0,
+              "unrelated_cpu": 3,
+              "disk_activity": 9,
+              "sample_gap": 0
+            },
+            "unknown_cpu_intervals": 0,
+            "unknown_disk_intervals": 0,
+            "process_observations": {
+              "unknown_process_roles": 0,
+              "new_processes_without_delta": 46,
+              "missed_process_observations": 0,
+              "appeared_processes": 46,
+              "disappeared_processes": 25
+            }
+          },
+          "owned_gpu_busy_percent": {
+            "min": 0.0,
+            "max": 100.0,
+            "known": 10,
+            "unknown": 0
+          }
+        }
+      ],
+      "monitor_samples": 330,
+      "monitor_intervals": 329,
+      "monitor_stop": true,
+      "activity_totals": {
+        "flags": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 251,
+          "disk_activity": 60,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "hot_unrelated_process_observations": [
+          [
+            "llama-server",
+            249
+          ],
+          [
+            "containerd",
+            4
+          ],
+          [
+            "dockerd",
+            2
+          ],
+          [
+            "kcompactd0",
+            1
+          ]
+        ]
+      },
+      "assessment": "No consistent prefill regression: forward/reverse changes straddle zero for all four workloads. CPU30B decode is +2.67/+8.74 percent; this is observed throughput, not an isolated kernel effect. Main decode changed13.09->12.36 and background activity/cache-fault behavior differed. MI5030B decode is -0.26/-0.02 percent. All calls retained. Small changes lack a new matched owner-site layout control; no universal nonregression or mx-parity claim.",
+      "limitations": [
+        "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "Resource counters include loading, warmup, prompt and decode, without phase attribution.",
+        "Missing/new/departed processes are not evidence of inactivity.",
+        "Whole-call activity intervals may overlap adjacent calls.",
+        "No new reference-runtime comparison; no universal layout band established."
+      ],
+      "evidence": [
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/results/compact.json",
+          "sha256": "12a14e85e877342f2bf5529826c4415aa7cbcd1f30343eab88576335e9c199ff"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/results/analysis.json",
+          "sha256": "f37659a04cba66beea7b8ebb89bada04eaa5320c89488b9d5b6cf966aaa6552d"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/results/complete.json",
+          "sha256": "2716e9dedbe79072e4e2b14b3d13659408e696e3f723c01315046f742f1d8b40"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/results/plan.json",
+          "sha256": "20427a2ca2f7ded14af1d69da617d6b06aa69c19e1d86fdc3d16270bb539f560"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/results/activity.jsonl",
+          "sha256": "760ac86418a5c84c70bf503b332b04507c9d55a33adda747b68984e2bcd94c12"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/results/final-audit.json",
+          "sha256": "e5901926a34a7feb778efa4cb1585b007399ced07488527d91ce1e54e9554c74"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/linux-existing-e98453f9/rig-timing-followup.py",
+          "sha256": "791207ed50c1b179b0d2e04c1c9dc1b9df508f795bf13e8c2ba7c66d6bb9558a"
+        }
+      ],
+      "activity_flags": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      }
+    },
+    "windows": {
+      "calls_retained": 8,
+      "threads": 6,
+      "device": "Radeon VII;30B first12 expert layers on CPU in both arms",
+      "clocks": {
+        "policy_verified": false,
+        "controls_changed": false,
+        "limitation": "Existing Windows telemetry has no clock/tuning-policy witness"
+      },
+      "arms": {
+        "base": {
+          "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\source",
+          "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\Release",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\Release\\llmx.exe",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\Release\\llmx-model-logits.exe",
+          "exe_sha256": "b5ab68051149e1198f8a983f6d62d5143713e0d76c555910890265e3634d5ba1",
+          "tool_sha256": "e8dec30f594b6459d5dafcb534e77e1583ec4e82998b4afaefb998c625385f79",
+          "version": "llmx 0.1.0+gf22367c6fc8f",
+          "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build-complete.json",
+          "build_manifest_sha256": "c3f50410f0ce7e7b333f0546370202f6a457985945fa4557c0be951cf5cc6f94"
+        },
+        "candidate": {
+          "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\source",
+          "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release",
+          "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe",
+          "tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-model-logits.exe",
+          "exe_sha256": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+          "tool_sha256": "31a61819f3132f054e26f0b312f5318c5acada93a6a52f952a5ee4fbc6e6361e",
+          "version": "llmx 0.1.0+ge98453f9e562",
+          "build_manifest": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build-complete.json",
+          "build_manifest_sha256": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+        }
+      },
+      "comparisons": [
+        {
+          "model": "0.6b-q8_0",
+          "phase": "pp512",
+          "raw_abba_rates": [
+            3065.29,
+            3064.54,
+            3074.07,
+            3063.86
+          ],
+          "medians": {
+            "base": 3064.575,
+            "candidate": 3069.3050000000003
+          },
+          "paired_percent": [
+            -0.024467505521497124,
+            0.3332397694411737
+          ],
+          "median_paired_percent": 0.1543861319598383
+        },
+        {
+          "model": "0.6b-q8_0",
+          "phase": "tg128",
+          "raw_abba_rates": [
+            200.47,
+            198.97,
+            201.03,
+            201.37
+          ],
+          "medians": {
+            "base": 200.92000000000002,
+            "candidate": 200.0
+          },
+          "paired_percent": [
+            -0.7482416321644147,
+            -0.168843422555498
+          ],
+          "median_paired_percent": -0.4585425273599564
+        },
+        {
+          "model": "30b-q4_k_m",
+          "phase": "pp512",
+          "raw_abba_rates": [
+            182.39,
+            176.69,
+            183.99,
+            182.35
+          ],
+          "medians": {
+            "base": 182.37,
+            "candidate": 180.34
+          },
+          "paired_percent": [
+            -3.125171336147814,
+            0.899369344666856
+          ],
+          "median_paired_percent": -1.112900995740479
+        },
+        {
+          "model": "30b-q4_k_m",
+          "phase": "tg128",
+          "raw_abba_rates": [
+            42.21,
+            43.05,
+            43.48,
+            42.16
+          ],
+          "medians": {
+            "base": 42.185,
+            "candidate": 43.265
+          },
+          "paired_percent": [
+            1.990049751243772,
+            3.130929791271342
+          ],
+          "median_paired_percent": 2.560489771257557
+        }
+      ],
+      "calls": [
+        {
+          "name": "call-01-0.6b-q8_0-base-pp512-tg128",
+          "arm": "base",
+          "model": "0.6b-q8_0",
+          "pid": 42140,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 3065.29,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 200.47,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 0,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 5,
+              "unrelated_cpu_samples": 5,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 2,
+              "unrelated_gpu_samples": 2
+            },
+            "peak_system_cpu_percent": 30.670788000642734,
+            "peak_disk_mib_per_second": 629.0330815331675,
+            "peak_unrelated_gpu_engine_percent": 14.22835930891941,
+            "unknown_process_name_count": 43
+          }
+        },
+        {
+          "name": "call-02-0.6b-q8_0-candidate-pp512-tg128",
+          "arm": "candidate",
+          "model": "0.6b-q8_0",
+          "pid": 45648,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 3064.54,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 198.97,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 0,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 4,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 4,
+              "unrelated_cpu_samples": 4,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 1,
+              "unrelated_gpu_samples": 2
+            },
+            "peak_system_cpu_percent": 29.670107417564363,
+            "peak_disk_mib_per_second": 614.1463821787175,
+            "peak_unrelated_gpu_engine_percent": 14.22835930891941,
+            "unknown_process_name_count": 46
+          }
+        },
+        {
+          "name": "call-03-0.6b-q8_0-candidate-pp512-tg128",
+          "arm": "candidate",
+          "model": "0.6b-q8_0",
+          "pid": 2244,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 3074.07,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 201.03,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 0,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 3,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 3,
+              "unrelated_cpu_samples": 3,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 0,
+              "unrelated_gpu_samples": 1
+            },
+            "peak_system_cpu_percent": 29.009163321914176,
+            "peak_disk_mib_per_second": 40.81879768685129,
+            "peak_unrelated_gpu_engine_percent": 13.887639491958367,
+            "unknown_process_name_count": 43
+          }
+        },
+        {
+          "name": "call-04-0.6b-q8_0-base-pp512-tg128",
+          "arm": "base",
+          "model": "0.6b-q8_0",
+          "pid": 42508,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 3063.86,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 201.37,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 0,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 4,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 4,
+              "unrelated_cpu_samples": 4,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 0,
+              "unrelated_gpu_samples": 2
+            },
+            "peak_system_cpu_percent": 28.170532699321903,
+            "peak_disk_mib_per_second": 40.81879768685129,
+            "peak_unrelated_gpu_engine_percent": 38.55173005876162,
+            "unknown_process_name_count": 48
+          }
+        },
+        {
+          "name": "call-05-30b-q4_k_m-base-pp512-tg128",
+          "arm": "base",
+          "model": "30b-q4_k_m",
+          "pid": 46592,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 182.39,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 42.21,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 12,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 20,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 20,
+              "unrelated_cpu_samples": 20,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 5,
+              "unrelated_gpu_samples": 3
+            },
+            "peak_system_cpu_percent": 51.776169167631714,
+            "peak_disk_mib_per_second": 1956.0612816919354,
+            "peak_unrelated_gpu_engine_percent": 67.67360389202254,
+            "unknown_process_name_count": 51
+          }
+        },
+        {
+          "name": "call-06-30b-q4_k_m-candidate-pp512-tg128",
+          "arm": "candidate",
+          "model": "30b-q4_k_m",
+          "pid": 45940,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 176.69,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 43.05,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 12,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 20,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 20,
+              "unrelated_cpu_samples": 20,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 5,
+              "unrelated_gpu_samples": 3
+            },
+            "peak_system_cpu_percent": 66.4233136719919,
+            "peak_disk_mib_per_second": 3483.932253628856,
+            "peak_unrelated_gpu_engine_percent": 58.02576788447866,
+            "unknown_process_name_count": 52
+          }
+        },
+        {
+          "name": "call-07-30b-q4_k_m-candidate-pp512-tg128",
+          "arm": "candidate",
+          "model": "30b-q4_k_m",
+          "pid": 39556,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 183.99,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 43.48,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 12,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 20,
+            "flags": {
+              "unknown_counter_samples": 2,
+              "unknown_process_samples": 20,
+              "unrelated_cpu_samples": 20,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 5,
+              "unrelated_gpu_samples": 3
+            },
+            "peak_system_cpu_percent": 63.953863951573254,
+            "peak_disk_mib_per_second": 3601.437171526016,
+            "peak_unrelated_gpu_engine_percent": 59.88272737641901,
+            "unknown_process_name_count": 55
+          }
+        },
+        {
+          "name": "call-08-30b-q4_k_m-base-pp512-tg128",
+          "arm": "base",
+          "model": "30b-q4_k_m",
+          "pid": 46144,
+          "returncode": 0,
+          "rates": [
+            {
+              "phase": "pp",
+              "tokens": 512,
+              "tokens_per_second": 182.35,
+              "sd": 0.0
+            },
+            {
+              "phase": "tg",
+              "tokens": 128,
+              "tokens_per_second": 42.16,
+              "sd": 0.0
+            }
+          ],
+          "cpu_experts": 12,
+          "completed_execution": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ],
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "activity": {
+            "samples": 20,
+            "flags": {
+              "unknown_counter_samples": 1,
+              "unknown_process_samples": 20,
+              "unrelated_cpu_samples": 20,
+              "disk_busy_samples": 0,
+              "disk_rate_samples": 6,
+              "unrelated_gpu_samples": 2
+            },
+            "peak_system_cpu_percent": 64.06493999057463,
+            "peak_disk_mib_per_second": 3582.9646873726383,
+            "peak_unrelated_gpu_engine_percent": 59.88272737641901,
+            "unknown_process_name_count": 62
+          }
+        }
+      ],
+      "monitor_metadata": {
+        "kind": "metadata",
+        "pid": 26556,
+        "logical_cpus": 16,
+        "interval_seconds": 1.0,
+        "initial_counter_collection_bracket": [
+          475598.2766585,
+          475598.277239
+        ],
+        "counters": {
+          "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+          "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+          "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+          "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+        },
+        "unavailable": {},
+        "process_cpu_units": "100 percent equals one logical CPU",
+        "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+      },
+      "monitor_end": {
+        "kind": "end",
+        "elapsed_seconds": 91.02730670000892,
+        "monitor_cpu_seconds": 2.84375
+      },
+      "collection_seconds_max": 0.057639500009827316,
+      "activity_flags": {
+        "unrelated_cpu_percent_one_core": 25,
+        "disk_busy_percent": 80,
+        "disk_bytes_per_second": 104857600,
+        "unrelated_gpu_engine_percent": 10,
+        "unknown": "Missing counters, inaccessible/new process deltas and invalid samples are unknown, never zero"
+      },
+      "limitations": [
+        "All8 calls and every activity/unknown sample retained. Samples spanning boundaries may appear in adjacent calls.",
+        "Every call has unrelated CPU/GPU flags and inaccessible/new-process observations. Missing counters are not zero.",
+        "Clock policy is unverified; no controls changed.",
+        "Whole-call activity includes loading/warmup and does not locate kernel-phase interference.",
+        "Raw plan inherited F32KV/reference-context prose from a reference template; it does not apply here. Actual argv uses F16KV and main/candidate only; no mx arm ran.",
+        "Small paired differences are not an owner-site layout band or universal nonregression proof.",
+        "All unrelated GPU flags at or above10percent were attributed by the retained monitor to System/PID4, without user-workload attribution."
+      ],
+      "evidence": [
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/complete.json",
+          "sha256": "7ea7819a426a13b2b4b8c9a9ce8f2a467c2c062d7ffc1c9ccdc0ac4b0697e5e3"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/calls.json",
+          "sha256": "3cfa922128cf85970de291880640d059dd7c31886b7b93542b83a691c266d17b"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/activity-summary.json",
+          "sha256": "1c368efb92485a19c3c0ec801f7f83231f2377d6ec5ae7c1b0b760a7dc3db389"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/plan.json",
+          "sha256": "90570e327786722e574fad59a66c21055d749e81ebe55c4f36ea092690bdf8f1"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/runtime-plan.json",
+          "sha256": "af82e6d9024a70eeca648c39845d52470e1dc42f7c71fb4eeef0321543cd228b"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/artifact-hashes.json",
+          "sha256": "e8a5655b3795843fb4c085427d58ef1f41a8a648d47ed3879809d0ca70059a2b"
+        },
+        {
+          "path": ".tmp-half-weight-perf-20261003/windows-timing-e98453f9/existing/report.json",
+          "sha256": "e45ee84c2365f2ec793c2b0aa534682ad14038c2d6d5c4f71643b77acebafbcf"
+        }
+      ],
+      "unknown_process_names_seen": [
+        "12620",
+        "14928",
+        "16556",
+        "16716",
+        "18932",
+        "24564",
+        "25376",
+        "25568",
+        "27784",
+        "30528",
+        "31336",
+        "31648",
+        "33224",
+        "33360",
+        "34532",
+        "36160",
+        "36288",
+        "38164",
+        "39340",
+        "39784",
+        "40432",
+        "40808",
+        "40852",
+        "40856",
+        "41172",
+        "41300",
+        "41628",
+        "41788",
+        "42300",
+        "42764",
+        "43236",
+        "43320",
+        "43688",
+        "43996",
+        "44160",
+        "44196",
+        "44248",
+        "44392",
+        "44492",
+        "44544",
+        "44748",
+        "45132",
+        "45148",
+        "45560",
+        "45572",
+        "45836",
+        "45892",
+        "46068",
+        "46208",
+        "46272",
+        "46284",
+        "46408",
+        "46544",
+        "46584",
+        "46644",
+        "46708",
+        "46764",
+        "AggregatorHost.exe",
+        "GameManagerService3.exe",
+        "LogonUI.exe",
+        "LsaIso.exe",
+        "Memory Compression",
+        "MoUsoCoreWorker.exe",
+        "MpDefenderCoreService.exe",
+        "MsMpEng.exe",
+        "NisSrv.exe",
+        "Registry",
+        "SearchFilterHost.exe",
+        "SearchIndexer.exe",
+        "SearchProtocolHost.exe",
+        "Secure System",
+        "SecurityHealthService.exe",
+        "System",
+        "TeamViewer_Service.exe",
+        "TeraCopyService.exe",
+        "UrBackupClientBackend.exe",
+        "WUDFHost.exe",
+        "WmiPrvSE.exe",
+        "amdfendrsr.exe",
+        "atieclxx.exe",
+        "atiesrxx.exe",
+        "crashpad_handler.exe",
+        "csrss.exe",
+        "dasHost.exe",
+        "dllhost.exe",
+        "dwm.exe",
+        "fontdrvhost.exe",
+        "lsass.exe",
+        "razer_elevation_service.exe",
+        "services.exe",
+        "sleep.exe",
+        "smss.exe",
+        "spoolsv.exe",
+        "steamservice.exe",
+        "svchost.exe",
+        "vmcompute.exe",
+        "vmms.exe",
+        "wininit.exe",
+        "winlogon.exe",
+        "wireguard.exe",
+        "wslservice.exe"
+      ]
+    }
+  },
+  "separate_f32_policy_diagnostic": {
+    "scope": "One scratch F32-activation-policy capture on two MI50s, compared to retained CPU outputs with unchanged Q4 limits and ranking/NLL/greedy rules. Not default-policy qualification, independent HF, or proof of a routing cause.",
+    "capture_count": 1,
+    "production_source_or_library_changed": false,
+    "scratch_change": "request.dtype=f32 plus explicit scratch build identifier",
+    "scratch_source_sha256": "f9dc2fd5a434a2f38c8a80f946e2f960a5974c7b6c5889f82d9ab93d660c8846",
+    "scratch_executable_sha256": "a4151edca13a1574867ae1813bbbe5a4d73c40f009b7e77c8b0adfca8f02ecdd",
+    "command": [
+      "prlimit",
+      "--core=0",
+      "timeout",
+      "--kill-after=10s",
+      "1800s",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-f32-diagnostic/model-logits-f32",
+      "/models/llmx-xdev-half-weights-20261002/cache/models--unsloth--Qwen3-30B-A3B-GGUF/snapshots/d5b1d57bd0b504ac62ae6c725904e96ef228dc74/Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/tokens.txt",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-f32-diagnostic/execution/captures/f32-mi50-split",
+      "vulkan:0,vulkan:1",
+      "f16",
+      "128",
+      "0",
+      "1,1"
+    ],
+    "matrix_paths": {
+      "batched": [
+        [
+          "f32"
+        ],
+        [
+          "f32"
+        ]
+      ],
+      "decode": [
+        [
+          "f32"
+        ],
+        [
+          "f32"
+        ]
+      ],
+      "greedy": [
+        [
+          "f32"
+        ],
+        [
+          "f32"
+        ]
+      ]
+    },
+    "capture_hashes": {
+      "batched": "9df4dbce17caefe9b638f8a949b03aaef1355592eed71d62d274845eeecc6cdf",
+      "decode": "e0f3d5d7e3d922de1381d7cf4109ce9f29d7f8a62c3cb936ab8b7adbdfd3e711",
+      "greedy": "0fdac5f760529f2d9b1a14e0fb9bc29084d8f868fbd3d0efa859622c1e60eb0f"
+    },
+    "default_policy_gate_passed": false,
+    "diagnostic_comparison": {
+      "batched": {
+        "passed": true,
+        "result": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 240,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.9243149757385254,
+          "cpu_nll": 2.372479920388211,
+          "device_nll": 2.3719897369266874,
+          "nll_delta": 0.0004901834615238521,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "decode": {
+        "passed": true,
+        "result": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 240,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.41068077087402344,
+          "cpu_nll": 2.3721335291060117,
+          "device_nll": 2.3719942462470156,
+          "nll_delta": 0.0001392828589961148,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "passed": true,
+        "result": {
+          "matched_prefix": 25,
+          "checked_steps": 12,
+          "first_near_tie": 12,
+          "first_divergence": 25,
+          "agrees_until_tie": true
+        }
+      }
+    },
+    "frozen_max_logit_gaps": {
+      "batched": 1.0020323991775513,
+      "decode": 1.700453758239746
+    },
+    "caps_restored": true,
+    "setup_attempts": "Prior approval/launcher holds are retained in the diagnostic scratch directory; they executed no model. One final capture completed, with no unresolved approval block.",
+    "evidence": [
+      {
+        "path": ".tmp-half-weight-fixture-20261002/30b-f32-diagnostic/results/supervisor-complete.json",
+        "sha256": "06fe50e5ee083a8a1e6727f8912874ec2a2c1a409047ac2deb1e09180458ad63"
+      },
+      {
+        "path": ".tmp-half-weight-fixture-20261002/30b-f32-diagnostic/results/capture-complete.json",
+        "sha256": "d3eb9840cbb0bc9c894aad4cc84fa4b24da3af71e1dcfa7bbe39ac6151d49e0b"
+      }
+    ]
+  }
+}

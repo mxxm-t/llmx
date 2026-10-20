@@ -143,7 +143,18 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_k_i8_preserve=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
         matmul_vec_q8_i8=matmul_vec_q8=LLMX_I8 matmul_vec_q8_i8_preserve=matmul_vec_q8=LLMX_I8+LLMX_PRESERVE_F32
         embed_ids=embed=LLMX_DEVICE_IDS embed_ids_mxfp4=embed=LLMX_DEVICE_IDS+LLMX_MXFP4
-        delta_rule_short=delta_rule=LLMX_SHORT)
+        delta_rule_short=delta_rule=LLMX_SHORT
+        embed_wf16=embed=LLMX_WEIGHT_F16 embed_wbf16=embed=LLMX_WEIGHT_BF16
+        embed_ids_wf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_F16 embed_ids_wbf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_BF16
+        matmul_row_wf16=matmul_row=LLMX_WEIGHT_F16 matmul_row_wbf16=matmul_row=LLMX_WEIGHT_BF16
+        matmul_tile_wf16=matmul_tile=LLMX_WEIGHT_F16
+        matmul_tile_wf16_preserve=matmul_tile=LLMX_WEIGHT_F16+LLMX_PRESERVE_F32
+        matmul_tile_wf16_bf16=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16
+        matmul_tile_wf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wbf16=matmul_tile=LLMX_WEIGHT_BF16
+        matmul_tile_wbf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wbf16_bf16=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16
+        matmul_tile_wbf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16+LLMX_PRESERVE_F32)
     set(LLMX_VK_SPV)
     foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
         string(REPLACE "=" ";" parts ${entry})

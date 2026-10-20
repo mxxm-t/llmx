@@ -96,11 +96,6 @@ float q5_k_at(uint o, uint j, float d, float dmin) {
 }
 // One decoded value of a quantized matrix row, for F32-activation dots.
 float quantized_at(uint type, uint row, uint width, uint column) {
-    if (type == TYPE_BF16) {
-        uint o = (row * width + column) * 2u;
-        uint bits = QBYTE(o) | (QBYTE(o + 1u) << 8u);
-        return uintBitsToFloat(bits << 16u);
-    }
     if (type == TYPE_MXFP4) {
         uint o = (row * (width / MXFP4_BLOCK) + column / MXFP4_BLOCK) * MXFP4_BYTES;
         return mxfp4_at(o, column % MXFP4_BLOCK);

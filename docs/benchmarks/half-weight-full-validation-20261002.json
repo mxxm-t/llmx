@@ -1,0 +1,671 @@
+{
+  "scope": "Completed Windows CPU/Radeon and Linux CPU suites, native tests on both platforms, and one Radeon prefill diagnostic; Linux Vulkan suite and other merge gates remain open",
+  "runtime_head": "36fb1548df86b0b4092ef6939b84424b264a2c39",
+  "windows": {
+    "state": {
+      "passed": true,
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\build",
+      "steps": [
+        {
+          "label": "build",
+          "argv": [
+            "cmake",
+            "--build",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\build",
+            "--config",
+            "Release",
+            "--parallel",
+            "2"
+          ],
+          "started": "2026-10-02T19:35:26.342507+00:00",
+          "pid": 38740,
+          "exit": 0,
+          "ended": "2026-10-02T19:37:07.499398+00:00"
+        },
+        {
+          "label": "ctest",
+          "argv": [
+            "ctest",
+            "--test-dir",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\build",
+            "-C",
+            "Release",
+            "--output-on-failure"
+          ],
+          "started": "2026-10-02T19:37:07.503399+00:00",
+          "pid": 44116,
+          "exit": 0,
+          "ended": "2026-10-02T19:41:55.759435+00:00"
+        },
+        {
+          "label": "suite-cpu",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-X",
+            "utf8",
+            "-B",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\source\\tests\\run_tests.py",
+            "--exe",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\build\\Release\\llmx.exe",
+            "--no-perf-floor",
+            "--require-baseline",
+            "--require-tools",
+            "--require-device-types",
+            "F16,BF16"
+          ],
+          "started": "2026-10-02T19:41:55.760435+00:00",
+          "pid": 31520,
+          "exit": 0,
+          "ended": "2026-10-02T20:02:34.451443+00:00"
+        },
+        {
+          "label": "suite-radeon",
+          "argv": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-X",
+            "utf8",
+            "-B",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\source\\tests\\run_tests.py",
+            "--exe",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-perf-20261002\\windows-model-initial\\build\\Release\\llmx.exe",
+            "--no-perf-floor",
+            "--require-baseline",
+            "--require-tools",
+            "--require-device-types",
+            "F16,BF16",
+            "--device",
+            "vulkan:0"
+          ],
+          "started": "2026-10-02T20:02:34.452439+00:00",
+          "pid": 18992,
+          "exit": 0,
+          "ended": "2026-10-02T20:18:15.841736+00:00"
+        }
+      ],
+      "head": "36fb1548df86b0b4092ef6939b84424b264a2c39",
+      "exe_sha256": "0d2a892715d7f9fed789d60b2a2def3523161bed6f782042382ee5fce4299905",
+      "ended": "2026-10-02T20:18:15.846736+00:00"
+    },
+    "logs": {
+      "ctest": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\windows-full-36fb1548\\ctest.log",
+        "sha256": "05d9042165bd9fc522e3df74cead37b86ee1d6642175d1c5416ff3bca625cfcc",
+        "component_passes": [],
+        "count": 0,
+        "skip_lines": [],
+        "native_pass_count": 44
+      },
+      "suite-cpu": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\windows-full-36fb1548\\suite-cpu.log",
+        "sha256": "51ee59a50eb9fe0b1d3e1ceaa613015b9f5d790d954d169b4a54a27a9564a2b8",
+        "component_passes": [
+          "dead-code",
+          "docs",
+          "arch-boundary",
+          "version",
+          "cli",
+          "reference-generator",
+          "reference-consumer",
+          "device-reference",
+          "roundtrip",
+          "raw-blocks",
+          "perf",
+          "tokenizer",
+          "perplexity",
+          "f32",
+          "half-weights",
+          "moe",
+          "mxfp4",
+          "qwen35",
+          "split",
+          "decode-probe",
+          "shards",
+          "server",
+          "server-load",
+          "chat",
+          "threads",
+          "baseline"
+        ],
+        "count": 26,
+        "skip_lines": [
+          "roundtrip: file-size limit injection unavailable on this platform [skip]"
+        ]
+      },
+      "suite-radeon": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-fixture-20261002\\windows-full-36fb1548\\suite-radeon.log",
+        "sha256": "4daebb0ec22e321da97d9fd88c15a82351eb0334c061f003222168affe44d7b6",
+        "component_passes": [
+          "dead-code",
+          "docs",
+          "arch-boundary",
+          "version",
+          "cli",
+          "reference-generator",
+          "reference-consumer",
+          "device-reference",
+          "roundtrip",
+          "raw-blocks",
+          "perf",
+          "tokenizer",
+          "perplexity",
+          "f32",
+          "half-weights",
+          "moe",
+          "mxfp4",
+          "qwen35",
+          "split",
+          "decode-probe",
+          "shards",
+          "server",
+          "server-load",
+          "chat",
+          "threads",
+          "baseline"
+        ],
+        "count": 26,
+        "skip_lines": [
+          "roundtrip: file-size limit injection unavailable on this platform [skip]"
+        ]
+      }
+    },
+    "limitations": [
+      "CPU and Radeon each skip the POSIX-only file-size-limit injection on Windows; no component skipped.",
+      "Suite timings are diagnostic only; --no-perf-floor was used."
+    ]
+  },
+  "linux_native": {
+    "head": "36fb1548df86b0b4092ef6939b84424b264a2c39",
+    "version": "llmx 0.1.0+g36fb1548df86",
+    "exe_sha256": "8c1bb770cd9ee5c9dcc15a265bb197751eb02bfd53748b567d973982c69790ba",
+    "native": {
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0
+    },
+    "steps": [
+      {
+        "label": "dependencies",
+        "command": [
+          "/usr/bin/python3",
+          "-B",
+          "-c",
+          "import numpy; print(numpy.__version__)"
+        ],
+        "started": 1790970604.3835635,
+        "pid": 3107,
+        "returncode": 0,
+        "finished": 1790970604.5485356
+      },
+      {
+        "label": "build-all",
+        "command": [
+          "cmake",
+          "--build",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-vulkan-36fb1548/build",
+          "--parallel",
+          "4"
+        ],
+        "started": 1790970604.5487869,
+        "pid": 3108,
+        "returncode": 0,
+        "finished": 1790970760.9389868
+      },
+      {
+        "label": "ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-vulkan-36fb1548/build",
+          "--parallel",
+          "2",
+          "--output-on-failure"
+        ],
+        "started": 1790970760.9993758,
+        "pid": 3904,
+        "returncode": 0,
+        "finished": 1790970910.8678281
+      }
+    ],
+    "harness_failure_after_successful_ctest": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-vulkan-36fb1548/full-validation/functional.py\", line 98, in <module>\n    assert '100% tests passed, 0 tests failed out of %d' % len(native['tests']) in text\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~\nValueError: unsupported format character 't' (0x74) at index 5\n",
+    "full_python_suites": "separate resume in progress",
+    "artifacts": {
+      "binaries.json": {
+        "sha256": "253bfaa187caeef56e83b80bb29e810345684d3a436731856e99d2969bbb4b12",
+        "bytes": 655
+      },
+      "build-all.log": {
+        "sha256": "6dd947723422ff5e7e523c55fafd66818a29abbd97d6001adc5eaa52df883501",
+        "bytes": 8005
+      },
+      "complete.json": {
+        "sha256": "48b66afaca9b4a3ed8c7d00f0a4253ab5b799f23c6d47fdc9671fa9788b048de",
+        "bytes": 1768
+      },
+      "ctest-discovery.json": {
+        "sha256": "1fdec973b3e218343c2da7023ca1fd54e908bddc1bb73c6a8dc39a462dd81084",
+        "bytes": 28735
+      },
+      "ctest.log": {
+        "sha256": "d1d9fb109ab086e08df92b1923560321a3956bfad798245b0317f4d1e08f6084",
+        "bytes": 4615
+      },
+      "dependencies.log": {
+        "sha256": "a8b03dbcd0ad4e8c077f65e496f0e4de651467fd28d0f494d21633c90dbada10",
+        "bytes": 6
+      },
+      "environment.json": {
+        "sha256": "8911f1712e8e5113c70d3beadd70fd5493f08f2ed2a72887bbd907cc73595099",
+        "bytes": 238
+      },
+      "fixtures.json": {
+        "sha256": "ad39c1e6a152cd5cd5bce270f45795a82616e79e52ae7554d43913bebc6bf441",
+        "bytes": 2884
+      },
+      "launch.json": {
+        "sha256": "fbebabde946740f79e978ac7f0e465c1e47fd1e1dda8827433307556c0f9d997",
+        "bytes": 384
+      },
+      "preflight.json": {
+        "sha256": "796ec38bd7e1085271a78ebb576886b1ecd91e2ad33d4c8a69b31751aebb7cc2",
+        "bytes": 3941
+      },
+      "runner.log": {
+        "sha256": "dc049ef9d8025ed221c6c87b8cf5fc66dc8ce74bf288cb97e9bb8ef4c4e948fd",
+        "bytes": 409
+      },
+      "state.json": {
+        "sha256": "48b66afaca9b4a3ed8c7d00f0a4253ab5b799f23c6d47fdc9671fa9788b048de",
+        "bytes": 1768
+      },
+      "supervisor-state.json": {
+        "sha256": "02823c7ecdf5fa22780a681c353831d478845a1decc20c131b726eb190fdbe0f",
+        "bytes": 1777
+      },
+      "supervisor.log": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  },
+  "linux_cpu": {
+    "head": "36fb1548df86b0b4092ef6939b84424b264a2c39",
+    "version": "llmx 0.1.0+g36fb1548df86",
+    "exe_sha256": "8c1bb770cd9ee5c9dcc15a265bb197751eb02bfd53748b567d973982c69790ba",
+    "components_passed": 26,
+    "components_failed": 0,
+    "components_skipped": 0,
+    "subcase_skip_lines": [
+      "OK (skipped=1)"
+    ],
+    "elapsed_seconds": 1395.0338687896729,
+    "step": {
+      "label": "cpu-suite",
+      "command": [
+        "/usr/bin/python3",
+        "-B",
+        "-u",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-vulkan-36fb1548/build/llmx",
+        "--device",
+        "cpu",
+        "--dtype",
+        "auto",
+        "--no-perf-floor",
+        "--require-baseline",
+        "--require-tools",
+        "--require-device-types",
+        "F16,BF16"
+      ],
+      "started": 1790971321.8834634,
+      "pid": 6946,
+      "returncode": 0,
+      "finished": 1790972716.9173322
+    },
+    "artifacts": {
+      "cpu-suite.log": "fb7905d1557725901814aa3ab4665f14669ef4993e17ebee90fd4f4d9caba1ad",
+      "resume-state.json": "0c5825dfba9864dcee4aec8a866e78680e1ea132a8126949a9e4d3ada8d8c98b",
+      "fixtures.json": "ad39c1e6a152cd5cd5bce270f45795a82616e79e52ae7554d43913bebc6bf441",
+      "binaries.json": "253bfaa187caeef56e83b80bb29e810345684d3a436731856e99d2969bbb4b12"
+    }
+  },
+  "radeon_profile": {
+    "scope": "One Windows Radeon VII diagnostic, not a matched speed gate",
+    "sections": {
+      "pp": {
+        "total_ms": 1560.34,
+        "dispatches": 436,
+        "capped": false,
+        "kernels": [
+          {
+            "name": "matmul_tile_wf16_tall",
+            "ms": 1502.29,
+            "percent": 96.2798
+          },
+          {
+            "name": "attention_tile",
+            "ms": 43.4669,
+            "percent": 2.78574
+          },
+          {
+            "name": "norm_rope_kv",
+            "ms": 5.36864,
+            "percent": 0.344069
+          },
+          {
+            "name": "silu_mul",
+            "ms": 3.85248,
+            "percent": 0.246901
+          },
+          {
+            "name": "rms_norm_rows",
+            "ms": 3.17232,
+            "percent": 0.20331
+          },
+          {
+            "name": "matmul_row_wf16_1col",
+            "ms": 2.15664,
+            "percent": 0.138216
+          },
+          {
+            "name": "embed_wf16",
+            "ms": 0.0232,
+            "percent": 0.00148686
+          },
+          {
+            "name": "gather_rows",
+            "ms": 0.00752,
+            "percent": 0.000481947
+          }
+        ]
+      },
+      "tg": {
+        "total_ms": 312.115,
+        "dispatches": 4096,
+        "capped": true,
+        "kernels": [
+          {
+            "name": "matmul_row_wf16_1col",
+            "ms": 287.45,
+            "percent": 92.0975
+          },
+          {
+            "name": "rms_norm_rows",
+            "ms": 9.34992,
+            "percent": 2.99567
+          },
+          {
+            "name": "attention_vec",
+            "ms": 6.89968,
+            "percent": 2.21062
+          },
+          {
+            "name": "norm_rope_kv",
+            "ms": 5.21216,
+            "percent": 1.66995
+          },
+          {
+            "name": "silu_mul",
+            "ms": 2.94672,
+            "percent": 0.944114
+          },
+          {
+            "name": "embed_wf16",
+            "ms": 0.16288,
+            "percent": 0.0521859
+          },
+          {
+            "name": "gather_rows",
+            "ms": 0.09344,
+            "percent": 0.0299377
+          }
+        ]
+      }
+    },
+    "driver_statistics": {
+      "silu_mul": {
+        "numUsedVgprs": 17,
+        "numUsedSgprs": 26,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 0,
+        "scratchMemUsageInBytes": 0
+      },
+      "gather_rows": {
+        "numUsedVgprs": 4,
+        "numUsedSgprs": 18,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 0,
+        "scratchMemUsageInBytes": 0
+      },
+      "rms_norm_rows": {
+        "numUsedVgprs": 35,
+        "numUsedSgprs": 40,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 1024,
+        "scratchMemUsageInBytes": 0
+      },
+      "norm_rope_kv": {
+        "numUsedVgprs": 14,
+        "numUsedSgprs": 40,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 1024,
+        "scratchMemUsageInBytes": 0
+      },
+      "attention_tile": {
+        "numUsedVgprs": 128,
+        "numUsedSgprs": 42,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 18432,
+        "scratchMemUsageInBytes": 176
+      },
+      "attention_vec": {
+        "numUsedVgprs": 45,
+        "numUsedSgprs": 44,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 9728,
+        "scratchMemUsageInBytes": 0
+      },
+      "embed_wf16": {
+        "numUsedVgprs": 6,
+        "numUsedSgprs": 22,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 0,
+        "scratchMemUsageInBytes": 0
+      },
+      "matmul_row_wf16_1col": {
+        "numUsedVgprs": 41,
+        "numUsedSgprs": 37,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 0,
+        "scratchMemUsageInBytes": 0
+      },
+      "matmul_tile_wf16_tall": {
+        "numUsedVgprs": 79,
+        "numUsedSgprs": 34,
+        "ldsSizePerLocalWorkGroup": 65536,
+        "ldsUsageSizeInBytes": 24576,
+        "scratchMemUsageInBytes": 0
+      }
+    },
+    "activity": {
+      "name": "profile-4b-f16-pp512-tg32",
+      "rates": [
+        {
+          "phase": "pp",
+          "tokens": 512,
+          "tokens_per_second": 330.02,
+          "sd": 0.0
+        },
+        {
+          "phase": "tg",
+          "tokens": 32,
+          "tokens_per_second": 39.82,
+          "sd": 0.0
+        }
+      ],
+      "samples": 13,
+      "flags": {
+        "unknown_counter_samples": 1,
+        "unknown_process_samples": 13,
+        "unrelated_cpu_samples": 13,
+        "disk_busy_samples": 0,
+        "disk_rate_samples": 3,
+        "unrelated_gpu_samples": 1
+      },
+      "peak_system_cpu_percent": 38.576476528016116,
+      "peak_disk_mib_per_second": 3396.7228558324764,
+      "peak_unrelated_gpu_engine_percent": 58.4717674756447,
+      "top_unrelated_cpu": [
+        [
+          "cpptools.exe (PID 13876)",
+          111.81966678393437
+        ],
+        [
+          "SteelSeriesSonar.exe (PID 24212)",
+          99.91703887903307
+        ],
+        [
+          "Code.exe (PID 25724)",
+          74.32157777327419
+        ],
+        [
+          "Code.exe (PID 26500)",
+          73.48983211010469
+        ],
+        [
+          "codex.exe (PID 22976)",
+          72.3065980832887
+        ]
+      ],
+      "unknown_process_names": [
+        "12196",
+        "32884",
+        "33580",
+        "41180",
+        "46472",
+        "AggregatorHost.exe",
+        "GameManagerService3.exe",
+        "LogonUI.exe",
+        "LsaIso.exe",
+        "Memory Compression",
+        "MoUsoCoreWorker.exe",
+        "MpDefenderCoreService.exe",
+        "MsMpEng.exe",
+        "NisSrv.exe",
+        "Registry",
+        "SearchFilterHost.exe",
+        "SearchIndexer.exe",
+        "SearchProtocolHost.exe",
+        "Secure System",
+        "SecurityHealthService.exe",
+        "System",
+        "TeamViewer_Service.exe",
+        "TeraCopyService.exe",
+        "UrBackupClientBackend.exe",
+        "WUDFHost.exe",
+        "WmiPrvSE.exe",
+        "amdfendrsr.exe",
+        "atieclxx.exe",
+        "atiesrxx.exe",
+        "crashpad_handler.exe",
+        "csrss.exe",
+        "dasHost.exe",
+        "dllhost.exe",
+        "dwm.exe",
+        "fontdrvhost.exe",
+        "lsass.exe",
+        "razer_elevation_service.exe",
+        "services.exe",
+        "smss.exe",
+        "spoolsv.exe",
+        "steamservice.exe",
+        "svchost.exe",
+        "vmcompute.exe",
+        "vmms.exe",
+        "wininit.exe",
+        "winlogon.exe",
+        "wireguard.exe",
+        "wslservice.exe"
+      ]
+    },
+    "completed_execution": {
+      "dtype": "f16",
+      "devices": [
+        [
+          "f32"
+        ]
+      ]
+    },
+    "limits": [
+      "Prefill has 436 sampled dispatches, below the4096 cap; decode reaches4096 and is partial.",
+      "GPU timestamp sums exclude CPU/loading/waits and are not end-to-end elapsed time.",
+      "Zero reported scratch on the dominant tile is not evidence of absent memory stalls; VGPR/LDS allocation is not measured occupancy.",
+      "All activity retained:13 process samples unknown and unrelated CPU,1 counter unknown,3 aggregate disk-rate flags,1 unrelatedGPU flag; samples include loading/warmup.",
+      "Clock policy is unverified; no controls changed."
+    ],
+    "next_action": "Compare only the existing128x64 and64x64 F16 tile specializations on the actual4B matrix shapes with identical F32 arithmetic and exact outputs, using GPU time/statistics. The96.28% tall-tile share makes this discriminating; no register-pressure or bandwidth cause is yet proven.",
+    "evidence_hashes": {
+      "plan.json": "39f2bb67de41b50fd56d2950a1f181c72656edb79c5212195df5dec1cc58ad14",
+      "runtime-plan.json": "47219b59504191fc8a9d4ded2dce7f49898c8e75631bc65078645508fd96f29f",
+      "profile-4b-f16-pp512-tg32.stdout": "3a7246bf18e5af4fab681b3106cf5d5ca845ea2a80bcf8cea2a86b05027b00f7",
+      "profile-4b-f16-pp512-tg32.stderr": "8017676a634dd73025c38b1bce4d25e848108370516d6c5adcbadbae3097d099",
+      "activity-summary.json": "d19036580d5ebe524c4369a7c1dac6d298b10d2274efedc12d56817fdfc9a306",
+      "complete.json": "2c81b2d16470a3ee1d8cb28904a771b53f22817db150fbc939fd02796c32d1e0"
+    }
+  },
+  "raw_summaries": [
+    {
+      "path": ".tmp-half-weight-perf-20261002/windows-4b-profile/suite-summary.json",
+      "bytes": 5663,
+      "sha256": "8064e59c5cbad41d31fccedfc0035408580c6c8b9835b009ee9b793589414f4f"
+    },
+    {
+      "path": ".tmp-half-weight-fixture-20261002/linux-full-36fb1548/native-summary.json",
+      "bytes": 3833,
+      "sha256": "f359bff1d6515a5c173a5c115cf66ba29da0777c3c4c63a9651cba1feacdef20"
+    },
+    {
+      "path": ".tmp-half-weight-fixture-20261002/linux-full-36fb1548/cpu-summary.json",
+      "bytes": 1365,
+      "sha256": "2f39ca6431d67747a5a54607eaf37cc9dec2165a318da2ead817c15c6e745bb3"
+    },
+    {
+      "path": ".tmp-half-weight-perf-20261002/windows-4b-profile/report.json",
+      "bytes": 7930,
+      "sha256": "a3e49d0758addce4ea864f22e3fd0b3fdab3711cf84cee06c6518c3d3d8d76f4"
+    }
+  ],
+  "unchanged_path_plan": {
+    "executed": false,
+    "capture_cells": 32,
+    "matching_dense_refusals": 7,
+    "hardware_inapplicable": {
+      "30b-q4_k_m-radeon": {
+        "model_payload_GiB": 17.276700973510742,
+        "device_physical_GiB": 16,
+        "both_arms": "Do not execute: no whole-model fit guard before allocation on this tool path",
+        "source_policy": [
+          "src/model/place.hpp:104 fit_kv=false",
+          "src/model/place.hpp:372-374 one-backend construction bypasses split fit",
+          "src/model/runtime.hpp:829 calls role adoption",
+          "src/inference/load.hpp:101 allocates each weight before upload"
+        ],
+        "separate_covered_placement": "radeon-cpu12"
+      }
+    },
+    "source": {
+      "path": ".tmp-half-weight-fixture-20261002/unchanged-paths/plan.json",
+      "bytes": 12904,
+      "sha256": "a1a81712298b0a8a5e7d651a859662204aea1c67a1f03a59961103438802c238"
+    }
+  },
+  "remaining": [
+    "Linux strict Vulkan suite",
+    "Existing-path identity and timing against main",
+    "Remaining larger-model correctness and reference timing",
+    "Exact landing-head hosted CI"
+  ]
+}

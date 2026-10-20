@@ -1,0 +1,419 @@
+{
+  "date": "2026-10-03",
+  "runtime": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+  "gate_passed": false,
+  "scope": "Completed new-type device/CPU comparisons, supplemental to independent HF. Saved-output diagnosis only after the original failures; no tolerance change or repeated inference.",
+  "settings": {
+    "cache": "f16",
+    "ubatch": 128,
+    "threads": 6,
+    "dtype": "auto",
+    "load_mode": "auto",
+    "prompt_tokens": 247,
+    "greedy_tokens": 64,
+    "kv_budget": 311,
+    "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+  },
+  "models": {
+    "control": {
+      "bytes": 18556685824,
+      "sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5"
+    },
+    "candidate": {
+      "bytes": 35989944896,
+      "sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a"
+    }
+  },
+  "criterion": {
+    "owner": [
+      "tools/check_device.py",
+      "tests/common.py"
+    ],
+    "calibration": "The exact maximum absolute CPU/device logit difference over every vocabulary value in all247 control rows, separately per phase; no multiplier, additive margin or quantile.",
+    "top5_tie_margin": 0.1,
+    "mean_nll_delta_limit": 0.01,
+    "control_limits_are_not_control_passes": true,
+    "greedy": "All64 rows finite and argmax-consistent; IDs must agree until the first CPU top-two gap within0.1."
+  },
+  "linux_two_mi50": {
+    "gate_passed": false,
+    "phases": {
+      "batched": {
+        "control": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 237,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 1.0020323991775513,
+          "cpu_nll": 2.414609374455397,
+          "device_nll": 2.4154860735582,
+          "nll_delta": 0.0008766991028030802,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "candidate": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 240,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 1.1601738929748535,
+          "cpu_nll": 2.372479920388211,
+          "device_nll": 2.3743972164490876,
+          "nll_delta": 0.0019172960608764278,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "max_gap_limit": 1.0020323991775513,
+        "max_gap_passed": false,
+        "candidate_worst_position": 174,
+        "candidate_worst_token": 12052,
+        "candidate_worst_in_either_top10": false,
+        "candidate_median_row_max": 0.046295166015625,
+        "candidate_top10_rows_squared_error_share": 0.7282847684590424
+      },
+      "decode": {
+        "control": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 236,
+          "min_top5_overlap": 4,
+          "max_logit_gap": 1.700453758239746,
+          "cpu_nll": 2.4148990918465105,
+          "device_nll": 2.4151847123975347,
+          "nll_delta": 0.0002856205510242127,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [
+            211
+          ],
+          "criteria_passed": false
+        },
+        "candidate": {
+          "rows": 247,
+          "scored": 246,
+          "top1_checked": 240,
+          "min_top5_overlap": 4,
+          "max_logit_gap": 0.9258394241333008,
+          "cpu_nll": 2.3721335291060117,
+          "device_nll": 2.3725250624645167,
+          "nll_delta": 0.0003915333585049474,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [
+            243
+          ],
+          "criteria_passed": false
+        },
+        "max_gap_limit": 1.700453758239746,
+        "max_gap_passed": true,
+        "candidate_worst_position": 243,
+        "candidate_worst_token": 89034,
+        "candidate_worst_in_either_top10": false,
+        "candidate_median_row_max": 0.0037064552307128906,
+        "candidate_top10_rows_squared_error_share": 0.9905574610668202
+      }
+    },
+    "greedy": {
+      "matched_prefix": 25,
+      "checked_steps": 12,
+      "first_near_tie": 12,
+      "first_divergence": 25,
+      "agrees_until_tie": true
+    },
+    "failures": [
+      "batched max gap1.160173893 exceeds1.002032399",
+      "decode top5 overlap4 at position243 outside the original tie rule"
+    ],
+    "control_miss_predates_feature": "Q4 decode211 also misses; all captured mainf223/candidatee984 Q4 values and IDs are identical.",
+    "runtime_attempts": "One new UD CPU and one new UD split capture; completed Q4 control captures reused at matching pins/settings.",
+    "resources": "Capture and saved-data diagnostic terminal; owned split container idle with32GiB ceiling restored."
+  },
+  "windows_radeon_cpu31": {
+    "gate_passed": false,
+    "control": {
+      "batched": {
+        "rows": 247,
+        "scored": 246,
+        "top1_checked": 237,
+        "min_top5_overlap": 4,
+        "max_logit_gap": 1.7020549774169922,
+        "cpu_nll": 2.414609374455397,
+        "device_nll": 2.415246297660787,
+        "nll_delta": 0.0006369232053899943,
+        "top1_fail_positions": [],
+        "top5_fail_positions": [
+          211
+        ],
+        "criteria_passed": false
+      },
+      "decode": {
+        "rows": 247,
+        "scored": 246,
+        "top1_checked": 236,
+        "min_top5_overlap": 4,
+        "max_logit_gap": 1.6978354454040527,
+        "cpu_nll": 2.4148990918465105,
+        "device_nll": 2.4153449850046367,
+        "nll_delta": 0.0004458931581261538,
+        "top1_fail_positions": [],
+        "top5_fail_positions": [
+          192,
+          211
+        ],
+        "criteria_passed": false
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 64,
+        "first_near_tie": null,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      }
+    },
+    "candidate": {
+      "batched": {
+        "rows": 247,
+        "scored": 246,
+        "top1_checked": 240,
+        "min_top5_overlap": 5,
+        "max_logit_gap": 0.9252705574035645,
+        "cpu_nll": 2.372479920388211,
+        "device_nll": 2.3718108377261413,
+        "nll_delta": 0.0006690826620698864,
+        "top1_fail_positions": [],
+        "top5_fail_positions": [],
+        "criteria_passed": true
+      },
+      "decode": {
+        "rows": 247,
+        "scored": 246,
+        "top1_checked": 240,
+        "min_top5_overlap": 4,
+        "max_logit_gap": 1.0724143981933594,
+        "cpu_nll": 2.3721335291060117,
+        "device_nll": 2.370657271855966,
+        "nll_delta": 0.0014762572500455207,
+        "top1_fail_positions": [],
+        "top5_fail_positions": [
+          208
+        ],
+        "criteria_passed": false
+      },
+      "greedy": {
+        "matched_prefix": 25,
+        "checked_steps": 12,
+        "first_near_tie": 12,
+        "first_divergence": 25,
+        "agrees_until_tie": true
+      }
+    },
+    "criterion_results": {
+      "batched": {
+        "top1": true,
+        "top5": true,
+        "nll": true,
+        "max_gap": true
+      },
+      "decode": {
+        "top1": true,
+        "top5": false,
+        "nll": true,
+        "max_gap": true
+      },
+      "greedy": true
+    },
+    "original_bounds": {
+      "batched": {
+        "max_logit_gap": 1.7020549774169922,
+        "nll_delta": 0.01
+      },
+      "decode": {
+        "max_logit_gap": 1.6978354454040527,
+        "nll_delta": 0.01
+      }
+    },
+    "failure_row": {
+      "phase": "decode",
+      "position": 208,
+      "ranked": {
+        "cpu": {
+          "ids": [
+            16141,
+            14582,
+            48,
+            15846,
+            3838,
+            1207,
+            425,
+            1260,
+            220,
+            641
+          ],
+          "logits": [
+            22.30838394165039,
+            21.30335235595703,
+            20.11614990234375,
+            19.860126495361328,
+            19.512248992919922,
+            19.37960433959961,
+            19.32369613647461,
+            19.304597854614258,
+            19.16034507751465,
+            18.933069229125977
+          ]
+        },
+        "radeon": {
+          "ids": [
+            16141,
+            14582,
+            48,
+            15846,
+            425,
+            1260,
+            3838,
+            1207,
+            220,
+            641
+          ],
+          "logits": [
+            22.233367919921875,
+            21.24970245361328,
+            20.026126861572266,
+            19.939546585083008,
+            19.462064743041992,
+            19.440717697143555,
+            19.41386604309082,
+            19.38214874267578,
+            19.190048217773438,
+            18.983152389526367
+          ]
+        }
+      },
+      "tie_margin": 0.1
+    },
+    "runtime_attempts": {
+      "control": 1,
+      "candidate": 1,
+      "returncodes": [
+        0,
+        0
+      ],
+      "reruns": 0
+    },
+    "scope": "Windows Radeon/CPU31 versus exact Linux CPU model captures under the frozen existing helper criterion. Cross-machine correctness only, supplemental to HF. No source, bounds or cap changes, no inference retry, no performance claim.",
+    "phase_correction": "Initial message incorrectly inferred batched phase from a phase-less exception. Full saved diagnostics establish decode208 only; original strict failure retained.",
+    "coordination": {
+      "reservation_conflict": true,
+      "captures_completed_without_interruption": true,
+      "actual_peer_gpu_overlap": "Confirmed by retained nonzero GPU-engine samples for named llmx-mxfp4-vulkan-test.exe39720 and llmx-backend-vulkan-test.exe37464 during UD capture. This does not establish a cause of any numerical difference.",
+      "overlapping_peer_pids": {
+        "39720": {
+          "first_epoch": 1790977232.0484707,
+          "last_epoch": 1790977237.2530525,
+          "active_samples": 6
+        },
+        "37464": {
+          "first_epoch": 1790977239.3298383,
+          "last_epoch": 1790977253.8494484,
+          "active_samples": 15
+        }
+      },
+      "handoff": "XDEV END00:42; LDEV END00:46. Future launches drain all pending reservations first."
+    },
+    "pressure": {
+      "control": {
+        "samples": 31,
+        "minimum_available_physical": 889298944,
+        "minimum_available_commit": 6553280512,
+        "peaks": {
+          "page_faults": 2893407,
+          "peak_working_set": 11539898368,
+          "working_set": 11518791680,
+          "peak_pagefile_usage": 7846903808,
+          "private_usage": 7846903808
+        },
+        "scope": "Owned PageFaultCount includes soft and hard faults; process private/commit values include driver accounting, not solely runtime-owned buffers. Sampled unrelated activity is not proof of exclusive GPU ownership or full overlap coverage."
+      },
+      "candidate": {
+        "samples": 65,
+        "minimum_available_physical": 125329408,
+        "minimum_available_commit": 7402242048,
+        "peaks": {
+          "page_faults": 6009653,
+          "peak_working_set": 14350241792,
+          "working_set": 14334636032,
+          "peak_pagefile_usage": 14991970304,
+          "private_usage": 14991917056
+        },
+        "scope": "Owned PageFaultCount includes soft and hard faults; process private/commit values include driver accounting, not solely runtime-owned buffers. Sampled unrelated activity is not proof of exclusive GPU ownership or full overlap coverage."
+      }
+    }
+  },
+  "source_audit": {
+    "tensor_counts": {
+      "bf16": 75,
+      "q8_0": 263,
+      "f32": 241,
+      "f16": 0
+    },
+    "bf16_expert_layers": [
+      0,
+      1,
+      2,
+      46,
+      47
+    ],
+    "remaining_expert_layers": "43Q8_0; all48 routers explicitlyF32.",
+    "real_shapes": {
+      "gate_up": [
+        2048,
+        768
+      ],
+      "down": [
+        768,
+        2048
+      ],
+      "experts": 128,
+      "active_experts": 8
+    },
+    "arithmetic": "Half loads widen exactly into existingF32 sums. CPU Q8_0 uses originalF32 activations; MI50 Q8_0 uses block-int16. Radeon captured batched paths areF32-only; decode also reaches block-int16. Router reduction order differs between CPU and Vulkan.",
+    "conclusion": "No concrete half-specific addressing or routing defect found. These arithmetic differences and concentrated row errors do not prove the cause.",
+    "coverage_gap": "Existing exact half routed checks use output width7,3experts/top2 and physical batch1/3/9. They do not hold the tall routed kernel at real expert shapes to exact widenedF32."
+  },
+  "next_probe": "One bounded same-backend BF16 versus independently widenedF32 fixed-routing operator probe at the two real shapes,128experts/top8, expert127 and uneven occupancy, decode1/prompt128 at extent247. Preserve guards and witness tall dispatch. This isolates storage behavior and does not waive the failed whole-model criterion.",
+  "source_evidence": [
+    {
+      "path": ".tmp-half-weight-fixture-20261002/30b-device-gate-plan/linux-e98453f9/saved-diagnostics/compact.json",
+      "sha256": "ef9428203360e4071bc6c163a93eabd428f060f6c9e791c490bea59cb42afdf9"
+    },
+    {
+      "path": ".tmp-half-weight-fixture-20261002/30b-device-gate-plan/windows-e98453f9/completion-audit.json",
+      "sha256": "cbb2375534cc9d5f2f00281980552adb9d1ed90f06daaf9b1fc2998d6f9d7dd8"
+    }
+  ],
+  "documentation_review": {
+    "baseline": "1016e995ab7fdde68042a812f4bb38d5337faa73",
+    "tracked_markdown": 88,
+    "unchanged_pages": 87,
+    "changed_pages": [
+      "docs/STATUS.md"
+    ],
+    "source_tests_tools_unchanged": true,
+    "scope": "Reconciled new saved-output evidence and active claims against the prior full Markdown review; historical measurements retain their original scope."
+  },
+  "documentation_checks": {
+    "command": "python -X utf8 tests/run_tests.py --exe ../.tmp-half-weight-regression-20261003/candidate-e98453f9/build/Release/llmx.exe --only docs,dead-code",
+    "dead_code": {
+      "passed": true,
+      "known_findings": 7,
+      "planted_faults": 18
+    },
+    "docs": {
+      "passed": true,
+      "known_findings": 13,
+      "planted_faults": 16
+    },
+    "git_diff_check_passed": true
+  }
+}

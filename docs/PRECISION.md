@@ -67,7 +67,7 @@ The auto-preference list advertises a dtype only after the backend implements th
 - `f32`, `f16`, `bf16`: activations in that type;
 - `block-int16`: blocks of 32 scaled to 16-bit integers, which may implement the F16 class once it passes the F16 budget and its exact range checks (rule 4);
 - `block-int8`: blocks of 32 scaled to 8-bit integers, the form of the `int8` class (section 5), held to that class's own budget (section 4); auto never selects it.
-The groups name weight types (`MXFP4`), `quantized` for every type but F32, or a phase (`prompts`, `decode`).
+The groups name weight types (`MXFP4`), `quantized` for packed quantized formats excluding F32, F16 and BF16 storage, or a phase (`prompts`, `decode`).
 
 **Witnesses.** A static catalog describes possible paths; it does not prove which path a call executed. Tests use the actual dispatched path for the measured phase, shape and operation role, through a counter, kernel name or forced-path unit check. The selected plan alone never chooses a looser bound for a path that stayed F32. Check both sides of every threshold and grouped, routed and split callers. Existing Vulkan per-kernel timing names may provide this evidence without a new profiling system.
 

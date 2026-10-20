@@ -57,6 +57,23 @@ def capture_metadata(path, tokens, version):
 def compare_pair(cpu, device, tokens, limits=None, *, calibration=False):
     common.require(cpu["metadata"]["architecture"] == device["metadata"]["architecture"] and
                    cpu["metadata"]["vocab"] == device["metadata"]["vocab"], "capture architecture or vocabulary differs")
+    # Storage comparisons need the same executed activation policy, even when
+    # the selected dtype or number of devices differs.
+    policies = []
+    for capture in (cpu, device):
+        metadata = capture["metadata"]
+        paths = metadata.get("matrix_paths")
+        common.require(isinstance(paths, dict) and set(paths) == {"batched", "decode", "greedy"},
+                       "storage comparison needs every capture matrix-path witness")
+        policy = {}
+        for phase, devices in paths.items():
+            try:
+                common.hf_bounds(metadata.get("dtype"), devices)
+            except (AssertionError, KeyError, TypeError) as error:
+                raise ValueError("invalid capture matrix-path witness: " + str(error)) from error
+            policy[phase] = {path for device_paths in devices for path in device_paths}
+        policies.append(policy)
+    common.require(policies[0] == policies[1], "capture activation policies differ; this is not a storage comparison")
     vocab = cpu["metadata"]["vocab"]
     result = {}
     for phase in ("batched", "decode"):

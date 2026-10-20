@@ -1,0 +1,166 @@
+{
+  "date": "2026-10-20",
+  "source_commit": "03e44c1c792db6ded35eac87d5730b5c2f87c378",
+  "scope": "Focused Windows Radeon and Linux MI50 functionality, not final qualification or timing.",
+  "windows": {
+    "head": "03e44c1c792db6ded35eac87d5730b5c2f87c378",
+    "results": [
+      {
+        "name": "focused-ctest",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "build-half-vulkan",
+          "-C",
+          "Release",
+          "--output-on-failure",
+          "-R",
+          "^(half-weights|backend-vulkan)$"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "half-models-cpu",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "tests/run_tests.py",
+          "--exe",
+          "build-half-vulkan/Release/llmx.exe",
+          "--only",
+          "half-weights",
+          "--require-tools",
+          "--require-device-types",
+          "F16,BF16",
+          "--no-perf-floor"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "half-models-vulkan",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "tests/run_tests.py",
+          "--exe",
+          "build-half-vulkan/Release/llmx.exe",
+          "--only",
+          "half-weights",
+          "--device",
+          "vulkan:0",
+          "--require-tools",
+          "--require-device-types",
+          "F16,BF16",
+          "--no-perf-floor"
+        ],
+        "exit": 0
+      }
+    ],
+    "binaries": {
+      "llmx.exe": {
+        "sha256": "7e34ff117c4d7b71b8e41b3dbede710fc53cddbc465f0cedc8f3422855290774",
+        "bytes": 6467072,
+        "version": "llmx 0.1.0+g03e44c1c792d numerics c6f3c46263517983"
+      },
+      "llmx-model-logits.exe": {
+        "sha256": "1cb43c9a33c019ef0fbceea9d1028be7d415c850c26f6b2561706b0379ee9f78",
+        "bytes": 5157376
+      },
+      "llmx-half-weights-test.exe": {
+        "sha256": "a1ac137ded0b8e492675f52a562bbe4f4a524cc0cbc2292500f10fe9848f517c",
+        "bytes": 279552
+      },
+      "llmx-backend-vulkan-test.exe": {
+        "sha256": "d565928e94e1c5f739af0e54b4ee097037ed7b0a92d102516e8a3d3d88693389",
+        "bytes": 4878848
+      }
+    },
+    "activity": {
+      "preflight_log": "preflight-activity.jsonl",
+      "functional_log": "functional-activity.jsonl",
+      "samples": 54,
+      "unavailable": {},
+      "purpose": "Functional checks with light preflight activity; not a performance measurement or attribution."
+    },
+    "native_coverage": {
+      "cpu_exact_half_values": 2342944,
+      "radeon_exact_half_values": 935426,
+      "matrix_witness_cases": 36,
+      "bf16_batch_boundary_values": 31142400,
+      "device": "AMD Radeon VII",
+      "driver": "AMD proprietary driver26.5.2",
+      "test_log": "Testing/Temporary/LastTest.log"
+    },
+    "remaining_gates": [
+      {
+        "gate": "Supplemental30B default-policy numeric criterion",
+        "status": "FAILED in retained historical runs, unresolved; not rerun",
+        "detail": "MI50 batched max gap1.160173893 exceeds Q4-derived1.002032399; MI50 decode top-five overlap4 at243, Radeon CPU31 decode overlap4 at208. F32-policy diagnostic is not acceptance."
+      },
+      {
+        "gate": "Radeon attribution",
+        "status": "OPEN",
+        "detail": "Original CPU31 failure/pressure and placement have not been attributed. CPU32 is a separately disclosed placement and cannot replace it; exact-placement widened-F32 control exceeds physical VRAM."
+      },
+      {
+        "gate": "Current-main integration qualification",
+        "status": "PARTIAL",
+        "detail": "Current base53a7e81e CPU and Radeon focused checks pass at03e44c1c7. Reconcile landed Flash/current main when agreed; confirm scope-dependent source/test/build equivalence and run only required changed coverage."
+      },
+      {
+        "gate": "Final applicable platform/model/identity checks and hosted CI",
+        "status": "OPEN",
+        "detail": "Historical complete CPU/device suites, eight-file main identity, HF, split/server and timing results retain their own exact pins; this bounded run does not relabel them or replace final scoped qualification."
+      },
+      {
+        "gate": "First-support reference-speed recovery",
+        "status": "OPEN, separate from failed correctness",
+        "detail": "Saved phase/model deficits remain, including short30B prefills; first-support speed exception never waives correctness or an existing-path regression."
+      }
+    ]
+  },
+  "linux": {
+    "source_archive_sha256": "3ad32ffc8dbb2fcb7cad6ecd5c330397ccb576ad8f6ea47e08e30b0a7cf399d5",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "version": "llmx 0.1.0+unknown numerics c6f3c46263517983",
+    "identity_note": "Exact commit archive without Git metadata; not a detached-tree timing arm.",
+    "device": "physical GPU0, PCI0000:03:00.0, renderD136; RADV VEGA20 Mesa25.0.7-2+deb13u1",
+    "cpus": [
+      4,
+      5
+    ],
+    "llmx_sha256": "f40e1539d2102fcf917f8b5e8c1a4c65e2a40578fafcda720d46f351c8b8591a",
+    "model_logits_sha256": "285111fb49ebdf50d7e7fdd115e0fbb3637d3a5472c01f4fe4809739c02fdcd8",
+    "backend_test_sha256": "775a6a3ef3a580f5251abbfda20bef60fde8989a0a3dfccc87fc961896d50e78",
+    "initial": {
+      "half-weights": "pass",
+      "vulkan-quantization": "pass",
+      "backend-vulkan": "failed: expected matmul_row_wf16_i8, got matmul_row_wf16_1col"
+    },
+    "correction": "Test expectation only: int8 kernels exclude all floating weight formats, preserving the specified F32 product fallback. Runtime and budgets unchanged.",
+    "corrected_test_source_sha256": "2aa1f5abc139f63ee6e764a860d3058dc78fd941e53933dcf06d7bf4af71130a",
+    "rerun": {
+      "backend-vulkan": "pass",
+      "expected_dispatches_and_refusals": 534,
+      "exact_half_values_and_f32_control_products": 935426,
+      "half_model_capture_sets": 24,
+      "greedy_rows_per_capture": 64,
+      "unavailable_formats": 0
+    },
+    "commands": [
+      "ctest --test-dir build --output-on-failure -R ^backend-vulkan$",
+      "python3 -B tests/run_tests.py --exe build/llmx --only half-weights --device vulkan:0 --require-tools --require-device-types F16,BF16 --no-perf-floor"
+    ],
+    "artifacts": "/zpool1/llmx-xdev-quant-20261020/half-{tests-initial,LastTest-initial,recheck,build}.log",
+    "local_log_hashes": {
+      "rig-half-tests-initial.log": "de332875fb3400b172832a6997cec58864520d43feed94160c33e0063d388740",
+      "rig-half-recheck.log": "a2ab04ac597212676d2c5df6685a901c94de4aabf3dddddb2af70e1479e94f59",
+      "rig-half-LastTest.log": "b4fb30749cb178f1ab0a02372b715f85273141245d5fee3df564d614f42eb50c"
+    }
+  },
+  "limits": [
+    "No new performance claim; parallel functional checks do not establish timing.",
+    "One MI50 exposed per test container; no GPU tensor-group qualification.",
+    "Historical 30B supplemental failures and default-policy reference review remain open; no gate waiver.",
+    "Final integration, applicable existing-model identity/timing and hosted CI remain open."
+  ],
+  "documentation_review": "Carry forward prior half checkpoint Markdown review for unchanged source/docs. Read updated STATUS and this evidence record. Separate main docs/src audit inventories59 pages at53a; its scheduling-credit prose mismatch is with the cache owner."
+}

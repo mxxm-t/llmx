@@ -1,0 +1,465 @@
+{
+  "scope": "Clean MTP half-weight integration native checks; current-main model/kernel comparisons and final landing CI remain separate.",
+  "runtime": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+  "comparison_base": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+  "later_main": "b7a6d235 (scheduler-only rebase pending)",
+  "linux": {
+    "version": "llmx 0.1.0+ge98453f9e562",
+    "compiler": "c++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "cmake": "cmake version 3.31.6\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).",
+    "binaries": {
+      "llmx": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx",
+        "bytes": 4957064,
+        "sha256": "ea7b848aead33c509308d7989e011ee9859646b2c39f79a3f5aedb5fd6891386"
+      },
+      "llmx-model-logits": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-model-logits",
+        "bytes": 4172096,
+        "sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb"
+      },
+      "llmx-split-check": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-split-check",
+        "bytes": 4266488,
+        "sha256": "5c922fd8ad846032a675937625fdefd0f725336a895edeaf8bbdb4bc3cedf22f"
+      },
+      "llmx-decode-probe": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-decode-probe",
+        "bytes": 4191800,
+        "sha256": "1ee2625783e932b7811b0eaca7211c4426ec66e91303e40e79d240139c2f17e6"
+      },
+      "llmx-cpu-f32-check": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-cpu-f32-check",
+        "bytes": 1163632,
+        "sha256": "bcb5eec703a1fa3fc4b6171de70cc8b3f3f0be79cb9e3e9bd8daf4a8373fec54"
+      },
+      "llmx-backend-vulkan-test": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-backend-vulkan-test",
+        "bytes": 3897344,
+        "sha256": "74a439f8f24febcb57a5f7eaf3b97b5307e5a99efff27e9fbd8d65f8e16b1443"
+      },
+      "llmx-half-weights-test": {
+        "path": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-half-weights-test",
+        "bytes": 393736,
+        "sha256": "ee11e3300e0e6c02946a9daa36c7527b5c8eb45ddc3d0e27a144a44169e2909c"
+      }
+    },
+    "native": {
+      "passed": 43,
+      "failed": 0,
+      "skipped": 0
+    },
+    "shaders": {
+      "main_count": 103,
+      "candidate_count": 117,
+      "all_old_identical": true,
+      "new": [
+        "embed_ids_wbf16.inc",
+        "embed_ids_wf16.inc",
+        "embed_wbf16.inc",
+        "embed_wf16.inc",
+        "matmul_row_wbf16.inc",
+        "matmul_row_wf16.inc",
+        "matmul_tile_wbf16.inc",
+        "matmul_tile_wbf16_bf16.inc",
+        "matmul_tile_wbf16_bf16_preserve.inc",
+        "matmul_tile_wbf16_preserve.inc",
+        "matmul_tile_wf16.inc",
+        "matmul_tile_wf16_bf16.inc",
+        "matmul_tile_wf16_bf16_preserve.inc",
+        "matmul_tile_wf16_preserve.inc"
+      ]
+    },
+    "docs_dead_code": {
+      "dead-code": "PASS",
+      "docs": "PASS"
+    },
+    "source_and_binaries_unchanged_after_tests": true,
+    "remote_root": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9"
+  },
+  "linux_evidence": {
+    "path": ".tmp-half-weight-fixture-20261002/linux-mtp-half-clean/e98453f9/summary.json",
+    "sha256": "d9e3a9e9e77b24275534c9022f2fb5e870135195779f83078b3625a1837874e2"
+  },
+  "windows": {
+    "passed": true,
+    "head": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+    "cpu": 39,
+    "vulkan": 5,
+    "total": 44,
+    "skipped": 0,
+    "artifacts_unchanged": true,
+    "cpu_log_sha256": "bde71b494b394aab79495384f7558ed6fcd023e926d150a9d3e66113836ff009",
+    "vulkan_log_sha256": "e7cbd05e6f0c2517d342b9fe45fa572074b43e4053ad632202daec4b1ddbc599"
+  },
+  "windows_evidence": {
+    "path": ".tmp-half-weight-regression-20261003/candidate-e98453f9/native-complete.json",
+    "sha256": "b8d1706dbb7b4a60128bfdb8ce3e0723a608fef779ae9ffd1797c96d9feb8d1c"
+  },
+  "windows_base-f22367c6": {
+    "build": {
+      "success": true,
+      "ended": "2026-10-02T21:12:40.696354+00:00",
+      "head": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+      "version": "llmx 0.1.0+gf22367c6fc8f",
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build",
+      "source_manifest_sha256": "5df94331fcb0fb24f081dfa8ffdf8d2e09a4fe99b7d286da194e9310b699c855",
+      "canonical_files": 1837,
+      "compilers": {
+        "main": {
+          "CMAKE_CXX_COMPILER": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+          "CMAKE_CXX_COMPILER_VERSION": "19.50.35728.0",
+          "CMAKE_CXX_COMPILER_ARCHITECTURE_ID": "x64",
+          "MSVC_CXX_ARCHITECTURE_ID": "x64"
+        },
+        "candidate": {
+          "CMAKE_CXX_COMPILER": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+          "CMAKE_CXX_COMPILER_VERSION": "19.50.35728.0",
+          "CMAKE_CXX_COMPILER_ARCHITECTURE_ID": "x64",
+          "MSVC_CXX_ARCHITECTURE_ID": "x64"
+        }
+      },
+      "artifacts": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\Release\\llmx.exe": {
+          "sha256": "b5ab68051149e1198f8a983f6d62d5143713e0d76c555910890265e3634d5ba1",
+          "bytes": 4306432
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\Release\\llmx-model-logits.exe": {
+          "sha256": "e8dec30f594b6459d5dafcb534e77e1583ec4e82998b4afaefb998c625385f79",
+          "bytes": 3629056
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\Release\\llmx-vulkan.lib": {
+          "sha256": "bd5d89d8d15badfa8e529cb581b673f8dbf7640deb1f2bf00cbe69cd4bb52bcf",
+          "bytes": 4602382
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\base-f22367c6\\build\\generated\\config.hpp": {
+          "sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb",
+          "bytes": 605
+        }
+      }
+    },
+    "evidence": {
+      "path": ".tmp-half-weight-regression-20261003/base-f22367c6/build-complete.json",
+      "sha256": "c3f50410f0ce7e7b333f0546370202f6a457985945fa4557c0be951cf5cc6f94"
+    }
+  },
+  "windows_candidate-e98453f9": {
+    "build": {
+      "success": true,
+      "ended": "2026-10-02T21:14:40.988786+00:00",
+      "head": "e98453f9e5627f055e79ab7f702e5096ff6bd712",
+      "version": "llmx 0.1.0+ge98453f9e562",
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\source",
+      "build": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build",
+      "source_manifest_sha256": "f7e38539b86e0ec484c89f1752215117300a4e29d845060eaf4678b1e871258f",
+      "canonical_files": 1846,
+      "compilers": {
+        "main": {
+          "CMAKE_CXX_COMPILER": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+          "CMAKE_CXX_COMPILER_VERSION": "19.50.35728.0",
+          "CMAKE_CXX_COMPILER_ARCHITECTURE_ID": "x64",
+          "MSVC_CXX_ARCHITECTURE_ID": "x64"
+        },
+        "candidate": {
+          "CMAKE_CXX_COMPILER": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+          "CMAKE_CXX_COMPILER_VERSION": "19.50.35728.0",
+          "CMAKE_CXX_COMPILER_ARCHITECTURE_ID": "x64",
+          "MSVC_CXX_ARCHITECTURE_ID": "x64"
+        }
+      },
+      "artifacts": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx.exe": {
+          "sha256": "fac4a98ccdc7946f4eecb59c467a741ddc91825df175b4060bf15fad85dfd512",
+          "bytes": 4433408
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-model-logits.exe": {
+          "sha256": "31a61819f3132f054e26f0b312f5318c5acada93a6a52f952a5ee4fbc6e6361e",
+          "bytes": 3755520
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\Release\\llmx-vulkan.lib": {
+          "sha256": "f453c1c2b0bbc33122e5f39587929869e87fb66c78cfe30a0270a95db9e16e58",
+          "bytes": 4735166
+        },
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-half-weight-regression-20261003\\candidate-e98453f9\\build\\generated\\config.hpp": {
+          "sha256": "b5de92ffb78768a726a4030c7e5961c582ab1d7876a647f82dff9aa5691583fb",
+          "bytes": 605
+        }
+      }
+    },
+    "evidence": {
+      "path": ".tmp-half-weight-regression-20261003/candidate-e98453f9/build-complete.json",
+      "sha256": "63986d7b58289cf57b2234d48e73dc27d68fc8a288f935fc665a35e9923d38f7"
+    }
+  },
+  "unchanged_path_identity": {
+    "heads": {
+      "base": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+      "candidate": "e98453f9e5627f055e79ab7f702e5096ff6bd712"
+    },
+    "linux": {
+      "scope": "Exact main/candidate identity, not independent HF, quality or performance. Six actual tool workers on CPU0-3/quota4; auto dtype/load, F16 KV, ubatch128. All 24 paired cells and 48 captures retained.",
+      "elapsed_seconds": 787.7887239456177,
+      "cases": 24,
+      "capture_tool_calls": 48,
+      "greedy_ids_compared": 1536,
+      "binary32_values_compared": 1782014400,
+      "rows": [
+        {
+          "model": "tiny-f32",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 1024,
+          "greedy_ids": 64
+        },
+        {
+          "model": "0.6b-f32",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        },
+        {
+          "model": "0.6b-q8_0",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        },
+        {
+          "model": "0.6b-q4_0",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        },
+        {
+          "model": "0.6b-q5_k_m",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        },
+        {
+          "model": "0.6b-q4_k_m",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        },
+        {
+          "model": "8b-q8_0",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        },
+        {
+          "model": "30b-q4_k_m",
+          "placements": {
+            "cpu": "EXACT",
+            "mi50": "EXACT",
+            "mi50-split": "EXACT"
+          },
+          "prompt_rows": 247,
+          "greedy_ids": 64
+        }
+      ],
+      "pressure": {
+        "samples": 158,
+        "interval_seconds": 5,
+        "peak_current_GiB": 21.154342651367188,
+        "peak_anon_MiB": 273.84375,
+        "peak_file_GiB": 20.945323944091797,
+        "memory_events_before": {
+          "low": "0",
+          "high": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_kill": "0",
+          "oom_group_kill": "0"
+        },
+        "memory_events_after": {
+          "low": "0",
+          "high": "0",
+          "max": "0",
+          "oom": "0",
+          "oom_kill": "0",
+          "oom_group_kill": "0"
+        },
+        "memory_pressure_before": "some avg10=0.00 avg60=0.00 avg300=0.00 total=581014\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=580393",
+        "memory_pressure_after": "some avg10=0.00 avg60=0.00 avg300=0.00 total=681438\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=680817",
+        "scope": "Five-second samples, not an exact allocator high-water bound; includes file-cache charges and correctness work, no speed claim."
+      }
+    },
+    "linux_evidence": {
+      "path": ".tmp-half-weight-fixture-20261002/unchanged-paths/linux-e98453f9/results/summary.json",
+      "sha256": "736b2d49b396a996be6dbeb175845cb8843e1097dc84f91a1de196614a7a6a33"
+    },
+    "windows": {
+      "capture_cells": 8,
+      "phase_comparisons": 24,
+      "refusal_cells": 7,
+      "expected_refusal_child_returns": 14,
+      "hardware_inapplicable": 1,
+      "unplanned_skips": 0,
+      "captured_binary32_values_per_arm": 594004800,
+      "retained_raw_bytes_both_arms": 4752038400,
+      "refusals": [
+        {
+          "model": "tiny-f32",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        },
+        {
+          "model": "0.6b-f32",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        },
+        {
+          "model": "0.6b-q8_0",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        },
+        {
+          "model": "0.6b-q4_0",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        },
+        {
+          "model": "0.6b-q5_k_m",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        },
+        {
+          "model": "0.6b-q4_k_m",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        },
+        {
+          "model": "8b-q8_0",
+          "placement": {
+            "label": "radeon-cpu12",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 12
+          },
+          "result": {
+            "returncode": 1,
+            "stderr": "model-logits: --n-cpu-moe: the model has no expert layers"
+          }
+        }
+      ],
+      "not_executed": [
+        {
+          "model": "30b-q4_k_m",
+          "placement": {
+            "label": "radeon",
+            "device": "vulkan:0",
+            "shares": "",
+            "cpu_experts": 0
+          },
+          "executed": false,
+          "hardware_inapplicable": {
+            "model_payload_GiB": 17.276700973510742,
+            "device_physical_GiB": 16,
+            "both_arms": "Do not execute: no whole-model fit guard before allocation on this tool path",
+            "source_policy": [
+              "src/model/place.hpp:104 fit_kv=false",
+              "src/model/place.hpp:372-374 one-backend construction bypasses split fit",
+              "src/model/runtime.hpp:829 calls role adoption",
+              "src/inference/load.hpp:101 allocates each weight before upload"
+            ],
+            "separate_covered_placement": "radeon-cpu12"
+          },
+          "passed": false
+        }
+      ]
+    },
+    "windows_evidence": {
+      "path": ".tmp-half-weight-fixture-20261002/unchanged-paths/windows-e98453f9/completion-audit.json",
+      "sha256": "08afe6cab7205eda2ce22795a179bd0d0de7823389cd39a1f641bb4eedf3f698"
+    },
+    "total_capture_comparisons": 32,
+    "matching_refusal_comparisons": 7,
+    "hardware_inapplicable_unexecuted": 1,
+    "scope": "Old-type outputs and behavior; no claim of unchanged speed or independent HF from these identity checks."
+  },
+  "documentation_review": {
+    "tracked_markdown_files": 88,
+    "unchanged_since_integration_review": 87,
+    "reconciled": [
+      "docs/STATUS.md"
+    ],
+    "scope": "Source and 87 Markdown pages unchanged from the reviewed e984 integration; STATUS reconciled against native and full-capture artifacts. Docs/dead-code components pass against the matching candidate CLI."
+  }
+}

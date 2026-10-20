@@ -1,0 +1,393 @@
+{
+  "schema": 1,
+  "scope": "Linux CPU and two-MI50 exact-weight attribution; not a criterion waiver or Radeon CPU31 attribution.",
+  "heads": {
+    "base": "f22367c6fc8f3307abd76af756ba563bc80bfaaf",
+    "candidate": "e98453f9e5627f055e79ab7f702e5096ff6bd712"
+  },
+  "main": {
+    "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/source",
+    "build": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build",
+    "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx",
+    "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx-model-logits",
+    "exe_sha256": "d5d5832a920ae2e36caa50c2a3cf8d1daa52df7d838ac49d65b9cd702d353a6e",
+    "tool_sha256": "ff77349ecd7986e4fad7e76536edc72c6904914d35f3c1a027ebf1b8dcd7a1dc",
+    "version": "llmx 0.1.0+gf22367c6fc8f"
+  },
+  "candidate": {
+    "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/source",
+    "build": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build",
+    "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx",
+    "tool": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/build/llmx-model-logits",
+    "exe_sha256": "ea7b848aead33c509308d7989e011ee9859646b2c39f79a3f5aedb5fd6891386",
+    "tool_sha256": "87030afc4034ced0109cd5de374f93829b1c86f780b95d3f829c9ec52dc49cfb",
+    "version": "llmx 0.1.0+ge98453f9e562"
+  },
+  "settings": {
+    "cache": "f16",
+    "ubatch": 128,
+    "threads": 6,
+    "dtype": "auto",
+    "load_mode": "auto",
+    "prompt_tokens": 247,
+    "greedy_tokens": 64,
+    "kv_budget": 311,
+    "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "excerpt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+  },
+  "conversion": {
+    "source_sha256": "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a",
+    "output_sha256": "d9bf51ab360d703bae7890673821507afc2641adfae946390693ae5c6882c718",
+    "output_bytes": 43469437504,
+    "tensor_count": 579,
+    "bf16_tensors": 75,
+    "metadata_bytes": 5934105,
+    "script_sha256": "1a0522c8cd933613576456643aeda3aee6f6fd778c8682ea35ac7a6d82fd81d6",
+    "decoder_sha256": "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6"
+  },
+  "unchanged_non_bf16_payloads": 504,
+  "expected_output_type_counts": {
+    "0": 316,
+    "8": 263
+  },
+  "verification": "Raw metadata/header checked with only type/offset replacements; all BF16 bytes independently decoded, all Q8/F32 payloads unchanged. Full output hashed during verification before publication.",
+  "comparisons": {
+    "cpu": {
+      "metadata_equal": true,
+      "phases": {
+        "batched": {
+          "equal": true,
+          "bytes": 150112768,
+          "first_mismatch_byte": null,
+          "reference_sha256": "2e636d61106a378b9cdb5c8da43161048d10e35fd17ba0cdd42e7da8684a9ef2",
+          "observed_sha256": "2e636d61106a378b9cdb5c8da43161048d10e35fd17ba0cdd42e7da8684a9ef2"
+        },
+        "decode": {
+          "equal": true,
+          "bytes": 150112768,
+          "first_mismatch_byte": null,
+          "reference_sha256": "98877e076a7d4a43cf259561080829248750b8b529382d682b76c7dd4ef0a7cd",
+          "observed_sha256": "98877e076a7d4a43cf259561080829248750b8b529382d682b76c7dd4ef0a7cd"
+        },
+        "greedy": {
+          "equal": true,
+          "bytes": 38895616,
+          "first_mismatch_byte": null,
+          "reference_sha256": "d0b7b01bc6104fa00edb34f8d845c14813653b50e63b7f5dd9a8a0023b68c859",
+          "observed_sha256": "d0b7b01bc6104fa00edb34f8d845c14813653b50e63b7f5dd9a8a0023b68c859"
+        }
+      }
+    },
+    "mi50-split": {
+      "metadata_equal": true,
+      "phases": {
+        "batched": {
+          "equal": true,
+          "bytes": 150112768,
+          "first_mismatch_byte": null,
+          "reference_sha256": "49f039719337da006c0fe6fd2bab003697ce2c5b3a446d378fbb1bb018b38432",
+          "observed_sha256": "49f039719337da006c0fe6fd2bab003697ce2c5b3a446d378fbb1bb018b38432"
+        },
+        "decode": {
+          "equal": true,
+          "bytes": 150112768,
+          "first_mismatch_byte": null,
+          "reference_sha256": "d2075db3eed730f5b07c78fae8719442231ab86ca5c3da1e4c8c07b2405215c9",
+          "observed_sha256": "d2075db3eed730f5b07c78fae8719442231ab86ca5c3da1e4c8c07b2405215c9"
+        },
+        "greedy": {
+          "equal": true,
+          "bytes": 38895616,
+          "first_mismatch_byte": null,
+          "reference_sha256": "a0cc857314cc5901a7fd86e260accad2a293fef636e265b2034f101251bf25ad",
+          "observed_sha256": "a0cc857314cc5901a7fd86e260accad2a293fef636e265b2034f101251bf25ad"
+        }
+      }
+    }
+  },
+  "values_per_backend": 84780288,
+  "greedy_ids_per_backend": 64,
+  "calls": [
+    {
+      "label": "version",
+      "command": [
+        "docker",
+        "exec",
+        "llmx-xdev-half-split-20261002",
+        "prlimit",
+        "--core=0",
+        "timeout",
+        "60s",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx",
+        "--version"
+      ],
+      "start": 1790984273.94022,
+      "pid": 119810,
+      "returncode": 0,
+      "end": 1790984274.0051837
+    },
+    {
+      "label": "numpy-version",
+      "command": [
+        "docker",
+        "exec",
+        "--env",
+        "PYTHONPATH=/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps/python",
+        "--env",
+        "LD_LIBRARY_PATH=/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps/lib",
+        "--env",
+        "OPENBLAS_NUM_THREADS=1",
+        "llmx-xdev-half-split-20261002",
+        "prlimit",
+        "--core=0",
+        "timeout",
+        "60s",
+        "python3",
+        "-c",
+        "import numpy; print(numpy.__version__)"
+      ],
+      "start": 1790984274.0053644,
+      "pid": 119843,
+      "returncode": 0,
+      "end": 1790984274.2199905
+    },
+    {
+      "label": "linux-self-check",
+      "command": [
+        "docker",
+        "exec",
+        "--env",
+        "PYTHONPATH=/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps/python",
+        "--env",
+        "LD_LIBRARY_PATH=/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps/lib",
+        "--env",
+        "OPENBLAS_NUM_THREADS=1",
+        "llmx-xdev-half-split-20261002",
+        "prlimit",
+        "--core=0",
+        "timeout",
+        "--kill-after=10s",
+        "60s",
+        "python3",
+        "-B",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/self_check.py",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/spec_decode.py",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/execution/self-check-linux.json"
+      ],
+      "start": 1790984274.2201803,
+      "pid": 119877,
+      "returncode": 0,
+      "end": 1790984274.4349885
+    },
+    {
+      "label": "conversion",
+      "command": [
+        "docker",
+        "exec",
+        "--env",
+        "PYTHONPATH=/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps/python",
+        "--env",
+        "LD_LIBRARY_PATH=/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/deps/lib",
+        "--env",
+        "OPENBLAS_NUM_THREADS=1",
+        "llmx-xdev-half-split-20261002",
+        "prlimit",
+        "--core=0",
+        "timeout",
+        "--kill-after=10s",
+        "1800s",
+        "python3",
+        "-B",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/widen.py",
+        "/models/llmx-xdev-half-weights-20261002/cache/models--unsloth--Qwen3-30B-A3B-GGUF/snapshots/d5b1d57bd0b504ac62ae6c725904e96ef228dc74/Qwen3-30B-A3B-UD-Q8_K_XL.gguf",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/Qwen3-30B-A3B-UD-Q8_K_XL-BF16-widened.gguf",
+        "--spec",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/spec_decode.py",
+        "--spec-sha256",
+        "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6",
+        "--source-sha256",
+        "25693e28926e2277d9edd0f55d33ddb6fea8f10e344105b02e4bf328f37f1c3a",
+        "--report",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/conversion.json"
+      ],
+      "start": 1790984274.4353876,
+      "pid": 119913,
+      "returncode": 0,
+      "end": 1790984476.439702
+    },
+    {
+      "label": "cpu",
+      "command": [
+        "docker",
+        "exec",
+        "llmx-xdev-half-split-20261002",
+        "prlimit",
+        "--core=0",
+        "timeout",
+        "--kill-after=10s",
+        "3600s",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx-model-logits",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/Qwen3-30B-A3B-UD-Q8_K_XL-BF16-widened.gguf",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/tokens.txt",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/captures/main-cpu",
+        "cpu",
+        "f16",
+        "128",
+        "0"
+      ],
+      "start": 1790984476.6210108,
+      "pid": 125224,
+      "returncode": 0,
+      "end": 1790984609.0272572
+    },
+    {
+      "label": "mi50-split",
+      "command": [
+        "docker",
+        "exec",
+        "llmx-xdev-half-split-20261002",
+        "prlimit",
+        "--core=0",
+        "timeout",
+        "--kill-after=10s",
+        "1800s",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx-model-logits",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/Qwen3-30B-A3B-UD-Q8_K_XL-BF16-widened.gguf",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/tokens.txt",
+        "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/captures/main-mi50-split",
+        "vulkan:0,vulkan:1",
+        "f16",
+        "128",
+        "0",
+        "1,1"
+      ],
+      "start": 1790984609.8917828,
+      "pid": 129015,
+      "returncode": 0,
+      "end": 1790984636.4156506
+    }
+  ],
+  "capture_commands": {
+    "cpu": [
+      "prlimit",
+      "--core=0",
+      "timeout",
+      "--kill-after=10s",
+      "3600s",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx-model-logits",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/Qwen3-30B-A3B-UD-Q8_K_XL-BF16-widened.gguf",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/tokens.txt",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/captures/main-cpu",
+      "cpu",
+      "f16",
+      "128",
+      "0"
+    ],
+    "mi50-split": [
+      "prlimit",
+      "--core=0",
+      "timeout",
+      "--kill-after=10s",
+      "1800s",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-main-f22367c6/build/llmx-model-logits",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/Qwen3-30B-A3B-UD-Q8_K_XL-BF16-widened.gguf",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/30b-device/execution/captures/tokens.txt",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/half-clean-e98453f9/main-widened-control/captures/main-mi50-split",
+      "vulkan:0,vulkan:1",
+      "f16",
+      "128",
+      "0",
+      "1,1"
+    ]
+  },
+  "artifacts": {
+    "conversion-result.json": {
+      "sha256": "3f09ce09248aef25ee04cd2e486ac12374ff4727df6f593fbfebe1a07597c84c",
+      "bytes": 262304
+    },
+    "manifest.json": {
+      "sha256": "28801ce0bc1276659f9a6ffe09f9bad30576394ed7b66924fa1020b401786ce8",
+      "bytes": 1449
+    },
+    "plan.json": {
+      "sha256": "6707256ac19829f6df18052d1471830c40424f29f0eb6ba85ff8106fb873619b",
+      "bytes": 17034
+    },
+    "retained-captures.json": {
+      "sha256": "01899a8a2fa8a1d4293f9e64a244da8d3393af8cb79fe7011667d57698a0ad71",
+      "bytes": 32398
+    },
+    "results/complete.json": {
+      "sha256": "b7913f035106f2459a4e245ea60e8df4b398c2198ebc084056fc0814548d4ff6",
+      "bytes": 8437
+    },
+    "results/preflight.json": {
+      "sha256": "39a483dfebd73c70b020384e63be2a23e08c666fdd8ca157735eecfb3dcf16a6",
+      "bytes": 10439
+    },
+    "results/end-resources.json": {
+      "sha256": "b6dece962114aa1ba24f1de46e8d57ed7e0d50ef297b188a7419ab390c509ae9",
+      "bytes": 2871
+    },
+    "results/pressure.jsonl": {
+      "sha256": "f755c051f74269142b794ac6095b715a2ef6e6d6ec410a049142942f78b32bf2",
+      "bytes": 207484
+    },
+    "results/self-check-linux.json": {
+      "sha256": "65498e3948ffe7278dcf88c5140f30809be72f86a1a0a6bb9d81d01ff035b564",
+      "bytes": 463
+    }
+  },
+  "resources": {
+    "pressure_samples": 77,
+    "available_bytes_at_admission": 42629754880,
+    "peak_sampled_memory_bytes": 29289398272,
+    "memory_event_deltas": {
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    },
+    "caps_restored": true,
+    "old_caps": {
+      "Memory": 34359738368,
+      "MemorySwap": 34359738368
+    },
+    "terminal_processes": "      1 docker-init\n      7 sleep\n   1296 ps\n",
+    "timing_claim": false
+  },
+  "original_criterion": "FAIL retained; these identical main outputs reproduce the Linux batched-gap and decode-top5 failures. The earlier Q4 limits and HF bounds are unchanged.",
+  "limitations": [
+    "Only the stated 247-token history and 64 greedy steps.",
+    "Radeon CPU31 widened-main comparison has not run.",
+    "Reported process durations are diagnostic wall time, not performance measurements."
+  ],
+  "staged_files": {
+    "widen.py": {
+      "sha256": "1a0522c8cd933613576456643aeda3aee6f6fd778c8682ea35ac7a6d82fd81d6",
+      "bytes": 8683
+    },
+    "self_check.py": {
+      "sha256": "96acab7d0e5a60da1f0eac9c23322bfbce7ebeb0ec56e1e5be74b4185bb5d8b2",
+      "bytes": 3192
+    },
+    "spec_decode.py": {
+      "sha256": "0e6ae071f9e60919af54f037e62fbaf5d2d4563bb7249e3b246d585b107cfcd6",
+      "bytes": 22320
+    },
+    "plan.json": {
+      "sha256": "6707256ac19829f6df18052d1471830c40424f29f0eb6ba85ff8106fb873619b",
+      "bytes": 17034
+    },
+    "run-control.py": {
+      "sha256": "d27805670ec91906ad25f1b7822e73298eeb62694dcab3338dcb08baa458b15d",
+      "bytes": 13653
+    },
+    "retained-captures.json": {
+      "sha256": "01899a8a2fa8a1d4293f9e64a244da8d3393af8cb79fe7011667d57698a0ad71",
+      "bytes": 32398
+    }
+  }
+}

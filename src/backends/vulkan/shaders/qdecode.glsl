@@ -29,8 +29,10 @@ float mxfp4_at(uint o, uint j) {
 
 // IQ4_NL uses signed lookup values, scaled by one binary16 per block.
 int iq4_nl_value(uint code) {
-    const int values[16] = int[16](-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113);
-    return values[code];
+    // Four signed bytes per word keep the lane-local lookup in integer registers.
+    uint lo = code < 4u ? 0xbfad9881u : 0xf6eaddcfu;
+    uint hi = code < 12u ? 0x26190d01u : 0x71594535u;
+    return bitfieldExtract(int(code < 8u ? lo : hi), int((code & 3u) * 8u), 8);
 }
 float iq4_nl_at(uint o, uint j, float d) {
     uint packed = QBYTE(o + 2u + (j & 15u));

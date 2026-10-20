@@ -1398,6 +1398,97 @@ void jobs_passed_over(const gguf::GGUFModel& weights, const Make& make, const bp
     }
 }
 
+// The production case of 2026-10-20: a cut conversation's long reply with reasoning beside its read-ahead job, another conversation's long prompt arriving as it ends, then the next turn.
+// The next turn holds the reply without its reasoning, so the job forks the prompt and reads the reply's content while the reply is written, each piece of the device's 30 ms more than a reply's background allowance.
+void reply_reread(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
+    const std::string what = "cache-scenario, a cut conversation's reply with reasoning read again beside it";
+    const auto slow = hooked(1, true);
+    auto slowed = std::make_shared<std::atomic<bool>>(false);
+    slow[0]->hook = [slowed] {
+        for (const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(30); slowed->load() && std::chrono::steady_clock::now() < until;) {}
+    };
+    const Make make = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; }), plain = on(weights, [] { return cpus(1); });
+    auto model = make(4096, 64);
+    // The conversation before the cut, its first block the system prompt the cut keeps.
+    const std::vector<uint32_t> before = prompt_of(48, 1000, v);
+    const size_t half = 256;
+    Req turn{joined(joined(std::vector<uint32_t>(before.begin(), before.begin() + kBlock), std::vector<uint32_t>(before.begin() + 640, before.end())), prompt_of(49, 60, v)), (int)(2 * half)};
+    const Req other{prompt_of(50, 600, v), 20};
+    Reply got, rb, rc;
+    Req next;
+    size_t reused = 0, left_at_eos = 0;
+    std::vector<double> gaps;
+    double content_ms = 0;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 0, nullptr, 0, true, {}, server::Pacing::automatic());
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(before, params_of(Req{before, 8})));
+            slowed->store(true);
+            const std::vector<uint32_t> cut(before.begin(), before.begin() + kBlock + 1);
+            const Handle h = sched.submit(turn.prompt, params_of(turn), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), cut);
+            // The first half of the reply is its reasoning, which the next turn does not render; its content follows the prompt there, given as it is written.
+            server::Request::Token t;
+            auto last = std::chrono::steady_clock::now();
+            const auto content_from = [&] { return got.size() > half ? got.size() - half : 0; };
+            std::chrono::steady_clock::time_point content_began{};
+            for (;;) {
+                const auto n = h->next(t, server::Request::Clock::now() + std::chrono::seconds(120));
+                if (n == server::Request::Next::end) break;
+                require(n == server::Request::Next::id, what + ": the reply gave nothing for 120 seconds");
+                const auto now = std::chrono::steady_clock::now();
+                got.push_back(t);
+                if (got.size() > half + 1) gaps.push_back(std::chrono::duration<double, std::milli>(now - last).count());
+                if (got.size() == half + 1) content_began = now;
+                last = now;
+                if (content_from() && content_from() % 16 == 0) {
+                    std::vector<uint32_t> ids = turn.prompt;
+                    for (size_t i = half; i < got.size(); ++i) ids.push_back(got[i].id);
+                    sched.follow(h, ids, false);
+                }
+            }
+            require(h->finish() == "length", what + ": the reply ended with " + h->finish());
+            content_ms = std::chrono::duration<double, std::milli>(last - content_began).count();
+            next.prompt = turn.prompt;
+            for (size_t i = half; i < got.size(); ++i) next.prompt.push_back(got[i].id);
+            sched.follow(h, next.prompt, true);
+            left_at_eos = sched.stats().job_rows_left;
+            // Another conversation's long prompt arrives as the reply ends, and the next turn once it has ended.
+            const Handle b = sched.submit(other.prompt, params_of(other));
+            rb = drain(*b);
+            next.prompt = joined(next.prompt, prompt_of(51, 30, v));
+            next.cap = 20;
+            const Handle c = sched.submit(next.prompt, params_of(next));
+            rc = drain(*c);
+            reused = c->reused();
+        } catch (...) {
+            slowed->store(false);
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        slowed->store(false);
+        sched.stop();
+        runner.join();
+    }
+    std::sort(gaps.begin(), gaps.end());
+    double mean = 0;
+    for (double g : gaps) mean += g / (double)gaps.size();
+    const auto at = [&](double q) { return gaps.empty() ? 0.0 : gaps[std::min(gaps.size() - 1, (size_t)(q * (double)gaps.size()))]; };
+    const size_t content = (turn.prompt.size() + half) / kBlock * kBlock, prompt_blocks = turn.prompt.size() / kBlock * kBlock;
+    const size_t to_read = turn.prompt.size() + half - prompt_blocks, read = to_read - std::min(to_read, left_at_eos);
+    const double rows_s = content_ms > 0 ? (double)read * 1000.0 / content_ms : 0;
+    std::cout << what << ": the reply's gaps beside the job " << mean << " ms mean, " << at(0.95) << " p95, " << at(0.99) << " p99; " << left_at_eos << " ids left at its end, the job about "
+              << rows_s << " rows a second; the next turn reused " << reused << " of " << content << "\n";
+    // The job read the content while the reply was written, so the next turn forks the prompt and the content's whole blocks, though another conversation's prompt came first after the reply.
+    require(reused >= content, what + ": the next turn reused " + std::to_string(reused) + " tokens, against the prompt and the reply's content, " + std::to_string(content));
+    auto fresh = plain(4096, 64);
+    const std::vector<Reply> alone = serve(*fresh, tok, 3, {{turn}, {other}, {next}});
+    same(alone[0], got, what + ": the reply");
+    same(alone[1], rb, what + ": the other request");
+    same(alone[2], rc, what + ": the next turn");
+}
+
 } // namespace
 
 // `legs` runs the scripted conversation and its cases, `production` the production-shaped script; with no argument, both.
@@ -1426,6 +1517,7 @@ int main(int argc, char** argv) {
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const Users mode : {Users::room, Users::cycle, Users::returning}) many_users(one, tok, (uint32_t)kCpu.vocab, mode);
             for (const LastBlock mode : {LastBlock::held, LastBlock::costly, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
+            reply_reread(weights, tok, (uint32_t)kCpu.vocab);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {768, 512, 1152, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {768, 512, 1152, true});

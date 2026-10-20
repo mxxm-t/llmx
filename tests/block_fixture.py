@@ -24,6 +24,7 @@ def fixture(tied, moe, type_id, make_block, seed=12345, context=16, split=False)
                       **{"attention.head_count": 4, "attention.head_count_kv": 2})
         if moe:
             config["expert_feed_forward_length"] = 256
+            config["expert_used_count"] = config["expert_count"]
         vocab = 260
     width, hidden = config["embedding_length"], config["feed_forward_length"]
     head = config["attention.key_length"]

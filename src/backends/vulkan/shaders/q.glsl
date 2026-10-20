@@ -17,6 +17,9 @@ const uint TYPE_Q8_0 = 8u;
 const uint TYPE_Q4_K = 12u;
 const uint TYPE_Q5_K = 13u;
 const uint TYPE_Q6_K = 14u;
+const uint TYPE_IQ4_NL = 20u;
+const uint IQ4_NL_BLOCK = 32u;
+const uint IQ4_NL_BYTES = 18u;
 
 // Q4_K: 256 values in 144 bytes; Q5_K adds 32 bytes of fifth bits.
 const uint Q4_K_BYTES = 144u;
@@ -48,7 +51,7 @@ float half_at(uint lo, uint hi) {
 // Bytes and values per block of a type.
 uint block_bytes(uint type) {
     return type == TYPE_MXFP4 ? MXFP4_BYTES : type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
-         : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q5_1 ? Q5_1_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES
+         : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q5_1 ? Q5_1_BYTES : type == TYPE_IQ4_NL ? IQ4_NL_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES
          : type == TYPE_Q5_K ? Q5_K_BYTES : Q6_K_BYTES;
 }
 bool is_kquant(uint type) { return type == TYPE_Q4_K || type == TYPE_Q5_K || type == TYPE_Q6_K; }

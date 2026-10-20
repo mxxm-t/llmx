@@ -1,0 +1,56 @@
+{
+  "kind": "completed MI50 synthetic quant precision checkpoint",
+  "runtime_source": "10bef5dd9",
+  "binary_sha256": "2a1941c48f3884df3e6aded2970a97d38c529d7679989d98c1efc63897b8effa",
+  "frozen_budget_sha256": "d4f16d083a65b49f5347c74c362c8f57fe245095dacaccd8f6e259374709822d",
+  "scope": "Tiny synthetic Qwen3 dense tied/untied and MoE fixtures, MI50 split/window and precision checks against original F32 HF; not released-file correctness, Qwen3 16K raw/chat depth, original-weight quality, performance, or merge qualification.",
+  "result": {
+    "complete_unique_cells": 78,
+    "cells_per_format": 39,
+    "formats": ["q5_1", "iq4_nl"],
+    "logit_checks": 234,
+    "nll_checks": 156,
+    "cell_contract": "Each complete cell includes absolute full-logit errors at ubatch 1, 3, and 16, and absolute NLL errors at contexts 4 and 16; every error is within its frozen bound.",
+    "cells_by_dtype_and_format": {
+      "q5_1": {"f32": 9, "f16": 9, "bf16": 9, "int8": 12},
+      "iq4_nl": {"f32": 9, "f16": 9, "bf16": 9, "int8": 12}
+    },
+    "maxima_by_format_dtype": [
+      {"format": "q5_1", "dtype": "f32", "cells": 9, "max_logit_error": 0.000005767120361321876, "logit_bound": 0.00002, "max_nll_error": 0.00000477360781658831, "nll_bound": 0.00001},
+      {"format": "q5_1", "dtype": "f16", "cells": 9, "max_logit_error": 0.000379206741333071, "logit_bound": 0.0121312141418457, "max_nll_error": 0.0000653625954365467, "nll_bound": 0.0012151074720208},
+      {"format": "q5_1", "dtype": "bf16", "cells": 9, "max_logit_error": 0.0376978407230377, "logit_bound": 0.0779991149902344, "max_nll_error": 0.00412918148441754, "nll_bound": 0.00995897580692962},
+      {"format": "q5_1", "dtype": "int8", "cells": 12, "max_logit_error": 0.101011518760681, "logit_bound": 0.258726119995117, "max_nll_error": 0.0172953625954362, "nll_bound": 0.0345820350310504},
+      {"format": "iq4_nl", "dtype": "f32", "cells": 9, "max_logit_error": 0.00000167232513426097, "logit_bound": 0.00002, "max_nll_error": 0.00000482244764654638, "nll_bound": 0.00001},
+      {"format": "iq4_nl", "dtype": "f16", "cells": 9, "max_logit_error": 0.000118227743148805, "logit_bound": 0.00330471992492676, "max_nll_error": 0.0000174073825682797, "nll_bound": 0.000296642334546959},
+      {"format": "iq4_nl", "dtype": "bf16", "cells": 9, "max_logit_error": 0.011115563697815, "logit_bound": 0.0540997385978699, "max_nll_error": 0.00115571439443674, "nll_bound": 0.00792457380260991},
+      {"format": "iq4_nl", "dtype": "int8", "cells": 12, "max_logit_error": 0.000118227743148805, "logit_bound": 0.00330471992492676, "max_nll_error": 0.0000174073825682797, "nll_bound": 0.000296642334546959}
+    ]
+  },
+  "retained_incomplete_row": {
+    "format": "iq4_nl",
+    "dtype": "int8",
+    "fixture": "dense-tied",
+    "split": true,
+    "tensor_width": 4,
+    "progress": "one of three logits rows (ubatch 1), no NLL rows",
+    "disposition": "Preserved in the copied raw report as the earlier partial row. The same key also has a later complete 3-logit/2-NLL row, which is counted once among the 78 complete cells."
+  },
+  "attempt_provenance": {
+    "first_attempt": {"rig_dir": "/zpool1/llmx-xdev-quant-20261020/combined-quant-checks-20261020", "started_utc": "2026-10-20 11:12:37", "ended_utc": "2026-10-20 11:32:37", "exit_code": 124},
+    "resumed_attempt": {"rig_dir": "/zpool1/llmx-xdev-quant-20261020/combined-quant-checks-resume-20261020", "started_utc": "2026-10-20 11:34:04", "ended_utc": "2026-10-20 11:35:35", "exit_code": 0},
+    "copied_raw_report": {"local_file": "build-quant-resume-20261020/mi50-quant-completed-report.json", "rig_file": "/zpool1/llmx-xdev-quant-20261020/combined-quant-checks-resume-20261020/report.json", "sha256": "f8a7cde33f32909afe0d1bd2de5ee5909d1b7ac17e064bdf9bcf9d1e8fa941d3", "rows_including_retained_partial": 79, "cells_after_excluding_partial_and_deduplicating": 78},
+    "prior_report_sha256": "6bfa0a00929dcb3bf8281ce1fa69c9aceaf93573adc8e43c7c39f32160b8357b"
+  },
+  "separate_native_iq4_evidence": {
+    "test": "iq4-nl-vulkan",
+    "result": "passed 13,847,800 independent decoded/product values and wider-path witnesses before the matrix HF run",
+    "rig_log": "/zpool1/llmx-xdev-quant-20261020/combined-quant-checks-20261020/test.log",
+    "rig_log_sha256": "15316f5afef3f6512ad660566f2aceb35f2a354dc0f492b0c12f02c2679f97a0",
+    "limits": "This native check is separate from the 78 original-HF matrix cells; neither result establishes released-file or long-context qualification."
+  },
+  "artifacts": {
+    "model_capture_directory": "/zpool1/llmx-xdev-quant-20261020/combined-quant-checks-resume-20261020",
+    "native_capture_directory": "/zpool1/llmx-xdev-quant-20261020/combined-quant-checks-20261020",
+    "resume_test_log_sha256": "37b845a48745b06185a4a42f5e46c5b7b665e384f2c823568a8ea93b5b656dd9"
+  }
+}

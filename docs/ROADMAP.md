@@ -29,7 +29,8 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
-- Next, planned in `docs/STATUS-2026-09.md` (Quantization coverage): complete `F16` and `BF16` weight qualification on the CPU and Vulkan, then `IQ4_NL` and `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only. CPU and Vulkan half-weight decoders and widening products are implemented; their remaining gates are in STATUS. Activation dtype support is separate from these weight formats.
+- `IQ4_NL` has a read-only CPU decoder and fused float decode-row dot, with raw-format/native checks, independent tiny and 0.6B file-exact HF coverage. Original-weight quality approval and hosted download-gate inclusion remain pending. Vulkan has block-int16 signed lookup rows on lookup-dot profiles and tiles where the device prefers integer tiles, with wider float products as fallback; performance and device qualification remain open. `IQ4_XS` remains unimplemented; the separate F16 packed-dot work does not implement it.
+- Next, planned in `docs/STATUS-2026-09.md` (Quantization coverage): complete `F16` and `BF16` weight qualification on the CPU and Vulkan, then `IQ4_XS`, then `Q3_K` and `Q2_K`, all read-only. CPU and Vulkan half-weight decoders and widening products are implemented; their remaining gates are in STATUS. Activation dtype support is separate from these weight formats.
   Every type multiplies the per-backend kernel work (see #4b), so they are taken in the order of the files they open and how often those files are published, weighed against the effort.
   MXFP4 preceded IQ4 by the user's decision of 2026-09-25, although IQ4 opens far more files.
   They open the BF16 and UD-Q8_K_XL files, the MXFP4_MOE files, the IQ4 and UD-Q4_K_XL files, and the Q2_K and Q3_K mixtures that Qwen3 and Qwen 3.x are published in.
@@ -41,7 +42,7 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
-- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q5_1, Q4_K, Q5_K, Q6_K, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
+- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q5_1, Q4_K, Q5_K, Q6_K, IQ4_NL, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
   Each new type needs independent raw-storage checks, since the planned types stay read-only, with no quantizer. The native `half-weights` test covers every finite F16/BF16 encoding, and its Python component checks exact model outputs against the same weights stored as F32.
 
 ## 2. More model architectures
@@ -217,7 +218,7 @@ and implemented HF coverage are recorded in STATUS.
 - Assess the complete performance tradeoff: a large phase/model gain can
   justify a minor regression elsewhere. Report both sides and retain failed
   screens; an isolated cutoff is not an automatic adoption decision. HF
-  correctness and explicit matched mx comparisons remain required.
+  correctness and explicit matched mx-llama.cpp comparisons remain required.
 - Record background process CPU use and system CPU/disk/GPU activity before
   and throughout timing, with identical low-overhead monitoring for each arm.
   An idle machine is not required. Declare activity flags in advance, retain

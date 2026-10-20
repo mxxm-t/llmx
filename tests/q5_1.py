@@ -27,10 +27,7 @@ def raw_block(next_value, b):
 
 def fixture(tied, moe, seed=12345, context=16, split=False):
     """Raw Q5_1 matrices, F32 norms/router, and independently decoded HF weights."""
-    config, weights, packed = block_fixture(tied, moe, sd.Q5_1, raw_block, seed, context, split)
-    if split and moe:
-        config["expert_used_count"] = config["expert_count"]
-    return config, weights, packed
+    return block_fixture(tied, moe, sd.Q5_1, raw_block, seed, context, split)
 
 
 def run():

@@ -191,6 +191,13 @@ void main() {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = q4_0_at(o, k, d);
                 }
+            } else if (p.type == TYPE_IQ4_NL) {
+                uint o = (wr * nblocks + k0 / IQ4_NL_BLOCK) * IQ4_NL_BYTES;
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+                for (uint i = 0u; i < WVALS; ++i) {
+                    uint k = wseg * WVALS + i;
+                    ws[k][wrow] = iq4_nl_at(o, k, d);
+                }
             } else if (p.type == TYPE_Q4_1 || p.type == TYPE_Q5_1) {
                 uint o = (wr * nblocks + k0 / 32u) * block_bytes(p.type);
                 float d = half_at(QBYTE(o), QBYTE(o + 1u)), m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));

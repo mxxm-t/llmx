@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-20",
+  "base": "53a7e81e2945391b3440fc562909b123316915b8",
+  "previous_cpu_checkpoint": "8ff66ef62da784d38719ad51c1fdac7a48e6b5b5",
+  "scope": "Initial Vulkan functionality through shared wider float products; not final qualification or an integer-dot/performance claim.",
+  "owners": {
+    "decoder": "qdecode.glsl:iq4_nl_at",
+    "dispatch": "WeightKernels descriptor plus existing row/float tile owners",
+    "embedding": "Existing host-ID/device-ID embed shader",
+    "new_shader_modules": 0,
+    "cpu_reference_changes": false,
+    "activation_policy": "f16/int8 use wider F32 products; bf16 uses existing input-rounding tile; f32 uses original inputs."
+  },
+  "baseline": {
+    "status": "expected unsupported failure",
+    "log": "build-iq4-vulkan/unsupported-baseline.log",
+    "binary": "Existing clean03e44c1c7 half-weight binary whose Vulkan descriptor lacksIQ4_NL; not relabeled as this branch build.",
+    "exit": 1
+  },
+  "native": {
+    "test": "iq4-nl-vulkan",
+    "exact_decode_and_product_values": 2383944,
+    "passed": true,
+    "independent_oracles": "Mathematical binary16 scaling and separate signed lookup; double dots on original or independently rounded BF16 inputs.",
+    "coverage": [
+      "All finite binary16 scales with all lookup codes; signed-zero embedding.",
+      "Repeated/invalid device IDs and positive-zero invalid rows.",
+      "Dense, head, additive, two-projection grouped and routed gate/down products with guards.",
+      "F32/F16/BF16/int8 requests; wider-path witnesses for every matrix call.",
+      "Widths32/96/256, columns1/3/65/193, decode/prompt extents, zero/tiny/maximum scales and power-of-two input extremes."
+    ],
+    "logs": [
+      "build-iq4-vulkan/native-attempt-1.log",
+      "build-iq4-vulkan/native-attempt-2.log",
+      "build-iq4-vulkan/iq4-native-detail.log",
+      "build-iq4-vulkan/native-attempt-3.log"
+    ],
+    "kernel_witnesses": [
+      "matmul_row_float_x",
+      "matmul_row_float_x_1col",
+      "matmul_row_float_x_grouped",
+      "matmul_tile_small",
+      "matmul_tile_bf16_small",
+      "head/reduction/moe-combine variants"
+    ]
+  },
+  "tiny_hf": {
+    "consumer": "Unchanged tests/iq4_nl.py and committed file-exact synthetic HF goldens.",
+    "policies": [
+      "auto",
+      "f32",
+      "f16",
+      "bf16",
+      "int8"
+    ],
+    "each_full_logit_cases": 150,
+    "each_nll_cases": 12,
+    "f32_path_displayed_max_logit": 1.15e-06,
+    "f32_path_displayed_max_nll": 3.92e-06,
+    "f32_bounds": [
+      2e-05,
+      1e-05
+    ],
+    "bf16_displayed_max_logit": 0.00889421,
+    "bf16_displayed_max_nll": 0.00109135,
+    "bf16_bounds": [
+      0.05409973859786987,
+      0.007924573802609913
+    ],
+    "passed": true,
+    "logs": "build-iq4-vulkan/hf-{auto,f32,f16,bf16,int8}.log",
+    "binary_scope": "Full HF policy runs preceded a row_twin comment-only clarification. The refreshed build below and existing-format native test follow it; no executable math or dispatch changed."
+  },
+  "existing_format_native": {
+    "test": "backend-vulkan",
+    "passed": true,
+    "seconds": 36.22,
+    "log": "build-iq4-vulkan/existing-format-native.log"
+  },
+  "source_checks": {
+    "docs": "pass, zero findings",
+    "dead_code": "pass, five existing listed findings",
+    "log": "build-iq4-vulkan/source-checks-final.log"
+  },
+  "build_logs": [
+    "build-iq4-vulkan/configure.log",
+    "build-iq4-vulkan/focused-build.log",
+    "build-iq4-vulkan/native-build-1.log",
+    "build-iq4-vulkan/native-build-2.log",
+    "build-iq4-vulkan/regression-build.log",
+    "build-iq4-vulkan/native-build-3.log"
+  ],
+  "activity": "build-iq4-vulkan/preflight-activity.jsonl; functional testing only, no performance attribution.",
+  "remaining": [
+    "Native signed-lookup integer dots and a measured small speed screen before phase completion.",
+    "MI50/platform qualification and real-file file-exact HF.",
+    "New-type row-class, batch/split/reuse and mixed-type model checks; existing-type final byte identity and performance assessment.",
+    "Original-weight quality approval; proposed original-quality limits are not installed.",
+    "Settled-main integration and applicable hosted CI."
+  ],
+  "binaries": {
+    "llmx.exe": {
+      "bytes": 6356992,
+      "sha256": "27a79283d9ee668861092204d15a86afc81600def7bb64d3fc19a79b864ecf62",
+      "version": "llmx 0.1.0+g8ff66ef62da7.dirty numerics 78d813abd846ba87"
+    },
+    "llmx-iq4-nl-vulkan-test.exe": {
+      "bytes": 4140544,
+      "sha256": "4dbc2183aeaeca8b24a17b6e2e814a73fe6e63869cc7a6f79250187330421368"
+    },
+    "llmx-backend-vulkan-test.exe": {
+      "bytes": 4754432,
+      "sha256": "b20a320dcb6dfcad0bb6a852f894aa2f132ddd5b47696e09ee7ee447b3160e96"
+    }
+  }
+}

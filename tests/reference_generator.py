@@ -62,6 +62,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(generator.parse_args(["qwen35-tiny"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["qwen4exp-tiny"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["q5-1"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["iq4-nl"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -78,6 +79,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["qwen4exp-tiny", "--threads", "2"], ["qwen4exp-tiny", "--revision", "c" * 40],
             ["qwen4exp-tiny", "--repo", "Qwen/Qwen3.8-Flash-Next"],
             ["q5-1", "--threads", "2"], ["q5-1", "--revision", "b" * 40],
+            ["iq4-nl", "--threads", "2"], ["iq4-nl", "--revision", "c" * 40],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -100,6 +102,36 @@ class ReferenceGenerator(unittest.TestCase):
                 generator.main(["qwen4exp-tiny", "--output-dir", directory])
             write.assert_called_once()
             self.assertTrue(Path(write.call_args.args[0]).samefile(directory))
+    def test_shared_block_fixtures_preserve_goldens(self):
+        import mxfp4
+        import q5_1
+        import iq4_nl
+
+        for module, filename, context, split in ((mxfp4, "baseline_mxfp4.json", 16, False), (mxfp4, "baseline_mxfp4_prompt.json", 128, False),
+                                                  (q5_1, "baseline_q5_1.json", 16, False), (q5_1, "baseline_q5_1_split.json", 16, True),
+                                                  (iq4_nl, "baseline_iq4_nl.json", 16, False), (iq4_nl, "baseline_iq4_nl_split.json", 16, True)):
+            with open(Path(__file__).parent / "data" / filename, encoding="utf-8") as f:
+                goldens = json.load(f)
+            self.assertEqual([case["name"] for case in goldens["fixtures"]], [name for name, _, _ in module.VARIANTS])
+            for (name, tied, moe), golden in zip(module.VARIANTS, goldens["fixtures"]):
+                with self.subTest(format=module.__name__, name=name, context=context):
+                    config, weights, packed = module.fixture(tied, moe, context=context, **({"split": True} if split else {}))
+                    self.assertEqual(config, golden["config"])
+                    self.assertEqual(module.weight_hash(weights), golden["weights_sha256"])
+                    self.assertEqual(module.packed_hash(packed), golden["packed_sha256"])
+
+    def test_iq4_split_fixture_layout(self):
+        import iq4_nl
+        import q5_1
+
+        for _, tied, moe in iq4_nl.VARIANTS:
+            with self.subTest(tied=tied, moe=moe):
+                config, weights, packed = iq4_nl.fixture(tied, moe, split=True)
+                self.assertEqual(config, q5_1.fixture(tied, moe, split=True)[0])
+                self.assertEqual(next(shape[1] for name, _, shape, _ in weights if name == "token_embd.weight"), 260)
+                self.assertTrue(all(shape[0] % 32 == 0 for _, shape, _, _ in packed))
+                if moe:
+                    self.assertEqual(config["expert_used_count"], config["expert_count"])
 
     def _load_file_exact_weights(self, tensors, tied=True, reference_values=None, expose_head=True):
         import numpy as np
@@ -180,22 +212,6 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertNotIn("tied_output_verified", metadata)
         with self.assertRaisesRegex(SystemExit, "lm_head.weight"):
             self._load_file_exact_weights([embedding, ("output.weight",) + embedding[1:]], tied=False, expose_head=False)
-
-    def test_shared_block_fixtures_preserve_goldens(self):
-        import mxfp4
-        import q5_1
-
-        for module, filename, context, split in ((mxfp4, "baseline_mxfp4.json", 16, False), (mxfp4, "baseline_mxfp4_prompt.json", 128, False),
-                                                  (q5_1, "baseline_q5_1.json", 16, False), (q5_1, "baseline_q5_1_split.json", 16, True)):
-            with open(Path(__file__).parent / "data" / filename, encoding="utf-8") as f:
-                goldens = json.load(f)
-            self.assertEqual([case["name"] for case in goldens["fixtures"]], [name for name, _, _ in module.VARIANTS])
-            for (name, tied, moe), golden in zip(module.VARIANTS, goldens["fixtures"]):
-                with self.subTest(format=module.__name__, name=name, context=context):
-                    config, weights, packed = module.fixture(tied, moe, context=context, **({"split": True} if split else {}))
-                    self.assertEqual(config, golden["config"])
-                    self.assertEqual(module.weight_hash(weights), golden["weights_sha256"])
-                    self.assertEqual(module.packed_hash(packed), golden["packed_sha256"])
 
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:

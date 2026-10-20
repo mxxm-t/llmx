@@ -321,7 +321,7 @@ int main() {
         require(dispatched.count("embed_mxfp4") != 0, "MXFP4 embedding was not dispatched");
         require(dispatched.count("matmul_reduce_mxfp4") != 0, "MXFP4 wide partial reduction was not dispatched");
         const auto& profile = backend::vulkan_device_profile(*b);
-        const std::string row = profile.mxfp4_integer_dot ? "matmul_row_mxfp4_dot" : "matmul_row_mxfp4";
+        const std::string row = profile.lookup_integer_dot ? "matmul_row_mxfp4_dot" : "matmul_row_mxfp4";
         require(dispatched.count(row + "_1col") && dispatched.count(row) && dispatched.count(row + "_grouped"), "MXFP4 row variants were not dispatched");
         require(dispatched.count("matmul_row_mxfp4_float_x_1col") != 0, "MXFP4 F32 row was not dispatched");
         if (profile.prefer_integer_dot) {

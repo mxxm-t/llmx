@@ -141,6 +141,21 @@ inline void dequantize_row_q5_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+inline constexpr int8_t IQ4_NL_VALUES[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};
+
+// IQ4_NL keeps the low nibbles in the first half of the block and the high nibbles in the second.
+inline void dequantize_row_iq4_nl(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const uint8_t* y = src + b * IQ4_NL_TYPESIZE;
+        float* x = dst + b * IQ4_NL_BLOCK;
+        const float d = f16_to_f32(uint16_t(y[0] | (uint16_t(y[1]) << 8)));
+        for (size_t j = 0; j < IQ4_NL_BLOCK / 2; ++j) {
+            x[j] = d * float(IQ4_NL_VALUES[y[2 + j] & 15]);
+            x[j + IQ4_NL_BLOCK / 2] = d * float(IQ4_NL_VALUES[y[2 + j] >> 4]);
+        }
+    }
+}
+
 // An implemented type: its storage metadata and block-wise (de)quantize routines; F32 is copied directly.
 struct QuantType : StorageType {
     void (*quantize)(const float*, uint8_t*, size_t) = nullptr;
@@ -183,6 +198,8 @@ private:
           { *storage_type(GGML_TYPE_F16), nullptr, dequantize_row_f16 } },
         { GGML_TYPE_BF16,
           { *storage_type(GGML_TYPE_BF16), nullptr, dequantize_row_bf16 } },
+        { GGML_TYPE_IQ4_NL,
+          { *storage_type(GGML_TYPE_IQ4_NL), nullptr, dequantize_row_iq4_nl } },
         { GGML_TYPE_F32,
           { *storage_type(GGML_TYPE_F32), nullptr, nullptr } },
     } {}

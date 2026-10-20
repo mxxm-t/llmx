@@ -93,24 +93,7 @@ size_t close(const std::vector<float>& a, const std::vector<float>& b, double re
     return a.size();
 }
 
-// Reconstruct each 32-value block at 32767 levels, or 127 for int8, with half-away-from-zero rounding.
-// Feeding these activations to the CPU separates matrix arithmetic from input quantization (AGENTS.md, Tests).
-std::vector<float> row_activations(const std::vector<float>& x, int levels = 32767) {
-    std::vector<float> out(x.size());
-    const float top = float(levels);
-    for (size_t b = 0; b + 32 <= x.size(); b += 32) {
-        float amax = 0.0f;
-        for (size_t i = 0; i < 32; ++i) amax = std::max(amax, std::fabs(x[b + i]));
-        const float d = amax / top, id = amax > 0.0f ? top / amax : 0.0f;
-        for (size_t i = 0; i < 32; ++i) {
-            const float r = x[b + i] * id;
-            int q = (int)(std::copysign(std::floor(std::fabs(r) + 0.5f), r));
-            q = std::max(-levels, std::min(levels, q));
-            out[b + i] = (float)q * d;
-        }
-    }
-    return out;
-}
+using testq::row_activations;
 
 // The activations a matmul of `type` reads, on the tile kernel or the row kernel.
 std::vector<float> fed(const std::vector<float>& x, uint32_t type, bool idot, bool tile) {
@@ -309,8 +292,8 @@ size_t check_matrix_witness(backend::Backend& vk) {
     require(vk.dtype_path(backend::Dtype::f32) == "f32", "device F32 catalog claims a narrower path");
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
     const std::string half_paths = integer
-        ? "block-int16 (quantized rows and eligible tiles), f32 (other products, routers)"
-        : "block-int16 (quantized rows), f32 (tiles, F32 weights, routers)";
+        ? "block-int16 (quantized rows and eligible tiles; IQ4_NL rows on lookup-dot profiles), f32 (IQ4_NL fallback, other products, routers)"
+        : "block-int16 (quantized rows; IQ4_NL rows on lookup-dot profiles), f32 (IQ4_NL fallback rows, tiles, F32 weights, routers)";
     require(vk.dtype_path(backend::Dtype::f16) == half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");
@@ -2428,7 +2411,7 @@ size_t check_weight_dispatch() {
                         } else {
                             expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
                             if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
-                            else if ((e.type == 39 && p.mxfp4_integer_dot) ||
+                            else if ((e.type == 39 && p.lookup_integer_dot) ||
                                      (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39)) expected += "_dot";
                         }
                         (void)backend::vulkan_kernel_times(vk);

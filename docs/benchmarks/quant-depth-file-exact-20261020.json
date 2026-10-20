@@ -1,0 +1,242 @@
+{
+  "kind": "Q5_1 selected-F16 depth and matched-thread HF quality plus IQ4_NL released-file MI50 file-exact checkpoint",
+  "scope": "Completed Q5 selected-F16 and same-file F32 raw/chat depth, matched-thread original-weight quality characterization, and IQ4 released-file MI50 checks. Runtime 10bef5dd9 precedes the Q5 tile-isolation fix; no later-build, performance, original-weight quality approval or merge claim.",
+  "q5_depth": {
+    "file": "build-quant-resume-20261020/q5-depth-complete-selected-f16.json",
+    "sha256": "c9349edb348eb674133e7e28f2d2e56ed00aac7c8af95db3d24a58e48e2206f5",
+    "reference_report": "build-quant-resume-20261020/q5-depth-complete-f16/report.json",
+    "reference_report_sha256": "81eb86cabc028563f0aee3f3aa0c9680a98de05c64e0a616e747c17539897951",
+    "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+    "runtime_source": "10bef5dd9",
+    "rule_owner": "tests/common.py:hf_depth_top1",
+    "rule_source_sha256": "6f5ee60f31ac4816d82d5291ec8ae8b0ccc92236e50771c5d7ebe9f55503523f",
+    "top_two_tie_margin": 0.1,
+    "reference": {
+      "reference_repo": "Qwen/Qwen3-0.6B",
+      "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "reference_dtype": "float32",
+      "attention": "eager",
+      "device": "cpu",
+      "threads": 8,
+      "torch_version": "2.5.1+cpu",
+      "transformers_version": "4.55.2",
+      "weights": {
+        "file": "model.gguf",
+        "sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+        "bytes": 569888576,
+        "repo": null,
+        "revision": null,
+        "types": {
+          "F32": 113,
+          "Q5_1": 198
+        },
+        "decoder": "tests/spec_decode.py, numpy form",
+        "tensors": 311,
+        "tensors_equal_to_reference": 113,
+        "tied_output_verified": true
+      }
+    },
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "producer_sha256": "784d5bef3850fe4787668aa6f0f71de46c30f96d1114843b40a667ff8cc79082",
+    "cells": [
+      {
+        "variant": "raw",
+        "positions": 512,
+        "first_position": 16383,
+        "last_position": 16894,
+        "verdict_counts": {
+          "exact": 510,
+          "accepted-tie": 2,
+          "miss": 0
+        },
+        "selected_matrix_path": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      {
+        "variant": "chat",
+        "positions": 512,
+        "first_position": 16383,
+        "last_position": 16894,
+        "verdict_counts": {
+          "exact": 511,
+          "accepted-tie": 1,
+          "miss": 0
+        },
+        "selected_matrix_path": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        }
+      }
+    ],
+    "overall": {
+      "positions": 1024,
+      "exact": 1021,
+      "accepted_tie": 3,
+      "miss": 0,
+      "claim": "All 1024 raw/chat positions meet selected F16 HF top1 rule; 3 accepted near-ties, zero misses."
+    }
+  },
+  "q5_original_quality": {
+    "scratch_audit": "build-quant-resume-20261020/q5-original-hf-quality-audit.json",
+    "matched_reference_record": "worktrees/half-main7184-20261020/docs/benchmarks/half-weight-released-bf16-20261020.json",
+    "matched_reference_logits_sha256": "eb46718370bc091bfa18d182f91492a3a46ae90f2fdfd64b60361f2d64c768c2",
+    "matched_reference_ppl_sha256": "916f8d307b077ea9c95723d2a60682aed23fa4d707b7d3d6ed5f2b000ac22029",
+    "reference_model_file_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+    "tensor_tie": "310/310 BF16 decoded tensors equal original HF weights, per half record",
+    "matched_threads": 2,
+    "q5_vs_original_hf_nll_delta": {
+      "continuous": 0.06126292171369796,
+      "windows": [
+        {
+          "context_size": 64,
+          "max_chunks": 0,
+          "reference_mean_nll": 4.030360189548855,
+          "q5_mean_nll": 4.165416961173985,
+          "delta": 0.13505677162513052,
+          "n_scored": 243
+        },
+        {
+          "context_size": 64,
+          "max_chunks": 2,
+          "reference_mean_nll": 3.7101572867691415,
+          "q5_mean_nll": 3.7784333100630367,
+          "delta": 0.06827602329389526,
+          "n_scored": 126
+        },
+        {
+          "context_size": 123,
+          "max_chunks": 0,
+          "reference_mean_nll": 3.6307936441166335,
+          "q5_mean_nll": 3.7055486757902543,
+          "delta": 0.07475503167362074,
+          "n_scored": 244
+        }
+      ]
+    },
+    "ranking_top1": "6/6",
+    "strict_top5_overlaps": [
+      3,
+      5,
+      5,
+      5,
+      4,
+      4
+    ],
+    "exact_top5_order": "1/6",
+    "exact_top10_order": "0/6",
+    "thread_6_to_2_full_weight_drift": {
+      "continuous": {
+        "thread6": 3.3602855802490645,
+        "thread2": 3.3602852604933977,
+        "thread2_minus_thread6": -3.1975566683328793e-07
+      },
+      "windows": [
+        {
+          "context_size": 64,
+          "max_chunks": 0,
+          "thread6_mean_nll": 4.0303603464182824,
+          "thread2_mean_nll": 4.030360189548855,
+          "thread2_minus_thread6": -1.5686942766990342e-07
+        },
+        {
+          "context_size": 64,
+          "max_chunks": 2,
+          "thread6_mean_nll": 3.710157365313032,
+          "thread2_mean_nll": 3.7101572867691415,
+          "thread2_minus_thread6": -7.854389050265809e-08
+        },
+        {
+          "context_size": 123,
+          "max_chunks": 0,
+          "thread6_mean_nll": 3.6307939046332396,
+          "thread2_mean_nll": 3.6307936441166335,
+          "thread2_minus_thread6": -2.605166060654085e-07
+        }
+      ],
+      "logits": "Retained pinned-reference reconciliation directly compared top logits; six prompts have identical top-10 token IDs and maximum rounded top-logit absolute delta 0.0001."
+    },
+    "limits": "Six prompts and 247-token/window HF quality characterization only; no original-weight quality approval. The separate depth comparisons hold the quantized file weights fixed and do not measure long-context quality against the original checkpoint."
+  },
+  "iq4_mi50_file_exact": {
+    "calls_total": 15,
+    "calls_exit_zero": 15,
+    "logits_calls": 6,
+    "tokenize_calls": 1,
+    "ppl_calls": 8,
+    "top1": "6/6",
+    "top5_min_overlap": "5/5 on 6/6 prompts",
+    "exact_top5_order": "6/6",
+    "continuous_abs_nll_max": 0.000195,
+    "window_abs_nll_max": 0.000239,
+    "continuous_bound": 0.01,
+    "window_bound": 0.02,
+    "logits_reference_sha256": "367753efe19253b6c9ae7552148aa94ec18f53281a4f93748666789718b435c9",
+    "ppl_reference_sha256": "ad43d2ccff6a5fe2a7f8b84fec662e5c639ec943059b32b20bb7b19dc93cc223",
+    "runtime_source": "10bef5dd9",
+    "binary_sha256": "2a1941c48f3884df3e6aded2970a97d38c529d7679989d98c1efc63897b8effa",
+    "version": "llmx 0.1.0+unknown numerics 5ee2eee60792876b",
+    "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+    "report_sha256": "609268f2d0aa72b01444c3518aaf98f4a1106c3d0f29eb37da429df3b9ec74fb",
+    "run_log_sha256": "1c437d51f4c602fcb238fd2a2b326b2d3d7c69b566459592a52d1a4b23c4f18d",
+    "capture_sha256": {
+      "00.stdout": "03177d0cb51f13e5c5050118d5ce145855a8a4f39df25a6c3c1a8303c4b299ff",
+      "01.stdout": "6c3500ea9c9f7ddc83eeefb06e798452c41786bb66714399859f1301266165e4",
+      "02.stdout": "7279abbd9494483daf5236b767df89446564b70e16bb484f5959459e95e34b84",
+      "03.stdout": "1e021e35c5c442ab35ce286f556d33ea1d4d086d2706ca3a2cb3768b6e360a75",
+      "04.stdout": "20a3e140db76b013361eb0553864533b1e73db2b566d462a5a0637a79d69a9de",
+      "05.stdout": "c2957ed88baab17c1830dd6c4ca5236f63a7b46c8692f60b80b9c3cedd0c7374",
+      "06.stdout": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+      "07.stdout": "23fb284d5150fd8239300e0be14f755981fd5ae8279ac4cf3f8517a19ab68d59",
+      "08.stdout": "7e7fc409e4a1e56409ca6fef75b51d4ca912de02f087382d470b19f75184dd5d",
+      "09.stdout": "057065ad2c63f3d8850156a195dde135146c0d5d86e2a852439c36989526a473",
+      "10.stdout": "f3e6e879fabc9498e8548313e07be68e49f99d84bf7ebfd6218361dbc725f099",
+      "11.stdout": "2b7ffaf1c19123185c7ef9f656f7e7c47b0d528afa5b380d21ee71e2559a4d8a",
+      "12.stdout": "5eaa1077561252ce5e4b9251fe8a5ef2153a323c2744f1b882382f4b63227438",
+      "13.stdout": "3bd2c744416db914af824facb87518279ce295a1b51e1088b112954c22e4d6a0",
+      "14.stdout": "2ea1eab0283f1a097d9d72615c0e6053bbbd7b2d8a7d5eb85475c214b8090bec"
+    },
+    "command_device": "vulkan:0; all 15 report calls exited 0",
+    "limitations": "File-exact consumer only; it runs the decoder on IQ4 weights against HF using those same file weights. Not original-weight quality approval. Runtime source 10bef5dd9 predates the Q5 tile-isolation fix; no later-build or performance qualification is established."
+  },
+  "integrated_limits": [
+    "Do not call selected F16 Q5 depth proof of all dtypes/backends or original-weight quality.",
+    "File-exact IQ4 compares runtime to HF holding IQ4 weights; it is not original-weight quantization quality.",
+    "IQ4 runtime source 10bef5dd9 predates the Q5 tile-isolation fix; no later-build or performance qualification is established.",
+    "NLL error values are file-exact runtime deltas and must remain distinct from Q5 original-weight HF quantization deltas."
+  ],
+  "q5_f32_companion": {
+    "file": "build-quant-resume-20261020/q5-depth-complete-original-f32.json",
+    "sha256": "280f7190e1662d42b355ddede3630391ddbdfc3a83938ba18bc84ec3a04e97c7",
+    "reference_report_sha256": "e3d841287e8e6989d418206694435be8e57cab5e4e057c5ea9415a55b5c55499",
+    "scope": "Same-file unrounded F32 HF companion; does not replace the selected-policy gate or measure original-checkpoint quantization quality.",
+    "cells": [
+      {
+        "variant": "raw",
+        "counts": {
+          "exact": 510,
+          "accepted-tie": 2,
+          "miss": 0
+        }
+      },
+      {
+        "variant": "chat",
+        "counts": {
+          "exact": 511,
+          "accepted-tie": 1,
+          "miss": 0
+        }
+      }
+    ]
+  },
+  "source_owner": "Combined quant worktree; independent reference and capture identities retained in each section."
+}

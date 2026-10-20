@@ -1,0 +1,919 @@
+{
+  "scope": "IQ4_NL CPU development: real-file exact HF pass plus initial native-benchmark screen, not full release qualification",
+  "evidence": {
+    "real-hf-consumer/summary.json": {
+      "path": ".tmp-iq4-nl-evidence-20261003/real-hf-consumer/summary.json",
+      "sha256": "a839ad3281904aaafdb59759f9db784182700dbc6b915161d70bb07e2418af16",
+      "bytes": 9143
+    },
+    "real-hf-consumer/summary.md": {
+      "path": ".tmp-iq4-nl-evidence-20261003/real-hf-consumer/summary.md",
+      "sha256": "3392ae6b77fd94f66bee90f94ae869c203095d35a80b022a2abd5e044c215016",
+      "bytes": 2138
+    },
+    "cpu-screen-f16/summary.json": {
+      "path": ".tmp-iq4-nl-evidence-20261003/cpu-screen-f16/summary.json",
+      "sha256": "5add385734709438ddda24e422e6f1102cc8bc5b66e37b7824a20813b8bf4ef3",
+      "bytes": 24204
+    },
+    "cpu-screen-f16/summary.md": {
+      "path": ".tmp-iq4-nl-evidence-20261003/cpu-screen-f16/summary.md",
+      "sha256": "fa3483dc02e6a1787f8543c98c2da4032b2320d255c12ce2a8e784894254a245",
+      "bytes": 1974
+    },
+    "cpu-path-comparison.md": {
+      "path": ".tmp-iq4-nl-evidence-20261003/cpu-path-comparison.md",
+      "sha256": "6210fbaeebf7ebc2bb088c0d00f02f471d80dc29869aa94f8b8e2db79d2acda7",
+      "bytes": 7417
+    },
+    "quality-diagnostic.json": {
+      "path": ".tmp-iq4-nl-evidence-20261003/quality-diagnostic.json",
+      "sha256": "80c3239db0eeb762cb87db7a449f5919427e02c83a63c7592fc2a5a9f5ad30a2",
+      "bytes": 7837
+    },
+    "quality-reference-verification.json": {
+      "path": ".tmp-iq4-nl-evidence-20261003/quality-reference-verification.json",
+      "sha256": "131f8356bfae1adb9a5ded4dcf13209a7ddebde7fbb342849d23e311bf9b5f32",
+      "bytes": 1144
+    },
+    "quality-proposal.md": {
+      "path": ".tmp-iq4-nl-evidence-20261003/quality-proposal.md",
+      "sha256": "cbbcffd383669e69166c74224158e0951d5be926e4facbc318c65433c66f81bf",
+      "bytes": 2971
+    }
+  },
+  "real_file_hf": {
+    "passed": true,
+    "source_head": "d9e8a393e0b0c363e40b09185f9508f3a0cf884e",
+    "binary_identity": "Tested dirty development binary; runtime sources equal committed d9e8a393. Unrelated Python fixture edits may coexist.",
+    "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-checks-20261003\\build\\Release\\llmx.exe",
+    "exe_sha256": "3dc5f097d8ca5dd32c9f957de988e2475c146388f3f4d7d79bcf4256dc9f87df",
+    "version": "llmx 0.1.0+gd9c37b072b27.dirty",
+    "model": {
+      "path": "C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-IQ4_NL.gguf",
+      "bytes": 381566656,
+      "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+    },
+    "model_digest_verification": "Unchanged baseline.run_file_exact hashes the model and checks both golden weights SHA values before launching the first CLI call.",
+    "goldens": {
+      "baseline_logits.json": "b1bc376d57d9c717766aaff973149008eb7c8bce7c13d90f958f816bf258374a",
+      "baseline_perplexity.json": "c1f9b8d2c2c97dc5e4350b8b3650c0ebdd7a98db257fc97cbf3f5f32d189a59c"
+    },
+    "test_environment": {
+      "LLMX_DTYPE": "auto",
+      "LLMX_CACHE_TYPE": "f16",
+      "LLMX_LOAD_MODE": "auto"
+    },
+    "calls": 15,
+    "successful_calls": 15,
+    "skips": 0,
+    "retries": 0,
+    "owned_child_drained": true,
+    "rankings": [
+      {
+        "call": 0,
+        "top1_match": true,
+        "top5_overlap": 5,
+        "top5_order_match": true
+      },
+      {
+        "call": 1,
+        "top1_match": true,
+        "top5_overlap": 5,
+        "top5_order_match": true
+      },
+      {
+        "call": 2,
+        "top1_match": true,
+        "top5_overlap": 5,
+        "top5_order_match": true
+      },
+      {
+        "call": 3,
+        "top1_match": true,
+        "top5_overlap": 5,
+        "top5_order_match": true
+      },
+      {
+        "call": 4,
+        "top1_match": true,
+        "top5_overlap": 5,
+        "top5_order_match": true
+      },
+      {
+        "call": 5,
+        "top1_match": true,
+        "top5_overlap": 5,
+        "top5_order_match": true
+      }
+    ],
+    "token_ids_exact": 247,
+    "nll": [
+      {
+        "call": 7,
+        "context": 0,
+        "chunks": 1,
+        "mode": "batched",
+        "tokens": 247,
+        "used tokens": 247,
+        "scored tokens": 246,
+        "context size": 40960,
+        "mean_nll": 3.52131,
+        "perplexity": 33.8288,
+        "hf_mean_nll": 3.521144849451379,
+        "absolute_nll_delta": 0.0001651505486210958,
+        "bound": 0.01,
+        "headroom": 0.009834849451378904
+      },
+      {
+        "call": 8,
+        "context": 0,
+        "chunks": 1,
+        "mode": "per-token",
+        "tokens": 247,
+        "used tokens": 247,
+        "scored tokens": 246,
+        "context size": 40960,
+        "mean_nll": 3.52129,
+        "perplexity": 33.8281,
+        "hf_mean_nll": 3.521144849451379,
+        "absolute_nll_delta": 0.00014515054862096477,
+        "bound": 0.01,
+        "headroom": 0.009854849451379035
+      },
+      {
+        "call": 9,
+        "context": 64,
+        "chunks": 4,
+        "mode": "batched",
+        "tokens": 247,
+        "used tokens": 247,
+        "scored tokens": 243,
+        "context size": 64,
+        "mean_nll": 4.21,
+        "perplexity": 67.3563,
+        "hf_mean_nll": 4.209808409074367,
+        "absolute_nll_delta": 0.0001915909256329229,
+        "bound": 0.02,
+        "headroom": 0.019808409074367078
+      },
+      {
+        "call": 10,
+        "context": 64,
+        "chunks": 4,
+        "mode": "per-token",
+        "tokens": 247,
+        "used tokens": 247,
+        "scored tokens": 243,
+        "context size": 64,
+        "mean_nll": 4.20992,
+        "perplexity": 67.351,
+        "hf_mean_nll": 4.209808409074367,
+        "absolute_nll_delta": 0.00011159092563328699,
+        "bound": 0.02,
+        "headroom": 0.019888409074366713
+      },
+      {
+        "call": 11,
+        "context": 64,
+        "chunks": 2,
+        "mode": "batched",
+        "tokens": 247,
+        "used tokens": 128,
+        "scored tokens": 126,
+        "context size": 64,
+        "mean_nll": 3.85796,
+        "perplexity": 47.3685,
+        "hf_mean_nll": 3.8577305715532604,
+        "absolute_nll_delta": 0.00022942844673945473,
+        "bound": 0.02,
+        "headroom": 0.019770571553260546
+      },
+      {
+        "call": 12,
+        "context": 64,
+        "chunks": 2,
+        "mode": "per-token",
+        "tokens": 247,
+        "used tokens": 128,
+        "scored tokens": 126,
+        "context size": 64,
+        "mean_nll": 3.8579,
+        "perplexity": 47.3657,
+        "hf_mean_nll": 3.8577305715532604,
+        "absolute_nll_delta": 0.00016942844673950574,
+        "bound": 0.02,
+        "headroom": 0.019830571553260495
+      },
+      {
+        "call": 13,
+        "context": 123,
+        "chunks": 2,
+        "mode": "batched",
+        "tokens": 247,
+        "used tokens": 246,
+        "scored tokens": 244,
+        "context size": 123,
+        "mean_nll": 3.81334,
+        "perplexity": 45.3017,
+        "hf_mean_nll": 3.813236709751719,
+        "absolute_nll_delta": 0.00010329024828115152,
+        "bound": 0.02,
+        "headroom": 0.01989670975171885
+      },
+      {
+        "call": 14,
+        "context": 123,
+        "chunks": 2,
+        "mode": "per-token",
+        "tokens": 247,
+        "used tokens": 246,
+        "scored tokens": 244,
+        "context size": 123,
+        "mean_nll": 3.81334,
+        "perplexity": 45.3014,
+        "hf_mean_nll": 3.813236709751719,
+        "absolute_nll_delta": 0.00010329024828115152,
+        "bound": 0.02,
+        "headroom": 0.01989670975171885
+      }
+    ],
+    "maximum_continuous_nll_delta": 0.0001651505486210958,
+    "maximum_window_nll_delta": 0.00022942844673945473,
+    "continuous_headroom": 0.009834849451378904,
+    "window_headroom": 0.019770571553260546,
+    "limits": [
+      "File-exact reference measures runtime arithmetic, not original-weight quantization quality.",
+      "Completed witnesses contain F32 and block-int16 paths; this does not attribute individual kernel error.",
+      "Memory is admission-only; no continuous pressure or peak-memory measurement and no performance claim.",
+      "The executable is the pinned tested dirty build; relevant source and consumer files, not global worktree cleanliness, were verified."
+    ],
+    "evidence": {
+      "plan.json": "a99ff2250bdb9a9525783928aa50e5c620ded88a31a9faaa6f1e6fed9f4b8300",
+      "consume.py": "5a9341ad6832516f143b32c1b076469fa9a36de633fa0fd73d7c59e20693c1c0",
+      "launch.json": "85a732585e3d4b48d8d0ff4d27ebd44d88e60e2d8d97ee42757e5ea67643f10d",
+      "launch-complete.json": "ea7fa1d1190128a35746f42073ea928ece1a9f066b8a8126a56ffa0cd020ee65",
+      "consumer.stdout": "3c8f2926f5162fc91d8316f39e1af1a1fdebb85621553e6e370591b095f15dcd",
+      "consumer.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "execution/cpu/complete.json": "65036ec4be88b921e30827240bb1d8fbee835dff898d9a31068298d9817e26cd"
+    },
+    "matrix_witnesses": {
+      "count": 14,
+      "requested_dtype": "auto",
+      "effective_dtype": "f16",
+      "completed_paths": [
+        [
+          "f32",
+          "block-int16"
+        ]
+      ],
+      "attribution": "IQ4_NL matrix products retain F32 activations; the real file also has a Q6_K tied embedding/head. Whole-model witnesses do not attribute each tensor."
+    }
+  },
+  "initial_native_screen": {
+    "scope": "Initial IQ4_NL CPU native-benchmark screen with explicit F16 KV; not same-token release proof or main-before comparison",
+    "passed_execution_only": true,
+    "rates": [
+      {
+        "setting": "pp64/tg128",
+        "phase": "pp",
+        "tokens": 64,
+        "candidate": [
+          241.86,
+          373.57
+        ],
+        "mx": [
+          453.368564,
+          460.839448
+        ],
+        "candidate_mean": 307.71500000000003,
+        "mx_mean": 457.104006,
+        "ratio_of_means_percent": -32.68162257147228,
+        "paired_percent": [
+          -46.65267528341466,
+          -18.93706113457544
+        ]
+      },
+      {
+        "setting": "pp64/tg128",
+        "phase": "tg",
+        "tokens": 128,
+        "candidate": [
+          66.41,
+          65.0
+        ],
+        "mx": [
+          78.692877,
+          79.154834
+        ],
+        "candidate_mean": 65.705,
+        "mx_mean": 78.9238555,
+        "ratio_of_means_percent": -16.748871955450785,
+        "paired_percent": [
+          -15.608626178453234,
+          -17.882463122846037
+        ]
+      },
+      {
+        "setting": "pp512/tg32",
+        "phase": "pp",
+        "tokens": 512,
+        "candidate": [
+          306.39,
+          402.54
+        ],
+        "mx": [
+          442.533063,
+          436.006247
+        ],
+        "candidate_mean": 354.46500000000003,
+        "mx_mean": 439.269655,
+        "ratio_of_means_percent": -19.305830492661723,
+        "paired_percent": [
+          -30.76449521693705,
+          -7.675634748416793
+        ]
+      },
+      {
+        "setting": "pp512/tg32",
+        "phase": "tg",
+        "tokens": 32,
+        "candidate": [
+          63.18,
+          67.27
+        ],
+        "mx": [
+          73.805623,
+          87.45884
+        ],
+        "candidate_mean": 65.225,
+        "mx_mean": 80.63223149999999,
+        "ratio_of_means_percent": -19.10803063908755,
+        "paired_percent": [
+          -14.396766219289281,
+          -23.08381862828275
+        ]
+      }
+    ],
+    "artifacts": {
+      "complete.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\complete.json",
+        "sha256": "9bb1334a191b1302edb94f0e87e319565062f52e6e40eb18e48cb8f1845963dd"
+      },
+      "runtime-plan.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\runtime-plan.json",
+        "sha256": "67fe2a4295b5a75f88ce8847f3a703de879b241a476a07c26b4a81b05f28f87a"
+      },
+      "calls.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\calls.json",
+        "sha256": "3e5655b4286ee3070cf14fdcc2b37f2ffd9cf206ac548190697bcb1e930c8158"
+      },
+      "activity-summary.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\activity-summary.json",
+        "sha256": "b71ae2f09e7a0d7f9b51bbd86fbf07b8ebbeea115761decab712422967632b63"
+      },
+      "monitor.jsonl": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\monitor.jsonl",
+        "sha256": "d9325003c60b9cd22bc89d532c71ac192f76a175766db61996f450accdc75249"
+      },
+      "preflight.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\preflight.json",
+        "sha256": "27f23f5467a63dc767c7e9eed96e779bea7a8a75753a26a88b4d1ec54af37763"
+      },
+      "cpu-placement-proof.json": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen-f16\\execution\\cpu-placement-proof.json",
+        "sha256": "97bfd69555bc90aaca445c053d7a732c53debc99cbcc85e1f764872ae70093ce"
+      }
+    },
+    "original_attempt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\cpu-screen\\execution",
+      "failure_sha256": "8fe1b35c014053c0caa05ef5b54fe8f3ee1aeb6822b58450ff93b81dc8b4bf12",
+      "classification": "setup failure: native llama-bench parser rejects f32 KV before model load; one candidate F32-KV orphan retained, excluded from F16 comparisons",
+      "candidate_orphan_rates": [
+        {
+          "phase": "pp",
+          "tokens": 64,
+          "tokens_per_second": 404.13,
+          "sd": 0.0
+        },
+        {
+          "phase": "tg",
+          "tokens": 128,
+          "tokens_per_second": 65.85,
+          "sd": 0.0
+        }
+      ]
+    },
+    "conclusion": "Candidate is slower in both directions for all four cells. Large within-arm spread and unrelated activity prevent attributing precise gaps to the kernel. This native-benchmark screen supports further CPU work but establishes no same-token parity, main regression, or release verdict.",
+    "limitations": [
+      "llmx uses deterministic IDs below1000; native llama-bench uses rand() IDs across the vocabulary and BOS rules. Equal token counts do not establish identical input/history workloads.",
+      "Both reset decode history rather than generate tg after the reported pp prompt; native warmup and allocated context behavior differ.",
+      "llmx IQ4_NL keeps original F32 activations under auto/f16; mx uses its default quantized CPU arithmetic. This is default-runtime comparison, not arithmetic equivalence.",
+      "Candidate is the existing tested dirty development binary; mx is a clean separately pinned build using the same MSVC version/AVX2 feature set. No main-before exists for unsupported IQ4_NL.",
+      "All eight calls and activity retained, no filtering/replacement, no reference parity or release verdict.",
+      "All calls flag unrelated CPU and unknown process observations; cpptools consistently consumes about one logical CPU. No sample was removed.",
+      "The monitor intervals span call boundaries and include process loading/warmup, so activity counts can overlap adjacent calls.",
+      "Only two samples per arm and one timed repetition per child; no layout control or statistical confidence interval."
+    ],
+    "call_count": 8,
+    "activity": {
+      "samples": 33,
+      "all_samples_retained": true,
+      "setup_unavailable": {},
+      "unknown_process_delta_observations": 4222,
+      "invalid_counter_item_observations": 76,
+      "monitor_cpu_seconds": 1.328125,
+      "monitor_elapsed_seconds": 33.02193280000938,
+      "coverage": [
+        {
+          "call": 1,
+          "seconds": 4.699186099984217,
+          "counter_covered_seconds": 4.699186099984217,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 2,
+          "seconds": 2.4364853000151925,
+          "counter_covered_seconds": 2.4364853000151925,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 3,
+          "seconds": 2.4548973999917507,
+          "counter_covered_seconds": 2.4548973999917507,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 4,
+          "seconds": 4.789843900012784,
+          "counter_covered_seconds": 4.789843900012784,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 5,
+          "seconds": 4.332284200005233,
+          "counter_covered_seconds": 4.332284200005233,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 6,
+          "seconds": 3.3833149000420235,
+          "counter_covered_seconds": 3.3833149000420235,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 7,
+          "seconds": 3.3010349000105634,
+          "counter_covered_seconds": 3.3010349000105634,
+          "uncovered_seconds": 0
+        },
+        {
+          "call": 8,
+          "seconds": 3.834401899948716,
+          "counter_covered_seconds": 3.834401899948716,
+          "uncovered_seconds": 0
+        }
+      ],
+      "per_call": [
+        {
+          "name": "call-01-candidate-pp64-tg128",
+          "samples": 6,
+          "flags": {
+            "unknown_counter_samples": 1,
+            "unknown_process_samples": 6,
+            "unrelated_cpu_samples": 6,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 56.476198841682056,
+          "peak_disk_mib_per_second": 2.5006097230536284,
+          "peak_unrelated_gpu_engine_percent": 2.4949793131814353
+        },
+        {
+          "name": "call-02-mx-pp64-tg128",
+          "samples": 4,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 4,
+            "unrelated_cpu_samples": 4,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 58.06163788777104,
+          "peak_disk_mib_per_second": 2.5006097230536284,
+          "peak_unrelated_gpu_engine_percent": 2.4381799916003426
+        },
+        {
+          "name": "call-03-mx-pp64-tg128",
+          "samples": 3,
+          "flags": {
+            "unknown_counter_samples": 1,
+            "unknown_process_samples": 3,
+            "unrelated_cpu_samples": 3,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 59.783904193934276,
+          "peak_disk_mib_per_second": 1.7707808900741253,
+          "peak_unrelated_gpu_engine_percent": 2.438851785748556
+        },
+        {
+          "name": "call-04-candidate-pp64-tg128",
+          "samples": 6,
+          "flags": {
+            "unknown_counter_samples": 0,
+            "unknown_process_samples": 6,
+            "unrelated_cpu_samples": 6,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 66.99774748000013,
+          "peak_disk_mib_per_second": 2.3048875642405764,
+          "peak_unrelated_gpu_engine_percent": 2.4956306564225
+        },
+        {
+          "name": "call-05-candidate-pp512-tg32",
+          "samples": 5,
+          "flags": {
+            "unknown_counter_samples": 1,
+            "unknown_process_samples": 5,
+            "unrelated_cpu_samples": 5,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 55.055256609037016,
+          "peak_disk_mib_per_second": 1.3977123668240916,
+          "peak_unrelated_gpu_engine_percent": 2.306770922842414
+        },
+        {
+          "name": "call-06-mx-pp512-tg32",
+          "samples": 5,
+          "flags": {
+            "unknown_counter_samples": 2,
+            "unknown_process_samples": 5,
+            "unrelated_cpu_samples": 5,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 55.61257180281072,
+          "peak_disk_mib_per_second": 2.6851491519174964,
+          "peak_unrelated_gpu_engine_percent": 2.306770922842414
+        },
+        {
+          "name": "call-07-mx-pp512-tg32",
+          "samples": 4,
+          "flags": {
+            "unknown_counter_samples": 1,
+            "unknown_process_samples": 4,
+            "unrelated_cpu_samples": 4,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 54.55767228774695,
+          "peak_disk_mib_per_second": 1.0197524343030002,
+          "peak_unrelated_gpu_engine_percent": 2.18790482511555
+        },
+        {
+          "name": "call-08-candidate-pp512-tg32",
+          "samples": 5,
+          "flags": {
+            "unknown_counter_samples": 0,
+            "unknown_process_samples": 5,
+            "unrelated_cpu_samples": 5,
+            "disk_busy_samples": 0,
+            "disk_rate_samples": 0,
+            "unrelated_gpu_samples": 0
+          },
+          "peak_system_cpu_percent": 47.26658974806659,
+          "peak_disk_mib_per_second": 1.171869375027,
+          "peak_unrelated_gpu_engine_percent": 2.283018449064227
+        }
+      ],
+      "unrelated_process_summary": "Every call flagged unrelated CPU activity and unknown process deltas; cpptools consumed around one logical CPU alongside browser/editor activity. Complete per-process records remain in the pinned summary and raw monitor."
+    },
+    "placement": {
+      "reference_device": "none",
+      "reference_gpu_layers": 0,
+      "reference_actual_cpu_and_kv_verified": true,
+      "reference_compiled_backends_field": "Vulkan (compiled backend inventory, not executed placement)",
+      "kv": "f16",
+      "threads": 6,
+      "ubatch": 512,
+      "llmx_completed_matrix_paths": [
+        {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "source_findings": {
+    "llmx_source": "d9e8a393e0b0c363e40b09185f9508f3a0cf884e",
+    "mx_source": "eefc4e7321c869496146697d63362f073941aed6",
+    "actual_reference_repacked_iq4_tensors": 196,
+    "weight_repack": "Eight-row interleave of original IQ4 codes/scales; no weight requantization.",
+    "arithmetic": "llmx retains F32 activations for IQ4_NL; reference quantizes each 32-input block to Q8_0 and reuses integer products across its output/prompt tiles.",
+    "llmx_prompt_reuse": "Four dequantized weight rows reused across all prompt columns; expansion is not repeated once per token.",
+    "unmeasured": "Relative cost of expansion, F32 products, register pressure and memory traffic; source comparison is not bottleneck attribution.",
+    "next_bounded_measurement": "Separate existing row expansion and existing four-row F32 products at the real 3072-wide down projection, without new arithmetic."
+  },
+  "remaining": [
+    "Original-weight quantization quality",
+    "Exact output identity and full applicable CPU release checks",
+    "Matched performance and unchanged-type regression gates",
+    "Vulkan and IQ4_XS, separately unfinished"
+  ],
+  "original_weight_quality": {
+    "status": "Measured; proposed file-specific limits await user decision. No accepted bound or quality-pass verdict.",
+    "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+    "rankings": [
+      {
+        "text": "The capital of France is",
+        "file_exact_hf": {
+          "top1": true,
+          "strict_top5": 2,
+          "adjusted_top5": 2,
+          "original_top1": 12095,
+          "observed_top1": 12095
+        },
+        "llmx_capture": {
+          "top1": true,
+          "strict_top5": 2,
+          "adjusted_top5": 2,
+          "original_top1": 12095,
+          "observed_top1": 12095
+        }
+      },
+      {
+        "text": "Machine learning is",
+        "file_exact_hf": {
+          "top1": true,
+          "strict_top5": 5,
+          "adjusted_top5": 5,
+          "original_top1": 264,
+          "observed_top1": 264
+        },
+        "llmx_capture": {
+          "top1": true,
+          "strict_top5": 5,
+          "adjusted_top5": 5,
+          "original_top1": 264,
+          "observed_top1": 264
+        }
+      },
+      {
+        "text": "def add(a, b):",
+        "file_exact_hf": {
+          "top1": true,
+          "strict_top5": 5,
+          "adjusted_top5": 5,
+          "original_top1": 198,
+          "observed_top1": 198
+        },
+        "llmx_capture": {
+          "top1": true,
+          "strict_top5": 5,
+          "adjusted_top5": 5,
+          "original_top1": 198,
+          "observed_top1": 198
+        }
+      },
+      {
+        "text": "The three primary colors are red,",
+        "file_exact_hf": {
+          "top1": true,
+          "strict_top5": 4,
+          "adjusted_top5": 5,
+          "original_top1": 6303,
+          "observed_top1": 6303
+        },
+        "llmx_capture": {
+          "top1": true,
+          "strict_top5": 4,
+          "adjusted_top5": 5,
+          "original_top1": 6303,
+          "observed_top1": 6303
+        }
+      },
+      {
+        "text": "In 1969, humans first walked on the",
+        "file_exact_hf": {
+          "top1": true,
+          "strict_top5": 4,
+          "adjusted_top5": 4,
+          "original_top1": 17788,
+          "observed_top1": 17788
+        },
+        "llmx_capture": {
+          "top1": true,
+          "strict_top5": 4,
+          "adjusted_top5": 4,
+          "original_top1": 17788,
+          "observed_top1": 17788
+        }
+      },
+      {
+        "text": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+        "file_exact_hf": {
+          "top1": true,
+          "strict_top5": 4,
+          "adjusted_top5": 4,
+          "original_top1": 17689,
+          "observed_top1": 17689
+        },
+        "llmx_capture": {
+          "top1": true,
+          "strict_top5": 4,
+          "adjusted_top5": 4,
+          "original_top1": 17689,
+          "observed_top1": 17689
+        }
+      }
+    ],
+    "nll": [
+      {
+        "context": 0,
+        "chunks": 1,
+        "original_hf": 3.3602855802490645,
+        "file_exact_hf": 3.521144849451379,
+        "weight_only_delta": 0.16085926920231453,
+        "llmx": [
+          {
+            "mode": "batched",
+            "mean_nll": 3.52131,
+            "delta_to_original": 0.16102441975093562,
+            "delta_to_file_exact": 0.0001651505486210958
+          },
+          {
+            "mode": "per-token",
+            "mean_nll": 3.52129,
+            "delta_to_original": 0.1610044197509355,
+            "delta_to_file_exact": 0.00014515054862096477
+          }
+        ]
+      },
+      {
+        "context": 64,
+        "chunks": 4,
+        "original_hf": 4.0303603464182824,
+        "file_exact_hf": 4.209808409074367,
+        "weight_only_delta": 0.1794480626560846,
+        "llmx": [
+          {
+            "mode": "batched",
+            "mean_nll": 4.21,
+            "delta_to_original": 0.17963965358171752,
+            "delta_to_file_exact": 0.0001915909256329229
+          },
+          {
+            "mode": "per-token",
+            "mean_nll": 4.20992,
+            "delta_to_original": 0.17955965358171788,
+            "delta_to_file_exact": 0.00011159092563328699
+          }
+        ]
+      },
+      {
+        "context": 64,
+        "chunks": 2,
+        "original_hf": 3.710157365313032,
+        "file_exact_hf": 3.8577305715532604,
+        "weight_only_delta": 0.1475732062402284,
+        "llmx": [
+          {
+            "mode": "batched",
+            "mean_nll": 3.85796,
+            "delta_to_original": 0.14780263468696786,
+            "delta_to_file_exact": 0.00022942844673945473
+          },
+          {
+            "mode": "per-token",
+            "mean_nll": 3.8579,
+            "delta_to_original": 0.1477426346869679,
+            "delta_to_file_exact": 0.00016942844673950574
+          }
+        ]
+      },
+      {
+        "context": 123,
+        "chunks": 2,
+        "original_hf": 3.6307939046332396,
+        "file_exact_hf": 3.813236709751719,
+        "weight_only_delta": 0.18244280511847943,
+        "llmx": [
+          {
+            "mode": "batched",
+            "mean_nll": 3.81334,
+            "delta_to_original": 0.18254609536676059,
+            "delta_to_file_exact": 0.00010329024828115152
+          },
+          {
+            "mode": "per-token",
+            "mean_nll": 3.81334,
+            "delta_to_original": 0.18254609536676059,
+            "delta_to_file_exact": 0.00010329024828115152
+          }
+        ]
+      }
+    ],
+    "reference_verification": {
+      "scope": "Retained HF reference comparison only; no model or source-weight equality rerun.",
+      "original_top10_ids_exact": "6/6",
+      "maximum_rounded_logit_difference": "0.0001",
+      "original_ppl_and_chunk_cases_exact": true,
+      "iq4_quality_ranking_counts_unchanged": true,
+      "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "provenance": "The retained BF16 golden records 310/310 tensors equal to the original HF weights and matches the pinned BF16 file identity; ASSETS records that independent spec-decoder comparison.",
+      "files": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\original-hf-reference\\baseline_logits.json": "8ffd148a60177f07f7046cca9475524f1277e28b62276b793672644a2eb4d289",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\original-hf-reference\\baseline_perplexity.json": "63e96748b9147c4b0c43f01a91cd31521d80976600bae4831004f23df1975368",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-iq4-nl-evidence-20261003\\verify-quality-reference.py": "fcab7c418568fdd3a37005758db7a9d2d34db2db1b44e9648594128e816ca3fb"
+      }
+    },
+    "preserved_initial_diagnostic_limitations": [
+      "The committed original-weight logit golden predates revision, attention and input-ID metadata; comparison names that accepted golden by digest, not verified matching revision.",
+      "Analyzer setup checks first stopped at the missing original-golden reference_revision, then at its continuous-context label, which the retained consumer encodes as 0. Both occurred before output and ran no model."
+    ],
+    "clarification": "The initial logit-golden missing-revision limitation is resolved by the separately retained matched original-HF reference check; the original diagnostic record itself is unchanged.",
+    "proposal": {
+      "approved": false,
+      "top1_matches": 6,
+      "prompts": 6,
+      "minimum_adjusted_top5_overlap": 2,
+      "continuous_nll": 0.18,
+      "window_nll": 0.21,
+      "rationale": "Independent file-weight loss plus existing runtime allowance, rounded upward to a hundredth; applies only to the pinned file if approved.",
+      "runtime_gate_unchanged": {
+        "first": true,
+        "top1": "6/6",
+        "adjusted_top5_overlap": 5,
+        "continuous_nll": 0.01,
+        "window_nll": 0.02
+      },
+      "no_test_or_runtime_change": true
+    },
+    "scope_limit": "Six prompts and the retained short excerpt characterize this pinned fixture only, not general model quality."
+  },
+  "checkpoint_checks": {
+    "docs": {
+      "passed": true,
+      "known_findings": 13,
+      "planted_faults": 16
+    },
+    "dead_code": {
+      "passed": true,
+      "known_findings": 7,
+      "planted_faults": 18
+    },
+    "markdown": {
+      "pages": 88,
+      "changed_pages": 8
+    },
+    "logs": {
+      "docs-checkpoint.stdout": "d52111da47da534550eb25ce3d57bb378e5fe8bc9eeb9a0943388d41af57299e",
+      "docs-checkpoint.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "docs-reconciliation.json": "1d2bd1a576b0d6eab9770fc1189b5081aa0c72cc68a46c0a7bfde69d9d49925d"
+    },
+    "coordinated_window": "CPU timing was explicitly drained; release agent confirmed no competing benchmark."
+  }
+}

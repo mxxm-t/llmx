@@ -18,6 +18,8 @@ target on Linux; it comes after this and reuses the structure.
 
 The backend retains these read-only weights in their file storage and widens them in separate builds of the existing F32 embedding, row and tile kernels. Storage precision is independent of activation `--dtype`; the weight descriptor selects the modules and existing crossovers. The CPU and device qualification status is in [STATUS](STATUS.md), and ownership and float-control details are in [the backend page](src/backends-vulkan.md).
 
+The `llmx-moe-kernel-bench` tool retains its decode cases and adds dense prompt and routed cases through 128 rows, crossing the ordinary and routed quantized tile thresholds. Its buffers hold those extents; matched screens record the exact benchmark source and binary alongside each kernel arm.
+
 ## MXFP4 and activation precision
 
 The Vulkan backend reads MXFP4 through exact embedding, row and tile decoders. F32 uses original activations; BF16 tiles round inputs explicitly. F16 calls use block-int16 rows and, on integer-tile profiles, dense prompts with an exact float-scale copy. Routed prompts and projections beyond the bounded 256 MiB copy scratch take the wider F32 tile. Unsafe sums are recomputed in double from exact weights and the selected path's inputs; split partials stay double until reduction. Optional float preservation and double properties gate the type without raising other types' requirements. The backend advertises native F16 and resolves auto to it on the qualified MI50 and Radeon VII paths.
@@ -176,7 +178,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
   A model holding a type without a kernel is refused before any weight is adopted, naming the tensor and its type (`Backend::supports_type`).
   A direct matmul, routed product or embed of such a type is refused before it records a dispatch, naming the type by its numeric id.
-  Today: F32, BF16, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K and Q6_K, plus MXFP4 on devices with its required properties. BF16 weights are widened by placing their stored 16 bits in the high half of an F32 value; this weight-storage path is separate from BF16 activation rounding. Other known storage layouts remain metadata-only.
+  Today: F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and IQ4_NL, plus MXFP4 on devices with its required properties. IQ4_NL uses signed lookup rows on lookup-dot profiles and tiles on integer-tile profiles over the block-int16 activation twin, with wider F32 elsewhere. Radeon VII retains its faster F32 tiles; MI50 native tile speed remains unmeasured. Explicit F32 keeps original inputs and BF16 its input-rounding tile; device and performance qualification remain open. Other known storage layouts remain unavailable on Vulkan and are refused during placement.
 - **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `k45_row_lanes` in the Q4_K/Q5_K integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
   block is read once per chunk of a build's columns, eight, or on the MI50

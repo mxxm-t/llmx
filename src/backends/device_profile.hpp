@@ -56,8 +56,8 @@ struct DeviceProfile {
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.
     bool prefer_integer_dot = false;
-    // MXFP4 code-pair decoding and dot instructions are tuned independently of other row families.
-    bool mxfp4_integer_dot = false;
+    // Signed lookup decoding and dot instructions are tuned independently of other row families.
+    bool lookup_integer_dot = false;
 };
 
 // A device and driver the profile was tuned on, with the numbers measured there: the table to extend when bringing up hardware, with the sweeps in docs/VULKAN.md.
@@ -76,7 +76,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.tile_from_other = 64;
              p.tile_from_other_narrow = 64;
              p.prefer_integer_dot = false;
-             p.mxfp4_integer_dot = true;
+             p.lookup_integer_dot = true;
              p.moe_tile_from = 32;
              p.moe_tile_from_q4 = 96;
              p.moe_tile_from_q4k = 64;
@@ -90,7 +90,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.tile_from_other = 24;
              p.tile_from_other_narrow = 40;
              p.prefer_integer_dot = true;
-             p.mxfp4_integer_dot = true;
+             p.lookup_integer_dot = true;
              p.moe_tile_from = 32;
              p.moe_tile_from_q4 = 96;
              p.moe_tile_from_q4k = 64;
@@ -117,7 +117,7 @@ inline DeviceProfile profile_for(const DeviceCaps& caps) {
         if (caps.driver.find(table[i].driver) == std::string::npos) continue;
         DeviceProfile p = defaults;
         table[i].tune(p);
-        p.mxfp4_integer_dot = p.mxfp4_integer_dot && caps.integer_dot;
+        p.lookup_integer_dot = p.lookup_integer_dot && caps.integer_dot;
         return p.prefer_integer_dot && !caps.integer_dot ? defaults : p;
     }
     return defaults;

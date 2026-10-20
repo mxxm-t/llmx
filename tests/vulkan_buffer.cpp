@@ -191,7 +191,7 @@ int scratch_reserve_checks() {
     int failures = 0;
     for (const size_t free : {size_t(0), size_t(1) << 30, size_t(32) << 30}) {
         for (const bool row_dot : {false, true}) {
-            dev->profile.mxfp4_integer_dot = row_dot;
+            dev->profile.lookup_integer_dot = row_dot;
             dev->profile.prefer_integer_dot = true;
             const size_t copied = b.scratch_reserve(free);
             dev->profile.prefer_integer_dot = false;
@@ -1298,7 +1298,7 @@ int device_need_checks() {
     const backend::DeviceProfile with = backend::profile_for(caps);
     caps.integer_dot = false;
     const backend::DeviceProfile without = backend::profile_for(caps);
-    const bool gate = with.prefer_integer_dot && with.mxfp4_integer_dot && !without.prefer_integer_dot && !without.mxfp4_integer_dot;
+    const bool gate = with.prefer_integer_dot && with.lookup_integer_dot && !without.prefer_integer_dot && !without.lookup_integer_dot;
     std::cout << "integer-dot kernels only with the integer dot product" << (gate ? " PASS\n" : " FAIL\n");
     return failures + !widths + !gate;
 }

@@ -145,15 +145,189 @@
   },
   "new_coverage": "Existing dispatch conformance expects Q5 tile names. Native integer-dot profiles also check 65537 affine rows including a final partial tile, all 32 codes, signed scales, guards, one-hot inputs, F16/int8 dense/routed products and actual tile names; Radeon skips that native branch.",
   "pending": [
-    "Same-toolchain Linux normalized payload proof",
-    "MI50 native short/tall Q5 execution and range checks",
-    "Matched Q4/Q5 performance recovery screen after coordination"
+    "Q5 raw/chat depth captures against the fixed binary, reusing completed independent HF references",
+    "Matched Q4/Q5 performance recovery screen after CPU references and builds complete"
   ],
-  "rig_staging": "Automatic approval review rejected source/script staging as sensitive egress; no transfer or retry performed. Coordinator notified. Prepared local archive and wrapper preserved.",
+  "rig_staging": "Initial agent transfer rejected by automatic review; root inspected the archive and resolved staging under standing rig authorization. First build omitted tracked build.bat; failure retained, verified supplement supplied, resume passed.",
   "limits": "No numerical bound changes, broad HF rerun, full gate, runtime knob, model/loader/CLI branch, merge or push. Prior CPU/float-only modules unchanged; binary layout changes are not a CPU performance claim.",
   "source_manifest": {
     "path": "build-q5-tile-isolation/source-hashes.json",
     "sha256": "305c7ab62b58844acddf402d0e90ce014ec7347e634a9693db57b434835f0507",
     "archive_sha256": "f8b5afc544511da04464d722cfeb4bc988baae7f70add960afad303a32da8e9c"
+  },
+  "mi50_followup": {
+    "checkpoint": "2ae5b70e7",
+    "source_manifest": {
+      "path": "build-q5-tile-isolation/rig-build-audit/final-source-hashes.json",
+      "sha256": "88346011febc5036fdc585ecaaf236f520b4a8451fa1dba9c26d5f05ef81491c"
+    },
+    "source_file_count": 343,
+    "build": {
+      "exit_code": 0,
+      "available_kib_before": 15708216,
+      "source_file_count": 343,
+      "finished_utc": "2026-10-20T12:22:53.214317+00:00"
+    },
+    "version": "llmx 0.1.0+unknown numerics f5c78e79390aba99",
+    "cli_sha256": "cbaa124c85b965d2c1260d72a37c3c1689c4d15b7fc3f0fb5578dd92c439d908",
+    "static_library_sha256": "61920b7cf330ddfb62aeb0d0eb4705eeec5c61a3276e2089a6d6b2b7fb2a4361",
+    "native_manifest": {
+      "started": "2026-10-20T12:23:55.835632+00:00",
+      "physical_gpu": 0,
+      "pci": "0000:03:00.0",
+      "cpuset": "6,7",
+      "memory": "4g",
+      "available_kib_before": 10035500,
+      "source_hashes": "88346011febc5036fdc585ecaaf236f520b4a8451fa1dba9c26d5f05ef81491c",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "scope": "Functional only, no performance claim",
+      "tests": [
+        {
+          "binary": "llmx-backend-vulkan-test",
+          "sha256": "6a1a3dbb309d3a746199676c27b7158478613878be95736c5f4b82eed6b2abc0",
+          "argv": [
+            "docker",
+            "run",
+            "--rm",
+            "--init",
+            "--name",
+            "q5-tile-native-llmx-backend-vulkan-test",
+            "--label",
+            "llmx.task=q5-tile-native-llmx-backend-vulkan-test",
+            "--cidfile",
+            "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/focused-mi50/llmx-backend-vulkan-test.cid",
+            "--network",
+            "none",
+            "--cpuset-cpus",
+            "6,7",
+            "--memory",
+            "4g",
+            "--memory-swap",
+            "4g",
+            "--pids-limit",
+            "256",
+            "--ulimit",
+            "core=0",
+            "--device",
+            "/dev/dri/renderD136",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/src:/work:ro",
+            "-w",
+            "/work",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "/work/build/llmx-backend-vulkan-test"
+          ],
+          "started": "2026-10-20T12:23:55.850116+00:00",
+          "exit_code": 0,
+          "ended": "2026-10-20T12:24:34.328347+00:00"
+        },
+        {
+          "binary": "llmx-vulkan-quantization-test",
+          "sha256": "bd1dc5de244dac7d0e9adbd838f1f536dac83c9dbe2fac66b82d308a9cbc908e",
+          "argv": [
+            "docker",
+            "run",
+            "--rm",
+            "--init",
+            "--name",
+            "q5-tile-native-llmx-vulkan-quantization-test",
+            "--label",
+            "llmx.task=q5-tile-native-llmx-vulkan-quantization-test",
+            "--cidfile",
+            "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/focused-mi50/llmx-vulkan-quantization-test.cid",
+            "--network",
+            "none",
+            "--cpuset-cpus",
+            "6,7",
+            "--memory",
+            "4g",
+            "--memory-swap",
+            "4g",
+            "--pids-limit",
+            "256",
+            "--ulimit",
+            "core=0",
+            "--device",
+            "/dev/dri/renderD136",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/src:/work:ro",
+            "-w",
+            "/work",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "/work/build/llmx-vulkan-quantization-test"
+          ],
+          "started": "2026-10-20T12:24:34.337063+00:00",
+          "exit_code": 0,
+          "ended": "2026-10-20T12:24:48.205998+00:00"
+        }
+      ],
+      "required_q5_tall_witnesses": [
+        "Q5 affine tail dense matmul_tile_q5_tall",
+        "Q5 affine tail dense matmul_tile_q5i8_tall",
+        "Q5 affine tail routed matmul_tile_q5_tall",
+        "Q5 affine tail routed matmul_tile_q5i8_tall"
+      ],
+      "finished": "2026-10-20T12:24:48.207060+00:00"
+    },
+    "native_evidence": [
+      {
+        "path": "build-q5-tile-isolation/mi50-audit/focused-mi50/llmx-backend-vulkan-test.log",
+        "sha256": "ee312d553a4586705ccb069952000ae0471ebfdf9d3aa5409c803140a4610b8e"
+      },
+      {
+        "path": "build-q5-tile-isolation/mi50-audit/focused-mi50/llmx-vulkan-quantization-test.log",
+        "sha256": "69f652c4053a822233f0d86061dd3078b1b4364a6236f3362e746bd7247e0bdf"
+      },
+      {
+        "path": "build-q5-tile-isolation/mi50-audit/focused-mi50/manifest.json",
+        "sha256": "69518f215df77eae94e603b3114b41f7aa8ce95534834b9da4fbcca7a8a3a635"
+      }
+    ],
+    "native_check_counts": {
+      "existing_dispatch_and_refusal_checks": 582,
+      "independent_q5_affine_tail_outputs": 262148,
+      "shared_matrix_precision_values": 111888,
+      "q5_embedding_values": 82944
+    },
+    "linux_payload_proof": {
+      "path": "build-q5-tile-isolation/linux-payload-proof/payload-proof.json",
+      "sha256": "e8e5c5d7f3ea3b98d567ba92846ad2f55f8a7c780878124aa3e7cca777f6ae13"
+    },
+    "changed_existing_payloads": [
+      "matmul_tile_q",
+      "matmul_tile_q_preserve",
+      "matmul_tile_qi8",
+      "matmul_tile_qi8_preserve"
+    ],
+    "new_payloads": [
+      "matmul_tile_q5",
+      "matmul_tile_q5_preserve",
+      "matmul_tile_q5i8",
+      "matmul_tile_q5i8_preserve"
+    ],
+    "unchanged_existing_payload_count": 157,
+    "legacy_half_normalized_identity": {
+      "matmul_tile_q": true,
+      "matmul_tile_q_preserve": true,
+      "matmul_tile_qi8": true,
+      "matmul_tile_qi8_preserve": true
+    },
+    "initial_build_failure": {
+      "reason": "Archive omitted tracked build.bat required by cmake/build-info.cmake; all shaders compiled successfully. Minimal verified supplement restored identity input; no runtime source repair.",
+      "log": {
+        "path": "build-q5-tile-isolation/rig-build-audit/build.log",
+        "sha256": "33ce044cad76f74910b6bb514d9b1e35f251abc9cd231ac6eab181c5bd0b9857"
+      }
+    },
+    "resumed_build_log": {
+      "path": "build-q5-tile-isolation/rig-build-audit/resume-build.log",
+      "sha256": "952957edd818f00fb8939df3885942399f4d29be357cf005b11973c287c0d504"
+    },
+    "limitations": [
+      "Matched performance recovery is pending; no speed claim.",
+      "This addendum contains no new HF reference or changed bound.",
+      "New Q5 modules have short/tall F16/int8 actual-path and independent raw arithmetic coverage; existing range and precision native tests also pass.",
+      "GCC14 warning in unchanged server::Cache::promised/gain_of retained in build log."
+    ]
   }
 }

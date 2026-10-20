@@ -1,0 +1,148 @@
+{
+  "scope": "Focused IQ4_NL integration onto half plus Flash main; not final model, platform, performance or landing qualification.",
+  "date": "2026-10-20",
+  "base": "b1c2fcd938609b60dedc41c4e00310442ae35b84",
+  "iq4_source": "5dce95aa7e03bf4c9871b3ed6246d445dd52757e",
+  "iq4_delta_base": "53a7e81e2945391b3440fc562909b123316915b8",
+  "branch": "integrate/iq4-nl-half-20261020",
+  "integration": "Apply the IQ4 delta from 53a to 5dce onto b1c2fcd93; preserve existing isolated IQ/screen trees. CPU IQ4 uses shared dot_float<Type> weight loader and one accumulation body; remove duplicate dot_row_iq4_nl. Preserve half descriptor embedding modules and Flash kernels. No model, loader or CLI format branches.",
+  "environment": {
+    "os": "Windows",
+    "compiler": "MSVC 19.50.35728.0",
+    "generator": "Visual Studio 18 2026",
+    "vulkan_sdk": "1.4.357.0",
+    "configuration": "Release",
+    "build_directory": "build-iq4-half",
+    "fresh": true,
+    "parallel": 2
+  },
+  "binary_version": "llmx 0.1.0+gb1c2fcd93860.dirty numerics d46a7b2ac409fac6",
+  "binary_hashes": {
+    "llmx-backend-errors-test.exe": "9c9315c690ad952a9421d912555fe2ee53dceac863a5e28bf9ac8e72b0dc0092",
+    "llmx-backend-vulkan-test.exe": "9c85e99679bc6e8e97847250c12e8aa377f3ae43e5de2976c43375656d27f080",
+    "llmx-half-weights-test.exe": "2a822272c2e08a63466ac6eb827f7c997ea36b3e4170ffda4fb1db98b966a663",
+    "llmx-iq4-nl-test.exe": "4f72a3f6f4a1d3a4e769d3821de2ff937c21e23bc431888f452a42f6cefc0405",
+    "llmx-iq4-nl-vulkan-test.exe": "f239fc2a49fce6e047f253901e9a89b5091a8591bb877c28ab07c083b8ce981c",
+    "llmx-vulkan-lifetime-test.exe": "d82f2f6dd6ce7c301fc6e6bcc93b7169e2a559d781af7eb9f79c7314fee92bcc",
+    "llmx-vulkan-quantization-test.exe": "aafd0f8fca7d7818be123f9770bea8def092025d5f922a15e260f531910ffe08",
+    "llmx.exe": "4c5cc2698f1536da77fdbdb1b783e8a3eba3c200f530f752591e5d84036134e6"
+  },
+  "commands": [
+    "cmake -S . -B build-iq4-half -DLLMX_HAS_BACKEND_VULKAN=ON",
+    "cmake --build build-iq4-half --config Release --parallel 2 --target llmx llmx-iq4-nl-test llmx-half-weights-test llmx-backend-errors-test llmx-iq4-nl-vulkan-test llmx-backend-vulkan-test llmx-vulkan-buffer-test llmx-vulkan-quantization-test",
+    "cmake --build build-iq4-half --config Release --parallel 2 --target llmx-vulkan-lifetime-test llmx-vulkan-quantization-test",
+    "ctest --test-dir build-iq4-half -C Release -R '^(iq4-nl|half-weights|backend-errors)$' --output-on-failure",
+    "python tests/run_tests.py --exe build-iq4-half/Release/llmx.exe --only docs,dead-code,reference-generator",
+    "python tests/run_tests.py --exe build-iq4-half/Release/llmx.exe --only roundtrip",
+    "ctest --test-dir build-iq4-half -C Release -R '^(iq4-nl-vulkan|backend-vulkan|vulkan-buffer|vulkan-quantization)$' --output-on-failure"
+  ],
+  "failures": [
+    {
+      "command": 1,
+      "kind": "Build orchestration",
+      "result": "Code targets compiled; command then exited 1 because llmx-vulkan-buffer-test does not exist. Correct registered target llmx-vulkan-lifetime-test and remaining quantization target built successfully. No compiler or numerical failure.",
+      "log": "build-iq4-half/build-iq4-half-compile.log"
+    }
+  ],
+  "cpu": {
+    "native_pass": 3,
+    "iq4_exact_decoded": 32505856,
+    "iq4_range_dots": 11776,
+    "iq4_exact_products_embeddings": 1618944,
+    "iq4_exact_row_class_pairs": 17914,
+    "half_exact_values": 2342944,
+    "backend_errors": "PASS",
+    "roundtrip": "PASS"
+  },
+  "source_checks": {
+    "docs_findings": 0,
+    "docs_planted_faults": 21,
+    "dead_code_known_findings": 5,
+    "dead_code_planted_faults": 18,
+    "reference_generator_tests": 56,
+    "result": "PASS"
+  },
+  "modules": {
+    "common_with_iq4": 120,
+    "identical": 119,
+    "iq4_native_row_and_tile": "identical",
+    "only_changed": "gated_rms_norm.inc; Flash base adds selectable sigmoid gate. Source diff confirms this base change."
+  },
+  "gpu": {
+    "result": "4/4 PASS; 59.87 seconds, functional only",
+    "device": "AMD Radeon VII",
+    "identity": "vulkan 4098:26287 AMD Radeon VII; AMD proprietary driver 26.5.2 (AMD proprietary shader compiler) 8388887 3708bcabde6c5dfebffc12b77baf8df2",
+    "iq4_independent_values": 13847800,
+    "iq4_bitwise_row_class_pairs": 1625,
+    "half_exact_values_and_products": 935426,
+    "paths": "IQ4 block-int16 lookup rows, original-input F32 rows/tiles and rounded BF16 tiles; Radeon prefers wider F32 tiles. Native MI50 integer tiles not executed here.",
+    "availability": "Root released local GPU before run; released back after checks. Snapshot included two retained MSBuild processes with cumulative CPU 1.17/1.88 seconds; no contention or performance attribution is claimed."
+  },
+  "source_hashes": {
+    "CMakeLists.txt": "696026959cbd363a434ff9d292570cba5ae3f843e3445ee1f26843101ff83beb",
+    "cmake/tests.cmake": "e88d4f2c72726f895919239338290c632847436ad420082ff8b36fddeae5c599",
+    "src/backends/cpu/cpu_backend.hpp": "b51da5bc736bcb33701fdca6486c2bc28d7d5a71cc72f60854efda54d6781798",
+    "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+    "src/backends/vulkan/shaders/embed.comp": "9ffeca800319822a8370299ccba6c1ed29ccb6377de1b8d4b61eb391f5ea9a30",
+    "src/backends/vulkan/shaders/iq4_dot.glsl": "2e56dba7177d3d90f83edf61b61c0565deed7a7ae023cd64ae56358823b205e4",
+    "src/backends/vulkan/shaders/matmul_row.comp": "77b21fa7ce95709128429e6db5b1ac9189ec5fe397bd189ff6e80f14b94473b4",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "9a54c78a6f4acd5b724a350f8877af028653211b0c7b672fc5f4ce14ee336280",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "0f84374529ba814db96d315d2c40333b946d4f937a3320265a891783de64f52f",
+    "src/backends/vulkan/shaders/q.glsl": "9f3791fb9f1a9edb3e8e8c916e51396fc85c234171c5d514d1ef896fb0224d49",
+    "src/backends/vulkan/shaders/qdecode.glsl": "375150bd9e8cf63419f022042c60ad9d517cb3e3380821b792315966770385b0",
+    "src/backends/vulkan/vulkan_backend.cpp": "bbafda8a64291c54508d2f6f170c40e2aa0d66127658e3c135a8bcbd4ce6d7cc",
+    "src/quant/quant.hpp": "e0774a083b513a22eabb6dbf99a12ce8006541131d2563ee4a8b15645b25ff72",
+    "src/quant/types.hpp": "a161c760afb3536a04a9a0e83b0c786ddb9aa774d78f6193bc86fdf83f4823b5",
+    "tests/backend_errors.cpp": "b738524f197c95532bdc2ac32b0b6556724047c9396d042a236e4c2d720179f0",
+    "tests/backend_vulkan.cpp": "36aae8a884287db8e56e5ecb291de4ff4b5c6dbab7dac0d71cfda9749d996758",
+    "tests/block_fixture.py": "ac23a60d09cb44f271ead5528a343200446102b6df4953b74b959d5e327abb64",
+    "tests/data/baseline_iq4_nl.json": "b351b5f20b6e9f8f30eac9cba6e936ae43f2188495d43733e347521c4caa910c",
+    "tests/data/iq4-nl-file-exact/baseline_logits.json": "367753efe19253b6c9ae7552148aa94ec18f53281a4f93748666789718b435c9",
+    "tests/data/iq4-nl-file-exact/baseline_perplexity.json": "ad43d2ccff6a5fe2a7f8b84fec662e5c639ec943059b32b20bb7b19dc93cc223",
+    "tests/iq4_nl.cpp": "3673e6d3a56e950d91c7357c7cb27a4a0ebdfa928308b2d01922e17de3ce8738",
+    "tests/iq4_nl.py": "29f55d495ca0993ac246dec5096bdf87a848774af02b0867f5fdf36b2f921aab",
+    "tests/iq4_nl_vulkan.cpp": "9fa81afbd678d61f1848b537fcbfff2459d4f56d0b246695e38c7f3a2597b37d",
+    "tests/matrix_precision.hpp": "893c0f98f3a183edb7651152533a3c216d19bff62dc1ac6127c1d2f6e74994c0",
+    "tests/mxfp4.py": "0fe256e589e8566c70c83df43d65ebfd3b0730a0e8968d593ed396a0a9b1383d",
+    "tests/mxfp4_vulkan.cpp": "01f9add56ff24b8d8ad32a481705e607474a361a4eaae2dd21ddd73fa4e613bb",
+    "tests/reference_generator.py": "b46f04ff7df7d6693d3483efe06b66faf7bbe257f16c2845c21688d8b4dd01cf",
+    "tests/roundtrip.py": "ae3a7453caa1ca8c1b7785b86fd8a9f04dadd5f920bd8048ce05e8ee2323bafb",
+    "tests/run_tests.py": "cc8cc0f7197de1ad1b085e6334caef365128bebf1e33fdcc1695a1203e5075bc",
+    "tests/split.py": "f812a372082db6aa2977e94e1ad9cf532cae6a20acc6863873079bf387f34629",
+    "tests/vulkan_buffer.cpp": "9383571a2cc0939884abaf30a859e65f9537d38c5372fec5e5770a476c4f61fa",
+    "tools/gen_baseline.py": "2407f481764c575aaac73077566b2a6f735bdf0e3ee05886a6c206fa4d07986d",
+    "tools/moe_kernel_bench.cpp": "df195e6b335a54c264a7b0438a68667847c5dacb64611a96b8f24d5bc53b63f2"
+  },
+  "artifact_hashes": {
+    "build-iq4-half/build-iq4-half-configure.log": "a5f5d381b35fa912ddb55ad31e96d70edd896ab6bc4b63e0865a506779992500",
+    "build-iq4-half/build-iq4-half-compile.log": "dc96ccb84a1bbcc9367765186e86377d72a18c58ec7550c148f8fad4521309db",
+    "build-iq4-half/integration-build-remaining.log": "12a52cbb2ab5333642e8f1a2d015e451e801b5d5982bd23d751358e9d41ed0c3",
+    "build-iq4-half/integration-cpu-checks.log": "eeb63f48d3ca43e0dab7c7ee3177ae8b8e824a50eeb20f3ee2e970fd547a0df6",
+    "build-iq4-half/integration-cpu-detail.log": "1ada4591ccdddfd691761d5af04b30628724d1277f6b9ac1f16969dc2c57f2b2",
+    "build-iq4-half/integration-source-checks.log": "40e88cc1a8f2fc05694877eb47baa6f9832541486c864110819d63512dd383a6",
+    "build-iq4-half/integration-roundtrip.log": "925c88cb60302ce52fd76fde383914462f3e67878e970f9bebcdf95c5c702018",
+    "build-iq4-half/integration-source-hashes.json": "f079843a5453e13e27b48c78b35cc595fbd0e1249825f2ca9c08b4547cffb42b",
+    "build-iq4-half/integration-module-identity.json": "10a510c739b72f078dbe25c8f722d8ec9f992d3666d216f777ae87e765cc3f34",
+    "build-iq4-half/integration-gpu-checks.log": "95627cfac9f149008db126d1845e8d8bac4505d8b886e34d7792960339b0e8a4",
+    "build-iq4-half/integration-gpu-detail.log": "2f68f62470637927abfca5c0e210cef69cfc11764c21857ce33bfdd83071838a",
+    "build-iq4-half/integration-final-docs.log": "ce03166ffc22105982d8e014145f8eb5ef713f9912012d06042615a28c56d699"
+  },
+  "open": [
+    "MI50 native IQ4 tile functional and speed qualification",
+    "Original-weight quality acceptance remains separate from file-exact runtime evidence",
+    "Prior router F32 T128 +11.4% and small-control screen results remain open",
+    "Failed Radeon integer-tile speed screen retained; Radeon uses prefer_integer_dot=false F32 tiles, while rows use lookup_integer_dot",
+    "Post-integration timing and applicable model/platform/identity/hosted CI gates unrun",
+    "Q5 shared block fixture superset integration remains root-owned; Q5 trees untouched"
+  ],
+  "bounds": "Unchanged; no golden regeneration or widened limits.",
+  "hardware": "Local only; no rig, transfer, full gate, push or merge.",
+  "unchanged_from_iq4_checkpoint": [
+    "tests/iq4_nl.cpp",
+    "tests/iq4_nl.py",
+    "tests/data/baseline_iq4_nl.json",
+    "tests/iq4_nl_vulkan.cpp",
+    "docs/benchmarks/iq4-nl-vulkan-native-rows-20261020.json",
+    "docs/benchmarks/iq4-nl-vulkan-integer-tiles-20261020.json"
+  ]
+}

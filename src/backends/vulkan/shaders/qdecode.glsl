@@ -27,6 +27,19 @@ float mxfp4_at(uint o, uint j) {
     return uintBitsToFloat(magnitude == 0u ? 0u : bits | ((code & 8u) << 28u));
 }
 
+// IQ4_NL uses signed lookup values, scaled by one binary16 per block.
+int iq4_nl_value(uint code) {
+    const int values[16] = int[16](-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113);
+    return values[code];
+}
+float iq4_nl_at(uint o, uint j, float d) {
+    uint packed = QBYTE(o + 2u + (j & 15u));
+    int value = iq4_nl_value(j < 16u ? packed & 15u : packed >> 4u);
+    // Embedding builds lack float-control modes, so construct the format's zero sign as bits.
+    uint sign = (floatBitsToUint(d) ^ (value < 0 ? 0x80000000u : 0u)) & 0x80000000u;
+    return uintBitsToFloat((floatBitsToUint(d * float(value)) & 0x7fffffffu) | sign);
+}
+
 // Q4_0: (nibble - 8) * d as nibble * d - 8 * d, the same value under a finite scale except +0 for the -0 that nibble 8 gives under a negative scale, which the tile's sums never see.
 float q4_0_at(uint o, uint j, float d) {
     uint byte = QBYTE(o + 2u + (j & 15u));
@@ -113,6 +126,7 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     float d = half_at(QBYTE(scale), QBYTE(scale + 1u));
     if (type == TYPE_Q8_0) return d * float(int(QBYTE(o + 2u + j) << 24u) >> 24);
     if (type == TYPE_Q4_0) return q4_0_exact(o, j, d);
+    if (type == TYPE_IQ4_NL) return iq4_nl_at(o, j, d);
     if (type == TYPE_Q6_K) return q6_k_at(o, j, d);
     float m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
     if (type == TYPE_Q4_1) return q4_1_at(o, j, d, m);

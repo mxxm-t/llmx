@@ -1,0 +1,1783 @@
+{
+  "date": "2026-10-20",
+  "source_checkpoint": "2e2aaf3faa6ea0a7e8cc58306b081b880915c38a",
+  "previous_functionality_checkpoint": "db1fefd2d23fd39eed84b18a728d6bde46e39ef6",
+  "scope": "Native signed lookup rows only. Integer tiles and final conformance/platform/model/reference-speed/integration remain open.",
+  "owners": {
+    "lookup": "qdecode.glsl:iq4_nl_value shared by decoded weights and native rows",
+    "native_row": "matmul_row.comp LLMX_IQ4 specialization using existing dot16.glsl and common row/grouped/head dispatch",
+    "dispatch": "WeightKernels dot-profile pointer; no model/loader/CLI format cases",
+    "activation_reference": "Existing backend_vulkan reconstruction moved unchanged to tests/matrix_precision.hpp",
+    "cpu_code_and_hf_fixture_changes": false
+  },
+  "native": {
+    "passed": true,
+    "decoded_product_range_cancellation_values": 2383980,
+    "row_class_bitwise_pairs": 1625,
+    "log": "iq4-row-screen-candidate-20261020\\build-row-screen\\native-row-functional.log",
+    "log_sha256": "bd7e59d5545c79b12278b409a8860c9f2aa77e7f0521de89b8436edef01d183c",
+    "test_exe_sha256": "46cd5b0cd7bfff44c695978775c9311244ec4799db3f4403fce0ce470aec32ee",
+    "coverage": "All finite-scale lookup embedding; original F32, BF16 rounding, independently reconstructed int16 inputs; zero/tiny/negative/maximum scales and large finite activations; signed-block cancellation; dense/head/add/grouped/routed products and guards. Native one/wide/grouped/head kernels and per-call block-int16/f32/bf16 witnesses. Shared row classes at widths256/4096 and routed products.",
+    "accumulation_bound": "Existing 3e-6 times sum of magnitudes, unchanged; one-hot range bound unchanged.",
+    "range_repair": "Unsafe combined scale or nonfinite row sum recomputed in ordered F32 using exact decoded weights and the same reconstructed int16 inputs. Retains wider F32 limitation when individual overflowing F32 terms cancel to a finite result. No duplicated MXFP4 F64 machinery."
+  },
+  "existing_formats": {
+    "test": "backend-vulkan",
+    "passed": true,
+    "seconds": 28.41,
+    "log": "build-iq4-vulkan/native-row-existing-ctest.log"
+  },
+  "source_checks": {
+    "docs": "0 findings, 21 planted faults pass",
+    "dead_code": "5 existing listed findings, 18 planted faults pass",
+    "diff_check": "pass",
+    "invocation_note": "Direct docs_check.py initially refused missing root CLI; runner --exe build-iq4-vulkan/Release/llmx.exe --only docs then passed."
+  },
+  "arithmetic": "F16/int8 lookup-profile rows use block-int16; int8 explicitly widens. F32 keeps original inputs, BF16 existing rounded tile, unsupported profiles and IQ4 prompt tiles use wider F32. No bounds changed.",
+  "tiny_hf": {
+    "source_checkpoint": "2e2aaf3faa6ea0a7e8cc58306b081b880915c38a",
+    "binary": "Clean detached candidate in screen.manifest.arm.candidate; unchanged after screen.",
+    "policies": [
+      "f16",
+      "int8"
+    ],
+    "each_logit_cases": 150,
+    "each_nll_cases": 12,
+    "passed": true,
+    "logit_bound": 0.003304719924926758,
+    "nll_bound": 0.0002966423345469593,
+    "max_displayed_logit_error": 0.00010544,
+    "max_displayed_nll_error": 6.46e-06,
+    "per_variant_displayed_errors": {
+      "dense-untied": [
+        9.216e-05,
+        6.46e-06
+      ],
+      "dense-tied": [
+        8.15e-05,
+        3.92e-06
+      ],
+      "moe": [
+        0.00010544,
+        1.06e-06
+      ]
+    },
+    "logs": {
+      "build-iq4-vulkan\\native-row-hf-f16.log": "4c762f0af963ae27e0e95cb5fb92f3cbbf291a82b317d57bfec8302b0433e85f",
+      "build-iq4-vulkan\\native-row-hf-int8.log": "4c762f0af963ae27e0e95cb5fb92f3cbbf291a82b317d57bfec8302b0433e85f"
+    },
+    "commands": [
+      "python tests/run_tests.py --exe ../iq4-row-screen-candidate-20261020/build-row-screen/Release/llmx.exe --only iq4-nl --device vulkan:0 --dtype f16",
+      "python tests/run_tests.py --exe ../iq4-row-screen-candidate-20261020/build-row-screen/Release/llmx.exe --only iq4-nl --device vulkan:0 --dtype int8"
+    ],
+    "consumer": "Unchanged tests/iq4_nl.py, common.check_hf_fixture and committed file-exact baseline_iq4_nl.json. Bounds derive from actual completed matrix paths; no recalibration or tolerance changes.",
+    "fixture_sha256": "b351b5f20b6e9f8f30eac9cba6e936ae43f2188495d43733e347521c4caa910c",
+    "scope": "F16/int8 selected native lookup rows alongside wider prompt tiles and F32 routers. IQ4 has no 8-bit build; int8 widens, and Radeon does not advertise native int8. These tests qualify the file-exact arithmetic criterion, not original-weight quality, model/reference speed or final platform integration. F32/BF16 were not rerun because their executed paths did not change."
+  },
+  "screen": {
+    "manifest": {
+      "kind": "bounded local kernel screen; not real-model or mx qualification",
+      "created": "2026-10-20T09:07:43.830100+00:00",
+      "iterations": 10,
+      "device": 0,
+      "types": [
+        20,
+        20
+      ],
+      "timed": true,
+      "warmup_order": [
+        "base",
+        "candidate"
+      ],
+      "measured_order": [
+        "base",
+        "candidate",
+        "candidate",
+        "base",
+        "base",
+        "candidate"
+      ],
+      "inference_limit": "three paired blocks resolve only large effects above 6%; smaller differences remain unresolved; no layout-control or mx/model claim",
+      "activity_flags": {
+        "system_cpu_percent_above": 50,
+        "disk_bytes_per_second_above": 10485760,
+        "background_gpu_engine_percent_above": 5,
+        "nonbenchmark_build_process_cpu_percent_above": 50
+      },
+      "arm": {
+        "base": {
+          "tree": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-row-screen-base-20261020",
+          "head": "db1fefd2d23fd39eed84b18a728d6bde46e39ef6",
+          "status": "",
+          "version": "llmx 0.1.0+gdb1fefd2d23f numerics 78d813abd846ba87",
+          "cli_sha256": "128b4b3bb485074d3eb5627b175a5da0703746450b7eb5f2f8c786b910e00563",
+          "bench_sha256": "67559daff3d64733d7bd4b62040f69f23fbd7adaea67f98de85e7b04cd41e470",
+          "benchmark_source_sha256": "dfdbd31f59ef5a8a2abada22ad5643d6626a23e5f2f2ac9f321ace186c4307a5",
+          "weight_source_sha256": "dfb2857558cfe88a1d3f4a204741e36d9c012b806050c213a21aba07c47124ce"
+        },
+        "candidate": {
+          "tree": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-row-screen-candidate-20261020",
+          "head": "2e2aaf3faa6ea0a7e8cc58306b081b880915c38a",
+          "status": "",
+          "version": "llmx 0.1.0+g2e2aaf3faa6e numerics 641d88120ae398b6",
+          "cli_sha256": "eb296b65a6b8b06e8c2654bf56f23c0b9e603e8fa8137c42846a3e42a232b7dc",
+          "bench_sha256": "fdc1f938ad52f85d9f297fc851b61aaebe15aba9f8cd073f122ddac0aaaabb8c",
+          "benchmark_source_sha256": "dfdbd31f59ef5a8a2abada22ad5643d6626a23e5f2f2ac9f321ace186c4307a5",
+          "weight_source_sha256": "dfb2857558cfe88a1d3f4a204741e36d9c012b806050c213a21aba07c47124ce"
+        }
+      }
+    },
+    "compiler": "MSVC19.50.35728.0, VisualStudio18 2026, Release; fresh build-row-screen directories, --parallel2",
+    "vulkan_sdk": "1.4.357.0",
+    "device": "AMD Radeon VII, Windows proprietary driver31.0.21925.1001",
+    "command": "llmx-moe-kernel-bench.exe 0 10 20 20 1",
+    "all_runs": [
+      {
+        "phase": "warmup",
+        "ordinal": 0,
+        "arm": "base",
+        "start": "2026-10-20T09:07:46.478098+00:00",
+        "end": "2026-10-20T09:07:50.120681+00:00",
+        "returncode": 0,
+        "log": "warmup-0-base.log",
+        "unattributed_gpu_copy_flags": 1
+      },
+      {
+        "phase": "warmup",
+        "ordinal": 1,
+        "arm": "candidate",
+        "start": "2026-10-20T09:07:50.121651+00:00",
+        "end": "2026-10-20T09:07:53.439452+00:00",
+        "returncode": 0,
+        "log": "warmup-1-candidate.log",
+        "unattributed_gpu_copy_flags": 1
+      },
+      {
+        "phase": "measured",
+        "ordinal": 0,
+        "arm": "base",
+        "start": "2026-10-20T09:07:53.440452+00:00",
+        "end": "2026-10-20T09:07:56.043450+00:00",
+        "returncode": 0,
+        "log": "measured-0-base.log",
+        "unattributed_gpu_copy_flags": 1
+      },
+      {
+        "phase": "measured",
+        "ordinal": 1,
+        "arm": "candidate",
+        "start": "2026-10-20T09:07:56.043450+00:00",
+        "end": "2026-10-20T09:07:58.268133+00:00",
+        "returncode": 0,
+        "log": "measured-1-candidate.log",
+        "unattributed_gpu_copy_flags": 1
+      },
+      {
+        "phase": "measured",
+        "ordinal": 2,
+        "arm": "candidate",
+        "start": "2026-10-20T09:07:58.268133+00:00",
+        "end": "2026-10-20T09:08:00.528262+00:00",
+        "returncode": 0,
+        "log": "measured-2-candidate.log",
+        "unattributed_gpu_copy_flags": 0
+      },
+      {
+        "phase": "measured",
+        "ordinal": 3,
+        "arm": "base",
+        "start": "2026-10-20T09:08:00.529264+00:00",
+        "end": "2026-10-20T09:08:03.247842+00:00",
+        "returncode": 0,
+        "log": "measured-3-base.log",
+        "unattributed_gpu_copy_flags": 2
+      },
+      {
+        "phase": "measured",
+        "ordinal": 4,
+        "arm": "base",
+        "start": "2026-10-20T09:08:03.248843+00:00",
+        "end": "2026-10-20T09:08:05.871274+00:00",
+        "returncode": 0,
+        "log": "measured-4-base.log",
+        "unattributed_gpu_copy_flags": 1
+      },
+      {
+        "phase": "measured",
+        "ordinal": 5,
+        "arm": "candidate",
+        "start": "2026-10-20T09:08:05.871274+00:00",
+        "end": "2026-10-20T09:08:08.100796+00:00",
+        "returncode": 0,
+        "log": "measured-5-candidate.log",
+        "unattributed_gpu_copy_flags": 1
+      }
+    ],
+    "all_cases": [
+      {
+        "case": "floor silu_mul 2048",
+        "base": [
+          {
+            "wall_us": 14.8,
+            "device_us": 6.5
+          },
+          {
+            "wall_us": 15.0,
+            "device_us": 6.5
+          },
+          {
+            "wall_us": 16.3,
+            "device_us": 6.5
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 15.3,
+            "device_us": 6.4
+          },
+          {
+            "wall_us": 15.0,
+            "device_us": 6.4
+          },
+          {
+            "wall_us": 15.1,
+            "device_us": 6.5
+          }
+        ],
+        "base_median_us": 15.0,
+        "candidate_median_us": 15.1,
+        "wall_change_percent": 0.6666666666666599,
+        "speedup": 0.9933774834437087
+      },
+      {
+        "case": "floor add 2048",
+        "base": [
+          {
+            "wall_us": 14.2,
+            "device_us": 4.8
+          },
+          {
+            "wall_us": 14.6,
+            "device_us": 4.8
+          },
+          {
+            "wall_us": 13.8,
+            "device_us": 4.8
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 15.2,
+            "device_us": 4.8
+          },
+          {
+            "wall_us": 16.2,
+            "device_us": 4.8
+          },
+          {
+            "wall_us": 13.4,
+            "device_us": 4.7
+          }
+        ],
+        "base_median_us": 14.2,
+        "candidate_median_us": 15.2,
+        "wall_change_percent": 7.042253521126751,
+        "speedup": 0.9342105263157895
+      },
+      {
+        "case": "f32 tile 4096x2048 T=64",
+        "base": [
+          {
+            "wall_us": 543.5,
+            "device_us": 534.1
+          },
+          {
+            "wall_us": 585.0,
+            "device_us": 575.0
+          },
+          {
+            "wall_us": 545.4,
+            "device_us": 536.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 544.6,
+            "device_us": 534.8
+          },
+          {
+            "wall_us": 546.8,
+            "device_us": 536.8
+          },
+          {
+            "wall_us": 583.0,
+            "device_us": 573.5
+          }
+        ],
+        "base_median_us": 545.4,
+        "candidate_median_us": 546.8,
+        "wall_change_percent": 0.25669233590024376,
+        "speedup": 0.9974396488661302
+      },
+      {
+        "case": "f32 tile 4096x2080 T=64",
+        "base": [
+          {
+            "wall_us": 499.2,
+            "device_us": 487.3
+          },
+          {
+            "wall_us": 493.4,
+            "device_us": 483.6
+          },
+          {
+            "wall_us": 491.6,
+            "device_us": 482.8
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 495.2,
+            "device_us": 485.7
+          },
+          {
+            "wall_us": 495.9,
+            "device_us": 485.2
+          },
+          {
+            "wall_us": 494.8,
+            "device_us": 485.9
+          }
+        ],
+        "base_median_us": 493.4,
+        "candidate_median_us": 495.2,
+        "wall_change_percent": 0.3648155654641272,
+        "speedup": 0.9963651050080775
+      },
+      {
+        "case": "f32 tile 4096x2048 T=512",
+        "base": [
+          {
+            "wall_us": 3042.6,
+            "device_us": 3031.6
+          },
+          {
+            "wall_us": 3028.7,
+            "device_us": 3016.2
+          },
+          {
+            "wall_us": 3059.7,
+            "device_us": 3049.8
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 3014.5,
+            "device_us": 3000.7
+          },
+          {
+            "wall_us": 3046.7,
+            "device_us": 3034.7
+          },
+          {
+            "wall_us": 3010.6,
+            "device_us": 2997.8
+          }
+        ],
+        "base_median_us": 3042.6,
+        "candidate_median_us": 3014.5,
+        "wall_change_percent": -0.9235522250706563,
+        "speedup": 1.009321612207663
+      },
+      {
+        "case": "f32 tile 4096x2080 T=512",
+        "base": [
+          {
+            "wall_us": 2434.9,
+            "device_us": 2424.3
+          },
+          {
+            "wall_us": 2445.1,
+            "device_us": 2432.7
+          },
+          {
+            "wall_us": 2451.5,
+            "device_us": 2434.4
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 2448.5,
+            "device_us": 2431.0
+          },
+          {
+            "wall_us": 2448.6,
+            "device_us": 2437.3
+          },
+          {
+            "wall_us": 2459.6,
+            "device_us": 2446.9
+          }
+        ],
+        "base_median_us": 2445.1,
+        "candidate_median_us": 2448.6,
+        "wall_change_percent": 0.14314342971657457,
+        "speedup": 0.998570611778159
+      },
+      {
+        "case": "rms_norm T=1",
+        "base": [
+          {
+            "wall_us": 18.0,
+            "device_us": 9.9
+          },
+          {
+            "wall_us": 20.5,
+            "device_us": 9.8
+          },
+          {
+            "wall_us": 19.2,
+            "device_us": 10.8
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 20.7,
+            "device_us": 9.8
+          },
+          {
+            "wall_us": 19.1,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 29.1,
+            "device_us": 10.0
+          }
+        ],
+        "base_median_us": 19.2,
+        "candidate_median_us": 20.7,
+        "wall_change_percent": 7.8125,
+        "speedup": 0.927536231884058
+      },
+      {
+        "case": "router f32 T=1",
+        "base": [
+          {
+            "wall_us": 18.7,
+            "device_us": 10.4
+          },
+          {
+            "wall_us": 18.9,
+            "device_us": 10.5
+          },
+          {
+            "wall_us": 19.7,
+            "device_us": 11.0
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 19.9,
+            "device_us": 10.5
+          },
+          {
+            "wall_us": 20.4,
+            "device_us": 11.4
+          },
+          {
+            "wall_us": 18.7,
+            "device_us": 10.5
+          }
+        ],
+        "base_median_us": 18.9,
+        "candidate_median_us": 19.9,
+        "wall_change_percent": 5.291005291005302,
+        "speedup": 0.949748743718593
+      },
+      {
+        "case": "route T=1",
+        "base": [
+          {
+            "wall_us": 19.2,
+            "device_us": 11.7
+          },
+          {
+            "wall_us": 19.2,
+            "device_us": 11.6
+          },
+          {
+            "wall_us": 18.7,
+            "device_us": 11.4
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 18.9,
+            "device_us": 11.6
+          },
+          {
+            "wall_us": 19.2,
+            "device_us": 11.7
+          },
+          {
+            "wall_us": 19.3,
+            "device_us": 11.6
+          }
+        ],
+        "base_median_us": 19.2,
+        "candidate_median_us": 19.2,
+        "wall_change_percent": 0.0,
+        "speedup": 1.0
+      },
+      {
+        "case": "silu_mul T=1",
+        "base": [
+          {
+            "wall_us": 14.0,
+            "device_us": 6.5
+          },
+          {
+            "wall_us": 13.9,
+            "device_us": 6.4
+          },
+          {
+            "wall_us": 13.8,
+            "device_us": 6.4
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 13.9,
+            "device_us": 6.3
+          },
+          {
+            "wall_us": 14.6,
+            "device_us": 6.4
+          },
+          {
+            "wall_us": 13.9,
+            "device_us": 6.4
+          }
+        ],
+        "base_median_us": 13.9,
+        "candidate_median_us": 13.9,
+        "wall_change_percent": 0.0,
+        "speedup": 1.0
+      },
+      {
+        "case": "rms_norm T=32",
+        "base": [
+          {
+            "wall_us": 18.5,
+            "device_us": 11.1
+          },
+          {
+            "wall_us": 18.7,
+            "device_us": 11.1
+          },
+          {
+            "wall_us": 18.5,
+            "device_us": 11.0
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 18.6,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 18.9,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 19.0,
+            "device_us": 11.0
+          }
+        ],
+        "base_median_us": 18.5,
+        "candidate_median_us": 18.9,
+        "wall_change_percent": 2.1621621621621623,
+        "speedup": 0.978835978835979
+      },
+      {
+        "case": "router f32 T=32",
+        "base": [
+          {
+            "wall_us": 136.4,
+            "device_us": 88.1
+          },
+          {
+            "wall_us": 136.3,
+            "device_us": 87.6
+          },
+          {
+            "wall_us": 134.0,
+            "device_us": 88.0
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 132.2,
+            "device_us": 88.0
+          },
+          {
+            "wall_us": 133.7,
+            "device_us": 88.1
+          },
+          {
+            "wall_us": 134.8,
+            "device_us": 88.1
+          }
+        ],
+        "base_median_us": 136.3,
+        "candidate_median_us": 133.7,
+        "wall_change_percent": -1.9075568598679538,
+        "speedup": 1.0194465220643232
+      },
+      {
+        "case": "router f32 rows T=32",
+        "base": [
+          {
+            "wall_us": 99.5,
+            "device_us": 87.9
+          },
+          {
+            "wall_us": 99.5,
+            "device_us": 87.9
+          },
+          {
+            "wall_us": 102.3,
+            "device_us": 87.9
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 99.5,
+            "device_us": 88.0
+          },
+          {
+            "wall_us": 99.7,
+            "device_us": 87.7
+          },
+          {
+            "wall_us": 101.7,
+            "device_us": 88.2
+          }
+        ],
+        "base_median_us": 99.5,
+        "candidate_median_us": 99.7,
+        "wall_change_percent": 0.20100502512563345,
+        "speedup": 0.9979939819458374
+      },
+      {
+        "case": "route T=32",
+        "base": [
+          {
+            "wall_us": 18.1,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 18.3,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 18.0,
+            "device_us": 10.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 18.2,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 18.6,
+            "device_us": 10.8
+          },
+          {
+            "wall_us": 18.3,
+            "device_us": 10.8
+          }
+        ],
+        "base_median_us": 18.1,
+        "candidate_median_us": 18.3,
+        "wall_change_percent": 1.104972375690605,
+        "speedup": 0.9890710382513661
+      },
+      {
+        "case": "silu_mul T=32",
+        "base": [
+          {
+            "wall_us": 17.9,
+            "device_us": 9.9
+          },
+          {
+            "wall_us": 21.1,
+            "device_us": 13.0
+          },
+          {
+            "wall_us": 20.0,
+            "device_us": 10.5
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 18.1,
+            "device_us": 10.6
+          },
+          {
+            "wall_us": 19.4,
+            "device_us": 10.5
+          },
+          {
+            "wall_us": 18.0,
+            "device_us": 10.0
+          }
+        ],
+        "base_median_us": 20.0,
+        "candidate_median_us": 18.1,
+        "wall_change_percent": -9.499999999999996,
+        "speedup": 1.1049723756906076
+      },
+      {
+        "case": "rms_norm T=128",
+        "base": [
+          {
+            "wall_us": 24.5,
+            "device_us": 17.0
+          },
+          {
+            "wall_us": 24.6,
+            "device_us": 17.0
+          },
+          {
+            "wall_us": 27.1,
+            "device_us": 17.1
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 24.8,
+            "device_us": 17.0
+          },
+          {
+            "wall_us": 25.8,
+            "device_us": 17.0
+          },
+          {
+            "wall_us": 24.5,
+            "device_us": 16.9
+          }
+        ],
+        "base_median_us": 24.6,
+        "candidate_median_us": 24.8,
+        "wall_change_percent": 0.8130081300812941,
+        "speedup": 0.9919354838709677
+      },
+      {
+        "case": "router f32 T=128",
+        "base": [
+          {
+            "wall_us": 81.3,
+            "device_us": 72.3
+          },
+          {
+            "wall_us": 83.4,
+            "device_us": 74.5
+          },
+          {
+            "wall_us": 102.6,
+            "device_us": 92.1
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 84.0,
+            "device_us": 75.0
+          },
+          {
+            "wall_us": 95.8,
+            "device_us": 85.6
+          },
+          {
+            "wall_us": 92.9,
+            "device_us": 84.0
+          }
+        ],
+        "base_median_us": 83.4,
+        "candidate_median_us": 92.9,
+        "wall_change_percent": 11.39088729016786,
+        "speedup": 0.8977395048439182
+      },
+      {
+        "case": "router f32 rows T=128",
+        "base": [
+          {
+            "wall_us": 386.7,
+            "device_us": 363.9
+          },
+          {
+            "wall_us": 387.0,
+            "device_us": 364.2
+          },
+          {
+            "wall_us": 387.2,
+            "device_us": 363.9
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 385.6,
+            "device_us": 363.5
+          },
+          {
+            "wall_us": 387.9,
+            "device_us": 363.8
+          },
+          {
+            "wall_us": 386.7,
+            "device_us": 365.0
+          }
+        ],
+        "base_median_us": 387.0,
+        "candidate_median_us": 386.7,
+        "wall_change_percent": -0.07751937984495916,
+        "speedup": 1.0007757951900698
+      },
+      {
+        "case": "route T=128",
+        "base": [
+          {
+            "wall_us": 19.0,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 18.9,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 19.1,
+            "device_us": 11.1
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 18.8,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 19.0,
+            "device_us": 11.0
+          },
+          {
+            "wall_us": 18.8,
+            "device_us": 11.0
+          }
+        ],
+        "base_median_us": 19.0,
+        "candidate_median_us": 18.8,
+        "wall_change_percent": -1.0526315789473606,
+        "speedup": 1.0106382978723405
+      },
+      {
+        "case": "rms_norm T=512",
+        "base": [
+          {
+            "wall_us": 52.2,
+            "device_us": 44.5
+          },
+          {
+            "wall_us": 51.8,
+            "device_us": 44.2
+          },
+          {
+            "wall_us": 51.6,
+            "device_us": 43.9
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 52.2,
+            "device_us": 44.5
+          },
+          {
+            "wall_us": 53.8,
+            "device_us": 44.2
+          },
+          {
+            "wall_us": 51.8,
+            "device_us": 44.1
+          }
+        ],
+        "base_median_us": 51.8,
+        "candidate_median_us": 52.2,
+        "wall_change_percent": 0.7722007722007929,
+        "speedup": 0.9923371647509578
+      },
+      {
+        "case": "router f32 T=512",
+        "base": [
+          {
+            "wall_us": 290.9,
+            "device_us": 282.7
+          },
+          {
+            "wall_us": 296.2,
+            "device_us": 288.0
+          },
+          {
+            "wall_us": 294.3,
+            "device_us": 286.2
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 294.9,
+            "device_us": 286.6
+          },
+          {
+            "wall_us": 292.3,
+            "device_us": 283.7
+          },
+          {
+            "wall_us": 293.1,
+            "device_us": 284.9
+          }
+        ],
+        "base_median_us": 294.3,
+        "candidate_median_us": 293.1,
+        "wall_change_percent": -0.4077471967380175,
+        "speedup": 1.0040941658137155
+      },
+      {
+        "case": "router f32 rows T=512",
+        "base": [
+          {
+            "wall_us": 1516.9,
+            "device_us": 1450.5
+          },
+          {
+            "wall_us": 1519.5,
+            "device_us": 1455.4
+          },
+          {
+            "wall_us": 1522.1,
+            "device_us": 1453.1
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 1521.3,
+            "device_us": 1452.2
+          },
+          {
+            "wall_us": 1528.9,
+            "device_us": 1458.8
+          },
+          {
+            "wall_us": 1521.8,
+            "device_us": 1455.1
+          }
+        ],
+        "base_median_us": 1519.5,
+        "candidate_median_us": 1521.8,
+        "wall_change_percent": 0.1513655807831471,
+        "speedup": 0.9984886318832962
+      },
+      {
+        "case": "route T=512",
+        "base": [
+          {
+            "wall_us": 21.6,
+            "device_us": 13.7
+          },
+          {
+            "wall_us": 19.9,
+            "device_us": 12.2
+          },
+          {
+            "wall_us": 20.3,
+            "device_us": 12.3
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 21.7,
+            "device_us": 13.7
+          },
+          {
+            "wall_us": 21.9,
+            "device_us": 13.8
+          },
+          {
+            "wall_us": 20.0,
+            "device_us": 12.3
+          }
+        ],
+        "base_median_us": 20.3,
+        "candidate_median_us": 21.7,
+        "wall_change_percent": 6.896551724137923,
+        "speedup": 0.935483870967742
+      },
+      {
+        "case": "dense 12288x2048",
+        "base": [
+          {
+            "wall_us": 380.6,
+            "device_us": 370.4
+          },
+          {
+            "wall_us": 381.1,
+            "device_us": 370.5
+          },
+          {
+            "wall_us": 382.8,
+            "device_us": 370.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 129.1,
+            "device_us": 118.1
+          },
+          {
+            "wall_us": 126.7,
+            "device_us": 118.0
+          },
+          {
+            "wall_us": 126.4,
+            "device_us": 118.1
+          }
+        ],
+        "base_median_us": 381.1,
+        "candidate_median_us": 126.7,
+        "wall_change_percent": -66.75413277355024,
+        "speedup": 3.0078926598263616
+      },
+      {
+        "case": "dense 3072x8192",
+        "base": [
+          {
+            "wall_us": 437.7,
+            "device_us": 428.4
+          },
+          {
+            "wall_us": 435.9,
+            "device_us": 427.2
+          },
+          {
+            "wall_us": 435.9,
+            "device_us": 426.5
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 129.9,
+            "device_us": 121.4
+          },
+          {
+            "wall_us": 130.0,
+            "device_us": 121.0
+          },
+          {
+            "wall_us": 130.0,
+            "device_us": 121.5
+          }
+        ],
+        "base_median_us": 435.9,
+        "candidate_median_us": 130.0,
+        "wall_change_percent": -70.17664601972929,
+        "speedup": 3.353076923076923
+      },
+      {
+        "case": "dense down 2048x6144",
+        "base": [
+          {
+            "wall_us": 218.3,
+            "device_us": 209.1
+          },
+          {
+            "wall_us": 217.8,
+            "device_us": 209.1
+          },
+          {
+            "wall_us": 217.8,
+            "device_us": 208.9
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 81.3,
+            "device_us": 70.0
+          },
+          {
+            "wall_us": 79.0,
+            "device_us": 70.1
+          },
+          {
+            "wall_us": 77.8,
+            "device_us": 67.1
+          }
+        ],
+        "base_median_us": 217.8,
+        "candidate_median_us": 79.0,
+        "wall_change_percent": -63.72819100091828,
+        "speedup": 2.7569620253164557
+      },
+      {
+        "case": "dense 8192x8192",
+        "base": [
+          {
+            "wall_us": 1000.8,
+            "device_us": 989.6
+          },
+          {
+            "wall_us": 1000.3,
+            "device_us": 990.3
+          },
+          {
+            "wall_us": 1002.1,
+            "device_us": 989.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 315.1,
+            "device_us": 305.3
+          },
+          {
+            "wall_us": 314.4,
+            "device_us": 305.5
+          },
+          {
+            "wall_us": 314.5,
+            "device_us": 305.7
+          }
+        ],
+        "base_median_us": 1000.8,
+        "candidate_median_us": 314.5,
+        "wall_change_percent": -68.57513988808952,
+        "speedup": 3.1821939586645467
+      },
+      {
+        "case": "dense 24576x8192",
+        "base": [
+          {
+            "wall_us": 2827.8,
+            "device_us": 2813.7
+          },
+          {
+            "wall_us": 2828.8,
+            "device_us": 2815.3
+          },
+          {
+            "wall_us": 2834.9,
+            "device_us": 2816.4
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 898.9,
+            "device_us": 886.8
+          },
+          {
+            "wall_us": 895.5,
+            "device_us": 886.2
+          },
+          {
+            "wall_us": 897.7,
+            "device_us": 887.7
+          }
+        ],
+        "base_median_us": 2828.8,
+        "candidate_median_us": 897.7,
+        "wall_change_percent": -68.26569570135746,
+        "speedup": 3.151164085997549
+      },
+      {
+        "case": "dense 8192x24576",
+        "base": [
+          {
+            "wall_us": 2989.2,
+            "device_us": 2976.9
+          },
+          {
+            "wall_us": 2995.3,
+            "device_us": 2978.4
+          },
+          {
+            "wall_us": 2998.3,
+            "device_us": 2979.8
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 943.4,
+            "device_us": 930.1
+          },
+          {
+            "wall_us": 944.7,
+            "device_us": 935.3
+          },
+          {
+            "wall_us": 945.4,
+            "device_us": 936.2
+          }
+        ],
+        "base_median_us": 2995.3,
+        "candidate_median_us": 944.7,
+        "wall_change_percent": -68.46058825493273,
+        "speedup": 3.170636180798137
+      },
+      {
+        "case": "dense 2304x2048",
+        "base": [
+          {
+            "wall_us": 105.3,
+            "device_us": 96.2
+          },
+          {
+            "wall_us": 107.5,
+            "device_us": 95.6
+          },
+          {
+            "wall_us": 105.2,
+            "device_us": 96.4
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 39.5,
+            "device_us": 30.1
+          },
+          {
+            "wall_us": 39.9,
+            "device_us": 31.3
+          },
+          {
+            "wall_us": 43.4,
+            "device_us": 31.6
+          }
+        ],
+        "base_median_us": 105.3,
+        "candidate_median_us": 39.9,
+        "wall_change_percent": -62.1082621082621,
+        "speedup": 2.6390977443609023
+      },
+      {
+        "case": "dense 12288x2048 n=2",
+        "base": [
+          {
+            "wall_us": 636.6,
+            "device_us": 625.4
+          },
+          {
+            "wall_us": 637.6,
+            "device_us": 624.5
+          },
+          {
+            "wall_us": 633.7,
+            "device_us": 622.8
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 183.1,
+            "device_us": 172.8
+          },
+          {
+            "wall_us": 181.5,
+            "device_us": 172.5
+          },
+          {
+            "wall_us": 212.1,
+            "device_us": 200.2
+          }
+        ],
+        "base_median_us": 636.6,
+        "candidate_median_us": 183.1,
+        "wall_change_percent": -71.2378259503613,
+        "speedup": 3.476788640087384
+      },
+      {
+        "case": "dense 12288x2048 n=4",
+        "base": [
+          {
+            "wall_us": 857.1,
+            "device_us": 846.7
+          },
+          {
+            "wall_us": 862.0,
+            "device_us": 850.1
+          },
+          {
+            "wall_us": 861.9,
+            "device_us": 848.6
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 265.9,
+            "device_us": 255.1
+          },
+          {
+            "wall_us": 263.4,
+            "device_us": 254.3
+          },
+          {
+            "wall_us": 278.7,
+            "device_us": 269.6
+          }
+        ],
+        "base_median_us": 861.9,
+        "candidate_median_us": 265.9,
+        "wall_change_percent": -69.14955331244924,
+        "speedup": 3.2414441519368187
+      },
+      {
+        "case": "dense 12288x2048 n=8",
+        "base": [
+          {
+            "wall_us": 1965.8,
+            "device_us": 1955.3
+          },
+          {
+            "wall_us": 1972.2,
+            "device_us": 1955.9
+          },
+          {
+            "wall_us": 1963.2,
+            "device_us": 1949.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 443.4,
+            "device_us": 433.4
+          },
+          {
+            "wall_us": 441.7,
+            "device_us": 432.9
+          },
+          {
+            "wall_us": 430.4,
+            "device_us": 421.1
+          }
+        ],
+        "base_median_us": 1965.8,
+        "candidate_median_us": 441.7,
+        "wall_change_percent": -77.53077627429037,
+        "speedup": 4.450532035318089
+      },
+      {
+        "case": "routed gate+up T=1",
+        "base": [
+          {
+            "wall_us": 381.4,
+            "device_us": 365.5
+          },
+          {
+            "wall_us": 423.0,
+            "device_us": 410.2
+          },
+          {
+            "wall_us": 376.9,
+            "device_us": 367.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 128.7,
+            "device_us": 118.2
+          },
+          {
+            "wall_us": 127.8,
+            "device_us": 118.7
+          },
+          {
+            "wall_us": 126.8,
+            "device_us": 118.2
+          }
+        ],
+        "base_median_us": 381.4,
+        "candidate_median_us": 127.8,
+        "wall_change_percent": -66.49187205034085,
+        "speedup": 2.984350547730829
+      },
+      {
+        "case": "routed down T=1",
+        "base": [
+          {
+            "wall_us": 212.3,
+            "device_us": 200.2
+          },
+          {
+            "wall_us": 210.5,
+            "device_us": 200.4
+          },
+          {
+            "wall_us": 210.4,
+            "device_us": 200.2
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 101.8,
+            "device_us": 90.7
+          },
+          {
+            "wall_us": 101.0,
+            "device_us": 90.8
+          },
+          {
+            "wall_us": 101.1,
+            "device_us": 90.7
+          }
+        ],
+        "base_median_us": 210.5,
+        "candidate_median_us": 101.1,
+        "wall_change_percent": -51.97149643705463,
+        "speedup": 2.082096933728981
+      },
+      {
+        "case": "routed gate+up T=4",
+        "base": [
+          {
+            "wall_us": 1400.7,
+            "device_us": 1389.9
+          },
+          {
+            "wall_us": 1411.8,
+            "device_us": 1401.0
+          },
+          {
+            "wall_us": 1402.3,
+            "device_us": 1390.0
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 464.4,
+            "device_us": 453.6
+          },
+          {
+            "wall_us": 462.0,
+            "device_us": 453.1
+          },
+          {
+            "wall_us": 453.2,
+            "device_us": 444.1
+          }
+        ],
+        "base_median_us": 1402.3,
+        "candidate_median_us": 462.0,
+        "wall_change_percent": -67.05412536547102,
+        "speedup": 3.0352813852813854
+      },
+      {
+        "case": "routed down T=4",
+        "base": [
+          {
+            "wall_us": 766.5,
+            "device_us": 756.2
+          },
+          {
+            "wall_us": 763.7,
+            "device_us": 753.1
+          },
+          {
+            "wall_us": 769.7,
+            "device_us": 758.2
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 303.8,
+            "device_us": 292.7
+          },
+          {
+            "wall_us": 302.8,
+            "device_us": 291.8
+          },
+          {
+            "wall_us": 301.9,
+            "device_us": 291.2
+          }
+        ],
+        "base_median_us": 766.5,
+        "candidate_median_us": 302.8,
+        "wall_change_percent": -60.49575994781474,
+        "speedup": 2.531373844121532
+      },
+      {
+        "case": "routed gate+up T=8",
+        "base": [
+          {
+            "wall_us": 2840.7,
+            "device_us": 2826.6
+          },
+          {
+            "wall_us": 2843.6,
+            "device_us": 2827.6
+          },
+          {
+            "wall_us": 2845.8,
+            "device_us": 2830.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 925.7,
+            "device_us": 910.5
+          },
+          {
+            "wall_us": 922.3,
+            "device_us": 912.7
+          },
+          {
+            "wall_us": 914.6,
+            "device_us": 904.6
+          }
+        ],
+        "base_median_us": 2843.6,
+        "candidate_median_us": 922.3,
+        "wall_change_percent": -67.56576171050781,
+        "speedup": 3.0831616610647297
+      },
+      {
+        "case": "routed down T=8",
+        "base": [
+          {
+            "wall_us": 1511.8,
+            "device_us": 1497.3
+          },
+          {
+            "wall_us": 1513.8,
+            "device_us": 1495.9
+          },
+          {
+            "wall_us": 1510.3,
+            "device_us": 1498.1
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 587.0,
+            "device_us": 571.3
+          },
+          {
+            "wall_us": 587.1,
+            "device_us": 574.4
+          },
+          {
+            "wall_us": 586.4,
+            "device_us": 574.5
+          }
+        ],
+        "base_median_us": 1511.8,
+        "candidate_median_us": 587.0,
+        "wall_change_percent": -61.172112713321866,
+        "speedup": 2.5754684838160133
+      },
+      {
+        "case": "routed gate+up T=32",
+        "base": [
+          {
+            "wall_us": 10439.7,
+            "device_us": 10419.4
+          },
+          {
+            "wall_us": 10400.5,
+            "device_us": 10378.9
+          },
+          {
+            "wall_us": 10387.3,
+            "device_us": 10370.7
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 2715.2,
+            "device_us": 2698.5
+          },
+          {
+            "wall_us": 2715.7,
+            "device_us": 2703.2
+          },
+          {
+            "wall_us": 2712.1,
+            "device_us": 2699.2
+          }
+        ],
+        "base_median_us": 10400.5,
+        "candidate_median_us": 2715.2,
+        "wall_change_percent": -73.89356280948031,
+        "speedup": 3.8304728933411907
+      },
+      {
+        "case": "routed down T=32",
+        "base": [
+          {
+            "wall_us": 5587.5,
+            "device_us": 5571.5
+          },
+          {
+            "wall_us": 5566.1,
+            "device_us": 5548.3
+          },
+          {
+            "wall_us": 5578.7,
+            "device_us": 5544.4
+          }
+        ],
+        "candidate": [
+          {
+            "wall_us": 1687.7,
+            "device_us": 1671.8
+          },
+          {
+            "wall_us": 1687.2,
+            "device_us": 1670.9
+          },
+          {
+            "wall_us": 1690.2,
+            "device_us": 1674.4
+          }
+        ],
+        "base_median_us": 5578.7,
+        "candidate_median_us": 1687.7,
+        "wall_change_percent": -69.74743219746536,
+        "speedup": 3.305504532796113
+      }
+    ],
+    "activity": {
+      "samples": 48,
+      "cpu_percent_range": [
+        8.865631096752512,
+        44.98903738316263
+      ],
+      "disk_peak_bytes_per_second": 5142908.669009507,
+      "background_gpu_peak": {
+        "utc": "2026-10-20T09:07:55.053800+00:00",
+        "pid": 4,
+        "name": null,
+        "value": 9.898562774581436,
+        "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+      },
+      "background_gpu_flagged": [
+        {
+          "utc": "2026-10-20T09:07:48.053060+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 9.407885004462987,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:07:51.553872+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 6.882519451524301,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:07:55.053800+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 9.898562774581436,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:07:57.553217+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 9.456405897244235,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:08:00.553412+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 5.48409117031218,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:08:02.053134+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 9.468778422254733,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:08:04.553434+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 6.737453238079995,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        },
+        {
+          "utc": "2026-10-20T09:08:07.553365+00:00",
+          "pid": 4,
+          "name": null,
+          "value": 9.625184395869532,
+          "engine": "pid_4_luid_0x00000000_0x0000B616_phys_0_eng_9_engtype_Copy"
+        }
+      ],
+      "build_process_peak": {
+        "utc": "2026-10-20T09:07:45.053469+00:00",
+        "pid": 80876,
+        "name": "MSBuild.exe",
+        "cpu_percent": 0.0
+      },
+      "build_process_flagged": [],
+      "gpu_unknown_counter_items": 152,
+      "benchmark_pids": [
+        10400,
+        34880,
+        43460,
+        50840,
+        53288,
+        60576,
+        69188,
+        69996
+      ],
+      "limitations": "New/retired GPU counter instances and inaccessible/new processes have unknown intervals. No planned run was removed; unknown is not zero."
+    },
+    "inference": "Large IQ4 synthetic row gains: dense2.64x-4.45x, routed2.08x-3.83x median wall. Not an end-to-end, mx or release-speed gate. F32 tile controls -0.9% to +0.4%; other individual controls include +11.4% router T128, +7.8% norm T1, +7.0% floor add and -9.5% silu T32, unresolved without matched layout control/repetition. No overall controls-level claim.",
+    "activity_interpretation": "Unattributed PID4 GPU copy reached9.9%, flagging measured base runs0/3/4 and candidate1/5; candidate2 unflagged at sampled endpoints. All planned runs retained. System CPU8.9%-45.0%, disk peak5.14MB/s, no active build flag.152 transient GPU counter instances unknown; inaccessible/new process intervals unknown. No per-case timestamp attribution.",
+    "logs_directory": "build-iq4-vulkan/native-row-screen",
+    "raw_artifact_hashes": {
+      "activity-summary.json": "09dbdfb1cb20282dbceaba0b288dd8d26090c3f37e3af306eefb6dbc194632f0",
+      "activity.jsonl": "a969c1143a1089de1f9e65fd2f1ad878ff77076bf2c0c909b30c370f5b9db06a",
+      "case-results.json": "95a9f50c9b167d77d06bfe13f8b3f1a85b122c28db555d5ceb501d423839b2f5",
+      "manifest.json": "cb5abe119f81d15bd1275faf2044bfbc5f6364e9d5aa46d81c4f2b168b2a1ed5",
+      "measured-0-base.log": "debd2ae6a220814be52d9ed6626a7b8f34a5bbc8033107d7a3485e4c66764639",
+      "measured-1-candidate.log": "17a71bf9e18d5d1ea38bfadac7d407deac4ce4853e2e46f78f710e00eb9df942",
+      "measured-2-candidate.log": "2f2c9faf0d21dbdae20b4e2778692f96759c4fb841a298a3ba446d74f8319c5e",
+      "measured-3-base.log": "ad2b74b97920059231f6fb544494c74fb57a08122e295dffe572a3c4873bd22f",
+      "measured-4-base.log": "0a8e23d62d52005c8a6a3c43712c2afe6eb48bbf0b7d5e8b0c123b20df422d17",
+      "measured-5-candidate.log": "35ab8cbb7e73533b97686f3a27f9b1fca657b31a48842136cade0c117ed7b02f",
+      "runs-with-flags.json": "5a7c5d886db297a55f1c1cff85d167f98c562d092d2418273be02cc04d2b6bae",
+      "runs.json": "2d59d5c21c89610c6e0a85fe177e57668de8f71c9c31c2e88c4b2779fc155fec",
+      "run_screen.py": "2113b0cd4666118d8aa7873c134cae18ed476078a2332f352587dc7ea6447afd",
+      "warmup-0-base.log": "0c258c6c9bbf1c33c4a4236c6a2d13653da5dd17b2d2ce53c71ac0ae22e8399c",
+      "warmup-1-candidate.log": "0db86511796b3f112d0a95b7138c439a6dbfe0583dc00cea7301cf47d3929ca9"
+    }
+  },
+  "open": [
+    "Small control regressions and layout/noise attribution.",
+    "Native integer tiles as separate measured follow-up.",
+    "MI50/platform and real-file HF qualification, split/reuse/mixed-model and existing-path identity checks, model/reference speed, original-weight quality approval, final settled-head integration/CI."
+  ],
+  "naming_followup": {
+    "checkpoint": "e00ec34667cc8702e380ccddc0620abacfb362da",
+    "delta": "mxfp4_integer_dot renamed lookup_integer_dot in DeviceProfile, backend and native consumers; same values, capability clamp and dispatch behavior. No performance repeat for member-only rename.",
+    "compile": "PASS: clean-first MSVC build recompiled vulkan_backend.cpp, iq4_nl_vulkan.cpp, backend_vulkan.cpp, mxfp4_vulkan.cpp and vulkan_buffer.cpp.",
+    "verification": "All six touched source files equal the pre-rename version after exact identifier substitution plus one ownership comment. Fake-API vulkan-buffer passes24 cases including integer-dot capability clamp; no GPU/model/performance rerun for a member rename.",
+    "source_checks": "docs/dead-code pass after rename",
+    "logs_sha256": {
+      "build-iq4-vulkan/lookup-member-clean-build.log": "f26c54133b27feac79d03b9c7f4fdb304f08f7cd2e27014779860a15d1df0e52",
+      "build-iq4-vulkan/lookup-member-profile-check.log": "5a680f4c79f438f8db13222d7ea9bad8a74a12f96aef103ef1c7d1da19358b19",
+      "build-iq4-vulkan/lookup-member-source-checks.log": "de025c8fbb4683592716074c31dc1411679c212574c4146f21537c7258718a82"
+    }
+  }
+}

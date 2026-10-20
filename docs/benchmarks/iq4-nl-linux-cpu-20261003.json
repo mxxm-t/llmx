@@ -1,0 +1,4584 @@
+{
+  "scope": "One finite developmental Linux CPU screen: clean support baseline, SIMD candidate and matched-workload mx. Not a release or parity verdict.",
+  "execution_passed": true,
+  "rate_rows": [
+    {
+      "model": "0.6B",
+      "phase": "pp512",
+      "ordered_rates": [
+        155.66,
+        157.55,
+        164.15,
+        169.96,
+        141.4,
+        138.33
+      ],
+      "arms": {
+        "base": {
+          "forward_reverse": [
+            155.66,
+            138.33
+          ],
+          "mean": 146.995,
+          "minimum": 138.33,
+          "maximum": 155.66
+        },
+        "candidate": {
+          "forward_reverse": [
+            157.55,
+            141.4
+          ],
+          "mean": 149.47500000000002,
+          "minimum": 141.4,
+          "maximum": 157.55
+        },
+        "mx": {
+          "forward_reverse": [
+            164.15,
+            169.96
+          ],
+          "mean": 167.055,
+          "minimum": 164.15,
+          "maximum": 169.96
+        }
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            1.214184761660042,
+            2.219330586279189
+          ],
+          "mean_paired_percent": 1.7167576739696155,
+          "ratio_of_means_percent": 1.6871322153814816
+        },
+        "base/mx": {
+          "forward_reverse_percent": [
+            -5.172098690222359,
+            -18.61026123793833
+          ],
+          "mean_paired_percent": -11.891179964080345,
+          "ratio_of_means_percent": -12.008021310346894
+        },
+        "candidate/mx": {
+          "forward_reverse_percent": [
+            -4.020712762717027,
+            -16.80395387149918
+          ],
+          "mean_paired_percent": -10.412333317108104,
+          "ratio_of_means_percent": -10.523480290922137
+        }
+      }
+    },
+    {
+      "model": "0.6B",
+      "phase": "tg128",
+      "ordered_rates": [
+        30.38,
+        30.55,
+        53.67,
+        56.29,
+        18.95,
+        22.28
+      ],
+      "arms": {
+        "base": {
+          "forward_reverse": [
+            30.38,
+            22.28
+          ],
+          "mean": 26.33,
+          "minimum": 22.28,
+          "maximum": 30.38
+        },
+        "candidate": {
+          "forward_reverse": [
+            30.55,
+            18.95
+          ],
+          "mean": 24.75,
+          "minimum": 18.95,
+          "maximum": 30.55
+        },
+        "mx": {
+          "forward_reverse": [
+            53.67,
+            56.29
+          ],
+          "mean": 54.980000000000004,
+          "minimum": 53.67,
+          "maximum": 56.29
+        }
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            0.5595786701777516,
+            -14.946140035906652
+          ],
+          "mean_paired_percent": -7.19328068286445,
+          "ratio_of_means_percent": -6.000759589821492
+        },
+        "base/mx": {
+          "forward_reverse_percent": [
+            -43.39482019750326,
+            -60.41925741694795
+          ],
+          "mean_paired_percent": -51.907038807225604,
+          "ratio_of_means_percent": -52.10985813022918
+        },
+        "candidate/mx": {
+          "forward_reverse_percent": [
+            -43.07806968511273,
+            -66.33505063066264
+          ],
+          "mean_paired_percent": -54.70656015788768,
+          "ratio_of_means_percent": -54.98363041105857
+        }
+      }
+    },
+    {
+      "model": "8B",
+      "phase": "pp512",
+      "ordered_rates": [
+        10.69,
+        10.82,
+        18.58,
+        18.47,
+        12.15,
+        11.78
+      ],
+      "arms": {
+        "base": {
+          "forward_reverse": [
+            10.69,
+            11.78
+          ],
+          "mean": 11.235,
+          "minimum": 10.69,
+          "maximum": 11.78
+        },
+        "candidate": {
+          "forward_reverse": [
+            10.82,
+            12.15
+          ],
+          "mean": 11.485,
+          "minimum": 10.82,
+          "maximum": 12.15
+        },
+        "mx": {
+          "forward_reverse": [
+            18.58,
+            18.47
+          ],
+          "mean": 18.525,
+          "minimum": 18.47,
+          "maximum": 18.58
+        }
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            1.2160898035547207,
+            3.1409168081494077
+          ],
+          "mean_paired_percent": 2.178503305852064,
+          "ratio_of_means_percent": 2.2251891410769886
+        },
+        "base/mx": {
+          "forward_reverse_percent": [
+            -42.46501614639398,
+            -36.220898754737405
+          ],
+          "mean_paired_percent": -39.34295745056569,
+          "ratio_of_means_percent": -39.35222672064778
+        },
+        "candidate/mx": {
+          "forward_reverse_percent": [
+            -41.7653390742734,
+            -34.21765024363833
+          ],
+          "mean_paired_percent": -37.991494658955865,
+          "ratio_of_means_percent": -38.00269905533064
+        }
+      }
+    },
+    {
+      "model": "8B",
+      "phase": "tg128",
+      "ordered_rates": [
+        4.24,
+        4.18,
+        7.14,
+        7.14,
+        4.24,
+        4.24
+      ],
+      "arms": {
+        "base": {
+          "forward_reverse": [
+            4.24,
+            4.24
+          ],
+          "mean": 4.24,
+          "minimum": 4.24,
+          "maximum": 4.24
+        },
+        "candidate": {
+          "forward_reverse": [
+            4.18,
+            4.24
+          ],
+          "mean": 4.21,
+          "minimum": 4.18,
+          "maximum": 4.24
+        },
+        "mx": {
+          "forward_reverse": [
+            7.14,
+            7.14
+          ],
+          "mean": 7.14,
+          "minimum": 7.14,
+          "maximum": 7.14
+        }
+      },
+      "comparisons": {
+        "candidate/base": {
+          "forward_reverse_percent": [
+            -1.4150943396226578,
+            0.0
+          ],
+          "mean_paired_percent": -0.7075471698113289,
+          "ratio_of_means_percent": -0.7075471698113289
+        },
+        "base/mx": {
+          "forward_reverse_percent": [
+            -40.61624649859943,
+            -40.61624649859943
+          ],
+          "mean_paired_percent": -40.61624649859943,
+          "ratio_of_means_percent": -40.61624649859943
+        },
+        "candidate/mx": {
+          "forward_reverse_percent": [
+            -41.456582633053216,
+            -40.61624649859943
+          ],
+          "mean_paired_percent": -41.03641456582632,
+          "ratio_of_means_percent": -41.03641456582633
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "label": "01-0.6B-base",
+      "model": "0.6B",
+      "arm": "base",
+      "start": 1791027765.726335,
+      "end": 1791027782.3177757,
+      "returncode": 0,
+      "rates": {
+        "pp512": 155.66,
+        "tg128": 30.38
+      },
+      "log_sha256": "73c219f5e0cc2484a6ec33f077d6d58bd544b1f8427735da8e25f982d296eec9",
+      "owner": {
+        "pid": 77216,
+        "start_ticks": 121396708,
+        "pgid": 77216
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027765.827947,
+          "end": 1791027782.264258,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 57.20696,
+            "ru_stime": 1.380045,
+            "ru_maxrss": 590188,
+            "ru_minflt": 56268,
+            "ru_majflt": 91703,
+            "ru_inblock": 0,
+            "ru_oublock": 0,
+            "ru_nvcsw": 16519,
+            "ru_nivcsw": 840
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 58662432,
+            "user_usec": 57264667,
+            "system_usec": 1397765,
+            "nr_throttled": 14,
+            "throttled_usec": 9052
+          },
+          "memory.stat": {
+            "pgfault": 150733,
+            "pgmajfault": 91703,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 16.43631100654602,
+        "cpu_seconds": 58.587005000000005,
+        "average_cpu_cores": 3.564486275336771,
+        "max_rss_kib": 590188,
+        "cgroup_memory_before": {
+          "memory.current": "2502787072",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17152751\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17124391",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413559870\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30823700",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30866950\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30593463",
+          "io.stat": "8:16 rbytes=19948486656 wbytes=0 rios=106032 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918156288 wbytes=0 rios=82454 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076559872 wbytes=0 rios=92267 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707681280 wbytes=0 rios=21128 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980926976 wbytes=0 rios=106576 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525661696 wbytes=0 rios=94326 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550528512 wbytes=0 rios=94933 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "2879893504",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17152751\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17124391",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413582736\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30844260",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30866950\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30593463",
+          "io.stat": "8:16 rbytes=19948486656 wbytes=0 rios=106032 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918156288 wbytes=0 rios=82454 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076559872 wbytes=0 rios=92267 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707681280 wbytes=0 rios=21128 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980926976 wbytes=0 rios=106576 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525661696 wbytes=0 rios=94326 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550528512 wbytes=0 rios=94933 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "73c219f5e0cc2484a6ec33f077d6d58bd544b1f8427735da8e25f982d296eec9",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 18,
+        "observation_samples": 19,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 14,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 83,
+          "missed_process_observations": 6,
+          "appeared_processes": 83,
+          "disappeared_processes": 74
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 19,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 19,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 394.8550254142944,
+          "overlap_weighted_mean_percent_one_cpu": 338.42745449874417
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.998194162554976,
+          "overlap_weighted_mean_percent_one_cpu": 4.06288271570367
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9995406990571154,
+          "overlap_weighted_mean_percent_one_cpu": 0.031021225904895394
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 428.77226488713916,
+          "overlap_weighted_mean_percent_one_cpu": 371.9800725392415
+        }
+      }
+    },
+    {
+      "label": "02-0.6B-candidate",
+      "model": "0.6B",
+      "arm": "candidate",
+      "start": 1791027782.319344,
+      "end": 1791027797.7579632,
+      "returncode": 0,
+      "rates": {
+        "pp512": 157.55,
+        "tg128": 30.55
+      },
+      "log_sha256": "d4d15772e5db52eb43da16453c8e424807fc04161004e13173508d3152ac1f98",
+      "owner": {
+        "pid": 77227,
+        "start_ticks": 121398367,
+        "pgid": 77227
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027782.4222052,
+          "end": 1791027797.738658,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 56.580213,
+            "ru_stime": 0.395028,
+            "ru_maxrss": 590200,
+            "ru_minflt": 61992,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 0,
+            "ru_nvcsw": 16613,
+            "ru_nivcsw": 517
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 57051201,
+            "user_usec": 56631028,
+            "system_usec": 420172,
+            "nr_throttled": 13,
+            "throttled_usec": 6269
+          },
+          "memory.stat": {
+            "pgfault": 64746,
+            "pgmajfault": 0,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 15.316452741622925,
+        "cpu_seconds": 56.975241000000004,
+        "average_cpu_cores": 3.719871824183419,
+        "max_rss_kib": 590200,
+        "cgroup_memory_before": {
+          "memory.current": "2879893504",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17152751\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17124391",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413582736\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30844260",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30866950\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30593463",
+          "io.stat": "8:16 rbytes=19948486656 wbytes=0 rios=106032 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918156288 wbytes=0 rios=82454 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076559872 wbytes=0 rios=92267 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707681280 wbytes=0 rios=21128 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980926976 wbytes=0 rios=106576 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525661696 wbytes=0 rios=94326 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550528512 wbytes=0 rios=94933 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "2879995904",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17152751\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17124391",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413601090\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30861824",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30866951\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30593464",
+          "io.stat": "8:16 rbytes=19948486656 wbytes=0 rios=106032 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918156288 wbytes=0 rios=82454 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076559872 wbytes=0 rios=92267 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707681280 wbytes=0 rios=21128 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980926976 wbytes=0 rios=106576 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525661696 wbytes=0 rios=94326 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550528512 wbytes=0 rios=94933 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "d4d15772e5db52eb43da16453c8e424807fc04161004e13173508d3152ac1f98",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 16,
+        "observation_samples": 17,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 9,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 48,
+          "missed_process_observations": 8,
+          "appeared_processes": 48,
+          "disappeared_processes": 54
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 17,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 17,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 395.8511445505347,
+          "overlap_weighted_mean_percent_one_cpu": 344.5905943548098
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.997900027002992,
+          "overlap_weighted_mean_percent_one_cpu": 4.19263180760867
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9995406990571154,
+          "overlap_weighted_mean_percent_one_cpu": 0.03133295962045807
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 427.8190025960362,
+          "overlap_weighted_mean_percent_one_cpu": 409.05818325498484
+        }
+      }
+    },
+    {
+      "label": "03-0.6B-mx",
+      "model": "0.6B",
+      "arm": "mx",
+      "start": 1791027797.7593238,
+      "end": 1791027813.7010725,
+      "returncode": 0,
+      "rates": {
+        "pp512": 164.15,
+        "tg128": 53.67
+      },
+      "log_sha256": "a0c88d9788c988ac83d1ab0bd190c77bc737f19fb48d8a4b54990dbc4ff6e073",
+      "owner": {
+        "pid": 77238,
+        "start_ticks": 121399910,
+        "pgid": 77238
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027797.8554165,
+          "end": 1791027813.6491895,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 44.941249,
+            "ru_stime": 3.960619,
+            "ru_maxrss": 5311784,
+            "ru_minflt": 1245333,
+            "ru_majflt": 89,
+            "ru_inblock": 1498,
+            "ru_oublock": 0,
+            "ru_nvcsw": 117,
+            "ru_nivcsw": 900
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 48975549,
+            "user_usec": 44995701,
+            "system_usec": 3979848,
+            "nr_throttled": 32,
+            "throttled_usec": 18730
+          },
+          "memory.stat": {
+            "pgfault": 1248177,
+            "pgmajfault": 1542,
+            "workingset_refault_file": 6,
+            "pgscan": 62336,
+            "pgsteal": 62336
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 15.79377293586731,
+        "cpu_seconds": 48.901868,
+        "average_cpu_cores": 3.096275234459332,
+        "max_rss_kib": 5311784,
+        "cgroup_memory_before": {
+          "memory.current": "2879995904",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17152751\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17124391",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413601090\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30861824",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30866951\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30593464",
+          "io.stat": "8:16 rbytes=19948486656 wbytes=0 rios=106032 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918156288 wbytes=0 rios=82454 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076559872 wbytes=0 rios=92267 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707681280 wbytes=0 rios=21128 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980926976 wbytes=0 rios=106576 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525661696 wbytes=0 rios=94326 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550528512 wbytes=0 rios=94933 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "2630258688",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413622475\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30880038",
+          "io.pressure": "some avg10=0.08 avg60=0.02 avg300=0.00 total=30907342\nfull avg10=0.08 avg60=0.02 avg300=0.00 total=30633845",
+          "io.stat": "8:16 rbytes=19948527616 wbytes=0 rios=106036 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918180864 wbytes=0 rios=82456 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076613120 wbytes=0 rios=92272 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980976128 wbytes=0 rios=106580 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525694464 wbytes=0 rios=94331 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550569472 wbytes=0 rios=94936 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "a0c88d9788c988ac83d1ab0bd190c77bc737f19fb48d8a4b54990dbc4ff6e073",
+      "witnesses": {
+        "reference_identity_lines": [
+          "reference_commit=eefc4e7321c869496146697d63362f073941aed6 clean=1 compiler=14.2.0 backend=CPU index=0 device=CPU description=AMD EPYC 7262 8-Core Processor"
+        ],
+        "offloaded_layers": [
+          {
+            "offloaded": 0,
+            "total": 29
+          }
+        ],
+        "repack_counts": {
+          "iq4_nl_8x8": 196
+        },
+        "repacked_unique_tensor_count": 196,
+        "buffer_lines": [
+          "load_tensors:   CPU_Mapped model buffer size =   356.53 MiB",
+          "load_tensors:   CPU_REPACK model buffer size =   236.25 MiB",
+          "llama_kv_cache:        CPU KV buffer size =  4480.00 MiB"
+        ],
+        "contexts": [
+          40960
+        ],
+        "kv_lines": [
+          "llama_kv_cache: size = 4480.00 MiB ( 40960 cells,  28 layers,  1/1 seqs), K (f16): 2240.00 MiB, V (f16): 2240.00 MiB"
+        ],
+        "kv_types": [
+          {
+            "k": "f16",
+            "v": "f16"
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 17,
+        "observation_samples": 18,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 12,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 65,
+          "missed_process_observations": 5,
+          "appeared_processes": 65,
+          "disappeared_processes": 66
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10944512.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 400.84931712110284,
+          "overlap_weighted_mean_percent_one_cpu": 293.94514505421023
+        },
+        "docker-client": {
+          "peak_percent_one_cpu": 1.998896698820817,
+          "overlap_weighted_mean_percent_one_cpu": 0.12545716832662726
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.998053762828008,
+          "overlap_weighted_mean_percent_one_cpu": 4.304546366451144
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.999601289174676,
+          "overlap_weighted_mean_percent_one_cpu": 0.12545717065928702
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 430.80821666395747,
+          "overlap_weighted_mean_percent_one_cpu": 391.1951327372273
+        }
+      }
+    },
+    {
+      "label": "04-0.6B-mx",
+      "model": "0.6B",
+      "arm": "mx",
+      "start": 1791027813.7031422,
+      "end": 1791027829.2405002,
+      "returncode": 0,
+      "rates": {
+        "pp512": 169.96,
+        "tg128": 56.29
+      },
+      "log_sha256": "8ce5c738fef63008cc76390e620dc89386dc5059fccda12752feabf0a212cb80",
+      "owner": {
+        "pid": 77251,
+        "start_ticks": 121401505,
+        "pgid": 77251
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027813.8019958,
+          "end": 1791027829.2186844,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 43.860241,
+            "ru_stime": 3.924838,
+            "ru_maxrss": 5311628,
+            "ru_minflt": 1242271,
+            "ru_majflt": 0,
+            "ru_inblock": 25400,
+            "ru_oublock": 0,
+            "ru_nvcsw": 12,
+            "ru_nivcsw": 935
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 47859419,
+            "user_usec": 43911206,
+            "system_usec": 3948213,
+            "nr_throttled": 39,
+            "throttled_usec": 22858
+          },
+          "memory.stat": {
+            "pgfault": 1245022,
+            "pgmajfault": 0,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 15.416688680648804,
+        "cpu_seconds": 47.785079,
+        "average_cpu_cores": 3.099568265913053,
+        "max_rss_kib": 5311628,
+        "cgroup_memory_before": {
+          "memory.current": "2630258688",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413622475\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30880038",
+          "io.pressure": "some avg10=0.08 avg60=0.02 avg300=0.00 total=30907342\nfull avg10=0.08 avg60=0.02 avg300=0.00 total=30633845",
+          "io.stat": "8:16 rbytes=19948527616 wbytes=0 rios=106036 wios=0 dbytes=0 dios=0\n8:64 rbytes=14918180864 wbytes=0 rios=82456 wios=0 dbytes=0 dios=0\n8:80 rbytes=17076613120 wbytes=0 rios=92272 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19980976128 wbytes=0 rios=106580 wios=0 dbytes=0 dios=0\n8:48 rbytes=17525694464 wbytes=0 rios=94331 wios=0 dbytes=0 dios=0\n8:32 rbytes=17550569472 wbytes=0 rios=94936 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "2630094848",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413652837\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30897127",
+          "io.pressure": "some avg10=0.01 avg60=0.02 avg300=0.00 total=30907346\nfull avg10=0.01 avg60=0.02 avg300=0.00 total=30633849",
+          "io.stat": "8:16 rbytes=19949367296 wbytes=0 rios=106040 wios=0 dbytes=0 dios=0\n8:64 rbytes=14919024640 wbytes=0 rios=82460 wios=0 dbytes=0 dios=0\n8:80 rbytes=17077661696 wbytes=0 rios=92277 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19982024704 wbytes=0 rios=106585 wios=0 dbytes=0 dios=0\n8:48 rbytes=17526738944 wbytes=0 rios=94336 wios=0 dbytes=0 dios=0\n8:32 rbytes=17551409152 wbytes=0 rios=94940 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "8ce5c738fef63008cc76390e620dc89386dc5059fccda12752feabf0a212cb80",
+      "witnesses": {
+        "reference_identity_lines": [
+          "reference_commit=eefc4e7321c869496146697d63362f073941aed6 clean=1 compiler=14.2.0 backend=CPU index=0 device=CPU description=AMD EPYC 7262 8-Core Processor"
+        ],
+        "offloaded_layers": [
+          {
+            "offloaded": 0,
+            "total": 29
+          }
+        ],
+        "repack_counts": {
+          "iq4_nl_8x8": 196
+        },
+        "repacked_unique_tensor_count": 196,
+        "buffer_lines": [
+          "load_tensors:   CPU_Mapped model buffer size =   356.53 MiB",
+          "load_tensors:   CPU_REPACK model buffer size =   236.25 MiB",
+          "llama_kv_cache:        CPU KV buffer size =  4480.00 MiB"
+        ],
+        "contexts": [
+          40960
+        ],
+        "kv_lines": [
+          "llama_kv_cache: size = 4480.00 MiB ( 40960 cells,  28 layers,  1/1 seqs), K (f16): 2240.00 MiB, V (f16): 2240.00 MiB"
+        ],
+        "kv_types": [
+          {
+            "k": "f16",
+            "v": "f16"
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 17,
+        "observation_samples": 18,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 5,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 67,
+          "missed_process_observations": 0,
+          "appeared_processes": 67,
+          "disappeared_processes": 65
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10944512.0,
+              "known": 18,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 18,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 18,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 400.8429380882047,
+          "overlap_weighted_mean_percent_one_cpu": 304.8780547267887
+        },
+        "docker-client": {
+          "peak_percent_one_cpu": 1.9989987979009483,
+          "overlap_weighted_mean_percent_one_cpu": 0.19308347982995627
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.99804162204744,
+          "overlap_weighted_mean_percent_one_cpu": 4.2360723206776765
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9995258329702482,
+          "overlap_weighted_mean_percent_one_cpu": 0.026788056129133864
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 421.8118457351997,
+          "overlap_weighted_mean_percent_one_cpu": 347.1319786189554
+        }
+      }
+    },
+    {
+      "label": "05-0.6B-candidate",
+      "model": "0.6B",
+      "arm": "candidate",
+      "start": 1791027829.2425287,
+      "end": 1791027850.6447322,
+      "returncode": 0,
+      "rates": {
+        "pp512": 141.4,
+        "tg128": 18.95
+      },
+      "log_sha256": "25b123e1a289b4d7118d9881fc7e1044cfdb4f160fce40f2354f57ee58d53b2c",
+      "owner": {
+        "pid": 77264,
+        "start_ticks": 121403059,
+        "pgid": 77264
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027829.3265698,
+          "end": 1791027850.6230512,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 49.815546,
+            "ru_stime": 1.116257,
+            "ru_maxrss": 590236,
+            "ru_minflt": 62039,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 0,
+            "ru_nvcsw": 193428,
+            "ru_nivcsw": 15710
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 50987568,
+            "user_usec": 49839084,
+            "system_usec": 1148485,
+            "nr_throttled": 0,
+            "throttled_usec": 0
+          },
+          "memory.stat": {
+            "pgfault": 64874,
+            "pgmajfault": 0,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 21.296481370925903,
+        "cpu_seconds": 50.931802999999995,
+        "average_cpu_cores": 2.3915595310280895,
+        "max_rss_kib": 590236,
+        "cgroup_memory_before": {
+          "memory.current": "2630094848",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=413652837\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30897127",
+          "io.pressure": "some avg10=0.01 avg60=0.02 avg300=0.00 total=30907346\nfull avg10=0.01 avg60=0.02 avg300=0.00 total=30633849",
+          "io.stat": "8:16 rbytes=19949367296 wbytes=0 rios=106040 wios=0 dbytes=0 dios=0\n8:64 rbytes=14919024640 wbytes=0 rios=82460 wios=0 dbytes=0 dios=0\n8:80 rbytes=17077661696 wbytes=0 rios=92277 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19982024704 wbytes=0 rios=106585 wios=0 dbytes=0 dios=0\n8:48 rbytes=17526738944 wbytes=0 rios=94336 wios=0 dbytes=0 dios=0\n8:32 rbytes=17551409152 wbytes=0 rios=94940 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "2630000640",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=17.96 avg60=5.83 avg300=1.36 total=418193866\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30953177",
+          "io.pressure": "some avg10=0.00 avg60=0.01 avg300=0.00 total=30909315\nfull avg10=0.00 avg60=0.01 avg300=0.00 total=30635457",
+          "io.stat": "8:16 rbytes=19949367296 wbytes=0 rios=106040 wios=0 dbytes=0 dios=0\n8:64 rbytes=14919024640 wbytes=0 rios=82460 wios=0 dbytes=0 dios=0\n8:80 rbytes=17077661696 wbytes=0 rios=92277 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19982024704 wbytes=0 rios=106585 wios=0 dbytes=0 dios=0\n8:48 rbytes=17526738944 wbytes=0 rios=94336 wios=0 dbytes=0 dios=0\n8:32 rbytes=17551409152 wbytes=0 rios=94940 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "25b123e1a289b4d7118d9881fc7e1044cfdb4f160fce40f2354f57ee58d53b2c",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 22,
+        "observation_samples": 23,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 3,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 61,
+          "missed_process_observations": 1,
+          "appeared_processes": 61,
+          "disappeared_processes": 71
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10944512.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 275.88318002315606,
+          "overlap_weighted_mean_percent_one_cpu": 226.7057182776633
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.998029782603946,
+          "overlap_weighted_mean_percent_one_cpu": 4.149148639910084
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 1.9991763191206784,
+          "overlap_weighted_mean_percent_one_cpu": 0.10298016219261359
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 324.87443307103285,
+          "overlap_weighted_mean_percent_one_cpu": 184.99929252174553
+        }
+      }
+    },
+    {
+      "label": "06-0.6B-base",
+      "model": "0.6B",
+      "arm": "base",
+      "start": 1791027850.646256,
+      "end": 1791027871.098047,
+      "returncode": 0,
+      "rates": {
+        "pp512": 138.33,
+        "tg128": 22.28
+      },
+      "log_sha256": "955f47ce388ba2da467a94605d7b19769aba52082fa74b922f34cb824f1d716e",
+      "owner": {
+        "pid": 77275,
+        "start_ticks": 121405199,
+        "pgid": 77275
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027850.7246265,
+          "end": 1791027871.0417728,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 46.671724,
+            "ru_stime": 0.9849399999999999,
+            "ru_maxrss": 590088,
+            "ru_minflt": 62023,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 0,
+            "ru_nvcsw": 168933,
+            "ru_nivcsw": 15441
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 47712800,
+            "user_usec": 46691614,
+            "system_usec": 1021186,
+            "nr_throttled": 3,
+            "throttled_usec": 3918
+          },
+          "memory.stat": {
+            "pgfault": 64801,
+            "pgmajfault": 0,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 20.31714630126953,
+        "cpu_seconds": 47.656664,
+        "average_cpu_cores": 2.3456376842166136,
+        "max_rss_kib": 590088,
+        "cgroup_memory_before": {
+          "memory.current": "2630000640",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=17.96 avg60=5.83 avg300=1.36 total=418193866\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30953177",
+          "io.pressure": "some avg10=0.00 avg60=0.01 avg300=0.00 total=30909315\nfull avg10=0.00 avg60=0.01 avg300=0.00 total=30635457",
+          "io.stat": "8:16 rbytes=19949367296 wbytes=0 rios=106040 wios=0 dbytes=0 dios=0\n8:64 rbytes=14919024640 wbytes=0 rios=82460 wios=0 dbytes=0 dios=0\n8:80 rbytes=17077661696 wbytes=0 rios=92277 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19982024704 wbytes=0 rios=106585 wios=0 dbytes=0 dios=0\n8:48 rbytes=17526738944 wbytes=0 rios=94336 wios=0 dbytes=0 dios=0\n8:32 rbytes=17551409152 wbytes=0 rios=94940 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "2629951488",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=17.47 avg60=9.69 avg300=2.61 total=422034043\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31003726",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30910210\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30636283",
+          "io.stat": "8:16 rbytes=19949367296 wbytes=0 rios=106040 wios=0 dbytes=0 dios=0\n8:64 rbytes=14919024640 wbytes=0 rios=82460 wios=0 dbytes=0 dios=0\n8:80 rbytes=17077661696 wbytes=0 rios=92277 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19982024704 wbytes=0 rios=106585 wios=0 dbytes=0 dios=0\n8:48 rbytes=17526738944 wbytes=0 rios=94336 wios=0 dbytes=0 dios=0\n8:32 rbytes=17551409152 wbytes=0 rios=94940 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "955f47ce388ba2da467a94605d7b19769aba52082fa74b922f34cb824f1d716e",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 22,
+        "observation_samples": 23,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 86,
+          "missed_process_observations": 3,
+          "appeared_processes": 86,
+          "disappeared_processes": 82
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 23,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 23,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 311.8511341318585,
+          "overlap_weighted_mean_percent_one_cpu": 230.24882491431785
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.9979407978016965,
+          "overlap_weighted_mean_percent_one_cpu": 4.215172538811061
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 1.9991763191206784,
+          "overlap_weighted_mean_percent_one_cpu": 0.01832060677619106
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 131.94289907146717,
+          "overlap_weighted_mean_percent_one_cpu": 105.39397730231417
+        }
+      }
+    },
+    {
+      "label": "07-8B-base",
+      "model": "8B",
+      "arm": "base",
+      "start": 1791027871.0997775,
+      "end": 1791028053.2938826,
+      "returncode": 0,
+      "rates": {
+        "pp512": 10.69,
+        "tg128": 4.24
+      },
+      "log_sha256": "2cccf3da59c359499f2342a360092cabc5deb91bb77aed2a037b4fd26dc23f60",
+      "owner": {
+        "pid": 77286,
+        "start_ticks": 121407245,
+        "pgid": 77286
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791027871.1837966,
+          "end": 1791028053.2811797,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 594.002101,
+            "ru_stime": 11.660338,
+            "ru_maxrss": 5007384,
+            "ru_minflt": 85132,
+            "ru_majflt": 1168865,
+            "ru_inblock": 6198624,
+            "ru_oublock": 0,
+            "ru_nvcsw": 72667,
+            "ru_nivcsw": 15639
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 605725635,
+            "user_usec": 594106224,
+            "system_usec": 11619410,
+            "nr_throttled": 192,
+            "throttled_usec": 115672
+          },
+          "memory.stat": {
+            "pgfault": 1256866,
+            "pgmajfault": 1168865,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 182.09738302230835,
+        "cpu_seconds": 605.6624390000001,
+        "average_cpu_cores": 3.3260359316959636,
+        "max_rss_kib": 5007384,
+        "cgroup_memory_before": {
+          "memory.current": "2629951488",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=17.47 avg60=9.69 avg300=2.61 total=422034043\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31003726",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30910210\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30636283",
+          "io.stat": "8:16 rbytes=19949367296 wbytes=0 rios=106040 wios=0 dbytes=0 dios=0\n8:64 rbytes=14919024640 wbytes=0 rios=82460 wios=0 dbytes=0 dios=0\n8:80 rbytes=17077661696 wbytes=0 rios=92277 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=19982024704 wbytes=0 rios=106585 wios=0 dbytes=0 dios=0\n8:48 rbytes=17526738944 wbytes=0 rios=94336 wios=0 dbytes=0 dios=0\n8:32 rbytes=17551409152 wbytes=0 rios=94940 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "7428694016",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.09 avg60=2.94 avg300=3.19 total=430141002\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31090906",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30912036\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30638109",
+          "io.stat": "8:16 rbytes=20219338752 wbytes=0 rios=107329 wios=0 dbytes=0 dios=0\n8:64 rbytes=15178354688 wbytes=0 rios=83697 wios=0 dbytes=0 dios=0\n8:80 rbytes=17342386176 wbytes=0 rios=93540 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=20245606400 wbytes=0 rios=107844 wios=0 dbytes=0 dios=0\n8:48 rbytes=17790398464 wbytes=0 rios=95595 wios=0 dbytes=0 dios=0\n8:32 rbytes=17816989696 wbytes=0 rios=96208 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "2cccf3da59c359499f2342a360092cabc5deb91bb77aed2a037b4fd26dc23f60",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 183,
+        "observation_samples": 184,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 56,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 454,
+          "missed_process_observations": 47,
+          "appeared_processes": 454,
+          "disappeared_processes": 465
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 184,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 184,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 399.8308116303479,
+          "overlap_weighted_mean_percent_one_cpu": 331.7944643994857
+        },
+        "docker-client": {
+          "peak_percent_one_cpu": 0.999605906501646,
+          "overlap_weighted_mean_percent_one_cpu": 0.005488698089164745
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 5.997503172241942,
+          "overlap_weighted_mean_percent_one_cpu": 4.2679906117337545
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9996733696592327,
+          "overlap_weighted_mean_percent_one_cpu": 0.06586374598517203
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 511.7635540245251,
+          "overlap_weighted_mean_percent_one_cpu": 81.57456036659144
+        }
+      }
+    },
+    {
+      "label": "08-8B-candidate",
+      "model": "8B",
+      "arm": "candidate",
+      "start": 1791028053.295698,
+      "end": 1791028209.7960095,
+      "returncode": 0,
+      "rates": {
+        "pp512": 10.82,
+        "tg128": 4.18
+      },
+      "log_sha256": "92a1d3313ed9e23afafff82c5ef87b504a99c3fcb0cc1091403ed027086ad1a8",
+      "owner": {
+        "pid": 77298,
+        "start_ticks": 121425464,
+        "pgid": 77298
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791028053.3795257,
+          "end": 1791028209.7367094,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 603.958005,
+            "ru_stime": 1.239565,
+            "ru_maxrss": 5007412,
+            "ru_minflt": 158194,
+            "ru_majflt": 0,
+            "ru_inblock": 0,
+            "ru_oublock": 0,
+            "ru_nvcsw": 38570,
+            "ru_nivcsw": 4083
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 605257609,
+            "user_usec": 604074905,
+            "system_usec": 1182704,
+            "nr_throttled": 262,
+            "throttled_usec": 155014
+          },
+          "memory.stat": {
+            "pgfault": 160951,
+            "pgmajfault": 0,
+            "workingset_refault_file": 0,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 156.35718369483948,
+        "cpu_seconds": 605.1975699999999,
+        "average_cpu_cores": 3.870609304278319,
+        "max_rss_kib": 5007412,
+        "cgroup_memory_before": {
+          "memory.current": "7428694016",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.09 avg60=2.94 avg300=3.19 total=430141002\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31090906",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30912036\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30638109",
+          "io.stat": "8:16 rbytes=20219338752 wbytes=0 rios=107329 wios=0 dbytes=0 dios=0\n8:64 rbytes=15178354688 wbytes=0 rios=83697 wios=0 dbytes=0 dios=0\n8:80 rbytes=17342386176 wbytes=0 rios=93540 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=20245606400 wbytes=0 rios=107844 wios=0 dbytes=0 dios=0\n8:48 rbytes=17790398464 wbytes=0 rios=95595 wios=0 dbytes=0 dios=0\n8:32 rbytes=17816989696 wbytes=0 rios=96208 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "7428255744",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.08 avg60=0.24 avg300=1.86 total=430262756\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31168338",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30912038\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30638111",
+          "io.stat": "8:16 rbytes=20219338752 wbytes=0 rios=107329 wios=0 dbytes=0 dios=0\n8:64 rbytes=15178354688 wbytes=0 rios=83697 wios=0 dbytes=0 dios=0\n8:80 rbytes=17342386176 wbytes=0 rios=93540 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=20245606400 wbytes=0 rios=107844 wios=0 dbytes=0 dios=0\n8:48 rbytes=17790398464 wbytes=0 rios=95595 wios=0 dbytes=0 dios=0\n8:32 rbytes=17816989696 wbytes=0 rios=96208 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "92a1d3313ed9e23afafff82c5ef87b504a99c3fcb0cc1091403ed027086ad1a8",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 157,
+        "observation_samples": 158,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 375,
+          "missed_process_observations": 26,
+          "appeared_processes": 375,
+          "disappeared_processes": 369
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10944512.0,
+              "known": 158,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 158,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 158,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 399.8620927052525,
+          "overlap_weighted_mean_percent_one_cpu": 385.02159462411595
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 5.9969764857410786,
+          "overlap_weighted_mean_percent_one_cpu": 4.2517064792261205
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 1.999294193036755,
+          "overlap_weighted_mean_percent_one_cpu": 0.06389780591603728
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 67.97233390997063,
+          "overlap_weighted_mean_percent_one_cpu": 15.0084484795597
+        }
+      }
+    },
+    {
+      "label": "09-8B-mx",
+      "model": "8B",
+      "arm": "mx",
+      "start": 1791028209.7979698,
+      "end": 1791028310.0918334,
+      "returncode": 0,
+      "rates": {
+        "pp512": 18.58,
+        "tg128": 7.14
+      },
+      "log_sha256": "2bc10382abe6bef82a1673a11549870fe58495b55b9c424d649e898da54da427",
+      "owner": {
+        "pid": 77309,
+        "start_ticks": 121441114,
+        "pgid": 77309
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791028209.8802574,
+          "end": 1791028310.0717793,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 365.336162,
+            "ru_stime": 9.979776,
+            "ru_maxrss": 13328900,
+            "ru_minflt": 2540516,
+            "ru_majflt": 131547,
+            "ru_inblock": 1728840,
+            "ru_oublock": 0,
+            "ru_nvcsw": 1229,
+            "ru_nivcsw": 2949
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 375381016,
+            "user_usec": 365404519,
+            "system_usec": 9976498,
+            "nr_throttled": 377,
+            "throttled_usec": 225670
+          },
+          "memory.stat": {
+            "pgfault": 2675167,
+            "pgmajfault": 133319,
+            "workingset_refault_file": 131030,
+            "pgscan": 878226,
+            "pgsteal": 878218
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 100.19152188301086,
+        "cpu_seconds": 375.315938,
+        "average_cpu_cores": 3.745984998992625,
+        "max_rss_kib": 13328900,
+        "cgroup_memory_before": {
+          "memory.current": "7428255744",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17157458\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17129098",
+          "cpu.pressure": "some avg10=0.08 avg60=0.24 avg300=1.86 total=430262756\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31168338",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30912038\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30638111",
+          "io.stat": "8:16 rbytes=20219338752 wbytes=0 rios=107329 wios=0 dbytes=0 dios=0\n8:64 rbytes=15178354688 wbytes=0 rios=83697 wios=0 dbytes=0 dios=0\n8:80 rbytes=17342386176 wbytes=0 rios=93540 wios=0 dbytes=0 dios=0\n259:0 rbytes=2707841024 wbytes=0 rios=21130 wios=0 dbytes=0 dios=0\n8:0 rbytes=20245606400 wbytes=0 rios=107844 wios=0 dbytes=0 dios=0\n8:48 rbytes=17790398464 wbytes=0 rios=95595 wios=0 dbytes=0 dios=0\n8:32 rbytes=17816989696 wbytes=0 rios=96208 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "4369747968",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.12 avg300=0.06 total=17499100\nfull avg10=0.00 avg60=0.12 avg300=0.06 total=17469602",
+          "cpu.pressure": "some avg10=0.00 avg60=0.04 avg300=1.31 total=430369785\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31241917",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30992230\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30718290",
+          "io.stat": "8:16 rbytes=20292190208 wbytes=0 rios=107873 wios=0 dbytes=0 dios=0\n8:64 rbytes=15252135936 wbytes=0 rios=84244 wios=0 dbytes=0 dios=0\n8:80 rbytes=17416163328 wbytes=0 rios=94090 wios=0 dbytes=0 dios=0\n259:0 rbytes=2710458368 wbytes=0 rios=21165 wios=0 dbytes=0 dios=0\n8:0 rbytes=20320063488 wbytes=0 rios=108405 wios=0 dbytes=0 dios=0\n8:48 rbytes=17864335360 wbytes=0 rios=96151 wios=0 dbytes=0 dios=0\n8:32 rbytes=17891831808 wbytes=0 rios=96763 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "2bc10382abe6bef82a1673a11549870fe58495b55b9c424d649e898da54da427",
+      "witnesses": {
+        "reference_identity_lines": [
+          "reference_commit=eefc4e7321c869496146697d63362f073941aed6 clean=1 compiler=14.2.0 backend=CPU index=0 device=CPU description=AMD EPYC 7262 8-Core Processor"
+        ],
+        "offloaded_layers": [
+          {
+            "offloaded": 0,
+            "total": 37
+          }
+        ],
+        "repack_counts": {
+          "iq4_nl_8x8": 216
+        },
+        "repacked_unique_tensor_count": 216,
+        "buffer_lines": [
+          "load_tensors:   CPU_Mapped model buffer size =  4538.88 MiB",
+          "load_tensors:   CPU_REPACK model buffer size =  3645.00 MiB",
+          "llama_kv_cache:        CPU KV buffer size =  5760.00 MiB"
+        ],
+        "contexts": [
+          40960
+        ],
+        "kv_lines": [
+          "llama_kv_cache: size = 5760.00 MiB ( 40960 cells,  36 layers,  1/1 seqs), K (f16): 2880.00 MiB, V (f16): 2880.00 MiB"
+        ],
+        "kv_types": [
+          {
+            "k": "f16",
+            "v": "f16"
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 102,
+        "observation_samples": 103,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 250,
+          "missed_process_observations": 22,
+          "appeared_processes": 250,
+          "disappeared_processes": 259
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10944512.0,
+              "known": 103,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 103,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 103,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 403.8372414454866,
+          "overlap_weighted_mean_percent_one_cpu": 374.07073565003236
+        },
+        "docker-client": {
+          "peak_percent_one_cpu": 1.9992785021419883,
+          "overlap_weighted_mean_percent_one_cpu": 0.03988276985502916
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 5.997449944460014,
+          "overlap_weighted_mean_percent_one_cpu": 4.277648119069805
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9996648853398863,
+          "overlap_weighted_mean_percent_one_cpu": 0.05982417598036814
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 359.8634142464181,
+          "overlap_weighted_mean_percent_one_cpu": 20.841115032141527
+        }
+      }
+    },
+    {
+      "label": "10-8B-mx",
+      "model": "8B",
+      "arm": "mx",
+      "start": 1791028310.094556,
+      "end": 1791028412.057813,
+      "returncode": 0,
+      "rates": {
+        "pp512": 18.47,
+        "tg128": 7.14
+      },
+      "log_sha256": "6e961e6997e8cfa46dee40677e745324b75919af8f9b2f6e50f6522bff44f6a2",
+      "owner": {
+        "pid": 77322,
+        "start_ticks": 121451144,
+        "pgid": 77322
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791028310.1897955,
+          "end": 1791028412.0440133,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 365.301632,
+            "ru_stime": 9.821267,
+            "ru_maxrss": 14479448,
+            "ru_minflt": 2800605,
+            "ru_majflt": 8037,
+            "ru_inblock": 2155487,
+            "ru_oublock": 0,
+            "ru_nvcsw": 507,
+            "ru_nivcsw": 2713
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 375190810,
+            "user_usec": 365383224,
+            "system_usec": 9807585,
+            "nr_throttled": 380,
+            "throttled_usec": 219914
+          },
+          "memory.stat": {
+            "pgfault": 2811886,
+            "pgmajfault": 290457,
+            "workingset_refault_file": 284225,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 101.85421776771545,
+        "cpu_seconds": 375.12289899999996,
+        "average_cpu_cores": 3.6829392755780606,
+        "max_rss_kib": 14479448,
+        "cgroup_memory_before": {
+          "memory.current": "4369747968",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.12 avg300=0.06 total=17499100\nfull avg10=0.00 avg60=0.12 avg300=0.06 total=17469602",
+          "cpu.pressure": "some avg10=0.00 avg60=0.04 avg300=1.31 total=430369785\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31241917",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=30992230\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30718290",
+          "io.stat": "8:16 rbytes=20292190208 wbytes=0 rios=107873 wios=0 dbytes=0 dios=0\n8:64 rbytes=15252135936 wbytes=0 rios=84244 wios=0 dbytes=0 dios=0\n8:80 rbytes=17416163328 wbytes=0 rios=94090 wios=0 dbytes=0 dios=0\n259:0 rbytes=2710458368 wbytes=0 rios=21165 wios=0 dbytes=0 dios=0\n8:0 rbytes=20320063488 wbytes=0 rios=108405 wios=0 dbytes=0 dios=0\n8:48 rbytes=17864335360 wbytes=0 rios=96151 wios=0 dbytes=0 dios=0\n8:32 rbytes=17891831808 wbytes=0 rios=96763 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "5560446976",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.01 avg300=0.03 total=17502448\nfull avg10=0.00 avg60=0.01 avg300=0.03 total=17472949",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.91 total=430440106\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31310071",
+          "io.pressure": "some avg10=0.00 avg60=0.01 avg300=0.00 total=31020664\nfull avg10=0.00 avg60=0.01 avg300=0.00 total=30746657",
+          "io.stat": "8:16 rbytes=20385677312 wbytes=0 rios=108642 wios=0 dbytes=0 dios=0\n8:64 rbytes=15341404160 wbytes=0 rios=84976 wios=0 dbytes=0 dios=0\n8:80 rbytes=17507655680 wbytes=0 rios=94853 wios=0 dbytes=0 dios=0\n259:0 rbytes=2714406912 wbytes=0 rios=21225 wios=0 dbytes=0 dios=0\n8:0 rbytes=20410568704 wbytes=0 rios=109151 wios=0 dbytes=0 dios=0\n8:48 rbytes=17953533952 wbytes=0 rios=96894 wios=0 dbytes=0 dios=0\n8:32 rbytes=17984462848 wbytes=0 rios=97533 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "6e961e6997e8cfa46dee40677e745324b75919af8f9b2f6e50f6522bff44f6a2",
+      "witnesses": {
+        "reference_identity_lines": [
+          "reference_commit=eefc4e7321c869496146697d63362f073941aed6 clean=1 compiler=14.2.0 backend=CPU index=0 device=CPU description=AMD EPYC 7262 8-Core Processor"
+        ],
+        "offloaded_layers": [
+          {
+            "offloaded": 0,
+            "total": 37
+          }
+        ],
+        "repack_counts": {
+          "iq4_nl_8x8": 216
+        },
+        "repacked_unique_tensor_count": 216,
+        "buffer_lines": [
+          "load_tensors:   CPU_Mapped model buffer size =  4538.88 MiB",
+          "load_tensors:   CPU_REPACK model buffer size =  3645.00 MiB",
+          "llama_kv_cache:        CPU KV buffer size =  5760.00 MiB"
+        ],
+        "contexts": [
+          40960
+        ],
+        "kv_lines": [
+          "llama_kv_cache: size = 5760.00 MiB ( 40960 cells,  36 layers,  1/1 seqs), K (f16): 2880.00 MiB, V (f16): 2880.00 MiB"
+        ],
+        "kv_types": [
+          {
+            "k": "f16",
+            "v": "f16"
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 103,
+        "observation_samples": 104,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 3,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 270,
+          "missed_process_observations": 12,
+          "appeared_processes": 270,
+          "disappeared_processes": 279
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10944512.0,
+              "known": 104,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 104,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 104,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 401.8688678332118,
+          "overlap_weighted_mean_percent_one_cpu": 366.2299486692457
+        },
+        "docker-client": {
+          "peak_percent_one_cpu": 1.9992632535457757,
+          "overlap_weighted_mean_percent_one_cpu": 0.03922985586615151
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.9984512003546335,
+          "overlap_weighted_mean_percent_one_cpu": 4.253471167458076
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9996671327490922,
+          "overlap_weighted_mean_percent_one_cpu": 0.0784595084428055
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 211.9238731085443,
+          "overlap_weighted_mean_percent_one_cpu": 25.958327251397844
+        }
+      }
+    },
+    {
+      "label": "11-8B-candidate",
+      "model": "8B",
+      "arm": "candidate",
+      "start": 1791028412.060491,
+      "end": 1791028558.261197,
+      "returncode": 0,
+      "rates": {
+        "pp512": 12.15,
+        "tg128": 4.24
+      },
+      "log_sha256": "703e6439d0755cc927a6a301933f9d314ab9ad48eb2698a9beb0a943e64cf7c0",
+      "owner": {
+        "pid": 77335,
+        "start_ticks": 121461341,
+        "pgid": 77335
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791028412.143557,
+          "end": 1791028558.221657,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 567.398436,
+            "ru_stime": 1.224608,
+            "ru_maxrss": 5006516,
+            "ru_minflt": 158239,
+            "ru_majflt": 211,
+            "ru_inblock": 4704,
+            "ru_oublock": 0,
+            "ru_nvcsw": 36907,
+            "ru_nivcsw": 3721
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 568684591,
+            "user_usec": 567504288,
+            "system_usec": 1180304,
+            "nr_throttled": 274,
+            "throttled_usec": 150060
+          },
+          "memory.stat": {
+            "pgfault": 161203,
+            "pgmajfault": 211,
+            "workingset_refault_file": 198,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 146.0780999660492,
+        "cpu_seconds": 568.6230439999999,
+        "average_cpu_cores": 3.8925961121629915,
+        "max_rss_kib": 5006516,
+        "cgroup_memory_before": {
+          "memory.current": "5560446976",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.01 avg300=0.03 total=17502448\nfull avg10=0.00 avg60=0.01 avg300=0.03 total=17472949",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.91 total=430440106\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31310071",
+          "io.pressure": "some avg10=0.00 avg60=0.01 avg300=0.00 total=31020664\nfull avg10=0.00 avg60=0.01 avg300=0.00 total=30746657",
+          "io.stat": "8:16 rbytes=20385677312 wbytes=0 rios=108642 wios=0 dbytes=0 dios=0\n8:64 rbytes=15341404160 wbytes=0 rios=84976 wios=0 dbytes=0 dios=0\n8:80 rbytes=17507655680 wbytes=0 rios=94853 wios=0 dbytes=0 dios=0\n259:0 rbytes=2714406912 wbytes=0 rios=21225 wios=0 dbytes=0 dios=0\n8:0 rbytes=20410568704 wbytes=0 rios=109151 wios=0 dbytes=0 dios=0\n8:48 rbytes=17953533952 wbytes=0 rios=96894 wios=0 dbytes=0 dios=0\n8:32 rbytes=17984462848 wbytes=0 rios=97533 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "5560692736",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17502448\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17472949",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.54 total=430517713\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31383783",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=31022714\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30748707",
+          "io.stat": "8:16 rbytes=20385775616 wbytes=0 rios=108643 wios=0 dbytes=0 dios=0\n8:64 rbytes=15341645824 wbytes=0 rios=84978 wios=0 dbytes=0 dios=0\n8:80 rbytes=17507893248 wbytes=0 rios=94855 wios=0 dbytes=0 dios=0\n259:0 rbytes=2714406912 wbytes=0 rios=21225 wios=0 dbytes=0 dios=0\n8:0 rbytes=20410712064 wbytes=0 rios=109152 wios=0 dbytes=0 dios=0\n8:48 rbytes=17953775616 wbytes=0 rios=96896 wios=0 dbytes=0 dios=0\n8:32 rbytes=17984704512 wbytes=0 rios=97535 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "703e6439d0755cc927a6a301933f9d314ab9ad48eb2698a9beb0a943e64cf7c0",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 147,
+        "observation_samples": 148,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 1,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 343,
+          "missed_process_observations": 27,
+          "appeared_processes": 343,
+          "disappeared_processes": 330
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 148,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 148,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 398.86778087105665,
+          "overlap_weighted_mean_percent_one_cpu": 387.8161721571529
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 4.9985757302499385,
+          "overlap_weighted_mean_percent_one_cpu": 4.196844400323313
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9996842847300991,
+          "overlap_weighted_mean_percent_one_cpu": 0.12311867533701927
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 409.75968255954103,
+          "overlap_weighted_mean_percent_one_cpu": 18.23168602718509
+        }
+      }
+    },
+    {
+      "label": "12-8B-base",
+      "model": "8B",
+      "arm": "base",
+      "start": 1791028558.263205,
+      "end": 1791028707.7552822,
+      "returncode": 0,
+      "rates": {
+        "pp512": 11.78,
+        "tg128": 4.24
+      },
+      "log_sha256": "e04677ecbd5aa14cf2e3d6ea756cdee76eacb3a54f296ac207d4a70a57d8b7a3",
+      "owner": {
+        "pid": 77346,
+        "start_ticks": 121475961,
+        "pgid": 77346
+      },
+      "error": null,
+      "cleanup": null,
+      "cleanup_error": null,
+      "resources": {
+        "usage": {
+          "start": 1791028558.3456266,
+          "end": 1791028707.730912,
+          "returncode": 0,
+          "usage": {
+            "ru_utime": 580.203739,
+            "ru_stime": 1.242447,
+            "ru_maxrss": 5006572,
+            "ru_minflt": 158252,
+            "ru_majflt": 207,
+            "ru_inblock": 4704,
+            "ru_oublock": 0,
+            "ru_nvcsw": 36825,
+            "ru_nivcsw": 3855
+          }
+        },
+        "cgroup_deltas": {
+          "cpu.stat": {
+            "usage_usec": 581505433,
+            "user_usec": 580309915,
+            "system_usec": 1195518,
+            "nr_throttled": 257,
+            "throttled_usec": 160603
+          },
+          "memory.stat": {
+            "pgfault": 161228,
+            "pgmajfault": 207,
+            "workingset_refault_file": 207,
+            "pgscan": 0,
+            "pgsteal": 0
+          },
+          "memory.events": {
+            "max": 0,
+            "oom": 0,
+            "oom_kill": 0
+          }
+        },
+        "unknown_cgroup_fields": {
+          "before": {},
+          "after": {}
+        },
+        "wall_seconds": 149.38528537750244,
+        "cpu_seconds": 581.446186,
+        "average_cpu_cores": 3.89225876250571,
+        "max_rss_kib": 5006572,
+        "cgroup_memory_before": {
+          "memory.current": "5560692736",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17502448\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17472949",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.54 total=430517713\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31383783",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=31022714\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30748707",
+          "io.stat": "8:16 rbytes=20385775616 wbytes=0 rios=108643 wios=0 dbytes=0 dios=0\n8:64 rbytes=15341645824 wbytes=0 rios=84978 wios=0 dbytes=0 dios=0\n8:80 rbytes=17507893248 wbytes=0 rios=94855 wios=0 dbytes=0 dios=0\n259:0 rbytes=2714406912 wbytes=0 rios=21225 wios=0 dbytes=0 dios=0\n8:0 rbytes=20410712064 wbytes=0 rios=109152 wios=0 dbytes=0 dios=0\n8:48 rbytes=17953775616 wbytes=0 rios=96896 wios=0 dbytes=0 dios=0\n8:32 rbytes=17984704512 wbytes=0 rios=97535 wios=0 dbytes=0 dios=0"
+        },
+        "cgroup_memory_after": {
+          "memory.current": "5561524224",
+          "memory.swap.current": "0",
+          "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=17502448\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=17472949",
+          "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.30 total=430614609\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31460595",
+          "io.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=31024070\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=30750063",
+          "io.stat": "8:16 rbytes=20386017280 wbytes=0 rios=108645 wios=0 dbytes=0 dios=0\n8:64 rbytes=15341887488 wbytes=0 rios=84980 wios=0 dbytes=0 dios=0\n8:80 rbytes=17507991552 wbytes=0 rios=94856 wios=0 dbytes=0 dios=0\n259:0 rbytes=2714406912 wbytes=0 rios=21225 wios=0 dbytes=0 dios=0\n8:0 rbytes=20410953728 wbytes=0 rios=109154 wios=0 dbytes=0 dios=0\n8:48 rbytes=17954013184 wbytes=0 rios=96898 wios=0 dbytes=0 dios=0\n8:32 rbytes=17984847872 wbytes=0 rios=97536 wios=0 dbytes=0 dios=0"
+        }
+      },
+      "observed_log_sha256": "e04677ecbd5aa14cf2e3d6ea756cdee76eacb3a54f296ac207d4a70a57d8b7a3",
+      "witnesses": {
+        "dtype_lines": [
+          "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)"
+        ],
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        ]
+      },
+      "activity": {
+        "intervals": 150,
+        "observation_samples": 151,
+        "unbracketed_seconds": 0,
+        "flagged_intervals": {
+          "cpu_busy": 0,
+          "iowait": 0,
+          "unrelated_cpu": 0,
+          "disk_activity": 0,
+          "sample_gap": 0
+        },
+        "unknown_cpu_intervals": 0,
+        "unknown_disk_intervals": 0,
+        "process_observations": {
+          "unknown_process_roles": 0,
+          "new_processes_without_delta": 370,
+          "missed_process_observations": 32,
+          "appeared_processes": 370,
+          "disappeared_processes": 361
+        },
+        "gpu": {
+          "card0": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card1": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card2": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713475584.0,
+              "max": 25713475584.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card3": {
+            "devices": [
+              "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 25713479680.0,
+              "max": 25713479680.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card4": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card5": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card6": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card7": {
+            "devices": [
+              "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card8": {
+            "devices": [
+              "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          },
+          "card9": {
+            "devices": [
+              "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0"
+            ],
+            "busy": {
+              "min": 0.0,
+              "max": 0.0,
+              "known": 151,
+              "unknown": 0
+            },
+            "vram_used": {
+              "min": 10932224.0,
+              "max": 10932224.0,
+              "known": 151,
+              "unknown": 0
+            }
+          }
+        },
+        "gpu_observations_unavailable": false
+      },
+      "observed_cpu_by_role": {
+        "benchmark": {
+          "peak_percent_one_cpu": 399.8527271144307,
+          "overlap_weighted_mean_percent_one_cpu": 387.4319065996876
+        },
+        "monitor": {
+          "peak_percent_one_cpu": 5.9966521113493485,
+          "overlap_weighted_mean_percent_one_cpu": 4.229892497391486
+        },
+        "supervisor": {
+          "peak_percent_one_cpu": 0.9996666653038977,
+          "overlap_weighted_mean_percent_one_cpu": 0.06689332779948226
+        },
+        "unrelated": {
+          "peak_percent_one_cpu": 63.975232757071346,
+          "overlap_weighted_mean_percent_one_cpu": 14.98953902744496
+        }
+      }
+    }
+  ],
+  "arms": {
+    "base": {
+      "head": "e287af4c5c661510d1788a3aa176d9f891f183af",
+      "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/base/source",
+      "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/base/build/llmx",
+      "version": "llmx 0.1.0+ge287af4c5c66",
+      "exe_sha256": "32d8adf8d197db32fa1210961c196053ef2cea4ba7d45974fa3a6afa54dd0330",
+      "compiler": "c++ (Debian 14.2.0-19) 14.2.0"
+    },
+    "candidate": {
+      "head": "7cd5c12f8ca91d37cf3a1d4839fb70ce169c56c3",
+      "source": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/candidate/source",
+      "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/candidate/build/llmx",
+      "version": "llmx 0.1.0+g7cd5c12f8ca9",
+      "exe_sha256": "a03942ea4cb886bc6c246d069df46fc1093598ea7a8ec7362072cb2cccf790fb",
+      "compiler": "c++ (Debian 14.2.0-19) 14.2.0"
+    },
+    "mx": {
+      "head": "eefc4e7321c869496146697d63362f073941aed6",
+      "exe": "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-cpu-reference-20261003/mx-cli-bench-cpu",
+      "exe_sha256": "60bd14f4c37c06dd27e634cdd8ec559536ec90d49162c7a9b40ccc5910a95bbe",
+      "adapter_source_sha256": "9772ebf0aa8f4cac5d2d2552b467aae339e60a732767ef4325687f1ae0749fe8"
+    }
+  },
+  "models": [
+    {
+      "label": "0.6B",
+      "host_path": "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+      "container_path": "/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+      "bytes": 381566656,
+      "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+    },
+    {
+      "label": "8B",
+      "host_path": "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-8B-IQ4_NL.gguf",
+      "container_path": "/models/llmx-xdev-iq4-nl-20261003/Qwen3-8B-IQ4_NL.gguf",
+      "bytes": 4793624384,
+      "sha256": "07ffccc29bbbf5e11c608d82269bff77a2580ef3a6d60e84707a9f5af6b2e833"
+    }
+  ],
+  "workload": {
+    "prompt": 512,
+    "decode": 128,
+    "repeats": 1,
+    "threads": 4,
+    "kv": "f16/f16",
+    "load": "mapped/mmap",
+    "logical_context": "model context in both arms",
+    "prompt_seed": 12345,
+    "decode_seed": 777,
+    "history_depth": 0,
+    "sequences": 1,
+    "warmup": "one full pp then independent tg, all phases reset outside timer"
+  },
+  "sample_count": 946,
+  "interval_count": 945,
+  "monitor_stop_recorded": true,
+  "activity_flags": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "activity_totals": {
+    "flags": {
+      "cpu_busy": 0,
+      "iowait": 0,
+      "unrelated_cpu": 103,
+      "disk_activity": 0,
+      "sample_gap": 0
+    },
+    "unknown_cpu_intervals": 0,
+    "unknown_disk_intervals": 0,
+    "process_observations": {
+      "unknown_process_roles": 0,
+      "new_processes_without_delta": 2410,
+      "missed_process_observations": 187,
+      "appeared_processes": 2410,
+      "disappeared_processes": 2416
+    },
+    "hot_unrelated_process_observations": [
+      [
+        "cc1plus",
+        53
+      ],
+      [
+        "llmx-server-pas",
+        29
+      ],
+      [
+        "llmx-server-res",
+        22
+      ],
+      [
+        "llmx-spec-test",
+        6
+      ],
+      [
+        "containerd",
+        6
+      ],
+      [
+        "dockerd",
+        3
+      ],
+      [
+        "python3",
+        3
+      ]
+    ]
+  },
+  "orchestration": {
+    "supervisor_pid": 1267518,
+    "monitor_pid": 1267643,
+    "observed_docker_clients": [
+      {
+        "pid": 1267680,
+        "start_ticks": 121396704
+      },
+      {
+        "pid": 1268470,
+        "start_ticks": 121398363
+      },
+      {
+        "pid": 1268660,
+        "start_ticks": 121399907
+      },
+      {
+        "pid": 1269086,
+        "start_ticks": 121401501
+      },
+      {
+        "pid": 1269282,
+        "start_ticks": 121403055
+      },
+      {
+        "pid": 1270021,
+        "start_ticks": 121405196
+      },
+      {
+        "pid": 1270577,
+        "start_ticks": 121407241
+      },
+      {
+        "pid": 1277231,
+        "start_ticks": 121425461
+      },
+      {
+        "pid": 1280446,
+        "start_ticks": 121441111
+      },
+      {
+        "pid": 1282277,
+        "start_ticks": 121451141
+      },
+      {
+        "pid": 1284438,
+        "start_ticks": 121461337
+      },
+      {
+        "pid": 1287266,
+        "start_ticks": 121475957
+      }
+    ]
+  },
+  "limitations": [
+    "Reference uses native CPU_REPACK and quantized activations; llmx IQ4 keeps original F32 activations. This compares runtime policies, not equivalent arithmetic.",
+    "Both logical context capacities follow model metadata, but backing/allocation designs differ. Loading is outside timing; actual placement/repack/context witnesses must be inspected in retained stderr.",
+    "Small differences require assessment against owner-matched layout perturbation before attribution; no such control has run.",
+    "Native focused tests and earlier HF results do not constitute final exact-head release gates.",
+    "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "All calls and observations retained, including failed or incomplete calls. Activity flags are not automatic rejection rules.",
+    "Small changes remain inconclusive as isolated optimization effects without a matched owner-site layout control.",
+    "Observed docker clients require parent identity and start time. Short-lived or reparented unseen clients remain unknown; other docker processes are not excluded.",
+    "Whole-call rusage and cgroup counters include loading, warmup, prompt and decode without phase attribution.",
+    "CPU role means use overlapping interval portions; missing process deltas are not zero measured work.",
+    "Adjacent calls may share bracket observations. Disk rates are per whole device; GPU counters have no process attribution.",
+    "This Linux screen is separate from the Windows six-thread screen; their rates do not subtract across environments."
+  ],
+  "decision": {
+    "integration": "Initial CPU support retains scalar registry prompt expansion; SIMD experiment is excluded and its branch remains intact.",
+    "reason": "Linux prefill directions are modest without an owner-matched layout control, Windows is mixed, and reverse 0.6B decode attribution is unresolved. This is not proof of a regression or rejection by an isolated loss threshold.",
+    "quality_proposal": "Unapproved; no acceptance bound is changed.",
+    "release": "Final CPU gates and exact-head CI remain pending.",
+    "recovery": "Profile fused CPU IQ4 lookup/float-product/reduction and prompt tile instruction/load/register costs against the actual repacked mx path. Measure the smallest exact-arithmetic variant before broader HF checks; preserve current precision, finite-range handling and all unfavorable results."
+  },
+  "environment": {
+    "container": "llmx-xdev-vulkan-weight-dispatch-20261002",
+    "container_id": "62207877ff9fd44964344fdff2acd0723bcfab7c2c6bb497381ce031fae8a46a",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpuset": "0-3",
+    "quota_cpus": 4,
+    "memory_and_swap_limit_bytes": 34359738368,
+    "limits": {
+      "per_call_seconds": 900,
+      "whole_seconds": 5400,
+      "minimum_remaining_before_call": 930
+    },
+    "compiler": "GCC 14.2.0",
+    "host_cpu": "AMD EPYC 7262 8-Core Processor",
+    "clock_policy": "No clock override; actual clocks were not captured.",
+    "model_order": [
+      "0.6B",
+      "8B"
+    ],
+    "arm_order": [
+      "base",
+      "candidate",
+      "mx",
+      "mx",
+      "candidate",
+      "base"
+    ],
+    "terminal": {
+      "passed": true,
+      "monitor_returncode": 0,
+      "processes": "PID                 STAT                COMMAND\n3617039             Ss                  docker-init\n3617053             S                   sleep"
+    }
+  },
+  "file_pins": {
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/base/build/llmx": "32d8adf8d197db32fa1210961c196053ef2cea4ba7d45974fa3a6afa54dd0330",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/base/complete.json": "2c70dc533023e0d1943464e5b4962322ae296f24ce7e3e68f6582ecea5b763ed",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/candidate/build/llmx": "a03942ea4cb886bc6c246d069df46fc1093598ea7a8ec7362072cb2cccf790fb",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/candidate/complete.json": "d114655d6fcb004c44adf18cdeef5933f0d86a122d350637701a23a4c1cea8d8",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-cpu-reference-20261003/mx-cli-bench-cpu": "60bd14f4c37c06dd27e634cdd8ec559536ec90d49162c7a9b40ccc5910a95bbe",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-cpu-reference-20261003/wrapper.cpp": "9772ebf0aa8f4cac5d2d2552b467aae339e60a732767ef4325687f1ae0749fe8",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/libllama.so": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/libggml.so": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/libggml-base.so": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/libggml-cpu.so": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/libggml-vulkan.so": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/build-r2/bin/libllama-common.so": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/timing/monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/iq4-nl-cpu-20261003/timing/run-timing.py": "c164eeec674ea60fbfd2271dff3cf92f33ba2942d302c4311fe290f2a80815e5"
+  },
+  "asset_8b": {
+    "repo": "unsloth/Qwen3-8B-GGUF",
+    "revision": "a6adef130ffb23ddaf1a62fec9dced968c9bc482",
+    "file": "Qwen3-8B-IQ4_NL.gguf",
+    "size": 4793624384,
+    "sha256": "07ffccc29bbbf5e11c608d82269bff77a2580ef3a6d60e84707a9f5af6b2e833",
+    "blob_id": "c39546cc46b9950fe3b60ccb05e85a30e3b36f92",
+    "file_page": "https://huggingface.co/unsloth/Qwen3-8B-GGUF/blob/a6adef130ffb23ddaf1a62fec9dced968c9bc482/Qwen3-8B-IQ4_NL.gguf",
+    "actual_bytes": 4793624384,
+    "actual_sha256": "07ffccc29bbbf5e11c608d82269bff77a2580ef3a6d60e84707a9f5af6b2e833",
+    "verified_path": "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-8B-IQ4_NL.gguf",
+    "scope": "Speed only; no independent 8B IQ4 HF/quality qualification or hosted fixture registration."
+  },
+  "windows_experiment": {
+    "source": "perf/iq4-nl-expansion-20261003 at 6d0c04a97eb51e9725d5c44b84523362cc39c99f, runtime 7cd5c12f",
+    "committed_record": "docs/benchmarks/iq4-nl-simd-windows-20261003.json on that separate branch",
+    "rates": [
+      {
+        "setting": "pp64/tg128",
+        "phase": "pp",
+        "base": [
+          399.38,
+          322.14
+        ],
+        "candidate": [
+          420.07,
+          300.67
+        ],
+        "base_mean": 360.76,
+        "candidate_mean": 360.37,
+        "ratio_of_means_percent": -0.10810511143142243,
+        "paired_percent": [
+          5.180529821222901,
+          -6.664804122431233
+        ]
+      },
+      {
+        "setting": "pp64/tg128",
+        "phase": "tg",
+        "base": [
+          65.88,
+          65.07
+        ],
+        "candidate": [
+          68.45,
+          66.29
+        ],
+        "base_mean": 65.475,
+        "candidate_mean": 67.37,
+        "ratio_of_means_percent": 2.89423444062622,
+        "paired_percent": [
+          3.9010321797207093,
+          1.8749039495927766
+        ]
+      },
+      {
+        "setting": "pp512/tg32",
+        "phase": "pp",
+        "base": [
+          417.37,
+          368.14
+        ],
+        "candidate": [
+          412.5,
+          407.57
+        ],
+        "base_mean": 392.755,
+        "candidate_mean": 410.03499999999997,
+        "ratio_of_means_percent": 4.399689373782634,
+        "paired_percent": [
+          -1.1668303903011767,
+          10.71059922855435
+        ]
+      },
+      {
+        "setting": "pp512/tg32",
+        "phase": "tg",
+        "base": [
+          63.65,
+          69.17
+        ],
+        "candidate": [
+          66.72,
+          64.17
+        ],
+        "base_mean": 66.41,
+        "candidate_mean": 65.445,
+        "ratio_of_means_percent": -1.453094413491951,
+        "paired_percent": [
+          4.823252160251368,
+          -7.228567297961542
+        ]
+      }
+    ],
+    "sample_count": 38,
+    "unknown_process_deltas": 4783,
+    "interpretation": [
+      "Both prefill settings have opposite paired signs. This Windows screen does not establish a reliable model prefill gain.",
+      "The tg128 guardrail improves in both pairs, while tg32 has opposite signs. Preserved decode instructions do not establish why rates differ.",
+      "Every call flags unrelated CPU use and unknown process deltas; zero flagged disk/GPU thresholds and zero unavailable counter samples do not mean an idle machine.",
+      "No matched owner-site layout control or mx call was measured; no isolated kernel-effect or reference-parity claim is made.",
+      "All eight calls are retained without reruns. The first a2f199642 candidate and its never-executed plan are preserved separately.",
+      "Final Popen waits establish every owned child exit; later PID 41608 reuse by PowerShell is retained in the final inventory."
+    ],
+    "limits": "Separate Windows Ryzen six-thread environment; rates do not subtract across machines. No owner-matched layout control."
+  },
+  "resource_interpretation": [
+    "Reverse 0.6B candidate/base use 2.39/2.35 CPU cores across the whole call and 193,428/168,933 voluntary context switches versus 3.72/3.56 cores and 16,613/16,519 switches forward. The cause is not established and both reverse calls remain included.",
+    "First base calls have major faults; all rusage/cgroup counters include loading and warmup outside phase timers. No call increments memory max/OOM/OOM-kill; maximum quota-throttled time is 0.22567 s.",
+    "Actual reference F16 KV allocations are 4,480 MiB for 0.6B and 5,760 MiB for 8B at context 40,960. llmx backing differs; child RSS is not a separately controlled memory benchmark.",
+    "The 946 monitor samples and all raw process/GPU observations remain in activity.jsonl, pinned below; the compact record retains every call and bracket/unknown count without copying machine process inventories."
+  ],
+  "raw_artifacts": [
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/analysis.json",
+      "bytes": 147935,
+      "sha256": "c472be7a0b47fda75495bf010aabaf7d13aa08bd32204325e1b4b01cf1f05c91"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/analysis.md",
+      "bytes": 3166,
+      "sha256": "a4c1abc6fa4eeae8466691269a0a5841371125a602b7c12c8fe0aca8cfbc81c7"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/interpretation.md",
+      "bytes": 2776,
+      "sha256": "ea8115a5c52acb09069ebf625b5aea35b1aced1147da6e0dcea05d5c1dc99abe"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/complete.json",
+      "bytes": 109309,
+      "sha256": "7fc2962a1f3d6c326203567f226c1a9bd20afd2ebf9ef806c518f2699de01474"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/plan.json",
+      "bytes": 14377,
+      "sha256": "5269a6d9ffdbd35b86a9b6426f08bd04718378cfdd994cc3298a245aa6702703"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/activity.jsonl",
+      "bytes": 5521663,
+      "sha256": "14b213c67e58f8633bf04f39fcf929ea8a435d78468fe2d5910ed1ba938fcc7a"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/analyze.py",
+      "bytes": 13701,
+      "sha256": "7a28657d86dc0d73657c951d4b7e7a98c02ef1406fc32d0a5971addd0471a362"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/fixture-8b-discovery/hf-pin.json",
+      "bytes": 1065,
+      "sha256": "62c19419909e697ecd9742fb8b4267143f696a00c7c279c26985dcc20317581a"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/fixture-8b-discovery/acquisition/complete.json",
+      "bytes": 3796,
+      "sha256": "c4f3ffb64d45edf12562389e6a8b3bacc1fb6a523cfae74892571a2cb9da6a11"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/production-expansion/timing-direct/summary.json",
+      "bytes": 24560,
+      "sha256": "5e60ed057c76ebf4727528ef47ca9325de9986f328f2520d0a67855007f63af6"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/01-0.6B-base.log",
+      "bytes": 352,
+      "sha256": "73c219f5e0cc2484a6ec33f077d6d58bd544b1f8427735da8e25f982d296eec9"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/02-0.6B-candidate.log",
+      "bytes": 352,
+      "sha256": "d4d15772e5db52eb43da16453c8e424807fc04161004e13173508d3152ac1f98"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/03-0.6B-mx.log",
+      "bytes": 69611,
+      "sha256": "a0c88d9788c988ac83d1ab0bd190c77bc737f19fb48d8a4b54990dbc4ff6e073"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/04-0.6B-mx.log",
+      "bytes": 69611,
+      "sha256": "8ce5c738fef63008cc76390e620dc89386dc5059fccda12752feabf0a212cb80"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/05-0.6B-candidate.log",
+      "bytes": 352,
+      "sha256": "25b123e1a289b4d7118d9881fc7e1044cfdb4f160fce40f2354f57ee58d53b2c"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/06-0.6B-base.log",
+      "bytes": 352,
+      "sha256": "955f47ce388ba2da467a94605d7b19769aba52082fa74b922f34cb824f1d716e"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/07-8B-base.log",
+      "bytes": 352,
+      "sha256": "2cccf3da59c359499f2342a360092cabc5deb91bb77aed2a037b4fd26dc23f60"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/08-8B-candidate.log",
+      "bytes": 352,
+      "sha256": "92a1d3313ed9e23afafff82c5ef87b504a99c3fcb0cc1091403ed027086ad1a8"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/09-8B-mx.log",
+      "bytes": 84044,
+      "sha256": "2bc10382abe6bef82a1673a11549870fe58495b55b9c424d649e898da54da427"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/10-8B-mx.log",
+      "bytes": 84043,
+      "sha256": "6e961e6997e8cfa46dee40677e745324b75919af8f9b2f6e50f6522bff44f6a2"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/11-8B-candidate.log",
+      "bytes": 352,
+      "sha256": "703e6439d0755cc927a6a301933f9d314ab9ad48eb2698a9beb0a943e64cf7c0"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/12-8B-base.log",
+      "bytes": 352,
+      "sha256": "e04677ecbd5aa14cf2e3d6ea756cdee76eacb3a54f296ac207d4a70a57d8b7a3"
+    },
+    {
+      "path": ".tmp-iq4-nl-evidence-20261003/linux-cpu/execution/monitor.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "activity_auditor": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-storage-types-run-20261002\\analyze-timing.py": "d73583a62e068a51061fa97e64e1bb5b9380fef68875c8b846ae5d1754164681"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-20",
+  "base": "53a7e81e2945391b3440fc562909b123316915b8",
+  "reused_support_commit": "72d57bff9a93b1a0483000d7b0b880531e99c30c",
+  "adapted_checkpoint": "46a34479e",
+  "scope": "Focused local CPU support recovery. No GPU, full gate, performance campaign, reference regeneration, transfer or public operation.",
+  "binary": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-nl-20261020\\build-iq4\\Release\\llmx.exe",
+    "version": "llmx 0.1.0+gc9c426f8d1b2.dirty numerics 19169764fcad2934",
+    "sha256": "bc852e9f42dba7fdb8d50f8920681b0aa7abcfb063877704117cb33f60547b57"
+  },
+  "native": {
+    "passed": 2,
+    "failed": 0,
+    "tests": [
+      "iq4-nl",
+      "backend-errors"
+    ],
+    "decoded_exact": 32505856,
+    "range_dots": 11776,
+    "product_and_embedding_exact": 1618944,
+    "row_class_pairs_exact": 17914,
+    "dtypes": [
+      "f32",
+      "f16",
+      "bf16",
+      "int8"
+    ],
+    "log": "build-iq4/focused-ctest.log"
+  },
+  "tiny_file_exact_hf": {
+    "full_logits_cases": 150,
+    "nll_cases": 12,
+    "logit_bound": 2e-05,
+    "nll_bound": 1e-05,
+    "max_logits": {
+      "dense_untied": 1.12e-06,
+      "dense_tied": 1.28e-06,
+      "moe": 9.4e-07
+    },
+    "max_nll": {
+      "dense_untied": 3.54e-06,
+      "dense_tied": 3.92e-06,
+      "moe": 1.06e-06
+    },
+    "values": "Rounded display retained; bounds unchanged. Full output in focused-python.log.",
+    "log": "build-iq4/focused-python.log"
+  },
+  "source_checks": {
+    "docs": "pass, zero findings",
+    "dead_code": "pass, five preexisting listed findings",
+    "reference_generator_tests": 43
+  },
+  "current_main_adaptations": [
+    "Native test registration follows cmake/tests.cmake extraction.",
+    "Retain current int8 and tensor-split generator paths and split coverage.",
+    "Add int8 CPU primitive exact-identity coverage.",
+    "Old HF fixtures explicitly skip tensor width above1 because their dense quantized dimensions do not split whole; this is not tensor-group numerical qualification.",
+    "Vulkan descriptors, shaders and runtime are unchanged; IQ4_NL remains CPU-only."
+  ],
+  "original_weight_quality": {
+    "status": "OPEN; no approval inferred",
+    "not_installed": [
+      "top1 6/6",
+      "adjusted top5 overlap >=2/5",
+      "NLL 0.18/0.21"
+    ],
+    "file_exact_limits_unchanged": [
+      0.01,
+      0.02
+    ]
+  },
+  "remaining": [
+    "Original-weight quality decision.",
+    "Settle current base and consolidate features, then applicable exact-head qualification and hosted CI.",
+    "Current-head IQ4_NL tensor-group numerical coverage remains unrun."
+  ],
+  "historical_evidence": "Preserved verbatim in iq4-support-main-integration-20261003.json and its referenced records; old green results remain scoped to old heads."
+}

@@ -1,0 +1,128 @@
+{
+  "scope": "IQ4_NL split-fixture/reference checkpoint; Python/docs fixture change only; no runtime or numerical-limit change",
+  "tree": {
+    "base": "e00ed1b53159b9a5fe3ee206587d24a616631204",
+    "source_archive": {
+      "path": "build-quant-resume-20261020/iq4-split-reference-source.tar",
+      "sha256": "734f3358192b894037c15710076aa9b01c2da497b61d870cd7eb2380ccfd48cf"
+    },
+    "source_manifest": {
+      "path": "build-quant-resume-20261020/iq4-split-reference/source-manifest.json",
+      "sha256": "4d5019ecc3e82869f077cfac44d60890de84fa7f3b322a4d270677eccbe021d5",
+      "scope": "Python tools/tests with four uncommitted fixture/generator edits; no runtime change",
+      "relevant_sources": {
+        "tools/gen_baseline.py": "a53c5e3c270eab114ce59f81481f7d95904afb78b2c36586e6bb642fde74a1b3",
+        "tests/iq4_nl.py": "c2c5f667f2973bd9505e9749bb29f1ce7d9d0cce81e3ec614962792e796eb7b2",
+        "tests/q5_1.py": "5839cf1345578f0b113db983cee09e8a389904da26cc4c7335733a1337b23d8c",
+        "tests/block_fixture.py": "d10b96f627d392c4d4124ef43c6f583a280d63938a1944f5891faffc4466b8d8",
+        "tests/reference_generator.py": "19015dad3a568d4292e55a5f8993b1fdbf440824058ff084f9e79febe96451a8"
+      }
+    }
+  },
+  "reference_generation": {
+    "model": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "environment": {
+      "container_image": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "python": "3.12.13",
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6",
+      "threads": 1,
+      "attention": "eager",
+      "HF_HUB_OFFLINE": true,
+      "network": false
+    },
+    "commands": [
+      "/hf/venv/bin/python -B tools/gen_baseline.py iq4-nl --output-dir output",
+      "/hf/venv/bin/python -B tools/gen_baseline.py q5-1 --output-dir output"
+    ],
+    "outputs": {
+      "baseline_iq4_nl.json": {
+        "bytes": 107472,
+        "sha256": "5d1cd11bae717dfb64d3da56675683792239d6a7c49d2adb48b32c3ca5c329c0"
+      },
+      "baseline_iq4_nl_split.json": {
+        "bytes": 108434,
+        "sha256": "fc7db87a6efead4bd5380a6f201145e51c5da3156ab2f8e25d43e0bb76e148d3"
+      },
+      "baseline_q5_1.json": {
+        "bytes": 106151,
+        "sha256": "7b3ea76701e518de4c3cd54bb9aefb7a1acf87d466b1bae68444b36cf7653db2"
+      },
+      "baseline_q5_1_split.json": {
+        "bytes": 107109,
+        "sha256": "039ee0cf45b8f103d111df410e9b2d87914e727a8b354ad1a73f33fc8ccb9bee"
+      }
+    }
+  },
+  "ordinary_iq4_control": {
+    "wrapper": {
+      "path": "build-quant-resume-20261020/iq4-reference-control.sh",
+      "sha256": "90cc3be6cf0e825894cec8764c3faa598f156b8152dbfb38e58ee001097d4458"
+    },
+    "previous_generator": {
+      "path": "build-quant-resume-20261020/iq4-reference-old-generator.py",
+      "sha256": "3a9df55c4d5a2c159d2188dbc811f66a79af3dd9e2a0f9cbf5130ada5e2f3bc9"
+    },
+    "comparison": "The wrapper generates ordinary IQ4 output with the previous generator under the same offline pinned container and uses cmp against the shared generator output; the retained review record reports byte equality.",
+    "equal_output_sha256": "5d1cd11bae717dfb64d3da56675683792239d6a7c49d2adb48b32c3ca5c329c0"
+  },
+  "checked_in_fixture_comparison": {
+    "ordinary_iq4": {
+      "checked_in_sha256": "b351b5f20b6e9f8f30eac9cba6e936ae43f2188495d43733e347521c4caa910c",
+      "preserved": true,
+      "packed_and_decoded_weight_hashes_unchanged": true,
+      "max_logit_delta": 4.76837158203125e-7,
+      "max_mean_nll_delta": 4.224275418351908e-8,
+      "routing_gap_delta": 5.869342282872968e-9
+    },
+    "split_iq4": {
+      "checked_in_sha256": "fc7db87a6efead4bd5380a6f201145e51c5da3156ab2f8e25d43e0bb76e148d3",
+      "exact_byte_match": true,
+      "split_moe_expert_count": 4,
+      "split_moe_expert_used_count": 4,
+      "minimum_routing_gap": null
+    },
+    "q5_1_controls": {
+      "ordinary_and_split_json_values_match": true,
+      "serialized_hashes_differ_only_by_line_endings": true
+    }
+  },
+  "captures": {
+    "cpu": {
+      "path": "build-quant-resume-20261020/iq4-routing-cpu-captures/report.json",
+      "sha256": "7b9a48b0e940d16fafbafc9481006905f8c5cad3751e18faf18519f4e2d7b4ad",
+      "tool_sha256": "e54946e30c5fab0c4a56b77d21ec2b23dd8d80d93e2b98989e0b5694b4011226",
+      "passed": true,
+      "rows": 9,
+      "scope": "F32 arithmetic on one, two and four CPU backends; full rows and 64 greedy steps",
+      "group_vs_single_checks": 6,
+      "max_hf_logit_error": 1.4007091522216797e-6,
+      "max_hf_nll_error": 2.0526905952777952e-7
+    },
+    "radeon_vii": {
+      "path": "build-quant-resume-20261020/iq4-routing-radeon-captures/report.json",
+      "sha256": "e16da5db5026e96c93c91b49cd83f19d1b2f4bf27b6519473d39e4cdb257801c",
+      "tool_sha256": "e54946e30c5fab0c4a56b77d21ec2b23dd8d80d93e2b98989e0b5694b4011226",
+      "passed": true,
+      "rows": 3,
+      "scope": "Single-device default F16; full rows and 64 greedy steps, not a tensor-split-device check",
+      "max_hf_logit_error": 0.0001539289951324463,
+      "max_hf_nll_error": 1.2329550841627679e-5
+    }
+  },
+  "source_checks": {
+    "path": "build-iq4-split-source-checks.log",
+    "sha256": "61d4206025cf71890385b76fd08e947958462bf68b2256f7716e347522019262",
+    "reference_generator_tests": "65 passed",
+    "docs_check": "0 findings; 21 planted faults detected",
+    "dead_code_check": "5 allowlisted findings (unused 1, test-only 4); 18 planted faults detected"
+  },
+  "limits": [
+    "No runtime code or numerical bounds changed.",
+    "No performance result is claimed.",
+    "Radeon VII evidence covers one device only.",
+    "Released-file quality, long-context HF, broader integration and final platform gates remain separate."
+  ]
+}

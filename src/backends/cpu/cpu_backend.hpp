@@ -412,7 +412,7 @@ public:
         const bool float_type = f32 || type == quant::GGML_TYPE_F16 || type == quant::GGML_TYPE_BF16;
         // A decode row of a type with a float row dot takes it with no dequantized scratch, streaming each resident row once; prefill keeps the fused kernels that reuse weights across batch columns.
         // Float storage splits its rows as the batched float path below does, from DOT_ROWS rows per worker in whole DOT_ROWS chunks.
-        if (decode && (float_type || type == quant::GGML_TYPE_Q8_0 || is_kquant(type))) {
+        if (decode && (float_type || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || is_kquant(type))) {
             const auto dots = [&](size_t o0, size_t o1) {
                 for (size_t o = o0; o < o1; ++o)
                     for (size_t c = 0; c < nbatch; ++c)
@@ -648,7 +648,15 @@ public:
     static float dot_float(const uint8_t* a, const float* b, size_t n) {
         const auto load = [&](size_t i) {
             if constexpr (Type == quant::GGML_TYPE_F32) return _mm256_loadu_ps((const float*)a + i);
-            else {
+            else if constexpr (Type == quant::GGML_TYPE_IQ4_NL) {
+                const uint8_t* w = a + (i / quant::IQ4_NL_BLOCK) * quant::IQ4_NL_TYPESIZE;
+                const __m128i table = _mm_loadu_si128((const __m128i*)quant::IQ4_NL_VALUES);
+                __m128i codes = _mm_loadl_epi64((const __m128i*)(w + 2 + (i & 15)));
+                if (i & 16) codes = _mm_srli_epi16(codes, 4);
+                codes = _mm_shuffle_epi8(table, _mm_and_si128(codes, _mm_set1_epi8(15)));
+                const __m256 scale = _mm256_set1_ps(f16_to_f32(uint16_t(w[0] | (uint16_t(w[1]) << 8))));
+                return _mm256_mul_ps(scale, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(codes)));
+            } else {
                 const __m128i h = _mm_loadu_si128((const __m128i*)(a + 2 * i));
                 if constexpr (Type == quant::GGML_TYPE_BF16) return _mm256_castsi256_ps(_mm256_slli_epi32(_mm256_cvtepu16_epi32(h), 16));
                 else return _mm256_cvtph_ps(h);
@@ -675,7 +683,11 @@ public:
         for (; i < n; i++) {
             float value;
             if constexpr (Type == quant::GGML_TYPE_F32) value = ((const float*)a)[i];
-            else {
+            else if constexpr (Type == quant::GGML_TYPE_IQ4_NL) {
+                const uint8_t* w = a + (i / quant::IQ4_NL_BLOCK) * quant::IQ4_NL_TYPESIZE;
+                const unsigned code = (w[2 + (i & 15)] >> ((i & 16) ? 4 : 0)) & 15;
+                value = f16_to_f32(uint16_t(w[0] | (uint16_t(w[1]) << 8))) * quant::IQ4_NL_VALUES[code];
+            } else {
                 uint16_t bits;
                 std::memcpy(&bits, a + 2 * i, sizeof bits);
                 if constexpr (Type == quant::GGML_TYPE_BF16) value = bf16_to_f32(bits);
@@ -2069,11 +2081,12 @@ private:
         }
     }
 
-    // One weight row against one activation row in float: a dense decode row of float storage, Q8_0 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
+    // One weight row against one activation row in float: a dense decode row of float storage, Q8_0, IQ4_NL or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
     // Types without one, routed Q4_0 and Q4_1 decode among them, take the dequantized dot in double, where their dense decode keeps the batched float path.
     float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
         switch (type) {
         case quant::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
+        case quant::GGML_TYPE_IQ4_NL: return dot_float<quant::GGML_TYPE_IQ4_NL>(row, x, nin);
         case quant::GGML_TYPE_F16: return dot_float<quant::GGML_TYPE_F16>(row, x, nin);
         case quant::GGML_TYPE_BF16: return dot_float<quant::GGML_TYPE_BF16>(row, x, nin);
         case quant::GGML_TYPE_Q8_0: return dot_row_impl(row, x, nin / quant::Q8_0_BLOCK);

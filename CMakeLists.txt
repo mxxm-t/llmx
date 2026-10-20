@@ -73,9 +73,11 @@ if(LLMX_HAS_BACKEND_VULKAN)
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
         kv_index_pool kv_index_scores kv_index_select)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
-    set(LLMX_VK_VARIANTS matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32
+    set(LLMX_VK_VARIANTS matmul_row_iq4_dot=matmul_row=LLMX_IQ4+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_row_mxfp4_dot=matmul_row=LLMX_MXFP4+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_mxfp4_float_x=matmul_row=LLMX_MXFP4+LLMX_FLOAT_X+LLMX_PRESERVE_F32
+        matmul_tile_iq4=matmul_tile_q=LLMX_Q8+LLMX_IQ4+LLMX_PRESERVE_F32
         matmul_tile_q8mx=matmul_tile_q=LLMX_Q8+LLMX_Q8MX+LLMX_PRESERVE_F32
         embed_mxfp4=embed=LLMX_MXFP4 matmul_tile_mxfp4=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_tile_mxfp4_bf16=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32+LLMX_BF16 matmul_reduce_mxfp4=matmul_reduce=LLMX_MXFP4+LLMX_PRESERVE_F32
@@ -184,7 +186,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
                     ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
-                    ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl
+                    ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl ${LLMX_VK_SHADER_DIR}/iq4_dot.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})

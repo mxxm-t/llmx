@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     const int iters = argc > 2 ? std::atoi(argv[2]) : 200;
     const uint32_t gt = argc > 3 ? (uint32_t)std::atoi(argv[3]) : quant::GGML_TYPE_Q4_K;
     const uint32_t dt = argc > 4 ? (uint32_t)std::atoi(argv[4]) : gt;
-    const size_t E = 2048, F = 768, NE = 128, K = 8, TMAX = 32;
+    const size_t E = 2048, F = 768, NE = 128, K = 8, TMAX = 128;
 
     // Kernel timestamps on unless the fifth argument is 0, which leaves wall times undisturbed by the queries.
     const bool timed = argc > 5 ? std::atoi(argv[5]) != 0 : true;
@@ -70,6 +70,7 @@ int main(int argc, char** argv) {
     const auto dense_down = weights(row_bytes(dt, F * K) * E, 6);
     const auto ds = b.adopt(dense_short.data(), dense_short.size()), dl = b.adopt(dense_long.data(), dense_long.size());
     const auto dd = b.adopt(dense_down.data(), dense_down.size());
+    const auto dense_prompt_out = b.alloc(TMAX * 2 * F * K * sizeof(float));
 
     std::vector<Case> cases;
     // The floor: dependent dispatches that do almost nothing.
@@ -137,7 +138,11 @@ int main(int argc, char** argv) {
         cases.push_back({"dense " + std::to_string(2 * F * K) + "x" + std::to_string(E) + " n=" + std::to_string(n), gu_bytes, [&, n] {
             b.matmul(gt, {ds.get(), 0}, {xf.get(), 0}, {g.get(), 0}, E, 2 * F * K, n);
         }});
-    for (size_t T : {size_t(1), size_t(4), size_t(8), size_t(32)}) {
+    for (size_t T : {size_t(64), size_t(128)})
+        cases.push_back({"dense prompt T=" + std::to_string(T), gu_bytes * T, [&, T] {
+            b.matmul(gt, {ds.get(), 0}, {x.get(), 0}, {dense_prompt_out.get(), 0}, E, 2 * F * K, T);
+        }});
+    for (size_t T : {size_t(1), size_t(4), size_t(8), size_t(32), size_t(64), size_t(128)}) {
         cases.push_back({"routed gate+up T=" + std::to_string(T), gu_bytes * T, [&, T] {
             b.matmul_experts({{gt, {gate.get(), 0}, {g.get(), 0}, F}, {gt, {up.get(), 0}, {up_out.get(), 0}, F}},
                              {x.get(), 0}, E, T, routing);

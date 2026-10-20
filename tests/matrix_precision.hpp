@@ -9,6 +9,25 @@
 #include "quant/quant.hpp"
 
 namespace testq {
+// Reconstruct each 32-value block at 32767 levels, or 127 for int8, with half-away-from-zero rounding.
+// Feeding these activations to the CPU separates matrix arithmetic from input quantization (AGENTS.md, Tests).
+inline std::vector<float> row_activations(const std::vector<float>& x, int levels = 32767) {
+    std::vector<float> out(x.size());
+    const float top = float(levels);
+    for (size_t b = 0; b + 32 <= x.size(); b += 32) {
+        float amax = 0.0f;
+        for (size_t i = 0; i < 32; ++i) amax = std::max(amax, std::fabs(x[b + i]));
+        const float d = amax / top, id = amax > 0.0f ? top / amax : 0.0f;
+        for (size_t i = 0; i < 32; ++i) {
+            const float r = x[b + i] * id;
+            int q = (int)(std::copysign(std::floor(std::fabs(r) + 0.5f), r));
+            q = std::max(-levels, std::min(levels, q));
+            out[b + i] = (float)q * d;
+        }
+    }
+    return out;
+}
+
 inline std::vector<std::string> take_matrix_paths(backend::Backend& device) {
     backend::MatrixPaths paths;
     device.swap_matrix_paths(paths);

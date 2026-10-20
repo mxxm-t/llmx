@@ -1,0 +1,272 @@
+{
+  "scope": "Focused combined-tree model checks under requested auto only. File-exact tiny HF and exact half/F32 storage twins; original-weight quality and final release qualification remain separate.",
+  "date": "2026-10-20",
+  "source_checkpoint": "6e95bc7af15e73d3791ef16c879c3735650a3a26",
+  "branch": "integrate/quant-stack-20261020",
+  "prior_native_source_evidence": "docs/benchmarks/quant-stack-integration-20261020.json",
+  "runtime_test_build_owners": "All hashes in the preceding checkpoint source_hashes match. No kernel, model, test, generator, fixture or budget source edit. Native/source suites not repeated.",
+  "binary_version": "llmx 0.1.0+g6e95bc7af15e.dirty numerics 5ee2eee60792876b",
+  "binary_hashes": {
+    "llmx.exe": "6aab87af17f4c8671d394353b3a7564e6d8181e924e5da4fdb79d4f6a86f3671",
+    "llmx-model-logits.exe": "e54946e30c5fab0c4a56b77d21ec2b23dd8d80d93e2b98989e0b5694b4011226"
+  },
+  "preserved_previous_cli": {
+    "path": "build-quant-stack/model-checks/llmx-before-model-checks.exe",
+    "sha256": "31a34c885c5176c8153ab62066e96774098d1f5ddeabf7898ab9791cd59c0571"
+  },
+  "build_identity_header": {
+    "path": "build-quant-stack/generated/llmx-build-info.hpp",
+    "sha256": "77c58a070ec71a76e5ab1bd83cd5af5da190737a9c83b9a458632f6b75b63b7a",
+    "text": "#pragma once\n#define LLMX_BUILD_REVISION \"g6e95bc7af15e.dirty\"\n#define LLMX_NUMERICS \"5ee2eee60792876bef38440e3be6a4af371795786e4d4d556cd6f234691d3e35\"\n#define LLMX_BUILD_FLAGS \"MSVC 19.50.35728.0; Release; /DWIN32 /D_WINDOWS /GR /EHsc /O2 /Ob2 /DNDEBUG; vulkan 1; ipo \"\n#define LLMX_GLSLC_VERSION \"shaderc v2026.3 v2026.3, spirv-tools v2026.3 v2022.4-1283-gb707790a, glslang 11.1.0-1493-g168d452a, Target: SPIR-V 1.0\"\n"
+  },
+  "build": "Existing fresh integration build directory; added missing llmx-model-logits target and rebuilt CLI to align current revision. Compile log confirms both main.cpp and model_logits.cpp compiled. No source headers changed; native owners remain carried.",
+  "environment": {
+    "os": "Windows",
+    "compiler": "MSVC 19.50.35728.0",
+    "generator": "Visual Studio 18 2026",
+    "vulkan_sdk": "1.4.357.0",
+    "configuration": "Release",
+    "fresh_build_directory": "build-quant-stack",
+    "parallel": 2,
+    "device_identity": "vulkan 4098:26287 AMD Radeon VII; AMD proprietary driver 26.5.2 (AMD proprietary shader compiler) 8388887 3708bcabde6c5dfebffc12b77baf8df2"
+  },
+  "commands": [
+    "cmake --build build-quant-stack --config Release --parallel 2 --target llmx llmx-model-logits",
+    "python tests/run_tests.py --exe build-quant-stack/Release/llmx.exe --only half-weights,q5-1,iq4-nl --device cpu --dtype auto --require-tools --require-device-types F32,F16,BF16,Q5_1,IQ4_NL",
+    "python tests/run_tests.py --exe build-quant-stack/Release/llmx.exe --only half-weights,q5-1,iq4-nl --device vulkan:0 --dtype auto --require-tools --require-device-types F32,F16,BF16,Q5_1,IQ4_NL"
+  ],
+  "execution": "CPU completed before Radeon. Local availability snapshot retained; other CPU test and retained MSBuild process observed. Functional only; no timing or contention attribution. GPU released on completion.",
+  "results": {
+    "cpu": {
+      "components": "3/3 PASS",
+      "exit_code": 0,
+      "half": {
+        "exact_capture_sets": 48,
+        "greedy_tokens_per_capture": 64,
+        "unavailable_formats": 0,
+        "storage": [
+          "F16",
+          "BF16",
+          "mixed"
+        ],
+        "architectures": [
+          "dense",
+          "MoE"
+        ],
+        "heads": [
+          "tied",
+          "untied"
+        ],
+        "ubatches": [
+          3,
+          16
+        ],
+        "tensor_widths": [
+          1,
+          2
+        ],
+        "contract": "Exact binary32 batched/decode/greedy payloads and ids against same-policy F32 storage twins."
+      },
+      "hf": {
+        "Q5_1": {
+          "dense-untied": {
+            "max_logit_error_printed": 2.53e-06,
+            "max_nll_error_printed": 4.39e-06,
+            "logit_bounds": [
+              2e-05
+            ],
+            "nll_bounds": [
+              1e-05
+            ]
+          },
+          "dense-tied": {
+            "max_logit_error_printed": 2.38e-06,
+            "max_nll_error_printed": 3.49e-06,
+            "logit_bounds": [
+              2e-05
+            ],
+            "nll_bounds": [
+              1e-05
+            ]
+          },
+          "moe": {
+            "max_logit_error_printed": 2.55e-06,
+            "max_nll_error_printed": 4.66e-06,
+            "logit_bounds": [
+              2e-05
+            ],
+            "nll_bounds": [
+              1e-05
+            ]
+          }
+        },
+        "IQ4_NL": {
+          "dense-untied": {
+            "max_logit_error_printed": 1.12e-06,
+            "max_nll_error_printed": 3.54e-06,
+            "logit_bounds": [
+              2e-05
+            ],
+            "nll_bounds": [
+              1e-05
+            ]
+          },
+          "dense-tied": {
+            "max_logit_error_printed": 1.28e-06,
+            "max_nll_error_printed": 3.92e-06,
+            "logit_bounds": [
+              2e-05
+            ],
+            "nll_bounds": [
+              1e-05
+            ]
+          },
+          "moe": {
+            "max_logit_error_printed": 9.4e-07,
+            "max_nll_error_printed": 1.06e-06,
+            "logit_bounds": [
+              2e-05
+            ],
+            "nll_bounds": [
+              1e-05
+            ]
+          }
+        }
+      },
+      "full_logit_cases_per_quant": 150,
+      "nll_checks_per_quant": 12
+    },
+    "radeon": {
+      "components": "3/3 PASS",
+      "exit_code": 0,
+      "half": {
+        "exact_capture_sets": 24,
+        "greedy_tokens_per_capture": 64,
+        "unavailable_formats": 0,
+        "storage": [
+          "F16",
+          "BF16",
+          "mixed"
+        ],
+        "architectures": [
+          "dense",
+          "MoE"
+        ],
+        "heads": [
+          "tied",
+          "untied"
+        ],
+        "ubatches": [
+          3,
+          16
+        ],
+        "tensor_widths": [
+          1
+        ],
+        "contract": "Exact binary32 batched/decode/greedy payloads and ids against same-policy F32 storage twins."
+      },
+      "hf": {
+        "Q5_1": {
+          "dense-untied": {
+            "max_logit_error_printed": 0.00029441,
+            "max_nll_error_printed": 3.439e-05,
+            "logit_bounds": [
+              0.003304719924926758
+            ],
+            "nll_bounds": [
+              0.0002966423345469593
+            ]
+          },
+          "dense-tied": {
+            "max_logit_error_printed": 0.00033566,
+            "max_nll_error_printed": 2.167e-05,
+            "logit_bounds": [
+              0.003304719924926758
+            ],
+            "nll_bounds": [
+              0.0002966423345469593
+            ]
+          },
+          "moe": {
+            "max_logit_error_printed": 0.00034255,
+            "max_nll_error_printed": 8.65e-06,
+            "logit_bounds": [
+              0.003304719924926758
+            ],
+            "nll_bounds": [
+              0.0002966423345469593
+            ]
+          }
+        },
+        "IQ4_NL": {
+          "dense-untied": {
+            "max_logit_error_printed": 9.216e-05,
+            "max_nll_error_printed": 6.46e-06,
+            "logit_bounds": [
+              0.003304719924926758
+            ],
+            "nll_bounds": [
+              0.0002966423345469593
+            ]
+          },
+          "dense-tied": {
+            "max_logit_error_printed": 8.15e-05,
+            "max_nll_error_printed": 3.92e-06,
+            "logit_bounds": [
+              0.003304719924926758
+            ],
+            "nll_bounds": [
+              0.0002966423345469593
+            ]
+          },
+          "moe": {
+            "max_logit_error_printed": 0.00010544,
+            "max_nll_error_printed": 1.06e-06,
+            "logit_bounds": [
+              0.003304719924926758
+            ],
+            "nll_bounds": [
+              0.0002966423345469593
+            ]
+          }
+        }
+      },
+      "full_logit_cases_per_quant": 150,
+      "nll_checks_per_quant": 12
+    }
+  },
+  "failures": [],
+  "bounds": "Existing witnessed-path HF budgets unchanged; CPU calls use 2e-5 logit/1e-5 NLL, Radeon calls use frozen F16 budget 0.003304719924926758 logit/0.0002966423345469593 NLL. Q5 family proposal remains inactive.",
+  "source_hashes": {
+    "tools/model_logits.cpp": "e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c",
+    "src/cli/main.cpp": "795505064afa44ea840ffc23231fbd15ab460acd0b99b1a1607c3eb6477ba9da",
+    "tests/common.py": "6f5ee60f31ac4816d82d5291ec8ae8b0ccc92236e50771c5d7ebe9f55503523f",
+    "tests/half_weights.py": "8a70c62c916d45232e1456d224968df2a90ae072cdbf7ff3237c3b570ce9eec5",
+    "tests/q5_1.py": "be5d07eae6db9bf88d44921083500252dfd4e5f13a58bd409de9dcd14afb792d",
+    "tests/iq4_nl.py": "29f55d495ca0993ac246dec5096bdf87a848774af02b0867f5fdf36b2f921aab",
+    "tests/block_fixture.py": "a84f6b6bdc6dc4a2aa80efdc695b43514fd03b2a13c9f33537656191fc887171",
+    "tests/data/baseline_q5_1.json": "7ccc459053ae980dd3491410d504145378f36639e250c7b43675a0830706f21b",
+    "tests/data/baseline_iq4_nl.json": "b351b5f20b6e9f8f30eac9cba6e936ae43f2188495d43733e347521c4caa910c",
+    "tests/data/dtype_budget.json": "dbe0f1b01d12f992529d7226c2733b0eb9d74ba1ec6aacb1a78228c36dd5e9bf"
+  },
+  "artifact_hashes": {
+    "build-quant-stack/model-checks/build.log": "91d7b09e76c8a5cea7a651cfe780aea63efc6d6781d795fbf53cbc8c6c990297",
+    "build-quant-stack/model-checks/cpu-auto.log": "14232069f27e2eafda6f2c6282228691ecc8edb81a88e7d9b443d160dc454af4",
+    "build-quant-stack/model-checks/radeon-auto.log": "700093718320da7a306501266e97158e3cd4008f172741395f097bd250fc59f3",
+    "build-quant-stack/model-checks/radeon-process-snapshot.log": "641df5479a08bcb06549d65883ddfdceffba4f567edae03766142fc7fe462541"
+  },
+  "limits": [
+    "Only auto activation requested; explicit dtype/platform coverage remains under the final integration plan.",
+    "No rig, performance campaign, new format, broad gate, released-file or long-context run, budget change, merge or push.",
+    "Displayed maxima are rounded by the existing consumer to eight decimal places. Logs preserve each variant and its selected bounds.",
+    "Half temporary captures were compared in full by the existing component and cleaned by it; this record preserves counts, logs, source and binary identity.",
+    "Original-weight quality acceptance is distinct from reconstructed-file HF checks."
+  ],
+  "open": [
+    "Applicable real-model, released-file, long-context, split-policy, device identity and hosted CI qualification on the final stack",
+    "MI50 native IQ4 tile functionality/speed qualification",
+    "Post-integration matched main/candidate/mx performance; generic shared modules changed",
+    "Prior IQ4 router F32 T128 +11.4% and small-control results remain open; Radeon native tile failed screen remains preserved",
+    "Original-weight quality acceptance remains separate from exact file decoding/runtime evidence; Q5 family proposal review remains open"
+  ]
+}

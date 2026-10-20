@@ -12,6 +12,7 @@ const uint MXFP4_BYTES = 17u;
 const uint TYPE_F32 = 0u;
 const uint TYPE_Q4_0 = 2u;
 const uint TYPE_Q4_1 = 3u;
+const uint TYPE_Q5_1 = 7u;
 const uint TYPE_Q8_0 = 8u;
 const uint TYPE_Q4_K = 12u;
 const uint TYPE_Q5_K = 13u;
@@ -23,6 +24,7 @@ const uint Q5_K_BYTES = 176u;
 
 // Q4_1: 32 values, two halves d and m, 16 bytes of nibbles; 20 bytes.
 const uint Q4_1_BYTES = 20u;
+const uint Q5_1_BYTES = 24u;
 // Q6_K: 256 values in 210 bytes; the half scale sits at byte 208.
 const uint Q6_K_BLOCK = 256u;
 const uint Q6_K_BYTES = 210u;
@@ -46,7 +48,7 @@ float half_at(uint lo, uint hi) {
 // Bytes and values per block of a type.
 uint block_bytes(uint type) {
     return type == TYPE_MXFP4 ? MXFP4_BYTES : type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
-         : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES
+         : type == TYPE_Q4_1 ? Q4_1_BYTES : type == TYPE_Q5_1 ? Q5_1_BYTES : type == TYPE_Q4_K ? Q4_K_BYTES
          : type == TYPE_Q5_K ? Q5_K_BYTES : Q6_K_BYTES;
 }
 bool is_kquant(uint type) { return type == TYPE_Q4_K || type == TYPE_Q5_K || type == TYPE_Q6_K; }

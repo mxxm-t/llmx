@@ -1,7 +1,7 @@
 # llmx - Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / F32 transformers
+writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q5_1 / Q4_K / Q5_K / Q6_K / F32 transformers
 on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, including read-only MXFP4 where the device provides its required float preservation and double arithmetic. Both backends also implement read-only F16/BF16 weight matrices, with release qualification tracked in STATUS. It
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
@@ -40,7 +40,7 @@ format/        GGUF reader/writer (headers read, payload mapped and read
    |
    v
 quant/         storage metadata and checked row sizes, decoder registry;
-               Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 kernels
+               Q8_0 / Q4_0 / Q4_1 / Q5_1 / Q4_K / Q5_K / Q6_K / MXFP4 kernels
    |
    v
 core/          fp16 and bf16 <-> f32, minimal JSON parser, UTF-8, file hashes, available

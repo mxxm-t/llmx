@@ -45,9 +45,30 @@ inline void quantize_row_q4_1(const float* src, uint8_t* dst, size_t nblocks) {
     }
 }
 
-// The quantizer for `type`: the registry's, Q4_1's above, or none for a type packed some other way.
+inline void quantize_row_q5_1(const float* src, uint8_t* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const float* x = src + b * quant::Q5_1_BLOCK;
+        uint8_t* y = dst + b * quant::Q5_1_TYPESIZE;
+        const float mn = *std::min_element(x, x + quant::Q5_1_BLOCK);
+        const float mx = *std::max_element(x, x + quant::Q5_1_BLOCK);
+        const float d = (mx - mn) / 31.0f;
+        const uint16_t scale = f32_to_f16(d), offset = f32_to_f16(mn);
+        y[0] = (uint8_t)scale; y[1] = (uint8_t)(scale >> 8);
+        y[2] = (uint8_t)offset; y[3] = (uint8_t)(offset >> 8);
+        std::fill(y + 4, y + quant::Q5_1_TYPESIZE, uint8_t(0));
+        for (size_t i = 0; i < quant::Q5_1_BLOCK; ++i) {
+            const int rounded = d > 0 ? (int)std::round((x[i] - mn) / d) : 0;
+            const unsigned code = (unsigned)std::clamp(rounded, 0, 31);
+            y[4 + i / 8] |= (uint8_t)((code >> 4) << (i % 8));
+            y[8 + i % 16] |= (uint8_t)((code & 15) << (4 * (i / 16)));
+        }
+    }
+}
+
+// Test-only packers cover read-only types; writable types use the registry's quantizer.
 inline void (*quantizer(uint32_t type))(const float*, uint8_t*, size_t) {
     if (type == quant::GGML_TYPE_Q4_1) return quantize_row_q4_1;
+    if (type == quant::GGML_TYPE_Q5_1) return quantize_row_q5_1;
     const quant::QuantType* q = quant::Registry::instance().get(type);
     return q ? q->quantize : nullptr;
 }

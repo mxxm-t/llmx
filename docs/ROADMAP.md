@@ -37,11 +37,11 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   Each type must meet the six conditions listed there.
 - The lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not planned: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
   `IQ3_S` is proposed as the first candidate after it, a question not yet asked (`docs/STATUS-2026-09.md`, Quantization coverage, question 11).
-  `Q5_0` and `Q5_1` are not planned; whether they join is an open question of the Qwen 3.x plan in `docs/STATUS-2026-09.md`.
+  `Q5_1` is in development alongside IQ4_NL, requested 2026-10-20. Q5_0 and the remaining formats follow; the September deferral is historical.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
-- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q4_K, Q5_K, Q6_K, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
+- `tests/roundtrip.py` decodes Q8_0 and Q4_0 from the blocks `quantize` writes, and Q4_1, Q5_1, Q4_K, Q5_K, Q6_K, MXFP4, Q8_0 and Q4_0 from raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, each against a decoder written from the format description.
   Each new type needs independent raw-storage checks, since the planned types stay read-only, with no quantizer. The native `half-weights` test covers every finite F16/BF16 encoding, and its Python component checks exact model outputs against the same weights stored as F32.
 
 ## 2. More model architectures

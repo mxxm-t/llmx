@@ -143,6 +143,12 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_k_i8_preserve=matmul_row=LLMX_KQUANT+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
         matmul_vec_q8_i8=matmul_vec_q8=LLMX_I8 matmul_vec_q8_i8_preserve=matmul_vec_q8=LLMX_I8+LLMX_PRESERVE_F32
         embed_ids=embed=LLMX_DEVICE_IDS embed_ids_mxfp4=embed=LLMX_DEVICE_IDS+LLMX_MXFP4
+        matmul_row_q5=matmul_row=LLMX_Q4+LLMX_Q5
+        matmul_row_q5_dot=matmul_row=LLMX_Q4+LLMX_Q5+LLMX_DOT
+        matmul_row_q5_i8=matmul_row=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_I8
+        matmul_row_q5_preserve=matmul_row=LLMX_Q4+LLMX_Q5+LLMX_PRESERVE_F32
+        matmul_row_q5_dot_preserve=matmul_row=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_q5_i8_preserve=matmul_row=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
         delta_rule_short=delta_rule=LLMX_SHORT
         embed_wf16=embed=LLMX_WEIGHT_F16 embed_wbf16=embed=LLMX_WEIGHT_BF16
         embed_ids_wf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_F16 embed_ids_wbf16=embed=LLMX_DEVICE_IDS+LLMX_WEIGHT_BF16

@@ -436,7 +436,7 @@ def perplexity_fields(out):
 F32_HF_LOGIT_BOUND = 2e-5
 
 
-def hf_bounds(dtype, devices):
+def hf_bounds(dtype, devices, family=None):
     """Tiny-fixture bounds from the matrix paths the completed measurement dispatched, one list per device; a capability record is not a witness."""
     assert dtype in ("f32", "f16", "bf16", "int8"), "unknown execution dtype"
     assert isinstance(devices, list) and devices, "missing matrix-path witness"
@@ -454,7 +454,11 @@ def hf_bounds(dtype, devices):
     if dtype == "int8" and "block-int8" not in paths:
         dtype = "f16"
     with open(os.path.join(ROOT, "tests", "data", "dtype_budget.json"), encoding="utf-8") as f:
-        budget = json.load(f)["dtypes"][dtype]
+        doc = json.load(f)
+    if family is not None:
+        assert family in doc.get("families", {}), "missing frozen fixture-family budget"
+        doc = doc["families"][family]
+    budget = doc["dtypes"][dtype]
     bounds = {"logit": budget["logit_budget"], "nll": budget["nll_budget"]}
     assert all(math.isfinite(v) and v > 0 for v in bounds.values()), "invalid frozen dtype budget"
     return bounds
@@ -607,38 +611,38 @@ def ppl_command(model, path, case, mode, ubatch=None):
     return args
 
 
-def hf_execution(stderr):
+def hf_execution(stderr, family=None):
     """Exactly one completed CLI diagnostic witness; only actual paths choose the frozen bound."""
     records = [line[len("matrix-paths: "):] for line in stderr.splitlines() if line.startswith("matrix-paths: ")]
     assert len(records) == 1, "missing or repeated matrix-path witness"
     record = json.loads(records[0])
     assert isinstance(record, dict) and set(record) == {"dtype", "devices"}, "malformed matrix-path record"
-    return hf_bounds(record["dtype"], record["devices"])
+    return hf_bounds(record["dtype"], record["devices"], family)
 
 
-def run_hf(args):
+def run_hf(args, family=None):
     """A successful diagnostic command with f32 caches, its stdout and witnessed logit/NLL bounds."""
     p = run_process(args, cache="f32", text=True)
     assert p.returncode == 0, "HF diagnostic failed: " + p.stdout + p.stderr
-    return p.stdout, hf_execution(p.stderr)
+    return p.stdout, hf_execution(p.stderr, family)
 
 
-def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),)):
+def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),), *, family=None):
     """A tiny model against its HF fixture at 1 and 4 threads, with f32 caches.
-    Every case's 257 logits and windowed NLL must stay within the bounds of the actual execution paths (a placement other than the empty one runs at 4 threads only).
+    Every case's full vocabulary and windowed NLL must stay within the bounds of the actual execution paths (a placement other than the empty one runs at 4 threads only).
     Returns the largest logit error and the number of logit comparisons."""
     worst, worst_nll, count = 0.0, 0.0, 0
     logit_bounds, nll_bounds = set(), set()
     for threads in (1, 4):
         for ubatch in ubatches:
             for case, placement in ((c, p) for c in cases for p in placements if threads == 4 or not p):
-                out, bounds = run_hf(["logits", model, case["text"], "--top", "257",
-                                      "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement))
+                out, bounds = run_hf(["logits", model, case["text"], "--top", str(len(case["logits"])),
+                                      "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement), family=family)
                 worst = max(worst, hf_logit_error(name, dict(zip(*parse_logits(out))), case["logits"], bound=bounds["logit"]))
                 logit_bounds.add(bounds["logit"])
                 count += 1
         for case in perplexity:
-            out, bounds = run_hf(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])])
+            out, bounds = run_hf(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])], family=family)
             error = abs(float(perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
             assert math.isfinite(error) and error < bounds["nll"], "%s/HF NLL error: %.8f (bound %.8f)" % (name, error, bounds["nll"])
             worst_nll = max(worst_nll, error)

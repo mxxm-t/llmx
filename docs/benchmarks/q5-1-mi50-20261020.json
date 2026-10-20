@@ -1,0 +1,155 @@
+{
+  "date": "2026-10-20",
+  "base": "53a7e81e2945391b3440fc562909b123316915b8",
+  "source_commit": "c9309c3da205c268c906057c01299fde67bccef5",
+  "scope": "Focused development checks and diagnosis; not merge qualification.",
+  "rig_root": "/zpool1/llmx-xdev-quant-20261020",
+  "source_directory": "q5-c9309c3da",
+  "source_archive_sha256": "a5bd49316bcb7b4ac0415747c8f3e8d89de107fb7615f0b04a0e986f3d6e6df3",
+  "build_image_sha256": "2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "device": "Physical MI50 1, PCI 0000:44:00.0, renderD137; Mesa RADV 25.0.7.",
+  "build": {
+    "passed": true,
+    "version": "llmx 0.1.0+unknown numerics a9a178b1179b2510",
+    "cli_sha256": "26c17d939be6aa5ae214f9edff396367d959b4d06ebfbfb6a2eca376331eb2cc",
+    "note": "Exact git archive without Git metadata; not a matched performance arm. Existing cache allocator shadow warnings remain."
+  },
+  "native": {
+    "passed": [
+      "backend-vulkan",
+      "vulkan-quantization"
+    ],
+    "backend_sha256": "bbe9c0bd5c658d80bc17636e6cc9137dbcc802702da813298613511186502c38",
+    "quantization_sha256": "98ec4f4cdc4439ef7f3fe505a9cccbdfcb5106569006cc58ddb3e6322f6b9e4d",
+    "coverage": "Shared affine row/tile families, native integer-dot/int8 products, range/offset and embedding cases."
+  },
+  "tiny_hf": {
+    "auto": {
+      "passed": true,
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error": 0.00034155,
+      "logit_bound": 0.003304719924926758,
+      "max_nll_error": 2.439e-05,
+      "nll_bound": 0.0002966423345469593
+    },
+    "f32": {
+      "passed": true,
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error": 2.53e-06,
+      "logit_bound": 2e-05,
+      "max_nll_error": 4.66e-06,
+      "nll_bound": 1e-05
+    },
+    "f16": {
+      "passed": true,
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error": 0.00034155,
+      "logit_bound": 0.003304719924926758,
+      "max_nll_error": 2.439e-05,
+      "nll_bound": 0.0002966423345469593
+    },
+    "bf16": {
+      "passed": true,
+      "full_logit_cases": 150,
+      "nll_cases": 12,
+      "max_logit_error": 0.022483,
+      "logit_bound": 0.05409973859786987,
+      "max_nll_error": 0.00268324,
+      "nll_bound": 0.007924573802609913
+    }
+  },
+  "int8": {
+    "passed": false,
+    "first_failure": "dense-untied NLL 0.00602561 exceeds frozen 0.00409009.",
+    "diagnostic_only": true,
+    "reference": "Existing independent calibrate_dtype.rounding hook, block32/127-level input rounding, F32 sums/router and independently decoded exact weights.",
+    "reference_precondition": "Every original HF case and NLL reproduced the committed golden exactly before rounding.",
+    "reference_versions": [
+      "2.5.1+cpu",
+      "4.55.2",
+      "2.2.6"
+    ],
+    "reference_image_sha256": "57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "fixtures": [
+      {
+        "fixture": "dense-untied",
+        "rounded_hf_vs_original_logit": 0.07556581497192383,
+        "rounded_hf_vs_original_nll": 0.006022885727311689,
+        "native_vs_original_logit": 0.07556611359786991,
+        "native_vs_original_nll": 0.006025610224933864,
+        "native_vs_rounded_logit": 1.2928390502944809e-06,
+        "native_vs_rounded_nll": 2.7244976221751926e-06
+      },
+      {
+        "fixture": "dense-tied",
+        "rounded_hf_vs_original_logit": 0.08635935187339783,
+        "rounded_hf_vs_original_nll": 0.007566511189549097,
+        "native_vs_original_logit": 0.08636027325439455,
+        "native_vs_original_nll": 0.007561670080411531,
+        "native_vs_rounded_logit": 1.411972045894938e-06,
+        "native_vs_rounded_nll": 4.841109137565525e-06
+      },
+      {
+        "fixture": "moe",
+        "rounded_hf_vs_original_logit": 0.06430137157440186,
+        "rounded_hf_vs_original_nll": 0.003206913940045908,
+        "native_vs_original_logit": 0.06430189008712767,
+        "native_vs_original_nll": 0.003211347226415029,
+        "native_vs_rounded_logit": 2.0361175536720566e-06,
+        "native_vs_rounded_nll": 4.6344433579648125e-06
+      }
+    ],
+    "interpretation": "Independent input rounding alone exceeds the existing tiny original-HF budget for the dense fixtures. Native arithmetic closely follows that reference. This does not waive the original-HF quality gate or change any bound.",
+    "next": "Peer review of a predeclared broader independent calibration protocol; retain existing real-model bounds."
+  },
+  "released_file_smoke": {
+    "passed": true,
+    "file": "/zpool1/models/Qwen3.6-27B/Qwen3.6-27B-Q5_1.gguf",
+    "sha256": "3aa39422e2dc6bebf232a9a3e875586b7d0ba847dce1214884773fb7a846caf6",
+    "architecture": "qwen35",
+    "tensors": 851,
+    "command": "llmx generate FILE \"The capital of France is\" --device vulkan:0 --dtype f16 --threads 2 --temp 0 -n 8 --verbose",
+    "prompt_tokens": 5,
+    "generated_ids": [
+      11751,
+      13,
+      271,
+      248068,
+      198,
+      8160,
+      579,
+      264
+    ],
+    "limitation": "Load and generation smoke only; no file-exact HF or performance verdict."
+  },
+  "activity": "PCI/VRAM/utilization guards before owned containers; CPUs 2/3 bounded. Shared host activity was not monitored throughout these functional checks, so their timings are not performance evidence. Production GPUs excluded.",
+  "remaining": [
+    "Int8 criterion resolution without candidate-fitted limits.",
+    "Compatible tensor-group fixtures and split/reuse coverage.",
+    "Released-file and 16K HF checks; original-weight quality.",
+    "Matched existing Q4_1-path timing and final mx comparisons.",
+    "Settled-main integration and applicable landing checks/CI."
+  ],
+  "artifact_sha256": {
+    "q5-int8-hf-diagnostic.py": "f0553fb6212ce7b4824578f8ee175ed91fceaaed4a59527c9e990bb701390c45",
+    "q5-int8-native-diagnostic.py": "f902b2943aeea3234125427bd18761d6fae676b0a75ee3218595394287cc8a02",
+    "q5-mi50/LastTest.log": "868bbc56d211ed7a872c472b6c4c23f13d1fe7f3d5cad1b74a6232dc897c1406",
+    "q5-mi50/q5-hf-auto.log": "5ae6f24f7464c4c1a8c3ea6da73c8176037e437bacc1f3dfeceb65dce393713f",
+    "q5-mi50/q5-hf-bf16.log": "800c2fa843380f29889765508c827fb60965ed0ca32f79af85d165dca9b28799",
+    "q5-mi50/q5-hf-f16.log": "5ae6f24f7464c4c1a8c3ea6da73c8176037e437bacc1f3dfeceb65dce393713f",
+    "q5-mi50/q5-hf-f32.log": "99571f2cab97d9e8c0ca9424cbf7d3c8e4f0c4bd515029b7ef03403bd30f53c4",
+    "q5-mi50/q5-hf-int8.log": "6777c790f2ea4aeb43054af91603498dc57044fb890d92467798fc596c1133ee",
+    "q5-mi50/q5-int8-native-diagnostic.json": "4399c899697a6c85164146d9129136d08c618dc3d34553d7ea7427fba0198048",
+    "q5-mi50/q5-int8-rounded-hf.json": "69e879a912201f4980956b42ca75e5baab10b8852b37bb908a92b0a39de3c26c",
+    "q5-mi50/q5-real-file-info.log": "0eebdf4f19a0dee83aff5dc3f40a192468371233e5c1c09749518308e40c6199",
+    "q5-mi50/q5-real-file.sha256": "8f56450c7c6f3e2c7ac8f63d9be97d00fef701ccc8f6fab59bcf685955d25e5c",
+    "q5-mi50/q5-real-smoke.stdout": "4e2979e514c0795935d6bf79385d27ba2df3c4f8335a0fdccb6c3fbdccd01c2a",
+    "q5-real-smoke.sh": "e38cccf622d7096a0462f6608c1762a4a789aaff089bbd33c74aed5fbbefcf7e",
+    "run-q5-int8-diagnostic.sh": "b561c4c57624de47913ed385bc2ab1be97952d85cb6109073d736e9d15252b4c",
+    "test-q5-rig.sh": "90626076ee101f1c97de3196ca47b8ae9d218ca24b0e9184735e74162f7aacce"
+  },
+  "artifact_location": "Local build-quant-resume-20261020 and rig root above; HF/native JSON and logs under source_directory/build, runner scripts under rig root."
+}

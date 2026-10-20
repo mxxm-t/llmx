@@ -191,12 +191,12 @@ void main() {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = q4_0_at(o, k, d);
                 }
-            } else if (p.type == TYPE_Q4_1) {
-                uint o = (wr * nblocks + k0 / 32u) * Q4_1_BYTES;
+            } else if (p.type == TYPE_Q4_1 || p.type == TYPE_Q5_1) {
+                uint o = (wr * nblocks + k0 / 32u) * block_bytes(p.type);
                 float d = half_at(QBYTE(o), QBYTE(o + 1u)), m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
-                    ws[k][wrow] = q4_1_at(o, k, d, m);
+                    ws[k][wrow] = p.type == TYPE_Q5_1 ? q5_1_at(o, k, d, m) : q4_1_at(o, k, d, m);
                 }
             } else if (is_kquant(p.type)) {
                 // 256-value blocks: this 32-wide step is a slice of one and a thread's run lies inside one group of 32, so the sub-scale, sub-min, nibble half and start byte are read once per run rather than per value.

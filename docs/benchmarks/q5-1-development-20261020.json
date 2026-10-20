@@ -1,0 +1,334 @@
+{
+  "base": "53a7e81e2945391b3440fc562909b123316915b8",
+  "branch": "feat/q5-1-20261020",
+  "scope": "Development checkpoint; not merge qualification",
+  "reference": {
+    "python": "3.12.13",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "attention": "eager",
+    "weights": "file-exact independent spec decode",
+    "golden_sha256": "7b3ea76701e518de4c3cd54bb9aefb7a1acf87d466b1bae68444b36cf7653db2"
+  },
+  "binaries": {
+    "build-q5/Release/llmx.exe": {
+      "sha256": "219e6605a970f6e2cfc7d44e77c522a0f8b2a84fd2c1273eeb101f5ae5fa14c8",
+      "version": "llmx 0.1.0+g53a7e81e2945.dirty numerics 30a83a7b106c820b"
+    },
+    "build-q5-vulkan/Release/llmx.exe": {
+      "sha256": "ba5430a4d5895541a2843aad87fe21cbda53cd23d3ddca3e0ce143eca82fc4d9",
+      "version": "llmx 0.1.0+g53a7e81e2945.dirty numerics a9a178b1179b2510"
+    },
+    "build-q5-vulkan/Release/llmx-backend-vulkan-test.exe": {
+      "sha256": "b7357d9d1cb0abc41fdf91f27b607244f4b5c1bb4518fdd226148ef0b566acaa"
+    }
+  },
+  "hf": [
+    {
+      "device": "CPU",
+      "policy": "auto",
+      "logits_max": 2.55e-06,
+      "logits_bounds": [
+        2e-05
+      ],
+      "nll_max": 4.66e-06,
+      "nll_bounds": [
+        1e-05
+      ],
+      "log_sha256": "0d3174b42b9941797efad455b304be4074f808248d474b6ce719d354cd981118",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "CPU",
+      "policy": "f32",
+      "logits_max": 2.55e-06,
+      "logits_bounds": [
+        2e-05
+      ],
+      "nll_max": 4.66e-06,
+      "nll_bounds": [
+        1e-05
+      ],
+      "log_sha256": "0d3174b42b9941797efad455b304be4074f808248d474b6ce719d354cd981118",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "CPU",
+      "policy": "f16",
+      "logits_max": 2.55e-06,
+      "logits_bounds": [
+        2e-05
+      ],
+      "nll_max": 4.66e-06,
+      "nll_bounds": [
+        1e-05
+      ],
+      "log_sha256": "0d3174b42b9941797efad455b304be4074f808248d474b6ce719d354cd981118",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "CPU",
+      "policy": "bf16",
+      "logits_max": 0.022483,
+      "logits_bounds": [
+        0.05409973859786987
+      ],
+      "nll_max": 0.00268324,
+      "nll_bounds": [
+        0.007924573802609913
+      ],
+      "log_sha256": "da1c94d319a9a8d412316b904da08e7ed9795a6093bacbd48a52fcdd8f641394",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "CPU",
+      "policy": "int8",
+      "logits_max": 2.55e-06,
+      "logits_bounds": [
+        2e-05
+      ],
+      "nll_max": 4.66e-06,
+      "nll_bounds": [
+        1e-05
+      ],
+      "log_sha256": "0d3174b42b9941797efad455b304be4074f808248d474b6ce719d354cd981118",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "Radeon VII",
+      "policy": "auto",
+      "logits_max": 0.00034255,
+      "logits_bounds": [
+        0.003304719924926758
+      ],
+      "nll_max": 3.439e-05,
+      "nll_bounds": [
+        0.0002966423345469593
+      ],
+      "log_sha256": "085e758c1e79a54e291d9f22a6c462c998ff3044bcfc13816099eedc34da4977",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "Radeon VII",
+      "policy": "f32",
+      "logits_max": 2.31e-06,
+      "logits_bounds": [
+        2e-05
+      ],
+      "nll_max": 4.66e-06,
+      "nll_bounds": [
+        1e-05
+      ],
+      "log_sha256": "d987f4c161b00d9991bfcc64d28c8226f786637da823b8d7d6ae2cb1dc54ac79",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "Radeon VII",
+      "policy": "f16",
+      "logits_max": 0.00034255,
+      "logits_bounds": [
+        0.003304719924926758
+      ],
+      "nll_max": 3.439e-05,
+      "nll_bounds": [
+        0.0002966423345469593
+      ],
+      "log_sha256": "085e758c1e79a54e291d9f22a6c462c998ff3044bcfc13816099eedc34da4977",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    },
+    {
+      "device": "Radeon VII",
+      "policy": "bf16",
+      "logits_max": 0.022483,
+      "logits_bounds": [
+        0.05409973859786987
+      ],
+      "nll_max": 0.00268324,
+      "nll_bounds": [
+        0.007924573802609913
+      ],
+      "log_sha256": "346ee75b995489f63811f9c8db08b9ad53c5481087cc13a67bd76794b111259d",
+      "cases": {
+        "full_logits": 150,
+        "nll": 12
+      }
+    }
+  ],
+  "focused_checks": [
+    "CPU backend-group and gguf-validation passed",
+    "backend-errors, backend-vulkan and vulkan-quantization passed on Radeon VII",
+    "backend-vulkan rerun after independent embedding coverage passed",
+    "Q5_1 CPU CLI exact decode: 204800 values in 6400 raw blocks",
+    "Pure/numpy Q5_1 reference: 123904 values plus isolated high bits",
+    "Independent GPU embedding: 82944 exact values",
+    "docs/dead-code pass; reference-generator 43 pass"
+  ],
+  "limitations": [
+    "Radeon VII has no native int8; MI50 int8 not yet run",
+    "No second local GPU for collective coverage",
+    "Tiny fixtures skip tensor width >1; compatible group coverage remains open",
+    "Real-model/16K HF, original-weight quality, before/after/mx performance, Linux and hosted CI remain open",
+    "Initial sandbox conversion runs failed filesystem canonicalization with error5; unchanged tests passed outside sandbox",
+    "Windows foreground RuneLite GPU processes were observed; diagnostic timings are not a performance gate",
+    "Existing cache.hpp shadow warnings retained"
+  ],
+  "source_sha256": {
+    "CMakeLists.txt": "f92a4bda509ad63ff9e89d3fd8d581473e9e94b6bbaeac32ce0fb16d6b6b6290",
+    "cmake/build-info.cmake": "550fa5f3b038d37e85cf22addc5a72bf62edf342ba4834cde06fee57294a19e3",
+    "cmake/llmx-config.hpp.in": "714de3de01f7c8294e08c83fbab3721b3d5e04ee5e18c4b54efee31e445eeedb",
+    "cmake/numerics-fingerprint.ps1": "fffbaba5bc631636a8fe30a32e3d56b775a2dbc3648e8e83a815b97ef9fb147c",
+    "cmake/numerics-sources.txt": "ffc7861e2064bd6ac6707654771f8a7738b0673dbc09b2621e1788659f279b1d",
+    "cmake/tests.cmake": "89a76ab8ffb4aee16c6e5277d6b4f6a011bf7c10dc7c6614ec1a9e9ed4b64f9c",
+    "cmake/windows.manifest": "8a52498255bd0435c5d4036ffb4ba6f83834be45b4cf6e18bfef2705cb9db7e4",
+    "src/backends/backend.hpp": "45b1b8ba21b9dc91c184d94ad70751c12e739b6eb97bbd5da881bc283238ace6",
+    "src/backends/cpu/cpu_backend.hpp": "3460cbfc2b621cd6cf7468f00c9ef255ec73c416839feafa4527f16fced01f9a",
+    "src/backends/cpu/prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+    "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+    "src/backends/device_profile.hpp": "56e213189603181041efb8455017ce9401f41f9c8577af44e610280b030cd217",
+    "src/backends/devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+    "src/backends/kv_storage.hpp": "65aeb062ba82f6908a8f5fbd619bbd8aacae0022a87ff719bc2b6d8662ad0259",
+    "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+    "src/backends/vulkan/shaders/argmax_rows.comp": "47fb244ee8c073f10ea14f72418a9c5f3e3be81446e2268f2b843e6aae49525e",
+    "src/backends/vulkan/shaders/attention.comp": "c9067783bfa81fa890e0077ab4166c60e50926e2112d85040ab0d52ad279f32f",
+    "src/backends/vulkan/shaders/attention_merge.comp": "293dbea703c38fc4f0eda9cd9c7808e1076b3f66b1a675134acee741e5ea8ac4",
+    "src/backends/vulkan/shaders/attention_tile.comp": "f2615202f163d111ba7199fe8dba16ec7385b6799f06ec7f9665e04fefd112e6",
+    "src/backends/vulkan/shaders/attention_vec.comp": "134a5ce731bc7e18cde66ee68733802be94a813bf1cfc6b08f120be3f73339ef",
+    "src/backends/vulkan/shaders/causal_conv_silu.comp": "51b69700e841cf7683002d452d2fea638d71747bd0ecc3babeb20b57a0ea0033",
+    "src/backends/vulkan/shaders/copy_mxfp4.comp": "5d6221c47353792268523d8d0618b8ab54ea14235ff61889badaf1fa692f39ef",
+    "src/backends/vulkan/shaders/delta_rule.comp": "9c394c87e066749224705b20902f20a54541ab41930bd8de3183a06bd67805b3",
+    "src/backends/vulkan/shaders/dot16.glsl": "0f81744a84ab0c58b8bc3f09559f2eedabeafca119457021efef0d1948cae7c7",
+    "src/backends/vulkan/shaders/embed.comp": "c7ea75f148d45478e91eac67683237557fc20803238454be46255d0ccaa5b98b",
+    "src/backends/vulkan/shaders/f16.glsl": "03706b6c90a6455a987f85aadcac9383c0e655d78a35a152534c71f82530445f",
+    "src/backends/vulkan/shaders/float_controls.glsl": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+    "src/backends/vulkan/shaders/gated_rms_norm.comp": "aec4202456ce8ef8673e4ecb0b35bbb88e34d83822f13f9bf08c12b2ac3d3ac0",
+    "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+    "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "cc4d037cda7e984873d0286c04efa57f477758c3f5da3326b5340ccb56d8d033",
+    "src/backends/vulkan/shaders/matmul_row.comp": "a9d21a68270f11195ea0712aff4644e54a6cc3caa43131aa94a0663a8e0ffd33",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "ec1c2367bd105db180a63b19c329f8704c22aeb454e9aca6e2f90d3f686791aa",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "a88bb52bba1075a4bd4b4246f6fb8e2a54b4de66e114e63875c9582322ffd010",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "2fb7f991673acd466f2541051a1519d52394f3ee00e2415d400be1302938ef26",
+    "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+    "src/backends/vulkan/shaders/moe_group.comp": "9426ae02b002cb8d5214470b16e53bf3916b7bc313314b9bf9aa0d6f109a88be",
+    "src/backends/vulkan/shaders/moe_route.comp": "f38e46361719035207a851bfc2d05cee89d6d41f5797041d140c79354bf35ad7",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "f54feb6fdbdce4c754427d468b6dd3f32d6811eec09fee5034a0b00ee01a8ea8",
+    "src/backends/vulkan/shaders/norm_rope_partial.comp": "d3633e79bd4ea9fc83c5ed488bc1abaefb06422a7c130a43edd6b1a38330b29b",
+    "src/backends/vulkan/shaders/q.glsl": "ae75198c31d4165bd10f5eae5d6f7784f616cf60ca0f5f830f632ad00841d588",
+    "src/backends/vulkan/shaders/qdecode.glsl": "977653be2ecd5fc656bd2baeea6cded8eb06d1e066fae5a908167b1c4afe2e69",
+    "src/backends/vulkan/shaders/quantize_x.comp": "2b1dddcd091c173a93c53efa8ee4fdda83e372255a879354c49721c88a2553f9",
+    "src/backends/vulkan/shaders/quantize_xw.comp": "9e97ab1aa13872414d350b98ca11c20aef199042fabdb1e5d86681bda05432df",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "9f511beceb9bf54961812aff7f2222a5feff50820b3e631ce31e6ec4479dcb55",
+    "src/backends/vulkan/shaders/sigmoid_mul.comp": "78d59039a4dfcfb0b5699915ec50d1fabfdd336f54c510daa2555794ec70531c",
+    "src/backends/vulkan/shaders/silu_mul.comp": "e0aae0fade7ac1c1c1ce4870e78cb0e6a7127c9e40d2929df023dfa85cb1bd6e",
+    "src/backends/vulkan/shaders/views.glsl": "4c9e5d73457962993f166ad7d08c6031b399b7ad09a3d665ff11a2d5edce8479",
+    "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+    "src/backends/vulkan/vulkan_backend.cpp": "20edc6f1195912dcd301e7ead55c2eeddd27c1584ead4684b81c2ce3861c65d4",
+    "src/backends/vulkan/vulkan_backend.hpp": "78bcc6e84906cf1477ccc0be2bd1bea52c98031dc0687f2ab63b97240b10ee34",
+    "src/cli/main.cpp": "311b45eb7d8a069e5bd378ba2ad445ec09469b05a04601e63fce764e7e9b3e29",
+    "src/config.hpp": "35ddfbc82366e80b69cd7c003791fb988bcd82523bac6652303e3e28fc2a33e7",
+    "src/core/bf16.hpp": "43cf134cdb167547e47cd0f821505247965e6b07b9d2fdc2b67e08c8835d9174",
+    "src/core/cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+    "src/core/cpus.hpp": "6c4fd98658e9928b5852d8783dfa70597b7b2805c8ef5f978bb47b5fb3ebbbd5",
+    "src/core/crc32c.hpp": "306b0c5b9fa180c108aa12afb2714caf09dd4e1ddcccf0922af8bf39c65e2a15",
+    "src/core/fp16.hpp": "3cbe60800d9ec5acd3214e503225b508dd0dfda13871740665ab014cdaa52539",
+    "src/core/host_memory.hpp": "12442033770c6c320d1a0df52d8616a3a4924bdfeed6c289eba1e21cda6bf73a",
+    "src/core/job_threads.hpp": "0a803d8b0e6d83f6c630c800046aa4384e7c463e2e83c166af28c22742307f06",
+    "src/core/json.hpp": "dd4c77e427e5747447e332dec87b2af735f3718635de9fa3ab65a931d2cb3ea6",
+    "src/core/list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+    "src/core/sha.hpp": "1577285ffd2f995ba5a087dc6c91cb8431415fdce4e7a6febf11cd2e0df7ef72",
+    "src/core/utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+    "src/format/file_digest.hpp": "04808bb33cd5cc6e29abaa1108e163d751bd499af487aa6ade407afbad72143a",
+    "src/format/file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+    "src/format/file_writer.hpp": "5815af0b5202748dee737d04d2a86407f7c4b4a7b939d009994fb01d6f898c41",
+    "src/format/format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+    "src/format/gguf.hpp": "ddc503d932f6f2e978ea2308337c987bc3a4c137e477da0a18628d7431723e9a",
+    "src/format/mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+    "src/format/output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+    "src/format/raw_convert.hpp": "a9bdd462fe5c66e6ff72a308cf09c330fb3359bd6fd8302f979a0ea07bd56483",
+    "src/hub/manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+    "src/hub/pull.hpp": "f37b814b27669d8d73862ecf5eac74a304ce5d0a895534cb220d4ea929deba56",
+    "src/hub/transport.hpp": "a8331ccd19af945f0a823b1987e64cb1bff75b4f5fcdc900eda8ddbb7596ada7",
+    "src/inference/chat.hpp": "093bbd91cc3e244ac20ff08b855cccedd4afb400111330be558c2f3dfd3dbb8a",
+    "src/inference/generate.hpp": "08d0d7a9a0d296195ddfc91ab0ed9bad4b67f4c1ae477612d49683f4ed3b7398",
+    "src/inference/load.hpp": "7245cf264a4543c8451638851c8e196836f9f047565ec8c7d8e1848c97462b47",
+    "src/inference/logprobs.hpp": "7ce38bda7aec94e3bcfd4a1ec06eeb88289062690e88a39b24f5973219da03b7",
+    "src/inference/pair.hpp": "9eeb219b1b1101cfe1189e426be0997e5bda8cec7338deb137457ecf41dbb322",
+    "src/inference/perplexity.hpp": "95768b8e2a536ed5b846d9fa63a6b1a3ec145ab15be2f2c9867c0b85533efa96",
+    "src/inference/read_ring.hpp": "5a34df8e0f37f1bcc790fc1d1c00200cbec721d4625965620c54ae216dcd9147",
+    "src/inference/sampler.hpp": "4a99d620a949fbeb24dda2d4a285dbd83370450b1e5c7b0bf304e9d03e31db23",
+    "src/inference/spec.hpp": "57a8cce7828f7d9bc9a6e8080878f553e41d466319165884cc83dc4ab3b6b4c2",
+    "src/model/arch/blocks.hpp": "8a4925166dce168953b8a3fc659d18e69f87d3ac371ea44b854a85a83f8f9a76",
+    "src/model/arch/metadata.hpp": "51a9f7319684c8f8c5d5c4f2a0bb17ff4b8d075caa76ad345ca4a779eb9b588e",
+    "src/model/arch/qwen3.hpp": "da63c0711d628afb1ba346dbb4ac71e621cdb95d9bf083bb085338b60955dd43",
+    "src/model/arch/qwen35.hpp": "c7b53e281a6e6c742112d848dc3d1e09edb3c8451eec40c324ee152e7f695473",
+    "src/model/arch/registry.hpp": "e81630faffd3ff16ab6801a1fa1e3092c4129ed0f027b499a3760954691ab1d6",
+    "src/model/architecture.hpp": "3ec10861a66b63e8847e8c4ed333b845df88cc89d8824b7367e6951c1f884160",
+    "src/model/history.hpp": "0bdc3f3fb90236ce422dee3290c0b32d4ab9c3a3ccc7d0900287d3c906ff7a1c",
+    "src/model/kv_cache.hpp": "02930aeda059494a33a681f30479b48111ffd49daeb81cd13d3ec7c1327c3a25",
+    "src/model/layer_split.hpp": "cac43d09b020c0e84fd9f0c1177f927eeb8399f1d15dcc3418cafdcdcefdb11f",
+    "src/model/passes.hpp": "61159db6aa3baf47783653720952fd9025df40b09b3d71b60fe329f13a9e184b",
+    "src/model/place.hpp": "73ce2cc23f994fe38072a81e745d061c7347bf2efba523db431f767dd0ba34d1",
+    "src/model/runtime.hpp": "749bf00bf539fdef63f87f12dfa07dfc66046098a91ecca5e27e18a5b305a60e",
+    "src/model/shard.hpp": "b830715b997ab8e3b5d92be65c9d41f7c65983bb9e7a6797f41ba164c57ee497",
+    "src/model/weights.hpp": "25770175d08976cc798fde0a5e1c2dde09f0a147328f55adc2ee5aa9192d55df",
+    "src/quant/k_quants.hpp": "ee36e3cca694211f00510b739dfdb4607ac9e7c7913b58d3ac03d07a50962767",
+    "src/quant/mxfp4.hpp": "28120ca0b5307eb56f360a1d0c5beceef8c9a43296568ba2f345af95086c4d96",
+    "src/quant/quant.hpp": "80f494e10a2ea4c260ba3b6df074d5324f4bf7f94c143f53de3a470486dd5f92",
+    "src/quant/types.hpp": "d5df21953811c7db9e416121383477ab6df0f14956139f039510a9313185b941",
+    "src/server/api.hpp": "7189c8e0b09b4e91751b9bdfa603edc885eb0e549839520554e37d95e104d075",
+    "src/server/cache.hpp": "2467b3c5161835fed7fd39005b88853c40f8802d3a16e16798f2705d8f51a8cc",
+    "src/server/context_cut.hpp": "669130a5929e1662d14e70134cd114433c40def7d75362e8993b1952376126a7",
+    "src/server/disk_index.hpp": "972ca858669086103a5bb45ce1a2c59b9b103f51190ca1552602d6ee8d2c6feb",
+    "src/server/disk_store.hpp": "870878254326132d760be83854f42bb01bec52b8e83097a50b98e446c1349d75",
+    "src/server/disk_tier.hpp": "56aef7789b41c1b20100dd4b3b3f32e6bca3b539d5247a1cb501dbec5e720042",
+    "src/server/http.hpp": "e4eead42ea76e8e7ce365d24c6ee1f717a5b700a05ae7deb1f7a6aa86888d932",
+    "src/server/policy.hpp": "f6c8ecb818d0ca0c4665af780427e3b2c120e892a13065a964978adca66629fc",
+    "src/server/scheduler.hpp": "2e80997f1acf079816769fe6236c09042bc38dfda86bdc6dcf9ed2eeb79acf56",
+    "src/tokenizer/tokenizer.hpp": "9dde67500c722f1a7490cb3a5d3cb0bb7b56bbe424dee3e5411710a3533c6614",
+    "tests/block_fixture.py": "a3f44cf7d30627b4dce78de953e806e09fa7f0135d64bcf65549e66b4f472430",
+    "tests/q5_1.py": "710b131b62033ab005af117dccac1df7e072a0d17aa67838a84c591a59296292",
+    "tests/mxfp4.py": "0cc2ad7ab529ff138543095b88ff5a029727bc11295ca2ff482a1a254b47ef78",
+    "tests/spec_decode.py": "295bd141b561e93438abb434629a19212d474304290376c643a2f7c2f126fe63",
+    "tests/common.py": "8cc345e5ece501e2f329ee631913fe3cab42917322a0598ae9ab95fdc2d572fa",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/moe.py": "d71f3b48aa70e0479185575c87b31de2933784cad933f5cdbf43bd7c2df71dd2",
+    "tests/data/baseline_q5_1.json": "7b3ea76701e518de4c3cd54bb9aefb7a1acf87d466b1bae68444b36cf7653db2",
+    "tests/backend_vulkan.cpp": "614d6fd8ae144b4ce9c5cfbfe4ffcf9fee4c3c34776e3984f3c361f295c08852",
+    "tests/backend_group.cpp": "690173d99cce1c7e84ad390e815f12e7920744e6b49b78d4adb8da1a7510568e",
+    "tests/backend_errors.cpp": "c5952e0e948f89c63fc112d3021410d303ae4885a5b451027cdcb9ecf21a3c3b",
+    "tests/matrix_precision.hpp": "cb35b8455a8cedb62300288f7b789b34f839c06dc2eea19cbcb92c7e0dfc4bff",
+    "tests/row_classes.hpp": "ae575a5fa4fe6d5371729b9a2bdb45242eb76b920574908528da5932b99fe77f",
+    "tests/quantizers.hpp": "226b0f48f28283efa435646fe69bc60c21bc76761cef94027f5b0696724e7752",
+    "tests/vulkan_quantization.cpp": "f8ab51b4a4c674bdd507b1bf7e093a7bdccb88859931508f1aa657ce2e3007e0",
+    "tests/raw_blocks.py": "e121d4c7afb995c8ae5175de554ba9cf8403dfe5993efd76c8ed11a6a6cfd7d0",
+    "tests/roundtrip.py": "2e16f7fdd6f784d1ba9c94037cf8a999aaa4e9d92b269e778984eb9f7439ca8d",
+    "tests/reference_generator.py": "494102e09f77b11d9315d0e3bdca2e0bdda33a5f988468443c9cf79aad02f467",
+    "tests/run_tests.py": "3eb379761b25b06d35f7faadd108e23935218b658c821b3beb6e1305c04dfed9",
+    "tools/gen_baseline.py": "332ab2c8cc726a780c841ba94701b4fe57054025c34f2316076ea7202579f77c"
+  }
+}

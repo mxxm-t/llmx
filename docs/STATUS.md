@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Q5_1 landing regression checkpoint (2026-10-20)
+
+- **Goal:** land Q5_1 separately after the shared half-weight feature, preserving the calibration regression before its fix.
+- **Done:** reconstructed Q5_1 on public main d27eb7594 plus half support. The reference-generator suite reproduces two failures and four errors in 55 tests: routing turnover must not set a precision budget, every reference measurement needs its routing witness, and the split fixture must exercise every expert. Local log: build-quant-resume-20261020/landing-q5-regression.log. This deliberately failing first commit must not be merged alone.
+- **Left:** apply the already validated routing-stable calibration and Q5-only tile isolation, then the separate IQ4_NL feature; reconcile final evidence and run applicable hosted checks on the resulting tree.
+- **Gotchas:** this is the regression-first landing pair, not a new calibration or a widened bound. Development evidence remains pinned to its original revisions. The public tied-head reference fix is retained.
+- **Docs review:** reviewed the reconstructed Q5/half documentation and conflict boundaries; carry forward the 115-file inventory from the integration checkpoint. Final source/docs checks follow the completed landing tree.
+
 ## File-exact redundant tied-head fix (2026-10-20)
 
 - **Goal:** accept verified redundant GGUF output heads through the existing reference weight-validation owner, independently on main 7184ff13f.
@@ -7,6 +15,56 @@
 - **Landing:** fast-forward main after the relevant hosted Python/source checks pass at this head and main is still its base. The workflow run is identified by this commit on GitHub. No runtime, device-numerical or inference-performance gate is required for this tools-only fix.
 - **Gotchas:** no unmerged quant decoder, runtime, calibration or fixture-registry dependency. The separately generated Q5 reference proves this owner on real tied weights; it does not give main Q5 runtime support, runtime acceptance or original-weight quality approval. No inference performance gate applies to this Python-only change.
 - **Docs review:** inventoried 115 tracked Markdown files and searched reference/tied-head claims across the tree; inspected the changed owner, reference tests and relevant ASSETS/architecture/precision guidance. ASSETS now describes explicit tied-head verification; unchanged runtime and historical tied-head descriptions remain valid. Mechanical source checks cover the full tracked tree; this is a scope-focused review, not a fresh full-text reading of all historical reports.
+
+## Q5_1 and half-weight integration (2026-10-20)
+
+- **Goal:** carry Q5_1 onto Flash main `7184ff13f` through the shared half-weight dependency `b1c2fcd93`, keeping the quant feature separate.
+- **Done:** the conflict-resolved integration preserves Flash's shaders, the half-weight embedding descriptor columns and shared CPU dot, and Q5's compile-time row variants. Five focused native checks pass on Windows, including Radeon Vulkan. Half/F32 twins match exactly in 48 CPU and 24 Radeon capture sets, including 64-token replies. Q5_1 passes 150 full-logit and 12 NLL cases on each backend under unchanged limits: CPU maximum logit/NLL errors 0.00000255/0.00000466 and Radeon 0.00034255/0.00003439. Source checks, 59 reference-generator checks, 67 consumer checks (four skipped) and ten layered consumer checks pass. The [integration record](benchmarks/q5-half-integration-20261020.json) pins the tested dirty tree, binaries and logs.
+- **Left:** MI50 integration and measured Q4 recovery, int8 calibration review, split-policy/window coverage, released-file and long-context qualification, current-main identity/timing and applicable landing checks/CI.
+- **Gotchas:** the independent family-calibration proposal remains inactive. This checkpoint does not establish performance or merge readiness. Q4 row shader instruction counts match the old source after isolation, but generated modules are not byte-identical; instruction counts alone cannot establish equal device code or timing.
+- **Docs review:** the cheap review agent inventoried 115 project Markdown files and searched support, quantizer, gate and ownership claims, reviewing changed pages and relevant owners. This carries forward the earlier full inventory review for unchanged pages, not a new end-to-end reading of every page. The stale CI component count is corrected to 30. The reported IQ4_NL decoder-list issue was checked against this tree and was absent; no unrelated support claim was changed.
+
+## Q5_1 independent family calibration (2026-10-20)
+
+The reference tool can measure a named raw-block family without changing existing dtype budgets. The declared Q5_1 matrix completed 90 HF-only measurements over three variants, ordinary/split shapes and five seeds under F16/BF16/int8, with the existing margin of two. Generator/consumer tests cover preserved prior bounds, fixture coverage, refusal of changed frozen values and witnessed family selection. No candidate was rerun against the proposed bounds, and the Q5_1 consumer remains on its original limits.
+
+The int8 proposal is dominated by split MoE seed 12345: independent HF changes the second layer's selected expert set from [1,0] to [1,3] at row 6. HF reproduces the committed F32 goldens exactly; rounded inputs give maximum logit error 0.828424662. Keeping the original expert sets while retaining the rounded run's routing weights reduces that to 0.064753503; NLL difference falls from 0.0144323761 to 0.00602980117. The outlier is intrinsic routing sensitivity; acceptance remains under peer review. All reference rows and the intervention are retained in the [calibration proposal](benchmarks/q5-1-family-calibration-20261020.json). This neither widens existing families nor changes real-file or F32 limits.
+
+## Q5_1 shared-row isolation (2026-10-20)
+
+A matched three-pair MI50 synthetic screen retains all 82 cells and timestamped contention samples. Existing Q4_1 dense 12288x2048 at four columns changes from 180-181 us to 255-256 us device time; Q4_0 at that shape is unchanged. Unrelated ROCm/GCC builds saturated the CPU early, and production was active; this is not a quiet-machine or final performance claim. The new Q5 high-bit row loader is now a compile-time variant of the existing affine source, selected in the weight descriptor, so Q4 rows no longer carry its branches or live registers. Two focused Radeon native checks pass after isolation. MI50 revalidation/timing remains open; no speed recovery is claimed yet. [All screen results](benchmarks/q5-1-shared-row-screen-20261020.json).
+
+## Q5_1 support (2026-10-20, branch feat/q5-1-20261020)
+
+- **Goal:** read Q5_1 weights through the quant registry and existing CPU/Vulkan matrix owners, without format-specific model or loader logic.
+- **Done:** the registry decodes Q5_1; CPU execution uses its existing dequantized matrix paths. Vulkan extends the existing affine row/tile families and shared per-value decoder, with no model, loader or CLI type path. Independent pure/numpy checks cover 123,904 values; CLI decoding matches 204,800 raw values bit for bit. CPU grouped-matrix/GGUF checks pass. Radeon VII backend, offset/range and error checks pass; the expanded backend test includes 82,944 exact embedding values, decode-column identity and row classes. Tiny file-exact HF passes under five CPU policies and four Radeon policies, 150 full-logit and 12 NLL cases per policy, at unchanged witnessed bounds. The shared block fixture extraction preserves the six existing MXFP4 packed/decoded hash pairs; 43 reference-generator checks pass.
+- **MI50 checkpoint:** exact source archive `c9309c3da` builds on Linux; native backend and quantization checks pass, including native integer-dot/int8 coverage. Tiny HF auto/F32/F16/BF16 pass unchanged bounds. The existing Qwen3.6-27B Q5_1 file loads and generates eight tokens on one MI50; this is a smoke check, not model correctness or performance qualification.
+- **Int8 diagnosis:** the frozen tiny original-HF criterion fails. Independent HF block-int8 rounding, after reproducing every original golden exactly, also exceeds it: worst NLL difference 0.00756651 versus 0.00409009, and worst logit difference 0.08635935 versus 0.07899815. Native results track that rounded reference within 0.00000204 logits and 0.00000485 NLL across all three fixtures. This identifies a precision-budget coverage question, not a passed quality gate. F2DEV/coordinator were asked to review a predeclared independent calibration extension; no bound or runtime was changed.
+- **Split checkpoint:** independently generated split-compatible dense tied/untied and MoE fixtures pass on one, two and four MI50s under the default F16 path. Nine captures retain every batched/per-token row and 64 greedy steps; all HF reference positions, the full-sequence NLL and the existing group-versus-single criteria pass. The shared fixture owner supplies the new shapes; the CLI consumer now requests its reference's full vocabulary instead of assuming 257 entries.
+- **Left:** int8 criterion resolution, other split precision policies and split windowed-NLL coverage, released-file and 16K HF checks, original-weight quality, matched existing-path and mx timing, integration and applicable landing checks/CI. No merge qualification is claimed. F2DEV/coordinator have the concrete Q5_1 patch for architecture review.
+- **Gotchas:** the shared Vulkan affine changes can affect existing Q4_1 performance, which must be measured. Radeon VII does not run native int8 and has no second local device; neither coverage is claimed. Initial Windows sandbox conversion checks failed path canonicalization with error 5; unchanged checks passed outside it. Observed foreground GPU activity means native-test diagnostic timings are not performance evidence. This branch is separate from F16/BF16 and IQ4 support; no candidate-fitted tolerance changes.
+- **Evidence:** [focused record](benchmarks/q5-1-development-20261020.json) pins the dirty Windows development binaries, source inputs and HF golden. [MI50 record](benchmarks/q5-1-mi50-20261020.json) pins the committed source archive, Linux binaries, all policy results, retained int8 failure and independent diagnosis, and released-file smoke. These are focused development checks, not a full gate. Existing cache shadow warnings remain unrelated.
+- **Split evidence:** [split record](benchmarks/q5-1-split-20261020.json) pins the capture tool and changed test/reference inputs. Original Q5_1 HF reference values reproduce exactly; six Q5_1/MXFP4 packed/decoded hash pairs remain unchanged. The original CPU component, 43 generator checks and 46 consumer checks pass. Initial missing-logit failures and the later incomplete CLI sweep are retained; the capture check reuses each loaded model instead of recreating devices per prompt.
+- **Docs review:** quant claims searched across all 86 non-benchmark Markdown pages; changed pages and six additional owners inspected, correcting the Qwen3/Qwen3.5 lists, Vulkan families, CI coverage and test inventories. The 25 historical benchmark Markdown reports remain scoped to their original heads. A separate read-only agent found no cross-layer or duplicated-runtime ownership defect. Docs/dead-code checks pass; README keeps Q5_1 in development until qualification.
+
+| Device / policy | Max logit error / HF bound | Max NLL error / HF bound |
+|---|---|---|
+| CPU auto, F32, F16, int8 (F32 execution) | 0.00000255 / 0.00002000 | 0.00000466 / 0.00001000 |
+| Radeon VII F32 | 0.00000231 / 0.00002000 | 0.00000466 / 0.00001000 |
+| Radeon VII auto, F16 | 0.00034255 / 0.00330472 | 0.00003439 / 0.00029664 |
+| CPU and Radeon VII BF16 | 0.02248300 / 0.05409974 | 0.00268324 / 0.00792457 |
+| MI50 F32 | 0.00000253 / 0.00002000 | 0.00000466 / 0.00001000 |
+| MI50 auto, F16 | 0.00034155 / 0.00330472 | 0.00002439 / 0.00029664 |
+| MI50 BF16 | 0.02248300 / 0.05409974 | 0.00268324 / 0.00792457 |
+| MI50 int8, diagnostic across all fixtures (FAIL original-HF criterion) | 0.08636027 / 0.07899815 | 0.00756167 / 0.00409009 |
+
+| MI50 tensor width, default F16 | Max logit error / HF bound | Max full-sequence NLL error / HF bound |
+|---|---|---|
+| 1 | 0.00047578 / 0.00330472 | 0.00003218 / 0.00029664 |
+| 2 | 0.00047101 / 0.00330472 | 0.00002053 / 0.00029664 |
+| 4 | 0.00045562 / 0.00330472 | 0.00002824 / 0.00029664 |
+
+The runtime and precision limits remain `c9309c3da`'s; the split checkpoint extends tests and references only. The earlier all-page review carries forward for unchanged product inputs; Q5_1 claims were searched again across README, AGENTS and docs, including source-owner pages. AGENTS and ASSETS now describe the split fixtures. Other pages retain development status and do not claim released-model qualification.
 
 ## Half-weight resumption (2026-10-20)
 

@@ -138,6 +138,9 @@ const uint32_t kSpvMatmulRowQ8W[] = {
 const uint32_t kSpvMatmulRowQ4[] = {
 #include "vulkan/matmul_row_q4.inc"
 };
+const uint32_t kSpvMatmulRowQ5[] = {
+#include "vulkan/matmul_row_q5.inc"
+};
 const uint32_t kSpvMatmulRowK4[] = {
 #include "vulkan/matmul_row_k4.inc"
 };
@@ -242,6 +245,9 @@ const uint32_t kSpvNormRopeKvKV16[] = {
 const uint32_t kSpvMatmulRowQ4Dot[] = {
 #include "vulkan/matmul_row_q4_dot.inc"
 };
+const uint32_t kSpvMatmulRowQ5Dot[] = {
+#include "vulkan/matmul_row_q5_dot.inc"
+};
 const uint32_t kSpvMatmulRowK4Dot[] = {
 #include "vulkan/matmul_row_k4_dot.inc"
 };
@@ -318,8 +324,14 @@ const uint32_t kSpvMatmulVecQ8I8Preserve[] = {
 const uint32_t kSpvMatmulRowQ4I8[] = {
 #include "vulkan/matmul_row_q4_i8.inc"
 };
+const uint32_t kSpvMatmulRowQ5I8[] = {
+#include "vulkan/matmul_row_q5_i8.inc"
+};
 const uint32_t kSpvMatmulRowQ4I8Preserve[] = {
 #include "vulkan/matmul_row_q4_i8_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ5I8Preserve[] = {
+#include "vulkan/matmul_row_q5_i8_preserve.inc"
 };
 const uint32_t kSpvMatmulRowK4I8[] = {
 #include "vulkan/matmul_row_k4_i8.inc"
@@ -342,8 +354,14 @@ const uint32_t kSpvMatmulRowKI8Preserve[] = {
 const uint32_t kSpvMatmulRowQ4Preserve[] = {
 #include "vulkan/matmul_row_q4_preserve.inc"
 };
+const uint32_t kSpvMatmulRowQ5Preserve[] = {
+#include "vulkan/matmul_row_q5_preserve.inc"
+};
 const uint32_t kSpvMatmulRowQ4DotPreserve[] = {
 #include "vulkan/matmul_row_q4_dot_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ5DotPreserve[] = {
+#include "vulkan/matmul_row_q5_dot_preserve.inc"
 };
 const uint32_t kSpvMatmulRowK4DotPreserve[] = {
 #include "vulkan/matmul_row_k4_dot_preserve.inc"
@@ -610,6 +628,7 @@ const uint32_t kSpvMatmulTileWbf16Bf16Preserve[] = {
     X(K_KV_INDEX_SELECT, "kv_index_select", kSpvKvIndexSelect, sizeof(kSpvKvIndexSelect), 3, nullptr) \
     X(K_MATMUL_TILE, "matmul_tile", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \
     X(K_MATMUL_ROW_Q4, "matmul_row_q4", kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 12, kMatmulRowCounts, kSpvMatmulRowQ4Preserve, sizeof(kSpvMatmulRowQ4Preserve)) \
+    X(K_MATMUL_ROW_Q5, "matmul_row_q5", kSpvMatmulRowQ5, sizeof(kSpvMatmulRowQ5), 12, kMatmulRowCounts, kSpvMatmulRowQ5Preserve, sizeof(kSpvMatmulRowQ5Preserve)) \
     X(K_MATMUL_ROW_K4, "matmul_row_k4", kSpvMatmulRowK4, sizeof(kSpvMatmulRowK4), 12, kMatmulRowCounts) \
     X(K_MATMUL_ROW_K5, "matmul_row_k5", kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 12, kMatmulRowCounts, kSpvMatmulRowK5Preserve, sizeof(kSpvMatmulRowK5Preserve)) \
     X(K_MATMUL_ROW_K, "matmul_row_k", kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 12, kMatmulRowCounts, kSpvMatmulRowKPreserve, sizeof(kSpvMatmulRowKPreserve)) \
@@ -631,6 +650,7 @@ const uint32_t kSpvMatmulTileWbf16Bf16Preserve[] = {
     X(K_MATMUL_ROW_Q8W, "matmul_row_q8w", kSpvMatmulRowQ8W, sizeof(kSpvMatmulRowQ8W), 12, kMatmulRowCounts, kSpvMatmulRowQ8wPreserve, sizeof(kSpvMatmulRowQ8wPreserve)) \
     X(K_MATMUL_TILE_TALL, "matmul_tile_tall", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \
     X(K_MATMUL_ROW_Q4_DOT, "matmul_row_q4_dot", kSpvMatmulRowQ4Dot, sizeof(kSpvMatmulRowQ4Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ4DotPreserve, sizeof(kSpvMatmulRowQ4DotPreserve)) \
+    X(K_MATMUL_ROW_Q5_DOT, "matmul_row_q5_dot", kSpvMatmulRowQ5Dot, sizeof(kSpvMatmulRowQ5Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ5DotPreserve, sizeof(kSpvMatmulRowQ5DotPreserve)) \
     X(K_MATMUL_ROW_K4_DOT, "matmul_row_k4_dot", kSpvMatmulRowK4Dot, sizeof(kSpvMatmulRowK4Dot), 12, kMatmulRowCounts, kSpvMatmulRowK4DotPreserve, sizeof(kSpvMatmulRowK4DotPreserve)) \
     X(K_MATMUL_ROW_K5_DOT, "matmul_row_k5_dot", kSpvMatmulRowK5Dot, sizeof(kSpvMatmulRowK5Dot), 12, kMatmulRowCounts, kSpvMatmulRowK5DotPreserve, sizeof(kSpvMatmulRowK5DotPreserve)) \
     X(K_MATMUL_ROW_K_DOT, "matmul_row_k_dot", kSpvMatmulRowKDot, sizeof(kSpvMatmulRowKDot), 12, kMatmulRowCounts, kSpvMatmulRowKDotPreserve, sizeof(kSpvMatmulRowKDotPreserve)) \
@@ -649,6 +669,7 @@ const uint32_t kSpvMatmulTileWbf16Bf16Preserve[] = {
     X(K_MATMUL_VEC_Q8, "matmul_vec_q8", kSpvMatmulVecQ8, sizeof(kSpvMatmulVecQ8), 12, kMatmulRowCounts, kSpvMatmulVecQ8Preserve, sizeof(kSpvMatmulVecQ8Preserve)) \
     X(K_MATMUL_VEC_Q8_I8, "matmul_vec_q8_i8", kSpvMatmulVecQ8I8, sizeof(kSpvMatmulVecQ8I8), 12, kMatmulRowCounts, kSpvMatmulVecQ8I8Preserve, sizeof(kSpvMatmulVecQ8I8Preserve)) \
     X(K_MATMUL_ROW_Q4_I8, "matmul_row_q4_i8", kSpvMatmulRowQ4I8, sizeof(kSpvMatmulRowQ4I8), 12, kMatmulRowCounts, kSpvMatmulRowQ4I8Preserve, sizeof(kSpvMatmulRowQ4I8Preserve)) \
+    X(K_MATMUL_ROW_Q5_I8, "matmul_row_q5_i8", kSpvMatmulRowQ5I8, sizeof(kSpvMatmulRowQ5I8), 12, kMatmulRowCounts, kSpvMatmulRowQ5I8Preserve, sizeof(kSpvMatmulRowQ5I8Preserve)) \
     X(K_MATMUL_ROW_K4_I8, "matmul_row_k4_i8", kSpvMatmulRowK4I8, sizeof(kSpvMatmulRowK4I8), 12, kMatmulRowCounts, kSpvMatmulRowK4I8Preserve, sizeof(kSpvMatmulRowK4I8Preserve)) \
     X(K_MATMUL_ROW_K5_I8, "matmul_row_k5_i8", kSpvMatmulRowK5I8, sizeof(kSpvMatmulRowK5I8), 12, kMatmulRowCounts, kSpvMatmulRowK5I8Preserve, sizeof(kSpvMatmulRowK5I8Preserve)) \
     X(K_MATMUL_ROW_K_I8, "matmul_row_k_i8", kSpvMatmulRowKI8, sizeof(kSpvMatmulRowKI8), 12, kMatmulRowCounts, kSpvMatmulRowKI8Preserve, sizeof(kSpvMatmulRowKI8Preserve)) \
@@ -761,6 +782,9 @@ const WeightKernels* weight_kernels(uint32_t type) {
         {quant::GGML_TYPE_Q4_1, RowLayout::blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_Q4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
+        {quant::GGML_TYPE_Q5_1, RowLayout::blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q5, K_MATMUL_ROW_Q5_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_Q5_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q4},
         {quant::GGML_TYPE_Q4_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_K4, K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_K4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::moe_tile_from_q4k},
@@ -790,11 +814,11 @@ inline bool is_row_kernel(KernelId id) {
     if (id == K_MATMUL_ROW_MXFP4 || id == K_MATMUL_ROW_MXFP4_DOT || id == K_MATMUL_ROW_MXFP4_FLOAT_X) return true;
     switch (id) {
     case K_MATMUL_ROW_WF16: case K_MATMUL_ROW_WBF16:
-    case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4:
+    case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
-    case K_MATMUL_ROW_Q4_DOT:
+    case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_Q5_DOT:
     case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8:
-    case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8: case K_MATMUL_VEC_Q8_I8:
+    case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_Q5_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8: case K_MATMUL_VEC_Q8_I8:
         return true;
     default: return false;
     }
@@ -822,7 +846,7 @@ inline bool is_vec_kernel(KernelId id) { return id == K_MATMUL_VEC_Q8 || id == K
 
 // The row kernels that read the 8-bit twin.
 inline bool reads_x8(KernelId id) {
-    return id == K_MATMUL_ROW_Q4_I8 || id == K_MATMUL_ROW_K4_I8 || id == K_MATMUL_ROW_K5_I8 || id == K_MATMUL_ROW_K_I8 || id == K_MATMUL_VEC_Q8_I8;
+    return id == K_MATMUL_ROW_Q4_I8 || id == K_MATMUL_ROW_Q5_I8 || id == K_MATMUL_ROW_K4_I8 || id == K_MATMUL_ROW_K5_I8 || id == K_MATMUL_ROW_K_I8 || id == K_MATMUL_VEC_Q8_I8;
 }
 
 // Whether a row kernel has a one-column build for one-column chunks, which frees the registers of seven unused accumulators.
@@ -858,9 +882,9 @@ inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
 // Whether a row kernel is one of the Q4 and K-quant families, which have two-row decode builds (shaders/matmul_row.comp, ROWS).
 inline bool row_kernel_builds_two_rows(KernelId id) {
     switch (id) {
-    case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
-    case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
-    case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8:
+    case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
+    case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_Q5_DOT: case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
+    case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_Q5_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8:
         return true;
     default: return false;
     }

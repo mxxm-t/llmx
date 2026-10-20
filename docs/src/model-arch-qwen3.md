@@ -90,7 +90,7 @@ names it.
   `general.architecture` and as the prefix of every key; the registry's
   `synthetic_model` hands it to `bench` to time without a file.
 
-Supports dense and mixture-of-experts Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 weights
+Supports dense and mixture-of-experts Qwen3 with Q8_0 / Q4_0 / Q4_1 / Q5_1 / Q4_K / Q5_K / Q6_K / MXFP4 weights
 and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.

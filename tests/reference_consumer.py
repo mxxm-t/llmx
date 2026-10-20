@@ -781,6 +781,20 @@ class LayeredConsumer(unittest.TestCase):
 
 
 class MXFP4Consumer(unittest.TestCase):
+    def test_fixture_family_bounds_do_not_change_existing_families(self):
+        original = common.hf_bounds("int8", [["block-int8"]])
+        doc = {"dtypes": {"int8": {"logit_budget": original["logit"], "nll_budget": original["nll"]}},
+               "families": {"q5-1": {"dtypes": {
+                   "int8": {"logit_budget": 0.2, "nll_budget": 0.03},
+                   "f16": {"logit_budget": 0.003, "nll_budget": 0.0003}}}}}
+        with patch("builtins.open", unittest.mock.mock_open(read_data=json.dumps(doc))):
+            self.assertEqual(common.hf_bounds("int8", [["block-int8"]]), original)
+            self.assertEqual(common.hf_bounds("int8", [["block-int8"]], "q5-1"), {"logit": 0.2, "nll": 0.03})
+            self.assertEqual(common.hf_bounds("int8", [["block-int16"]], "q5-1"), {"logit": 0.003, "nll": 0.0003})
+            self.assertEqual(common.hf_bounds("f16", [["f32"]], "q5-1"), {"logit": 2e-5, "nll": 1e-5})
+            with self.assertRaisesRegex(AssertionError, "missing frozen"):
+                common.hf_bounds("int8", [["block-int8"]], "unmeasured")
+
     def test_bounds_require_executed_paths(self):
         tight = {"logit": 2e-5, "nll": 1e-5}
         for dtype in ("f32", "f16", "bf16"):
@@ -821,13 +835,15 @@ class MXFP4Consumer(unittest.TestCase):
                 common.check_logprob_row(malformed, logits)
 
     def test_cli_witness_controls_fixture_bounds(self):
-        def run(dtype, paths, logit, nll):
+        def run(dtype, paths, logit, nll, vocab=1):
             record = "matrix-paths: " + json.dumps({"dtype": dtype, "devices": paths}) + "\n"
             def command(args, **kwargs):
-                out = "0 %.9f\n" % logit if args[0] == "logits" else "mean NLL: %.9f\n" % nll
+                if args[0] == "logits":
+                    self.assertEqual(args[args.index("--top") + 1], str(vocab))
+                out = "".join("%d %.9f\n" % (i, logit) for i in range(vocab)) if args[0] == "logits" else "mean NLL: %.9f\n" % nll
                 return subprocess.CompletedProcess(args, 0, out, record)
             with patch.object(common, "run_process", side_effect=command):
-                return common.check_hf_fixture("fixture", "model", [{"text": "a", "logits": [0.0]}],
+                return common.check_hf_fixture("fixture", "model", [{"text": "a", "logits": [0.0] * vocab}],
                                                [{"context": 16, "mean_nll": 0.0}], "text", [1])
         for dtype in ("f32", "f16", "bf16"):
             with self.subTest(dtype=dtype), self.assertRaisesRegex(AssertionError, "logit error"):
@@ -835,6 +851,7 @@ class MXFP4Consumer(unittest.TestCase):
             with self.subTest(dtype=dtype), self.assertRaisesRegex(AssertionError, "NLL error"):
                 run(dtype, [["f32"]], 0, 0.00002)
         self.assertEqual(run("bf16", [["bf16"]], 0.0001, 0.00002)[0], 0.0001)
+        self.assertEqual(run("bf16", [["bf16"]], 0.0001, 0.00002, 260)[0], 0.0001)
         bounds = common.hf_bounds("bf16", [["bf16"]])
         with self.assertRaisesRegex(AssertionError, "logit error"):
             run("bf16", [["bf16"]], bounds["logit"] * 1.01, 0)

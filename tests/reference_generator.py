@@ -61,6 +61,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(generator.parse_args(["tokenizer-qwen35"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["qwen35-tiny"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["qwen4exp-tiny"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["q5-1"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -76,6 +77,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["qwen35-tiny", "--threads", "2"], ["qwen35-tiny", "--revision", "c" * 40],
             ["qwen4exp-tiny", "--threads", "2"], ["qwen4exp-tiny", "--revision", "c" * 40],
             ["qwen4exp-tiny", "--repo", "Qwen/Qwen3.8-Flash-Next"],
+            ["q5-1", "--threads", "2"], ["q5-1", "--revision", "b" * 40],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -178,6 +180,22 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertNotIn("tied_output_verified", metadata)
         with self.assertRaisesRegex(SystemExit, "lm_head.weight"):
             self._load_file_exact_weights([embedding, ("output.weight",) + embedding[1:]], tied=False, expose_head=False)
+
+    def test_shared_block_fixtures_preserve_goldens(self):
+        import mxfp4
+        import q5_1
+
+        for module, filename, context, split in ((mxfp4, "baseline_mxfp4.json", 16, False), (mxfp4, "baseline_mxfp4_prompt.json", 128, False),
+                                                  (q5_1, "baseline_q5_1.json", 16, False), (q5_1, "baseline_q5_1_split.json", 16, True)):
+            with open(Path(__file__).parent / "data" / filename, encoding="utf-8") as f:
+                goldens = json.load(f)
+            self.assertEqual([case["name"] for case in goldens["fixtures"]], [name for name, _, _ in module.VARIANTS])
+            for (name, tied, moe), golden in zip(module.VARIANTS, goldens["fixtures"]):
+                with self.subTest(format=module.__name__, name=name, context=context):
+                    config, weights, packed = module.fixture(tied, moe, context=context, **({"split": True} if split else {}))
+                    self.assertEqual(config, golden["config"])
+                    self.assertEqual(module.weight_hash(weights), golden["weights_sha256"])
+                    self.assertEqual(module.packed_hash(packed), golden["packed_sha256"])
 
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:
@@ -1105,6 +1123,127 @@ class DtypeCalibration(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("llmx_calibrate_dtype", SCRIPT.with_name("calibrate_dtype.py"))
         cls.calibration = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.calibration)
+
+    def test_family_extension_preserves_existing_budgets(self):
+        torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1)
+        transformers = SimpleNamespace(__version__="4.55.2")
+        identity = {"fixture": "dense", "split": False, "seed": 12345}
+        original = {"dtypes": {"int8": {"logit_budget": 0.01}}, "families": {"prior": {"frozen": True}}}
+        def measured(*args, routing):
+            routing.update(stable=True, calls=0)
+            return 0.25, 0.125
+        def changed(*args, routing):
+            routing.update(stable=True, calls=0)
+            return 0.3, 0.125
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "budget.json"
+            path.write_text(json.dumps(original))
+            with patch.object(self.calibration, "BUDGET", str(path)), \
+                    patch.object(self.calibration, "family_models", return_value=[(object(), identity)]), \
+                    patch.object(self.calibration, "errors", side_effect=measured), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                doc = self.calibration.family_budget("q5-1", torch, transformers)
+                self.assertEqual(doc["dtypes"], original["dtypes"])
+                self.assertEqual(doc["families"]["prior"], original["families"]["prior"])
+                self.assertEqual(json.loads(path.read_text()), original)
+                for dtype in self.calibration.DTYPES:
+                    budget = doc["families"]["q5-1"]["dtypes"][dtype]
+                    self.assertEqual((budget["logit_budget"], budget["nll_budget"]), (0.5, 0.25))
+                path.write_text(json.dumps(doc))
+                self.assertEqual(self.calibration.family_budget("q5-1", torch, transformers), doc)
+                with patch.object(self.calibration, "errors", side_effect=changed):
+                    with self.assertRaisesRegex(ValueError, "frozen family"):
+                        self.calibration.family_budget("q5-1", torch, transformers)
+                self.assertEqual(json.loads(path.read_text()), doc)
+
+    def test_reference_turnover_is_retained_but_cannot_set_budget(self):
+        accepted = {"status": "accepted", "logit_error": 0.02, "nll_error": 0.001,
+                    "routing": {"stable": True, "calls": 2}}
+        refused = {"status": "refused", "logit_error": 0.8, "nll_error": 0.02,
+                   "routing": {"stable": False, "first_change": {"call": 1}}}
+        result = self.calibration.budgets({"int8": [accepted, refused]})["int8"]
+        self.assertEqual((result["logit_budget"], result["nll_budget"]), (0.04, 0.002))
+        self.assertEqual(result["runs"], [accepted, refused])
+        with self.assertRaisesRegex(ValueError, "no routing-stable"):
+            self.calibration.budgets({"int8": [refused]})
+
+    def test_family_requires_routing_witness(self):
+        torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1)
+        transformers = SimpleNamespace(__version__="4.55.2")
+        with patch.object(self.calibration, "family_models", return_value=[(object(), {})]), \
+                patch.object(self.calibration, "errors", return_value=(0.01, 0.001)):
+            with self.assertRaisesRegex(ValueError, "missing reference routing witness"):
+                self.calibration.family_budget("q5-1", torch, transformers)
+
+    def test_routing_observer_uses_selected_sets(self):
+        router, norm = MagicMock(), MagicMock()
+        model = SimpleNamespace(config=SimpleNamespace(num_experts_per_tok=2),
+                                named_modules=lambda: [("layer.mlp.gate", router), ("layer.norm", norm)])
+        trace = []
+        handles = self.calibration.routing_hooks(model, trace)
+        self.assertEqual(handles, [router.register_forward_hook.return_value])
+        norm.register_forward_hook.assert_not_called()
+        hook = router.register_forward_hook.call_args.args[0]
+        output = MagicMock()
+        output.topk.return_value.indices.sort.return_value.values.tolist.return_value = [[0, 3]]
+        hook(router, (), output)
+        output.topk.assert_called_once_with(2, dim=-1)
+        output.topk.return_value.indices.sort.assert_called_once_with(dim=-1)
+        self.assertEqual(trace, [{"router": "layer.mlp.gate", "experts": [[0, 3]]}])
+        model.named_modules = lambda: []
+        with self.assertRaisesRegex(ValueError, "no observed router"):
+            self.calibration.routing_hooks(model, [])
+
+    def test_rounding_records_actual_router_turnover_and_cleans_hooks(self):
+        for rounded in ([0, 1], [0, 3]):
+            observed, observer, rounder = [], MagicMock(), MagicMock()
+            def observe(model, trace):
+                observed.append(trace)
+                return [observer]
+            def outputs(*args):
+                choice = [0, 1] if reference.reference_outputs.call_count == 1 else rounded
+                observed[0].append({"router": "layer.mlp.gate", "experts": [choice]})
+                return [{"logits": [0.0]}], [{"mean_nll": 0.0}]
+            reference = SimpleNamespace(reference_outputs=MagicMock(side_effect=outputs))
+            routing = {}
+            with patch.dict(sys.modules, {"gen_baseline": reference}), \
+                    patch.object(self.calibration, "routing_hooks", side_effect=observe), \
+                    patch.object(self.calibration, "rounding", return_value=[rounder]):
+                self.assertEqual(self.calibration.errors(object(), object(), "int8", routing=routing), (0.0, 0.0))
+            self.assertEqual(routing["stable"], rounded == [0, 1])
+            self.assertEqual(routing["calls"], 1)
+            if not routing["stable"]:
+                self.assertEqual(routing["first_change"]["rounded"]["experts"], [[0, 3]])
+            observer.remove.assert_called_once_with()
+            rounder.remove.assert_called_once_with()
+
+    def test_split_q5_moe_uses_every_expert(self):
+        import q5_1
+        ordinary = q5_1.fixture(False, True)[0]
+        split = q5_1.fixture(False, True, split=True)[0]
+        self.assertEqual(ordinary["expert_used_count"], 2)
+        self.assertEqual(split["expert_used_count"], split["expert_count"])
+        self.assertEqual(split["expert_count"], 4)
+
+    def test_family_covers_shapes_variants_and_seeds(self):
+        import q5_1
+        identities = []
+        fixture = ({"context_length": 16}, [], [])
+        with patch.object(q5_1, "fixture", return_value=fixture) as source, \
+                patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
+            for _, identity in self.calibration.family_models("q5-1"):
+                identities.append((identity["fixture"], identity["split"], identity["seed"]))
+        expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
+                    for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
+        self.assertEqual(set(identities), expected)
+        self.assertEqual(source.call_count, len(expected))
+
+    def test_invalid_reference_cannot_freeze_a_budget(self):
+        for value in (-1.0, float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "invalid reference errors"):
+                self.calibration.budgets({"int8": [{"logit_error": value, "nll_error": 0.0}]})
+        with self.assertRaisesRegex(ValueError, "invalid reference errors"):
+            self.calibration.budgets({"f16": []})
 
     def test_rounds_matrix_inputs_but_not_router_or_norm(self):
         class Linear:

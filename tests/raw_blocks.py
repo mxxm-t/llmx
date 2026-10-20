@@ -114,6 +114,23 @@ def iq4_nl_block(d, cs):
     return struct.pack("<H", d) + bytes(cs[j] | cs[j + 16] << 4 for j in range(16))
 
 
+def check_q5_1(rng):
+    payload, expected, runs = bytearray(), [], code_runs(rng, 32, 5)
+    for d, m in itertools.product(HALVES, HALVES):
+        for _ in range(32):
+            cs = next(runs)
+            high = sum((c >> 4) << i for i, c in enumerate(cs))
+            payload += struct.pack("<HHI", d, m, high)
+            payload += bytes((cs[j] & 15) | (cs[j + 16] & 15) << 4 for j in range(16))
+            expected += [cell(lambda h: h(d) * c + h(m)) for c in cs]
+    assert_values("Q5_1", expected, sd.decode(sd.Q5_1, payload, len(expected)))
+    assert_numpy_matches("Q5_1", sd.Q5_1, payload, len(expected))
+    for bit in range(32):
+        block = struct.pack("<HHI", 0x3800, 0xBC00, 1 << bit) + bytes(16)
+        assert sd.decode(sd.Q5_1, block, 32) == [7.0 if i == bit else -1.0 for i in range(32)]
+    print("raw-blocks: Q5_1 %d values, every code at every position, scale/min edges and isolated high bits  [ok]" % len(expected))
+
+
 def iq4_xs_block(d, scales, cs):
     high = sum((s >> 4) << 2 * b for b, s in enumerate(scales))
     low = bytes(scales[2 * i] & 15 | (scales[2 * i + 1] & 15) << 4 for i in range(4))
@@ -293,13 +310,13 @@ def check_q4_0_q8_0(rng):
           % (q4, len(expected)))
 
 
-# The numpy form against the pure one on the raw blocks tests/roundtrip.py holds llmx's Q4_1, Q4_K, Q5_K and Q6_K decoders to, which reach every scale, min, high bit and nibble.
+# The numpy form against the pure one on the raw blocks tests/roundtrip.py holds llmx's Q4_1, Q5_1, Q4_K, Q5_K and Q6_K decoders to, which reach every scale, min, high bit and nibble.
 def check_roundtrip_blocks():
-    for type_id, payload in ((sd.Q4_1, roundtrip.q4_1_blocks()), (sd.Q4_K, roundtrip.q4_k_blocks()),
+    for type_id, payload in ((sd.Q4_1, roundtrip.q4_1_blocks()), (sd.Q5_1, roundtrip.q5_1_blocks()), (sd.Q4_K, roundtrip.q4_k_blocks()),
                              (sd.Q5_K, roundtrip.q5_k_blocks()), (sd.Q6_K, roundtrip.q6_k_blocks())):
         _, values, size = sd.TYPES[type_id]
         assert_numpy_matches(sd.type_name(type_id), type_id, payload, len(payload) // size * values)
-    print("raw-blocks: the numpy form gives the pure form's bits on the round trip's Q4_1, Q4_K, Q5_K and Q6_K raw blocks  [ok]")
+    print("raw-blocks: the numpy form gives the pure form's bits on the round trip's Q4_1, Q5_1, Q4_K, Q5_K and Q6_K raw blocks  [ok]")
 
 
 def random_blocks(rng, type_id, count):
@@ -473,6 +490,7 @@ def run(require=False):
     """The checks above; without numpy the numpy form's are skipped, or with `require` fail."""
     rng = random.Random(20260925)
     check_16bit()
+    check_q5_1(rng)
     check_iq4(rng)
     check_mxfp4(rng)
     check_q3_k(rng)

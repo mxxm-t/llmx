@@ -238,7 +238,7 @@ def check_output_failures(d):
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
-TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "mxfp4": sd.MXFP4}
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_1": sd.Q5_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "mxfp4": sd.MXFP4}
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -320,6 +320,13 @@ def q4_1_blocks():
                     for k, (d, m) in enumerate(itertools.product(HALVES, HALVES)))
 
 
+def q5_1_blocks():
+    patterns = [1 << bit for bit in range(32)] + [0xFFFFFFFF ^ (1 << bit) for bit in range(32)]
+    scales = HALVES + (0, 0x8000)
+    return b"".join(struct.pack("<HHI", d, m, high) + nibble_bytes(k, 16)
+                    for d, m in itertools.product(scales, scales) for k, high in enumerate(patterns))
+
+
 # Q4_K super-block heads whose 12 scale and min bytes are all ones but for one cleared bit, one per bit, then all ones under every pairing of d and dmin, so a bit read from the wrong place changes values.
 # The cleared-bit blocks take d 1 and dmin 13.33, where no scale or min bit is lost to rounding against the other product.
 def q4_k_heads():
@@ -357,7 +364,7 @@ def mxfp4_blocks():
 
 # The formats `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, get their blocks from the test, written into a one-tensor GGUF with no metadata.
 def check_raw_decode(d):
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("mxfp4", mxfp4_blocks())):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_1", q5_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("mxfp4", mxfp4_blocks())):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block

@@ -181,7 +181,7 @@ float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
-The decoder types are F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K and MXFP4.
+The decoder types are F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_1, Q4_K, Q5_K, Q6_K and MXFP4.
 F16 and BF16 are widened exactly; `quantize` does not write either format.
 A known storage layout without a decoder, including IQ4_NL and Q2_K, is refused
 by tensor name before mapping the payload or allocating decoded buffers;

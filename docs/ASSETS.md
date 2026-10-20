@@ -319,7 +319,7 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q4_K / Q5_K / Q6_K / MXFP4 / F32 / F16 / BF16** tensors (see
+llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q5_1 / Q4_K / Q5_K / Q6_K / MXFP4 / F32 / F16 / BF16** tensors (see
 `docs/src/quant-quant.md`). GGUF metadata inspection recognizes 35 storage layouts
 independently of these decoders; this does not make the other types executable.
 Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
@@ -4104,3 +4104,16 @@ paired statistics and all 12 loaded-model fingerprint comparisons.
 `tests/baseline_mxfp4.py --model FILE` checks the pinned 0.6B writer output (SHA-256 `84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45`) first against file-exact HF, then against original-fp32 model quality: 5/6 top-1, at least 2/5 top-five overlap, mean-NLL differences at most 0.21 continuous and 0.35 windowed. These are the existing file-specific approvals, not relaxed runtime correctness: [approval record](benchmarks/mxfp4-approved-gates-20260927.json). Other models do not inherit them.
 
 The manual file-exact fixtures are `tests/data/mxfp4-file-exact/` and `tests/data/mxfp4-8b-file-exact/`; the latter pins the 8B file with SHA-256 `ebfb5ea2edd1cd6ba5c08a0f31d6c40bb0984a360fe1f694adacb21adfb4d807`. `tests/baseline.py --file-exact DIR --model FILE` consumes them. Neither real file is a hosted download. The separate GPU MoE ranking failure is not waived by this CPU implementation.
+
+## Q5_1 development reference (2026-10-20)
+
+`tests/data/baseline_q5_1.json` holds tiny dense tied/untied and MoE outputs from independently packed and spec-decoded Q5_1 weights. `tests/block_fixture.py` owns the shared fixture layout used by Q5_1 and MXFP4; the format-specific packers remain in their consumers. Generate with `python tools/gen_baseline.py q5-1 --output-dir tests/data` under torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6. The recorded generation used Python 3.12.13, eager F32 attention and one torch thread, with no GPU or network. The MoE routing-gap guard passed before any candidate comparison.
+
+The same command writes `tests/data/baseline_q5_1_split.json` for tensor groups:
+260 vocabulary entries, hidden width 128, four query/two KV heads of width 32
+and feed-forward width 256, dense tied/untied and MoE. These shapes split whole
+at widths two and four. The original reference values and packed/decoded hashes
+remain unchanged; the new MoE reference's minimum routing gap is 0.00686058.
+The consumer requests the full reference vocabulary, including reserved entries.
+
+The consumer checks packed/decoded hashes and 150 full-logit plus 12 NLL cases against the existing completed-path precision budgets. This is file-exact runtime evidence, not an original-weight quantization-quality approval or released-model/long-context qualification. The [development record](benchmarks/q5-1-development-20261020.json) holds the golden and binary identities and the remaining checks.

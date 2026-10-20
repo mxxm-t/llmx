@@ -20,6 +20,7 @@ import int8
 import half_weights
 import moe
 import mxfp4
+import q5_1
 import qwen35
 import split
 import tensor_split
@@ -112,6 +113,7 @@ def main():
                   ("moe", moe.run),
                   ("int8", int8.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
+                  ("q5-1", q5_1.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("tensor-split", lambda: tensor_split.run(require=args.require_tools)),

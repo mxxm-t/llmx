@@ -19,6 +19,13 @@
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
 #endif
 #include "q.glsl"
+// The fifth-bit plane is a compile-time weight loader choice. Existing Q4
+// products must not carry its branches or live high-bit registers.
+#ifdef LLMX_Q5
+const bool AFFINE_Q5 = true;
+#else
+const bool AFFINE_Q5 = false;
+#endif
 #ifdef LLMX_MXFP4
 #extension GL_ARB_gpu_shader_fp64 : require
 #extension GL_EXT_spirv_intrinsics : require
@@ -317,11 +324,13 @@ int mxfp4_dot(uint pairs[16], uint a2) {
 #define Q40_WEIGHTS(o) \
     float d = unpackHalf2x16(uint(w16s[pi].w16[(o) >> 1u])).x; \
     uint n0 = hword_at((o) + 2u), n1 = hword_at((o) + 6u), n2 = hword_at((o) + 10u), n3 = hword_at((o) + 14u);
-// Q4_1, the 5-word block at word o, d and m in word 0.
-#define Q41_WEIGHTS(o) \
+// Affine blocks carry d and m in word 0; Q5_1 inserts a high-bit word before the nibbles.
+#define AFFINE_WEIGHTS(o) \
     uint w0 = w32s[pi].w32[o]; \
-    uint w1 = w32s[pi].w32[(o) + 1u], w2 = w32s[pi].w32[(o) + 2u]; \
-    uint w3 = w32s[pi].w32[(o) + 3u], w4 = w32s[pi].w32[(o) + 4u]; \
+    uint qoff = AFFINE_Q5 ? 2u : 1u; \
+    uint hb = AFFINE_Q5 ? w32s[pi].w32[(o) + 1u] : 0u; \
+    uint w1 = w32s[pi].w32[(o) + qoff], w2 = w32s[pi].w32[(o) + qoff + 1u]; \
+    uint w3 = w32s[pi].w32[(o) + qoff + 2u], w4 = w32s[pi].w32[(o) + qoff + 3u]; \
     vec2 dm = unpackHalf2x16(w0);
 // A Q4 block's four nibble words against the column's activation pairs, into pl and ph.
 #define Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1) \
@@ -329,6 +338,21 @@ int mxfp4_dot(uint pairs[16], uint a2) {
     nibble_dots(n1, 0u, 0u, 0u, 0u, XB(lo0), XB(hi0), pl, ph); \
     nibble_dots(n2, 0u, 0u, 0u, 0u, XA(lo1), XA(hi1), pl, ph); \
     nibble_dots(n3, 0u, 0u, 0u, 0u, XB(lo1), XB(hi1), pl, ph);
+// Two fifth bits from the contiguous plane, in bit 4 of each 16-bit lane.
+uint affine_fifth(uint bits, uint at) {
+    return ((bits >> at) & 1u) << 4u | ((bits >> (at + 2u)) & 1u) << 20u;
+}
+void affine_nibble_dots(uint word, uint high, uint at, XWT lo, XWT hi, inout QDOT pl, inout QDOT ph) {
+    nibble_dots(word, affine_fifth(high, at), affine_fifth(high, at + 1u),
+                affine_fifth(high, at + 16u), affine_fifth(high, at + 17u), lo, hi, pl, ph);
+}
+#define AFFINE_DOTS(n0, n1, n2, n3, hb, lo0, lo1, hi0, hi1) \
+    if (AFFINE_Q5) { \
+        affine_nibble_dots(n0, hb, 0u, XA(lo0), XA(hi0), pl, ph); \
+        affine_nibble_dots(n1, hb, 4u, XB(lo0), XB(hi0), pl, ph); \
+        affine_nibble_dots(n2, hb, 8u, XA(lo1), XA(hi1), pl, ph); \
+        affine_nibble_dots(n3, hb, 12u, XB(lo1), XB(hi1), pl, ph); \
+    } else { Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1) }
 // Q4_0's term: the scaled dot less the offset of 8 through the block sum.
 #define Q40_TERM(d, xb) q40_term(d, xb, float(pl + ph))
 #ifdef LLMX_DOT
@@ -481,15 +505,17 @@ void main() {
             }
         } else {
             uint nblocks = p.nin / 32u;
+            uint words = AFFINE_Q5 ? 6u : 5u;
             uint wbr[ROWS];
-            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * 5u;
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * words;
             for (uint b = l; b < nblocks; b += p.cluster) {
                 vec2 dmr[ROWS];
-                uint w1r[ROWS], w2r[ROWS], w3r[ROWS], w4r[ROWS];
+                uint w1r[ROWS], w2r[ROWS], w3r[ROWS], w4r[ROWS], hbr[ROWS];
                 [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
-                    uint o = wbr[r] + b * 5u;
-                    Q41_WEIGHTS(o)
+                    uint o = wbr[r] + b * words;
+                    AFFINE_WEIGHTS(o)
                     dmr[r] = dm; w1r[r] = w1; w2r[r] = w2; w3r[r] = w3; w4r[r] = w4;
+                    hbr[r] = hb;
                 }
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
                     uint col = XCOL(min(c, ncols - 1u));
@@ -499,7 +525,7 @@ void main() {
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                         QDOT pl = QDOT(0);
                         QDOT ph = QDOT(0);
-                        Q4_DOTS(w1r[r], w2r[r], w3r[r], w4r[r], lo0, lo1, hi0, hi1)
+                        AFFINE_DOTS(w1r[r], w2r[r], w3r[r], w4r[r], hbr[r], lo0, lo1, hi0, hi1)
                         Q41_ADD(accr[r][c], dmr[r], xb);
                     }
                 }
@@ -807,19 +833,20 @@ void main() {
                 }
             }
         } else {
-            // Q4_1: one lane per 5-word block, d and m in word 0.
+            // One lane per affine block, d and m in word 0.
             uint nblocks = p.nin / 32u;
-            uint wbase = wrow * nblocks * 5u;
+            uint words = AFFINE_Q5 ? 6u : 5u;
+            uint wbase = wrow * nblocks * words;
             for (uint b = l; b < nblocks; b += p.cluster) {
-                uint o = wbase + b * 5u;
-                Q41_WEIGHTS(o)
+                uint o = wbase + b * words;
+                AFFINE_WEIGHTS(o)
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
-                    Q4_DOTS(w1, w2, w3, w4, lo0, lo1, hi0, hi1)
+                    AFFINE_DOTS(w1, w2, w3, w4, hb, lo0, lo1, hi0, hi1)
                     vec2 xb = xq_block(col, b);
                     Q41_ADD(acc[c], dm, xb);
                 }

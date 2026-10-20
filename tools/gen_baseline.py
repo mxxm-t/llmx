@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q5-1|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -16,7 +16,7 @@ file-exact writes the logit and PPL goldens of the reference model holding a qwe
 The independent synthetic f32, moe and mxfp4 fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 int8 writes the goldens of tests/int8.py's 512-token Q8_0 fixtures, HF float32 holding each fixture's file's own weights at its own seed, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
-all includes f32 and moe regardless of --repo; mxfp4 is generated explicitly.
+all includes f32 and moe regardless of --repo; mxfp4 and q5-1 are generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
@@ -854,14 +854,13 @@ def gen_f32(output_dir=OUT_DIR):
     print("wrote %s (tied/untied, full logits and windowed NLL)" % path)
 
 
-def tiny_mxfp4(tied, moe, seed=12345, context=16):
-    """A tiny MXFP4 fixture of tests/mxfp4.py as an HF model holding its spec-decoded weights; returns the model, its configuration, weights and raw blocks."""
+def tiny_block_model(config, weights, tied, moe):
+    """The shared dense/MoE raw-block fixture as HF, holding its independently decoded F32 weights."""
     import torch
     from transformers import Qwen3Config, Qwen3ForCausalLM, Qwen3MoeConfig, Qwen3MoeForCausalLM
-    from mxfp4 import fixture
 
-    config, weights, packed = fixture(tied, moe, seed, context)
-    params = dict(vocab_size=257, hidden_size=config["embedding_length"],
+    vocab = next(shape[1] for name, _, shape, _ in weights if name == "token_embd.weight")
+    params = dict(vocab_size=vocab, hidden_size=config["embedding_length"],
                   intermediate_size=config["feed_forward_length"], num_hidden_layers=config["block_count"],
                   num_attention_heads=config["attention.head_count"], num_key_value_heads=config["attention.head_count_kv"],
                   head_dim=config["attention.key_length"], max_position_embeddings=config["context_length"],
@@ -873,13 +872,45 @@ def tiny_mxfp4(tied, moe, seed=12345, context=16):
     hf_config._attn_implementation = "eager"
     model = (Qwen3MoeForCausalLM if moe else Qwen3ForCausalLM)(hf_config).float().eval()
     load_tiny_weights(model, weights, torch, tied)
-    return model, config, weights, packed
+    return model
+
+
+def tiny_mxfp4(tied, moe, seed=12345, context=16):
+    """A tiny MXFP4 fixture as HF; returns its model, configuration, decoded weights and raw blocks."""
+    from mxfp4 import fixture
+
+    config, weights, packed = fixture(tied, moe, seed, context)
+    return tiny_block_model(config, weights, tied, moe), config, weights, packed
+
+
+def block_reference(label, name, model, config, weights, packed, moe, torch, texts=None, windows=(4, 16)):
+    """Full HF forwards and reset-window NLL, refusing an unstable routed fixture."""
+    from block_fixture import packed_hash
+    from f32 import weight_hash
+
+    gaps, handles = [], []
+    if moe:
+        def watch(_, __, out):
+            probabilities = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
+            k = config["expert_used_count"]
+            gaps.append((probabilities[:, k - 1] - probabilities[:, k]).min().item())
+        for layer in model.model.layers:
+            handles.append(layer.mlp.gate.register_forward_hook(watch))
+    try:
+        cases, perplexity = reference_outputs(model, torch, texts, windows)
+    finally:
+        for handle in handles:
+            handle.remove()
+    if gaps and min(gaps) < 1e-4:
+        raise SystemExit("%s MoE routing gap %.2e is too near a tie; change the fixture weights" % (label, min(gaps)))
+    return dict(name=name, config=config, weights_sha256=weight_hash(weights), packed_sha256=packed_hash(packed),
+                min_routing_gap=min(gaps) if gaps else None, cases=cases, perplexity=perplexity)
 
 
 def gen_mxfp4(output_dir=OUT_DIR):
     import torch
     import transformers
-    from mxfp4 import VARIANTS, PROMPT_TEXTS, packed_hash, weight_hash
+    from mxfp4 import VARIANTS, PROMPT_TEXTS
 
     if transformers.__version__ != "4.55.2":
         raise SystemExit("mxfp4 requires pinned transformers 4.55.2")
@@ -888,24 +919,30 @@ def gen_mxfp4(output_dir=OUT_DIR):
         fixtures = []
         for name, tied, moe in VARIANTS:
             model, config, weights, packed = tiny_mxfp4(tied, moe, context=context)
-            gaps = []
-            if moe:
-                def watch(_, __, out):
-                    probabilities = torch.softmax(out.double(), dim=-1).sort(dim=-1, descending=True).values
-                    k = config["expert_used_count"]
-                    gaps.append((probabilities[:, k - 1] - probabilities[:, k]).min().item())
-                for layer in model.model.layers:
-                    layer.mlp.gate.register_forward_hook(watch)
-            cases, perplexity = reference_outputs(model, torch, texts, windows)
-            if gaps and min(gaps) < 1e-4:
-                raise SystemExit("MXFP4 MoE routing gap %.2e is too near a tie; change the fixture weights" % min(gaps))
-            fixtures.append(dict(name=name, config=config, weights_sha256=weight_hash(weights), packed_sha256=packed_hash(packed),
-                                 min_routing_gap=min(gaps) if gaps else None, cases=cases, perplexity=perplexity))
+            fixtures.append(block_reference("MXFP4", name, model, config, weights, packed, moe, torch, texts, windows))
         path = os.path.join(output_dir, "baseline_mxfp4%s.json" % suffix)
         _write(path, {"_comment": "Generated by tools/gen_baseline.py mxfp4 from independently spec-decoded raw blocks.",
                       "torch_version": torch.__version__, "transformers_version": transformers.__version__,
                       "dtype": "float32", "attention": "eager", "fixtures": fixtures})
         print("wrote %s (MXFP4 dense tied/untied and MoE, logits and windowed NLL)" % path)
+
+
+def gen_q5_1(output_dir=OUT_DIR):
+    from q5_1 import VARIANTS, fixture
+
+    torch, transformers = qwen3moe_environment()
+    torch.set_num_threads(1)
+    for split in (False, True):
+        fixtures = []
+        for name, tied, moe in VARIANTS:
+            config, weights, packed = fixture(tied, moe, split=split)
+            model = tiny_block_model(config, weights, tied, moe)
+            fixtures.append(block_reference("Q5_1", name, model, config, weights, packed, moe, torch))
+        path = os.path.join(output_dir, "baseline_q5_1%s.json" % ("_split" if split else ""))
+        _write(path, {"_comment": "Generated by tools/gen_baseline.py q5-1 from independently spec-decoded raw blocks.",
+                      "torch_version": torch.__version__, "transformers_version": transformers.__version__,
+                      "dtype": "float32", "attention": "eager", "fixtures": fixtures})
+        print("wrote %s (Q5_1 dense tied/untied and MoE, logits and windowed NLL)" % path)
 
 
 def tiny_moe(seed=67890, config=None, vocab=257):
@@ -1530,6 +1567,7 @@ FIXED_KINDS = {
     "moe-q8": "uses fixed synthetic weights and one thread",
     "int8": "uses fixed synthetic weights and one thread",
     "mxfp4": "uses fixed synthetic raw blocks and one thread",
+    "q5-1": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
     "qwen35-mtp": "uses fixed synthetic weights and one thread",
@@ -1539,7 +1577,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q5-1", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1646,6 +1684,8 @@ def main(argv=None):
         gen_int8(args.output_dir)
     if args.kind == "mxfp4":
         gen_mxfp4(args.output_dir)
+    if args.kind == "q5-1":
+        gen_q5_1(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
     if args.kind == "qwen35-tiny":

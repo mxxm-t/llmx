@@ -20,7 +20,7 @@ inline size_t check_matrix_precision(backend::Backend& device) {
     const auto require = [](bool ok, const std::string& message) { if (!ok) throw std::runtime_error(message); };
     take_matrix_paths(device);
     size_t checked = 0;
-    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
         const bool kquant = type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K;
         for (size_t width : {size_t(256), size_t(3840), size_t(4096), size_t(4352)})
         for (float selected : {1.0f / 1024.0f, 1.006111f}) {
@@ -36,6 +36,8 @@ inline size_t check_matrix_precision(backend::Backend& device) {
                     last[1] = 0x3c; last[3] = 0x89;
                 } else if (type == quant::GGML_TYPE_Q4_1) {
                     last[1] = 0x3c; last[5] = 1;
+                } else if (type == quant::GGML_TYPE_Q5_1) {
+                    last[1] = 0x3c; last[9] = 1;
                 } else if (type == quant::GGML_TYPE_Q6_K) {
                     std::fill(last + 128, last + 192, uint8_t(0xaa));
                     last[1] = 1; last[192] = 1; last[209] = 0x3c;

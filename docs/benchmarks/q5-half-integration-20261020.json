@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-20",
+  "scope": "Q5_1 integration onto half-weight support and Flash main; focused development checks",
+  "main_base": "7184ff13f50ed783c75ce30c5fce2906d3f083a5",
+  "half_dependency": "b1c2fcd93",
+  "q5_source_checkpoint": "5b3f83704",
+  "tested_tree": "Uncommitted conflict-resolved Q5 delta on b1c2fcd93; version records dirty state",
+  "version": "llmx 0.1.0+gb1c2fcd93860.dirty numerics 37fbd636740daacd",
+  "environment": {
+    "os": "Windows",
+    "compiler": "MSVC 19.50 / Visual Studio 18 2026",
+    "vulkan_sdk": "1.4.357.0",
+    "device": "Radeon VII"
+  },
+  "binaries": {
+    "llmx.exe": "8b316b1c02a430f29cf8bddb9d88ba0e594179fd7651797aa7fcd7b24a7c33f7",
+    "llmx-model-logits.exe": "4b0653d53fbff489b9258eea54e7ab82f4a556a8413c5ec05bb9b0205f5d102d"
+  },
+  "checks": {
+    "native": {
+      "passed": 5,
+      "failed": 0,
+      "tests": [
+        "backend-group",
+        "backend-errors",
+        "half-weights",
+        "backend-vulkan",
+        "vulkan-quantization"
+      ]
+    },
+    "half_twins": {
+      "cpu_capture_sets": 48,
+      "vulkan_capture_sets": 24,
+      "criterion": "Exact binary32 full vocabulary and 64-token replies versus exactly widened F32 weights under the same backend/policy",
+      "unavailable_formats": 0
+    },
+    "q5_hf": {
+      "cpu": "half-weights: 48 exact full-vocabulary capture sets and 64-token replies; dense/MoE, tied/untied, F16/BF16/mixed, identical across ubatch 3/16; auto activation policy, CPU tensor widths 1/2 where selected, 0 unavailable formats  [ok]\r\nQ5_1 dense-untied HF: max logit error 0.00000253, bounds [2e-05]; max NLL error 0.00000439, bounds [1e-05]\r\nQ5_1 dense-tied HF: max logit error 0.00000238, bounds [2e-05]; max NLL error 0.00000349, bounds [1e-05]\r\nQ5_1 moe HF: max logit error 0.00000255, bounds [2e-05]; max NLL error 0.00000466, bounds [1e-05]\r\nq5-1: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000255  [ok]\r\n\r\n  half-weights PASS\r\n  q5-1       PASS\r\n",
+      "vulkan": "half-weights: 24 exact full-vocabulary capture sets and 64-token replies; dense/MoE, tied/untied, F16/BF16/mixed, identical across ubatch 3/16; auto activation policy, CPU tensor widths 1/2 where selected, 0 unavailable formats  [ok]\r\nQ5_1 dense-untied HF: max logit error 0.00029441, bounds [0.003304719924926758]; max NLL error 0.00003439, bounds [0.0002966423345469593]\r\nQ5_1 dense-tied HF: max logit error 0.00033566, bounds [0.003304719924926758]; max NLL error 0.00002167, bounds [0.0002966423345469593]\r\nQ5_1 moe HF: max logit error 0.00034255, bounds [0.003304719924926758]; max NLL error 0.00000865, bounds [0.0002966423345469593]\r\nq5-1: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00034255  [ok]\r\n\r\n  half-weights PASS\r\n  q5-1       PASS\r\n",
+      "coverage_per_device": "150 full-logit cases and 12 continuous/windowed NLL checks, dense tied/untied and MoE",
+      "budgets": "Existing budgets unchanged; proposed family calibration remains inactive"
+    },
+    "source": "dead-code: 5 findings (unused 1, test-only 4) against the list; 18 planted faults; 14.7 s  [ok]\r\ndocs: 0 findings (none) against the list; 21 planted faults; 12.7 s  [ok]\r\narch-boundary: 31 files, 5 architecture names, 0 findings\r\n...........................................................\r\n----------------------------------------------------------------------\r\nRan 59 tests in 3.888s\r\n\r\nOK\r\npython : ..........\r\nAt line:2 char:1\r\n+ python -B tests/run_tests.py --exe ../half-main7184-20261020/build-ha ...\r\n+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (..........:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n----------------------------------------------------------------------\r\nRan 10 tests in 0.276s\r\n\r\nOK\r\n.................................fixture HF: max logit error 0.00010000, bounds [0.05409973859786987]; max NLL error 0.00002000, bounds [0.007924573802609913]\r\nfixture HF: max logit error 0.00010000, bounds [0.05409973859786987]; max NLL error 0.00002000, bounds [0.007924573802609913]\r\n.....................ss..ss.......\r\n----------------------------------------------------------------------\r\nRan 67 tests in 8.289s\r\n\r\nOK (skipped=4)\r\n\r\n  dead-code  PASS\r\n  docs       PASS\r\n  arch-boundary PASS\r\n  reference-generator PASS\r\n  reference-consumer PASS\r\n"
+  },
+  "integration": [
+    "Q5 descriptor uses half support's embedding columns; Flash and half shader registrations retained",
+    "Compile-time Q5 row variants keep the fifth-bit loader out of the Q4 row builds",
+    "No type-specific model, loader or CLI path"
+  ],
+  "open": [
+    "Independent family calibration review and int8 acceptance",
+    "MI50 integration and measured Q4 existing-path recovery",
+    "Released-file, split-policy and long-context qualification",
+    "Current-main CPU/device identity and matched timing",
+    "Applicable landing checks and hosted CI"
+  ],
+  "artifacts": {
+    "build-quant-configure.log": "510e26fb4ed66d254a02f7dc037cbd2b0e860dc9c3dc0af20aaf010e3887f095",
+    "build-quant-compile.log": "0cebdd707826a232c3faa34b25ae1641e2b1cdfefbcd15b38389fd3815bf2674",
+    "build-quant-native.log": "7e1608e7edf6a3ecdee46f3bb41239d5cbf5cbff314ccb4d816a692528060475",
+    "build-quant-cpu-models.log": "4c6f37ed400ec5e22305d904876fb942d7294e97ab807c3f3e64f7982ddf663e",
+    "build-quant-device-models.log": "77348feee383f6a403c3e25b40bb40559c30def8eeb3c3a367bd36ead937c68d",
+    "build-quant-source-checks.log": "8966965a8df0925a2b903db4003ee8476e6ed6238f97ec0666e4dc3b16883262"
+  }
+}

@@ -3,7 +3,7 @@
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
 llmx is a dependency-free LLM inference runtime in C++17 for CPUs and GPUs, run from the command line or as an OpenAI-compatible server, and able to run one model over several devices of one machine.
-The tables below list the supported models, file formats, quantization types, backends and multi-device modes, marked **Supported** (works today), **Planned** (on the [ROADMAP](docs/ROADMAP.md)) or explicitly awaiting release qualification.
+The tables below list models, file formats, quantization types, backends and multi-device modes: **Supported** (works today), **In development** (qualification underway), or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not yet qualified for release).
 
 ## Supported models
 
@@ -24,6 +24,7 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 |---|---|---|---|
 | F32, Q8_0, Q4_0 | Supported | Supported | Q8_0, Q4_0 |
 | Q4_1, Q4_K, Q5_K, Q6_K (so Q4_K_M and Q5_K_M files) | Supported | Supported | No |
+| Q5_1 | In development | In development | No |
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
 | F16, BF16 | Implemented; release qualification pending | Implemented; release qualification pending | No |
 | IQ4_NL, IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |

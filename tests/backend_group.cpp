@@ -331,7 +331,7 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
     size_t values = 0;
     for (float mag : {1e-30f, 1e-8f, 1.0f, 1e8f, 1e30f, 1e36f}) {
         for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0,
-                              quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                              quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
                               quant::GGML_TYPE_F32}) {
             const size_t width = type == quant::GGML_TYPE_F32 ? 37 : 256;
@@ -441,7 +441,7 @@ static size_t check_gather(backend::CpuBackend& cpu) {
 // Every pair of extents of one class gives the same bits through each dtype's matrix products and shared attention (row_classes::check).
 static size_t check_row_classes(backend::CpuBackend& cpu) {
     return row_classes::check(cpu,
-                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                                quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4},
                               [](uint32_t type, size_t nin, size_t rows, uint32_t) {
                                   const Matrix m(type, rows, nin, 1);
@@ -469,7 +469,7 @@ int main() {
             for (size_t rows : {size_t(7), size_t(47), size_t(48), size_t(65)}) {
                 for (size_t batch : {size_t(0), size_t(1), size_t(2), size_t(3), size_t(4)}) {
                     for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0,
-                            quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+                            quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                             quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
                         values += check(cpu, {type, type, type}, type == quant::GGML_TYPE_F32 ? 37 : 256,
                                         rows, batch);

@@ -49,6 +49,13 @@ float q4_1_at(uint o, uint j, float d, float m) {
     return d * float(nib) + m;
 }
 
+float q5_1_at(uint o, uint j, float d, float m) {
+    uint byte = QBYTE(o + 8u + (j & 15u));
+    uint low = j < 16u ? (byte & 15u) : (byte >> 4u);
+    uint high = (QBYTE(o + 4u + j / 8u) >> (j & 7u)) & 1u;
+    return d * float(low | (high << 4u)) + m;
+}
+
 // Q6_K, 256 values in 210 bytes: 128 low nibbles, 64 bytes of high bit pairs, 16 signed sub-scales, a half; value = d * sc * (q - 32).
 float q6_k_at(uint o, uint j, float d) {
     uint n = j / 128u, r = j - n * 128u;
@@ -109,6 +116,7 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     if (type == TYPE_Q6_K) return q6_k_at(o, j, d);
     float m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
     if (type == TYPE_Q4_1) return q4_1_at(o, j, d, m);
+    if (type == TYPE_Q5_1) return q5_1_at(o, j, d, m);
     if (type == TYPE_Q4_K) return q4_k_at(o, j, d, m);
     return q5_k_at(o, j, d, m);
 }

@@ -11,8 +11,7 @@
 #include "quant/mxfp4.hpp"
 #include "quant/types.hpp"
 
-// Weight conversion: half widening, the Q8_0 and Q4_0 quantizers, the Q8_0, Q4_0 and Q4_1 dequantizers, and the registry pairing implemented types with their storage metadata (types.hpp) and kernels (the K-quants' are in k_quants.hpp).
-// A Q8_0 block holds 32 float values as a 2-byte f16 scale and 32 int8 values (Q8_0_TYPESIZE bytes per block); the kernels serve the quantize command and the dequantize command and CPU inference path.
+// Block quantizers, decoders and their registry; types.hpp owns storage metadata.
 
 namespace quant {
 
@@ -127,6 +126,21 @@ inline void dequantize_row_q4_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// Q5_1 adds one high bit per value to Q4_1's affine codes, before the packed nibbles.
+inline void dequantize_row_q5_1(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const uint8_t* y = src + b * Q5_1_TYPESIZE;
+        float* x = dst + b * Q5_1_BLOCK;
+        const float d = f16_to_f32((uint16_t)(y[0] | ((uint16_t)y[1] << 8)));
+        const float m = f16_to_f32((uint16_t)(y[2] | ((uint16_t)y[3] << 8)));
+        for (size_t j = 0; j < Q5_1_BLOCK; ++j) {
+            const unsigned low = (y[8 + j % 16] >> (4 * (j / 16))) & 15;
+            const unsigned high = (y[4 + j / 8] >> (j % 8)) & 1;
+            x[j] = d * (float)(low | (high << 4)) + m;
+        }
+    }
+}
+
 // An implemented type: its storage metadata and block-wise (de)quantize routines; F32 is copied directly.
 struct QuantType : StorageType {
     void (*quantize)(const float*, uint8_t*, size_t) = nullptr;
@@ -155,6 +169,8 @@ private:
         // Q4_1 and the K-quants are read-only: llmx loads files that carry them, a few Q6_K tensors in an otherwise Q4_0 file included, but produces none, so a quantizer would be unused code; the tests pack Q4_1 themselves (tests/quantizers.hpp).
         { GGML_TYPE_Q4_1,
           { *storage_type(GGML_TYPE_Q4_1), nullptr, dequantize_row_q4_1 } },
+        { GGML_TYPE_Q5_1,
+          { *storage_type(GGML_TYPE_Q5_1), nullptr, dequantize_row_q5_1 } },
         { GGML_TYPE_Q4_K,
           { *storage_type(GGML_TYPE_Q4_K), nullptr, dequantize_row_q4_K } },
         { GGML_TYPE_Q5_K,

@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-20",
+  "runtime_commit": "c9309c3da205c268c906057c01299fde67bccef5",
+  "scope": "Tests/reference extension only; runtime unchanged from the MI50 record.",
+  "reference": {
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "threads": 1,
+    "generator": "tools/gen_baseline.py q5-1",
+    "original_preserved": "Every original Q5_1 reference value reproduced exactly; serialization differs only by CRLF/LF. Six original Q5_1/MXFP4 packed/decoded fixture identities retained.",
+    "split_moe_min_routing_gap": 0.0068605829520105716,
+    "new_fixture": "Dense tied/untied and MoE, vocabulary 260, width 128, four query/two KV heads, FFN 256."
+  },
+  "device": "Physical MI50s 0-3, renderD136/D137/D132/D133. Each guarded by PCI, VRAM and utilization before use.",
+  "coverage": {
+    "policies": "Default F16 only, actual path witnesses retained in raw report.",
+    "model_topology_captures": 9,
+    "full_vocabulary_rows_per_capture": "13 batched, 13 per-token, 64 greedy.",
+    "hf_compared_positions_per_capture": "Five reference positions in both batched and per-token captures.",
+    "hf_nll": "One full 13-token sequence per capture against the reference's context-16 NLL.",
+    "group_comparison": "Six group-vs-single comparisons, existing ranking/NLL and 64-step greedy criteria.",
+    "runner": "q5-split-captures.py reuses tensor_split.capture/held_to_hf and common device comparisons."
+  },
+  "summary": [
+    {
+      "width": 1,
+      "max_logit_error": 0.0004757791757583618,
+      "max_nll_error": 3.2173139175029064e-05,
+      "logit_bound": 0.003304719924926758,
+      "nll_bound": 0.0002966423345469593,
+      "passed": true
+    },
+    {
+      "width": 2,
+      "max_logit_error": 0.00047101080417633057,
+      "max_nll_error": 2.0526409649335164e-05,
+      "logit_bound": 0.003304719924926758,
+      "nll_bound": 0.0002966423345469593,
+      "passed": true
+    },
+    {
+      "width": 4,
+      "max_logit_error": 0.00045561790466308594,
+      "max_nll_error": 2.82411326031351e-05,
+      "logit_bound": 0.003304719924926758,
+      "nll_bound": 0.0002966423345469593,
+      "passed": true
+    }
+  ],
+  "tool_sha256": "296e3f726afe1d0a61604966b98ccb025bd85b3aaaa52a8a107d80edf7c8414a",
+  "raw_report_sha256": "a14151971bb95d13d3224f44e93af58363521d34a176834361e08e8e67e358b4",
+  "input_sha256": {
+    "tests/block_fixture.py": "950b5e94e228219c50041323c21d4f02864479200ffb7bb571f9dbde9e000549",
+    "tests/q5_1.py": "be5d07eae6db9bf88d44921083500252dfd4e5f13a58bd409de9dcd14afb792d",
+    "tests/common.py": "c2272e8e8606b75f57ec7c07b6a842a7920d6222b9ee8a14efa8f4714724bf9e",
+    "tests/tensor_split.py": "a306a7f9ea830f213bd6ad794fd0365e15119312a339b5085f2d03adb57c53fc",
+    "tests/data/baseline_q5_1_split.json": "ffb6e66dd35772e7932d30985a856f6b4b96e642e865bd0db9b85b3274a0da06",
+    "tools/gen_baseline.py": "b07ac687eb920574014fe76c366c5505f07c88e036d407ad4f3f4873ceabb8fe",
+    "tools/model_logits.cpp": "e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c"
+  },
+  "runner_sha256": {
+    "q5-split-captures.py": "f16bb1be063d0c833e2bae52f5d63436efa201db7a2231cc846da0104725b9ac",
+    "q5-split-captures.sh": "cede7f5a4ef26a50f62a99459e65fdeb6c4d7514a99830ebaf50ae6a1e9cab0a"
+  },
+  "artifact_root": "/zpool1/llmx-xdev-quant-20261020/q5-c9309c3da/build/q5-split-captures",
+  "development_failures": [
+    "Initial CLI consumer requested 257 logits for a 260-token fixture and correctly failed incomplete output. Fixed to request the full reference vocabulary; a focused consumer check covers 260 entries.",
+    "The corrected full CLI sweep was stopped because each prompt recreated Vulkan devices. It is retained as incomplete, not a pass. The existing capture tool reused loaded models for the bounded check above."
+  ],
+  "regressions": {
+    "reference_generator": "43 checks pass, including new split fixture hashes.",
+    "reference_consumer": "46 checks pass; another 10 layered-reference checks pass.",
+    "original_q5_cpu": "150 full-logit and 12 NLL cases pass unchanged bounds."
+  },
+  "not_claimed": [
+    "Explicit F32/BF16/int8 group qualification or the full split CLI sweep.",
+    "Context-4 split NLL, long-context, server cache reuse or released-model split qualification.",
+    "Performance, original-weight quality, phase completion or landing gates."
+  ]
+}

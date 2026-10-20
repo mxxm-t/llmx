@@ -23,7 +23,7 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4`, `F32`, `F16` and `BF16` on first use and never changes after, so no caller sets it up and any thread may read it.
+  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q5_1`, `Q4_K`, `Q5_K`, `Q6_K`, `MXFP4`, `F32`, `F16` and `BF16` on first use and never changes after, so no caller sets it up and any thread may read it.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types
@@ -39,3 +39,5 @@ Batched prompt rows of Q8_0, Q4_0 and Q4_1 dequantize through these block routin
 
 
 MXFP4 is read-only, decoded by `mxfp4.hpp` ([quant-mxfp4](quant-mxfp4.md)). The generic CPU prompt path widens its blocks to F32, while decode uses 16-bit activation dots. Registration also enables raw conversion and embedding; it does not imply Vulkan support.
+
+Q5_1 is read-only: `dequantize_row_q5_1` reads 32 affine values from a 24-byte block (half scale, half minimum, four fifth-bit bytes, then 16 nibble bytes). CPU dense and routed calls reuse the existing dequantized products, with no quantized activation dot added.

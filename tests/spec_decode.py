@@ -17,6 +17,7 @@ except ImportError:
     np = None
 
 F32, F16, Q4_0, Q4_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS, BF16, MXFP4 = 0, 1, 2, 3, 8, 10, 11, 12, 13, 14, 20, 23, 30, 39
+Q5_1 = 7
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -24,6 +25,7 @@ TYPES = {
     F16: ("F16", 1, 2),
     Q4_0: ("Q4_0", 32, 18),
     Q4_1: ("Q4_1", 32, 20),
+    Q5_1: ("Q5_1", 32, 24),
     Q8_0: ("Q8_0", 32, 34),
     Q2_K: ("Q2_K", 256, 84),
     Q3_K: ("Q3_K", 256, 110),
@@ -95,6 +97,14 @@ def q4_1(block):
     d, m = f16(block, 0), f16(block, 2)
     qs = block[4:20]
     return [d * (q & 15) + m for q in qs] + [d * (q >> 4) + m for q in qs]
+
+
+# Q5_1: f16 scale and min, four bytes of fifth bits (bit i belongs to value i), then nibbles in Q4_0's order.
+def q5_1(block):
+    d, m = f16(block, 0), f16(block, 2)
+    high = int.from_bytes(block[4:8], "little")
+    return [d * (((block[8 + i % 16] >> (4 * (i // 16))) & 15) | ((high >> i) & 1) << 4) + m
+            for i in range(32)]
 
 
 # IQ4_NL: an f16 scale d, then nibbles in Q4_0's order, each d * IQ4_VALUES[nibble].
@@ -212,7 +222,7 @@ PURE = {
     F32: lambda block: [struct.unpack("<f", bytes(block))[0]],
     F16: lambda block: [f16(block, 0)],
     BF16: lambda block: [bf16(block, 0)],
-    Q8_0: q8_0, Q4_0: q4_0, Q4_1: q4_1, Q4_K: q4_k, Q5_K: q5_k, Q6_K: q6_k,
+    Q8_0: q8_0, Q4_0: q4_0, Q4_1: q4_1, Q5_1: q5_1, Q4_K: q4_k, Q5_K: q5_k, Q6_K: q6_k,
     Q2_K: q2_k, Q3_K: q3_k, IQ4_NL: iq4_nl, IQ4_XS: iq4_xs, MXFP4: mxfp4,
 }
 
@@ -265,6 +275,12 @@ def _np_q4_0(a):
 
 def _np_q4_1(a):
     return _half(a, 0) * _nibbles(a[:, 4:20]).astype(np.float32) + _half(a, 2)
+
+
+def _np_q5_1(a):
+    high = np.unpackbits(a[:, 4:8], axis=1, bitorder="little")
+    codes = _nibbles(a[:, 8:24]) | (high << 4)
+    return _half(a, 0) * codes.astype(np.float32) + _half(a, 2)
 
 
 def _np_iq4_nl(a):
@@ -348,7 +364,7 @@ def _np_iq4_xs(a):
 
 NUMPY = {
     F32: _np_f32, F16: _np_f16, BF16: _np_bf16,
-    Q8_0: _np_q8_0, Q4_0: _np_q4_0, Q4_1: _np_q4_1, Q4_K: _np_q4_k, Q5_K: _np_q5_k, Q6_K: _np_q6_k,
+    Q8_0: _np_q8_0, Q4_0: _np_q4_0, Q4_1: _np_q4_1, Q5_1: _np_q5_1, Q4_K: _np_q4_k, Q5_K: _np_q5_k, Q6_K: _np_q6_k,
     Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs, MXFP4: _np_mxfp4,
 }
 

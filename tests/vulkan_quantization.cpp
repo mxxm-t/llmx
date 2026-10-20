@@ -237,7 +237,7 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
         for (int e : {-24, -23, -15, -14, -13, -1, 0, 14, 15}) peaks.push_back(std::ldexp(1.0f, e));
         peaks.push_back(65504.0f);
     }
-    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K,
+    for (uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
                           quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q8_0}) {
         const auto* qt = quant::Registry::instance().get(type);
         for (const Scale& scale : scales) for (int encoding : {0, 1}) for (size_t width : {size_t(256), size_t(288), size_t(4096)}) {
@@ -258,15 +258,16 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
             uint8_t* unit = weights.data() + 2 * stride - qt->type_size;
             if (type == quant::GGML_TYPE_Q4_0) unit[2] = 0x89;
             else if (type == quant::GGML_TYPE_Q4_1) unit[4] = 1;
+            else if (type == quant::GGML_TYPE_Q5_1) unit[8] = 1;
             else if (type == quant::GGML_TYPE_Q8_0) unit[2] = 1;
             else if (type == quant::GGML_TYPE_Q6_K) unit[0] = 1;
             else { unit[4] = 1; unit[type == quant::GGML_TYPE_Q5_K ? 48 : 16] = 1; }
             if (encoding == 1) {
                 for (size_t offset = 0; offset < weights.size(); offset += qt->type_size) {
                     uint8_t* block = weights.data() + offset;
-                    if (type == quant::GGML_TYPE_Q4_1) {
+                    if (type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_1) {
                         block[3] = 0xbc;
-                        std::fill(block + 4, block + 20, uint8_t(0x11));
+                        std::fill(block + (type == quant::GGML_TYPE_Q5_1 ? 8 : 4), block + qt->type_size, uint8_t(0x11));
                     } else if (type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K) {
                         block[3] = 0x3c;
                         std::fill(block + 4, block + 12, uint8_t(1));
@@ -276,6 +277,7 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                 }
                 if (type == quant::GGML_TYPE_Q4_0) unit[2] = 0x87;
                 else if (type == quant::GGML_TYPE_Q4_1) unit[4] = 0x12;
+                else if (type == quant::GGML_TYPE_Q5_1) unit[8] = 0x12;
                 else if (type == quant::GGML_TYPE_Q8_0) unit[2] = 255;
                 else if (type == quant::GGML_TYPE_Q6_K) { unit[0] = 15; unit[128] = 0xa9; }
                 else unit[type == quant::GGML_TYPE_Q5_K ? 48 : 16] = 0x12;
@@ -285,7 +287,7 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                 const size_t at = type == quant::GGML_TYPE_Q6_K ? 208 : 0;
                 block[at] = uint8_t(scale.bits);
                 block[at + 1] = uint8_t((scale.bits >> 8) | (block[at + 1] & 128));
-                if (encoding == 1 && (type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K)) {
+                if (encoding == 1 && (type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_1 || type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K)) {
                     block[2] = uint8_t(scale.bits);
                     block[3] = uint8_t((scale.bits >> 8) | (block[3] & 128));
                 }

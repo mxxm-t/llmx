@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## CLI mean NLL output precision (2026-10-21)
+
+- **Goal:** preserve computed mean NLL accuracy when the CLI serializes a summary above ten, without changing inference math or acceptance bounds.
+- **Done:** isolated branch from main `8bf47070dae4d51c134e04f5f253ee3a640d3aa8`; the existing analytic perplexity fixture is the regression owner; doubling its exact output scale gives analytic NLL 12.616171432876087, while the unchanged CLI prints 12.6162 and fails the existing 1e-5 bound.
+- **Left:** fix summary formatting and run focused perplexity/source checks.
+- **Gotchas:** independent from Q5_0, IQ4_XS and pacing branches; no quantization policy, precision budget or numeric kernel changes. No merge or push.
+
 ## Q5_0 focused split-int8 and converted-file checkpoint (2026-10-20)
 
 - **Done:** unchanged runtime `a1fc99258` and reviewed test/budget overlay `784bad9a5` pass the completed MI50 split-int8 consumer (150 full-vocabulary logit and 12 NLL cases; maximum errors 0.12624993 and 0.01280141) and converted-file exact consumer (top-1 6/6, top-5 set 6/6, exact order 6/6, eight NLL cases). Existing reviewed Q5_0 limits and bounds are unchanged. The [qualification record](benchmarks/q5-0-focused-qualification-20261020.json) pins source/archive/image, runner, commands, devices, resource caps, raw result records and logs.

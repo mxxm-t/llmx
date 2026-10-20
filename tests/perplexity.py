@@ -11,12 +11,12 @@ from tokenizer import build_byte_vocab, w_str
 
 
 def build_model(path):
-    # Constant activations and a nonuniform output distribution give an analytic scoring oracle; different target IDs expose miscounted window boundaries.
+    # Constant activations and a nonuniform output distribution give an analytic NLL above ten, exposing summary rounding as well as miscounted window boundaries.
     config = {"block_count": 1, "embedding_length": 32, "feed_forward_length": 32,
               "attention.head_count": 1, "attention.head_count_kv": 1,
               "attention.key_length": 32, "context_length": 4}
     tensors = [("token_embd.weight", [32, 256], [1.0] * 8192),
-               ("output.weight", [32, 256], [i / 1024 for i in range(256) for _ in range(32)]),
+               ("output.weight", [32, 256], [i / 512 for i in range(256) for _ in range(32)]),
                ("output_norm.weight", [32], [1.0] * 32)]
     for name in ("attn_norm", "attn_q_norm", "attn_k_norm", "ffn_norm"):
         tensors.append(("blk.0." + name + ".weight", [32], [1.0] * 32))
@@ -56,7 +56,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix="llmx_ppl_boundaries_") as directory:
         model = os.path.join(directory, "analytic.gguf")
         build_model(model)
-        logits = [i / 32 / math.sqrt(1 + 1e-6) for i in range(256)]
+        logits = [i / 16 / math.sqrt(1 + 1e-6) for i in range(256)]
         logsum = math.log(sum(math.exp(x) for x in logits))
         cases = [("ab", 4, 0), ("abcd", 4, 0), ("abcde", 4, 0),
                  ("abcdef", 4, 0), ("abcdefgh", 4, 0), ("abcdefghi", 4, 0),
@@ -79,7 +79,8 @@ def run():
             assert int(fields["scored tokens"]) == len(targets)
             assert int(fields["chunks"]) == len(windows)
             assert int(fields["context size"]) == context
-            assert abs(float(fields["mean NLL"]) - expected) < 1e-5
+            assert expected > 10, expected
+            assert abs(float(fields["mean NLL"]) - expected) < 1e-5, (text, fields["mean NLL"], expected)
             assert math.isclose(float(fields["perplexity"]), math.exp(expected), rel_tol=1e-5)
             # --verbose adds a line for each window, in order, with its scored tokens and their mean NLL; the totals stay as they were.
             rc, verbose = cli(["perplexity", model, text, "--verbose"] + flags)

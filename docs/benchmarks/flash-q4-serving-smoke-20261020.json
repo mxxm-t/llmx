@@ -1,0 +1,212 @@
+{
+  "date": "2026-10-20",
+  "scope": "Four-GPU real-file Qwen3.8 Flash Q4 serving smoke on the quant landing release candidate. Not HF correctness, quality, full-context, prefix-reuse, performance qualification, merge approval, or production deployment.",
+  "local_scratch_base": "C:/Users/Marko/Desktop/Projects/llmx",
+  "candidate": {
+    "head": "f984840a461de65b12b5ea247d64e5b7e7483997",
+    "hosted_ci": {
+      "run_id": 39436488421,
+      "url": "https://github.com/mxxm-t/llmx/actions/runs/39436488421",
+      "head": "f984840a461de65b12b5ea247d64e5b7e7483997",
+      "conclusion": "success",
+      "jobs": "7/7 success",
+      "note": "Hosted validation for this candidate only; does not mean it has been merged or deployed."
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "version": "llmx 0.1.0+gf984840a461d numerics f5c78e79390aba99",
+    "binary_sha256": "17ea81fbb7578789b3f56d66f27d65e9c95050d86455fe90297f1c3119a5b57a",
+    "vulkan_library_sha256": "61920b7cf330ddfb62aeb0d0eb4705eeec5c61a3276e2089a6d6b2b7fb2a4361",
+    "build_record": "build-quant-resume-20261020/flash-release-results/complete-v2.json",
+    "build_record_sha256": "96b51aafb242c7ec58cfdc002ce9c0c6550e068cebe8150fa3974d14d62c345b",
+    "build_log_sha256": "9c42a81f2b5be50c048d282423f50f7d8f922167aa4cdceda884882be6344018",
+    "version_log_sha256": "71115f140cc2c6631b628a9430b8da00fabf7644936d8bca1230a16ca7d3115f"
+  },
+  "model": {
+    "variant": "Qwen3.8-Flash-Next-UD-Q4_K_XL",
+    "first_shard": "/models/Qwen3.8-Flash-Next/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+    "architecture": "qwen4exp",
+    "shards": 4,
+    "context_cap_tokens": 262144
+  },
+  "attempts": [
+    {
+      "name": "Q4_K_M MTP sidecar",
+      "sidecar": "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q4_K_M-v2.gguf",
+      "passed": false,
+      "stage": "refused before model load",
+      "error": "device 3 does not support tensor blk.48.nextn.hc_head_up.weight of type Q5_0 (6)",
+      "source": "build-quant-resume-20261020/flash-release-results/flash-q4-serving-smoke/complete.json",
+      "stderr": "build-quant-resume-20261020/flash-release-results/flash-q4-serving-smoke/stderr.log",
+      "complete_sha256": "6f785fb2dec50ae3838d0e1c823d85fcec9056e9734f996a68488b3e38553e7e",
+      "stderr_sha256": "e9ee595aeae2fb3fe2bc013bdfb9ccf754ac4ab52e51597fc7cdebd3dca5ac3a"
+    },
+    {
+      "name": "Q8_0 MTP sidecar",
+      "sidecar": "/models/Qwen3.8-Flash-Next/mtp-heads/qwen4exp-mtp-head-Q8_0-v2.gguf",
+      "sidecar_tensor_types": {
+        "Q8_0": 24,
+        "F32": 11
+      },
+      "passed": true,
+      "elapsed_seconds": 43.9373109,
+      "complete_sha256": "2d2a592cbc7ad78ca12ab2d80f56e7e6ab653cab9e91bc3a4aec9b6b3dec7fb9",
+      "stderr_sha256": "1fc19e38a4bcc59fadf0e88c3dd781bc9a8891828d3965676683d12267759290",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "requests": [
+        {
+          "case": "initial",
+          "passed": true,
+          "prompt_tokens": 63,
+          "generated_tokens": 49,
+          "finish": "stop",
+          "cached_tokens": 0
+        },
+        {
+          "case": "repeat",
+          "passed": true,
+          "prompt_tokens": 63,
+          "generated_tokens": 49,
+          "finish": "stop",
+          "cached_tokens": 0
+        },
+        {
+          "case": "followup",
+          "passed": true,
+          "prompt_tokens": 136,
+          "generated_tokens": 34,
+          "finish": "stop",
+          "cached_tokens": 0
+        }
+      ],
+      "health": {
+        "status": "ok",
+        "topology": "layer split, tensor width 1",
+        "devices": [
+          "vulkan:0",
+          "vulkan:1",
+          "vulkan:2",
+          "vulkan:3"
+        ],
+        "physical_render_nodes": [
+          136,
+          137,
+          132,
+          133
+        ],
+        "pci": [
+          "0000:03:00.0",
+          "0000:44:00.0",
+          "0000:83:00.0",
+          "0000:86:00.0"
+        ],
+        "layer_ranges_half_open": [
+          [
+            0,
+            13
+          ],
+          [
+            13,
+            26
+          ],
+          [
+            26,
+            39
+          ],
+          [
+            39,
+            48
+          ]
+        ],
+        "embedding_device": "vulkan:0",
+        "head_device": "vulkan:3",
+        "dtype_requested": "auto",
+        "dtype_declared": "bf16",
+        "dtype_effective": "f16",
+        "quantized_matrix_path": "block-int16",
+        "other_matrix_paths": "F32 for other products, routers, and IQ4_NL fallback; IQ4_NL rows use lookup-dot where available",
+        "context_tokens": 262144,
+        "per_request_context_cap": 262144,
+        "shared_kv_tokens": 950208,
+        "max_sequences": 16,
+        "state_checkpoints": 16,
+        "checkpoint_kv_tokens": 68864,
+        "passes": 4,
+        "sampling_threads": 3
+      },
+      "launch_settings": {
+        "host": "127.0.0.1",
+        "port": 18190,
+        "device": "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+        "tensor_width": 1,
+        "threads": 4,
+        "max_sequences": 16,
+        "ubatch": 512,
+        "ctx_size": 262144,
+        "lookup_storage": "file",
+        "drafter": "lookup with the Q8_0 sidecar above",
+        "host_cache_bytes": 0,
+        "disk_cache_bytes": 0,
+        "context_overflow": "shift"
+      },
+      "mtp_counters": {
+        "drafted_total": 131,
+        "kept_total": 86,
+        "failed_total": 0,
+        "by_position": [
+          {
+            "position": 1,
+            "drafted": 45,
+            "kept": 35
+          },
+          {
+            "position": 2,
+            "drafted": 43,
+            "kept": 30
+          },
+          {
+            "position": 3,
+            "drafted": 43,
+            "kept": 21
+          }
+        ],
+        "own_history_drafted": 17,
+        "own_history_kept": 11,
+        "mtp_only_drafted": 114,
+        "mtp_only_kept": 75
+      },
+      "source": "build-quant-resume-20261020/flash-release-results/flash-q4-serving-smoke-q8-mtp/complete.json"
+    }
+  ],
+  "performance_decision": {
+    "source": "build-quant-resume-20261020/quant-performance-assessment.txt",
+    "decision": "Accept the bounded workload tradeoff for this landing candidate under the performance-tradeoff principle; this is not a zero-regression claim.",
+    "existing_file_main_comparison": {
+      "p512_prefill_mean_range_percent": [
+        -0.04,
+        0.05
+      ],
+      "p64_q5_k_m_prefill_percent": -0.52,
+      "p64_q4_k_m_prefill_percent": -0.66,
+      "p64_q5_k_m_decode_percent": -1.05,
+      "layout_control_decode_shift_max_percent": 0.77,
+      "interpretation": "Small differences and order effects remain uncertain; they are recorded costs, not claimed as proven noise or equivalence. The earlier substantial Q4 tile regression has a separate recovery record."
+    },
+    "new_type_reference_deficits": [
+      "IQ4_NL decode",
+      "F16 prefill and decode",
+      "BF16 prefill"
+    ],
+    "followup": "Immediate profiling/recovery in existing row/tile owners; no tolerance changes or sample omission."
+  },
+  "limits_and_deployment": {
+    "not_established": [
+      "HF correctness",
+      "original-weight quantization quality",
+      "long-context behavior",
+      "prefix reuse (all three requests report cached_tokens=0)",
+      "production launch or rollback"
+    ],
+    "production": "Unchanged; still on the existing two-GPU service configuration using devices 8/9.",
+    "merge": "Pending fast-forward to public main and root review; hosted CI and smoke do not themselves merge or authorize deployment."
+  }
+}

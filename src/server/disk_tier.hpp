@@ -446,6 +446,14 @@ public:
         return store_ != nullptr;
     }
 
+    // Whether the write in flight is a file of history `d`, in blocks of `block` tokens, reaching past row `keep`: a segment past it, or a state at the history's end.
+    bool writes_past(const std::vector<std::string>& d, size_t block, size_t keep) const {
+        if (!key_ || cancelled_) return false;
+        const size_t at = pending_.first / block, n = pending_.ends.size();
+        if (at >= d.size() || d[at] != pending_.below) return false;
+        if (n && (at + n >= d.size() || d[at + n] != pending_.ends.back())) return false;
+        return pending_.end > keep;
+    }
     // Stops write `key`, which finishes cancelled unless its file is already in place.
     void cancel(uint64_t key) {
         std::lock_guard<std::mutex> lk(m_);
@@ -613,7 +621,8 @@ public:
                 out.changed = true;
                 // Published: only now is the file a holder of its rows.
                 ++whole_;
-            } else {
+            } else if (!cancelled_) {
+                // A write the server stopped itself is no failure.
                 ++failed_;
             }
             pending_ = DiskIndex::File{};

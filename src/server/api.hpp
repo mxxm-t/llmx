@@ -290,9 +290,7 @@ private:
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + ",\"prompt\":" + n(s.prompt_passes) + "}}" +
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +
                   ",\"since_start\":{\"gaps\":" + n(s.gaps) + ",\"gaps_above_target\":" + n(s.gaps_late) + ",\"deferred_by_floor\":" + n(s.floor_deferred) +
-                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"stages\":" + slices_json(s.slices) + ",\"background\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"job_rows_left\":" + n(s.job_rows_left) +
-                  "},\"since_start\":{\"grants\":" + n(s.background_grants) + ",\"overruns\":" + n(s.background_overruns) + ",\"first_steps\":" + n(s.background_first_steps) + ",\"credits\":" + n(s.background_credits) + ",\"ms\":" + jmini::number((float)s.background_ms) +
-                  ",\"largest_ms\":" + jmini::number((float)s.background_largest_ms) + "}}}" +
+                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"stages\":" + slices_json(s.slices) + "}" +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
     // Each stage's last pass fed in pieces (SliceRecord): its rows, its pieces' count and time, and its longest piece's time, layer and part.
@@ -1273,7 +1271,6 @@ inline void resolve_pacing(Config& cfg, const std::string& unpaced) {
     if (cfg.generating_share > 0 && !unpaced.empty()) throw std::runtime_error("--generating-share: " + unpaced);
     cfg.unpaced = cfg.no_pacing ? "--no-pacing" : unpaced;
     cfg.pacing = cfg.no_pacing ? Pacing{} : cfg.generating_share > 0 ? Pacing::fixed(cfg.generating_share) : unpaced.empty() ? Pacing::automatic() : Pacing{};
-    cfg.pacing.refused = cfg.no_pacing;
 }
 // The start line that says which.
 inline std::string pacing_line(const Config& cfg) {

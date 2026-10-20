@@ -553,6 +553,7 @@ public:
             restores_.clear();
         }
         for (Follow& f : given) {
+            if (f.whole && !f.ids.empty()) trim(f.of->parked_, f.ids);
             const std::pair<size_t, size_t> at = job_of(active, f.of.get());
             std::shared_ptr<Request> j = at.first != npos ? active[at.first] : at.second != npos ? jobs_[at.second] : nullptr;
             if (j && j->seq_.in_flight()) {
@@ -625,6 +626,30 @@ public:
                 continue;
             }
             jobs_.erase(jobs_.begin() + (std::ptrdiff_t)i);
+        }
+    }
+    // A finished request's donor `id` keeps only the token prefix its next turn's whole ids share with it, in whole blocks: no turn forks the rows past it, a reply's reasoning among them (F2DEV and XDEV, 2026-10-20 08:29).
+    // A state model's donor ends at its checkpoint, which no retract moves, so it stays on the devices whole and is copied and written only where that checkpoint lies within the prefix.
+    void trim(uint64_t id, const std::vector<uint32_t>& ids) {
+        std::lock_guard<std::mutex> lk(m_);
+        for (size_t d = 0; id && d < donors_.size(); ++d) {
+            Donor& x = donors_[d];
+            if (x.id != id) continue;
+            size_t same = 0;
+            while (same < x.tokens.size() && same < ids.size() && x.tokens[same] == ids[same]) ++same;
+            const size_t bt = model_.kv_block_tokens(), keep = same / bt * bt;
+            if (keep >= x.seq.length() / bt * bt) return;
+            // A file of this donor in flight past the prefix stops, so none of the rows let go is left under the history's old identity; the prefix is written again (F2DEV, 2026-10-22).
+            if (disk_ && disk_->writes_past(digests(x), bt, keep)) disk_->cancel_write();
+            x.keep = keep;
+            x.digests.clear();
+            if (model_.keeps_state()) return;
+            if (!keep) return drop_donor(d);
+            quieted()->retract(x.seq, keep);
+            x.tokens.resize(keep);
+            while (!x.classes.empty() && x.classes.back().end > keep && (x.classes.size() == 1 || x.classes[x.classes.size() - 2].end >= keep)) x.classes.pop_back();
+            if (!x.classes.empty()) x.classes.back().end = std::min(x.classes.back().end, keep);
+            return;
         }
     }
     // The jobs running and waiting, and the ids they have yet to read, for the server's figures.
@@ -711,13 +736,15 @@ public:
         r.need_.clear();
         note_room(active);
     }
-    // The round grants a write's pieces their background time and the work they give way to, and takes back what the last round's pieces cost and what was left then; under the lock.
-    std::pair<double, double> grant_writes(BackgroundGrant::Demand demand, double left) {
-        demand_ = demand;
-        write_left_ = left;
-        std::pair<double, double> spent{0, write_spent_left_};
-        std::swap(spent.first, write_spent_ms_);
-        return spent;
+    // How a turn-end write beyond the host tier may go this round, told by the round before disk_round (Scheduler::write_turn): whole, a piece's time, a piece that takes background work's turn, or none but the awaited donor's.
+    enum class WriteTurn { whole, piece, due, none };
+    void write_turn(WriteTurn t) { turn_ = t; }
+    // Whether such a write waited for its turn in the last disk_round, and whether one took the turn since asked, which the scheduler counts; under the lock.
+    bool write_held() const { return held_; }
+    bool took_write_turn() {
+        const bool took = took_;
+        took_ = false;
+        return took;
     }
 private:
     // Defined below, out of the class.
@@ -764,6 +791,7 @@ private:
         uint64_t on_host = 0;         // the host donor holding the same history, which it was promoted from
         bool superseded = false;      // a job's donor holds what its conversation's next turn needs, so this one is kept only while room allows, as a regenerate's
         bool back = false;            // its conversation came back: the request it holds, or the one a job read the reply of, forked a history a tier kept
+        size_t keep = std::numeric_limits<size_t>::max();   // what its next turn's ids share with it, past which nothing is copied or written (trim)
         mutable std::vector<std::string> digests;   // as HostDonor::digests, of what its cache holds
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: parked, forked or promoted
     };
@@ -1116,7 +1144,6 @@ private:
     };
     std::vector<Copies> copies_;   // the scheduler thread's
     double copy_block_ms_ = 0;         // under the lock, a forgetting mean of the milliseconds a block of a donor's copy off the devices for its write took (flush_one)
-    double write_spent_ms_ = 0, write_spent_left_ = 0;   // under the lock, the pieces' cost not yet charged, and what was left when they were granted
     uint64_t awaited_ = 0;             // under the lock, the donor whose write a request waits for (enter), written in whole pieces
     std::vector<uint64_t> turn_tried_; // under the lock, the donors the host tier cannot keep that are whole on disk or were refused their write (disk_round)
     size_t room_waits_ = 0, room_wait_timeouts_ = 0;   // under the lock, admissions that waited for a donor's write or a restore's room, and those whose wait reached kWaitBound
@@ -1134,8 +1161,8 @@ private:
     const std::optional<double> recompute_row_ms_;   // DiskOptions::recompute_row_ms
     const Clock::time_point epoch_;       // the server's start, which the scheduler's clocks count from
     double prompt_ms_row_ = 0;            // the scheduler thread's, a pass's milliseconds a prompt row as the scheduler measured it (Scheduler::measure_prompt); 0 until a pass has
-    double write_left_ = 0;               // under the lock, the background time the round left a write's pieces (grant_writes), less what they took since
-    BackgroundGrant::Demand demand_ = BackgroundGrant::Demand::none;   // under the lock, the foreground work the round found waiting, which a write's pieces give way to
+    WriteTurn turn_ = WriteTurn::whole;   // under the lock, how a turn-end write may go (write_turn)
+    bool held_ = false, took_ = false;    // under the lock, a write waited for its turn in the last disk_round, and one took the turn (write_held, took_write_turn)
     size_t taken_back_ = 0;               // under the lock, resumes that took their donor back
     uint64_t admissions_ = 0;             // the scheduler thread's
     bool stopping_ = false;               // under the lock, the scheduler stops (Scheduler::stop)
@@ -1529,7 +1556,7 @@ inline bool Cache::holds(const std::vector<uint32_t>& bt, const std::vector<RowC
 // Superseded host donors and then the oldest go first, but for a donor whose conversation did not come back (below); under the lock.
 inline size_t Cache::copy_length(const Donor& d) const {
     const size_t bt = model_.kv_block_tokens();
-    size_t n = std::min(d.seq.length(), d.tokens.size()) / bt * bt;
+    size_t n = std::min({d.seq.length(), d.tokens.size(), d.keep}) / bt * bt;
     if (model_.keeps_state()) {
         const std::optional<size_t> kept = model_.checkpoint(d.seq);
         n = kept && *kept <= n && *kept % bt == 0 ? *kept : 0;
@@ -1909,39 +1936,42 @@ inline bool Cache::write_from(const Boundary& b) { return started(disk_->write_n
 
 inline bool Cache::started(DiskTier::Wrote w) {
     sync_disk();
+    if (w == DiskTier::Wrote::started) moved(Move::write_started);
     return w == DiskTier::Wrote::started;
 }
 
 // The next write of what memory holds, for flush_disk and for an idle server under --disk-cache-keep: true once one is in flight, false when nothing is left to write.
 // Most valuable first (docs/DISK-TIER.md), a device donor's missing blocks and state copied off the devices for it and no more; a donor refused room is in `tried`, not asked again that flush or idle period; under the lock.
 inline bool Cache::flush_one(std::vector<uint64_t>& tried, bool beyond) {
+    if (beyond) held_ = false;
     tried.erase(std::remove_if(tried.begin(), tried.end(), [&](uint64_t id) { return std::none_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return d.id == id; }); }), tried.end());
+    // The donor a request waits for first, so no other donor's segments go before it.
+    for (const bool first : {true, false})
     for (const bool back : {true, false}) {
         for (size_t k = donors_.size(); k-- > 0;) {
             Donor& d = donors_[k];
             const size_t n = copy_length(d);
             if (!n || d.superseded || d.back != back || std::find(tried.begin(), tried.end(), d.id) != tried.end() || (beyond && !beyond_host(n))) continue;
-            // Beyond the host tier, the copy off the devices goes a piece at a time: background work under the budget (BackgroundGrant), but whole pieces while a request waits for this donor's room (enter).
-            // A donor the budget gives nothing waits and the next is asked, so the donor a request waits for is never left behind it.
+            if (first != (beyond && awaited_ == d.id)) continue;
+            // Beyond the host tier the copy off the devices goes as the round's turn says (write_turn): segments of a piece's time at the measured cost a block, one block before any is measured, beside replies only at background work's turn.
+            // It goes whole while nothing runs or waits, and for the donor a request waits for (enter), which is asked first.
             size_t most = std::numeric_limits<size_t>::max();
-            double left = BackgroundGrant::kUnbounded;
             const bool foreground = beyond && awaited_ == d.id;
-            if (beyond && !foreground) {
-                left = write_left_;
-                const size_t bt = model_.kv_block_tokens(), blocks = BackgroundGrant::units(left, (n + bt - 1) / bt, copy_block_ms_);
-                if (!blocks) continue;
-                most = blocks * bt;
+            if (beyond && !foreground && turn_ == WriteTurn::none) {
+                held_ = true;
+                continue;
             }
+            if (beyond && !foreground && turn_ != WriteTurn::whole) most = (copy_block_ms_ > 0 ? std::max<size_t>(1, (size_t)(kPieceMs / copy_block_ms_)) : 1) * model_.kv_block_tokens();
             const Clock::time_point start = Clock::now();
             const DiskTier::Wrote w = disk_->write_next(*quieted(), digests(d), n, d.back, std::filesystem::file_time_type::clock::now(), nullptr, &d.seq, 0, false, most);
             if (started(w)) {
                 if (beyond) {
                     const double ms = ms_since(start);
                     if (const size_t rows = disk_->pending_rows()) copy_block_ms_ = forget(copy_block_ms_, ms * (double)model_.kv_block_tokens() / (double)rows);
-                    if (!foreground && demand_ != BackgroundGrant::Demand::none) {
-                        write_spent_ms_ += ms;
-                        write_spent_left_ = left;
-                        write_left_ = std::max(0.0, write_left_ - ms);
+                    // A segment beside replies took background work's turn, which no later round's write takes again until the scheduler gives another.
+                    if (!foreground && turn_ == WriteTurn::due) {
+                        took_ = true;
+                        turn_ = WriteTurn::none;
                     }
                 }
                 return true;
@@ -1951,7 +1981,7 @@ inline bool Cache::flush_one(std::vector<uint64_t>& tried, bool beyond) {
             if (w == DiskTier::Wrote::refused || (beyond && w == DiskTier::Wrote::nothing)) tried.push_back(d.id);
         }
         // With `beyond`, only the device donors the host tier cannot keep (beyond_host), each asked until it is whole on disk or refused, then left in `tried` while it lives.
-        if (beyond) continue;
+        if (beyond || first) continue;
         for (size_t i = host_.size(); i-- > 0;)
             if (!host_[i].disk && !host_[i].superseded && host_[i].back == back && write_from(host_[i])) return true;
         for (size_t i = bounds_.size(); back && i-- > 0;)

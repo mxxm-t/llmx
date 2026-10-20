@@ -1171,16 +1171,13 @@ void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, Users m
 }
 
 // A21: a read-ahead job with one block left when another conversation's request arrives that does not fit beside it, the turn's donor beyond the host tier.
-// `held`: the donor's write is held, so the request waits for a write and the job reads its block first, `costly` alike with steps past the allowance; `ended`: the write ends while the job is spared; `whole`: written before.
-enum class LastBlock { held, costly, ended, whole };
+// `held`: the donor's write is held, so the request waits for a write in any case and the job reads its block first; `ended`: the write ends while the job is spared, so it gives way; `whole`: written before the request.
+enum class LastBlock { held, ended, whole };
 void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v, LastBlock mode) {
     const std::string on_what = std::string(", a job with its last block left") +
-                                (mode == LastBlock::held     ? ", the donor's write held"
-                                 : mode == LastBlock::costly ? ", the donor's write held, each step costing more than the allowance"
-                                 : mode == LastBlock::ended  ? ", the write ending while the job is spared"
-                                                             : ", the donor whole on disk");
-    DiskRoot disk(mode == LastBlock::held ? "scenario-last-held" : mode == LastBlock::costly ? "scenario-last-costly" : mode == LastBlock::ended ? "scenario-last-ended" : "scenario-last-whole");
-    const bool held = mode == LastBlock::held || mode == LastBlock::costly;
+                                (mode == LastBlock::held ? ", the donor's write held" : mode == LastBlock::ended ? ", the write ending while the job is spared" : ", the donor whole on disk");
+    DiskRoot disk(mode == LastBlock::held ? "scenario-last-held" : mode == LastBlock::ended ? "scenario-last-ended" : "scenario-last-whole");
+    const bool held = mode == LastBlock::held;
     // A write's chunks wait while `writes` is held, and a pass's retirement while `retires` is 0, so the test acts between two rounds.
     struct Gate {
         std::mutex m;
@@ -1235,14 +1232,14 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
         if (gate->retires != std::numeric_limits<size_t>::max()) --gate->retires;
         gate->waiting = false;
     };
-    // Under `held` a step of the job costs more than half of a gap's background allowance and under `costly` more than the whole, spun, not slept, since sleeps round up to the timer's tick.
-    const auto spin = std::chrono::milliseconds(mode == LastBlock::costly ? 30 : 8);
+    // Under `held` each submission of the job spins 8 ms, not slept, since sleeps round up to the timer's tick.
+    const auto spin = std::chrono::milliseconds(8);
     slow[0]->hook = [slowed, spin] {
         for (const auto until = std::chrono::steady_clock::now() + spin; slowed->load() && std::chrono::steady_clock::now() < until;) {}
     };
     std::thread runner([&] { sched.run(); });
     const auto count = [&](server::Move k) { return sched.stats().moves[(size_t)k]; };
-    size_t done = 0, gave = 0, reused = 0, credits = 0, overruns = 0;
+    size_t done = 0, gave = 0, reused = 0;
     Reply rb, rc;
     Req next;
     try {
@@ -1272,8 +1269,6 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
         set(held, std::numeric_limits<size_t>::max());
         within_a_minute([&] { return count(server::Move::job_done) + count(server::Move::job_gave_way) >= 1; }, "the last-block leg: the job ended or gave way");
         done = count(server::Move::job_done);
-        credits = sched.stats().background_credits;
-        overruns = sched.stats().background_overruns;
         gave = count(server::Move::job_gave_way);
         set(false, std::numeric_limits<size_t>::max());
         slowed->store(false);
@@ -1292,9 +1287,6 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     sched.stop();
     runner.join();
     std::cout << "cache-scenario" << on_what << ": " << done << " jobs done, " << gave << " gave way, the next turn reused " << reused << "\n";
-    // A step costlier than the whole allowance runs on credit, which the health counts apart from the overruns.
-    if (mode == LastBlock::costly)
-        require(credits >= 1 && !overruns, "cache-scenario" + on_what + ": " + std::to_string(credits) + " steps on credit and " + std::to_string(overruns) + " overruns, against some and none");
     if (held)
         require(done == 1 && !gave && reused == 768, "cache-scenario" + on_what + ": " + std::to_string(done) + " jobs done and " + std::to_string(gave) + " gave way, the next turn reusing " +
                                                           std::to_string(reused) + ", against 1, 0 and the job's 768");
@@ -1398,8 +1390,70 @@ void jobs_passed_over(const gguf::GGUFModel& weights, const Make& make, const bp
     }
 }
 
+// A turn-end write beside a reply takes background work's cadence (F2DEV, 2026-10-22): a donor beyond a host tier a byte short of a slab, parked while another request goes on generating.
+// Each of its segments starts kBackgroundGaps reply-only passes or more after the last, each pass spinning 30 ms so a segment's file is whole sooner, and a donor parked once nothing runs is written in one.
+void write_cadence(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
+    const std::string what = "cache-scenario, a turn-end write beside a reply";
+    const auto slow = hooked(1);
+    slow[0]->hook = [] {
+        for (const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(30); std::chrono::steady_clock::now() < until;) {}
+    };
+    const Make make = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; });
+    std::vector<size_t> during;
+    size_t lone = 0;
+    // Beside the reply, then alone on a scheduler of its own, so no write of the first is counted with the lone donor's.
+    for (const bool beside : {true, false}) {
+        DiskRoot disk(beside ? "scenario-cadence" : "scenario-cadence-lone");
+        auto model = make(kPool, 64);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, disk.options(uint64_t(1) << 30));
+        const auto started = [&] { return sched.stats().moves[(size_t)server::Move::write_started]; };
+        // Each write started is noted at the count of reply-only passes retired before the pass that follows it.
+        std::mutex m;
+        size_t gaps = 0, seen = 0;
+        std::vector<size_t> starts_at;
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            const size_t w = started();
+            bool alone = !t.requests.empty();
+            for (size_t e = 0; e < t.requests.size(); ++e) alone = alone && t.from[e] >= t.requests[e]->prompt_tokens();
+            std::lock_guard<std::mutex> lk(m);
+            for (; seen < w; ++seen) starts_at.push_back(gaps);
+            gaps += alone;
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            if (beside) {
+                const Req a{prompt_of(52, 1000, v), 30}, b{prompt_of(53, 60, v), 200};
+                const Handle ha = sched.submit(a.prompt, params_of(a)), hb = sched.submit(b.prompt, params_of(b));
+                drain(*ha);
+                drain(*hb);
+                std::lock_guard<std::mutex> lk(m);
+                during = starts_at;
+            } else {
+                const Req c{prompt_of(54, 900, v), 20};
+                drain(*sched.submit(c.prompt, params_of(c)));
+                within_a_minute([&] { return sched.stats().moves[(size_t)server::Move::write_whole] >= 1; }, what + ": the lone donor written");
+                lone = started();
+            }
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(during.size() >= 2, what + ": " + std::to_string(during.size()) + " segments started beside the reply, against two at least");
+    for (size_t i = 1; i < during.size(); ++i)
+        require(during[i] >= during[i - 1] + server::kBackgroundGaps, what + ": a segment " + std::to_string(during[i] - during[i - 1]) + " reply-only passes after the last, against " + std::to_string(server::kBackgroundGaps));
+    require(lone == 1, what + ": the lone donor in " + std::to_string(lone) + " writes, against one");
+    std::cout << what << ": " << during.size() << " segments beside the reply, at reply-only passes";
+    for (size_t at : during) std::cout << " " << at;
+    std::cout << ", and a lone donor in one write" << std::endl;
+}
+
 // The production case of 2026-10-20: a cut conversation's long reply with reasoning beside its read-ahead job, another conversation's long prompt arriving as it ends, then the next turn.
-// The next turn holds the reply without its reasoning, so the job forks the prompt and reads the reply's content while the reply is written, each piece of the device's 30 ms more than a reply's background allowance.
+// The next turn holds the reply without its reasoning, so the job forks the prompt and reads the reply's content while the reply is written, each submission of the device spinning 30 ms.
 void reply_reread(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
     const std::string what = "cache-scenario, a cut conversation's reply with reasoning read again beside it";
     const auto slow = hooked(1, true);
@@ -1514,9 +1568,10 @@ int main(int argc, char** argv) {
             pool_past_context(one, tok, (uint32_t)kCpu.vocab);
             for (const bool leave : {false, true}) restart(one, tok, (uint32_t)kCpu.vocab, leave);
             jobs_passed_over(weights, one, tok, (uint32_t)kCpu.vocab);
+            write_cadence(weights, tok, (uint32_t)kCpu.vocab);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const Users mode : {Users::room, Users::cycle, Users::returning}) many_users(one, tok, (uint32_t)kCpu.vocab, mode);
-            for (const LastBlock mode : {LastBlock::held, LastBlock::costly, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
+            for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
             reply_reread(weights, tok, (uint32_t)kCpu.vocab);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {768, 512, 1152, true});

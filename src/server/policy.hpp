@@ -328,7 +328,6 @@ struct Pacing {
     enum class Mode { off, fixed, automatic };
     Mode mode = Mode::off;
     double share = 0;   // the fixed share
-    bool refused = false;   // off because the operator said so (--no-pacing), not because the placement feeds no stage in pieces; background work is then given no time beside waiting work
     static Pacing fixed(double share) { return share > 0 ? Pacing{Mode::fixed, share} : Pacing{}; }
     static Pacing automatic() { return {Mode::automatic, 0}; }
 };
@@ -457,8 +456,8 @@ inline double in_flight_rate(uint64_t bytes, double seconds) {
 inline constexpr double kCostKeep = 0.75;
 inline double forget(double old, double now) { return old > 0 ? kCostKeep * old + (1 - kCostKeep) * now : now; }
 
-// The part of the target gap background work may add to a reply's gap (promise P6 in docs/CACHE-PLAN.md).
-inline constexpr double kBackgroundShare = 0.25;
+// The reply-only service gaps completed before the next piece of background work beside replies, a read-ahead job's or a turn-end write's: a frequency in gaps, not a share of time (F2DEV and XDEV, 2026-10-20 and 2026-10-22).
+inline constexpr size_t kBackgroundGaps = 3;
 
 // The time one piece of a prompt's pass may take beside generated rows (docs/CACHE-PLAN.md, section 8 item 3): 50 ms, from the measured pieces (305 ms at 240k tokens of history, 61 ms at 40k), and the step its rows are cut in.
 inline constexpr double kPieceMs = 50;
@@ -487,93 +486,6 @@ struct PieceSearch {
         return std::min(most, std::max(kPieceStep, rows));
     }
 };
-
-// Whether a job's step goes into a pass: beside replies only one carrying generated rows, whose time a row prices it (job_rows_at), never a pass of its own, whose whole fixed cost it would pay.
-inline bool job_rides(bool replies, size_t decoders) { return !replies || decoders > 0; }
-
-// The time background work may still take of a stage in this service interval: work that reaches the device and is no request's own, as a read-ahead job's rows.
-// A file read or write on a thread of its own touches no stage and takes none of it, and a read for a waiting request is foreground, as its request is.
-struct BackgroundGrant {
-    double used_ms = 0, since_ms = -1e300;   // spent in the interval that began at since_ms by the stage's clock, none charged before; an interval ends at a service or kServiceGapMs after it began
-    uint64_t grants = 0, overruns = 0;  // grants spent, and those whose cost passed what was left
-    uint64_t first_steps = 0;           // grants that were a job's first step at a depth nothing measured, whose cost is not counted an overrun
-    uint64_t credits = 0;               // grants of one step that cost more than a whole allowance, run on credit and not counted an overrun
-    double owed_ms = 0;                 // what credit steps cost past their interval's allowance, owed to the intervals after it
-    double total_ms = 0, largest_ms = 0;
-    enum class Demand { none, prompts, replies };   // the foreground work that waits: none, prompts alone, or generated rows
-    static constexpr double kUnbounded = 1e300;
-    // What is left, in ms: unbounded with no foreground work waiting, where the caller bounds a call's work itself.
-    // Nothing with pacing off while any waits, while the prompt floor is owed, and while generated rows wait unserved or with a service due; else the allowance unspent, and under replies no more than the time to the next service.
-    double left_ms(Demand demand, bool paced, const ServiceClock& clock, bool floor_clear, double now_ms) const {
-        if (demand == Demand::none) return kUnbounded;
-        if (!paced || !floor_clear) return 0;
-        const double allowance = kBackgroundShare * kServiceGapMs - used_at(clock, now_ms);
-        if (demand == Demand::prompts) return std::max(0.0, allowance);
-        return std::max(0.0, std::min(allowance, kServiceGapMs - (now_ms - clock.last_ms)));
-    }
-    // The units of a consumer's work that fit `left` ms (Scheduler::background_left), at most `at_most`: `left` over the consumer's measured cost a unit.
-    // One, its probe, where it has measured none and anything is left.
-    static size_t units(double left, size_t at_most, double unit_ms) {
-        if (left <= 0 || !at_most) return 0;
-        if (left >= kUnbounded) return at_most;
-        if (unit_ms <= 0) return 1;
-        return (size_t)std::min((double)at_most, left / unit_ms);
-    }
-    // The start of the interval that pays at `now_ms`: the later of the last service and the interval charged last, advanced by the whole gaps that passed with no service; `now_ms` before either.
-    double interval(const ServiceClock& clock, double now_ms) const {
-        const double from = std::max(clock.last_ms, since_ms);
-        if (from <= -1e299) return now_ms;
-        const double gaps = std::floor((now_ms - from) / kServiceGapMs);
-        return gaps > 0 ? from + gaps * kServiceGapMs : from;
-    }
-    // What the interval that pays at `now_ms` has spent: its own charges, or of credit owed, what the intervals since the last charge have not repaid, an allowance each, one a gap where no service ended them.
-    double used_at(const ServiceClock& clock, double now_ms) const {
-        if (interval(clock, now_ms) == since_ms) return used_ms;
-        return std::min(kBackgroundShare * kServiceGapMs, unrepaid(clock, now_ms));
-    }
-    double unrepaid(const ServiceClock& clock, double now_ms) const {
-        const double passed = std::max(1.0, std::floor((interval(clock, now_ms) - since_ms) / kServiceGapMs));
-        return std::max(0.0, owed_ms - (passed - 1) * kBackgroundShare * kServiceGapMs);
-    }
-    // What granted work cost, whatever its unit, once: `left` is what left_ms gave when it was granted, and the clock and the time say which interval pays.
-    // A credit step (job_grant) fills its interval's allowance and owes the rest to the intervals after it, which repay it before they grant anything.
-    void spent(double ms, double left, const ServiceClock& clock, double now_ms, bool first = false, bool credit = false) {
-        ++grants;
-        if (first) ++first_steps;
-        else if (credit) ++credits;
-        else if (ms > left) ++overruns;
-        const double from = interval(clock, now_ms);
-        if (from != since_ms) {
-            const double unpaid = since_ms <= -1e299 ? 0 : unrepaid(clock, now_ms);
-            used_ms = std::min(kBackgroundShare * kServiceGapMs, unpaid);
-            owed_ms = unpaid - used_ms;
-            since_ms = from;
-        }
-        const double past = credit ? std::max(0.0, used_ms + ms - kBackgroundShare * kServiceGapMs) : 0;
-        owed_ms += past;
-        used_ms += ms - past;
-        total_ms += ms;
-        largest_ms = std::max(largest_ms, ms);
-    }
-};
-
-// The rows of a job a grant of `left` ms buys, at most `most`, where a measurement took `ms` for `rows` rows: whole steps, none where nothing is measured.
-// Where one step costs more than is left, one step on credit while the whole allowance is left and `credit` allows it (BackgroundGrant::spent), else none.
-inline size_t job_grant(double left, size_t most, size_t rows, double ms, bool credit) {
-    if (left <= 0 || !most) return 0;
-    if (left >= BackgroundGrant::kUnbounded) return most;
-    if (!rows || !(ms > 0)) return 0;
-    const double steps = std::floor(left * (double)rows / ms / (double)kPieceStep);
-    if (steps < 1) return credit && left >= kBackgroundShare * kServiceGapMs ? std::min(most, kPieceStep) : 0;
-    return (size_t)std::min((double)most, steps * (double)kPieceStep);
-}
-
-// The foreground demand background work gives way to (promise P6 in docs/CACHE-PLAN.md): none only where at most one request asks and no other is active, queued or paused.
-// A second asking request or another generating one is a reply's demand, and others reading their prompts or waiting for a seat or for room a prompt's.
-inline BackgroundGrant::Demand demand_beside(size_t askers, size_t other_replies, size_t other_prompts, size_t waiting) {
-    if (askers > 1 || other_replies) return BackgroundGrant::Demand::replies;
-    return other_prompts || waiting ? BackgroundGrant::Demand::prompts : BackgroundGrant::Demand::none;
-}
 
 // Whether generated rows ride the pass that reads prompt rows under the automatic rule: where that pass, of a measured `prompt_ms`, takes no longer than the target gap.
 inline bool rides_within_gap(double prompt_ms) { return prompt_ms > 0 && prompt_ms <= kServiceGapMs; }

@@ -35,7 +35,7 @@ class Server:
     def counters(self):
         h = self.health()
         out = {k: v for k, v in h["reuse"]["moves"]["since_start"].items() if v}
-        for group, values in (("reread", h["reread"]["since_start"]), ("disk", h["reuse"]["disk"]["since_start"]), ("background", h["pacing"].get("background", {}).get("since_start", {}))):
+        for group, values in (("reread", h["reread"]["since_start"]), ("disk", h["reuse"]["disk"]["since_start"])):
             out.update({group + "." + k: v for k, v in values.items() if isinstance(v, (int, float)) and v})
         return out
 

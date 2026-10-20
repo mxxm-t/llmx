@@ -891,12 +891,10 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     const Req first{prompt_of(5, 300, vocab), writing ? 400 : 100}, other{prompt_of(9, small ? 40 : 700, vocab), 20};
     // Answered at once, the follow-up must fit beside the job and the donor it forked, or the job gives way to it; the other request, but a small one, cannot be admitted beside the job.
     const size_t pool = when == When::at_once ? 4096 : writing || !interrupt ? 2048 : 1024;
-    std::vector<uint32_t> early = first.prompt, later = first.prompt;
+    std::vector<uint32_t> written;
     if (writing) {
         auto alone = make(pool, 16);
-        const std::vector<uint32_t> ids = ids_of(serve(*alone, tok, 3, {{first}})[0]);
-        early.insert(early.end(), ids.begin(), ids.begin() + 100);
-        later.insert(later.end(), ids.begin(), ids.begin() + 380);
+        written = ids_of(serve(*alone, tok, 3, {{first}})[0]);
     }
     auto model = make(pool, 16);
     Reply follow_reply, other_reply;
@@ -911,11 +909,14 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
             std::lock_guard<std::mutex> lock(handles);
             for (const server::Request* r : t.requests)
                 if (r == h.get() || r == interrupter.get()) {
-                    // 19 passes read the prompt, so the 120th has written more than 100 tokens and the 400th more than 380.
+                    // 19 passes read the prompt, so the 20th after it has written more than 20 tokens: the 120th gives the ids written, and while writing every 20th to the 400th, as the routes do.
                     if (writing && r == h.get()) {
                         ++request_passes;
-                        if (request_passes == 120) sched.follow(h, early, false);
-                        if (request_passes == 400 && when == When::writing) sched.follow(h, later, false);
+                        if (request_passes >= 120 && request_passes <= (when == When::writing ? 400u : 120u) && request_passes % 20 == 0) {
+                            std::vector<uint32_t> ids = first.prompt;
+                            ids.insert(ids.end(), written.begin(), written.begin() + (std::ptrdiff_t)(request_passes - 20));
+                            sched.follow(h, ids, false);
+                        }
                     }
                     return;
                 }
@@ -1003,7 +1004,7 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     }
 }
 
-// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage: its rows are background work, read beside the decode rows within the background budget (BackgroundGrant).
+// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage: its rows are the lowest-priority prompt rows, a step after kBackgroundGaps passes of the request's rows alone, no stage being fed in pieces.
 // `idle`: a job begun once the reply has ended, beside another request; otherwise a job begun mid-reply, beside its own.
 void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool idle) {
     const std::string what = idle ? "a job begun at idle beside a decoding request over a two-CPU split" : "a job begun while its reply is written over a two-CPU split";
@@ -1095,21 +1096,15 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
         most = std::max(most, passes[i].second);
         read += passes[i].second;
     }
-    // The job read beside the decoding request, each such pass's rows a grant of background time, the longest well inside a service gap (on these CPUs a grant buys the whole budget, a row costing little).
-    require(read > 0 && stats.background_grants > 0 && stats.background_largest_ms < server::kServiceGapMs,
-            what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, in " + std::to_string(stats.background_grants) + " grants, the longest " +
-                std::to_string(stats.background_largest_ms) + " ms, against some, some and under the gap");
-    // Begun while its reply is written, every job step while the request decodes rides a pass carrying the request's rows, never a pass of its own beside the one in flight (server::job_rides).
-    for (size_t i = first_pass; !idle && i <= last_pass; ++i)
-        require(!passes[i].second || passes[i].first, what + ": pass " + std::to_string(i) + " carried " + std::to_string(passes[i].second) + " job rows without the decoding request");
-    // Begun while its reply is written, so never at idle, its first step is one row priced by the reply's pass a row, and a later step, priced by its own share of its pass, reads more.
-    size_t first_step = 0, later_step = 0;
-    for (size_t i = first_pass; !idle && i <= last_pass; ++i)
-        if (passes[i].first && passes[i].second) {
-            if (!first_step) first_step = passes[i].second;
-            else later_step = std::max(later_step, passes[i].second);
-        }
-    require(idle || (first_step == 1 && later_step > 1), what + ": the job's first step read " + std::to_string(first_step) + " rows and a later one at most " + std::to_string(later_step) + ", against one row and more");
+    // The job read beside the decoding request, a step at a time where no stage is fed in pieces, and each step after passes of the request's rows alone, kBackgroundGaps less the pass in flight beside it.
+    size_t steps = 0, alone_passes = 0;
+    for (size_t i = first_pass; i <= last_pass; ++i) {
+        if (passes[i].second) ++steps;
+        else if (passes[i].first) ++alone_passes;
+    }
+    require(read > 0 && most <= server::kPieceStep && alone_passes >= steps * (server::kBackgroundGaps - 1),
+            what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, in " + std::to_string(steps) + " steps beside " +
+                std::to_string(alone_passes) + " passes of the request alone, against some, a step at most and " + std::to_string(server::kBackgroundGaps - 1) + " such passes a step");
 }
 
 // A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.
@@ -1157,12 +1152,10 @@ void job_forks_running(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
 void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a job whose ids grow while its reply is written";
     const Req first{prompt_of(5, 300, vocab), 700}, other{prompt_of(11, 500, vocab), 100};
-    std::vector<uint32_t> early = first.prompt, later = first.prompt;
+    std::vector<uint32_t> written;
     {
         auto alone = make(2048, 16);
-        const std::vector<uint32_t> ids = ids_of(serve(*alone, tok, 3, {{first}})[0]);
-        early.insert(early.end(), ids.begin(), ids.begin() + 100);
-        later.insert(later.end(), ids.begin(), ids.begin() + 600);
+        written = ids_of(serve(*alone, tok, 3, {{first}})[0]);
     }
     auto model = make(2048, 16);
     Reply first_reply, other_reply, follow_reply;
@@ -1172,13 +1165,16 @@ void writing_growth(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
         std::shared_ptr<server::Request> h, o;
         size_t passes = 0;
         std::mutex handles;
-        // 19 passes read the prompt, so the 120th has written more than 100 tokens, the 620th more than 600, and by the 640th the job has read its 896.
+        // 19 passes read the prompt, so the 20th pass after it has written more than 20 tokens: from the 120th to the 620th every 20th gives the ids written, as the routes do, and by the 640th the job, a step every few passes, has read its 896.
         sched.on_retire = [&](const server::Scheduler::Retired& t) {
             std::lock_guard<std::mutex> lock(handles);
             if (std::find(t.requests.begin(), t.requests.end(), h.get()) == t.requests.end()) return;
             ++passes;
-            if (passes == 120) sched.follow(h, early, false);
-            if (passes == 620) sched.follow(h, later, false);
+            if (passes >= 120 && passes <= 620 && passes % 20 == 0) {
+                std::vector<uint32_t> ids = first.prompt;
+                ids.insert(ids.end(), written.begin(), written.begin() + (std::ptrdiff_t)(passes - 20));
+                sched.follow(h, ids, false);
+            }
             if (passes == 640) o = sched.submit(other.prompt, params_of(other));
         };
         std::thread runner([&] { sched.run(); });
@@ -1990,6 +1986,173 @@ void cut_ranked_out(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab)
         auto fresh = make(2048, 0);
         same(serve(*fresh, tok, 3, {{reqs[i]}})[0], got[i], what + ", request " + std::to_string(i));
     }
+}
+
+// A finished donor keeps the whole blocks its next turn's ids share with it (F2DEV and XDEV, 2026-10-20 08:29): one request of 600 prompt and 200 generated tokens, its donor seven blocks.
+// A next turn without the reply's reasoning keeps the prompt's four, one with the reply all seven, a token changed at 300 two, and none given (a raw continuation) seven.
+void trims_finished_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    enum class Next { stripped, kept, changed, none };
+    for (const Next next : {Next::stripped, Next::kept, Next::changed, Next::none}) {
+        const std::string what = std::string("a finished donor trimmed to its next turn, ") +
+                                 (next == Next::stripped ? "the reply's reasoning left out" : next == Next::kept ? "the reply kept" : next == Next::changed ? "a token changed" : "no next turn given");
+        const Req first{prompt_of(5, 600, vocab), 200}, other{prompt_of(9, 40, vocab), 1900};
+        auto model = make(4096, 0);
+        size_t blocks = 0;
+        {
+            // One request at a time, so the job its next turn starts waits while the other request decodes its 1900 tokens and leaves the donors as the trim made them.
+            server::Scheduler sched(*model, tok, 1, 64);
+            std::thread runner([&] { sched.run(); });
+            try {
+                const auto h = sched.submit(first.prompt, params_of(first));
+                std::vector<uint32_t> history = first.prompt;
+                for (uint32_t id : ids_of(drain(*h))) history.push_back(id);
+                const auto o = sched.submit(other.prompt, params_of(other));
+                std::vector<uint32_t> ids = history;
+                const auto joined = [](std::vector<uint32_t> a, const std::vector<uint32_t>& b) { a.insert(a.end(), b.begin(), b.end()); return a; };
+                if (next == Next::stripped) ids = joined(first.prompt, prompt_of(11, 100, vocab));
+                if (next == Next::kept) ids = joined(history, prompt_of(11, 30, vocab));
+                if (next == Next::changed) ids[300] = (ids[300] + 1) % vocab;
+                const size_t want = next == Next::stripped ? 4 : next == Next::changed ? 2 : 7;
+                if (next != Next::none) sched.follow(h, ids, true);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                while ((blocks = sched.stats().donor_blocks[0]) != want && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                require(blocks == want, what + ": the donor holds " + std::to_string(blocks) + " blocks, against " + std::to_string(want));
+                drain(*o);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+        }
+        std::cout << "server-resume: " << what << ": the donor holds " << blocks << " blocks\n";
+    }
+}
+
+// A paused request's donor is not trimmed by its next turn's ids (F2DEV and XDEV, 2026-10-20 08:29): take_back's three requests, the paused one given whole ids that share none of its blocks while it waits.
+// It still takes its donor back whole, recomputing nothing, and every reply is its reply alone.
+void keeps_paused_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a paused request given its next turn's ids";
+    const size_t pool = 13 * kBlock;
+    const Req a{prompt_of(1, 40, vocab)}, c{prompt_of(3, 20, vocab), 360};
+    const Req b = stopping(make, tok, pool, {}, Req{prompt_of(2, 60, vocab)}, 420);
+    std::vector<Reply> alone;
+    for (const Req& r : {a, b, c}) {
+        auto fresh = make(pool, 0);
+        alone.push_back(serve(*fresh, tok, 3, {{r}})[0]);
+    }
+    auto model = make(pool, 0);
+    std::vector<Reply> got;
+    server::Scheduler::Stats s;
+    bool given = false;
+    {
+        server::Scheduler sched(*model, tok, 3, 64);
+        std::mutex handles;
+        std::shared_ptr<server::Request> hb;
+        std::vector<uint32_t> ids = b.prompt;
+        const std::vector<uint32_t> rest = prompt_of(11, 2 * kBlock, vocab);
+        ids.insert(ids.end(), rest.begin(), rest.end());
+        sched.on_retire = [&](const server::Scheduler::Retired&) {
+            std::lock_guard<std::mutex> lock(handles);
+            if (given || !hb || sched.stats().paused == 0) return;
+            sched.follow(hb, ids, true);
+            given = true;
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            std::vector<std::shared_ptr<server::Request>> hs;
+            {
+                std::lock_guard<std::mutex> lock(handles);
+                for (const Req& r : {a, b, c}) hs.push_back(sched.submit(r.prompt, params_of(r)));
+                hb = hs[1];
+            }
+            for (auto& h : hs) got.push_back(drain(*h));
+            s = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    require(given, what + ": the request was never seen paused");
+    for (size_t i = 0; i < alone.size(); ++i) same(alone[i], got[i], what + ", request " + std::to_string(i));
+    require(s.pauses == 1 && s.taken_back == 1 && s.recomputed == 0,
+            what + ": " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " + std::to_string(s.recomputed) + " rows recomputed, against 1, 1 and 0");
+    std::cout << "server-resume: " << what << ": its donor taken back whole\n";
+}
+
+// A turn-end write in flight when its donor is trimmed (F2DEV, 2026-10-22): one request of 600 prompt and 200 generated tokens, its donor of seven blocks beyond a host tier a byte short of a slab, the next turn's ids the prompt's four blocks.
+// With the donor's whole write held at the store across the trim, it stops and the prefix is written again, so no file holds the rows let go; a write whole before the trim stays.
+void trim_stops_write(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    for (const bool in_flight : {true, false}) {
+        const std::string what = std::string("a finished donor trimmed ") + (in_flight ? "while its write is in flight" : "once its write is whole");
+        DiskRoot disk(in_flight ? "trim-write" : "trim-written");
+        server::DiskOptions options = disk.options(uint64_t(1) << 30);
+        struct Hold {
+            std::mutex m;
+            std::condition_variable cv;
+            bool held = true;
+            size_t entered = 0;
+        };
+        auto hold = std::make_shared<Hold>();
+        hold->held = in_flight;
+        options.fault = [hold](const char* step) {
+            std::unique_lock<std::mutex> lk(hold->m);
+            if (std::string(step) != "write") return false;
+            ++hold->entered;
+            hold->cv.notify_all();
+            hold->cv.wait(lk, [&] { return !hold->held; });
+            return false;
+        };
+        const auto let_go = [hold] {
+            {
+                std::lock_guard<std::mutex> lk(hold->m);
+                hold->held = false;
+            }
+            hold->cv.notify_all();
+        };
+        const Req first{prompt_of(5, 600, vocab), 200};
+        auto model = make(4096, 0);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, model->host_bytes(kBlock) - 1, nullptr, 0, true, options);
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+            const auto h = sched.submit(first.prompt, params_of(first));
+            drain(*h);
+            if (in_flight) {
+                std::unique_lock<std::mutex> lk(hold->m);
+                require(hold->cv.wait_for(lk, std::chrono::minutes(1), [&] { return hold->entered > 0; }), what + ": the donor's write did not reach the store");
+            } else {
+                within_a_minute([&] { return sched.stats().moves[(size_t)server::Move::write_whole] >= 1; }, what + ": the donor's file whole");
+            }
+            sched.follow(h, first.prompt, true);
+            // The job its next turn starts reads the prompt's 512 rows in a job's class and keeps them beside the trimmed donor: four blocks each, where the untrimmed donor would make eleven.
+            within_a_minute([&] { return sched.stats().reprefills == 1; }, what + ": the job done");
+            const size_t held = sched.stats().donor_blocks.empty() ? 0 : sched.stats().donor_blocks[0];
+            require(held == 8, what + ": the donors hold " + std::to_string(held) + " blocks, against the trimmed donor's four and the job's four");
+            let_go();
+            // In flight, the write stops and a second writes the prefix with the job's donor, which supersedes the trimmed one; whole before the trim, the file stays and holds the prefix too.
+            const size_t want = in_flight ? 2 : 1;
+            within_a_minute([&] {
+                const auto st = sched.stats();
+                return st.moves[(size_t)server::Move::write_whole] == 1 && st.moves[(size_t)server::Move::write_started] == want;
+            }, what + ": " + std::to_string(want) + " writes started and one file whole");
+            const auto st = sched.stats();
+            require(st.disk_entries == 1 && !st.moves[(size_t)server::Move::write_failed],
+                    what + ": " + std::to_string(st.disk_entries) + " files on disk and " + std::to_string(st.moves[(size_t)server::Move::write_failed]) + " failed writes, against one and none");
+        } catch (...) {
+            let_go();
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::cout << "server-resume: a finished donor trimmed while its write is in flight: the write stopped with no failure counted and the prefix written again\n";
 }
 
 // The donor count keeps a donor whose turn-end write is in flight (A19 in docs/CACHE-PLAN.md): one donor at most, a host tier a byte short of a slab, so the disk is a history's only save, and that write held.
@@ -5096,6 +5259,9 @@ int main(int argc, char** argv) {
             next_candidate(weights, tok, vocab);
             cut_ranked_out(one, tok, vocab);
             for (const bool shared : {false, true}) count_keeps_writing(one, tok, vocab, shared);
+            trims_finished_donor(one, tok, vocab);
+            keeps_paused_donor(one, tok, vocab);
+            trim_stops_write(one, tok, vocab);
             // Over tensor groups of two CPUs (docs/TENSOR-SPLIT.md, step 2), each reply against its run alone on one group, since a group gives its own bits: pauses, take-backs, forks and donors in host memory, each member's storage copied on its own.
             const Make group = on(weights, [] { return cpus(2); }, 8, 0, 0, 0, false, 2);
             three_uncapped(group, tok, vocab, "three uncapped requests on a group of two CPUs");

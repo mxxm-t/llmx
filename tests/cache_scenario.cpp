@@ -1141,7 +1141,7 @@ void many_users(const Make& make, const bpe::Tokenizer& tok, uint32_t v, bool ro
 // A21: a read-ahead job with one block left when another conversation's request arrives that does not fit beside it, the turn's donor beyond the host tier.
 // `held`: the donor's write is held, so the request waits for a write in any case and the job reads its block first; `ended`: the write ends while the job is spared, so it gives way; `whole`: written before the request.
 enum class LastBlock { held, ended, whole };
-void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlock mode) {
+void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v, LastBlock mode) {
     const std::string on_what = std::string(", a job with its last block left") +
                                 (mode == LastBlock::held ? ", the donor's write held" : mode == LastBlock::ended ? ", the write ending while the job is spared" : ", the donor whole on disk");
     DiskRoot disk(mode == LastBlock::held ? "scenario-last-held" : mode == LastBlock::ended ? "scenario-last-ended" : "scenario-last-whole");
@@ -1177,17 +1177,31 @@ void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlo
         return false;
     };
     const Req turn{prompt_of(44, 700, v), 20}, other{prompt_of(45, 500, v), 20};
+    const auto slow = hooked(1);
+    auto slowed = std::make_shared<std::atomic<bool>>(false), armed = std::make_shared<std::atomic<bool>>(false);
+    const Make make = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; }), plain = on(weights, [] { return cpus(1); });
     auto model = make(1024, 16);
     // The tier is a byte short of one slab, so the disk is the turn's donor's only save.
     const size_t cap = infer::Model::host_slab_bytes() - 1;
     server::Scheduler sched(*model, tok, 2, 64, 0, false, cap, nullptr, 0, true, options);
-    sched.on_retire = [gate](const server::Scheduler::Retired&) {
+    Handle b;
+    std::atomic<bool> sent{false};
+    // Under `held` the other request is sent as the job's first pass retires, which no hold lengthens, since a held pass's time becomes the job's measured cost.
+    sched.on_retire = [&, gate, armed](const server::Scheduler::Retired&) {
+        if (armed->exchange(false)) {
+            b = sched.submit(other.prompt, params_of(other));
+            sent = true;
+        }
         std::unique_lock<std::mutex> lk(gate->m);
         gate->waiting = true;
         gate->cv.notify_all();
         gate->cv.wait(lk, [&] { return gate->retires > 0; });
         if (gate->retires != std::numeric_limits<size_t>::max()) --gate->retires;
         gate->waiting = false;
+    };
+    // Under `held` a step of the job costs more than half of a gap's background allowance, spun, not slept, since sleeps round up to the timer's tick.
+    slow[0]->hook = [slowed] {
+        for (const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(8); slowed->load() && std::chrono::steady_clock::now() < until;) {}
     };
     std::thread runner([&] { sched.run(); });
     const auto count = [&](server::Move k) { return sched.stats().moves[(size_t)k]; };
@@ -1199,11 +1213,17 @@ void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlo
         const Handle h = sched.submit(turn.prompt, params_of(turn));
         // The job forks the turn's 640 prompt rows and reads to 768, one block, its ids the turn, its reply and 52 more.
         const std::vector<uint32_t> ids = joined(joined(turn.prompt, ids_of(drain(*h))), prompt_of(46, 52, v));
+        slowed->store(mode == LastBlock::held);
         if (mode == LastBlock::whole) within_a_minute([&] { return count(server::Move::write_whole) >= 1; }, "the last-block leg: the turn's files whole on disk");
-        set(mode != LastBlock::whole, 0);
+        set(mode != LastBlock::whole, mode == LastBlock::held ? std::numeric_limits<size_t>::max() : 0);
+        armed->store(mode == LastBlock::held);
         sched.follow(h, ids, true);
-        at_retire("the job's first pass held");
-        const Handle b = sched.submit(other.prompt, params_of(other));
+        if (mode == LastBlock::held) {
+            within_a_minute([&] { return sent.load(); }, "the last-block leg: the other request sent as the job's first pass retired");
+        } else {
+            at_retire("the job's first pass held");
+            b = sched.submit(other.prompt, params_of(other));
+        }
         if (mode == LastBlock::ended) {
             // One round with the request waiting: the job is spared, and its next pass waits to retire.
             set(true, 1);
@@ -1217,6 +1237,7 @@ void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlo
         done = count(server::Move::job_done);
         gave = count(server::Move::job_gave_way);
         set(false, std::numeric_limits<size_t>::max());
+        slowed->store(false);
         rb = drain(*b);
         next = Req{joined(ids, prompt_of(47, 30, v)), 20};
         const Handle c = sched.submit(next.prompt, params_of(next));
@@ -1224,6 +1245,7 @@ void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlo
         reused = c->reused();
     } catch (...) {
         set(false, std::numeric_limits<size_t>::max());
+        slowed->store(false);
         sched.stop();
         runner.join();
         throw;
@@ -1236,7 +1258,7 @@ void last_block(const Make& make, const bpe::Tokenizer& tok, uint32_t v, LastBlo
                                                           std::to_string(reused) + ", against 1, 0 and the job's 768");
     else
         require(!done && gave == 1, "cache-scenario" + on_what + ": " + std::to_string(done) + " jobs done and " + std::to_string(gave) + " gave way, against 0 and 1");
-    auto fresh = make(1024, 16);
+    auto fresh = plain(1024, 16);
     const std::vector<Reply> alone = serve(*fresh, tok, 2, {{other}, {next}});
     same(alone[0], rb, "cache-scenario" + on_what + ": the other request");
     same(alone[1], rc, "cache-scenario" + on_what + ": the next turn");
@@ -1268,7 +1290,7 @@ int main(int argc, char** argv) {
             for (const bool leave : {false, true}) restart(one, tok, (uint32_t)kCpu.vocab, leave);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const bool room : {true, false}) many_users(one, tok, (uint32_t)kCpu.vocab, room);
-            for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(one, tok, (uint32_t)kCpu.vocab, mode);
+            for (const LastBlock mode : {LastBlock::held, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);
             scenario(split, deep_tok, (uint32_t)kSplit.vocab, ", a split over two CPUs", {768, 512, 1152, true});
             scenario(hybrid, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model", {640, 384, 1152, true});
             scenario(hybrid_split, mixed_tok, (uint32_t)kHybrid.vocab, ", the hybrid model over two CPUs", {0, 0, 1152, false});

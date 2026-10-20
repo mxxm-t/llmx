@@ -215,6 +215,11 @@ Ordinary passes and passes recorded apart have separate row staging and remap st
 The recurrent rerun after a retract uses the saved PLE inputs and reads no rows again.
 With the table on the devices, the module gathers from the resident table and reads nothing from the file.
 
+The released Vulkan gather uses 32-bit byte offsets for quantized resident tables.
+The 26.8 GiB IQ4_NL PLE table exceeds that range: high resident rows wrap, while the file-backed path uses wide host offsets and small remapped uploads. An independent failing-first Vulkan reproducer confirms the defect on both host-ID and device-ID gathers; it also confirms that the full-table descriptor exceeds the device's storage-buffer range. The authoritative record is `worktrees/vulkan-large-lookup-20261020/docs/benchmarks/vulkan-large-lookup-repro-20261020.json` at commit `6a3adff52fe8d3da76bff750feb2f5c4b4dd32d2`.
+Use file-backed PLE for this released model until both the large-table addressing and descriptor-range constraints are fixed and qualified.
+The resident timing and repeated-prompt controls are retained in [the 2026-10-20 record](benchmarks/flash-q4-p16384-warmup-20261020.json); its resident PP 706.774 repeated mean is correctness-unqualified and must not be interpreted as valid inference performance. Successful loading alone does not prove correct resident lookup.
+
 Weights stay immutable under the model file's lifetime; there is no writeback and no second on-disk copy.
 A file changed or truncated is refused where the readers can detect it; a mapping does not make external truncation safe.
 The server's host and disk tiers hold conversation histories, not table rows: model code does not depend on them, and table rows never enter donor ranking or persisted cache files.

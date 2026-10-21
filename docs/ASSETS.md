@@ -319,9 +319,8 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **Q8_0 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / MXFP4 / F32 / F16 / BF16** tensors (see
-`docs/src/quant-quant.md`). GGUF metadata inspection recognizes 35 storage layouts
-independently of these decoders; this does not make the other types executable.
+llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / MXFP4** tensors (see
+`docs/src/quant-quant.md`). The [README support matrix](../README.md#quantization-types) separates CPU and Vulkan inference from quantize writers. GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
 Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
 support for their tensor encodings does not add new architectures. Dense F32
 embeddings, matrices and norms are supported, including tied output weights.
@@ -438,11 +437,10 @@ Current-source note (2026-10-21): Q2_K and Q3_K have read-only CPU/Vulkan
 inference implementations using the existing decoder and matrix owners. On
 Vulkan integer-dot profiles, F16/int8 rows and eligible prompt products use
 block-int16 activations; other profiles retain F32. BF16 rounds matrix inputs.
-Neither format has a `quantize` writer. Their qualification is in progress.
-The hosted Q2_K file above contains 84 Q3_K tensors, so both types must be
-qualified before claiming that mixed file works or adding it to the HF gate.
-The separate Q3_K_S file is not marked hosted. See the current branch's
-[STATUS](STATUS.md) for qualification progress.
+Neither format has a `quantize` writer. Qualification of both types, including
+the mixed Q2_K file above, is complete and recorded in [STATUS](STATUS.md).
+The separate Q3_K_S file is not marked hosted; adding it to the HF gate is a
+separate asset-selection change.
 
 `tests/spec_decode.py` decodes every one of these types, and every type llmx reads, in a pure form and a numpy form, written from the GGUF type layouts and, for MXFP4, the OCP Microscaling Formats (MX) v1.0 specification.
 Its MXFP4 rules: code 8 (-0) decodes as +0; every E8M0 byte e, 255 included, scales by 2^(e - 128) times the doubled E2M1 value, so e = 255 is 2^127 rather than NaN; exponents 0 and 1 keep their subnormal f32 scales; a value of 2^128 or more is an infinity of its sign.

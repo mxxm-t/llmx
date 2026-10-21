@@ -2,8 +2,9 @@
 
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
-llmx is a dependency-free LLM inference runtime in C++17 for CPUs and GPUs, run from the command line or as an OpenAI-compatible server, and able to run one model over several devices of one machine.
-The tables below list models, file formats, quantization types, backends and multi-device modes: **Supported** (works today), **In development** (qualification underway), or **Planned** (on the [ROADMAP](docs/ROADMAP.md), not yet qualified for release).
+llmx is a dependency-free C++17 inference runtime for supported x86-64 CPUs and Vulkan devices. Run it from the command line or as an OpenAI-compatible server, and split one model across devices in one machine.
+
+The tables summarize current model, weight-format and backend support. **Supported** means the path is implemented and has applicable checks. **In development** means the implementation exists but qualification remains open. **Planned** means roadmap work not available in this tree; see the [ROADMAP](docs/ROADMAP.md).
 
 ## Supported models
 
@@ -16,27 +17,30 @@ The tables below list models, file formats, quantization types, backends and mul
 | `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0 (released-file HF) and UD-Q4_K_XL (bounded serving smoke with Q8_0 MTP sidecar) | Released-file CPU qualification pending | Supported | Supported, prefix reuse for follow-up turns |
 | Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned |
 
-Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS.md) lists what is covered.
+Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSETS.md) lists the models and checks covered.
 
 ## Quantization types
 
-| Tensor type | CPU | Vulkan | Written by `llmx quantize` |
-|---|---|---|---|
-| F32, Q8_0, Q4_0 | Supported | Supported | Q8_0, Q4_0 |
-| Q4_1, Q4_K, Q5_K, Q6_K (so Q4_K_M and Q5_K_M files) | Supported | Supported | No |
-| Q5_0 | Supported | Supported | No |
-| Q5_1 | Supported | Supported | No |
-| MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
-| F16, BF16 | Supported | Supported | No |
-| IQ4_NL | Supported | Supported | No |
-| Q2_K | Implemented; qualification in progress | Implemented; qualification in progress | No |
-| Q3_K | Implemented; qualification in progress | Implemented; qualification in progress | No |
-| IQ4_XS | Supported | Supported | No |
+This is the current model-weight support matrix. The [storage metadata page](docs/src/quant-types.md) lists recognized GGUF layouts, including layouts that have no inference decoder.
 
-Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including IQ3_S. Q2_K and Q3_K have read-only CPU and Vulkan inference implementations. Vulkan F16/int8 rows and eligible prompt products use block-int16 activations on integer-dot profiles, with wider F32 on other profiles; BF16 paths round inputs. Neither type has a writer. The Qwen3-0.6B Q2_K file also contains Q3_K tensors, so qualification of both types is required before claiming that mixed file works. See [storage metadata](docs/src/quant-types.md) for that boundary and [STATUS](docs/STATUS.md) for current qualification.
-F16/BF16 weights widen to F32 through the existing CPU and Vulkan product paths. CPU and device checks include pinned BF16/F32 output identity. Exact half/F32 twins and representative released-file HF checks pass on CPU, MI50 and Radeon VII. Qualification evidence and measured performance limits are recorded in [STATUS](docs/STATUS.md).
-Activation precision is selected with `--dtype auto|f16|bf16|f32|int8`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices, and `int8` rounds the inputs of quantized matrix products that have an 8-bit build to 8 bits for speed, below the default precision; it runs so on a Vulkan device that prefers the integer dot product, the MI50 under Mesa, and elsewhere runs as `f16` and says so. Activation precision is separate from weight storage; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
-The KV cache is stored as `f16` (default) or `f32` on every backend, independently of activation precision.
+| Weight format | CPU inference | Vulkan inference | Written by `llmx quantize` |
+|---|---|---|---|
+| F32 | Supported | Supported | No |
+| F16, BF16 | Supported | Supported | No |
+| Q4_0 | Supported | Supported | Yes |
+| Q4_1 | Supported | Supported | No |
+| Q5_0, Q5_1 | Supported | Supported | No |
+| Q8_0 | Supported | Supported | Yes |
+| Q2_K, Q3_K | Supported | Supported | No |
+| Q4_K, Q5_K, Q6_K | Supported | Supported | No |
+| IQ4_NL, IQ4_XS | Supported | Supported | No |
+| MXFP4 | Supported | Supported on devices with required float preservation and double arithmetic | No |
+
+`llmx quantize` writes Q4_0 and Q8_0; the other formats have no quantize writer here. Each model tensor must be supported by its assigned backend. Devices do not fall back to the CPU automatically.
+
+GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. Q8_1 and Q8_K are auxiliary formats, and IQ3_S is metadata-only. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
+
+Activation `--dtype` is independent of weight storage and KV-cache type. `auto` selects a backend policy; requested F16, BF16 or int8 paths may use a wider implementation or input rounding depending on the device. See [precision and dtype reporting](docs/USAGE.md#precision). F16 is the KV-cache default; F32 is also available.
 
 ## File formats
 
@@ -46,6 +50,30 @@ The KV cache is stored as `f16` (default) or `f32` on every backend, independent
 | Hugging Face download | Supported: `llmx pull <owner/repo>:<quant>` |
 | Raw F32 tensors (`.json` + `.bin`) | Supported: input of `quantize`, output of `dequantize` |
 | safetensors, with `config.json` and `tokenizer.json` | Planned |
+
+## Build
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release --parallel
+```
+
+Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend.
+The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio; on Windows, `build.bat` builds a CPU-only `llmx.exe` without CMake.
+[BUILD](docs/BUILD.md) lists the compilers and packages for each platform and a Docker image.
+
+## Run a model
+
+```sh
+model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
+./build/llmx generate "$model" "The capital of France is" --temp 0 -n 32
+./build/llmx chat "$model" -n 512 --device vulkan:0
+./build/llmx serve "$model"
+```
+
+`pull` needs curl 8.4 or later and reads `HF_TOKEN` for gated repositories; the server listens on `127.0.0.1:8080`.
+`llmx bench --model "$model"` measures prefill and decode speed on your hardware.
+`llmx <command> --help` shows a command's options, and [USAGE](docs/USAGE.md) covers every command and flag.
 
 ## Backends and devices
 
@@ -92,30 +120,6 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 | `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`) or from a drafter file, sources tried in the order listed (`lookup,embedded`), a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
 | `--cache-type-k`, `--cache-type-v` | KV cache storage, `f16` (default) or `f32` |
 | `--load-mode auto\|mapped\|direct` | How the weights are read from disk |
-
-## Build
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
-```
-
-Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend.
-The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio; on Windows, `build.bat` builds a CPU-only `llmx.exe` without CMake.
-[BUILD](docs/BUILD.md) lists the compilers and packages for each platform and a Docker image.
-
-## Run a model
-
-```sh
-model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
-./build/llmx generate "$model" "The capital of France is" --temp 0 -n 32
-./build/llmx chat "$model" -n 512 --device vulkan:0
-./build/llmx serve "$model"
-```
-
-`pull` needs curl 8.4 or later and reads `HF_TOKEN` for gated repositories; the server listens on `127.0.0.1:8080`.
-`llmx bench --model "$model"` measures prefill and decode speed on your hardware.
-`llmx <command> --help` shows a command's options, and [USAGE](docs/USAGE.md) covers every command and flag.
 
 ## Documentation
 

@@ -25,7 +25,7 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ4_NL`, `IQ4_XS`, `MXFP4`, `F32`, `F16` and `BF16` on first use and never changes after, so no caller sets it up and any thread may read it.
+  The one registry fills itself with `F32`, `F16`, `BF16`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ4_NL`, `IQ4_XS` and `MXFP4` on first use and never changes after, so no caller sets it up and any thread may read it. The [README support matrix](../../README.md#quantization-types) distinguishes those decoders from backend support and quantize writers.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types

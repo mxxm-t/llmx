@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## README and quant support documentation (2026-10-21)
+
+- **Done:** reviewed the whole README for accuracy, section order and wording against public main `7cd7ea75fecfee6981e1a9d62efa247345afb494`. The support table uses consistent labels and family order, separates CPU/Vulkan inference from quantize writers, and identifies metadata-only layouts. Build and run instructions appear before the detailed backend and serving sections.
+- **Status correction:** Q2_K/Q3_K are supported after the published landing at `e3f6e5ca4e18ef14d4ce7b23d8107a76653f107c` and exact-head CI [39598873520](https://github.com/mxxm-t/llmx/actions/runs/39598873520). Live Architecture, Assets, CI, Roadmap, Vulkan and source-owner descriptions agree. Historical pre-publication results remain unchanged. IQ3_S development is separate; this tree recognizes only its storage metadata.
+- **Review:** all 117 tracked Markdown pages are inventoried: 12 changed and 105 unchanged pages carry forward their prior review. Source checks confirm the model registry, server defaults, cache types and dtype reporting. Final docs checks report 0 findings and 21 planted faults; dead-code reports 5 listed findings and 18 planted faults. The CLI-matched archived binary and inventory are recorded in ignored `build-docs-audit/quant-support-review.json`.
+- **Landing:** this docs-only change lands as one fast-forward commit after its applicable docs/dead-code checks. Parent review is complete; no runtime or test code changes, inference reruns or unrelated hosted-job waits are required.
+
 ## Q2_K and Q3_K published on GitHub main (2026-10-21)
 
 - **Landing:** public main is `e3f6e5ca4e18ef14d4ce7b23d8107a76653f107c`, which adds read-only Q2_K and Q3_K runtime support after the recorded qualification work. The temporary gate branch has been deleted.

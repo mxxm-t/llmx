@@ -27,6 +27,10 @@ Any other failure, such as a file that cannot be read, prints `error:` and exits
 
 ## `llmx --version`
 
+```text
+llmx --version
+```
+
 Print the release, the build identifier and the numerics fingerprint, for example `llmx 0.1.0+g0123456789ab numerics 3fa9c1d2e07b4a15`.
 The fingerprint changes only when a source that can change a result's bits does (`docs/BUILD.md`, The build identifier).
 It takes nothing after it.
@@ -71,7 +75,11 @@ After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF 
 - `--threads` omitted or zero takes the CPU backend's automatic count, including in `bench` and `serve`: the CPUs the process may use, from its hardware threads, its affinity and its CPU quota ([Threads](#threads-generation-vs-prefill)).
   Specify a positive count for matched performance comparisons.
 
-## `llmx pull <owner/repo>:<quant>`
+## `llmx pull`
+
+```text
+llmx pull <owner/repo>:<quant> [flags...]
+```
 
 Download a GGUF model from Hugging Face and print its absolute local path on
 stdout. Status goes to stderr. For example:
@@ -132,7 +140,11 @@ or rewritten under the mapping is not detected and can end the process. The firs
 only. Successful download does not establish that llmx implements the model's
 architecture, tokenizer or tensor types; current runtime coverage still applies.
 
-## `llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]`
+## `llmx quantize`
+
+```text
+llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]
+```
 
 Convert a raw float32 model into a quantized GGUF file.
 
@@ -173,7 +185,11 @@ An interrupted process can leave one behind; remove that directory only after
 confirming its conversion has stopped. These writes do not guarantee durability
 across power loss.
 
-## `llmx dequantize <in.gguf> <out.json> <out.bin>`
+## `llmx dequantize`
+
+```text
+llmx dequantize <in.gguf> <out.json> <out.bin>
+```
 
 Read a GGUF containing F32 or types with an implemented decoder and write the tensors as
 raw float32. Produces tensor descriptions in `out.json` plus the concatenated
@@ -196,7 +212,11 @@ JSON then binary; if the second rename fails, the error names its path and the
 first complete replacement may remain. The pair is not a transaction and is not
 guaranteed durable across power loss.
 
-## `llmx info <in.gguf>`
+## `llmx info`
+
+```text
+llmx info <in.gguf>
+```
 
 Inspect a GGUF file without running inference. Prints:
 
@@ -212,16 +232,28 @@ types without inference kernels; unknown and removed type IDs are refused.
 Successful `info` output does not establish decoder or backend support, valid
 model configuration, required tensor shapes/names or metadata string encoding.
 
-## `llmx tokenize <in.gguf> "<text>"`
+## `llmx tokenize`
+
+```text
+llmx tokenize <in.gguf> "<text>"
+```
 
 Encode `text` with the model's tokenizer and print the resulting token ids as a
 comma-separated list on one line.
 
-## `llmx detokenize <in.gguf> <id1,id2,...>`
+## `llmx detokenize`
+
+```text
+llmx detokenize <in.gguf> <id1,id2,...>
+```
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path> | -f <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T | -ctk T] [--cache-type-v T | -ctv T] [--load-mode M] [--lookup-storage S] [--dtype T]`
+## `llmx logits`
+
+```text
+llmx logits <in.gguf> ("<text>" | --file <path> | -f <path>) [flags...]
+```
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -236,6 +268,8 @@ That tool takes `--dtype auto|f16|bf16|f32` to select the same request for promp
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
 `--top` and `--last` are at least 1.
 
+Shared execution options for `logits` are `--threads`, `--ubatch`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage` and `--dtype`; their meanings and defaults are in the shared execution sections above.
+
 This exists for the correctness gate. Comparing llmx against a reference
 through sampled text hides everything except argmax flips, so
 `tests/baseline.py` uses this to compare the ranking directly against a
@@ -246,7 +280,11 @@ Quantized models add weight error, so comparisons need quantization-specific
 bounds on values and NLL as well as rankings. Close rankings can change;
 matching the top token alone does not establish numerical correctness.
 
-## `llmx perplexity <in.gguf> "<text>" [flags...]`
+## `llmx perplexity`
+
+```text
+llmx perplexity <in.gguf> ("<text>" | --file <path> | -f <path>) [flags...]
+```
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -289,6 +327,7 @@ Flags:
 | `--chunks N` | maximum windows to evaluate (positive integer; default all) |
 | `--per-token` | score one token at a time, the decode path, instead of in batched passes |
 | `--verbose` | show scoring phase and actual worker count on stderr, and each window's scored tokens and mean NLL on stdout |
+| `--dtype T` | activation precision: `auto`, `f16`, `bf16`, `f32` or `int8` (Precision, above; default `auto`) |
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
@@ -515,7 +554,11 @@ So a smaller value shortens the longest gap between a request's tokens and costs
 Measured there: on tensor groups `--ubatch 128` cut the inter-token p99 at 32 and 64 users two to three times (946 to 335 ms at 32 users on 128-token prompts) for 1 to 4 percent of the output on short prompts and 8 to 11 on long ones, and raised it at 16 users (56 to 396 ms), where requests start decoding sooner and then ride more, shorter prompt passes; on a layer split it helped the closed loads the same way and, with long prompts arriving beside decoding users, made the p99 worse (94 to 546 ms) for a fifth of the output.
 The default of 512 is the setting for output and for a layer split; 128 is the setting for the steadiest tokens on tensor groups at 32 users and more; 64 was worse than 128 on every count. `docs/STATUS.md` has the tables.
 
-## `llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]`
+## `llmx generate`
+
+```text
+llmx generate <in.gguf> ("<prompt>" | --file <path>) [flags...]
+```
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -550,6 +593,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--presence-penalty F`  | subtracted from the score of every token already generated, -2 to 2 | 0 |
 | `--frequency-penalty F` | subtracted from a generated token's score once for each time, -2 to 2 | 0 |
 | `--min-p F`             | drop tokens less likely than F times the likeliest, 0 to 1 (0 = off) | 0       |
+| `--dtype T`             | activation precision: `auto`, `f16`, `bf16`, `f32` or `int8` (Precision, above) | `auto` |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch                       | 512     |
 | `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f16` or `f32`      | `f16`   |
@@ -600,7 +644,11 @@ A file of the model's MTP blocks, as `llmx-drafter-pack split` writes one from a
 With `--verbose`, a line after the ids gives the drafts kept and fed at each draft position, as `drafts kept: 7/10 4/8 ...`.
 A verify costs more than a step, and on a device its cost steps where its rows cross a build of the Q8_0 decode kernel, which is built for 1, 2, 4, 8, 16 and 32 columns and takes the narrowest that holds a pass's rows: on an MI50 the kernel's time rises by about 30 percent from a verify of 4 rows (depth 3) to one of 5 (depth 4), which takes the 8-column build, and by about 60 percent from 8 rows to 9 (depth 8), which takes the 16-column build, so depth 4 can give fewer tokens a second than depth 3 and depth 8 than depth 7. `generate` and `chat` verify the drafts `--draft-max` allows and the default stays 3; the server prices each pass by its rows and drafts only where that gains (docs/SERVER.md, Drafts). docs/STATUS.md has the measurements.
 
-## `llmx chat <in.gguf> [--system "<text>"] [flags...]`
+## `llmx chat`
+
+```text
+llmx chat <in.gguf> [--system "<text>"] [flags...]
+```
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -631,7 +679,11 @@ Enter `My name is Marko. Remember it.`, wait for the reply, then enter
 `What is my name?`. Each line continues the same conversation; starting a new
 process starts a new history. Press Ctrl+C to exit.
 
-## `llmx bench [flags...]`
+## `llmx bench`
+
+```text
+llmx bench [flags...]
+```
 
 `--dtype` selects activation precision only with `--model` (Precision, above); the synthetic benchmark refuses it.
 
@@ -662,7 +714,11 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N | -c N] [--kv-tokens N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T | -ctk T] [--cache-type-v T | -ctv T] [--load-mode M] [--lookup-storage S] [--dtype T]`
+## `llmx serve`
+
+```text
+llmx serve <in.gguf> [flags...]
+```
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -704,32 +760,36 @@ request may hold: with 16 sequences over a 40k-token budget that is 2.5k
 tokens each on average, and a request whose prompt plus `max_tokens` exceeds
 what a request may hold is refused with 413, or cut under `--context-overflow shift` (below).
 
-The flags, in the groups of the help page (`llmx serve --help`); the paragraphs below explain each, and [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
+The server-only flags accepted by `llmx serve` are listed below. Each row gives the default and the main range or interaction; the paragraphs after the tables explain the behavior in detail. Shared flags are `--device`, `--dtype`, `--layer-shares`, `--tensor-width`, `--threads`, `--ubatch`, `--cache-type-k`, `--cache-type-v`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--load-mode` and `--lookup-storage`; their meanings and defaults are in the `generate` table above and the sections on precision, threads, devices, cache types, loading and lookup storage. `llmx serve --help` prints the same server-only groups. [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
 
-| Group | Flag | Default | What it sets |
+| Group | Flag | Default | Scope, range or interaction |
 |---|---|---|---|
-| Server | `--host H` | `127.0.0.1` | The listen address |
-| Server | `--port N` | `8080` | The listen port; 0 picks a free one |
-| Server | `--ctx-size N`, `-c` | model context | Tokens one request may hold, at most the model's context |
-| Server | `--kv-tokens N` | what the devices' free memory holds | Tokens of conversation memory (KV cache) shared by all requests |
-| Server | `--timing` | off | Times the rounds and each device's work for `/v1/health` |
-| Limits | `--max-seqs N` | `16` | Requests served at once |
-| Limits | `--max-queue N` | `64` | Requests waiting for a place; more get a 503 |
-| Limits | `--passes N` | one per device of a layer split, else 1 | Batches the devices work on at once |
-| Limits | `--no-pacing` | off | Serve requests already generating only with the prompts' batches |
-| Limits | `--generating-share X` | `0` | Instead of the automatic rule, a fixed share of each device's time for requests already generating while prompts are read |
-| Prefix cache | `--host-cache-bytes N` | `--max-seqs` full histories within half the free host memory | Host memory for prefixes the devices evict |
-| Prefix cache | `--disk-cache-bytes N` | `0` | Disk for what the host cache drops |
-| Prefix cache | `--disk-cache-dir PATH` | `<home>/.cache/llmx/kv` | Where the disk cache lives |
-| Prefix cache | `--disk-cache-floor N` | larger of 16 GiB and a twentieth of the disk | Free space kept after every write |
-| Prefix cache | `--disk-cache-keep` | off | Keeps the entries for the next server |
-| Prefix cache | `--disk-cache-max-age TIME` | `24h` | Deletes entries unused for longer |
-| Prefix cache | `--disk-cache-adopt WHICH` | `exact` | Which kept entries a server takes over: `exact`, its own build's, or `proved`, another build's too, each proved at its first use |
-| Prefix cache | `--state-checkpoints N` | fitted, up to `--max-seqs` | Saved states of models with recurrent layers |
-| Server | `--context-overflow HOW` | `refuse` | What a prompt that does not fit gets: `refuse`, a 413, or `shift`, the oldest turns dropped |
-| Speculative decoding | `--drafter D` | `off` | Proposes tokens and checks them in one pass |
-| Speculative decoding | `--draft-max N` | `3` | Most drafted tokens checked at once |
-| Execution | `--device D`, `--dtype T`, `--layer-shares A,B`, `--tensor-width N`, `--threads N`, `--ubatch N`, `--cache-type-k T`, `--cache-type-v T`, `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N`, `--load-mode M`, `--lookup-storage S` | | Where and how the model runs, as for every model command |
+| Server | `--host H` | `127.0.0.1` | Listen address |
+| Server | `--port N` | `8080` | Port 0 to 65535; 0 asks the system for a free port |
+| Server | `--ctx-size N`, `-c` | model context | At least 1 and no more than the model context; per-request prompt plus reply limit |
+| Server | `--kv-tokens N` | fitted to device free memory; model context on CPU or when memory cannot size the fit | At least 1; shared KV pool, rounded to whole blocks |
+| Server | `--timing` | off | Times rounds and device work for `/v1/health`; slows serving |
+| Limits | `--max-seqs N` | `16` | At least 1; active requests, including prompt and generation work |
+| Limits | `--max-queue N` | `64` | At least 1; waiting requests before a new request gets 503; paused requests are not counted |
+| Limits | `--passes N` | one per stage for a layer split, otherwise `1` | At least 1; values above 1 require a multi-device layer split |
+| Scheduling | `--no-pacing` | off | Turns off serving generating requests between prompt pieces; conflicts with `--generating-share` above 0 |
+| Scheduling | `--generating-share X` | `0` | From 0 to 0.9; above 0 replaces automatic pacing and is refused where pacing cannot run or with `--no-pacing` |
+| Prefix reuse | `--state-checkpoints N` | fitted, up to `--max-seqs` | At least 0; saved recurrent states for follow-up turns; 0 disables them |
+| Context | `--context-overflow HOW` | `refuse` | `refuse` returns 413; `shift` drops oldest turns when a prompt does not fit |
+| Speculative decoding | `--drafter D` | `off` | `off`, `lookup`, `embedded` (the model's MTP block), a drafter file with MTP blocks, or comma-separated sources with a model drafter last |
+| Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in one pass |
+
+`--host-cache-bytes` and `--disk-cache-*` configure the two prefix-cache tiers. The disk tier holds entries the host tier drops; it requires a host cache, so it is unavailable when all caches are on the CPU or the host cache is set to 0.
+
+| Group | Flag | Default | Scope, range or interaction |
+|---|---|---|---|
+| Host cache | `--host-cache-bytes N` | room for `--max-seqs` full histories, within half the free host memory; none when every cache is on the CPU | At least 0 bytes; `0` disables host prefix reuse |
+| Disk cache | `--disk-cache-bytes N` | `0` | At least 0 bytes; `0` disables disk tier; requires a host cache |
+| Disk cache | `--disk-cache-dir PATH` | `<home>/.cache/llmx/kv` | Non-empty directory path |
+| Disk cache | `--disk-cache-floor N` | larger of 16 GiB and one twentieth of the file system | At least 0 bytes of free space to preserve after writes |
+| Disk cache | `--disk-cache-keep` | off | Keep entries for a later server; writes while idle and at a clean exit |
+| Disk cache | `--disk-cache-max-age TIME` | `24h` | Seconds, or a number suffixed by `s`, `m`, `h` or `d`; `0` disables age expiry |
+| Disk cache | `--disk-cache-adopt WHICH` | `exact` | `exact` adopts this build's entries; `proved` also checks another build's entries and requires `--disk-cache-keep`; recurrent-state models need at least two `--state-checkpoints` for proof |
 
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes`, `--ctx-size` and `--kv-tokens` are at least 1.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage by default, so every device works on some pass while the host samples another; one elsewhere, where a number above 1 is refused as the server starts.
@@ -1038,7 +1098,17 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T | -ctk T] [--cache-type-v T | -ctv T] [--load-mode M] [--lookup-storage S] [--dtype T] [--profile] [--drafter D] [--draft-max N]`
+## `llmx bench` with a model
+
+```text
+llmx bench --model <in.gguf> [flags...]
+```
+
+| Group | Flags | Reference |
+|---|---|---|
+| Model run | `--model`, `--p`, `--n`, `--r`, `--seqs`, `--depth` | Prompt tokens, decode tokens, repeats, concurrent sequences and optional draft depth |
+| Device execution | `--threads`, `--ubatch`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype` | Shared execution options described above |
+| Measurement and drafts | `--profile`, `--drafter`, `--draft-max` | Time Vulkan kernels or measure draft chain and verify work |
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

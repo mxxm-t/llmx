@@ -18,6 +18,8 @@ constexpr uint32_t GGML_TYPE_Q4_1 = 3;
 constexpr uint32_t GGML_TYPE_Q5_0 = 6;
 constexpr uint32_t GGML_TYPE_Q5_1 = 7;
 constexpr uint32_t GGML_TYPE_Q8_0 = 8;
+constexpr uint32_t GGML_TYPE_Q2_K = 10;
+constexpr uint32_t GGML_TYPE_Q3_K = 11;
 constexpr uint32_t GGML_TYPE_Q4_K = 12;
 constexpr uint32_t GGML_TYPE_Q5_K = 13;
 constexpr uint32_t GGML_TYPE_Q6_K = 14;
@@ -36,6 +38,10 @@ constexpr size_t   Q5_1_BLOCK    = 32;
 constexpr size_t   Q5_1_TYPESIZE = 24;   // f16 scale + f16 min + 32 high bits + 32 nibbles
 constexpr size_t   Q8_0_BLOCK    = 32;   // values per block
 constexpr size_t   Q8_0_TYPESIZE = 34;   // 2-byte f16 scale + 32 int8
+constexpr size_t   Q2_K_BLOCK    = 256;
+constexpr size_t   Q2_K_TYPESIZE = 84;   // 16 scales/mins + 64 packed codes + 2 f16
+constexpr size_t   Q3_K_BLOCK    = 256;
+constexpr size_t   Q3_K_TYPESIZE = 110;  // 32 high bits + 64 low codes + 12 scales + f16
 constexpr size_t   Q4_K_BLOCK    = 256;  // K-quant super-block
 constexpr size_t   Q4_K_TYPESIZE = 144;  // 2 f16 + 12 packed 6-bit + 128 nibbles
 constexpr size_t   Q5_K_BLOCK    = 256;  // K-quant super-block
@@ -64,7 +70,7 @@ inline const StorageType* storage_type(uint32_t id) {
         {}, {},
         {"Q5_0", Q5_0_BLOCK, Q5_0_TYPESIZE}, {"Q5_1", Q5_1_BLOCK, Q5_1_TYPESIZE},
         {"Q8_0", Q8_0_BLOCK, Q8_0_TYPESIZE}, {"Q8_1", 32, 36},
-        {"Q2_K", 256, 84}, {"Q3_K", 256, 110},
+        {"Q2_K", Q2_K_BLOCK, Q2_K_TYPESIZE}, {"Q3_K", Q3_K_BLOCK, Q3_K_TYPESIZE},
         {"Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE}, {"Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE},
         {"Q6_K", Q6_K_BLOCK, Q6_K_TYPESIZE}, {"Q8_K", 256, 292},
         {"IQ2_XXS", 256, 66}, {"IQ2_XS", 256, 74}, {"IQ3_XXS", 256, 98}, {"IQ1_S", 256, 50},

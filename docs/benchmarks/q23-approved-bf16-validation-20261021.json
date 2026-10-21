@@ -1,0 +1,247 @@
+{
+  "date": "2026-10-21",
+  "scope": "User-approved Q3_K BF16 tiny-fixture amendment and test-only CI fixes; runtime unchanged from 6c5e51f6ef6a19c640ab0fb9dca1201600773fe2",
+  "user_approval": "Approve scoped amendment and continue",
+  "approved_bounds": {
+    "logit_budget": 0.2348918914794922,
+    "nll_budget": 0.020625951050400104
+  },
+  "other_budget_values_unchanged": true,
+  "no_runtime_changes": true,
+  "bf16": {
+    "ordinary": {
+      "full_logits": 150,
+      "nll": 12,
+      "fixtures": [
+        {
+          "name": "dense-untied",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit": 0.024084976299285854,
+          "max_nll": 0.0007521974573219126,
+          "original_generic_logit_failures": 0,
+          "original_generic_nll_failures": 0
+        },
+        {
+          "name": "dense-tied",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit": 0.028190302402496314,
+          "max_nll": 0.0008245555655257419,
+          "original_generic_logit_failures": 0,
+          "original_generic_nll_failures": 0
+        },
+        {
+          "name": "moe",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit": 0.03530301769256594,
+          "max_nll": 0.0031419177014857524,
+          "original_generic_logit_failures": 0,
+          "original_generic_nll_failures": 0
+        }
+      ],
+      "captures_sha256": "f504704e79e3de1f2fd1310e1580432c1fe424e1455ae777088ec7c25c2dfd5f",
+      "golden_sha256": "3e0d711c8a6cd64b637d5998f347e0da10c90da28e7d467d54435f9493c6115e",
+      "binary_identity": {
+        "binaries": {
+          "llmx": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+          "llmx-model-logits": "853db38215d464f1b7f75b0c1649a397f2f0d91cafe7bb47c575e0f08ab98d36",
+          "libllmx-vulkan.a": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+        "build_execution_sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+        "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68"
+      },
+      "max_logit": 0.03530301769256594,
+      "max_nll": 0.0031419177014857524,
+      "logit_headroom": 0.19958887378692625,
+      "nll_headroom": 0.017484033348914352,
+      "gpu": [
+        {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224
+        }
+      ],
+      "passed": true,
+      "containers_removed": true
+    },
+    "split": {
+      "full_logits": 150,
+      "nll": 12,
+      "fixtures": [
+        {
+          "name": "dense-untied",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit": 0.047442685417175334,
+          "max_nll": 0.009645381058994928,
+          "original_generic_logit_failures": 0,
+          "original_generic_nll_failures": 2
+        },
+        {
+          "name": "dense-tied",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit": 0.049020104064941616,
+          "max_nll": 0.002414029729161271,
+          "original_generic_logit_failures": 0,
+          "original_generic_nll_failures": 0
+        },
+        {
+          "name": "moe",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit": 0.07754328900909424,
+          "max_nll": 0.0006530256442882632,
+          "original_generic_logit_failures": 20,
+          "original_generic_nll_failures": 0
+        }
+      ],
+      "captures_sha256": "8e5675f0e2e7d170da6dd4add4cf33a76ba99916e1a7005e7fa9c792637332cf",
+      "golden_sha256": "7c9ce0997180aa4ba10f18124bf8150780729624501709d4fbc917a0be878649",
+      "binary_identity": {
+        "binaries": {
+          "llmx": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+          "llmx-model-logits": "853db38215d464f1b7f75b0c1649a397f2f0d91cafe7bb47c575e0f08ab98d36",
+          "libllmx-vulkan.a": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+        "build_execution_sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+        "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68"
+      },
+      "max_logit": 0.07754328900909424,
+      "max_nll": 0.009645381058994928,
+      "logit_headroom": 0.15734860247039795,
+      "nll_headroom": 0.010980569991405176,
+      "gpu": [
+        {
+          "physical": 4,
+          "render": 134,
+          "pci": "0000:89:00.0",
+          "busy": 0,
+          "vram": 10932224
+        },
+        {
+          "physical": 5,
+          "render": 135,
+          "pci": "0000:8c:00.0",
+          "busy": 0,
+          "vram": 10932224
+        }
+      ],
+      "passed": true,
+      "containers_removed": true
+    }
+  },
+  "limitations": [
+    "Original generic-limit failures remain failures under that prior limit.",
+    "Calibration includes original and extra seeds; it is not held out. One routing-unstable extra-seed model was refused and excluded from maxima.",
+    "Only Q3_K BF16 tiny-fixture bounds change; F32/F16, other families, native operator, released-model and depth limits remain unchanged.",
+    "The explicit host/resident test loops work around the reproduced sanitizer interaction; no source-level out-of-bounds or runtime defect was established."
+  ],
+  "artifacts": {
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-ordinary/audit.json": "260ec8d01c7549d85c8c535d741b1a9b4a8fd5430c9e01a72a33247ae1e589d3",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-ordinary/execution.json": "b24879a950a0995b01556a19320e30da18158e9515983598195ec9bcbe988c8b",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-ordinary/result.json": "5d3f9946fde6f8df4d157589cbb81cc02255c5e40252126baa26210b5b24b9ea",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-ordinary/cases.jsonl": "f504704e79e3de1f2fd1310e1580432c1fe424e1455ae777088ec7c25c2dfd5f",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-ordinary/run.log": "232a36bdcdd1ed4ff9e862ca563b8ce2a15fc6b6f7793e7eadac40e3d6d193d5",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-split/audit.json": "d6cc3685f1557505946f904f6f59c944dacd6a85ab322fa18b1074b7b1a17fa3",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-split/execution.json": "af7282bcb45cf9d59fafa797a055430db707d0595bb944b0442d137c72396125",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-split/result.json": "f2061d7acfda956c06470d311915ca53377373def968e4861d26daec525d30fd",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-split/cases.jsonl": "8e5675f0e2e7d170da6dd4add4cf33a76ba99916e1a7005e7fa9c792637332cf",
+    "build-quant-resume-20261020/q23-alignment/bf16-approved/evidence-split/run.log": "c6fc37347b69e123c71b6d8a3920f8ae23f2dbfbd4b959edbc019af5b58db6b7",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/summary.md": "a1550c18bc8e066c2c368f095fcce1eb529137eddd52ddb5ea039078c4ab0659",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/ctest.before.log": "69e66759d61624c073828821c228e00a9020d4e62f2b60b39a23552c1614c368",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/ctest.diag.log": "824c83a230b3abf0d8c875354f304fd8e6c232a00997ad13f3b309cda8b8f594",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/ctest.after.log": "2cfa1fe01f7e9225379528c1b9068130bbfaf44785bc22252f6393f5628f2b81",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/CMakeCache.txt": "ec2cfed2ca7e841c631ceb34dcfd22046a78a6265edae400e918ae79a886df06",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/q2_k.before.cpp": "d57d57a2010f8f3205fcd1cc2514c81afac545f6067dbb993fbea43f95033c66",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/q3_k.before.cpp": "d697053315490fcc93065a6574bd9d5871bb0629c9fb7a1cee5aaa01b8136c92",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/q2_k.after.cpp": "e982d2dd60b8d453df465168d88ad323aa2c5413000ef9d9449843e19ac896d7",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/q3_k.after.cpp": "be310730e78f2682f0314eab61e1e8d6d882ce908c4c4a6719bdd60fe728f259",
+    "build-quant-resume-20261020/q23-alignment/ubsan-repro/test-fix.patch": "6e22a077cc05037de099e5d2fecafb05f7cb593b9d5e85251d39d1e346fd3824"
+  },
+  "ubsan": {
+    "compiler": "GCC 14.2.0 Debian 14.2.0-19",
+    "flags": "Release -fsanitize=undefined -fno-sanitize-recover=undefined",
+    "baseline": "2fb6fbebe07e9cd9dc5887585b454cbd8005deba",
+    "baseline_failed": [
+      "q2-k expected embedding assertion",
+      "q3-k expected-ID bounds instrumentation"
+    ],
+    "after": "2/2 passed",
+    "scope": "Only q2_k.cpp/q3_k.cpp expected-ID selection loops; values, comparison counts, invalid IDs, zero signs and guards retained."
+  },
+  "windows_focused": {
+    "passed": true,
+    "scope": "Fresh MSVC Release CPU build of two changed native tests only",
+    "binaries": {
+      "llmx-q2-k-test.exe": "da0965b1917b531013e945a7d7414a323d976e47748bef159ab4937c5537e392",
+      "llmx-q3-k-test.exe": "b32322c2c261b3be8e5969a0211418494ac146260b9e7b5e81de8fe4473145a1"
+    },
+    "logs": {
+      "focused-build.log": "5a1bf2606966bf1c7874a67ab7c87bb3dc08a101f3823ce606426013746cc49b",
+      "focused-test.log": "e7e7e65d4eaeedaa1f4e457fde3dc1307fbcc9874498a755be080665752216d3"
+    },
+    "sources": {
+      "q2_k.cpp": "61c615321316ec3957a3571fd0835f7dbbb0735fc3aabc7d54181abb231d89f2",
+      "q3_k.cpp": "4e21ba1438281100a4291b8f7b245a407d686a70ed46416fab96c85777cb164c"
+    }
+  },
+  "prior_hosted": {
+    "run": 39590483972,
+    "head": "2fb6fbebe07e9cd9dc5887585b454cbd8005deba",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "failure"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "conclusion": "cancelled"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success"
+      }
+    ],
+    "disposition": "Five jobs passed. UBSan test fixes pass focused local reproduction; Vulkan whole-job timeout increases 40 to 60 minutes, retaining all checks. Final hosted follow-up remains required."
+  },
+  "tests": {
+    "reference_consumer": "50 tests pass",
+    "static": "docs zero findings/21 planted faults; dead-code five existing findings/18 planted faults pass"
+  },
+  "markdown_review": {
+    "total": 117,
+    "changed_reviewed": [
+      "docs/CI.md",
+      "docs/PRECISION.md",
+      "docs/STATUS.md",
+      "docs/benchmarks/q3-bf16-policy-proposal-20261021.md"
+    ],
+    "unchanged_carried_forward": 113,
+    "basis": "landing-md-review.json and independent landing-md-review-followup.json; parent resolved all stale approval/status/timeout claims."
+  }
+}

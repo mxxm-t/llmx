@@ -209,6 +209,19 @@ void main() {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = p.type == TYPE_Q5_1 ? q5_1_at(o, k, d, m) : q4_1_at(o, k, d, m);
                 }
+            } else if (p.type == TYPE_Q2_K || p.type == TYPE_Q3_K) {
+                uint o = (wr * (p.nin / 256u) + k0 / 256u) * block_bytes(p.type);
+                uint first = k0 % 256u + wseg * WVALS;
+                // Each aligned run of 4, 8 or 16 values stays within one scale group.
+                if (p.type == TYPE_Q2_K) {
+                    Q2KScale scale = q2_k_scale(o, first);
+                    for (uint i = 0u; i < WVALS; ++i)
+                        ws[wseg * WVALS + i][wrow] = q2_k_at(o, first + i, scale);
+                } else {
+                    Q3KScale scale = q3_k_scale(o, first);
+                    for (uint i = 0u; i < WVALS; ++i)
+                        ws[wseg * WVALS + i][wrow] = q3_k_at(o, first + i, scale);
+                }
             } else if (is_kquant(p.type)) {
                 // 256-value blocks: this 32-wide step is a slice of one and a thread's run lies inside one group of 32, so the sub-scale, sub-min, nibble half and start byte are read once per run rather than per value.
                 uint o = (wr * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);

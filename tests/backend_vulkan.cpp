@@ -322,7 +322,7 @@ size_t check_matrix_witness(backend::Backend& vk) {
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
     const std::string half_paths = integer
         ? "block-int16 (quantized rows and eligible tiles; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)"
-        : "block-int16 (quantized rows; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+        : "block-int16 (quantized rows except Q2_K/Q3_K; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
     require(vk.dtype_path(backend::Dtype::f16) == half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");
@@ -2530,7 +2530,7 @@ size_t check_weight_dispatch() {
             checks += nout;
         }
     }
-    for (uint32_t type : {4u, 10u, 25u, 42u, 43u, UINT32_MAX}) {
+    for (uint32_t type : {4u, 25u, 42u, 43u, UINT32_MAX}) {
         require(!vk.supports_type(type), "metadata-only or unknown weight type acquired a kernel");
         const std::string expected = "vulkan: unsupported matrix type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)";

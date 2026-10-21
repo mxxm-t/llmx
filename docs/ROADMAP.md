@@ -23,20 +23,22 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
   the shared 6-bit sub-scale decoder (`get_scale_min_k4`) that `Q5_K` reuses.
 - `Q5_K` done (read-only). Qwen3-0.6B-Q5_K_M is 168 Q5_K / 29 Q6_K / 113 F32,
   so dense Qwen3 `Q4_K_M` and `Q5_K_M` mixtures can be read. Other mixtures
-  may still require missing types such as Q3_K.
+  may require additional type qualification; the hosted Qwen3-0.6B Q2_K file
+  also contains Q3_K tensors. Both read-only implementations are present;
+  qualification of the mixed release is tracked in STATUS.
 - A fused Q4_K row dot landed for decode: no dequantized value is materialised,
   because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
-- `IQ4_NL` support is published for CPU and Vulkan through the existing decoder and matrix owners, with raw-format/native, tiny and 0.6B file-exact HF checks. Its released-file and 16K checks are recorded in STATUS. Original-weight quality approval and hosted download-gate inclusion remain pending; new-type speed deficits remain follow-up work. Vulkan uses block-int16 signed-lookup rows on lookup-dot profiles and integer tiles where preferred, with wider float products as fallback. `IQ4_XS` read-only CPU and Vulkan support has completed local integration and qualification, including the approved exact-fixture split-F32 allowance. It is published read-only on CPU and Vulkan; the separate F16 packed-dot work does not implement it.
-- The remaining format work is `Q3_K` and `Q2_K` qualification, then the remaining IQ formats, with `IQ3_S` first among those candidates. Q5_0 and IQ4_XS are published read-only formats. This order is a priority, not a schedule. The earlier September deferral is historical.
+- `IQ4_NL` support is published for CPU and Vulkan through the existing decoder and matrix owners, with raw-format/native, tiny and 0.6B file-exact HF checks. Its released-file and 16K checks are recorded in STATUS. Original-weight quality approval and hosted download-gate inclusion remain pending; measured speed deficits remain open, with Vulkan recovery in the first quant stage and ROCm tuning in the second. Vulkan uses block-int16 signed-lookup rows on lookup-dot profiles and integer tiles where preferred, with wider float products as fallback. `IQ4_XS` read-only CPU and Vulkan support has completed local integration and qualification, including the approved exact-fixture split-F32 allowance; it is published read-only. The separate F16 packed-dot work does not implement it.
+- `Q5_0` and `Q5_1` support is published read-only on CPU and Vulkan. `Q2_K` and `Q3_K` have read-only CPU/Vulkan implementations. Their initial float-path qualification is retained; the subsequent packed-prefill and specialized decode paths require their own affected checks. Final default/F32 raw/chat 16K depth checks pass; remaining device, Q3 BF16 policy and landing qualification are tracked in STATUS. The next remaining IQ-format priority is `IQ3_S`; this order is a priority, not a release schedule. The earlier September deferral is historical.
 - `F16` and `BF16` read-only weight support is published on CPU and Vulkan; the current storage, twin and released-file evidence is recorded in STATUS. Activation dtype support is separate from these weight formats.
   Every type multiplies the per-backend kernel work (see #4b), and each type must meet the six conditions listed there.
   The 16-bit weight kernels widen to F32 exactly on the CPU and Vulkan, since gfx906 has no BF16 arithmetic. The products retain the corresponding F32-weight path's arithmetic and device float controls.
 - The other lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not ordered yet: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
   `IQ3_S` is the first candidate among the remaining IQ formats, following the clarified order above.
-  `Q5_1` support was published on 2026-10-20; this landing adds read-only `Q5_0` CPU and Vulkan inference support. Focused operator, tiny, converted-file and released mixed-sidecar output-identity checks are in STATUS; they do not establish broad original-weight quality, all-expert execution or performance.
+  `Q5_0` focused operator, tiny, converted-file and released mixed-sidecar output-identity checks are in STATUS; they do not establish broad original-weight quality, all-expert execution or performance.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.
@@ -213,6 +215,13 @@ and implemented HF coverage are recorded in STATUS.
   gfx906 fork on the same model, quant, prompt and hardware, measured as pp and
   tg tok/s. A ground-up runtime slower than the thing it replaces has no claim
   to being a runtime. Report both arms; never a single number.
+- **Quant development order:** finish each missing quant against mx Vulkan,
+  meeting correctness and the Vulkan performance target before moving to the
+  next. Once all quants are supported, tune against mx ROCm too while retaining
+  Vulkan performance. This applies to every quant, including existing support;
+  record missing comparisons and deficits explicitly. ROCm deficits do not block
+  first-stage quant landings. Focused development checks precede the applicable
+  final gates; this sequence does not require a full matrix after every edit.
 - Assess the complete performance tradeoff: a large phase/model gain can
   justify a minor regression elsewhere. Report both sides and retain failed
   screens; an isolated cutoff is not an automatic adoption decision. HF

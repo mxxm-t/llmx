@@ -64,7 +64,9 @@ void main() {
             uint b = j / bv, k = j - b * bv;
             uint o = base + b * bb;
             float v;
-            if (p.type == TYPE_Q4_0) v = q4_0_exact(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
+            if (p.type == TYPE_Q2_K) v = q2_k_at(o, k);
+            else if (p.type == TYPE_Q3_K) v = q3_k_at(o, k);
+            else if (p.type == TYPE_Q4_0) v = q4_0_exact(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_Q5_0) v = q5_0_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_IQ4_NL) v = iq4_nl_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_IQ4_XS) v = iq4_xs_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));

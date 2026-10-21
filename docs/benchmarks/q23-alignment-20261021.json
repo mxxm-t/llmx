@@ -1,0 +1,2975 @@
+{
+  "base": "f7f99555b3c495eafb26b4a2192d4fefe7fcb511",
+  "scope": "One shared packed-code reader; unchanged arithmetic, precision, reduction and repair.",
+  "rig": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021",
+  "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+  "binding": {
+    "build_execution_sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+    "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+    "arms": {
+      "base": {
+        "revision": "f7f99555b3c495eafb26b4a2192d4fefe7fcb511-runtime",
+        "binaries": {
+          "llmx": "a18aeb6e1569561e2f56db2af0e623323b6b1e9d2cf906d5b65b5a0100fba465",
+          "llmx-model-logits": "9aaf2e10a1a208372238fa5bd9b1b30a18df90a1409341a4759a702bdf3bf054",
+          "libllmx-vulkan.a": "5baa0d8db83b0401df45ec91480ea4d1ced8746c7f098c813af86bd32915e2c8",
+          "llmx-q2-k-test": "fde611058bd759d5296ac29999ba9a612a9675deb9de28da7bf3fd4a463abf9b",
+          "llmx-q3-k-test": "ce7467f07301a4e3e4cf8517f6114eef5ce5fc659b03e0c41e0c73d47bc5e151"
+        },
+        "version": "llmx 0.1.0+unknown numerics 170c39dc3c749ce4",
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+      },
+      "candidate": {
+        "revision": "f7f99555b-alignment-ce30fca07205",
+        "binaries": {
+          "llmx": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+          "llmx-model-logits": "853db38215d464f1b7f75b0c1649a397f2f0d91cafe7bb47c575e0f08ab98d36",
+          "libllmx-vulkan.a": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64",
+          "llmx-q2-k-test": "531aadc0d6372c6d69c8402dfb160cee6c167d749a05dde082d775f2a1b87082",
+          "llmx-q3-k-test": "9a5d428a6a71d9375b4d66d189075631e722de8f78e7eef59baf6196c480d05e"
+        },
+        "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68",
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+      }
+    }
+  },
+  "independent_codes": {
+    "passed": true,
+    "counts": {
+      "q2_words": 32768,
+      "q3_words": 524288,
+      "address_words": 771328
+    },
+    "actual_word_read_relative_ranges": {
+      "84": [
+        16,
+        83
+      ],
+      "110": [
+        -2,
+        99
+      ]
+    },
+    "scope": "Exact independently written four-code patterns over every aligned logical first and both block parities; all tensor word reads bounded for short/odd/tail shapes.",
+    "limits": "CPU integer emulation/proof only; no compiled shader, device numerical, ISA or performance claim.",
+    "script_sha256": "b4b946844373fb313f74b021d5b803a87f113e1e367f2b58a929afc939fbeb6b"
+  },
+  "payload_scope": {
+    "scope_verified": true,
+    "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+    "semantic_source_changes": [
+      "src/backends/vulkan/shaders/k23_dot.glsl"
+    ],
+    "module_counts": {
+      "base": 189,
+      "candidate": 189
+    },
+    "raw_payload_changed": [
+      "matmul_row_q2_dot.inc",
+      "matmul_row_q2_dot_preserve.inc",
+      "matmul_row_q3_dot.inc",
+      "matmul_row_q3_dot_preserve.inc",
+      "matmul_tile_q2.inc",
+      "matmul_tile_q2_preserve.inc",
+      "matmul_tile_q3.inc",
+      "matmul_tile_q3_preserve.inc"
+    ],
+    "raw_payload_identical": 181,
+    "canonical_different": null,
+    "unexpected_or_unresolved": [],
+    "module_hash_manifest_sha256": "e1edf68a4726e39f5e5e1a77416b0bb61425987c1183d627730b53442a5846bf",
+    "tool": null,
+    "limitation": "Byte/canonical equality establishes only generated payload identity. Non-equality does not prove changed arithmetic. No driver ISA, numerical or performance verdict."
+  },
+  "isa": {
+    "base_execution_sha256": "5a8c3cb112427179814c1e807d54684120bbefdeb0041a9b6b8717a16917acdc",
+    "candidate_execution_sha256": "3742bf31a6ee743921572e056894cf71967a7cac869552a24f7f0746dd7397e5",
+    "rows": {
+      "matmul_row_float_x_q3.txt": {
+        "base": {
+          "raw_sha256": "64b287605f20045422db7977947372c98994b7e2ed55a1aa8e74ca95a1c228ed",
+          "assembly_sha256": "2baabb7dbe10bb4847f696f32aa84608b351fbc8cd5a8e8091f6905b972d4fa9",
+          "instructions": 1054,
+          "buffer_load_instructions": 57,
+          "buffer_load_dword": 57,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 32,
+          "and_ops": 52,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 77,
+          "waitcnt": 107,
+          "opcodes": {
+            "buffer_load_dword": 57,
+            "buffer_store_dword": 18,
+            "ds_bpermute_b32": 8,
+            "ds_swizzle_b32": 16,
+            "s_add_u32": 74,
+            "s_addk_i32": 1,
+            "s_and_b32": 5,
+            "s_and_b64": 1,
+            "s_bfe_u32": 3,
+            "s_branch": 15,
+            "s_brev_b32": 4,
+            "s_buffer_load_dword": 3,
+            "s_cbranch_execz": 9,
+            "s_cbranch_scc0": 51,
+            "s_cbranch_scc1": 2,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 7,
+            "s_cmp_lg_i32": 13,
+            "s_cmp_lt_u32": 40,
+            "s_cselect_b32": 8,
+            "s_cselect_b64": 1,
+            "s_endpgm": 1,
+            "s_load_dwordx4": 24,
+            "s_lshl2_add_u32": 1,
+            "s_lshl_b32": 42,
+            "s_lshr_b32": 1,
+            "s_mov_b32": 34,
+            "s_mov_b64": 19,
+            "s_movk_i32": 20,
+            "s_mul_hi_u32": 2,
+            "s_mul_i32": 54,
+            "s_mulk_i32": 1,
+            "s_nop": 24,
+            "s_or_b32": 1,
+            "s_pack_ll_b32_b16": 2,
+            "s_sub_i32": 4,
+            "s_waitcnt": 107,
+            "v_add_f32_dpp": 24,
+            "v_add_f32_e32": 34,
+            "v_add_f32_e64": 1,
+            "v_add_lshl_u32": 32,
+            "v_add_u32_e32": 32,
+            "v_and_b32_e32": 52,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfi_b32": 1,
+            "v_bfrev_b32_e32": 4,
+            "v_cmp_class_f32_e64": 1,
+            "v_cmp_eq_i32_e32": 4,
+            "v_cmp_gt_i32_e32": 8,
+            "v_cndmask_b32_e32": 8,
+            "v_cndmask_b32_e64": 5,
+            "v_cvt_f32_f16_e32": 1,
+            "v_cvt_f32_i32_e32": 8,
+            "v_cvt_f32_u32_e32": 1,
+            "v_cvt_u32_f32_e32": 1,
+            "v_fma_f32": 32,
+            "v_lshl_add_u32": 4,
+            "v_lshl_or_b32": 4,
+            "v_lshlrev_b32_e32": 29,
+            "v_lshrrev_b32_e32": 16,
+            "v_mbcnt_hi_u32_b32": 2,
+            "v_mbcnt_lo_u32_b32": 2,
+            "v_mov_b32_e32": 16,
+            "v_mul_f32_e32": 11,
+            "v_rcp_f32_e32": 1,
+            "v_readfirstlane_b32": 1,
+            "v_xor_b32_e32": 8
+          }
+        },
+        "candidate": {
+          "raw_sha256": "64b287605f20045422db7977947372c98994b7e2ed55a1aa8e74ca95a1c228ed",
+          "assembly_sha256": "2baabb7dbe10bb4847f696f32aa84608b351fbc8cd5a8e8091f6905b972d4fa9",
+          "instructions": 1054,
+          "buffer_load_instructions": 57,
+          "buffer_load_dword": 57,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 32,
+          "and_ops": 52,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 77,
+          "waitcnt": 107,
+          "opcodes": {
+            "buffer_load_dword": 57,
+            "buffer_store_dword": 18,
+            "ds_bpermute_b32": 8,
+            "ds_swizzle_b32": 16,
+            "s_add_u32": 74,
+            "s_addk_i32": 1,
+            "s_and_b32": 5,
+            "s_and_b64": 1,
+            "s_bfe_u32": 3,
+            "s_branch": 15,
+            "s_brev_b32": 4,
+            "s_buffer_load_dword": 3,
+            "s_cbranch_execz": 9,
+            "s_cbranch_scc0": 51,
+            "s_cbranch_scc1": 2,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 7,
+            "s_cmp_lg_i32": 13,
+            "s_cmp_lt_u32": 40,
+            "s_cselect_b32": 8,
+            "s_cselect_b64": 1,
+            "s_endpgm": 1,
+            "s_load_dwordx4": 24,
+            "s_lshl2_add_u32": 1,
+            "s_lshl_b32": 42,
+            "s_lshr_b32": 1,
+            "s_mov_b32": 34,
+            "s_mov_b64": 19,
+            "s_movk_i32": 20,
+            "s_mul_hi_u32": 2,
+            "s_mul_i32": 54,
+            "s_mulk_i32": 1,
+            "s_nop": 24,
+            "s_or_b32": 1,
+            "s_pack_ll_b32_b16": 2,
+            "s_sub_i32": 4,
+            "s_waitcnt": 107,
+            "v_add_f32_dpp": 24,
+            "v_add_f32_e32": 34,
+            "v_add_f32_e64": 1,
+            "v_add_lshl_u32": 32,
+            "v_add_u32_e32": 32,
+            "v_and_b32_e32": 52,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfi_b32": 1,
+            "v_bfrev_b32_e32": 4,
+            "v_cmp_class_f32_e64": 1,
+            "v_cmp_eq_i32_e32": 4,
+            "v_cmp_gt_i32_e32": 8,
+            "v_cndmask_b32_e32": 8,
+            "v_cndmask_b32_e64": 5,
+            "v_cvt_f32_f16_e32": 1,
+            "v_cvt_f32_i32_e32": 8,
+            "v_cvt_f32_u32_e32": 1,
+            "v_cvt_u32_f32_e32": 1,
+            "v_fma_f32": 32,
+            "v_lshl_add_u32": 4,
+            "v_lshl_or_b32": 4,
+            "v_lshlrev_b32_e32": 29,
+            "v_lshrrev_b32_e32": 16,
+            "v_mbcnt_hi_u32_b32": 2,
+            "v_mbcnt_lo_u32_b32": 2,
+            "v_mov_b32_e32": 16,
+            "v_mul_f32_e32": 11,
+            "v_rcp_f32_e32": 1,
+            "v_readfirstlane_b32": 1,
+            "v_xor_b32_e32": 8
+          }
+        },
+        "delta": {
+          "instructions": 0,
+          "buffer_load_instructions": 0,
+          "buffer_load_dword": 0,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 0,
+          "waitcnt": 0
+        },
+        "assembly_byte_identical": true
+      },
+      "matmul_row_float_x_q3_1col.txt": {
+        "base": {
+          "raw_sha256": "c0ab4d0e746297c8de141f986546bff8a6c97f69d3fb7a4e3aa202ed1f81d160",
+          "assembly_sha256": "c917710deeedd46a010e232c7cfa60f7bebe3df63a330314af1f05745d676193",
+          "instructions": 420,
+          "buffer_load_instructions": 21,
+          "buffer_load_dword": 21,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 32,
+          "and_ops": 52,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 8,
+          "waitcnt": 27,
+          "opcodes": {
+            "buffer_load_dword": 21,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 1,
+            "ds_swizzle_b32": 2,
+            "s_add_u32": 13,
+            "s_addk_i32": 1,
+            "s_and_b32": 5,
+            "s_and_b64": 1,
+            "s_bfe_u32": 3,
+            "s_branch": 3,
+            "s_brev_b32": 2,
+            "s_buffer_load_dword": 3,
+            "s_cbranch_execz": 1,
+            "s_cbranch_scc0": 3,
+            "s_cbranch_scc1": 1,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 6,
+            "s_cmp_lg_i32": 2,
+            "s_cmp_lt_u32": 3,
+            "s_cselect_b32": 8,
+            "s_cselect_b64": 1,
+            "s_endpgm": 1,
+            "s_load_dwordx4": 5,
+            "s_lshl2_add_u32": 1,
+            "s_lshl_b32": 10,
+            "s_lshr_b32": 1,
+            "s_mov_b32": 9,
+            "s_mov_b64": 2,
+            "s_movk_i32": 5,
+            "s_mul_hi_u32": 2,
+            "s_mul_i32": 7,
+            "s_mulk_i32": 1,
+            "s_nop": 4,
+            "s_or_b32": 1,
+            "s_pack_ll_b32_b16": 2,
+            "s_sub_i32": 4,
+            "s_waitcnt": 27,
+            "v_add_f32_dpp": 3,
+            "v_add_f32_e32": 4,
+            "v_add_lshl_u32": 4,
+            "v_add_u32_e32": 32,
+            "v_and_b32_e32": 52,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfi_b32": 1,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 1,
+            "v_cmp_eq_i32_e32": 4,
+            "v_cmp_gt_i32_e32": 8,
+            "v_cndmask_b32_e32": 8,
+            "v_cndmask_b32_e64": 5,
+            "v_cvt_f32_f16_e32": 1,
+            "v_cvt_f32_i32_e32": 8,
+            "v_cvt_f32_u32_e32": 1,
+            "v_cvt_u32_f32_e32": 1,
+            "v_fma_f32": 4,
+            "v_lshl_add_u32": 4,
+            "v_lshl_or_b32": 4,
+            "v_lshlrev_b32_e32": 29,
+            "v_lshrrev_b32_e32": 16,
+            "v_mbcnt_hi_u32_b32": 2,
+            "v_mbcnt_lo_u32_b32": 2,
+            "v_mov_b32_e32": 2,
+            "v_mul_f32_e32": 11,
+            "v_rcp_f32_e32": 1,
+            "v_readfirstlane_b32": 1,
+            "v_xor_b32_e32": 8
+          }
+        },
+        "candidate": {
+          "raw_sha256": "c0ab4d0e746297c8de141f986546bff8a6c97f69d3fb7a4e3aa202ed1f81d160",
+          "assembly_sha256": "c917710deeedd46a010e232c7cfa60f7bebe3df63a330314af1f05745d676193",
+          "instructions": 420,
+          "buffer_load_instructions": 21,
+          "buffer_load_dword": 21,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 32,
+          "and_ops": 52,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 8,
+          "waitcnt": 27,
+          "opcodes": {
+            "buffer_load_dword": 21,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 1,
+            "ds_swizzle_b32": 2,
+            "s_add_u32": 13,
+            "s_addk_i32": 1,
+            "s_and_b32": 5,
+            "s_and_b64": 1,
+            "s_bfe_u32": 3,
+            "s_branch": 3,
+            "s_brev_b32": 2,
+            "s_buffer_load_dword": 3,
+            "s_cbranch_execz": 1,
+            "s_cbranch_scc0": 3,
+            "s_cbranch_scc1": 1,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 6,
+            "s_cmp_lg_i32": 2,
+            "s_cmp_lt_u32": 3,
+            "s_cselect_b32": 8,
+            "s_cselect_b64": 1,
+            "s_endpgm": 1,
+            "s_load_dwordx4": 5,
+            "s_lshl2_add_u32": 1,
+            "s_lshl_b32": 10,
+            "s_lshr_b32": 1,
+            "s_mov_b32": 9,
+            "s_mov_b64": 2,
+            "s_movk_i32": 5,
+            "s_mul_hi_u32": 2,
+            "s_mul_i32": 7,
+            "s_mulk_i32": 1,
+            "s_nop": 4,
+            "s_or_b32": 1,
+            "s_pack_ll_b32_b16": 2,
+            "s_sub_i32": 4,
+            "s_waitcnt": 27,
+            "v_add_f32_dpp": 3,
+            "v_add_f32_e32": 4,
+            "v_add_lshl_u32": 4,
+            "v_add_u32_e32": 32,
+            "v_and_b32_e32": 52,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfi_b32": 1,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 1,
+            "v_cmp_eq_i32_e32": 4,
+            "v_cmp_gt_i32_e32": 8,
+            "v_cndmask_b32_e32": 8,
+            "v_cndmask_b32_e64": 5,
+            "v_cvt_f32_f16_e32": 1,
+            "v_cvt_f32_i32_e32": 8,
+            "v_cvt_f32_u32_e32": 1,
+            "v_cvt_u32_f32_e32": 1,
+            "v_fma_f32": 4,
+            "v_lshl_add_u32": 4,
+            "v_lshl_or_b32": 4,
+            "v_lshlrev_b32_e32": 29,
+            "v_lshrrev_b32_e32": 16,
+            "v_mbcnt_hi_u32_b32": 2,
+            "v_mbcnt_lo_u32_b32": 2,
+            "v_mov_b32_e32": 2,
+            "v_mul_f32_e32": 11,
+            "v_rcp_f32_e32": 1,
+            "v_readfirstlane_b32": 1,
+            "v_xor_b32_e32": 8
+          }
+        },
+        "delta": {
+          "instructions": 0,
+          "buffer_load_instructions": 0,
+          "buffer_load_dword": 0,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 0,
+          "waitcnt": 0
+        },
+        "assembly_byte_identical": true
+      },
+      "matmul_row_float_x_q3_grouped.txt": {
+        "base": {
+          "raw_sha256": "b7cff4f1aa0b2fafc0baa2410fe4f93a81a43aa5d277984d0f46449da2e08d49",
+          "assembly_sha256": "c3064aaf694b5a2aa269fe0855d0db560a5541aff1466e296dae3258d8511307",
+          "instructions": 1537,
+          "buffer_load_instructions": 57,
+          "buffer_load_dword": 57,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 32,
+          "and_ops": 52,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 76,
+          "waitcnt": 136,
+          "opcodes": {
+            "buffer_load_dword": 57,
+            "buffer_store_dword": 18,
+            "ds_bpermute_b32": 8,
+            "ds_swizzle_b32": 16,
+            "s_add_u32": 119,
+            "s_addk_i32": 1,
+            "s_and_b32": 5,
+            "s_and_b64": 1,
+            "s_bfe_u32": 3,
+            "s_branch": 14,
+            "s_brev_b32": 4,
+            "s_buffer_load_dword": 53,
+            "s_buffer_load_dwordx2": 1,
+            "s_cbranch_execz": 9,
+            "s_cbranch_scc0": 51,
+            "s_cbranch_scc1": 2,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 100,
+            "s_cmp_lg_i32": 13,
+            "s_cmp_lt_u32": 40,
+            "s_cselect_b32": 101,
+            "s_cselect_b64": 1,
+            "s_endpgm": 1,
+            "s_load_dwordx4": 24,
+            "s_lshl2_add_u32": 43,
+            "s_lshl_b32": 50,
+            "s_lshr_b32": 1,
+            "s_mov_b32": 16,
+            "s_mov_b64": 19,
+            "s_movk_i32": 1,
+            "s_mul_hi_u32": 36,
+            "s_mul_i32": 88,
+            "s_mulk_i32": 1,
+            "s_nop": 24,
+            "s_or_b32": 1,
+            "s_pack_ll_b32_b16": 2,
+            "s_sub_i32": 69,
+            "s_waitcnt": 136,
+            "v_add_f32_dpp": 24,
+            "v_add_f32_e32": 34,
+            "v_add_f32_e64": 1,
+            "v_add_lshl_u32": 32,
+            "v_add_u32_e32": 32,
+            "v_and_b32_e32": 52,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfi_b32": 1,
+            "v_bfrev_b32_e32": 4,
+            "v_cmp_class_f32_e64": 4,
+            "v_cmp_eq_i32_e32": 4,
+            "v_cmp_gt_i32_e32": 8,
+            "v_cndmask_b32_e32": 8,
+            "v_cndmask_b32_e64": 8,
+            "v_cvt_f32_f16_e32": 1,
+            "v_cvt_f32_i32_e32": 8,
+            "v_cvt_f32_u32_e32": 4,
+            "v_cvt_u32_f32_e32": 4,
+            "v_fma_f32": 32,
+            "v_lshl_add_u32": 4,
+            "v_lshl_or_b32": 4,
+            "v_lshlrev_b32_e32": 29,
+            "v_lshrrev_b32_e32": 16,
+            "v_mbcnt_hi_u32_b32": 2,
+            "v_mbcnt_lo_u32_b32": 2,
+            "v_mov_b32_e32": 16,
+            "v_mul_f32_e32": 20,
+            "v_rcp_f32_e32": 4,
+            "v_readfirstlane_b32": 4,
+            "v_xor_b32_e32": 8
+          }
+        },
+        "candidate": {
+          "raw_sha256": "b7cff4f1aa0b2fafc0baa2410fe4f93a81a43aa5d277984d0f46449da2e08d49",
+          "assembly_sha256": "c3064aaf694b5a2aa269fe0855d0db560a5541aff1466e296dae3258d8511307",
+          "instructions": 1537,
+          "buffer_load_instructions": 57,
+          "buffer_load_dword": 57,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 32,
+          "and_ops": 52,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 76,
+          "waitcnt": 136,
+          "opcodes": {
+            "buffer_load_dword": 57,
+            "buffer_store_dword": 18,
+            "ds_bpermute_b32": 8,
+            "ds_swizzle_b32": 16,
+            "s_add_u32": 119,
+            "s_addk_i32": 1,
+            "s_and_b32": 5,
+            "s_and_b64": 1,
+            "s_bfe_u32": 3,
+            "s_branch": 14,
+            "s_brev_b32": 4,
+            "s_buffer_load_dword": 53,
+            "s_buffer_load_dwordx2": 1,
+            "s_cbranch_execz": 9,
+            "s_cbranch_scc0": 51,
+            "s_cbranch_scc1": 2,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 100,
+            "s_cmp_lg_i32": 13,
+            "s_cmp_lt_u32": 40,
+            "s_cselect_b32": 101,
+            "s_cselect_b64": 1,
+            "s_endpgm": 1,
+            "s_load_dwordx4": 24,
+            "s_lshl2_add_u32": 43,
+            "s_lshl_b32": 50,
+            "s_lshr_b32": 1,
+            "s_mov_b32": 16,
+            "s_mov_b64": 19,
+            "s_movk_i32": 1,
+            "s_mul_hi_u32": 36,
+            "s_mul_i32": 88,
+            "s_mulk_i32": 1,
+            "s_nop": 24,
+            "s_or_b32": 1,
+            "s_pack_ll_b32_b16": 2,
+            "s_sub_i32": 69,
+            "s_waitcnt": 136,
+            "v_add_f32_dpp": 24,
+            "v_add_f32_e32": 34,
+            "v_add_f32_e64": 1,
+            "v_add_lshl_u32": 32,
+            "v_add_u32_e32": 32,
+            "v_and_b32_e32": 52,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfi_b32": 1,
+            "v_bfrev_b32_e32": 4,
+            "v_cmp_class_f32_e64": 4,
+            "v_cmp_eq_i32_e32": 4,
+            "v_cmp_gt_i32_e32": 8,
+            "v_cndmask_b32_e32": 8,
+            "v_cndmask_b32_e64": 8,
+            "v_cvt_f32_f16_e32": 1,
+            "v_cvt_f32_i32_e32": 8,
+            "v_cvt_f32_u32_e32": 4,
+            "v_cvt_u32_f32_e32": 4,
+            "v_fma_f32": 32,
+            "v_lshl_add_u32": 4,
+            "v_lshl_or_b32": 4,
+            "v_lshlrev_b32_e32": 29,
+            "v_lshrrev_b32_e32": 16,
+            "v_mbcnt_hi_u32_b32": 2,
+            "v_mbcnt_lo_u32_b32": 2,
+            "v_mov_b32_e32": 16,
+            "v_mul_f32_e32": 20,
+            "v_rcp_f32_e32": 4,
+            "v_readfirstlane_b32": 4,
+            "v_xor_b32_e32": 8
+          }
+        },
+        "delta": {
+          "instructions": 0,
+          "buffer_load_instructions": 0,
+          "buffer_load_dword": 0,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 0,
+          "int16_dots": 0,
+          "branches": 0,
+          "waitcnt": 0
+        },
+        "assembly_byte_identical": true
+      },
+      "matmul_row_q3_dot.txt": {
+        "base": {
+          "raw_sha256": "4dc6df8ba463455adf2eda1449757c91270f57c7270882d9472a4f8eba340938",
+          "assembly_sha256": "906935f5f8c0762b57c9d096b63d89006390eca04009528dec0a2a7be8a605b9",
+          "instructions": 1300,
+          "buffer_load_instructions": 85,
+          "buffer_load_dword": 53,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 32,
+          "bfe": 20,
+          "and_ops": 86,
+          "or_ops": 1,
+          "int16_dots": 128,
+          "branches": 55,
+          "waitcnt": 116,
+          "opcodes": {
+            "buffer_load_dword": 53,
+            "buffer_load_dwordx4": 32,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 2,
+            "s_add_u32": 29,
+            "s_and_b32": 5,
+            "s_and_b64": 12,
+            "s_and_saveexec_b64": 1,
+            "s_andn2_b64": 2,
+            "s_bfe_u32": 2,
+            "s_bfm_b32": 1,
+            "s_bitcmp0_b32": 1,
+            "s_branch": 13,
+            "s_brev_b32": 1,
+            "s_buffer_load_dword": 2,
+            "s_buffer_load_dwordx2": 1,
+            "s_cbranch_execz": 20,
+            "s_cbranch_scc0": 18,
+            "s_cbranch_scc1": 4,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 10,
+            "s_cmp_lg_i32": 5,
+            "s_cmp_lt_i32": 13,
+            "s_cmp_lt_u32": 10,
+            "s_cselect_b32": 5,
+            "s_cselect_b64": 14,
+            "s_endpgm": 1,
+            "s_load_dword": 9,
+            "s_load_dwordx4": 9,
+            "s_lshl2_add_u32": 1,
+            "s_lshl3_add_u32": 1,
+            "s_lshl_b32": 13,
+            "s_lshr_b32": 26,
+            "s_mov_b32": 49,
+            "s_mov_b64": 24,
+            "s_movk_i32": 21,
+            "s_mul_hi_u32": 3,
+            "s_mul_i32": 27,
+            "s_nop": 1,
+            "s_or_b64": 10,
+            "s_sub_i32": 5,
+            "s_waitcnt": 116,
+            "v_add3_u32": 1,
+            "v_add_f32_e32": 10,
+            "v_add_lshl_u32": 18,
+            "v_add_u32_e32": 51,
+            "v_and_b32_e32": 86,
+            "v_and_or_b32": 9,
+            "v_bfe_u32": 20,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 2,
+            "v_cmp_eq_i32_e64": 3,
+            "v_cmp_gt_f32_e64": 8,
+            "v_cmp_gt_i32_e64": 2,
+            "v_cmp_le_u32_e32": 2,
+            "v_cmp_le_u32_e64": 1,
+            "v_cmp_lt_f32_e64": 8,
+            "v_cmp_ne_i32_e64": 1,
+            "v_cmp_neq_f32_e64": 9,
+            "v_cmpx_gt_u32_e32": 1,
+            "v_cmpx_ne_i32_e64": 16,
+            "v_cndmask_b32_e32": 3,
+            "v_cndmask_b32_e64": 25,
+            "v_cvt_f32_f16_e32": 2,
+            "v_cvt_f32_i32_e32": 20,
+            "v_cvt_f32_i32_sdwa": 1,
+            "v_cvt_f32_u32_e32": 2,
+            "v_cvt_u32_f32_e32": 2,
+            "v_dot2_i32_i16": 128,
+            "v_fma_f32": 9,
+            "v_lshl_add_u32": 9,
+            "v_lshl_or_b32": 21,
+            "v_lshlrev_b32_e32": 52,
+            "v_lshrrev_b32_e32": 52,
+            "v_mbcnt_hi_u32_b32": 1,
+            "v_mbcnt_lo_u32_b32": 1,
+            "v_mov_b32_e32": 36,
+            "v_mov_b32_sdwa": 32,
+            "v_mul_f32_e32": 27,
+            "v_mul_f32_e64": 1,
+            "v_mul_hi_u32": 1,
+            "v_mul_lo_u32": 14,
+            "v_or_b32_e32": 1,
+            "v_rcp_f32_e32": 2,
+            "v_readfirstlane_b32": 2,
+            "v_sub_u32_e32": 18,
+            "v_subrev_u32_e32": 1,
+            "v_xor_b32_e32": 12
+          }
+        },
+        "candidate": {
+          "raw_sha256": "c81389f7cb4e55dc0e36a5d0af3cd70c831ebdc32fd3e3c382c51c2ffba9622a",
+          "assembly_sha256": "f225bb82e9816553de73695df4d93dfbd19a87ab45fd4dd01ae9eb8e47e6d401",
+          "instructions": 1240,
+          "buffer_load_instructions": 69,
+          "buffer_load_dword": 21,
+          "buffer_load_dwordx2": 16,
+          "buffer_load_dwordx4": 32,
+          "bfe": 20,
+          "and_ops": 86,
+          "or_ops": 17,
+          "int16_dots": 128,
+          "branches": 39,
+          "waitcnt": 84,
+          "opcodes": {
+            "buffer_load_dword": 21,
+            "buffer_load_dwordx2": 16,
+            "buffer_load_dwordx4": 32,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 2,
+            "s_add_u32": 29,
+            "s_and_b32": 5,
+            "s_and_b64": 12,
+            "s_and_saveexec_b64": 1,
+            "s_andn2_b64": 2,
+            "s_bfe_u32": 2,
+            "s_bfm_b32": 1,
+            "s_bitcmp0_b32": 1,
+            "s_branch": 13,
+            "s_brev_b32": 1,
+            "s_buffer_load_dword": 2,
+            "s_buffer_load_dwordx2": 1,
+            "s_cbranch_execz": 4,
+            "s_cbranch_scc0": 18,
+            "s_cbranch_scc1": 4,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 10,
+            "s_cmp_lg_i32": 5,
+            "s_cmp_lt_i32": 13,
+            "s_cmp_lt_u32": 10,
+            "s_cselect_b32": 5,
+            "s_cselect_b64": 14,
+            "s_endpgm": 1,
+            "s_load_dword": 9,
+            "s_load_dwordx4": 9,
+            "s_lshl2_add_u32": 1,
+            "s_lshl3_add_u32": 1,
+            "s_lshl_b32": 13,
+            "s_lshr_b32": 26,
+            "s_mov_b32": 43,
+            "s_mov_b64": 8,
+            "s_movk_i32": 14,
+            "s_mul_hi_u32": 3,
+            "s_mul_i32": 27,
+            "s_nop": 1,
+            "s_or_b64": 10,
+            "s_sub_i32": 5,
+            "s_waitcnt": 84,
+            "v_add3_u32": 1,
+            "v_add_f32_e32": 10,
+            "v_add_lshl_u32": 18,
+            "v_add_u32_e32": 51,
+            "v_and_b32_e32": 86,
+            "v_and_or_b32": 9,
+            "v_bfe_u32": 20,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 2,
+            "v_cmp_eq_i32_e64": 3,
+            "v_cmp_gt_f32_e64": 8,
+            "v_cmp_gt_i32_e64": 2,
+            "v_cmp_le_u32_e32": 2,
+            "v_cmp_le_u32_e64": 1,
+            "v_cmp_lt_f32_e64": 8,
+            "v_cmp_ne_i32_e64": 17,
+            "v_cmp_neq_f32_e64": 9,
+            "v_cmpx_gt_u32_e32": 1,
+            "v_cndmask_b32_e32": 3,
+            "v_cndmask_b32_e64": 41,
+            "v_cvt_f32_f16_e32": 2,
+            "v_cvt_f32_i32_e32": 20,
+            "v_cvt_f32_i32_sdwa": 1,
+            "v_cvt_f32_u32_e32": 2,
+            "v_cvt_u32_f32_e32": 2,
+            "v_dot2_i32_i16": 128,
+            "v_fma_f32": 9,
+            "v_lshl_add_u32": 9,
+            "v_lshl_or_b32": 5,
+            "v_lshlrev_b32_e32": 68,
+            "v_lshrrev_b32_e32": 52,
+            "v_mbcnt_hi_u32_b32": 1,
+            "v_mbcnt_lo_u32_b32": 1,
+            "v_mov_b32_e32": 37,
+            "v_mov_b32_sdwa": 32,
+            "v_mul_f32_e32": 27,
+            "v_mul_f32_e64": 1,
+            "v_mul_hi_u32": 1,
+            "v_mul_lo_u32": 14,
+            "v_or_b32_e32": 17,
+            "v_rcp_f32_e32": 2,
+            "v_readfirstlane_b32": 2,
+            "v_sub_u32_e32": 18,
+            "v_subrev_u32_e32": 1,
+            "v_xor_b32_e32": 12
+          }
+        },
+        "delta": {
+          "instructions": -60,
+          "buffer_load_instructions": -16,
+          "buffer_load_dword": -32,
+          "buffer_load_dwordx2": 16,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 16,
+          "int16_dots": 0,
+          "branches": -16,
+          "waitcnt": -32
+        },
+        "assembly_byte_identical": false
+      },
+      "matmul_row_q3_dot_1col.txt": {
+        "base": {
+          "raw_sha256": "1025665cb2b6357fb88a264bf53b69d8ef949ef30b7eddf3c164546e2fd25d1f",
+          "assembly_sha256": "0dc42d4c588cffcf6865565726a5de4a93f2fd0038893890aa8def2f7858cfcd",
+          "instructions": 870,
+          "buffer_load_instructions": 50,
+          "buffer_load_dword": 46,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 4,
+          "bfe": 20,
+          "and_ops": 86,
+          "or_ops": 1,
+          "int16_dots": 16,
+          "branches": 40,
+          "waitcnt": 77,
+          "opcodes": {
+            "buffer_load_dword": 46,
+            "buffer_load_dwordx4": 4,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 2,
+            "s_add_u32": 11,
+            "s_and_b32": 5,
+            "s_and_b64": 5,
+            "s_and_saveexec_b64": 1,
+            "s_andn2_b64": 2,
+            "s_bfe_u32": 2,
+            "s_bitcmp0_b32": 1,
+            "s_branch": 10,
+            "s_brev_b32": 1,
+            "s_buffer_load_dword": 2,
+            "s_buffer_load_dwordx2": 1,
+            "s_cbranch_execz": 19,
+            "s_cbranch_scc0": 8,
+            "s_cbranch_scc1": 3,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 9,
+            "s_cmp_lg_i32": 4,
+            "s_cmp_lt_u32": 2,
+            "s_cselect_b32": 5,
+            "s_cselect_b64": 2,
+            "s_endpgm": 1,
+            "s_load_dword": 8,
+            "s_load_dwordx4": 9,
+            "s_lshl2_add_u32": 1,
+            "s_lshl3_add_u32": 1,
+            "s_lshl_b32": 13,
+            "s_lshr_b32": 19,
+            "s_mov_b32": 28,
+            "s_mov_b64": 23,
+            "s_movk_i32": 20,
+            "s_mul_hi_u32": 3,
+            "s_mul_i32": 13,
+            "s_nop": 2,
+            "s_or_b64": 3,
+            "s_sub_i32": 5,
+            "s_waitcnt": 77,
+            "v_add3_u32": 1,
+            "v_add_f32_e32": 3,
+            "v_add_lshl_u32": 3,
+            "v_add_u32_e32": 51,
+            "v_and_b32_e32": 86,
+            "v_and_or_b32": 9,
+            "v_bfe_u32": 20,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 2,
+            "v_cmp_eq_i32_e32": 2,
+            "v_cmp_eq_i32_e64": 1,
+            "v_cmp_gt_f32_e64": 1,
+            "v_cmp_gt_i32_e32": 2,
+            "v_cmp_le_u32_e32": 2,
+            "v_cmp_le_u32_e64": 1,
+            "v_cmp_lt_f32_e64": 1,
+            "v_cmp_ne_i32_e32": 1,
+            "v_cmp_neq_f32_e64": 2,
+            "v_cmpx_gt_u32_e32": 1,
+            "v_cmpx_ne_i32_e64": 16,
+            "v_cndmask_b32_e32": 5,
+            "v_cndmask_b32_e64": 4,
+            "v_cvt_f32_f16_e32": 2,
+            "v_cvt_f32_i32_e32": 6,
+            "v_cvt_f32_i32_sdwa": 1,
+            "v_cvt_f32_u32_e32": 2,
+            "v_cvt_u32_f32_e32": 2,
+            "v_dot2_i32_i16": 16,
+            "v_fma_f32": 2,
+            "v_lshl_add_u32": 10,
+            "v_lshl_or_b32": 21,
+            "v_lshlrev_b32_e32": 52,
+            "v_lshrrev_b32_e32": 52,
+            "v_mbcnt_hi_u32_b32": 1,
+            "v_mbcnt_lo_u32_b32": 1,
+            "v_mov_b32_e32": 15,
+            "v_mov_b32_sdwa": 32,
+            "v_mul_f32_e32": 13,
+            "v_mul_f32_e64": 1,
+            "v_mul_hi_u32": 1,
+            "v_mul_lo_u32": 14,
+            "v_or_b32_e32": 1,
+            "v_rcp_f32_e32": 2,
+            "v_readfirstlane_b32": 2,
+            "v_sub_u32_e32": 18,
+            "v_subrev_u32_e32": 1,
+            "v_xor_b32_e32": 12
+          }
+        },
+        "candidate": {
+          "raw_sha256": "c3cba59e0797162fe8dc4814245043dc23e848d35c840322b357ce66be0d2e5c",
+          "assembly_sha256": "dbd7eee0cdbd7e5c316a8a044ea8ac3bd329ef9f5c551213409040ed7a4e9181",
+          "instructions": 814,
+          "buffer_load_instructions": 34,
+          "buffer_load_dword": 14,
+          "buffer_load_dwordx2": 16,
+          "buffer_load_dwordx4": 4,
+          "bfe": 20,
+          "and_ops": 86,
+          "or_ops": 17,
+          "int16_dots": 16,
+          "branches": 24,
+          "waitcnt": 48,
+          "opcodes": {
+            "buffer_load_dword": 14,
+            "buffer_load_dwordx2": 16,
+            "buffer_load_dwordx4": 4,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 2,
+            "s_add_u32": 11,
+            "s_and_b32": 5,
+            "s_and_b64": 5,
+            "s_and_saveexec_b64": 1,
+            "s_andn2_b64": 2,
+            "s_bfe_u32": 2,
+            "s_bitcmp0_b32": 1,
+            "s_branch": 10,
+            "s_brev_b32": 1,
+            "s_buffer_load_dword": 2,
+            "s_buffer_load_dwordx2": 1,
+            "s_cbranch_execz": 3,
+            "s_cbranch_scc0": 8,
+            "s_cbranch_scc1": 3,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 9,
+            "s_cmp_lg_i32": 4,
+            "s_cmp_lt_u32": 2,
+            "s_cselect_b32": 5,
+            "s_cselect_b64": 2,
+            "s_endpgm": 1,
+            "s_load_dword": 8,
+            "s_load_dwordx4": 9,
+            "s_lshl2_add_u32": 1,
+            "s_lshl3_add_u32": 1,
+            "s_lshl_b32": 13,
+            "s_lshr_b32": 19,
+            "s_mov_b32": 22,
+            "s_mov_b64": 7,
+            "s_movk_i32": 13,
+            "s_mul_hi_u32": 3,
+            "s_mul_i32": 13,
+            "s_nop": 2,
+            "s_or_b64": 3,
+            "s_sub_i32": 5,
+            "s_waitcnt": 48,
+            "v_add3_u32": 1,
+            "v_add_f32_e32": 3,
+            "v_add_lshl_u32": 3,
+            "v_add_u32_e32": 51,
+            "v_and_b32_e32": 86,
+            "v_and_or_b32": 9,
+            "v_bfe_u32": 20,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 2,
+            "v_cmp_eq_i32_e32": 2,
+            "v_cmp_eq_i32_e64": 1,
+            "v_cmp_gt_f32_e64": 1,
+            "v_cmp_gt_i32_e32": 2,
+            "v_cmp_le_u32_e32": 2,
+            "v_cmp_le_u32_e64": 1,
+            "v_cmp_lt_f32_e64": 1,
+            "v_cmp_ne_i32_e32": 1,
+            "v_cmp_ne_i32_e64": 16,
+            "v_cmp_neq_f32_e64": 2,
+            "v_cmpx_gt_u32_e32": 1,
+            "v_cndmask_b32_e32": 5,
+            "v_cndmask_b32_e64": 20,
+            "v_cvt_f32_f16_e32": 2,
+            "v_cvt_f32_i32_e32": 6,
+            "v_cvt_f32_i32_sdwa": 1,
+            "v_cvt_f32_u32_e32": 2,
+            "v_cvt_u32_f32_e32": 2,
+            "v_dot2_i32_i16": 16,
+            "v_fma_f32": 2,
+            "v_lshl_add_u32": 10,
+            "v_lshl_or_b32": 5,
+            "v_lshlrev_b32_e32": 68,
+            "v_lshrrev_b32_e32": 52,
+            "v_mbcnt_hi_u32_b32": 1,
+            "v_mbcnt_lo_u32_b32": 1,
+            "v_mov_b32_e32": 17,
+            "v_mov_b32_sdwa": 32,
+            "v_mul_f32_e32": 13,
+            "v_mul_f32_e64": 1,
+            "v_mul_hi_u32": 1,
+            "v_mul_lo_u32": 14,
+            "v_or_b32_e32": 17,
+            "v_rcp_f32_e32": 2,
+            "v_readfirstlane_b32": 2,
+            "v_sub_u32_e32": 18,
+            "v_subrev_u32_e32": 1,
+            "v_xor_b32_e32": 12
+          }
+        },
+        "delta": {
+          "instructions": -56,
+          "buffer_load_instructions": -16,
+          "buffer_load_dword": -32,
+          "buffer_load_dwordx2": 16,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 16,
+          "int16_dots": 0,
+          "branches": -16,
+          "waitcnt": -29
+        },
+        "assembly_byte_identical": false
+      },
+      "matmul_row_q3_dot_grouped.txt": {
+        "base": {
+          "raw_sha256": "8a942e91bcc99ebafd5803bd519e13f8602b26c6fb009404e1f45a90973b5dd8",
+          "assembly_sha256": "38438de1a4bdee591fd06d79e6bdbfb80c97a1b2c6d27d3424eec0cc402ca82a",
+          "instructions": 1434,
+          "buffer_load_instructions": 85,
+          "buffer_load_dword": 53,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 32,
+          "bfe": 20,
+          "and_ops": 86,
+          "or_ops": 1,
+          "int16_dots": 128,
+          "branches": 54,
+          "waitcnt": 127,
+          "opcodes": {
+            "buffer_load_dword": 53,
+            "buffer_load_dwordx4": 32,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 2,
+            "s_add_u32": 43,
+            "s_and_b32": 5,
+            "s_and_b64": 12,
+            "s_and_saveexec_b64": 1,
+            "s_andn2_b64": 2,
+            "s_bfe_u32": 2,
+            "s_bfm_b32": 1,
+            "s_bitcmp0_b32": 1,
+            "s_branch": 12,
+            "s_brev_b32": 1,
+            "s_buffer_load_dword": 13,
+            "s_buffer_load_dwordx2": 2,
+            "s_cbranch_execz": 20,
+            "s_cbranch_scc0": 18,
+            "s_cbranch_scc1": 4,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 34,
+            "s_cmp_lg_i32": 5,
+            "s_cmp_lt_i32": 13,
+            "s_cmp_lt_u32": 10,
+            "s_cselect_b32": 29,
+            "s_cselect_b64": 14,
+            "s_endpgm": 1,
+            "s_load_dword": 8,
+            "s_load_dwordx2": 2,
+            "s_load_dwordx4": 9,
+            "s_lshl2_add_u32": 8,
+            "s_lshl3_add_u32": 1,
+            "s_lshl_b32": 17,
+            "s_lshr_b32": 26,
+            "s_mov_b32": 45,
+            "s_mov_b64": 24,
+            "s_movk_i32": 18,
+            "s_mul_hi_u32": 12,
+            "s_mul_i32": 36,
+            "s_nop": 2,
+            "s_or_b64": 10,
+            "s_sub_i32": 22,
+            "s_waitcnt": 127,
+            "v_add3_u32": 1,
+            "v_add_f32_e32": 10,
+            "v_add_lshl_u32": 18,
+            "v_add_u32_e32": 51,
+            "v_and_b32_e32": 86,
+            "v_and_or_b32": 9,
+            "v_bfe_u32": 20,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 3,
+            "v_cmp_eq_i32_e64": 3,
+            "v_cmp_gt_f32_e64": 8,
+            "v_cmp_gt_i32_e64": 2,
+            "v_cmp_le_u32_e32": 2,
+            "v_cmp_le_u32_e64": 1,
+            "v_cmp_lt_f32_e64": 8,
+            "v_cmp_ne_i32_e64": 1,
+            "v_cmp_neq_f32_e64": 9,
+            "v_cmpx_gt_u32_e32": 1,
+            "v_cmpx_ne_i32_e64": 16,
+            "v_cndmask_b32_e32": 3,
+            "v_cndmask_b32_e64": 26,
+            "v_cvt_f32_f16_e32": 2,
+            "v_cvt_f32_i32_e32": 20,
+            "v_cvt_f32_i32_sdwa": 1,
+            "v_cvt_f32_u32_e32": 3,
+            "v_cvt_u32_f32_e32": 3,
+            "v_dot2_i32_i16": 128,
+            "v_fma_f32": 9,
+            "v_lshl_add_u32": 9,
+            "v_lshl_or_b32": 21,
+            "v_lshlrev_b32_e32": 52,
+            "v_lshrrev_b32_e32": 52,
+            "v_mbcnt_hi_u32_b32": 1,
+            "v_mbcnt_lo_u32_b32": 1,
+            "v_mov_b32_e32": 36,
+            "v_mov_b32_sdwa": 32,
+            "v_mul_f32_e32": 30,
+            "v_mul_f32_e64": 1,
+            "v_mul_hi_u32": 1,
+            "v_mul_lo_u32": 14,
+            "v_or_b32_e32": 1,
+            "v_rcp_f32_e32": 3,
+            "v_readfirstlane_b32": 3,
+            "v_sub_u32_e32": 18,
+            "v_subrev_u32_e32": 1,
+            "v_xor_b32_e32": 12
+          }
+        },
+        "candidate": {
+          "raw_sha256": "00421117adf1c1e25fbe25b933430483d49fab342d9f34564e0abae5ab1281cc",
+          "assembly_sha256": "25106ea6ebf98fecdcb29db6918685945a58f9cd32ed81c30fcbbaa832130d4a",
+          "instructions": 1372,
+          "buffer_load_instructions": 69,
+          "buffer_load_dword": 21,
+          "buffer_load_dwordx2": 16,
+          "buffer_load_dwordx4": 32,
+          "bfe": 20,
+          "and_ops": 86,
+          "or_ops": 17,
+          "int16_dots": 128,
+          "branches": 38,
+          "waitcnt": 95,
+          "opcodes": {
+            "buffer_load_dword": 21,
+            "buffer_load_dwordx2": 16,
+            "buffer_load_dwordx4": 32,
+            "buffer_store_dword": 2,
+            "ds_bpermute_b32": 2,
+            "s_add_u32": 43,
+            "s_and_b32": 5,
+            "s_and_b64": 12,
+            "s_and_saveexec_b64": 1,
+            "s_andn2_b64": 2,
+            "s_bfe_u32": 2,
+            "s_bfm_b32": 1,
+            "s_bitcmp0_b32": 1,
+            "s_branch": 12,
+            "s_brev_b32": 1,
+            "s_buffer_load_dword": 13,
+            "s_buffer_load_dwordx2": 2,
+            "s_cbranch_execz": 4,
+            "s_cbranch_scc0": 18,
+            "s_cbranch_scc1": 4,
+            "s_cmp_eq_i32": 2,
+            "s_cmp_ge_u32": 34,
+            "s_cmp_lg_i32": 5,
+            "s_cmp_lt_i32": 13,
+            "s_cmp_lt_u32": 10,
+            "s_cselect_b32": 29,
+            "s_cselect_b64": 14,
+            "s_endpgm": 1,
+            "s_load_dword": 8,
+            "s_load_dwordx2": 2,
+            "s_load_dwordx4": 9,
+            "s_lshl2_add_u32": 8,
+            "s_lshl3_add_u32": 1,
+            "s_lshl_b32": 17,
+            "s_lshr_b32": 26,
+            "s_mov_b32": 39,
+            "s_mov_b64": 8,
+            "s_movk_i32": 11,
+            "s_mul_hi_u32": 12,
+            "s_mul_i32": 36,
+            "s_nop": 1,
+            "s_or_b64": 10,
+            "s_sub_i32": 22,
+            "s_waitcnt": 95,
+            "v_add3_u32": 1,
+            "v_add_f32_e32": 10,
+            "v_add_lshl_u32": 18,
+            "v_add_u32_e32": 51,
+            "v_and_b32_e32": 86,
+            "v_and_or_b32": 9,
+            "v_bfe_u32": 20,
+            "v_bfrev_b32_e32": 1,
+            "v_cmp_class_f32_e64": 3,
+            "v_cmp_eq_i32_e64": 3,
+            "v_cmp_gt_f32_e64": 8,
+            "v_cmp_gt_i32_e64": 2,
+            "v_cmp_le_u32_e32": 2,
+            "v_cmp_le_u32_e64": 1,
+            "v_cmp_lt_f32_e64": 8,
+            "v_cmp_ne_i32_e64": 17,
+            "v_cmp_neq_f32_e64": 9,
+            "v_cmpx_gt_u32_e32": 1,
+            "v_cndmask_b32_e32": 3,
+            "v_cndmask_b32_e64": 42,
+            "v_cvt_f32_f16_e32": 2,
+            "v_cvt_f32_i32_e32": 20,
+            "v_cvt_f32_i32_sdwa": 1,
+            "v_cvt_f32_u32_e32": 3,
+            "v_cvt_u32_f32_e32": 3,
+            "v_dot2_i32_i16": 128,
+            "v_fma_f32": 9,
+            "v_lshl_add_u32": 9,
+            "v_lshl_or_b32": 5,
+            "v_lshlrev_b32_e32": 68,
+            "v_lshrrev_b32_e32": 52,
+            "v_mbcnt_hi_u32_b32": 1,
+            "v_mbcnt_lo_u32_b32": 1,
+            "v_mov_b32_e32": 36,
+            "v_mov_b32_sdwa": 32,
+            "v_mul_f32_e32": 30,
+            "v_mul_f32_e64": 1,
+            "v_mul_hi_u32": 1,
+            "v_mul_lo_u32": 14,
+            "v_or_b32_e32": 17,
+            "v_rcp_f32_e32": 3,
+            "v_readfirstlane_b32": 3,
+            "v_sub_u32_e32": 18,
+            "v_subrev_u32_e32": 1,
+            "v_xor_b32_e32": 12
+          }
+        },
+        "delta": {
+          "instructions": -62,
+          "buffer_load_instructions": -16,
+          "buffer_load_dword": -32,
+          "buffer_load_dwordx2": 16,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 16,
+          "int16_dots": 0,
+          "branches": -16,
+          "waitcnt": -32
+        },
+        "assembly_byte_identical": false
+      },
+      "matmul_tile_q3_small.txt": {
+        "base": {
+          "raw_sha256": "aad9b289107e83f6b75387d3f806754472c636e3ccc1229c83a07d16f5934e03",
+          "assembly_sha256": "a5de8b1f9f44c571aeacae2dd446a7ab3e5beffb059b49d5943c958fc99efd96",
+          "instructions": 1572,
+          "buffer_load_instructions": 38,
+          "buffer_load_dword": 36,
+          "buffer_load_dwordx2": 0,
+          "buffer_load_dwordx4": 2,
+          "bfe": 32,
+          "and_ops": 62,
+          "or_ops": 16,
+          "int16_dots": 256,
+          "branches": 48,
+          "waitcnt": 80,
+          "opcodes": {
+            "buffer_load_dword": 36,
+            "buffer_load_dwordx4": 2,
+            "buffer_store_dword": 4,
+            "ds_read2_b64": 18,
+            "ds_read2st64_b32": 1,
+            "ds_read_b128": 32,
+            "ds_read_b32": 6,
+            "ds_write2st64_b64": 2,
+            "ds_write_b32": 2,
+            "ds_write_b64": 2,
+            "s_add_u32": 28,
+            "s_and_b32": 14,
+            "s_and_b64": 19,
+            "s_and_saveexec_b64": 4,
+            "s_andn2_b64": 7,
+            "s_barrier": 2,
+            "s_bfe_u32": 2,
+            "s_bfm_b32": 2,
+            "s_branch": 16,
+            "s_brev_b32": 2,
+            "s_buffer_load_dwordx4": 1,
+            "s_cbranch_execz": 13,
+            "s_cbranch_scc0": 13,
+            "s_cbranch_scc1": 6,
+            "s_cmp_eq_i32": 3,
+            "s_cmp_ge_u32": 15,
+            "s_cmp_lg_i32": 8,
+            "s_cmp_lt_i32": 6,
+            "s_cmp_lt_u32": 7,
+            "s_cselect_b32": 14,
+            "s_cselect_b64": 11,
+            "s_endpgm": 1,
+            "s_load_dword": 11,
+            "s_load_dwordx2": 1,
+            "s_load_dwordx4": 17,
+            "s_lshl_b32": 25,
+            "s_lshr_b32": 22,
+            "s_min_u32": 1,
+            "s_mov_b32": 50,
+            "s_mov_b64": 17,
+            "s_movk_i32": 28,
+            "s_mul_hi_u32": 7,
+            "s_mul_i32": 20,
+            "s_nop": 2,
+            "s_or_b64": 14,
+            "s_sub_i32": 11,
+            "s_waitcnt": 80,
+            "v_add3_u32": 13,
+            "v_add_f32_e32": 2,
+            "v_add_lshl_u32": 9,
+            "v_add_u32_e32": 69,
+            "v_and_b32_e32": 62,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfrev_b32_e32": 2,
+            "v_cmp_class_f32_e64": 5,
+            "v_cmp_eq_i32_e64": 4,
+            "v_cmp_gt_f32_e64": 8,
+            "v_cmp_gt_i32_e64": 6,
+            "v_cmp_gt_u32_e64": 6,
+            "v_cmp_le_u32_e64": 6,
+            "v_cmp_lt_f32_e64": 8,
+            "v_cmp_ne_i32_e64": 2,
+            "v_cmp_neq_f32_e64": 10,
+            "v_cmpx_gt_u32_e64": 5,
+            "v_cmpx_ne_i32_e64": 4,
+            "v_cndmask_b32_e32": 2,
+            "v_cndmask_b32_e64": 84,
+            "v_cvt_f32_f16_e32": 3,
+            "v_cvt_f32_i32_e32": 38,
+            "v_cvt_f32_i32_sdwa": 2,
+            "v_cvt_f32_u32_e32": 5,
+            "v_cvt_u32_f32_e32": 5,
+            "v_dot2_i32_i16": 256,
+            "v_fma_f32": 34,
+            "v_lshl_add_u32": 12,
+            "v_lshl_or_b32": 11,
+            "v_lshlrev_b32_e32": 48,
+            "v_lshrrev_b32_e32": 28,
+            "v_mov_b32_e32": 63,
+            "v_mov_b32_sdwa": 8,
+            "v_mul_f32_e32": 38,
+            "v_mul_f32_e64": 2,
+            "v_mul_hi_u32": 3,
+            "v_mul_lo_u32": 23,
+            "v_or_b32_e32": 16,
+            "v_rcp_f32_e32": 5,
+            "v_readfirstlane_b32": 5,
+            "v_sub_u32_e32": 10,
+            "v_subrev_u32_e32": 3,
+            "v_xor_b32_e32": 6
+          }
+        },
+        "candidate": {
+          "raw_sha256": "6d59832505dbaa320c8ba71a5748a12154247f5a71fcb7eeb09c1d384592f4c5",
+          "assembly_sha256": "0c3153f6c2f10365a6e339d73ea2a37800864c0a0c3d0e546c90e4d62fac189c",
+          "instructions": 1553,
+          "buffer_load_instructions": 34,
+          "buffer_load_dword": 28,
+          "buffer_load_dwordx2": 4,
+          "buffer_load_dwordx4": 2,
+          "bfe": 32,
+          "and_ops": 62,
+          "or_ops": 20,
+          "int16_dots": 256,
+          "branches": 44,
+          "waitcnt": 73,
+          "opcodes": {
+            "buffer_load_dword": 28,
+            "buffer_load_dwordx2": 4,
+            "buffer_load_dwordx4": 2,
+            "buffer_store_dword": 4,
+            "ds_read2_b64": 18,
+            "ds_read2st64_b32": 1,
+            "ds_read_b128": 32,
+            "ds_read_b32": 6,
+            "ds_write2st64_b64": 3,
+            "ds_write_b32": 2,
+            "s_add_u32": 28,
+            "s_and_b32": 14,
+            "s_and_b64": 19,
+            "s_and_saveexec_b64": 4,
+            "s_andn2_b64": 7,
+            "s_barrier": 2,
+            "s_bfe_u32": 2,
+            "s_bfm_b32": 2,
+            "s_branch": 16,
+            "s_brev_b32": 2,
+            "s_buffer_load_dwordx4": 1,
+            "s_cbranch_execz": 9,
+            "s_cbranch_scc0": 13,
+            "s_cbranch_scc1": 6,
+            "s_cmp_eq_i32": 3,
+            "s_cmp_ge_u32": 15,
+            "s_cmp_lg_i32": 8,
+            "s_cmp_lt_i32": 6,
+            "s_cmp_lt_u32": 7,
+            "s_cselect_b32": 14,
+            "s_cselect_b64": 11,
+            "s_endpgm": 1,
+            "s_load_dword": 11,
+            "s_load_dwordx2": 1,
+            "s_load_dwordx4": 17,
+            "s_lshl_b32": 25,
+            "s_lshr_b32": 22,
+            "s_min_u32": 1,
+            "s_mov_b32": 50,
+            "s_mov_b64": 13,
+            "s_movk_i32": 24,
+            "s_mul_hi_u32": 7,
+            "s_mul_i32": 20,
+            "s_nop": 1,
+            "s_or_b64": 14,
+            "s_sub_i32": 11,
+            "s_waitcnt": 73,
+            "v_add3_u32": 11,
+            "v_add_f32_e32": 2,
+            "v_add_lshl_u32": 9,
+            "v_add_u32_e32": 70,
+            "v_and_b32_e32": 62,
+            "v_and_or_b32": 4,
+            "v_bfe_u32": 32,
+            "v_bfrev_b32_e32": 2,
+            "v_cmp_class_f32_e64": 5,
+            "v_cmp_eq_i32_e64": 4,
+            "v_cmp_gt_f32_e64": 8,
+            "v_cmp_gt_i32_e64": 6,
+            "v_cmp_gt_u32_e64": 6,
+            "v_cmp_le_u32_e64": 6,
+            "v_cmp_lt_f32_e64": 8,
+            "v_cmp_ne_i32_e64": 6,
+            "v_cmp_neq_f32_e64": 10,
+            "v_cmpx_gt_u32_e64": 5,
+            "v_cndmask_b32_e32": 2,
+            "v_cndmask_b32_e64": 88,
+            "v_cvt_f32_f16_e32": 3,
+            "v_cvt_f32_i32_e32": 38,
+            "v_cvt_f32_i32_sdwa": 2,
+            "v_cvt_f32_u32_e32": 5,
+            "v_cvt_u32_f32_e32": 5,
+            "v_dot2_i32_i16": 256,
+            "v_fma_f32": 34,
+            "v_lshl_add_u32": 13,
+            "v_lshl_or_b32": 7,
+            "v_lshlrev_b32_e32": 51,
+            "v_lshrrev_b32_e32": 28,
+            "v_mov_b32_e32": 62,
+            "v_mov_b32_sdwa": 8,
+            "v_mul_f32_e32": 38,
+            "v_mul_f32_e64": 2,
+            "v_mul_hi_u32": 3,
+            "v_mul_lo_u32": 23,
+            "v_or_b32_e32": 20,
+            "v_rcp_f32_e32": 5,
+            "v_readfirstlane_b32": 5,
+            "v_sub_u32_e32": 10,
+            "v_subrev_u32_e32": 3,
+            "v_xor_b32_e32": 6
+          }
+        },
+        "delta": {
+          "instructions": -19,
+          "buffer_load_instructions": -4,
+          "buffer_load_dword": -8,
+          "buffer_load_dwordx2": 4,
+          "buffer_load_dwordx4": 0,
+          "bfe": 0,
+          "and_ops": 0,
+          "or_ops": 4,
+          "int16_dots": 0,
+          "branches": -4,
+          "waitcnt": -7
+        },
+        "assembly_byte_identical": false
+      }
+    },
+    "scope": "Existing Q3 2048-wide one-column and 65-column projections, same-image same-GPU diagnostic probe. Both stages assert numerical native references before ISA export.",
+    "limits": "Static full-kernel instruction counts include repair paths; not dynamic counts, stalls, bandwidth, occupancy or timing. No assumed basic-block/fast-loop identity. Payload audit separately establishes compiled module scope."
+  },
+  "released_identity": {
+    "audit": {
+      "passed": true,
+      "captures": {
+        "00-main.batched.bin": {
+          "bytes": 150112768,
+          "sha256": "7d09a262ad804f0174700efd0e74c1aa79cea31ff51ab62d23a442712750f13d"
+        },
+        "00-main.decode.bin": {
+          "bytes": 150112768,
+          "sha256": "69940f04145e0d30e29372e841cfe364622435d0ac421c50751a718d56e61a2a"
+        },
+        "00-main.greedy.bin": {
+          "bytes": 38895616,
+          "sha256": "25fcdc5f09c1ca953f9fb700ac40c831eae245002ebdd65c57ec59b35d21113a"
+        },
+        "00-candidate.batched.bin": {
+          "bytes": 150112768,
+          "sha256": "7d09a262ad804f0174700efd0e74c1aa79cea31ff51ab62d23a442712750f13d"
+        },
+        "00-candidate.decode.bin": {
+          "bytes": 150112768,
+          "sha256": "69940f04145e0d30e29372e841cfe364622435d0ac421c50751a718d56e61a2a"
+        },
+        "00-candidate.greedy.bin": {
+          "bytes": 38895616,
+          "sha256": "25fcdc5f09c1ca953f9fb700ac40c831eae245002ebdd65c57ec59b35d21113a"
+        },
+        "01-main.batched.bin": {
+          "bytes": 150112768,
+          "sha256": "5bc83ebfb549030489ee5b65112a0b67ad49bc6219b17ca9c955739b23b13a3a"
+        },
+        "01-main.decode.bin": {
+          "bytes": 150112768,
+          "sha256": "a27025d2b4f431727f95d1d4fcebbce7b647c45462f9d76f7fd8b076f21e79d3"
+        },
+        "01-main.greedy.bin": {
+          "bytes": 38895616,
+          "sha256": "fe116f8fe49cf89dc764e7e170786302cef12bcc85780fbb0b6c5a41877ab922"
+        },
+        "01-candidate.batched.bin": {
+          "bytes": 150112768,
+          "sha256": "5bc83ebfb549030489ee5b65112a0b67ad49bc6219b17ca9c955739b23b13a3a"
+        },
+        "01-candidate.decode.bin": {
+          "bytes": 150112768,
+          "sha256": "a27025d2b4f431727f95d1d4fcebbce7b647c45462f9d76f7fd8b076f21e79d3"
+        },
+        "01-candidate.greedy.bin": {
+          "bytes": 38895616,
+          "sha256": "fe116f8fe49cf89dc764e7e170786302cef12bcc85780fbb0b6c5a41877ab922"
+        }
+      },
+      "rows": 247,
+      "greedy": 64,
+      "execution_sha256": "2fb0e757ee3b7fcead20d325b65da82db97bb2d30a6d11aa3066d4478f6e5c6e",
+      "result_sha256": "9a2e8c9c3dfde9b344eb9dde5c80f8bd7ab1ba51d3c0bd5c8948c8d126e9ab78"
+    },
+    "cases": [
+      {
+        "file": "Qwen3-0.6B-Q2_K.gguf",
+        "tokens": 247,
+        "passed": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q3_K_S.gguf",
+        "tokens": 247,
+        "passed": true
+      }
+    ]
+  },
+  "prelaunch_failure": {
+    "stage": "v1",
+    "error": "Retained wrapper still pinned e8d base; actual baseline is f7. Assertion stopped before container or model execution.",
+    "correction": "Use independently verified f7 screen binding; preserve original wrapper and empty output directory, use v2 output."
+  },
+  "archives": {
+    "terminal-evidence.tar.gz": "37bf2d432da6d427245f684f86171924cd89466099ac97a6f098cf7a5a36e1da",
+    "mx/terminal-evidence.tar.gz": "745b94223094007437465d9909225bbfa588901c54f6aaf8aa45c427fd8752ce",
+    "identity-summary.tar.gz": "045f7cd1d5a542c29be72a598c61ccc74af1186ad8134f780ff352b25467c81c"
+  },
+  "profiles": {
+    "scope": "Frozen f7 packed-load candidate F16 KV diagnostic. Sampled GPU dispatch durations; not unprofiled throughput or a cross-backend performance comparison.",
+    "rows": {
+      "Q2_K": {
+        "phases": {
+          "pp": {
+            "sampled_ms": 83.1986,
+            "dispatches": 368,
+            "kernels": [
+              {
+                "name": "matmul_tile_q2",
+                "ms": 37.9742,
+                "percent": 45.6429
+              },
+              {
+                "name": "matmul_tile_q3",
+                "ms": 30.6123,
+                "percent": 36.7943
+              },
+              {
+                "name": "attention_tile_kv16",
+                "ms": 8.37472,
+                "percent": 10.0659
+              },
+              {
+                "name": "norm_rope_kv_kv16",
+                "ms": 2.68752,
+                "percent": 3.23025
+              },
+              {
+                "name": "matmul_reduce",
+                "ms": 1.33072,
+                "percent": 1.59945
+              },
+              {
+                "name": "silu_mul",
+                "ms": 0.99504,
+                "percent": 1.19598
+              },
+              {
+                "name": "rms_norm_rows",
+                "ms": 0.88736,
+                "percent": 1.06656
+              },
+              {
+                "name": "matmul_row_k_dot_1col head",
+                "ms": 0.30416,
+                "percent": 0.365583
+              },
+              {
+                "name": "embed",
+                "ms": 0.02656,
+                "percent": 0.0319236
+              },
+              {
+                "name": "gather_rows",
+                "ms": 0.00592,
+                "percent": 0.00711551
+              }
+            ]
+          },
+          "tg": {
+            "sampled_ms": 540.023,
+            "dispatches": 39040,
+            "kernels": [
+              {
+                "name": "matmul_row_q3_dot_1col",
+                "ms": 188.296,
+                "percent": 34.8682
+              },
+              {
+                "name": "matmul_row_q2_dot_1col",
+                "ms": 136.205,
+                "percent": 25.2221
+              },
+              {
+                "name": "rms_norm_rows",
+                "ms": 56.3896,
+                "percent": 10.4421
+              },
+              {
+                "name": "matmul_row_k_dot_1col head",
+                "ms": 38.7683,
+                "percent": 7.17901
+              },
+              {
+                "name": "attention_vec_kv16",
+                "ms": 38.4734,
+                "percent": 7.12441
+              },
+              {
+                "name": "norm_rope_kv_kv16",
+                "ms": 35.4806,
+                "percent": 6.57021
+              },
+              {
+                "name": "attention_merge",
+                "ms": 23.6018,
+                "percent": 4.37051
+              },
+              {
+                "name": "silu_mul",
+                "ms": 20.767,
+                "percent": 3.84559
+              },
+              {
+                "name": "embed",
+                "ms": 1.29504,
+                "percent": 0.239812
+              },
+              {
+                "name": "gather_rows",
+                "ms": 0.74592,
+                "percent": 0.138127
+              }
+            ]
+          }
+        },
+        "execution_sha256": "3da061d904a87f087658127e91dcd21cfbd34294c2686c3c929f03f3bcb29c1e",
+        "log_sha256": "a234642abe73cba537aac1b69a99f74ab1b4df4fe189f56b3c06f4e2623c7e0e"
+      },
+      "Q3_K_S": {
+        "phases": {
+          "pp": {
+            "sampled_ms": 81.5232,
+            "dispatches": 312,
+            "kernels": [
+              {
+                "name": "matmul_tile_q3",
+                "ms": 67.209,
+                "percent": 82.4415
+              },
+              {
+                "name": "attention_tile_kv16",
+                "ms": 8.4608,
+                "percent": 10.3784
+              },
+              {
+                "name": "norm_rope_kv_kv16",
+                "ms": 2.6816,
+                "percent": 3.28937
+              },
+              {
+                "name": "silu_mul",
+                "ms": 1.01648,
+                "percent": 1.24686
+              },
+              {
+                "name": "matmul_reduce",
+                "ms": 0.94768,
+                "percent": 1.16247
+              },
+              {
+                "name": "rms_norm_rows",
+                "ms": 0.87296,
+                "percent": 1.07081
+              },
+              {
+                "name": "matmul_row_k_dot_1col head",
+                "ms": 0.30304,
+                "percent": 0.371722
+              },
+              {
+                "name": "embed",
+                "ms": 0.02576,
+                "percent": 0.0315984
+              },
+              {
+                "name": "gather_rows",
+                "ms": 0.00592,
+                "percent": 0.00726174
+              }
+            ]
+          },
+          "tg": {
+            "sampled_ms": 558.163,
+            "dispatches": 35456,
+            "kernels": [
+              {
+                "name": "matmul_row_q3_dot_1col",
+                "ms": 342.945,
+                "percent": 61.4417
+              },
+              {
+                "name": "rms_norm_rows",
+                "ms": 56.2584,
+                "percent": 10.0792
+              },
+              {
+                "name": "matmul_row_k_dot_1col head",
+                "ms": 38.7718,
+                "percent": 6.94633
+              },
+              {
+                "name": "attention_vec_kv16",
+                "ms": 38.7594,
+                "percent": 6.94409
+              },
+              {
+                "name": "norm_rope_kv_kv16",
+                "ms": 35.4629,
+                "percent": 6.3535
+              },
+              {
+                "name": "attention_merge",
+                "ms": 23.4083,
+                "percent": 4.19381
+              },
+              {
+                "name": "silu_mul",
+                "ms": 20.5403,
+                "percent": 3.67999
+              },
+              {
+                "name": "embed",
+                "ms": 1.27392,
+                "percent": 0.228234
+              },
+              {
+                "name": "gather_rows",
+                "ms": 0.7432,
+                "percent": 0.133151
+              }
+            ]
+          }
+        },
+        "execution_sha256": "4a56f16b126e5f146359205205cf75597c26290e4bc89ec6ee0d0be202ab7b83",
+        "log_sha256": "55b21b094c8dd439e095f303637c0ca610f72d6d2229f040067d9708467f390f"
+      }
+    }
+  },
+  "checks": {
+    "build-candidate": {
+      "passed": true,
+      "removed": true,
+      "sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+      "seconds": 178.73523783683777
+    },
+    "native": {
+      "passed": true,
+      "removed": true,
+      "sha256": "fc6b41118dafd77ca7f827d02c8dd587af04459afae0487bc84805a56a9d5178",
+      "seconds": 6.679582595825195
+    }
+  },
+  "timings": {
+    "before_after": {
+      "rows": [
+        {
+          "model": "qwen3-q2_k",
+          "model_pin": {
+            "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q2_K.gguf",
+            "bytes": 296238784,
+            "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+          },
+          "means": {
+            "base": {
+              "pp512": 6252.995,
+              "tg128": 267.32
+            },
+            "candidate": {
+              "pp512": 6407.35,
+              "tg128": 275.165
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 2.468497096191502,
+            "tg128": 2.934685021696848
+          },
+          "activity_flags": [
+            "disk"
+          ]
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "model_pin": {
+            "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+            "bytes": 323075776,
+            "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+          },
+          "means": {
+            "base": {
+              "pp512": 6445.215,
+              "tg128": 251.11
+            },
+            "candidate": {
+              "pp512": 6824.5650000000005,
+              "tg128": 271.9
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 5.885761762796116,
+            "tg128": 8.279240173629066
+          },
+          "activity_flags": [
+            "disk"
+          ]
+        },
+        {
+          "model": "qwen3-q8_0",
+          "model_pin": {
+            "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "bytes": 639446688,
+            "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+          },
+          "means": {
+            "base": {
+              "pp512": 8837.28,
+              "tg128": 398.08
+            },
+            "candidate": {
+              "pp512": 8840.645,
+              "tg128": 398.81
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 0.038077326960328506,
+            "tg128": 0.18338022508039842
+          },
+          "activity_flags": [
+            "disk"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "model": "qwen3-q2_k",
+          "arm": "base-qwen3-q2_k",
+          "direction": "ABBA-0",
+          "exe": "base",
+          "start": 1792579114.6029253,
+          "end": 1792579116.6756463,
+          "rates": {
+            "pp512": 6250.8,
+            "tg128": 266.99
+          },
+          "status": "passed",
+          "stdout": "00-base-qwen3-q2_k.stdout",
+          "stderr": "00-base-qwen3-q2_k.stderr",
+          "usage": "00-base-qwen3-q2_k.usage.json",
+          "activity_intervals": 4,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 4,
+          "index": 0,
+          "duration_seconds": 2.072721004486084,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q2_k",
+          "arm": "candidate-qwen3-q2_k",
+          "direction": "ABBA-1",
+          "exe": "candidate",
+          "start": 1792579116.6765301,
+          "end": 1792579118.4956663,
+          "rates": {
+            "pp512": 6405.49,
+            "tg128": 275.36
+          },
+          "status": "passed",
+          "stdout": "01-candidate-qwen3-q2_k.stdout",
+          "stderr": "01-candidate-qwen3-q2_k.stderr",
+          "usage": "01-candidate-qwen3-q2_k.usage.json",
+          "activity_intervals": 2,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 1,
+          "index": 1,
+          "duration_seconds": 1.819136142730713,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q2_k",
+          "arm": "candidate-qwen3-q2_k",
+          "direction": "ABBA-2",
+          "exe": "candidate",
+          "start": 1792579118.4966278,
+          "end": 1792579120.215417,
+          "rates": {
+            "pp512": 6409.21,
+            "tg128": 274.97
+          },
+          "status": "passed",
+          "stdout": "02-candidate-qwen3-q2_k.stdout",
+          "stderr": "02-candidate-qwen3-q2_k.stderr",
+          "usage": "02-candidate-qwen3-q2_k.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 2,
+          "duration_seconds": 1.7187891006469727,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q2_k",
+          "arm": "base-qwen3-q2_k",
+          "direction": "ABBA-3",
+          "exe": "base",
+          "start": 1792579120.2163124,
+          "end": 1792579121.935642,
+          "rates": {
+            "pp512": 6255.19,
+            "tg128": 267.65
+          },
+          "status": "passed",
+          "stdout": "03-base-qwen3-q2_k.stdout",
+          "stderr": "03-base-qwen3-q2_k.stderr",
+          "usage": "03-base-qwen3-q2_k.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 2,
+          "index": 3,
+          "duration_seconds": 1.719329595565796,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "base-qwen3-q3_k_s",
+          "direction": "ABBA-0",
+          "exe": "base",
+          "start": 1792579121.936613,
+          "end": 1792579123.8062532,
+          "rates": {
+            "pp512": 6447.35,
+            "tg128": 251.24
+          },
+          "status": "passed",
+          "stdout": "04-base-qwen3-q3_k_s.stdout",
+          "stderr": "04-base-qwen3-q3_k_s.stderr",
+          "usage": "04-base-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 1,
+          "index": 4,
+          "duration_seconds": 1.8696401119232178,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "candidate-qwen3-q3_k_s",
+          "direction": "ABBA-1",
+          "exe": "candidate",
+          "start": 1792579123.8072538,
+          "end": 1792579125.526371,
+          "rates": {
+            "pp512": 6825.81,
+            "tg128": 271.17
+          },
+          "status": "passed",
+          "stdout": "05-candidate-qwen3-q3_k_s.stdout",
+          "stderr": "05-candidate-qwen3-q3_k_s.stderr",
+          "usage": "05-candidate-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 2,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 1,
+          "index": 5,
+          "duration_seconds": 1.7191171646118164,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "candidate-qwen3-q3_k_s",
+          "direction": "ABBA-2",
+          "exe": "candidate",
+          "start": 1792579125.5275767,
+          "end": 1792579127.2477312,
+          "rates": {
+            "pp512": 6823.32,
+            "tg128": 272.63
+          },
+          "status": "passed",
+          "stdout": "06-candidate-qwen3-q3_k_s.stdout",
+          "stderr": "06-candidate-qwen3-q3_k_s.stderr",
+          "usage": "06-candidate-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 2,
+          "index": 6,
+          "duration_seconds": 1.7201545238494873,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "base-qwen3-q3_k_s",
+          "direction": "ABBA-3",
+          "exe": "base",
+          "start": 1792579127.2487576,
+          "end": 1792579129.068231,
+          "rates": {
+            "pp512": 6443.08,
+            "tg128": 250.98
+          },
+          "status": "passed",
+          "stdout": "07-base-qwen3-q3_k_s.stdout",
+          "stderr": "07-base-qwen3-q3_k_s.stderr",
+          "usage": "07-base-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 3,
+          "index": 7,
+          "duration_seconds": 1.8194735050201416,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q8_0",
+          "arm": "base-qwen3-q8_0",
+          "direction": "ABBA-0",
+          "exe": "base",
+          "start": 1792579129.0692308,
+          "end": 1792579130.5877812,
+          "rates": {
+            "pp512": 8833.04,
+            "tg128": 399.71
+          },
+          "status": "passed",
+          "stdout": "08-base-qwen3-q8_0.stdout",
+          "stderr": "08-base-qwen3-q8_0.stderr",
+          "usage": "08-base-qwen3-q8_0.usage.json",
+          "activity_intervals": 2,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 2,
+          "index": 8,
+          "duration_seconds": 1.5185503959655762,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q8_0",
+          "arm": "candidate-qwen3-q8_0",
+          "direction": "ABBA-1",
+          "exe": "candidate",
+          "start": 1792579130.588827,
+          "end": 1792579132.107697,
+          "rates": {
+            "pp512": 8834.82,
+            "tg128": 396.93
+          },
+          "status": "passed",
+          "stdout": "09-candidate-qwen3-q8_0.stdout",
+          "stderr": "09-candidate-qwen3-q8_0.stderr",
+          "usage": "09-candidate-qwen3-q8_0.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 1,
+          "index": 9,
+          "duration_seconds": 1.5188701152801514,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q8_0",
+          "arm": "candidate-qwen3-q8_0",
+          "direction": "ABBA-2",
+          "exe": "candidate",
+          "start": 1792579132.1091666,
+          "end": 1792579133.578542,
+          "rates": {
+            "pp512": 8846.47,
+            "tg128": 400.69
+          },
+          "status": "passed",
+          "stdout": "10-candidate-qwen3-q8_0.stdout",
+          "stderr": "10-candidate-qwen3-q8_0.stderr",
+          "usage": "10-candidate-qwen3-q8_0.usage.json",
+          "activity_intervals": 2,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 10,
+          "duration_seconds": 1.4693753719329834,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q8_0",
+          "arm": "base-qwen3-q8_0",
+          "direction": "ABBA-3",
+          "exe": "base",
+          "start": 1792579133.5796764,
+          "end": 1792579135.0983915,
+          "rates": {
+            "pp512": 8841.52,
+            "tg128": 396.45
+          },
+          "status": "passed",
+          "stdout": "11-base-qwen3-q8_0.stdout",
+          "stderr": "11-base-qwen3-q8_0.stderr",
+          "usage": "11-base-qwen3-q8_0.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 11,
+          "duration_seconds": 1.5187151432037354,
+          "monitor_covers_whole_call": true
+        }
+      ],
+      "counts": {
+        "planned": 12,
+        "completed": 12,
+        "filtered": 0,
+        "samples_per_arm_per_file": 2
+      },
+      "identities": {
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "executables": {
+          "base": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/base/build/llmx",
+            "sha256": "a18aeb6e1569561e2f56db2af0e623323b6b1e9d2cf906d5b65b5a0100fba465",
+            "version": "llmx 0.1.0+unknown numerics 170c39dc3c749ce4"
+          },
+          "candidate": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/candidate/build/llmx",
+            "sha256": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+            "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68"
+          }
+        },
+        "source_arms": {
+          "base": {
+            "tree": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/base",
+            "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/screen/measurement-sources.json",
+            "revision": "f7f99555b3c495eafb26b4a2192d4fefe7fcb511-runtime",
+            "library_sha256": "5baa0d8db83b0401df45ec91480ea4d1ced8746c7f098c813af86bd32915e2c8"
+          },
+          "candidate": {
+            "tree": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/candidate",
+            "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/screen/measurement-sources.json",
+            "revision": "f7f99555b-alignment-ce30fca07205",
+            "library_sha256": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64"
+          }
+        },
+        "build_execution_sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+        "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+        "threads": 4,
+        "ubatch": 512,
+        "dtype": "auto",
+        "cache_type_k": "f32",
+        "cache_type_v": "f32",
+        "gpu_node": "/dev/dri/renderD130",
+        "gpu_pci": "0000:c9:00.0",
+        "cpu_set": "4-7"
+      },
+      "activity_thresholds": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "flagged_interval_counts": {
+        "system_idle": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk": 12,
+        "sample_gap": 0
+      },
+      "limitations": [
+        "Short screen: two samples per arm/file, no established noise band or causal attribution for small changes.",
+        "Unchanged prior activity classification and thresholds, all samples retained including flagged intervals.",
+        "No fresh mx run: prior same-environment mx results remain historical separate context.",
+        "Sampled CPU/disk/GPU data does not prove stalls or bandwidth saturation; short-lived processes and tails can be unobserved.",
+        "Q2_K/Q3_K_S released files and Q8_0 control; no other models or server timing.",
+        "Q2/Q3 branch-free alignment helper changes, activation and reduction policies unchanged; existing unchanged bounds and independent native checks passed before screen."
+      ],
+      "stages": {
+        "build": {
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+          "seconds": 178.73523783683777
+        },
+        "native": {
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "sha256": "fc6b41118dafd77ca7f827d02c8dd587af04459afae0487bc84805a56a9d5178",
+          "seconds": 6.679582595825195
+        },
+        "screen": {
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "sha256": "2bb7c7f392020c8cd75f96f140723e774767b5a4d67b8a384d216bde8c0ffd06",
+          "seconds": 29.49135160446167
+        }
+      }
+    },
+    "mx_vulkan": {
+      "rows": [
+        {
+          "model": "qwen3-q2_k",
+          "model_pin": {
+            "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q2_K.gguf",
+            "bytes": 296238784,
+            "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+          },
+          "means": {
+            "candidate": {
+              "pp512": 6406.83,
+              "tg128": 274.75
+            },
+            "mx": {
+              "pp512": 5414.24,
+              "tg128": 260.32500000000005
+            }
+          },
+          "candidate_vs_mx_percent": {
+            "pp512": 18.332951623865966,
+            "tg128": 5.5411504849706805
+          },
+          "activity_flags": [
+            "disk"
+          ]
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "model_pin": {
+            "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+            "bytes": 323075776,
+            "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+            "repo": "unsloth/Qwen3-0.6B-GGUF",
+            "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+          },
+          "means": {
+            "candidate": {
+              "pp512": 6828.085,
+              "tg128": 271.39
+            },
+            "mx": {
+              "pp512": 6115.85,
+              "tg128": 255.61
+            }
+          },
+          "candidate_vs_mx_percent": {
+            "pp512": 11.645723815986319,
+            "tg128": 6.17346739172957
+          },
+          "activity_flags": []
+        }
+      ],
+      "calls": [
+        {
+          "model": "qwen3-q2_k",
+          "arm": "candidate-qwen3-q2_k",
+          "direction": "ABBA-0",
+          "exe": "candidate",
+          "start": 1792579221.5510118,
+          "end": 1792579223.6235974,
+          "rates": {
+            "pp512": 6407.83,
+            "tg128": 274.43
+          },
+          "status": "passed",
+          "stdout": "00-candidate-qwen3-q2_k.stdout",
+          "stderr": "00-candidate-qwen3-q2_k.stderr",
+          "usage": "00-candidate-qwen3-q2_k.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 1,
+          "index": 0,
+          "duration_seconds": 2.0725855827331543,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q2_k",
+          "arm": "mx-qwen3-q2_k",
+          "direction": "ABBA-1",
+          "exe": "mx",
+          "start": 1792579223.6244485,
+          "end": 1792579226.144898,
+          "rates": {
+            "pp512": 5387.7,
+            "tg128": 259.66
+          },
+          "status": "passed",
+          "stdout": "01-mx-qwen3-q2_k.stdout",
+          "stderr": "01-mx-qwen3-q2_k.stderr",
+          "usage": "01-mx-qwen3-q2_k.usage.json",
+          "activity_intervals": 4,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 1,
+          "duration_seconds": 2.52044939994812,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q2_k",
+          "arm": "mx-qwen3-q2_k",
+          "direction": "ABBA-2",
+          "exe": "mx",
+          "start": 1792579226.1457155,
+          "end": 1792579228.1149414,
+          "rates": {
+            "pp512": 5440.78,
+            "tg128": 260.99
+          },
+          "status": "passed",
+          "stdout": "02-mx-qwen3-q2_k.stdout",
+          "stderr": "02-mx-qwen3-q2_k.stderr",
+          "usage": "02-mx-qwen3-q2_k.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 2,
+          "index": 2,
+          "duration_seconds": 1.9692258834838867,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q2_k",
+          "arm": "candidate-qwen3-q2_k",
+          "direction": "ABBA-3",
+          "exe": "candidate",
+          "start": 1792579228.1158426,
+          "end": 1792579229.8352466,
+          "rates": {
+            "pp512": 6405.83,
+            "tg128": 275.07
+          },
+          "status": "passed",
+          "stdout": "03-candidate-qwen3-q2_k.stdout",
+          "stderr": "03-candidate-qwen3-q2_k.stderr",
+          "usage": "03-candidate-qwen3-q2_k.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [
+            "disk"
+          ],
+          "flagged_intervals": 1,
+          "index": 3,
+          "duration_seconds": 1.7194039821624756,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "candidate-qwen3-q3_k_s",
+          "direction": "ABBA-0",
+          "exe": "candidate",
+          "start": 1792579229.8361866,
+          "end": 1792579231.6057224,
+          "rates": {
+            "pp512": 6833.1,
+            "tg128": 271.16
+          },
+          "status": "passed",
+          "stdout": "04-candidate-qwen3-q3_k_s.stdout",
+          "stderr": "04-candidate-qwen3-q3_k_s.stderr",
+          "usage": "04-candidate-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 2,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 4,
+          "duration_seconds": 1.769535779953003,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "mx-qwen3-q3_k_s",
+          "direction": "ABBA-1",
+          "exe": "mx",
+          "start": 1792579231.6067345,
+          "end": 1792579233.5766366,
+          "rates": {
+            "pp512": 6121.76,
+            "tg128": 255.38
+          },
+          "status": "passed",
+          "stdout": "05-mx-qwen3-q3_k_s.stdout",
+          "stderr": "05-mx-qwen3-q3_k_s.stderr",
+          "usage": "05-mx-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 5,
+          "duration_seconds": 1.9699020385742188,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "mx-qwen3-q3_k_s",
+          "direction": "ABBA-2",
+          "exe": "mx",
+          "start": 1792579233.5776982,
+          "end": 1792579235.4977703,
+          "rates": {
+            "pp512": 6109.94,
+            "tg128": 255.84
+          },
+          "status": "passed",
+          "stdout": "06-mx-qwen3-q3_k_s.stdout",
+          "stderr": "06-mx-qwen3-q3_k_s.stderr",
+          "usage": "06-mx-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 6,
+          "duration_seconds": 1.920072078704834,
+          "monitor_covers_whole_call": true
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "arm": "candidate-qwen3-q3_k_s",
+          "direction": "ABBA-3",
+          "exe": "candidate",
+          "start": 1792579235.4991055,
+          "end": 1792579237.2193108,
+          "rates": {
+            "pp512": 6823.07,
+            "tg128": 271.62
+          },
+          "status": "passed",
+          "stdout": "07-candidate-qwen3-q3_k_s.stdout",
+          "stderr": "07-candidate-qwen3-q3_k_s.stderr",
+          "usage": "07-candidate-qwen3-q3_k_s.usage.json",
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0,
+          "index": 7,
+          "duration_seconds": 1.720205307006836,
+          "monitor_covers_whole_call": true
+        }
+      ],
+      "counts": {
+        "planned": 8,
+        "completed": 8,
+        "filtered": 0,
+        "samples_per_arm_per_file": 2
+      },
+      "identities": {
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "executables": {
+          "base": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/base/build/llmx",
+            "sha256": "a18aeb6e1569561e2f56db2af0e623323b6b1e9d2cf906d5b65b5a0100fba465",
+            "version": "llmx 0.1.0+unknown numerics 170c39dc3c749ce4"
+          },
+          "candidate": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/candidate/build/llmx",
+            "sha256": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+            "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68"
+          },
+          "mx": {
+            "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+            "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+            "revision": "eefc4e7321c869496146697d63362f073941aed6",
+            "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+            "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+            "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+            "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+          }
+        },
+        "source_arms": {
+          "base": {
+            "tree": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/base",
+            "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/mx/measurement-sources.json",
+            "revision": "f7f99555b3c495eafb26b4a2192d4fefe7fcb511-runtime",
+            "library_sha256": "5baa0d8db83b0401df45ec91480ea4d1ced8746c7f098c813af86bd32915e2c8"
+          },
+          "candidate": {
+            "tree": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/candidate",
+            "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/mx/measurement-sources.json",
+            "revision": "f7f99555b-alignment-ce30fca07205",
+            "library_sha256": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64"
+          }
+        },
+        "build_execution_sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+        "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+        "threads": 4,
+        "ubatch": 512,
+        "dtype": "auto",
+        "cache_type_k": "f32",
+        "cache_type_v": "f32",
+        "gpu_node": "/dev/dri/renderD130",
+        "gpu_pci": "0000:c9:00.0",
+        "cpu_set": "4-7"
+      },
+      "activity_thresholds": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "flagged_interval_counts": {
+        "system_idle": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk": 3,
+        "sample_gap": 0
+      },
+      "limitations": [
+        "Short screen: two samples per arm/file, no established noise band or causal attribution for small changes.",
+        "Unchanged prior activity classification and thresholds, all samples retained including flagged intervals.",
+        "Fresh pinned mx Vulkan, same files/environment/devices/F32 KV; not ROCm or latest mx.",
+        "Sampled CPU/disk/GPU data does not prove stalls or bandwidth saturation; short-lived processes and tails can be unobserved.",
+        "Q2_K/Q3_K_S released files only; existing-path Q8 control retained in the separate base/candidate screen.",
+        "Q2/Q3 int16 decode and shared prompt helpers change; existing unchanged bounds and independent native checks passed before screen."
+      ],
+      "stages": {
+        "build": {
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+          "seconds": 178.73523783683777
+        },
+        "native": {
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "sha256": "fc6b41118dafd77ca7f827d02c8dd587af04459afae0487bc84805a56a9d5178",
+          "seconds": 6.679582595825195
+        },
+        "screen": {
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "sha256": "93aeb9cac7cf6de7d64d606ec51dbdea97741d83d38a4876d18af37a654aede8",
+          "seconds": 23.68770408630371
+        }
+      }
+    }
+  },
+  "windows": {
+    "passed": true,
+    "scope": "Windows/Radeon qualified f7 archive vs fresh same archive plus exact branch-free k23 helper; no timing/fullsuite/HF regeneration.",
+    "build_provenance": {
+      "base": {
+        "source_directory": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-packed-loads\\windows\\candidate",
+        "build_directory": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-packed-loads\\windows\\candidate-build",
+        "source_manifest_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-packed-loads\\windows\\candidate-source.json",
+        "source_manifest_sha256": "19b8ed220c0ea29156376c19b29dd71b31a0f9aa015c4d76666d4677fbbe9e42",
+        "version": "llmx 0.1.0+unknown numerics 170c39dc3c749ce4",
+        "binaries": {
+          "llmx.exe": "5411fc3312c3ec56c8f08282fc85c21f3e92d9657ad76995e598d6dbd347bc73",
+          "llmx-model-logits.exe": "02bf6a6881ba7c9e39dac3cbfce471414e5c13a5ef84d507de45501a82792d4a",
+          "llmx-vulkan.lib": "c7dd6e50cfc5fb561f30a239be7c15db4e711daf54a48315c43becbd4370b483",
+          "llmx-q2-k-test.exe": "3a84eb52c6a1f24c7be0213dfcc45bd118e24425d48f87e54d2d7a30da35fe29",
+          "llmx-q3-k-test.exe": "7bdaaa50fad948fc1a401aa4b33151c6ffc79d505e232e52728701f389852262"
+        }
+      },
+      "candidate": {
+        "source_directory": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-alignment\\windows\\candidate",
+        "build_directory": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-alignment\\windows\\candidate-build",
+        "source_manifest_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-alignment\\windows\\candidate-source.json",
+        "source_manifest_sha256": "f3402acc8f3b7dc56a53c371b64b77ac6af8058074cde7410846e514978ebac5",
+        "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68",
+        "binaries": {
+          "llmx.exe": "93ded3aa6ac15206017ed1f1daf441ce8be0c0bec989953fa59e8f3b7769be9a",
+          "llmx-model-logits.exe": "aa899b5ec456cff63d03cb474339e339897c2c9c59bd2df884faede94c22083c",
+          "llmx-vulkan.lib": "fff375757679f339a293b12426d73dfe85aa0e5f0107db823025474c408198c4",
+          "llmx-q2-k-test.exe": "1e18f236bad5d521876e36230323dc1409357123b6442238394aa034a114b925",
+          "llmx-q3-k-test.exe": "0bd7f836df1272993f306f78fc2a40a142ccdb58d3a70dd5a199c75e95d7d531"
+        }
+      }
+    },
+    "source_delta": [
+      "src/backends/vulkan/shaders/k23_dot.glsl"
+    ],
+    "raw_payload_changes": [
+      "matmul_row_q2_dot.inc",
+      "matmul_row_q2_dot_preserve.inc",
+      "matmul_row_q3_dot.inc",
+      "matmul_row_q3_dot_preserve.inc",
+      "matmul_tile_q2.inc",
+      "matmul_tile_q2_preserve.inc",
+      "matmul_tile_q3.inc",
+      "matmul_tile_q3_preserve.inc"
+    ],
+    "raw_payload_identical": 181,
+    "native_counts": [
+      "Q2_K: 65011712 exact decoded values, 552561 independent embedding/range/product values, 17914 exact row-class pairs; 0 block-int16 calls; F32/BF16 paths checked",
+      "Q2_K: 65011712 exact decoded values, 555081 independent embedding/range/product values, 1625 exact row-class pairs; 0 block-int16 calls; F32/BF16 paths checked",
+      "Q3_K: 32505856 exact decoded values, 1184873 independent embedding/range/product values, 17914 exact row-class pairs; 0 block-int16 calls; F32/BF16 witnesses checked",
+      "Q3_K: 32505856 exact decoded values, 1186385 independent embedding/range/product values, 1625 exact row-class pairs; 0 block-int16 calls; F32/BF16 witnesses checked"
+    ],
+    "identity": [
+      {
+        "model": "qwen3-q2_k",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "tokens": 247,
+        "vocab": 151936,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "f24b093f24316997836b259f9b53d86a578e832a088eaa1bf28644bf4cde330a"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "bea072f4a15ef0f37d2b5aa77aa98dc4ed842597e3c1a118cc87a6783a31a242"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "c5ef774b93f20d66bf80db90b3b3b02d2111524fd380a851b4a974c7e7145554"
+          }
+        },
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "tokens": 247,
+        "vocab": 151936,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "f1086593490d9925b138dde927cd3cd1aa586b8cd5c49af95d174d0b069d7314"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "a3142c1cc31348cbf082279256a9a8363e780fd11d0803b1c678374f80aa9aca"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "890a1775481b79f180c2f492e683d42ac6bf42d062775fa274281062a31d1610"
+          }
+        },
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        }
+      }
+    ],
+    "native_seconds": 19.99515128135681,
+    "identity_seconds": 25.535372972488403,
+    "candidate_build_seconds": 90.77212238311768,
+    "artifacts": {
+      "build-summary.json": "17dbc8d42014430d7552c9422d104c21db7611ac3efc22e17af22a7c53760551",
+      "matched-build-audit.json": "3ed6fe094fe5479592821fa41f959e48515caf4be68c8d7464b42e81b0fc2f29",
+      "native-results/execution.json": "cd881e12df760e1464fe2bf959ea9eb81d7d9f744d535bc36bce5b7b08f21ab2",
+      "identity-results/execution.json": "4b46634e5ccf77f33560da6b549532389326fa719e9649813fc66c4b7490d743",
+      "shader-payload-audit.json": "71c48d1dc96c80ef33fd610060ad1e3ab83ecbc46568af734d100622e7776ddf",
+      "candidate-configure.log": "cea0d0724a7ab868f6845189508191d1bcc1a6987068ae91281fc489b5bff575",
+      "candidate-build.log": "e721e1279a264c05288625b5fbc29001d11e252385d4e9039ec3e859028adcad",
+      "preparation.json": "52ed9198a78fe46016c1c62e2e66f251ca6f2a39148684a9ee03c2c19d5f27ed"
+    },
+    "limitations": [
+      "Only candidate freshly rebuilt; frozen f7 base same-kind unknown-revision archive, compiler/Release/config verified.",
+      "Radeon normal profile runs Q2/Q3 F32/BF16; zero Q2/Q3 block-int16 native calls. Packed helper execution qualification is MI50 evidence, not these Radeon controls.",
+      "Twelve large binary32 captures remain locally with hashes/size; no duplicate archive. All 247prompt rows,64greedy IDs and metadata matched for both released files.",
+      "Desktop activity sampled/retained; correctness only, no new performance/mx claim. No runtime source or qualified original build modified."
+    ]
+  },
+  "windows_evidence_sha256": "ebf0a369ef5fbaefdb3d009b6548aa77a129be591b4ac24e0915daa782f6626e",
+  "remaining": [
+    "Final applicability and hosted CI at landing head.",
+    "Reconcile public main a78f06abb.",
+    "Q3 BF16 policy unresolved; no numerical limit change."
+  ],
+  "policy": "All quants: finish support against mx Vulkan first, then tune against mx ROCm while preserving Vulkan performance. Recorded ROCm deficits do not block stage one.",
+  "docs_review": {
+    "tracked_count": 117,
+    "changed": [
+      "AGENTS.md",
+      "docs/ROADMAP.md",
+      "docs/STATUS.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "files": {
+      "AGENTS.md": "e25126e3a6154aa8ffaf09c3ef27c96b3155b0b14c09afc29b8d50f18a49295d",
+      "README.md": "27ad1da679cb3dd864d70feb90c924bb436b0959cf14c480977947c8f7ce9ec2",
+      "docs/ADDING-AN-ARCHITECTURE.md": "746fa8c771c4ce0a06d887fcc9d08835645d0588bc2308693a6795ae8897102f",
+      "docs/ARCHITECTURE.md": "f9e26767fbed673ce6ac28d5a5e4ced03a355d87cfda74b8a9a1d96d0cf57e45",
+      "docs/ASSETS.md": "e471ea952350045847d5baacbb2a07f8fb1c4116adaa3818374d070640ca8c96",
+      "docs/BUILD.md": "a1109674874dbd018afb2b50346313f83695e4a462c4e376d7f278bffa3ad49d",
+      "docs/CACHE-PLAN.md": "0b805a4ac95104fd4d2a5704641ab75bbaa6bbba6e31e07acf2b66a318d84ecc",
+      "docs/CI.md": "5697dcc5fe8a8a4e114862d08424dc3d021efeb39667a7b1e2cd5c896dc7bcc0",
+      "docs/DEVICE-EXECUTION.md": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+      "docs/DISK-TIER.md": "f66dd4d3d55a3c85e4bbceec8b288d706778e4ea8cfbdf1e5761766bf69a1636",
+      "docs/EXECUTION.md": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+      "docs/KV-CACHE.md": "eb943932eb5e1e67d14d3960900568c425e2119e8dded28dbde9fda9699f6288",
+      "docs/MULTI-DEVICE.md": "63d26b7be25f224963f4fa58ae33b5f3ed19a1c5e27e5e9790f7cd8bad9e03c3",
+      "docs/OPERATING.md": "07ca502cbe117b1a862d472f44e73dee9ba1e9cf8b2e63aef5f0f2e9cb2a5ae8",
+      "docs/PRECISION.md": "e9bd9f6f1836756025a29d499c44cf589e9bb4f2cb223db88c35135ff83a27f8",
+      "docs/QWEN35.md": "b6cd41d9644bacf6724b1e138857340d575e31a095927aeb8a922ec4a08746b1",
+      "docs/QWEN38-FLASH.md": "00ad1d83038780e1a1c41ce61e031ad607f44a535e6eeaed8e01e73808471b92",
+      "docs/ROADMAP.md": "65081328724cbcddfcba5ab58f9deb294675694619fdb7eac862868f8e50dbaf",
+      "docs/ROCM.md": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+      "docs/SERVER.md": "5dd945e2b8982072071580c3768327b75acb5f6afdeceb32eace72a0d6b05ead",
+      "docs/SPECULATIVE.md": "39ce2721dc6849aea9046975a966539ebd55b1e2e0ad596ae19e007733cd83de",
+      "docs/STATUS-2026-09.md": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+      "docs/STATUS.md": "7a73c42eded55bd3e184709fb0cf56f992e97afe2d2628368eeff0432cebe24b",
+      "docs/TENSOR-SPLIT.md": "786130892ddfe97e761fe3559abac8c2d80d2ce1dae97a34c4c85552eba8ca94",
+      "docs/USAGE.md": "41ba1502dd05b2b9da506b56277c00d930340ba76e54d7cd82aa1246dc77641f",
+      "docs/VULKAN.md": "3060f0b71338eff2a3d5e8a3397f650f8c9fa98d8f96521659206b150a3f79a5",
+      "docs/benchmarks/attention-coverage-20260925/README.md": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+      "docs/benchmarks/backend-audit-20260925/README.md": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+      "docs/benchmarks/cpu-activation-final-perf-20260925/README.md": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+      "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+      "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+      "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+      "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+      "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+      "docs/benchmarks/dtype-cpu-final-20261002.md": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+      "docs/benchmarks/dtype-execution-history-20261002.md": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+      "docs/benchmarks/expert-types-20261002.md": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+      "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md": "491f594206a9044ca495269871a1f4a8b43a7d4e3f05195f9b4101695f99c1e2",
+      "docs/benchmarks/kquant-decode-columns-20260929/README.md": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+      "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+      "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+      "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+      "docs/benchmarks/q3-bf16-policy-proposal-20261021.md": "f22d2a5200775743dced8699009830c41b5a05eb56bc8b4a147b10dff0e2c4cf",
+      "docs/benchmarks/restore-submit-drain-20261017.md": "ab4834f75c68457a55313164c609a85a4bb34c455840b437f67156428afde597",
+      "docs/benchmarks/rocm-attention-20261010/README.md": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+      "docs/benchmarks/rocm-combined-20261010/README.md": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+      "docs/benchmarks/rocm-controls-20261009/README.md": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+      "docs/benchmarks/rocm-model-budget-20261010/README.md": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+      "docs/benchmarks/rocm-q8-compute-20261010/README.md": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+      "docs/benchmarks/server-investigation-20260929/README.md": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+      "docs/benchmarks/server-investigation-20260929/micro/microtab.md": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+      "docs/benchmarks/storage-types-20261002.md": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+      "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+      "docs/research/qwen38-runtime-patterns-20261014.md": "f51a63c2d0390211a47d6c20852149ff3c177e85985d5234c8ed79825768ea5b",
+      "docs/research/rocm-20261009.md": "1f29e9d62cddd941bcd17db2515eba819b240bd0bdf7873bfe0c3d99976ef863",
+      "docs/src/backends-backend.md": "6c51de428b66bef4559f2d4f6e5b824d574981f5e82c6c68f571ab377682773a",
+      "docs/src/backends-cpu-placement.md": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+      "docs/src/backends-cpu-q8_dots.md": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+      "docs/src/backends-cpu.md": "3bf4e9212942700689efa020340096937109e8f346e3d3395f70f5b59fc915ff",
+      "docs/src/backends-device_profile.md": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a",
+      "docs/src/backends-devices.md": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+      "docs/src/backends-kv_storage.md": "320299beda00ddb37cb524df2070316ff3acb4d57d05d2197c0359e5e6e67bf0",
+      "docs/src/backends-vulkan.md": "02d08df519596385e13f7ff27af3d7f6b6dc38752784bd53c72939c01939d411",
+      "docs/src/cli-main.md": "f611b078c4f76861cc75abaa8e4a3c08415e877f50bfa4e9f77e725705847d87",
+      "docs/src/config.md": "e25843d6b3ccf30e7579c35d0fb9406ac0eb4a4c5e11f62005976d1aabadee38",
+      "docs/src/core-bf16.md": "e18bf51e1c251e8d54f047eba9f8f501fe91dec2767cdf36fb9a58f8c1480f61",
+      "docs/src/core-cgroup.md": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+      "docs/src/core-cpus.md": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+      "docs/src/core-crc32c.md": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+      "docs/src/core-fp16.md": "c25ebc2b9ba244ad9bec6abe1737eca0395529c37581ba81dc1b11258aeb92fe",
+      "docs/src/core-host_memory.md": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+      "docs/src/core-job_threads.md": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+      "docs/src/core-json.md": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e",
+      "docs/src/core-list.md": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+      "docs/src/core-sha.md": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+      "docs/src/core-utf8.md": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+      "docs/src/format-file_digest.md": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693",
+      "docs/src/format-file_reader.md": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+      "docs/src/format-file_writer.md": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba",
+      "docs/src/format-format.md": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+      "docs/src/format-gguf.md": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+      "docs/src/format-mapped_file.md": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+      "docs/src/format-output_file.md": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+      "docs/src/format-raw_convert.md": "5c947f4bc531c35a727e0eba8cb4bbf2e6953e1ce328accce940e115bcc650c0",
+      "docs/src/hub.md": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+      "docs/src/inference-chat.md": "01d58e566256aa29c01664d2f20be9b522565f5bf2a49491a54cd33bb45ec64f",
+      "docs/src/inference-generate.md": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+      "docs/src/inference-load.md": "15423321f735a66d09468ac19fcc7fb08073d766e90dbf2aa3318bba066187c4",
+      "docs/src/inference-logprobs.md": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+      "docs/src/inference-pair.md": "141557606b8794af17dd6deb91d3036263f8f5838130b0bc0f7ef2bb95a850d2",
+      "docs/src/inference-perplexity.md": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+      "docs/src/inference-read_ring.md": "3b6203356f0c24f03ae33d35b890d119e414e49739c5cf4a8aac3b90c7c82835",
+      "docs/src/inference-sampler.md": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa",
+      "docs/src/inference-spec.md": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8",
+      "docs/src/model-arch-blocks.md": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3",
+      "docs/src/model-arch-metadata.md": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+      "docs/src/model-arch-qwen3.md": "a45b0451d2eccad6ddd80c7a6eb63d5f5dc66ea4b96574aced9e54563c1671cc",
+      "docs/src/model-arch-qwen35.md": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07",
+      "docs/src/model-arch-qwen4exp.md": "ba862949ddcec454d96e752b6d8e3279bfbcb7e8bf732380fb5351ff019349f7",
+      "docs/src/model-arch-registry.md": "34916e272d6d83739713e49edeedd9cc434741267c06c0caf66a041c1eaadbec",
+      "docs/src/model-architecture.md": "d08fb7f6a5e3c9e0e021a550ef61e0c0d1fb093016939e78e71af0e04d984ba0",
+      "docs/src/model-history.md": "c423cc3a563966b96ed013986a7262fc2bf2a26126b2aa3d52bcd5098cd21743",
+      "docs/src/model-kv_cache.md": "26ddf81de5e5172fa89b4f8cb77b56dcfe1e30364658eb3e3ea6b7f74250f0cc",
+      "docs/src/model-layer_split.md": "a31d531caa536e18086b3e7a5a24ceeb0721720147549f101754a9d7b448da58",
+      "docs/src/model-passes.md": "970f44a685155297154fd8993dc0cec3b4ef948a3be548291d854ff2223c0b49",
+      "docs/src/model-place.md": "1252a19a983683bcd47173e402904dc732f03fb9d42c77d2bd1a70b079d43e76",
+      "docs/src/model-runtime.md": "e6f9271450cf5855717d24373b1c9ddeb7d53053fda7061bb58252cfef25c782",
+      "docs/src/model-shard.md": "263998ae78941ac634358eccd2d3049cfc252970e4e3f99ca761d78c2e5ceae1",
+      "docs/src/model-weight_rows.md": "a48599cb6f01b20df2cfb38f13ace014b1a05ff59db543f0e8263a1bd78ab134",
+      "docs/src/model-weights.md": "e560a33d2a8145d52f6c73ae0de2bdb1b356adceafb4f60cf07f90ce9d84f8d3",
+      "docs/src/quant-k_quants.md": "43a61c843532b544eb55260876765d82213c7de204530cc72bf0ac99b672ec98",
+      "docs/src/quant-mxfp4.md": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8",
+      "docs/src/quant-quant.md": "92dbd179df4aff2c6e65723fd4d009be29091c9fdff621690c63e64ef2f7fec5",
+      "docs/src/quant-types.md": "61c73244d6a0af861775236fd38679e6d262bd07273a9608e6906da1c25146b0",
+      "docs/src/server.md": "d9e0d91612d7ffa01db921fcb391040f21fda0790a7dc81d174caf3d41122cf5",
+      "docs/src/tokenizer-tokenizer.md": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff",
+      "tools/health_dashboard/README.md": "2a1432d3caec85d6637e7cff04f27393f27b4c80f21d6486c01c6618aa2051be"
+    },
+    "scope": "All tracked Markdown inventoried; unchanged pages carry the f7 review. Changed policy/status and affected Vulkan owner reread; docs helper reviewed the sequence and live exceptions."
+  }
+}

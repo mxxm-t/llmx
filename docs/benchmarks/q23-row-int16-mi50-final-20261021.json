@@ -1,0 +1,2550 @@
+{
+  "runtime": "e8d1737eea8c199da111826c163d57cec544b60e",
+  "scope": "Completed final MI50 checks and16-component integration, unchanged numerical policy; hosted CI not claimed.",
+  "split": {
+    "scope": "TP2 selected F16 row-int16 numerical checks; no exact old-F32 identity, BF16, depth or broad gate claim.",
+    "stages": [
+      {
+        "stage": "ordinary-q2",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 163,
+        "seconds": 889.1513204574585,
+        "runtime": {
+          "binaries": {
+            "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+            "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+            "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+          "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+          "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+        },
+        "execution_sha256": "f59a728b1880565aa98f7354c5891925d1a98431e3521f00fa423c3f3980e446",
+        "result_sha256": "29ff494d8f3ff4b798f942db04fbe076411b5370f59603e62fc3170c3b565cff",
+        "cases_sha256": "bda09b56b87284313350d5c4be3eb8e4fad433c83dcced3b144b4587b608b0b9",
+        "golden_sha256": "cca84e4b0ee192e04493229218ecdc34a0547f9b5d97662756737538315a2397",
+        "full_logits": 150,
+        "nll": 12,
+        "max_logit_error": 0.00012545983123779525,
+        "logit_bound": 0.003304719924926758,
+        "logit_headroom": 0.0031792600936889626,
+        "max_nll_error": 1.570546257312344e-05,
+        "nll_bound": 0.0002966423345469593,
+        "nll_headroom": 0.0002809368719738359
+      },
+      {
+        "stage": "ordinary-q3",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 163,
+        "seconds": 915.1132781505585,
+        "runtime": {
+          "binaries": {
+            "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+            "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+            "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+          "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+          "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13",
+          "runner_sha256": "ce8d1163b3faaf3a1d0f955fac7fc3eed650d1dd7be0db71fba930e11eabf85c"
+        },
+        "execution_sha256": "8a1f9128aaa78d51d36b7a320388493f2196337a74c2ced1f5b6b9882f29e5cd",
+        "result_sha256": "ad78d67d424d2fda3309274f9daba24e9cde773c098d9fd0227a860f07dca94d",
+        "cases_sha256": "1a3f035d82a3d3380fca294333c28c358ae2da905a0849f7d13e439faa221708",
+        "golden_sha256": "fbaf2a324514ce2344fc6da21183e30110bd9427fba00b6f0292eeb3956c4417",
+        "full_logits": 150,
+        "nll": 12,
+        "max_logit_error": 0.0012940176696777383,
+        "logit_bound": 0.003304719924926758,
+        "logit_headroom": 0.0020107022552490195,
+        "max_nll_error": 6.511394100527923e-05,
+        "nll_bound": 0.0002966423345469593,
+        "nll_headroom": 0.0002315283935416801
+      }
+    ],
+    "archive_sha256": "f377664ce072d0a1dfa24c56db7e11f8196e3a73b5e235a66d3c6bb0cd71e188",
+    "collection_manifest_sha256": "1b33c3e93602b7c2db77fc805f4d652b5fa5141d7ea2ad13cb6d6d630ffee2ba"
+  },
+  "isa": {
+    "passed": true,
+    "archive_sha256": "a6a1006b02bbb7c813e7546fb6d89842bbcc1fd5306f8fc873532a636cad5bf6",
+    "files": 231,
+    "stages": {
+      "isa": {
+        "execution": {
+          "stage": "isa",
+          "start": 1792573846.49026,
+          "argv": [
+            "docker",
+            "create",
+            "--init",
+            "--name",
+            "llmx-xdev-q23-row16-backend-isa",
+            "--cidfile",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test/evidence-isa/container.cid",
+            "--label",
+            "llmx.q23-row16-backend=llmx-xdev-q23-row16-backend-isa",
+            "--network",
+            "none",
+            "--cpuset-cpus",
+            "8-11",
+            "--cpus",
+            "4",
+            "--memory",
+            "6g",
+            "--memory-swap",
+            "6g",
+            "--pids-limit",
+            "256",
+            "--ulimit",
+            "core=0",
+            "--read-only",
+            "--tmpfs",
+            "/tmp:rw,size=256m",
+            "-e",
+            "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/candidate:/w:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test:/test:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test/evidence-isa:/out",
+            "--device",
+            "/dev/dri/renderD134",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "/test/backend-vulkan-test",
+            "--isa",
+            "/out/isa"
+          ],
+          "before": {
+            "original_backend_binary_sha256": "4e413534d32b506a4b3d485a3d3545a350d645bb058db5d4c7f3871b6cbdd5b1",
+            "target_build_inputs": {
+              "CMakeFiles/llmx-backend-vulkan-test.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+              "CMakeFiles/llmx-backend-vulkan-test.dir/link.txt": "874ffa9e242fcc9d5fc8137c859b0b31a71f074608abf1e8e76fc00d3bdac5b3",
+              "generated/llmx-build-info.hpp": "47c8b574a3948ed440dddcd98f6f10f0ee9b80df68b30e4b25b4f99e372c3779"
+            },
+            "binaries": {
+              "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+              "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+              "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+            },
+            "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+            "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+            "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+          },
+          "gpu": {
+            "physical": 4,
+            "render": 134,
+            "pci": "0000:89:00.0",
+            "busy": 0,
+            "vram": 10932224
+          },
+          "memory_available": 31572668416,
+          "passed": false,
+          "removed": true,
+          "test_sha256": "308f0d5cd01488b22cacf8561b01f93568edaec27a3bdac9d4eb3c914e63bb20",
+          "sibling_headers": {
+            "quantizers.hpp": "e3d70076a30d4a2fe5f81ec5179b4cc73edcf911ff24404d3146c2ea60de5fd4",
+            "matrix_precision.hpp": "246baa45796eeff47afcb4080640806c13fdaf9cd4899117af6595fea44ee9f4",
+            "row_classes.hpp": "51002699d65a72cfd0bdd32639d01c05c539408458c91dd98aa35650c2820341"
+          },
+          "exit": 0,
+          "after": {
+            "original_backend_binary_sha256": "4e413534d32b506a4b3d485a3d3545a350d645bb058db5d4c7f3871b6cbdd5b1",
+            "target_build_inputs": {
+              "CMakeFiles/llmx-backend-vulkan-test.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+              "CMakeFiles/llmx-backend-vulkan-test.dir/link.txt": "874ffa9e242fcc9d5fc8137c859b0b31a71f074608abf1e8e76fc00d3bdac5b3",
+              "generated/llmx-build-info.hpp": "47c8b574a3948ed440dddcd98f6f10f0ee9b80df68b30e4b25b4f99e372c3779"
+            },
+            "binaries": {
+              "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+              "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+              "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+            },
+            "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+            "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+            "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+          },
+          "test_binary_sha256": "13a091e1b703985d9cd800456c5dc06d5532abde34a53babbfa968c8acf1346b",
+          "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test/run-isa.py\", line 63, in <module>\n    assert representations\n           ^^^^^^^^^^^^^^^\nAssertionError\n",
+          "state": {
+            "Status": "exited",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-21T09:10:46.6283774Z",
+            "FinishedAt": "2026-10-21T09:11:20.420515186Z"
+          },
+          "end": 1792573882.1583586
+        },
+        "execution_sha256": "9548f06d0096937461af5577743e70e057495f512c93617268a19cd21adaa749",
+        "log_sha256": "228e2a4767ae9157b552e1b3e2e467de8f824768e6b8a1413ae89558073426d2",
+        "result_lines": [
+          "backend-vulkan: AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "backend-vulkan: no second device for the collective (vulkan: llvmpipe (LLVM 19.1.7, 256 bits) has subgroups narrower than 32 lanes)",
+          "backend-vulkan: identity vulkan 4098:26273 AMD Instinct MI60 / MI50 (RADV VEGA20); radv Mesa 25.0.7-2+deb13u1 104857607 f7b7964597088d469422e31f4cce98ed",
+          "backend-vulkan: backend-vulkan: Q5 affine tail dense matmul_tile_q50_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q50_tall",
+          "backend-vulkan: Q5 affine tail dense matmul_tile_q50i8_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q50i8_tall",
+          "backend-vulkan: Q5 affine tail dense matmul_tile_q5_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q5_tall",
+          "backend-vulkan: Q5 affine tail dense matmul_tile_q5i8_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q5i8_tall",
+          "backend-vulkan: 935426 finite half-weight values and exact F32-control products",
+          "backend-vulkan: 111888 shared matrix precision values passed",
+          "backend-vulkan: 82944 exact Q5_1 embedding values passed",
+          "backend-vulkan: 18432 exact Q5_0 embedding values passed",
+          "backend-vulkan: 72 matrix-path witnesses match arithmetic",
+          "backend-vulkan: 1641440 int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16",
+          "backend-vulkan: 5120 int8 outputs unchanged when the input row width changes",
+          "backend-vulkan: tiny dispatch with barrier 6.59383 us each over 2000",
+          "backend-vulkan: Q8_0 matvec 1024x1024 11.3261 us, 98.3672 GB/s",
+          "backend-vulkan: Q8_0 matvec 1024x2048 13.7872 us, 161.615 GB/s",
+          "backend-vulkan: Q8_0 matvec 1024x3072 16.8115 us, 198.812 GB/s",
+          "backend-vulkan: Q8_0 matvec 3072x1024 17.7462 us, 188.341 GB/s",
+          "backend-vulkan: Q8_0 matvec 4096x4096 44.848 us, 397.471 GB/s",
+          "backend-vulkan: Q8_0 matvec 4096x12288 105.303 us, 507.844 GB/s",
+          "backend-vulkan: Q8_0 matvec 12288x4096 107.895 us, 495.645 GB/s",
+          "backend-vulkan: Q4_0 matvec 1024x3072 19.8239 us, 89.2595 GB/s",
+          "backend-vulkan: Q4_0 matvec 4096x12288 133.713 us, 211.734 GB/s",
+          "backend-vulkan: Q4_1 matvec 3072x1024 16.8515 us, 116.671 GB/s",
+          "backend-vulkan: Q4_1 matvec 12288x4096 137.779 us, 228.317 GB/s",
+          "backend-vulkan: Q6_K matvec 1024x3072 17.4173 us, 148.156 GB/s",
+          "backend-vulkan: Q6_K matvec 4096x12288 143.254 us, 288.213 GB/s",
+          "backend-vulkan: Q6_K matvec 1024x151936 327.725 us, 389.431 GB/s",
+          "backend-vulkan: Q4_K matvec 1024x3072 19.2851 us, 91.7533 GB/s",
+          "backend-vulkan: Q4_K matvec 4096x12288 90.9529 us, 311.277 GB/s",
+          "backend-vulkan: Q5_K matvec 1024x3072 18.3734 us, 117.708 GB/s",
+          "backend-vulkan: Q5_K matvec 4096x12288 106.245 us, 325.69 GB/s",
+          "backend-vulkan: Q8_0 matvec 14336x4096 116.439 us, 535.819 GB/s",
+          "backend-vulkan: Q4_K matvec 14336x4096 109.9 us, 300.547 GB/s",
+          "backend-vulkan: Q6_K matvec 14336x4096 165.949 us, 290.263 GB/s",
+          "backend-vulkan: Q8_0 prefill 4096x14336 over 512 rows 4485.14 us, 13.4064 TFLOPS",
+          "backend-vulkan: Q4_K prefill 4096x14336 over 512 rows 4941.94 us, 12.1672 TFLOPS",
+          "backend-vulkan: Q6_K prefill 4096x14336 over 512 rows 6324.81 us, 9.50693 TFLOPS",
+          "backend-vulkan: attention 16 heads over 250 tokens 42.8541 us",
+          "backend-vulkan: rms_norm_rows 1x1024 19.3668 us",
+          "backend-vulkan: norm_rope_partial 1 row 16 heads 9.22639 us",
+          "backend-vulkan: silu_mul 3072 5.97389 us",
+          "backend-vulkan: kv_write 1 row 6.7027 us",
+          "backend-vulkan: Q8_0 matvec 4096x4096 0.0620907 ms, 287.093 GB/s",
+          "backend-vulkan: qwen35 ops: 488 device runs bit for bit across views, orders and passes; decay flush, state storage",
+          "backend-vulkan: 61 storage and submission checks; 46362534 kernel outputs against the CPU backend",
+          "backend-vulkan: 84052485 exact products across bounded float workspace slices",
+          "backend-vulkan: 6000 dispatches timed between two readings, past one query pool",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, one workgroup a row, alone: 0.772874 ms a row, wall 0.935299 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, one workgroup a row, after the head's product: 0.520778 ms a row, the head's product 0.241402 ms, wall 0.768341 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, in slices, alone: 0.020496 ms a row, wall 0.0263876 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, in slices, after the head's product: 0.0227456 ms a row, the head's product 0.226742 ms, wall 0.254932 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, one workgroup a row, alone: 1.351 ms a row, wall 1.3542 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, one workgroup a row, after the head's product: 1.18942 ms a row, the head's product 0.235334 ms, wall 1.43029 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, in slices, alone: 0.0865344 ms a row, wall 0.0900528 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, in slices, after the head's product: 0.0857664 ms a row, the head's product 0.221222 ms, wall 0.312756 ms a call",
+          "backend-vulkan: 37370880 BF16 outputs invariant across physical tile boundaries",
+          "backend-vulkan: 156680 decode columns equal to the same columns alone",
+          "backend-vulkan: 156680 int8 decode columns equal to the same columns alone",
+          "backend-vulkan: 1305624 BF16 boundary and unchanged-weight products, with F32 control",
+          "backend-vulkan: 49280 BF16 weight embedding and indexer projection values",
+          "backend-vulkan: 25728 outputs within the 16-bit activations' precision",
+          "backend-vulkan: 29568 F32 outputs against double dots and batch identity",
+          "backend-vulkan: 29568 BF16 outputs against rounded-input double dots and batch identity",
+          "backend-vulkan: 12397 pairs of extents of one class with the same bits",
+          "backend-vulkan: 0 kernel representations written to /out/isa",
+          "backend-vulkan: 6 Q6 builds retain native 16-bit dots",
+          "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 6 the same, 14 those and whole columns, 72 pairs of two-row builds whole columns apart, 12 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 4 grouped builds the same as their wide build"
+        ]
+      },
+      "isa2": {
+        "execution": {
+          "stage": "isa2",
+          "start": 1792573973.753262,
+          "argv": [
+            "docker",
+            "create",
+            "--init",
+            "--name",
+            "llmx-xdev-q23-row16-backend-isa2",
+            "--cidfile",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test/evidence-isa2/container.cid",
+            "--label",
+            "llmx.q23-row16-backend=llmx-xdev-q23-row16-backend-isa2",
+            "--network",
+            "none",
+            "--cpuset-cpus",
+            "8-11",
+            "--cpus",
+            "4",
+            "--memory",
+            "6g",
+            "--memory-swap",
+            "6g",
+            "--pids-limit",
+            "256",
+            "--ulimit",
+            "core=0",
+            "--read-only",
+            "--tmpfs",
+            "/tmp:rw,size=256m",
+            "-e",
+            "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/candidate:/w:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test:/test:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/backend-test/evidence-isa2:/out",
+            "--device",
+            "/dev/dri/renderD134",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "/test/backend-vulkan-test",
+            "--isa",
+            "/out/isa"
+          ],
+          "before": {
+            "original_backend_binary_sha256": "4e413534d32b506a4b3d485a3d3545a350d645bb058db5d4c7f3871b6cbdd5b1",
+            "target_build_inputs": {
+              "CMakeFiles/llmx-backend-vulkan-test.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+              "CMakeFiles/llmx-backend-vulkan-test.dir/link.txt": "874ffa9e242fcc9d5fc8137c859b0b31a71f074608abf1e8e76fc00d3bdac5b3",
+              "generated/llmx-build-info.hpp": "47c8b574a3948ed440dddcd98f6f10f0ee9b80df68b30e4b25b4f99e372c3779"
+            },
+            "binaries": {
+              "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+              "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+              "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+            },
+            "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+            "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+            "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+          },
+          "gpu": {
+            "physical": 4,
+            "render": 134,
+            "pci": "0000:89:00.0",
+            "busy": 0,
+            "vram": 10932224
+          },
+          "memory_available": 30729691136,
+          "passed": true,
+          "removed": true,
+          "test_sha256": "308f0d5cd01488b22cacf8561b01f93568edaec27a3bdac9d4eb3c914e63bb20",
+          "sibling_headers": {
+            "quantizers.hpp": "e3d70076a30d4a2fe5f81ec5179b4cc73edcf911ff24404d3146c2ea60de5fd4",
+            "matrix_precision.hpp": "246baa45796eeff47afcb4080640806c13fdaf9cd4899117af6595fea44ee9f4",
+            "row_classes.hpp": "51002699d65a72cfd0bdd32639d01c05c539408458c91dd98aa35650c2820341"
+          },
+          "exit": 0,
+          "after": {
+            "original_backend_binary_sha256": "4e413534d32b506a4b3d485a3d3545a350d645bb058db5d4c7f3871b6cbdd5b1",
+            "target_build_inputs": {
+              "CMakeFiles/llmx-backend-vulkan-test.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+              "CMakeFiles/llmx-backend-vulkan-test.dir/link.txt": "874ffa9e242fcc9d5fc8137c859b0b31a71f074608abf1e8e76fc00d3bdac5b3",
+              "generated/llmx-build-info.hpp": "47c8b574a3948ed440dddcd98f6f10f0ee9b80df68b30e4b25b4f99e372c3779"
+            },
+            "binaries": {
+              "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+              "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+              "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+            },
+            "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+            "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+            "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+          },
+          "test_binary_sha256": "13a091e1b703985d9cd800456c5dc06d5532abde34a53babbfa968c8acf1346b",
+          "representations": 212,
+          "coverage_limit": "Generic backend ISA families; specialized Q2/Q3 rows not instantiated by this test.",
+          "state": {
+            "Status": "exited",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-21T09:12:53.852125742Z",
+            "FinishedAt": "2026-10-21T09:13:27.70231102Z"
+          },
+          "end": 1792574009.481689
+        },
+        "execution_sha256": "d5b4260931087c79e1debee8b60749fa19cc55e88a186fa0fdfcbcaec57bdbb7",
+        "log_sha256": "6e00ffab6fb4384187661265bbdd89cd496a4894408f4032a07fa0a06d2828e9",
+        "result_lines": [
+          "backend-vulkan: AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "backend-vulkan: no second device for the collective (vulkan: llvmpipe (LLVM 19.1.7, 256 bits) has subgroups narrower than 32 lanes)",
+          "backend-vulkan: identity vulkan 4098:26273 AMD Instinct MI60 / MI50 (RADV VEGA20); radv Mesa 25.0.7-2+deb13u1 104857607 f7b7964597088d469422e31f4cce98ed",
+          "backend-vulkan: backend-vulkan: Q5 affine tail dense matmul_tile_q50_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q50_tall",
+          "backend-vulkan: Q5 affine tail dense matmul_tile_q50i8_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q50i8_tall",
+          "backend-vulkan: Q5 affine tail dense matmul_tile_q5_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q5_tall",
+          "backend-vulkan: Q5 affine tail dense matmul_tile_q5i8_tall",
+          "backend-vulkan: Q5 affine tail routed matmul_tile_q5i8_tall",
+          "backend-vulkan: 935426 finite half-weight values and exact F32-control products",
+          "backend-vulkan: 111888 shared matrix precision values passed",
+          "backend-vulkan: 82944 exact Q5_1 embedding values passed",
+          "backend-vulkan: 18432 exact Q5_0 embedding values passed",
+          "backend-vulkan: 72 matrix-path witnesses match arithmetic",
+          "backend-vulkan: 1641440 int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16",
+          "backend-vulkan: 5120 int8 outputs unchanged when the input row width changes",
+          "backend-vulkan: tiny dispatch with barrier 6.53871 us each over 2000",
+          "backend-vulkan: Q8_0 matvec 1024x1024 11.6325 us, 95.7761 GB/s",
+          "backend-vulkan: Q8_0 matvec 1024x2048 13.792 us, 161.559 GB/s",
+          "backend-vulkan: Q8_0 matvec 1024x3072 19.4272 us, 172.044 GB/s",
+          "backend-vulkan: Q8_0 matvec 3072x1024 18.7509 us, 178.25 GB/s",
+          "backend-vulkan: Q8_0 matvec 4096x4096 44.8667 us, 397.306 GB/s",
+          "backend-vulkan: Q8_0 matvec 4096x12288 102.464 us, 521.913 GB/s",
+          "backend-vulkan: Q8_0 matvec 12288x4096 110.6 us, 483.52 GB/s",
+          "backend-vulkan: Q4_0 matvec 1024x3072 19.9592 us, 88.6544 GB/s",
+          "backend-vulkan: Q4_0 matvec 4096x12288 134.602 us, 210.335 GB/s",
+          "backend-vulkan: Q4_1 matvec 3072x1024 17.2153 us, 114.205 GB/s",
+          "backend-vulkan: Q4_1 matvec 12288x4096 137.489 us, 228.798 GB/s",
+          "backend-vulkan: Q6_K matvec 1024x3072 20.2415 us, 127.484 GB/s",
+          "backend-vulkan: Q6_K matvec 4096x12288 143.214 us, 288.294 GB/s",
+          "backend-vulkan: Q6_K matvec 1024x151936 325.779 us, 391.757 GB/s",
+          "backend-vulkan: Q4_K matvec 1024x3072 19.2195 us, 92.0665 GB/s",
+          "backend-vulkan: Q4_K matvec 4096x12288 91.0069 us, 311.092 GB/s",
+          "backend-vulkan: Q5_K matvec 1024x3072 18.2181 us, 118.711 GB/s",
+          "backend-vulkan: Q5_K matvec 4096x12288 106.336 us, 325.412 GB/s",
+          "backend-vulkan: Q8_0 matvec 14336x4096 116.853 us, 533.922 GB/s",
+          "backend-vulkan: Q4_K matvec 14336x4096 109.912 us, 300.513 GB/s",
+          "backend-vulkan: Q6_K matvec 14336x4096 166.409 us, 289.461 GB/s",
+          "backend-vulkan: Q8_0 prefill 4096x14336 over 512 rows 4491.98 us, 13.386 TFLOPS",
+          "backend-vulkan: Q4_K prefill 4096x14336 over 512 rows 4945.29 us, 12.159 TFLOPS",
+          "backend-vulkan: Q6_K prefill 4096x14336 over 512 rows 6343.06 us, 9.47957 TFLOPS",
+          "backend-vulkan: attention 16 heads over 250 tokens 44.5888 us",
+          "backend-vulkan: rms_norm_rows 1x1024 19.6307 us",
+          "backend-vulkan: norm_rope_partial 1 row 16 heads 8.45506 us",
+          "backend-vulkan: silu_mul 3072 5.99504 us",
+          "backend-vulkan: kv_write 1 row 6.96891 us",
+          "backend-vulkan: Q8_0 matvec 4096x4096 0.0678215 ms, 262.834 GB/s",
+          "backend-vulkan: qwen35 ops: 488 device runs bit for bit across views, orders and passes; decay flush, state storage",
+          "backend-vulkan: 61 storage and submission checks; 46362534 kernel outputs against the CPU backend",
+          "backend-vulkan: 84052485 exact products across bounded float workspace slices",
+          "backend-vulkan: 6000 dispatches timed between two readings, past one query pool",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, one workgroup a row, alone: 0.776842 ms a row, wall 0.940177 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, one workgroup a row, after the head's product: 0.52031 ms a row, the head's product 0.240963 ms, wall 0.768739 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, in slices, alone: 0.020448 ms a row, wall 0.0288407 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 device logits, in slices, after the head's product: 0.0228512 ms a row, the head's product 0.226653 ms, wall 0.255376 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, one workgroup a row, alone: 1.35152 ms a row, wall 1.35475 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, one workgroup a row, after the head's product: 1.19691 ms a row, the head's product 0.235926 ms, wall 1.43993 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, in slices, alone: 0.0864064 ms a row, wall 0.0903928 ms a call",
+          "backend-vulkan: timed argmax_rows over 248320 host-visible logits, in slices, after the head's product: 0.0859776 ms a row, the head's product 0.220880 ms, wall 0.311943 ms a call",
+          "backend-vulkan: 37370880 BF16 outputs invariant across physical tile boundaries",
+          "backend-vulkan: 156680 decode columns equal to the same columns alone",
+          "backend-vulkan: 156680 int8 decode columns equal to the same columns alone",
+          "backend-vulkan: 1305624 BF16 boundary and unchanged-weight products, with F32 control",
+          "backend-vulkan: 49280 BF16 weight embedding and indexer projection values",
+          "backend-vulkan: 25728 outputs within the 16-bit activations' precision",
+          "backend-vulkan: 29568 F32 outputs against double dots and batch identity",
+          "backend-vulkan: 29568 BF16 outputs against rounded-input double dots and batch identity",
+          "backend-vulkan: 12397 pairs of extents of one class with the same bits",
+          "backend-vulkan: 212 kernel representations written to /out/isa",
+          "backend-vulkan: 6 Q6 builds retain native 16-bit dots",
+          "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 6 the same, 14 those and whole columns, 72 pairs of two-row builds whole columns apart, 12 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 4 grouped builds the same as their wide build"
+        ]
+      }
+    },
+    "representations": 212,
+    "scope": "Frozen runtime generic Vulkan ISA assertions and exports. Specialized Q2/Q3 row ISA not instantiated. Original missing-output-directory wrapper failure retained; same binary rerun with directory created."
+  },
+  "mx": {
+    "rows": [
+      {
+        "model": "qwen3-q2_k",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q2_K.gguf",
+          "bytes": 296238784,
+          "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "means": {
+          "candidate": {
+            "pp512": 5490.610000000001,
+            "tg128": 226.47
+          },
+          "mx": {
+            "pp512": 5262.110000000001,
+            "tg128": 253.14
+          }
+        },
+        "candidate_vs_mx_percent": {
+          "pp512": 4.342364564784851,
+          "tg128": -10.535671960180137
+        },
+        "activity_flags": [
+          "system_idle",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+          "bytes": 323075776,
+          "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "means": {
+          "candidate": {
+            "pp512": 5580.585,
+            "tg128": 215.07
+          },
+          "mx": {
+            "pp512": 5961.780000000001,
+            "tg128": 252.54000000000002
+          }
+        },
+        "candidate_vs_mx_percent": {
+          "pp512": -6.3939796503728825,
+          "tg128": -14.837253504395353
+        },
+        "activity_flags": [
+          "system_idle",
+          "unrelated_cpu"
+        ]
+      }
+    ],
+    "counts": {
+      "planned": 8,
+      "completed": 8,
+      "filtered": 0,
+      "samples_per_arm_per_file": 2
+    },
+    "identities": {
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "executables": {
+        "base": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/base/build/llmx",
+          "sha256": "211d371c2fe8368310f4fe0328bfaa7a0650d71ae9d0cefca7845f010a1414d8",
+          "version": "llmx 0.1.0+unknown numerics 8ee1151be6bd4c4c"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/candidate/build/llmx",
+          "sha256": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+          "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+        },
+        "mx": {
+          "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+          "revision": "eefc4e7321c869496146697d63362f073941aed6",
+          "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+          "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+          "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+          "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+        }
+      },
+      "source_arms": {
+        "base": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/base",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/mx/measurement-sources.json",
+          "revision": "4dc0c3cd7+row-geometry-dae903a20f1b",
+          "library_sha256": "c409d8a8ba2997ce54e299042b037c5c4a5356d95c2b8fa12669658e08e0d49f"
+        },
+        "candidate": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/candidate",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-row-int16-20261021/mx/measurement-sources.json",
+          "revision": "4a0eeb0d6+row-int16-b44770a24f15",
+          "library_sha256": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        }
+      },
+      "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+      "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+      "threads": 4,
+      "ubatch": 512,
+      "dtype": "auto",
+      "cache_type_k": "f32",
+      "cache_type_v": "f32",
+      "gpu_node": "/dev/dri/renderD130",
+      "gpu_pci": "0000:c9:00.0",
+      "cpu_set": "4-7"
+    },
+    "limitations": [
+      "Short screen: two samples per arm/file, no established noise band or causal attribution for small changes.",
+      "Unchanged prior activity classification and thresholds, all samples retained including flagged intervals.",
+      "Fresh pinned mx Vulkan, same files/environment/devices/F32 KV; not ROCm or latest mx.",
+      "Sampled CPU/disk/GPU data does not prove stalls or bandwidth saturation; short-lived processes and tails can be unobserved.",
+      "Q2_K/Q3_K_S released files only; existing-path Q8 control retained in the separate base/candidate screen.",
+      "Q2/Q3 int16 decode and shared prompt helpers change; existing unchanged bounds and independent native checks passed before screen."
+    ],
+    "stages": {
+      "build": {
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+        "seconds": 176.64093279838562
+      },
+      "native": {
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "sha256": "f46f0efab31c334107a798c954d4af58cbeea1d05afcabf803a07b12de0a4154",
+        "seconds": 6.634779214859009
+      },
+      "screen": {
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "sha256": "4542f84378d4d35d531595d454b91fae68d678b47db7227aeb72cca779ea6c2b",
+        "seconds": 27.9733407497406
+      }
+    }
+  },
+  "main_timing": {
+    "completed": 48,
+    "filtered": 0,
+    "model_count": 12,
+    "rows": [
+      {
+        "model": "qwen3-q8_0",
+        "means": {
+          "base": {
+            "pp512": 8819.79,
+            "tg128": 396.155
+          },
+          "candidate": {
+            "pp512": 8842.634999999998,
+            "tg128": 398.71500000000003
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": 0.25901977257958286,
+          "tg128": 0.6462117100630049
+        }
+      },
+      {
+        "model": "qwen3-q4_0",
+        "means": {
+          "base": {
+            "pp512": 8327.380000000001,
+            "tg128": 346.0
+          },
+          "candidate": {
+            "pp512": 8339.075,
+            "tg128": 347.11
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": 0.14044033057216687,
+          "tg128": 0.32080924855490967
+        }
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "means": {
+          "base": {
+            "pp512": 8113.375,
+            "tg128": 354.3
+          },
+          "candidate": {
+            "pp512": 8103.26,
+            "tg128": 354.15
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.12467068266904802,
+          "tg128": -0.04233700254022699
+        }
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "means": {
+          "base": {
+            "pp512": 8188.43,
+            "tg128": 360.68
+          },
+          "candidate": {
+            "pp512": 8184.625,
+            "tg128": 361.07
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.04646800424501496,
+          "tg128": 0.10812908949762168
+        }
+      },
+      {
+        "model": "qwen35-q8_0",
+        "means": {
+          "base": {
+            "pp512": 7551.885,
+            "tg128": 348.32500000000005
+          },
+          "candidate": {
+            "pp512": 7549.815,
+            "tg128": 349.53
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.027410375025582745,
+          "tg128": 0.34594129046148225
+        }
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "means": {
+          "base": {
+            "pp512": 7029.8150000000005,
+            "tg128": 312.54999999999995
+          },
+          "candidate": {
+            "pp512": 7028.0,
+            "tg128": 312.21
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.025818602623262077,
+          "tg128": -0.10878259478482866
+        }
+      },
+      {
+        "model": "qwen3-q5_1",
+        "means": {
+          "base": {
+            "pp512": 8363.53,
+            "tg128": 354.03
+          },
+          "candidate": {
+            "pp512": 8360.785,
+            "tg128": 353.775
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.03282106957230857,
+          "tg128": -0.07202779425472539
+        }
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "means": {
+          "base": {
+            "pp512": 6729.299999999999,
+            "tg128": 270.905
+          },
+          "candidate": {
+            "pp512": 6731.205,
+            "tg128": 271.07
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": 0.028309036601137372,
+          "tg128": 0.06090696000444762
+        }
+      },
+      {
+        "model": "qwen3-f16",
+        "means": {
+          "base": {
+            "pp512": 1534.5500000000002,
+            "tg128": 224.46
+          },
+          "candidate": {
+            "pp512": 1526.88,
+            "tg128": 223.92000000000002
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.4998207943696875,
+          "tg128": -0.2405773857257376
+        }
+      },
+      {
+        "model": "qwen3-bf16",
+        "means": {
+          "base": {
+            "pp512": 1503.575,
+            "tg128": 325.39
+          },
+          "candidate": {
+            "pp512": 1516.35,
+            "tg128": 323.355
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": 0.8496416873118973,
+          "tg128": -0.6254033621192923
+        }
+      },
+      {
+        "model": "qwen3-q5_0",
+        "means": {
+          "base": {
+            "pp512": 8144.360000000001,
+            "tg128": 300.63
+          },
+          "candidate": {
+            "pp512": 8141.52,
+            "tg128": 300.645
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": -0.03487075718656696,
+          "tg128": 0.00498952200378433
+        }
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "means": {
+          "base": {
+            "pp512": 6544.06,
+            "tg128": 258.52
+          },
+          "candidate": {
+            "pp512": 6553.945,
+            "tg128": 258.335
+          }
+        },
+        "candidate_vs_main_percent": {
+          "pp512": 0.15105301601756604,
+          "tg128": -0.07156119449172049
+        }
+      }
+    ],
+    "calls": [
+      {
+        "model": "qwen3-q8_0",
+        "arm": "base-qwen3-q8_0",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575135.2213264,
+        "end": 1792575136.9947813,
+        "rates": {
+          "pp512": 8815.49,
+          "tg128": 396.18
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "00-base-qwen3-q8_0.stdout",
+        "stderr": "00-base-qwen3-q8_0.stderr",
+        "usage": "00-base-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v2/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q8_0",
+        "arm": "candidate-qwen3-q8_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575439.3248363,
+        "end": 1792575441.0481749,
+        "rates": {
+          "pp512": 8868.13,
+          "tg128": 397.58
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "00-candidate-qwen3-q8_0.stdout",
+        "stderr": "00-candidate-qwen3-q8_0.stderr",
+        "usage": "00-candidate-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "arm": "base-qwen3-q4_0",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575441.0492156,
+        "end": 1792575442.6184053,
+        "rates": {
+          "pp512": 8344.43,
+          "tg128": 347.27
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "01-base-qwen3-q4_0.stdout",
+        "stderr": "01-base-qwen3-q4_0.stderr",
+        "usage": "01-base-qwen3-q4_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "arm": "candidate-qwen3-q4_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575442.6194656,
+        "end": 1792575444.1891978,
+        "rates": {
+          "pp512": 8362.32,
+          "tg128": 346.46
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "02-candidate-qwen3-q4_0.stdout",
+        "stderr": "02-candidate-qwen3-q4_0.stderr",
+        "usage": "02-candidate-qwen3-q4_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "arm": "base-qwen3-q5_k_m",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575444.1902683,
+        "end": 1792575445.7594445,
+        "rates": {
+          "pp512": 8129.03,
+          "tg128": 354.63
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "03-base-qwen3-q5_k_m.stdout",
+        "stderr": "03-base-qwen3-q5_k_m.stderr",
+        "usage": "03-base-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "arm": "candidate-qwen3-q5_k_m",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575445.7605326,
+        "end": 1792575447.2795346,
+        "rates": {
+          "pp512": 8118.47,
+          "tg128": 354.54
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "04-candidate-qwen3-q5_k_m.stdout",
+        "stderr": "04-candidate-qwen3-q5_k_m.stderr",
+        "usage": "04-candidate-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "arm": "base-qwen3-q4_k_m",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575447.2806704,
+        "end": 1792575448.7497852,
+        "rates": {
+          "pp512": 8202.14,
+          "tg128": 361.12
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "05-base-qwen3-q4_k_m.stdout",
+        "stderr": "05-base-qwen3-q4_k_m.stderr",
+        "usage": "05-base-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "arm": "candidate-qwen3-q4_k_m",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575448.750928,
+        "end": 1792575450.2197962,
+        "rates": {
+          "pp512": 8196.23,
+          "tg128": 360.84
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "06-candidate-qwen3-q4_k_m.stdout",
+        "stderr": "06-candidate-qwen3-q4_k_m.stderr",
+        "usage": "06-candidate-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "arm": "base-qwen35-q8_0",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575450.2210512,
+        "end": 1792575452.392807,
+        "rates": {
+          "pp512": 7556.34,
+          "tg128": 346.6
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "07-base-qwen35-q8_0.stdout",
+        "stderr": "07-base-qwen35-q8_0.stderr",
+        "usage": "07-base-qwen35-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "arm": "candidate-qwen35-q8_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575452.3949304,
+        "end": 1792575454.2664428,
+        "rates": {
+          "pp512": 7550.94,
+          "tg128": 348.05
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "08-candidate-qwen35-q8_0.stdout",
+        "stderr": "08-candidate-qwen35-q8_0.stderr",
+        "usage": "08-candidate-qwen35-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "arm": "base-qwen35-q4_k_m",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575454.2678645,
+        "end": 1792575456.188245,
+        "rates": {
+          "pp512": 7025.51,
+          "tg128": 312.33
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "09-base-qwen35-q4_k_m.stdout",
+        "stderr": "09-base-qwen35-q4_k_m.stderr",
+        "usage": "09-base-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "arm": "candidate-qwen35-q4_k_m",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575456.189595,
+        "end": 1792575458.1596634,
+        "rates": {
+          "pp512": 7030.92,
+          "tg128": 312.28
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "10-candidate-qwen35-q4_k_m.stdout",
+        "stderr": "10-candidate-qwen35-q4_k_m.stderr",
+        "usage": "10-candidate-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "arm": "base-qwen3-q5_1",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575458.1611516,
+        "end": 1792575459.7308643,
+        "rates": {
+          "pp512": 8369.62,
+          "tg128": 354.03
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "11-base-qwen3-q5_1.stdout",
+        "stderr": "11-base-qwen3-q5_1.stderr",
+        "usage": "11-base-qwen3-q5_1.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "arm": "candidate-qwen3-q5_1",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575459.7322783,
+        "end": 1792575461.301721,
+        "rates": {
+          "pp512": 8369.15,
+          "tg128": 353.59
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "12-candidate-qwen3-q5_1.stdout",
+        "stderr": "12-candidate-qwen3-q5_1.stderr",
+        "usage": "12-candidate-qwen3-q5_1.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "arm": "base-qwen3-iq4_nl",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575461.3030627,
+        "end": 1792575463.1733348,
+        "rates": {
+          "pp512": 6737.74,
+          "tg128": 270.78
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "13-base-qwen3-iq4_nl.stdout",
+        "stderr": "13-base-qwen3-iq4_nl.stderr",
+        "usage": "13-base-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "arm": "candidate-qwen3-iq4_nl",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575463.1747782,
+        "end": 1792575464.9443583,
+        "rates": {
+          "pp512": 6733.45,
+          "tg128": 271.69
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "14-candidate-qwen3-iq4_nl.stdout",
+        "stderr": "14-candidate-qwen3-iq4_nl.stderr",
+        "usage": "14-candidate-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "arm": "base-qwen3-f16",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575464.9457524,
+        "end": 1792575467.7158504,
+        "rates": {
+          "pp512": 1523.38,
+          "tg128": 224.43
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "15-base-qwen3-f16.stdout",
+        "stderr": "15-base-qwen3-f16.stderr",
+        "usage": "15-base-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "arm": "candidate-qwen3-f16",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575467.7176194,
+        "end": 1792575470.4886606,
+        "rates": {
+          "pp512": 1521.7,
+          "tg128": 223.65
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "16-candidate-qwen3-f16.stdout",
+        "stderr": "16-candidate-qwen3-f16.stderr",
+        "usage": "16-candidate-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "arm": "base-qwen3-bf16",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575470.4902275,
+        "end": 1792575472.8094597,
+        "rates": {
+          "pp512": 1503.23,
+          "tg128": 325.47
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "17-base-qwen3-bf16.stdout",
+        "stderr": "17-base-qwen3-bf16.stderr",
+        "usage": "17-base-qwen3-bf16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "arm": "candidate-qwen3-bf16",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575472.810986,
+        "end": 1792575475.1309493,
+        "rates": {
+          "pp512": 1519.38,
+          "tg128": 323.45
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "18-candidate-qwen3-bf16.stdout",
+        "stderr": "18-candidate-qwen3-bf16.stderr",
+        "usage": "18-candidate-qwen3-bf16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "arm": "base-qwen3-q5_0",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575475.132509,
+        "end": 1792575476.902897,
+        "rates": {
+          "pp512": 8148.84,
+          "tg128": 300.08
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "19-base-qwen3-q5_0.stdout",
+        "stderr": "19-base-qwen3-q5_0.stderr",
+        "usage": "19-base-qwen3-q5_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "arm": "candidate-qwen3-q5_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575476.9046717,
+        "end": 1792575478.6242356,
+        "rates": {
+          "pp512": 8146.11,
+          "tg128": 300.97
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "20-candidate-qwen3-q5_0.stdout",
+        "stderr": "20-candidate-qwen3-q5_0.stderr",
+        "usage": "20-candidate-qwen3-q5_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "arm": "base-qwen3-iq4_xs",
+        "direction": "forward",
+        "exe": "base",
+        "start": 1792575478.6258025,
+        "end": 1792575480.495982,
+        "rates": {
+          "pp512": 6541.77,
+          "tg128": 258.7
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "21-base-qwen3-iq4_xs.stdout",
+        "stderr": "21-base-qwen3-iq4_xs.stderr",
+        "usage": "21-base-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "arm": "candidate-qwen3-iq4_xs",
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792575480.497669,
+        "end": 1792575482.3675306,
+        "rates": {
+          "pp512": 6557.94,
+          "tg128": 258.21
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "22-candidate-qwen3-iq4_xs.stdout",
+        "stderr": "22-candidate-qwen3-iq4_xs.stderr",
+        "usage": "22-candidate-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "arm": "candidate-qwen3-iq4_xs",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575482.369148,
+        "end": 1792575484.1388626,
+        "rates": {
+          "pp512": 6549.95,
+          "tg128": 258.46
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "23-candidate-qwen3-iq4_xs.stdout",
+        "stderr": "23-candidate-qwen3-iq4_xs.stderr",
+        "usage": "23-candidate-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "arm": "base-qwen3-iq4_xs",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575484.1405156,
+        "end": 1792575485.910329,
+        "rates": {
+          "pp512": 6546.35,
+          "tg128": 258.34
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "24-base-qwen3-iq4_xs.stdout",
+        "stderr": "24-base-qwen3-iq4_xs.stderr",
+        "usage": "24-base-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "arm": "candidate-qwen3-q5_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575485.9120693,
+        "end": 1792575487.5824728,
+        "rates": {
+          "pp512": 8136.93,
+          "tg128": 300.32
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "25-candidate-qwen3-q5_0.stdout",
+        "stderr": "25-candidate-qwen3-q5_0.stderr",
+        "usage": "25-candidate-qwen3-q5_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "arm": "base-qwen3-q5_0",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575487.5842834,
+        "end": 1792575489.254342,
+        "rates": {
+          "pp512": 8139.88,
+          "tg128": 301.18
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "26-base-qwen3-q5_0.stdout",
+        "stderr": "26-base-qwen3-q5_0.stderr",
+        "usage": "26-base-qwen3-q5_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "arm": "candidate-qwen3-bf16",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575489.2561538,
+        "end": 1792575491.5756428,
+        "rates": {
+          "pp512": 1513.32,
+          "tg128": 323.26
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "27-candidate-qwen3-bf16.stdout",
+        "stderr": "27-candidate-qwen3-bf16.stderr",
+        "usage": "27-candidate-qwen3-bf16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "arm": "base-qwen3-bf16",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575491.5775146,
+        "end": 1792575493.847203,
+        "rates": {
+          "pp512": 1503.92,
+          "tg128": 325.31
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "28-base-qwen3-bf16.stdout",
+        "stderr": "28-base-qwen3-bf16.stderr",
+        "usage": "28-base-qwen3-bf16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "arm": "candidate-qwen3-f16",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575493.8490903,
+        "end": 1792575496.518973,
+        "rates": {
+          "pp512": 1532.06,
+          "tg128": 224.19
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "29-candidate-qwen3-f16.stdout",
+        "stderr": "29-candidate-qwen3-f16.stderr",
+        "usage": "29-candidate-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "arm": "base-qwen3-f16",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575496.5209503,
+        "end": 1792575499.240711,
+        "rates": {
+          "pp512": 1545.72,
+          "tg128": 224.49
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "30-base-qwen3-f16.stdout",
+        "stderr": "30-base-qwen3-f16.stderr",
+        "usage": "30-base-qwen3-f16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "arm": "candidate-qwen3-iq4_nl",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575499.2426322,
+        "end": 1792575501.012654,
+        "rates": {
+          "pp512": 6728.96,
+          "tg128": 270.45
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "31-candidate-qwen3-iq4_nl.stdout",
+        "stderr": "31-candidate-qwen3-iq4_nl.stderr",
+        "usage": "31-candidate-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "arm": "base-qwen3-iq4_nl",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575501.014624,
+        "end": 1792575502.7850718,
+        "rates": {
+          "pp512": 6720.86,
+          "tg128": 271.03
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "32-base-qwen3-iq4_nl.stdout",
+        "stderr": "32-base-qwen3-iq4_nl.stderr",
+        "usage": "32-base-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "arm": "candidate-qwen3-q5_1",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575502.7871873,
+        "end": 1792575504.3079214,
+        "rates": {
+          "pp512": 8352.42,
+          "tg128": 353.96
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "33-candidate-qwen3-q5_1.stdout",
+        "stderr": "33-candidate-qwen3-q5_1.stderr",
+        "usage": "33-candidate-qwen3-q5_1.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "arm": "base-qwen3-q5_1",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575504.309811,
+        "end": 1792575505.829715,
+        "rates": {
+          "pp512": 8357.44,
+          "tg128": 354.03
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "34-base-qwen3-q5_1.stdout",
+        "stderr": "34-base-qwen3-q5_1.stderr",
+        "usage": "34-base-qwen3-q5_1.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "arm": "candidate-qwen35-q4_k_m",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575505.831785,
+        "end": 1792575507.7524133,
+        "rates": {
+          "pp512": 7025.08,
+          "tg128": 312.14
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "35-candidate-qwen35-q4_k_m.stdout",
+        "stderr": "35-candidate-qwen35-q4_k_m.stderr",
+        "usage": "35-candidate-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "arm": "base-qwen35-q4_k_m",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575507.7543952,
+        "end": 1792575509.6252975,
+        "rates": {
+          "pp512": 7034.12,
+          "tg128": 312.77
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "36-base-qwen35-q4_k_m.stdout",
+        "stderr": "36-base-qwen35-q4_k_m.stderr",
+        "usage": "36-base-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "arm": "candidate-qwen35-q8_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575509.6272645,
+        "end": 1792575511.4975688,
+        "rates": {
+          "pp512": 7548.69,
+          "tg128": 351.01
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "37-candidate-qwen35-q8_0.stdout",
+        "stderr": "37-candidate-qwen35-q8_0.stderr",
+        "usage": "37-candidate-qwen35-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "arm": "base-qwen35-q8_0",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575511.4996412,
+        "end": 1792575513.3709826,
+        "rates": {
+          "pp512": 7547.43,
+          "tg128": 350.05
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "38-base-qwen35-q8_0.stdout",
+        "stderr": "38-base-qwen35-q8_0.stderr",
+        "usage": "38-base-qwen35-q8_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "arm": "candidate-qwen3-q4_k_m",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575513.3730433,
+        "end": 1792575514.8939013,
+        "rates": {
+          "pp512": 8173.02,
+          "tg128": 361.3
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "39-candidate-qwen3-q4_k_m.stdout",
+        "stderr": "39-candidate-qwen3-q4_k_m.stderr",
+        "usage": "39-candidate-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "arm": "base-qwen3-q4_k_m",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575514.8959432,
+        "end": 1792575516.3660297,
+        "rates": {
+          "pp512": 8174.72,
+          "tg128": 360.24
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "40-base-qwen3-q4_k_m.stdout",
+        "stderr": "40-base-qwen3-q4_k_m.stderr",
+        "usage": "40-base-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "arm": "candidate-qwen3-q5_k_m",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575516.3682785,
+        "end": 1792575517.8886113,
+        "rates": {
+          "pp512": 8088.05,
+          "tg128": 353.76
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "41-candidate-qwen3-q5_k_m.stdout",
+        "stderr": "41-candidate-qwen3-q5_k_m.stderr",
+        "usage": "41-candidate-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "arm": "base-qwen3-q5_k_m",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575517.890775,
+        "end": 1792575519.360544,
+        "rates": {
+          "pp512": 8097.72,
+          "tg128": 353.97
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "42-base-qwen3-q5_k_m.stdout",
+        "stderr": "42-base-qwen3-q5_k_m.stderr",
+        "usage": "42-base-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "arm": "candidate-qwen3-q4_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575519.3626919,
+        "end": 1792575520.8827713,
+        "rates": {
+          "pp512": 8315.83,
+          "tg128": 347.76
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "43-candidate-qwen3-q4_0.stdout",
+        "stderr": "43-candidate-qwen3-q4_0.stderr",
+        "usage": "43-candidate-qwen3-q4_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "arm": "base-qwen3-q4_0",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575520.8851423,
+        "end": 1792575522.3551912,
+        "rates": {
+          "pp512": 8310.33,
+          "tg128": 344.73
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "44-base-qwen3-q4_0.stdout",
+        "stderr": "44-base-qwen3-q4_0.stderr",
+        "usage": "44-base-qwen3-q4_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q8_0",
+        "arm": "candidate-qwen3-q8_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792575522.3576243,
+        "end": 1792575523.8274903,
+        "rates": {
+          "pp512": 8817.14,
+          "tg128": 399.85
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "45-candidate-qwen3-q8_0.stdout",
+        "stderr": "45-candidate-qwen3-q8_0.stderr",
+        "usage": "45-candidate-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q8_0",
+        "arm": "base-qwen3-q8_0",
+        "direction": "reverse",
+        "exe": "base",
+        "start": 1792575523.8297222,
+        "end": 1792575525.4006486,
+        "rates": {
+          "pp512": 8824.09,
+          "tg128": 396.13
+        },
+        "status": "passed",
+        "returncode": 0,
+        "stdout": "46-base-qwen3-q8_0.stdout",
+        "stderr": "46-base-qwen3-q8_0.stderr",
+        "usage": "46-base-qwen3-q8_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [],
+        "flagged_intervals": 0,
+        "evidence_root": "final-main-timing-v3/round1",
+        "monitor_covers_whole_call": true
+      }
+    ],
+    "archive_sha256": "e1c57639be3617e866c6ab022561e8f9535807ded10caeb997bf33360f5aa52c",
+    "all_calls_monitor_covered": true,
+    "flagged_calls": 0,
+    "limitations": [
+      "Two samples per arm/file; small differences do not establish a regression or gain.",
+      "v1 failed metadata preflight with zero timed calls. v2 completed one base call then refused stale candidate argv. v3 executes only remaining47; original sample retained. Forward Q8 pair separated by harness repair; reverse pair contiguous.",
+      "Same CPU/GPU/build flags and files. Retained main source fe0abd785 is runtime-source equivalent to public5815ec4, not a new archive of that revision.",
+      "Sampled system activity cannot establish stalls, actual occupancy or bandwidth saturation."
+    ]
+  },
+  "main_identity": {
+    "passed": true,
+    "files": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "5aef4a07779b7f0e564d2fd8f5ea52fb7b7beca5c57dc5715516cf19812d5fe8"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "30a4c85cb1deb283c2e650d1a83bedb06e36497b1315377c8ef62aa71e614de2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "8b61ebb23c95540b73ae995784ca500ad0ac03da15e347c66c552f9ca392d8c9"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "df13f3265c812abfbd30997835bab95edafb17413aa7ba2728dc1094ce4b6624"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "809ae872a936eb2034d98eaf15dae82e38039c6b380a1cb3da8cf0c2b5466009"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "3f251868eda97586423ff559400e3383beb57eb7eb327efc87340c5b4e90c4ae"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "adb2f05fc6ddc8f1652e57f77544496153debec32fc81306a2b16dbf4fa6cec4"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "9c71f49ddada0cc4c2c6657ff0fb25fc5b3779df9aae1d1d05b5f105dc062f53"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "a848c3f46e514079ff1c7f80afc7b7da62f53f90e5594c8158dc11e5bf76784a"
+          }
+        }
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q8_0.gguf",
+        "tokens": 243,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 241367040,
+            "sha256": "b6abad5a00f66c76aa98b5169d243a3bfc09dbacfda1534dcfb33568e1b890ed"
+          },
+          "decode": {
+            "bytes": 241367040,
+            "sha256": "37afa9a71899b84b129244bd17cca00bba69fe1725fd4fbb7e4ccca914bd65d3"
+          },
+          "greedy": {
+            "bytes": 63569920,
+            "sha256": "ec985c9cc4125dbcba296ed9e824c8c1b792248ddee43b6aff47817aa3a72265"
+          }
+        }
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+        "tokens": 243,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 241367040,
+            "sha256": "37ded02021c1e26167c6f67a892af3b687d4ad7293935cce8bd050be64c023c6"
+          },
+          "decode": {
+            "bytes": 241367040,
+            "sha256": "a6c511c1242b1403e31d0afff30765fd39301140ed4423bbcfd95d0d25f6c7ba"
+          },
+          "greedy": {
+            "bytes": 63569920,
+            "sha256": "98b0cee3c4f0e09518722a397da30eb3d14d3f233bf74cc2bab63450ad897883"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_1.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "e7c3a2a5b45a0ac71b3a8af1813b9fb2c26334b9d5c6784c3fdba0e1dcbf9615"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "84933d1d07326e2c7bc28a6a8eb87f5ce490b04871a3fcb5bed3d80136dfbbb2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "262f804f27813064fda4eb7a4e40614748287c3df4cb36a88edde0989729bb6f"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_NL.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "f549636af82e6f76902216ce18beaa0b4200bea684e0af0d570d6112bc7e6105"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "9343bf042f8574fe46a429d473fb273131ea10ffe0f2d447d32f537a70d96941"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "d55bc1b7c1ed240cb3d7fa644356800b26bf33a309944515605e097c025bd56c"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-F16-converted.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "a14fe69eaf30665c7903a9c8527f92508ae1884720b69dbdaddd937fd9daf411"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "eec0abe061fcc98b91ad432aff2d60f2a244f1ae827af574da93624991674eae"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "c7166035b1cf2efddaa18d1b70bedf4c4ddb6a3fa3250ff839e6fa31f07c3022"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-BF16.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "81a607c280e6cc06a007788246f609a12f9bfb2ae3c923c6f4107456b805cd39"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "b240bc8a68ee1f7d00da5969037ac79753f91d872ab4e2c6939b257b1bc6362f"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_0-converted.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "072b8bd1b400be7766558c49800cd89b665ba33ff7c6556bc81589e3edfe5328"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "0ebffb772c17cef20541c840c0060c6e4109680359bd838c13ec8b24390883da"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "774af7e553f30060c79233f5ffc89e27d8b0d0addf9902f695e22910655615a6"
+          }
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_XS.gguf",
+        "tokens": 247,
+        "greedy": 64,
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "36634b66ffd90c2e0d5a2517ca57835527d058210155741f4b04c7851d8a01c0"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "aa5d8bdcf0bf4e981ad6b6e0742364446df9bf77c3f44d2888d20784868e41d2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "df3522e9e6ea89bc15a0b11d1ad6dffcea693c5a8d4f39380990b11219332c9b"
+          }
+        }
+      }
+    ],
+    "binary_captures_rehashed": 72,
+    "result_sha256": "af00c5828c0c3b67c0396cab63198845aca1538cad8db65eefa91bbc203e6b6b",
+    "execution_sha256": "ec845544059393c772e7b9fe48ef87b0207042c3c5936e85db38e497f0c2adea"
+  },
+  "released": {
+    "passed": true,
+    "scope": "Final e8d released ranking/server composition only. Existing four NLL/file and depth remain separate; no full-file8NLL or performance claim.",
+    "archive_sha256": "3efdd8f6b400b5115b01b58a33baecc566c519ddedfd064bd89ffa0461125c24",
+    "manifest_sha256": "6ab6f9ab5d6979372eb3b87d2c7c2d1e37756e2f5f80bef8def05e5ba95eb2c0",
+    "files": 51,
+    "stages": [
+      {
+        "kind": "q2",
+        "passed": true,
+        "rankings": 6,
+        "cli_server_tokens": 8,
+        "nll": 0,
+        "cli_children": 7,
+        "logits_paths": [
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ]
+        ],
+        "generate_paths": [
+          []
+        ],
+        "seconds": 5.962244987487793,
+        "runtime": {
+          "binaries": {
+            "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+            "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+            "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+          "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+          "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+        },
+        "execution_sha256": "f418736cc24f1c24f812c85d5470c39b2259f5bcafcaace9c94eb1400b12581b",
+        "result_sha256": "0ea00f9be7c76f8f841455ad8cb21c4297a39b7ca7c933e2eaf3fd1f539fd30c",
+        "log_sha256": "0a4a3bc44654f5f5bd42f09f5304bde17ee434f43515dad6b3265cbffab9046d",
+        "removed": true,
+        "oom": false
+      },
+      {
+        "kind": "q3",
+        "passed": true,
+        "rankings": 6,
+        "cli_server_tokens": 8,
+        "nll": 0,
+        "cli_children": 7,
+        "logits_paths": [
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          ]
+        ],
+        "generate_paths": [
+          []
+        ],
+        "seconds": 5.972773790359497,
+        "runtime": {
+          "binaries": {
+            "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+            "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+            "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+          "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+          "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+        },
+        "execution_sha256": "3b9a6dfe1b53afe6c35d3e49afa3fd8e8908148c4706191d7eecd8aead969950",
+        "result_sha256": "1cf459487da6dc47bfa9e9299f5bd5d80bbfe196143f5a5b31ec5b46c86519f5",
+        "log_sha256": "a44a2c17b117ec177463ae2927e473350752dd7c6f4b417f6badfa1adad85817",
+        "removed": true,
+        "oom": false
+      }
+    ],
+    "original_failure": "v1 zero-inference CRLF/LF common.py source-pin mismatch retained separately; no candidate/source/numerical change.",
+    "limitations": "Generate has no matrix_record; six logits witness block-int16, server/CLI text equality establishes composition. No server kernel-counter claim."
+  },
+  "profiles": [
+    {
+      "arm": "profile-base",
+      "model": "Q2_K",
+      "log_sha256": "d0951b166022454676482e8dbacaabdc3a4e3066c0baf4161dd02c91ccefa63d",
+      "phase_device_ms": {
+        "pp": "93.9688",
+        "tg": "780.289"
+      },
+      "target_lines": [
+        "profile:   matmul_tile_q2 42.3549 ms (45.0733%)",
+        "profile:   matmul_tile_q3 36.6624 ms (39.0155%)",
+        "profile: kernel matmul_tile_q2: Driver pipeline hash=15926416048133642323 SGPRs=112 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=26868 LDS size=19456 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=1934075896 Instructions=4747 Copies=194 Branches=62 Latency=791328 Inverse Throughput=568228 VMEM Clause=134 SMEM Clause=15 Pre-Sched SGPRs=49 Pre-Sched VGPRs=96 VALU=3324 SALU=762 VMEM=227 SMEM=22 VOPD=0",
+        "profile: kernel matmul_tile_q3: Driver pipeline hash=4368654264453024739 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14024 LDS size=19456 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=226847026 Instructions=2347 Copies=189 Branches=63 Latency=327856 Inverse Throughput=212188 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=49 Pre-Sched VGPRs=88 VALU=1559 SALU=463 VMEM=54 SMEM=22 VOPD=0"
+      ]
+    },
+    {
+      "arm": "profile-base",
+      "model": "Q3_K_S",
+      "log_sha256": "7231d3c65d48f584ad14f5cef553b86e84c7882316c1f66249ca52c26732460a",
+      "phase_device_ms": {
+        "pp": "92.8635",
+        "tg": "887.409"
+      },
+      "target_lines": [
+        "profile:   matmul_tile_q3 78.3078 ms (84.3257%)",
+        "profile: kernel matmul_tile_q3: Driver pipeline hash=4368654264453024739 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14024 LDS size=19456 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=226847026 Instructions=2347 Copies=189 Branches=63 Latency=327856 Inverse Throughput=212188 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=49 Pre-Sched VGPRs=88 VALU=1559 SALU=463 VMEM=54 SMEM=22 VOPD=0"
+      ]
+    },
+    {
+      "arm": "profile-candidate",
+      "model": "Q2_K",
+      "log_sha256": "a0fda4971704af814a218900dab496b0ce4ef81c90b468efcb1d3a88f0e3e7c1",
+      "phase_device_ms": {
+        "pp": "93.7531",
+        "tg": "613.958"
+      },
+      "target_lines": [
+        "profile:   matmul_tile_q2 42.1539 ms (44.9627%)",
+        "profile:   matmul_tile_q3 36.6886 ms (39.1332%)",
+        "profile:   matmul_row_q3_dot_1col 229.53 ms (37.3854%)",
+        "profile:   matmul_row_q2_dot_1col 166.938 ms (27.1905%)",
+        "profile: kernel matmul_tile_q2: Driver pipeline hash=16723105568652258424 SGPRs=80 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14672 LDS size=19456 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=883455975 Instructions=2437 Copies=187 Branches=63 Latency=333408 Inverse Throughput=218956 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=48 Pre-Sched VGPRs=96 VALU=1650 SALU=454 VMEM=38 SMEM=22 VOPD=0",
+        "profile: kernel matmul_tile_q3: Driver pipeline hash=16925354027754610726 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14024 LDS size=19456 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=1597359371 Instructions=2347 Copies=189 Branches=63 Latency=327424 Inverse Throughput=212188 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=49 Pre-Sched VGPRs=88 VALU=1559 SALU=463 VMEM=54 SMEM=22 VOPD=0",
+        "profile: kernel matmul_row_q2_dot_1col: Driver pipeline hash=1432389680760048743 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5396 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=741149206 Instructions=1007 Copies=55 Branches=24 Latency=35423 Inverse Throughput=19933 VMEM Clause=29 SMEM Clause=16 Pre-Sched SGPRs=29 Pre-Sched VGPRs=38 VALU=704 SALU=142 VMEM=52 SMEM=20 VOPD=0",
+        "profile: kernel matmul_row_q3_dot_1col: Driver pipeline hash=8895436436318735576 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7452 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=686268737 Instructions=1357 Copies=60 Branches=24 Latency=47087 Inverse Throughput=27565 VMEM Clause=33 SMEM Clause=16 Pre-Sched SGPRs=31 Pre-Sched VGPRs=36 VALU=983 SALU=149 VMEM=84 SMEM=20 VOPD=0"
+      ]
+    },
+    {
+      "arm": "profile-candidate",
+      "model": "Q3_K_S",
+      "log_sha256": "dd3367c1424a5440725c0b98fcfd06b5ea338314f62c9705f9b66dba7c6290c1",
+      "phase_device_ms": {
+        "pp": "93.0085",
+        "tg": "627.316"
+      },
+      "target_lines": [
+        "profile:   matmul_tile_q3 78.513 ms (84.4148%)",
+        "profile:   matmul_row_q3_dot_1col 412.149 ms (65.7005%)",
+        "profile: kernel matmul_tile_q3: Driver pipeline hash=16925354027754610726 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14024 LDS size=19456 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=1597359371 Instructions=2347 Copies=189 Branches=63 Latency=327424 Inverse Throughput=212188 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=49 Pre-Sched VGPRs=88 VALU=1559 SALU=463 VMEM=54 SMEM=22 VOPD=0",
+        "profile: kernel matmul_row_q3_dot_1col: Driver pipeline hash=8895436436318735576 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7452 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=686268737 Instructions=1357 Copies=60 Branches=24 Latency=47087 Inverse Throughput=27565 VMEM Clause=33 SMEM Clause=16 Pre-Sched SGPRs=31 Pre-Sched VGPRs=36 VALU=983 SALU=149 VMEM=84 SMEM=20 VOPD=0"
+      ]
+    }
+  ],
+  "raw_artifacts": {
+    "mx/summary.json": "376cc823471c38a1785774bc04fc9682ec899849418cd62d93c795c0657deefc",
+    "final-timing-summary.json": "a5cd262019a23ef5ee6ebeae66e7455cd98a348b01974f16234a160e32bc2116",
+    "split/summary.json": "2fb2591f8bc1c438a23f5f0fa8252becd2a26c54200b1cabbd79d90ba56f21e8",
+    "backend-test/isa-summary.json": "d5564dc233bf16313eefe20f8b8d065d7ff5841b15ec52d5a48f77e5f2bdf5e6",
+    "final-released-v2/summary.json": "10faec21760bd21b4116be95893177f3fe93874259de4ed86c8d9a056a535d43",
+    "profile-evidence.tar.gz": "461baeb32ac7a540d6081d95cf05808bbc38af9a6af3687aaddbb8f021137533",
+    "final-identity-evidence.tar.gz": "ec4c8de92b69254bac4d3815ef6244b762e300712aa7fcca339545a0f0cb8798"
+  },
+  "reference_inspection": {
+    "commit": "eefc4e7321c869496146697d63362f073941aed6",
+    "files": [
+      "ggml/src/ggml-vulkan/vulkan-shaders/mul_mat_vecq_funcs.glsl",
+      "ggml/src/ggml-vulkan/vulkan-shaders/mul_mmq_funcs.glsl"
+    ],
+    "observation": "mx integer-dot Q2/Q3 paths unpack several codes from packed16/32 reads. llmx k23_word assembles four codes using q2_k_code/q3_k_code per position. Compiler combining and actual mx dispatch must be established before attributing the remaining gap to those source differences.",
+    "copied_source": false
+  },
+  "remaining": [
+    "Q3 BF16 policy unresolved; no tolerance change approved or applied.",
+    "Hosted CI and final main reconciliation/squash/merge not performed."
+  ],
+  "production_changed": false,
+  "merged": false,
+  "integration": {
+    "passed": true,
+    "scope": "Final e8d private four-tool build plus sixteen existing-device components, no new Q2/Q3 HF/depth or performance claim.",
+    "source_revision": "e8d1737eea8c199da111826c163d57cec544b60e",
+    "runtime": {
+      "binaries": {
+        "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+        "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+        "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+      },
+      "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "source_manifest_sha256": "482d0db011603ab6bcf175edb955e7756d40d705eb96bb61c468c1d5630ee517",
+      "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+      "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13"
+    },
+    "source_inputs": "Frozen original candidate/base manifests verified before/after. Private tool TUs use exact current source, generated config and original per-target Release flags/link commands; original runtime/build/tool files unchanged.",
+    "tool_records": {
+      "llmx-cpu-f32-check": {
+        "binary_sha256": "4268b419670244d87c0faf78230465a9d92a079c875025b0e8d28096ef863c90",
+        "source": "tools/cpu_f32_check.cpp",
+        "source_sha256": "ac3de25b9fb8e13dd3faa5b82ec541ca7aef67cf656879c1dcf49e988c22346b",
+        "commands_sha256": "679475cf9f7a9a73a226ea15b51940747279d7fa72254fee5f00359e7dbc284f",
+        "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "llmx-decode-probe": {
+        "binary_sha256": "4ddcb619d85a35e900ec7d051982eb522943c8ae1a2b317eaa28e429dec8f61a",
+        "source": "tools/decode_probe.cpp",
+        "source_sha256": "bb2af2b01dc3284fdde9fb76fb84de7d0f52e5daca5ac0cc88f4531f6ddc1794",
+        "commands_sha256": "b858b50d3e33c1f1d62b8fd7a9c70bc697cb7b6175f5356abae9ca8477865bd2",
+        "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "llmx-drafter-pack": {
+        "binary_sha256": "bf22e53a95f0ddf34d517ff722e50780f0f1930ed664190efbc0fcf927c8df40",
+        "source": "tools/drafter_pack.cpp",
+        "source_sha256": "c4b0049c5ab01087485a1bb7dfe9509a4e0869d701ffe38f2c5d328b49b517f0",
+        "commands_sha256": "5a2a81441a581e69c391c6ac87d5202f99b298e71e1fc752ae92b4df74a2bcac",
+        "compile_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "llmx-server-spec-test": {
+        "binary_sha256": "548d503c4d5141e37d31697071d712b337c26744a9daf821515d1bccb88291ce",
+        "source": "tests/server_spec.cpp",
+        "source_sha256": "2d871c103e71fa51d9d89f78c1c2b2062fbd385de65ee39aa2bcc1e36929c4d2",
+        "commands_sha256": "06124e1679d206a204e578df791c78719480b5c0429ff8c73d1ae1410ce2e078",
+        "compile_log_sha256": "a83f147fb676a8ccfb45a7d0bbd75b77696b59ba1e79bfd891375532d73cadcc"
+      }
+    },
+    "stages": [
+      {
+        "stage": "build-tools",
+        "passed": true,
+        "exit": 0,
+        "removed": true,
+        "oom": false,
+        "seconds": 113.53073382377625,
+        "peak_bytes": 2076839936,
+        "monitor_unavailable_samples": 0,
+        "execution_sha256": "9753121169fa077d9dc21d89d6d1378b933423412c3d5c135f781afaa4e03639",
+        "log_sha256": "96f4841b519e862d476be10a79dd8a54f07aa41b691ae4f9f7e4a1da746343c6"
+      },
+      {
+        "stage": "device-suite",
+        "passed": true,
+        "exit": 0,
+        "removed": true,
+        "oom": false,
+        "seconds": 507.9237596988678,
+        "peak_bytes": 375947264,
+        "monitor_unavailable_samples": 0,
+        "execution_sha256": "268d15b2198b6e7f1ee50201290244c9adff0c2397cc26ef08092536d0b7c6b3",
+        "log_sha256": "0ea473795c81635a07a6044cf1920327fd49f80e5357d9aeae4fe0a5f34e8d5b"
+      }
+    ],
+    "components": {
+      "perplexity": "PASS",
+      "f32": "PASS",
+      "half-weights": "PASS",
+      "moe": "PASS",
+      "int8": "PASS",
+      "mxfp4": "PASS",
+      "q5-0": "PASS",
+      "q5-1": "PASS",
+      "iq4-nl": "PASS",
+      "qwen35": "PASS",
+      "decode-probe": "PASS",
+      "drafters": "PASS",
+      "shards": "PASS",
+      "server": "PASS",
+      "chat": "PASS",
+      "baseline": "PASS"
+    },
+    "component_passes": 16,
+    "component_skips": 0,
+    "skip_lines": [],
+    "model_pins": {
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf": {
+        "bytes": 639446688,
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf": {
+        "bytes": 382156480,
+        "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf": {
+        "bytes": 444415680,
+        "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf": {
+        "bytes": 396705472,
+        "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-UD-Q8_K_XL.gguf": {
+        "bytes": 844288704,
+        "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad"
+      },
+      "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q8_0.gguf": {
+        "bytes": 811843840,
+        "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
+      },
+      "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q4_K_M.gguf": {
+        "bytes": 532517120,
+        "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+      }
+    },
+    "gpu": {
+      "physical": 9,
+      "render": 131,
+      "pci": "0000:cc:00.0",
+      "busy": 0,
+      "vram": 10919936,
+      "fuser": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "cpu_set": "8-11",
+    "memory_gib": 8,
+    "archive_sha256": "800b01e540ed5c4177f7788428cc10ac69d3743ed52d42c93c2184126733a669",
+    "manifest_sha256": "65f1db09d28ce81cb65046c58f6ca3e87c4503c67f5188b72bd8ad39f0cc9f23",
+    "files": 28,
+    "retained_released": "Separate final-released-v2 six rankings and CLI/server eight-token composition per file; original v1 zero-inference CRLF owner-pin failure retained.",
+    "limitations": "No Q3 BF16 policy approval, new allowance, original-weight quality, hosted CI or performance claim. GPU0-3 excluded. All recorded checks use one device.",
+    "root_replay": "final-suite/audit.py passed:16components,zero skips,28manifestfiles; original runtime/source/config/tool hashes unchanged."
+  }
+}

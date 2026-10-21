@@ -1,0 +1,1171 @@
+{
+  "scope": "Completed final depth and Radeon checks on e8d1737ee; tensor-split, final MI50 ISA/timing, integration/hosted and Q3 BF16 disposition remain separate.",
+  "runtime_revision": "e8d1737eea8c199da111826c163d57cec544b60e",
+  "runtime_matches_rig_manifest": true,
+  "depth": {
+    "scope": "Final Q2/Q3 packed-row depth qualification: four file-policy cells/eight raw/chat captures against retained exact-file F32 HF; no reference/bound changes.",
+    "stages": [
+      {
+        "stage": "build-probes",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "seconds": 41.75946307182312,
+        "binaries": {
+          "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+          "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+          "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13",
+        "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+        "execution_sha256": "21e0d5d246ddd5c13d31e83b0753d06d32291705aa5fb201647a2f93e39d8876",
+        "run_log_sha256": "a1850ee6f97ad6e39b6d85e0212a454a62894b3792ff89be48afdf775ac28e43",
+        "monitor_unavailable_samples": 0,
+        "probe_build": {
+          "commands": [
+            [
+              "/usr/bin/c++",
+              "-I/source/build/generated",
+              "-I/source/src",
+              "-O3",
+              "-DNDEBUG",
+              "-std=c++17",
+              "-mavx2",
+              "-mfma",
+              "-mf16c",
+              "-Wall",
+              "-Wextra",
+              "-Werror=unused-function",
+              "-Werror=unused-variable",
+              "-Werror=unused-but-set-variable",
+              "/bundle/quant-depth-default-probe.cpp",
+              "/source/build/libllmx-vulkan.a",
+              "-ldl",
+              "-o",
+              "/out/default-probe"
+            ],
+            [
+              "/usr/bin/c++",
+              "-I/source/build/generated",
+              "-I/source/src",
+              "-O3",
+              "-DNDEBUG",
+              "-std=c++17",
+              "-mavx2",
+              "-mfma",
+              "-mf16c",
+              "-Wall",
+              "-Wextra",
+              "-Werror=unused-function",
+              "-Werror=unused-variable",
+              "-Werror=unused-but-set-variable",
+              "/bundle/quant-depth-f32-probe.cpp",
+              "/source/build/libllmx-vulkan.a",
+              "-ldl",
+              "-o",
+              "/out/f32-probe"
+            ]
+          ],
+          "probes": {
+            "default": "24e4bfa03039825b0ceb986fdbd7bbfcad95244a74d7837cf2835b28c07b8543",
+            "f32": "c1a1d789eb4dc13c341e68da7ddf64fba361bd09f631384598ce100336b2b84a"
+          },
+          "sources": {
+            "quant-depth-default-probe.cpp": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+            "quant-depth-f32-probe.cpp": "bcc8b607322b2ca5d361bd9d671a84cd51396c9eb3c6ac4df037173d8fa0708c"
+          },
+          "library_sha256": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        }
+      },
+      {
+        "stage": "q2-k-default",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "seconds": 32.58582377433777,
+        "binaries": {
+          "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+          "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+          "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13",
+        "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+        "execution_sha256": "a3b60774e29a50a5b693607b2669fe11eced1f9e10e286ff5d71b3e71827955a",
+        "run_log_sha256": "a7aff6db6669d7551ed2215291a88be32fb1816723e2705c125bc6a6cb5f8ade",
+        "monitor_unavailable_samples": 0,
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "probe_sha256": "24e4bfa03039825b0ceb986fdbd7bbfcad95244a74d7837cf2835b28c07b8543",
+        "role": "default-f32-reference",
+        "reference_report_sha256": "74e80ca882483bdc27e75e9027c8e9e471fc25cbcea46b4174f9fe7b6f140c43",
+        "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+        "comparison_sha256": "44820c22a769b6d93c2ddf2a60306fbd8c29ad11c12a921a575e98f192eb12eb",
+        "capture_sha256": "2c4138e73cd52e659d1d4b98adb13d2b611da52d93c51372b645c3ce4686c839",
+        "cells": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "stage": "q2-k-f32",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "seconds": 53.08961057662964,
+        "binaries": {
+          "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+          "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+          "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13",
+        "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+        "execution_sha256": "4972349ef80e7d42daa648ae26116396d9dacc361fbf02c7ad706a3d18ecd2b8",
+        "run_log_sha256": "c9b47ff860f083d1c4c30ceda5f8899a9f64a2db37ec19a1a7e5ec68dcf6c0bd",
+        "monitor_unavailable_samples": 0,
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "probe_sha256": "c1a1d789eb4dc13c341e68da7ddf64fba361bd09f631384598ce100336b2b84a",
+        "role": "selected-f32",
+        "reference_report_sha256": "74e80ca882483bdc27e75e9027c8e9e471fc25cbcea46b4174f9fe7b6f140c43",
+        "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+        "comparison_sha256": "85885eb3fbdc40686aee338208f973c4fffb3da926116d87a152607958aa7f03",
+        "capture_sha256": "3f1a7c3ace4fe2c7d9337d7d589146d8ee280c8bca7bb271b5c5a82df2db7a2a",
+        "cells": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "stage": "q3-k-s-default",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "seconds": 32.609612226486206,
+        "binaries": {
+          "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+          "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+          "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13",
+        "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+        "execution_sha256": "8344aedd090f9bec8952919e02aa7b9789b335fa3d7f9dddec97f36c97e57368",
+        "run_log_sha256": "541d4a91146c06af6f27f6338c8498aa18d7097faf86e3cfc6bafca6c8e5088b",
+        "monitor_unavailable_samples": 0,
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "probe_sha256": "24e4bfa03039825b0ceb986fdbd7bbfcad95244a74d7837cf2835b28c07b8543",
+        "role": "default-f32-reference",
+        "reference_report_sha256": "525331d1c5f5bfb5bf86d66da13f6501633107f81744e3b8b313b28287904e93",
+        "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+        "comparison_sha256": "889be30d89a3063734f50e8e3278c09d6c5aa22ec7a18d779d52800d97144ae9",
+        "capture_sha256": "076feadd606dc4711729ff7e892316831539b5dd2415a0d246b96f2513a5a867",
+        "cells": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "stage": "q3-k-s-f32",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "seconds": 55.12045097351074,
+        "binaries": {
+          "llmx": "bdfa2adb6c4ee71481f1a8567365c15bd6ce0b312534525a7566813be740f396",
+          "llmx-model-logits": "78028bdec419e3e1d2e47adf78cd40eb4167781ce35a2cf42bcdb7acf15c0670",
+          "libllmx-vulkan.a": "73f6ea8c931eae038683bec5a8fed9a6a5dc19168d2301cd8535def2cae2fe4e"
+        },
+        "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "version": "llmx 0.1.0+unknown numerics 65a92e0e99ad0e13",
+        "build_execution_sha256": "8a0a9fdf9ca749eced38e63b9a590ba33216422223c20e1e5fe0f5739f0d7d30",
+        "execution_sha256": "a26f1ca2203cc451fa13409a5b93eab944db13481d0fcf984eb5f121c95049f8",
+        "run_log_sha256": "b990b73571126a57c23629eaaf93b385ed7c5775f131e2c7a26ceb0b24a5b672",
+        "monitor_unavailable_samples": 0,
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "probe_sha256": "c1a1d789eb4dc13c341e68da7ddf64fba361bd09f631384598ce100336b2b84a",
+        "role": "selected-f32",
+        "reference_report_sha256": "525331d1c5f5bfb5bf86d66da13f6501633107f81744e3b8b313b28287904e93",
+        "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+        "comparison_sha256": "8bba25dc1d76158aceeb31e918e6ced070ddba0f4c9a0f1a748006228efd0b51",
+        "capture_sha256": "05534b6cfa0a879aac21e40729bd1a281ce2aa4d1b78c215092e1d064bd8f972",
+        "cells": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "matrix_paths": {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "capture_count": 8,
+    "positions": 4096,
+    "limits": "Existing tests/common.py hf_depth_top1, 0.1 top-two tie rule, every miss fails; no original-weight quality claim.",
+    "collection_manifest_sha256": "38b6670a07234d5b2b7939cf40912284b04607a8d04c793af48ac6c045bcdd08",
+    "root_replay": [
+      {
+        "stage": "q2-k-default",
+        "sha256": "e0ec6ca6831a7c46e088a2dbcbefb8c2cbf901ceb0b5fb829512f6500c3e448c",
+        "counts": [
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          }
+        ]
+      },
+      {
+        "stage": "q2-k-f32",
+        "sha256": "cb193a493a9756ca0b8fe50c6147da33cbeb95d73a1764953f1959a825a35398",
+        "counts": [
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          }
+        ]
+      },
+      {
+        "stage": "q3-k-s-default",
+        "sha256": "0f2cbe50c1deaccb6fbcfbbe367753c5d242c3cc5ac897bd687535358b419ea6",
+        "counts": [
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          }
+        ]
+      },
+      {
+        "stage": "q3-k-s-f32",
+        "sha256": "f9f26a8bba706761a84d3db0f0e92e526885438b9713e0656130a6a0d7d13303",
+        "counts": [
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          }
+        ]
+      }
+    ],
+    "archive_sha256": "34183138d04799ad907861767739e66a85f65c859f88294c190ab112f1514422"
+  },
+  "depth_summary_sha256": "45b4727530197b09eeef60da1f0e1dfa2ecb19e0f8518b71eabf3ae5ddd8d3ef",
+  "windows": {
+    "scope": "Frozen e8d1737ee Windows/RadeonVII qualification after e870 row-block. Fresh final archive vs exact retained same-kind e870 build; no prior Radeon geometry gate substituted.",
+    "passed": true,
+    "candidate_revision": "e8d1737eea8c199da111826c163d57cec544b60e",
+    "base_revision": "e870aa7da9ba80eb2394231bd9dde0ee176e3252",
+    "candidate_executable": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-row-int16\\windows\\candidate-build\\Release\\llmx.exe",
+    "candidate_binaries": {
+      "llmx.exe": "7b219656d100aee5f78335f7194db0a016e2b5d0f54df59ec624f7d570abe9e1",
+      "llmx-model-logits.exe": "c10473de9e079a145cc4567299c4a3887f8a0259994dbd8e89c59c44e154eacd",
+      "llmx-vulkan.lib": "305132ea7815f040d732d5ec98c2d9f9de7b0fbd4315bab156eed4e902b104e7",
+      "llmx-q2-k-test.exe": "556a7aa18072c1d6c20bb53b9e7e5299d79980024566b64ba8ff39c54597174b",
+      "llmx-q3-k-test.exe": "6cb554831215dedf44f94bf60c469ecad070d912c62f59a600640c2faaf813f4"
+    },
+    "base_binaries": {
+      "llmx.exe": "a5e8863f638f531700dea2f7c65fca67f04f6a04331e9bbd47c8ea87c397f30f",
+      "llmx-model-logits.exe": "e6ac836084bb48e3c166b3c2c30487e4921a140d89fa63f5a4e37a129a96d4d9",
+      "llmx-vulkan.lib": "ab20258cbdb15a7e0097619d25768dba85ace52a363902e4ddb3ee81db9458fb",
+      "llmx-q2-k-test.exe": "0e43bb054c9462a95dcb367c15d0040d7a71cb734d1e79edc7cff6779c35a9e5",
+      "llmx-q3-k-test.exe": "8fe95b7e831c71fbe74f000e79bb8d071a2565e60cf4dec2c63843c7908b9e7f"
+    },
+    "native_calls": 4,
+    "hf": {
+      "scope": "Radeon Q2/Q3 ordinary retained HF, requestedF16 but all completed products F32; strict unchangedF32bounds.",
+      "stages": [
+        {
+          "kind": "q2",
+          "passed": true,
+          "full_logits": 150,
+          "nll": 12,
+          "max_logit_error": 1.2258396148712158e-06,
+          "logit_bound": 2e-05,
+          "logit_headroom": 1.8774160385128786e-05,
+          "max_nll_error": 7.383524902593308e-08,
+          "nll_bound": 1e-05,
+          "nll_headroom": 9.926164750974068e-06,
+          "execution_sha256": "c006a31aac6cfeed79c31d8b37a7292bc483422823182c287a734293abe1c9b0",
+          "cases_sha256": "fb03fbabb30fcbd38b64c369e574d0634962aa34a5e272d508bee68bc397d45f",
+          "owner_log_sha256": "db1aa4a522bbb7110839b0c9ca4912c77e2eea41d07ff9f8140eb5b6180a07ce"
+        },
+        {
+          "kind": "q3",
+          "passed": true,
+          "full_logits": 150,
+          "nll": 12,
+          "max_logit_error": 3.8525314331053565e-06,
+          "logit_bound": 2e-05,
+          "logit_headroom": 1.6147468566894645e-05,
+          "max_nll_error": 4.614344746300958e-07,
+          "nll_bound": 1e-05,
+          "nll_headroom": 9.538565525369905e-06,
+          "execution_sha256": "0fe211126f7b8f11074adb34d18a96f1e84028f1c996b92d7f13762e6c110272",
+          "cases_sha256": "6db42813f0131ad53d213fd0e03697779ea1a8893d73f805c89f50898b7357b6",
+          "owner_log_sha256": "eb8f418ccace95beb1f818041e1c39e1065539c26581ba09cc4fd525bcd40949"
+        }
+      ]
+    },
+    "identity_scope": "Q2_K/Q3_K_S247raw prompt rows x151936fullvocab,batched/per-token+64greedy binary32exact; twelve capturefiles retained locally with size/hash in audited-results.",
+    "isa": {
+      "binary_sha256": "ac84e0aac3d588ad578086cc9cf7db18cf1c557db1975e9a67a02a2edbecaa2a",
+      "fresh_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-row-int16\\windows\\backend-isa\\fresh-executable-path\\llmx-backend-vulkan-test.exe",
+      "representations": 113,
+      "specialized_q23_isa_exported": [],
+      "collective_skip": [
+        "backend-vulkan: no second device for the collective (vulkan: no device at index 1 of 1)"
+      ],
+      "result_lines": [
+        "backend-vulkan: 509 expected weight dispatches and type refusals",
+        "backend-vulkan: 111888 shared matrix precision values passed",
+        "backend-vulkan: 96 matrix-path witnesses match arithmetic",
+        "backend-vulkan: 113 kernel representations written to C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-row-int16\\windows\\backend-isa\\representations",
+        "backend-vulkan: 0 Q6 builds retain native 16-bit dots",
+        "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 23 the same, 0 those and whole columns, 0 pairs of two-row builds whole columns apart, 0 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 11 grouped builds the same as their wide build"
+      ],
+      "protected_inputs_unchanged": true
+    },
+    "timing": {
+      "rows": [
+        {
+          "model": "qwen3-q2_k",
+          "means": {
+            "base": {
+              "pp512": 2499.715,
+              "tg128": 133.165
+            },
+            "candidate": {
+              "pp512": 2495.825,
+              "tg128": 136.28
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": -0.15561774042242016,
+            "tg128": 2.3392032440956667
+          },
+          "flags": [
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ]
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "means": {
+            "base": {
+              "pp512": 2253.355,
+              "tg128": 120.045
+            },
+            "candidate": {
+              "pp512": 2253.5299999999997,
+              "tg128": 122.44999999999999
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 0.007766197514369466,
+            "tg128": 2.003415385896945
+          },
+          "flags": [
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ]
+        },
+        {
+          "model": "qwen3-q8_0",
+          "means": {
+            "base": {
+              "pp512": 3120.4849999999997,
+              "tg128": 204.98
+            },
+            "candidate": {
+              "pp512": 3121.755,
+              "tg128": 204.65
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 0.04069880162860251,
+            "tg128": -0.16099131622596685
+          },
+          "flags": [
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ]
+        }
+      ],
+      "counts": {
+        "planned": 12,
+        "completed": 12,
+        "filtered": 0
+      },
+      "all_calls_monitor_covered": true,
+      "all_calls_flags": {
+        "0": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "1": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "2": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "3": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "4": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "5": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "6": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "7": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "8": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "9": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "10": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ],
+        "11": [
+          "unrelated_cpu",
+          "unrelated_gpu"
+        ]
+      },
+      "monitor_unavailable": {},
+      "unknown_process_delta_samples": 75,
+      "counter_error_samples": 0
+    },
+    "limitations": [
+      "Radeonintegerpreferencefalse: Q2/Q3newintegerrows not selected; nativeexplicitF32/BF16 and F16/int8float fallback covered.",
+      "SpecializedQ2/Q3ISA not exported by broaderbackendtest; no such ISA claim. No seconddevice collective.",
+      "All12ABBAcalls retained with desktopCPU/GPUflags; twosamples/arm and no new layout/noisecontrol, smallobservedchanges not causalproof.",
+      "No freshmx, cross-environment speed subtraction, newBF16allowance, new16K or fullsuiteclaim.",
+      "CPU/quant/model/inference source byte-identical per source-delta; newCPU native tests also passed."
+    ],
+    "artifacts": {
+      "candidate-source.json": {
+        "sha256": "107f1911bf7b6af508f6cf5fedfe281206a6e8eff0d26c69dfb97ca9926b3468",
+        "bytes": 282720
+      },
+      "candidate-execution.json": {
+        "sha256": "bd40f448e72ff481be1274ba4201c13b199e659d9e6cee8ee43685269674e8d5",
+        "bytes": 2735
+      },
+      "base-execution.json": {
+        "sha256": "800c67b25430c3a12a1ec95b17b8b98edbb871c605306efbb7e2e1c33c5582ae",
+        "bytes": 2882
+      },
+      "matched-build-audit.json": {
+        "sha256": "3ed6fe094fe5479592821fa41f959e48515caf4be68c8d7464b42e81b0fc2f29",
+        "bytes": 34729
+      },
+      "source-delta.json": {
+        "sha256": "b67d92762f20fbf11fc6af22e064a45ccc3cd5a04e4554d7632a8c1cece4ec6c",
+        "bytes": 639
+      },
+      "native-results/execution.json": {
+        "sha256": "4b75586aaadc4f854bfb46b32eb0d13b472bfe04ff9855528983578f63540a81",
+        "bytes": 8486
+      },
+      "identity-results/execution.json": {
+        "sha256": "cdb0a08b07e3656561c7501fbdb8efa9e614babfaf027ba5b1358f5209a784b6",
+        "bytes": 48811
+      },
+      "hf-summary.json": {
+        "sha256": "eeb3219d2b37d40918523d22fe3593f34d93cdd9d67264185e8f7de2f968f852",
+        "bytes": 1411
+      },
+      "hf-q2.log": {
+        "sha256": "db1aa4a522bbb7110839b0c9ca4912c77e2eea41d07ff9f8140eb5b6180a07ce",
+        "bytes": 523
+      },
+      "hf-q3.log": {
+        "sha256": "eb8f418ccace95beb1f818041e1c39e1065539c26581ba09cc4fd525bcd40949",
+        "bytes": 523
+      },
+      "hf-q2-results/execution.json": {
+        "sha256": "c006a31aac6cfeed79c31d8b37a7292bc483422823182c287a734293abe1c9b0",
+        "bytes": 3164
+      },
+      "hf-q3-results/execution.json": {
+        "sha256": "0fe211126f7b8f11074adb34d18a96f1e84028f1c996b92d7f13762e6c110272",
+        "bytes": 3164
+      },
+      "hf-q2-results/cases.jsonl": {
+        "sha256": "fb03fbabb30fcbd38b64c369e574d0634962aa34a5e272d508bee68bc397d45f",
+        "bytes": 673178
+      },
+      "hf-q3-results/cases.jsonl": {
+        "sha256": "6db42813f0131ad53d213fd0e03697779ea1a8893d73f805c89f50898b7357b6",
+        "bytes": 673028
+      },
+      "summary.json": {
+        "sha256": "c4fa296ceef2a8ec2ccb2afd32b67e678127a4dcbf57dca506144d36e715264c",
+        "bytes": 74352
+      },
+      "audited-results.json": {
+        "sha256": "1d2fb39e0e796c1749dd222622d1a5aa57f4ba16ad644c9024afb789406eec10",
+        "bytes": 39624
+      },
+      "screen-results/execution.json": {
+        "sha256": "4193cac74f68c8a4ed88c854e7c429fce1a0659e63ac8c35ecc7689af0f12b21",
+        "bytes": 22625
+      },
+      "screen-results/activity.jsonl": {
+        "sha256": "246e65d67fe5b2080f063f27ef8ba6bedc5530f3cb109a9decd2732ee66c6c0e",
+        "bytes": 8524335
+      },
+      "backend-isa/execution.json": {
+        "sha256": "c30c7eb9f083021d6636e418589e3a2f738f397487d6e6eeca3f544dc1605acc",
+        "bytes": 21798
+      },
+      "backend-isa/run.log": {
+        "sha256": "5dd031183978afc82b7a8719de1d6c52c450c90761db6e7bdc00cf45885257d8",
+        "bytes": 20529
+      },
+      "backend-isa-build.log": {
+        "sha256": "e8bcf04365474dd54b81bc3bf789e7dc778ee794bcf6c12e7772fd8c037a94cf",
+        "bytes": 10459
+      }
+    }
+  },
+  "root_windows_audit": {
+    "passed": true,
+    "final_sha256": "7d591fd972ba241a92efa625c6c8a5929f1676c6685f6b245b7db6ba99f851f4",
+    "artifacts": 21,
+    "isa_representations": 113,
+    "hf_replay_sha256": "eeb3219d2b37d40918523d22fe3593f34d93cdd9d67264185e8f7de2f968f852",
+    "native_identity_timing_replay_sha256": "1d2fb39e0e796c1749dd222622d1a5aa57f4ba16ad644c9024afb789406eec10",
+    "scope": "Root replayed retained HF and native/identity/timing audits and verified final artifact and ISA hashes. No repeated inference."
+  },
+  "markdown_review": {
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "cabebebf72880c5a00ed30b39d55fc686b7f11f55b6dad3d8f97ec769d5446db"
+      },
+      {
+        "path": "README.md",
+        "sha256": "27ad1da679cb3dd864d70feb90c924bb436b0959cf14c480977947c8f7ce9ec2"
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "sha256": "746fa8c771c4ce0a06d887fcc9d08835645d0588bc2308693a6795ae8897102f"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "sha256": "f9e26767fbed673ce6ac28d5a5e4ced03a355d87cfda74b8a9a1d96d0cf57e45"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "sha256": "e471ea952350045847d5baacbb2a07f8fb1c4116adaa3818374d070640ca8c96"
+      },
+      {
+        "path": "docs/BUILD.md",
+        "sha256": "a1109674874dbd018afb2b50346313f83695e4a462c4e376d7f278bffa3ad49d"
+      },
+      {
+        "path": "docs/CACHE-PLAN.md",
+        "sha256": "0b805a4ac95104fd4d2a5704641ab75bbaa6bbba6e31e07acf2b66a318d84ecc"
+      },
+      {
+        "path": "docs/CI.md",
+        "sha256": "63a8347c58a801748db748e7b3dcce94ef7d25b2ec77af22e2da86cc8ea62d86"
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "sha256": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad"
+      },
+      {
+        "path": "docs/DISK-TIER.md",
+        "sha256": "f66dd4d3d55a3c85e4bbceec8b288d706778e4ea8cfbdf1e5761766bf69a1636"
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "sha256": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18"
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "sha256": "eb943932eb5e1e67d14d3960900568c425e2119e8dded28dbde9fda9699f6288"
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "sha256": "63d26b7be25f224963f4fa58ae33b5f3ed19a1c5e27e5e9790f7cd8bad9e03c3"
+      },
+      {
+        "path": "docs/OPERATING.md",
+        "sha256": "07ca502cbe117b1a862d472f44e73dee9ba1e9cf8b2e63aef5f0f2e9cb2a5ae8"
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "sha256": "e9bd9f6f1836756025a29d499c44cf589e9bb4f2cb223db88c35135ff83a27f8"
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "sha256": "b6cd41d9644bacf6724b1e138857340d575e31a095927aeb8a922ec4a08746b1"
+      },
+      {
+        "path": "docs/QWEN38-FLASH.md",
+        "sha256": "00ad1d83038780e1a1c41ce61e031ad607f44a535e6eeaed8e01e73808471b92"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "sha256": "b566a7c3fa31193a1f5ae5f384e555628fb20713413b9278a443b390947ae8f7"
+      },
+      {
+        "path": "docs/ROCM.md",
+        "sha256": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f"
+      },
+      {
+        "path": "docs/SERVER.md",
+        "sha256": "5dd945e2b8982072071580c3768327b75acb5f6afdeceb32eace72a0d6b05ead"
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "sha256": "39ce2721dc6849aea9046975a966539ebd55b1e2e0ad596ae19e007733cd83de"
+      },
+      {
+        "path": "docs/STATUS-2026-09.md",
+        "sha256": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0"
+      },
+      {
+        "path": "docs/STATUS.md",
+        "sha256": "84c37b0c2c493f1e177682ddcc20749891eb1f254b52f28df0eb6989c76aae14"
+      },
+      {
+        "path": "docs/TENSOR-SPLIT.md",
+        "sha256": "786130892ddfe97e761fe3559abac8c2d80d2ce1dae97a34c4c85552eba8ca94"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "sha256": "41ba1502dd05b2b9da506b56277c00d930340ba76e54d7cd82aa1246dc77641f"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "sha256": "56e5c51d505e827e38c508f0815def4975e584963aae05197b47a16976fbeddf"
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26"
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971"
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af"
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "sha256": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5"
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "sha256": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a"
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "sha256": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6"
+      },
+      {
+        "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+        "sha256": "491f594206a9044ca495269871a1f4a8b43a7d4e3f05195f9b4101695f99c1e2"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "sha256": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "sha256": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "sha256": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "sha256": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273"
+      },
+      {
+        "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+        "sha256": "f22d2a5200775743dced8699009830c41b5a05eb56bc8b4a147b10dff0e2c4cf"
+      },
+      {
+        "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+        "sha256": "ab4834f75c68457a55313164c609a85a4bb34c455840b437f67156428afde597"
+      },
+      {
+        "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+        "sha256": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d"
+      },
+      {
+        "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+        "sha256": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe"
+      },
+      {
+        "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+        "sha256": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d"
+      },
+      {
+        "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+        "sha256": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce"
+      },
+      {
+        "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+        "sha256": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "sha256": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "sha256": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac"
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "sha256": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40"
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "sha256": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6"
+      },
+      {
+        "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+        "sha256": "f51a63c2d0390211a47d6c20852149ff3c177e85985d5234c8ed79825768ea5b"
+      },
+      {
+        "path": "docs/research/rocm-20261009.md",
+        "sha256": "1f29e9d62cddd941bcd17db2515eba819b240bd0bdf7873bfe0c3d99976ef863"
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "sha256": "6c51de428b66bef4559f2d4f6e5b824d574981f5e82c6c68f571ab377682773a"
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29"
+      },
+      {
+        "path": "docs/src/backends-cpu-q8_dots.md",
+        "sha256": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc"
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "sha256": "3bf4e9212942700689efa020340096937109e8f346e3d3395f70f5b59fc915ff"
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "sha256": "b8372eecf7bb221c26fd6e178340a646d8a9d719961f4f9d624c50c09820119a"
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4"
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "sha256": "320299beda00ddb37cb524df2070316ff3acb4d57d05d2197c0359e5e6e67bf0"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "sha256": "bd98303750a6bed3a31c951999b38ea7325f83ef9a0d0b04e120e2051a30a61d"
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "sha256": "f611b078c4f76861cc75abaa8e4a3c08415e877f50bfa4e9f77e725705847d87"
+      },
+      {
+        "path": "docs/src/config.md",
+        "sha256": "e25843d6b3ccf30e7579c35d0fb9406ac0eb4a4c5e11f62005976d1aabadee38"
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "sha256": "e18bf51e1c251e8d54f047eba9f8f501fe91dec2767cdf36fb9a58f8c1480f61"
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0"
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "sha256": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1"
+      },
+      {
+        "path": "docs/src/core-crc32c.md",
+        "sha256": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7"
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "sha256": "c25ebc2b9ba244ad9bec6abe1737eca0395529c37581ba81dc1b11258aeb92fe"
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea"
+      },
+      {
+        "path": "docs/src/core-job_threads.md",
+        "sha256": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131"
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "sha256": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e"
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "sha256": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e"
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "sha256": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d"
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "sha256": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8"
+      },
+      {
+        "path": "docs/src/format-file_digest.md",
+        "sha256": "9213b919cfaed18c084db7559671b82ce3ca6ddeac78385a8465a00d4b3d3693"
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "sha256": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8"
+      },
+      {
+        "path": "docs/src/format-file_writer.md",
+        "sha256": "7eaee16ec32bf2672e63ae2aba666ad8fad2703a9ed82f96b040d9fba0cc9bba"
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3"
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "sha256": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b"
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a"
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "sha256": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b"
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "sha256": "5c947f4bc531c35a727e0eba8cb4bbf2e6953e1ce328accce940e115bcc650c0"
+      },
+      {
+        "path": "docs/src/hub.md",
+        "sha256": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e"
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "sha256": "01d58e566256aa29c01664d2f20be9b522565f5bf2a49491a54cd33bb45ec64f"
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "sha256": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e"
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "sha256": "15423321f735a66d09468ac19fcc7fb08073d766e90dbf2aa3318bba066187c4"
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "sha256": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e"
+      },
+      {
+        "path": "docs/src/inference-pair.md",
+        "sha256": "141557606b8794af17dd6deb91d3036263f8f5838130b0bc0f7ef2bb95a850d2"
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48"
+      },
+      {
+        "path": "docs/src/inference-read_ring.md",
+        "sha256": "3b6203356f0c24f03ae33d35b890d119e414e49739c5cf4a8aac3b90c7c82835"
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "sha256": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa"
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "sha256": "22f9b4b6a9184631f616a5f54e98b013164f92cd51a9edf81f2887bd2cf968f8"
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "sha256": "7ad47ae3187a1ab909a905d798f13d31fc6f5571313e434725920724cda3beb3"
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "sha256": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "sha256": "a45b0451d2eccad6ddd80c7a6eb63d5f5dc66ea4b96574aced9e54563c1671cc"
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "sha256": "393c99f6d547adead5e69554f0d1a412cafc7dc1c587a12c525a28d249f75b07"
+      },
+      {
+        "path": "docs/src/model-arch-qwen4exp.md",
+        "sha256": "ba862949ddcec454d96e752b6d8e3279bfbcb7e8bf732380fb5351ff019349f7"
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "sha256": "34916e272d6d83739713e49edeedd9cc434741267c06c0caf66a041c1eaadbec"
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "sha256": "d08fb7f6a5e3c9e0e021a550ef61e0c0d1fb093016939e78e71af0e04d984ba0"
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "sha256": "c423cc3a563966b96ed013986a7262fc2bf2a26126b2aa3d52bcd5098cd21743"
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "sha256": "26ddf81de5e5172fa89b4f8cb77b56dcfe1e30364658eb3e3ea6b7f74250f0cc"
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "sha256": "a31d531caa536e18086b3e7a5a24ceeb0721720147549f101754a9d7b448da58"
+      },
+      {
+        "path": "docs/src/model-passes.md",
+        "sha256": "970f44a685155297154fd8993dc0cec3b4ef948a3be548291d854ff2223c0b49"
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "sha256": "1252a19a983683bcd47173e402904dc732f03fb9d42c77d2bd1a70b079d43e76"
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "sha256": "e6f9271450cf5855717d24373b1c9ddeb7d53053fda7061bb58252cfef25c782"
+      },
+      {
+        "path": "docs/src/model-shard.md",
+        "sha256": "263998ae78941ac634358eccd2d3049cfc252970e4e3f99ca761d78c2e5ceae1"
+      },
+      {
+        "path": "docs/src/model-weight_rows.md",
+        "sha256": "a48599cb6f01b20df2cfb38f13ace014b1a05ff59db543f0e8263a1bd78ab134"
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "sha256": "e560a33d2a8145d52f6c73ae0de2bdb1b356adceafb4f60cf07f90ce9d84f8d3"
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "sha256": "ba46564970a021bc07eeda844ccdeb476275f1e535721eefec03491663c7319e"
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "sha256": "4f303b835f08ce6ae6229af4246b945e87646417e990fa2f8cbaa2ac9147ffe8"
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "sha256": "92dbd179df4aff2c6e65723fd4d009be29091c9fdff621690c63e64ef2f7fec5"
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "sha256": "61c73244d6a0af861775236fd38679e6d262bd07273a9608e6906da1c25146b0"
+      },
+      {
+        "path": "docs/src/server.md",
+        "sha256": "d9e0d91612d7ffa01db921fcb391040f21fda0790a7dc81d174caf3d41122cf5"
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "sha256": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff"
+      },
+      {
+        "path": "tools/health_dashboard/README.md",
+        "sha256": "2a1432d3caec85d6637e7cff04f27393f27b4c80f21d6486c01c6618aa2051be"
+      }
+    ],
+    "changed": [
+      "docs/STATUS.md"
+    ],
+    "scope": "All tracked Markdown inventoried; preceding full affected-claim review carries forward for unchanged pages. STATUS updated to completed depth/Radeon results and remaining gates. No runtime, CLI or API change."
+  }
+}

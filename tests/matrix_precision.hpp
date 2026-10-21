@@ -2,13 +2,29 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "config.hpp"
 #include "backends/backend.hpp"
+#if LLMX_HAS_BACKEND_VULKAN
+#include "backends/vulkan/vulkan_backend.hpp"
+#endif
 #include "quant/quant.hpp"
 
 namespace testq {
+// Q2/Q3 rows and eligible tiles share the profile's integer preference, independently of the completed arithmetic witness.
+inline bool k23_integer(backend::Backend& b, backend::Dtype dtype) {
+#if LLMX_HAS_BACKEND_VULKAN
+    if (!b.is_cpu() && (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8))
+        return backend::vulkan_device_profile(b).prefer_integer_dot;
+#else
+    (void)b; (void)dtype;
+#endif
+    return false;
+}
+
 // Reconstruct each 32-value block at 32767 levels, or 127 for int8, with half-away-from-zero rounding.
 // Feeding these activations to the CPU separates matrix arithmetic from input quantization (AGENTS.md, Tests).
 inline std::vector<float> row_activations(const std::vector<float>& x, int levels = 32767) {
@@ -32,6 +48,38 @@ inline std::vector<std::string> take_matrix_paths(backend::Backend& device) {
     backend::MatrixPaths paths;
     device.swap_matrix_paths(paths);
     return paths.take();
+}
+
+// Opposite blocks cancel before a final small residual; the existing gamma_n magnitude contract still applies to every finite intermediate.
+inline size_t check_k23_cancellation(backend::Backend& b, uint32_t type, const std::vector<uint8_t>& packed,
+                                     const std::vector<float>& weights, const std::vector<float>& x) {
+    if (weights.size() != x.size() || x.empty() || x.size() % 256) throw std::runtime_error("K23 cancellation fixture shape");
+    const size_t nin = x.size();
+    const auto reconstructed = row_activations(x);
+    const auto w = b.adopt(packed.data(), packed.size()), input = b.adopt(x.data(), x.size() * sizeof(float));
+    const auto output = b.alloc(3 * sizeof(float));
+    const backend::RowRun row{1, 1};
+    size_t checked = 0;
+    for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::int8}) {
+        const float guard[] = {19, 19, 19};
+        b.write(*output, 0, guard, sizeof guard); take_matrix_paths(b);
+        b.matmul(type, {w.get(), 0}, {input.get(), 0}, {output.get(), 1}, nin, 1, 1, {&row, 1}, dtype);
+        const bool integer = k23_integer(b, dtype);
+        if (take_matrix_paths(b) != std::vector<std::string>{integer ? "block-int16" : "f32"})
+            throw std::runtime_error("K23 cancellation arithmetic witness");
+        float got[3]; b.read(*output, 0, got, sizeof got);
+        double want = 0, magnitude = 0;
+        for (size_t i = 0; i < nin; ++i) {
+            const double term = double(weights[i]) * (integer ? reconstructed : x)[i];
+            want += term; magnitude += std::fabs(term);
+        }
+        const double nu = double(nin + 6) * 0x1p-24;
+        const double bound = nu / (1 - nu) * magnitude + double(nin) * std::numeric_limits<float>::denorm_min();
+        if (got[0] != guard[0] || got[2] != guard[2] || !std::isfinite(got[1]) || std::fabs(double(got[1]) - want) > bound)
+            throw std::runtime_error("K23 long cancellation differs from independent reconstructed-input double bound");
+        ++checked;
+    }
+    return checked;
 }
 
 // A unit weight selects a small input beside a peak. Its error is bounded by half a 16-bit reconstruction step, independently of the encoder.

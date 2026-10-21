@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q5-0|q5-1|iq4-nl|iq4-xs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -13,14 +13,16 @@ The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
 file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
-The independent synthetic f32, moe, mxfp4 and iq4-nl fixtures use one thread; only --output-dir applies to those modes.
+The independent synthetic f32, moe, mxfp4, q2-k, q3-k, iq4-nl and iq4-xs fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 int8 writes the goldens of tests/int8.py's 512-token Q8_0 fixtures, HF float32 holding each fixture's file's own weights at its own seed, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
-all includes f32 and moe regardless of --repo; mxfp4, q5-0, q5-1, iq4-nl and iq4-xs are generated explicitly.
+q2-k writes the synthetic raw-Q2_K dense/tied and MoE references used by tests/q2_k.py, uses one thread, takes only --output-dir, and is not part of all.
+q3-k writes the synthetic raw-Q3_K dense/tied and MoE references used by tests/q3_k.py, uses one thread, takes only --output-dir, and is not part of all.
+all includes f32 and moe regardless of --repo; mxfp4, q2-k, q3-k, q5-0, q5-1, iq4-nl and iq4-xs are generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
-qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all; llmx does not yet run this architecture.
+qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
 Those two segfault together in some environments (any `from transformers import Auto*` dies); an isolated venv with numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2 is known to work.
@@ -949,6 +951,16 @@ def gen_q5_0(output_dir=OUT_DIR):
     gen_block_family("q5-0", "Q5_0", fixture, output_dir)
 
 
+def gen_q3_k(output_dir=OUT_DIR):
+    from q3_k import fixture
+    gen_block_family("q3-k", "Q3_K", fixture, output_dir)
+
+
+def gen_q2_k(output_dir=OUT_DIR):
+    from q2_k import fixture
+    gen_block_family("q2-k", "Q2_K", fixture, output_dir)
+
+
 def gen_q5_1(output_dir=OUT_DIR):
     from q5_1 import fixture
     gen_block_family("q5-1", "Q5_1", fixture, output_dir)
@@ -1587,6 +1599,8 @@ FIXED_KINDS = {
     "int8": "uses fixed synthetic weights and one thread",
     "mxfp4": "uses fixed synthetic raw blocks and one thread",
     "q5-0": "uses fixed synthetic raw blocks and one thread",
+    "q2-k": "uses fixed synthetic raw blocks and one thread",
+    "q3-k": "uses fixed synthetic raw blocks and one thread",
     "q5-1": "uses fixed synthetic raw blocks and one thread",
 
     "iq4-nl": "uses fixed synthetic raw blocks and one thread",
@@ -1600,7 +1614,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1709,6 +1723,11 @@ def main(argv=None):
         gen_mxfp4(args.output_dir)
     if args.kind == "q5-0":
         gen_q5_0(args.output_dir)
+    if args.kind == "q3-k":
+        gen_q3_k(args.output_dir)
+        return
+    if args.kind == "q2-k":
+        gen_q2_k(args.output_dir)
     if args.kind == "q5-1":
         gen_q5_1(args.output_dir)
 

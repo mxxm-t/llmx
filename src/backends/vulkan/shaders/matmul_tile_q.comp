@@ -1,4 +1,7 @@
 #version 450
+#if defined(LLMX_Q2) || defined(LLMX_Q3)
+#define LLMX_K23
+#endif
 // Y[b*nout + o] = dot(row o, X column b) for wide batches through the two-wide 16-bit integer dot, where it is native, against the activations' 16-bit twin (xquant.glsl), which the row kernels read too.
 // A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or one part when split (parts added by matmul_reduce.comp); LLMX_I8 builds read the 8-bit twin (docs/PRECISION.md).
 #ifndef LLMX_I8
@@ -59,10 +62,10 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #define QBYTE(i) ((wm[pi].w[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #endif
-#if defined(LLMX_IQ4) || defined(LLMX_Q50)
+#if defined(LLMX_IQ4) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #endif
-#if defined(LLMX_Q8MX) || defined(LLMX_IQ4) || defined(LLMX_Q50)
+#if defined(LLMX_Q8MX) || defined(LLMX_IQ4) || defined(LLMX_Q50) || defined(LLMX_K23)
 #include "qdecode.glsl"
 #endif
 #ifdef LLMX_IQ4
@@ -72,6 +75,15 @@ float iq4_input(uint col, uint b, uint j) {
     return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
 }
 #include "iq4_dot.glsl"
+#endif
+#ifdef LLMX_K23
+#define K23_WORD(i) ws[pi].w32[i]
+float k23_input(uint col, uint b, uint j) {
+    uint word = xq[col * p.nin / 2u + b * 16u + (j / 4u) * 2u + (j & 1u)];
+    int q = int(int16_t(word >> ((j & 2u) * 8u)));
+    return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
+}
+#include "k23_dot.glsl"
 #endif
 #ifdef LLMX_Q8MX
 // Range repair uses exact decoded weights and the same reconstructed 16-bit inputs as the integer dot.
@@ -117,12 +129,12 @@ shared float wsc[STEP * TILE_ROWS];   // per row and block: the scale
 // Per column and block: the activation scale, one stored by each of a column's four threads, so a step of two leaves two unused.
 shared float xsc[4u * 64u];
 #else
-// Per row and block: the scale of each half and the minimum it subtracts; only Q6_K scales its halves apart.
+// Per row and block: the scale of each half and the minimum it subtracts; Q2_K, Q3_K and Q6_K scale their halves apart.
 shared vec4 wsc[STEP * TILE_ROWS];
 shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
 #endif
 
-#if !defined(LLMX_Q8) && !defined(LLMX_Q6)
+#if !defined(LLMX_Q8) && !defined(LLMX_Q6) && !defined(LLMX_K23)
 float tile_term(float scale, float minimum, vec2 activation, int dot) {
     return scale * activation.x * float(dot) - minimum * activation.y;
 }
@@ -224,7 +236,7 @@ void main() {
 #ifdef LLMX_Q8MX
     uint wide = 0u;
 #endif
-#ifdef LLMX_IQ4
+#if defined(LLMX_IQ4) || defined(LLMX_K23)
     uint repair[MROWS];
     for (uint i = 0u; i < MROWS; ++i) repair[i] = 0u;
 #endif
@@ -253,7 +265,35 @@ void main() {
         uint ks = k0 + wseg % STEP;
         bool oks = row < nout && ks < kend;
 #endif
-#ifdef LLMX_Q6
+#ifdef LLMX_K23
+        {
+#ifdef LLMX_Q2
+            const uint bytes = Q2_K_BYTES;
+#else
+            const uint bytes = Q3_K_BYTES;
+#endif
+            for (uint s = 0u; s < STEP; ++s) {
+                uint kb = k0 + s;
+                bool ok = row < nout && kb < kend;
+                uint o = ok ? (wr * (p.nin / 256u) + kb / 8u) * bytes : 0u;
+                uint group = ok ? (kb & 7u) * 32u : 0u;
+                for (uint m = 0u; m < WW; ++m) {
+                    uint word = wseg * WW + m;
+                    uint packed = k23_word(o, group + word * 4u);
+                    wq[s * 8u + word][wrow] = WIDEN(ok ? packed : 0u);
+                }
+            }
+            uint os = oks ? (wr * (p.nin / 256u) + ks / 8u) * bytes : 0u;
+            uint group = oks ? (ks & 7u) * 32u : 0u;
+#ifdef LLMX_Q2
+            Q2KScale low = q2_k_scale(os, group), high = q2_k_scale(os, group + 16u);
+            store_scales(wrow, wseg, oks, vec4(low.scale, high.scale, low.min, high.min));
+#else
+            store_scales(wrow, wseg, oks, vec4(q3_k_scale(os, group).scale, q3_k_scale(os, group + 16u).scale, 0.0, 0.0));
+#endif
+            store_x(k0, kend, xin, xcol, xseg, xv, xf);
+        }
+#elif defined(LLMX_Q6)
         {
             // Q6_K, 210-byte blocks: group g takes its low four bits from 32 bytes of ql and its top two from 32 of qh, with a sub-scale per 16 values; the -32 offset goes into each byte, and both runs are funnelled when they straddle.
             // Each run is a thread's words plus one, which lies inside the block whether or not the run straddles.
@@ -469,7 +509,7 @@ void main() {
       [[unroll]]
 #endif
       for (uint s = 0u; s < STEP; ++s) {
-#ifndef LLMX_Q6
+#if !defined(LLMX_Q6) && !defined(LLMX_K23)
         // Word w of every row of the thread against word w of its four columns, so all 4 * MROWS dot sums of the block stay live and a column word is read once.
         // Each sum still takes the block's eight words in order, so it is the integer a row at a time gave.
 #ifdef LLMX_Q8
@@ -535,16 +575,24 @@ void main() {
 #endif
         }
 #else
-        // The same word-outer form, the block's two halves of 16 summed apart since Q6_K scales them apart; Q6_K takes only the short and small heights (qtile), so a thread's rows are all live at once.
+        // The same word-outer form, the block's two halves of 16 summed apart since Q2_K, Q3_K and Q6_K scale them apart; these take only the short and small heights (qtile), so a thread's rows are all live at once.
         vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
         vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
         {
             int l[MROWS][4], h[MROWS][4];
             for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) { l[i][j] = 0; h[i][j] = 0; }
+#ifdef LLMX_Q2
+            ivec4 low_sum = ivec4(0), high_sum = ivec4(0);
+            TWORD ones = WIDEN(0x01010101u);
+#endif
             for (uint w = 0u; w < 4u; ++w) {
                 TWORD l0 = xw[s * 8u + w][tc * 4u], l1 = xw[s * 8u + w][tc * 4u + 1u], l2 = xw[s * 8u + w][tc * 4u + 2u], l3 = xw[s * 8u + w][tc * 4u + 3u];
                 TWORD h0 = xw[s * 8u + w + 4u][tc * 4u], h1 = xw[s * 8u + w + 4u][tc * 4u + 1u];
                 TWORD h2 = xw[s * 8u + w + 4u][tc * 4u + 2u], h3 = xw[s * 8u + w + 4u][tc * 4u + 3u];
+#ifdef LLMX_Q2
+                low_sum = ivec4(dot_word(ones, l0, low_sum.x), dot_word(ones, l1, low_sum.y), dot_word(ones, l2, low_sum.z), dot_word(ones, l3, low_sum.w));
+                high_sum = ivec4(dot_word(ones, h0, high_sum.x), dot_word(ones, h1, high_sum.y), dot_word(ones, h2, high_sum.z), dot_word(ones, h3, high_sum.w));
+#endif
                 for (uint i = 0u; i < MROWS; ++i) {
                     uint r = tr * MROWS + i;
                     TWORD a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
@@ -556,10 +604,26 @@ void main() {
             }
             for (uint i = 0u; i < MROWS; ++i) {
                 vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
+#ifdef LLMX_K23
+                if (k23_repair_scale(c0.x)) repair[i] |= 1u;
+                if (k23_repair_scale(c1.x)) repair[i] |= 2u;
+                if (k23_repair_scale(c2.x)) repair[i] |= 4u;
+                if (k23_repair_scale(c3.x)) repair[i] |= 8u;
+#endif
+#ifdef LLMX_K23
+#ifndef LLMX_Q2
+                ivec4 low_sum = ivec4(0), high_sum = ivec4(0);
+#endif
+                acc[i][0] += k23_term(ws, c0.x, l[i][0], h[i][0], low_sum.x, high_sum.x);
+                acc[i][1] += k23_term(ws, c1.x, l[i][1], h[i][1], low_sum.y, high_sum.y);
+                acc[i][2] += k23_term(ws, c2.x, l[i][2], h[i][2], low_sum.z, high_sum.z);
+                acc[i][3] += k23_term(ws, c3.x, l[i][3], h[i][3], low_sum.w, high_sum.w);
+#else
                 acc[i][0] += c0.x * (ws.x * float(l[i][0]) + ws.y * float(h[i][0]));
                 acc[i][1] += c1.x * (ws.x * float(l[i][1]) + ws.y * float(h[i][1]));
                 acc[i][2] += c2.x * (ws.x * float(l[i][2]) + ws.y * float(h[i][2]));
                 acc[i][3] += c3.x * (ws.x * float(l[i][3]) + ws.y * float(h[i][3]));
+#endif
             }
         }
 #endif
@@ -591,6 +655,10 @@ void main() {
                     ys[pi].ybits[index] = floatBitsToUint(result);
                 }
 #else
+#ifdef LLMX_K23
+                if (((repair[i] >> j) & 1u) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]))
+                    acc[i][j] = k23_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);
+#endif
 #ifdef LLMX_IQ4
                 if (((repair[i] >> j) & 1u) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]))
                     acc[i][j] = iq4_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);

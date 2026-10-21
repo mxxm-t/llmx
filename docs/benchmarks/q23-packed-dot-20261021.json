@@ -1,0 +1,518 @@
+{
+  "scope": "Q3_K packed-int16 prompt development checkpoint; native checks and short screen, not HF or merge qualification.",
+  "source_snapshot": "9b029ccc1+worktree-f5f2ec085ec8",
+  "runtime_binaries": {
+    "base": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/base/build/llmx",
+      "sha256": "9f0e30cabf026e98b15168e4f3f78ab9348ea1f4aa5a837265c65a391e5f73bf",
+      "version": "llmx 0.1.0+unknown numerics 4408fb09a960349f"
+    },
+    "candidate": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/candidate/build/llmx",
+      "sha256": "7af428a30ea9736a1c2dbb586f7e6aa13350fd46582212113c335bae1f401d78",
+      "version": "llmx 0.1.0+unknown numerics 154dafc6e8e5af9a"
+    }
+  },
+  "root_audit": "Reviewed native test changes; rehashed handoff and replayed unchanged activity classification for all four performance calls.",
+  "artifacts": {
+    "source-pins.json": "d40cb0c47099df70a0381af3fb3185994f423f80d682a9ff3f2fffe38c630366",
+    "native\\summary.json": "3c5c5891194e6abf4243dd359e83ebb4e8a1e3e50ec4c6fd36da6730463f4bee",
+    "native\\terminal-evidence.tar.gz": "7b77820354850e34f47d7b267a76e08186565231f850226e4793e652aa9fe722",
+    "screen-terminal.tar.gz": "aa660912d46276887949ca38ce641f808c4d68dcf4ddbbb1625749712bf8a6de",
+    "screen-v2\\summary.json": "dd7906738f8c293b62c5f4befc409a3ac47a47b3b1663f74cc63a240c5990757",
+    "screen-v2\\summarize.py": "c8e013f3aa468863f9f2e2b386dbc957874e7d013ff72f76d41cc22983be468b"
+  },
+  "native": {
+    "scope": "Focused test-only Q3 block-int16 prompt extension plus Q2 native regression on physicalGPU8; no HF/performance/fullgate.",
+    "passed": true,
+    "stages": {
+      "build": {
+        "path": "build-quant-resume-20261020\\q23-packed-dot\\native\\collected\\evidence-native-build-v2",
+        "execution_sha256": "fa7871cff128cea5a0e784a7f6877535cb2ca452783bf096a10c79222f49987b",
+        "log_sha256": "23f17bd8fdc8ddd8512866c20f056f625613da7744d2e509a123d42bab46b3ca",
+        "seconds": 27.189600944519043,
+        "before_after": {
+          "binaries": {
+            "llmx": "7af428a30ea9736a1c2dbb586f7e6aa13350fd46582212113c335bae1f401d78",
+            "llmx-model-logits": "8c00af98cf3600d6510a9d30eb43e393c9c5a911c524b0f67bc5e2268db576fe",
+            "libllmx-vulkan.a": "6b3b7b7f6e01f0e5b8d384709221ad0acae4511c8dc78d7dfe4f17fbbbb8b7de"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "source_manifest_sha256": "d40cb0c47099df70a0381af3fb3185994f423f80d682a9ff3f2fffe38c630366",
+          "build_execution_sha256": "0dd1cc2bcdbe9b17254d8c7ae39c396033fc3ded15579ef39881c7bfc4dc882c",
+          "version": "llmx 0.1.0+unknown numerics 154dafc6e8e5af9a"
+        },
+        "native_binaries": {
+          "llmx-q3-k-test": "0b7996ff70d3ad066977945c734f69e8cfabbabc43e46be9ed1e0e65387aae87",
+          "llmx-q2-k-test": "d8eb959df6df5ef36d9f5b7ffc665d69aa64912758b90bec89df0c77b3ec0100"
+        },
+        "gpu": null,
+        "removed": true,
+        "oom": false
+      },
+      "native": {
+        "path": "build-quant-resume-20261020\\q23-packed-dot\\native\\collected\\evidence-native-native-v2",
+        "execution_sha256": "3ee7bd5b7e30196dc4d3c0ad286254394d31ab519450ca060c6beb19383f8f9c",
+        "log_sha256": "c560158c9340296fcdfd2baef1fdfb1bd9ced948fd39eb992b03d5d340bcf9cc",
+        "seconds": 6.720228672027588,
+        "before_after": {
+          "binaries": {
+            "llmx": "7af428a30ea9736a1c2dbb586f7e6aa13350fd46582212113c335bae1f401d78",
+            "llmx-model-logits": "8c00af98cf3600d6510a9d30eb43e393c9c5a911c524b0f67bc5e2268db576fe",
+            "libllmx-vulkan.a": "6b3b7b7f6e01f0e5b8d384709221ad0acae4511c8dc78d7dfe4f17fbbbb8b7de"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "source_manifest_sha256": "d40cb0c47099df70a0381af3fb3185994f423f80d682a9ff3f2fffe38c630366",
+          "build_execution_sha256": "0dd1cc2bcdbe9b17254d8c7ae39c396033fc3ded15579ef39881c7bfc4dc882c",
+          "version": "llmx 0.1.0+unknown numerics 154dafc6e8e5af9a"
+        },
+        "native_binaries": {
+          "llmx-q3-k-test": "0b7996ff70d3ad066977945c734f69e8cfabbabc43e46be9ed1e0e65387aae87",
+          "llmx-q2-k-test": "d8eb959df6df5ef36d9f5b7ffc665d69aa64912758b90bec89df0c77b3ec0100"
+        },
+        "gpu": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224
+        },
+        "removed": true,
+        "oom": false
+      }
+    },
+    "test_update": {
+      "relative": "tests/q3_k.cpp",
+      "original_source_manifest_sha256": "d40cb0c47099df70a0381af3fb3185994f423f80d682a9ff3f2fffe38c630366",
+      "before_sha256": "e3b9279b67bc942afe2b9c46c4eb1254a3aef5ee2432e31c47b736789200385b",
+      "after_sha256": "213886162bc0c5beee4acf07d7b01da6c9bb6bcf3cdd96b18fcc1a255adf8980",
+      "scope": "Only approved native test override; original source manifest and runtime unchanged."
+    },
+    "original_preflight_refusal": {
+      "stage": "build-v1",
+      "container_created": false,
+      "test_source_copied": false,
+      "error": "Conservative assertion required Q3 test absent from original manifest; original manifest actually pins old test. Resolved by explicit single approved override, original manifest retained."
+    },
+    "limitations": [
+      "Large exact decoded-value sweeps call the CPU registry even in Vulkan executable; GPU coverage is embedding/range/products/row classes with actual kernel and matrix-path witnesses.",
+      "No Q3 BF16 budget/policy change; no runtime source changes."
+    ],
+    "native_counts": {
+      "q3": {
+        "cpu_registry_decoded_values": 32505856,
+        "embedding_range_products": 1185512,
+        "row_class_pairs": 1309,
+        "block_int16_calls": 586
+      },
+      "q2": {
+        "cpu_registry_decoded_values": 65011712,
+        "embedding_range_products": 549616,
+        "row_class_pairs": 1309
+      }
+    },
+    "q3_kernels": [
+      "embed",
+      "kv_write",
+      "attention_merge",
+      "matmul_tile_small",
+      "attention_tile",
+      "quantize_xw",
+      "matmul_tile_q3_small",
+      "matmul_reduce",
+      "moe_route",
+      "moe_combine",
+      "moe_group",
+      "attention_vec",
+      "matmul_row_float_x",
+      "matmul_row_float_x_1col",
+      "matmul_row_float_x_grouped",
+      "matmul_tile_bf16_small",
+      "embed_ids",
+      "matmul_tile_small head",
+      "quantize_xw head",
+      "matmul_tile_q3_small head",
+      "matmul_reduce head",
+      "matmul_row_float_x head",
+      "matmul_row_float_x_1col head",
+      "matmul_tile_bf16_small head"
+    ]
+  },
+  "timing": {
+    "counts": {
+      "planned": 4,
+      "completed": 4,
+      "filtered": 0,
+      "samples_per_arm_per_file": 2
+    },
+    "rows": [
+      {
+        "model": "qwen3-q3_k_s",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+          "bytes": 323075776,
+          "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "means": {
+          "base": {
+            "pp512": 1546.815,
+            "tg128": 83.74000000000001
+          },
+          "candidate": {
+            "pp512": 5576.844999999999,
+            "tg128": 83.635
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": 260.53729760831123,
+          "tg128": -0.12538810604251216
+        },
+        "activity_flags": [
+          "disk"
+        ]
+      }
+    ],
+    "calls": [
+      {
+        "model": "qwen3-q3_k_s",
+        "arm": "base-qwen3-q3_k_s",
+        "direction": "ABBA-0",
+        "exe": "base",
+        "start": 1792564802.2624485,
+        "end": 1792564806.891024,
+        "rates": {
+          "pp512": 1550.67,
+          "tg128": 83.86
+        },
+        "status": "passed",
+        "stdout": "00-base-qwen3-q3_k_s.stdout",
+        "stderr": "00-base-qwen3-q3_k_s.stderr",
+        "usage": "00-base-qwen3-q3_k_s.usage.json",
+        "activity_intervals": 6,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 0,
+        "duration_seconds": 4.628575563430786,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "arm": "candidate-qwen3-q3_k_s",
+        "direction": "ABBA-1",
+        "exe": "candidate",
+        "start": 1792564806.8919792,
+        "end": 1792564810.9151886,
+        "rates": {
+          "pp512": 5578.54,
+          "tg128": 83.79
+        },
+        "status": "passed",
+        "stdout": "01-candidate-qwen3-q3_k_s.stdout",
+        "stderr": "01-candidate-qwen3-q3_k_s.stderr",
+        "usage": "01-candidate-qwen3-q3_k_s.usage.json",
+        "activity_intervals": 5,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 1,
+        "duration_seconds": 4.0232093334198,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "arm": "candidate-qwen3-q3_k_s",
+        "direction": "ABBA-2",
+        "exe": "candidate",
+        "start": 1792564810.9160388,
+        "end": 1792564814.8889835,
+        "rates": {
+          "pp512": 5575.15,
+          "tg128": 83.48
+        },
+        "status": "passed",
+        "stdout": "02-candidate-qwen3-q3_k_s.stdout",
+        "stderr": "02-candidate-qwen3-q3_k_s.stderr",
+        "usage": "02-candidate-qwen3-q3_k_s.usage.json",
+        "activity_intervals": 5,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 5,
+        "index": 2,
+        "duration_seconds": 3.972944736480713,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "arm": "base-qwen3-q3_k_s",
+        "direction": "ABBA-3",
+        "exe": "base",
+        "start": 1792564814.890028,
+        "end": 1792564819.3139665,
+        "rates": {
+          "pp512": 1542.96,
+          "tg128": 83.62
+        },
+        "status": "passed",
+        "stdout": "03-base-qwen3-q3_k_s.stdout",
+        "stderr": "03-base-qwen3-q3_k_s.stderr",
+        "usage": "03-base-qwen3-q3_k_s.usage.json",
+        "activity_intervals": 5,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 3,
+        "duration_seconds": 4.423938512802124,
+        "monitor_covers_whole_call": true
+      }
+    ],
+    "flagged_interval_counts": {
+      "system_idle": 0,
+      "iowait": 0,
+      "unrelated_cpu": 0,
+      "disk": 13,
+      "sample_gap": 0
+    },
+    "stages": {
+      "build": {
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "sha256": "0dd1cc2bcdbe9b17254d8c7ae39c396033fc3ded15579ef39881c7bfc4dc882c",
+        "seconds": 156.46558284759521
+      },
+      "native": {
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "sha256": "3ee7bd5b7e30196dc4d3c0ad286254394d31ab519450ca060c6beb19383f8f9c",
+        "seconds": 6.720228672027588
+      },
+      "screen": {
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "sha256": "47026ffe6367aa9d604699c35258515742ed6b20485805b9fa6a671db79af8f1",
+        "seconds": 22.719269037246704
+      }
+    },
+    "identities": {
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "executables": {
+        "base": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/base/build/llmx",
+          "sha256": "9f0e30cabf026e98b15168e4f3f78ab9348ea1f4aa5a837265c65a391e5f73bf",
+          "version": "llmx 0.1.0+unknown numerics 4408fb09a960349f"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/candidate/build/llmx",
+          "sha256": "7af428a30ea9736a1c2dbb586f7e6aa13350fd46582212113c335bae1f401d78",
+          "version": "llmx 0.1.0+unknown numerics 154dafc6e8e5af9a"
+        }
+      },
+      "source_arms": {
+        "base": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/base",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/screen-v2/measurement-sources.json",
+          "revision": "0edb013db129eabc3df20af02977a951bc2b93c0",
+          "library_sha256": "a143ef79fb87f8fa02e9ba074ceff08e3b507e191c51c59dc0b0801f4eb46a31"
+        },
+        "candidate": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/candidate",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-packed-dot-20261021/screen-v2/measurement-sources.json",
+          "revision": "9b029ccc1+worktree-f5f2ec085ec8",
+          "library_sha256": "6b3b7b7f6e01f0e5b8d384709221ad0acae4511c8dc78d7dfe4f17fbbbb8b7de"
+        }
+      },
+      "build_execution_sha256": "0dd1cc2bcdbe9b17254d8c7ae39c396033fc3ded15579ef39881c7bfc4dc882c",
+      "source_manifest_sha256": "d40cb0c47099df70a0381af3fb3185994f423f80d682a9ff3f2fffe38c630366",
+      "threads": 4,
+      "ubatch": 512,
+      "dtype": "auto",
+      "cache_type_k": "f32",
+      "cache_type_v": "f32",
+      "gpu_node": "/dev/dri/renderD130",
+      "gpu_pci": "0000:c9:00.0",
+      "cpu_set": "4-7"
+    },
+    "limitations": [
+      "Short screen: two samples per arm/file, no established noise band or causal attribution for small changes.",
+      "Unchanged prior activity classification and thresholds, all samples retained including flagged intervals.",
+      "No fresh mx run: prior same-environment mx results remain historical separate context.",
+      "Sampled CPU/disk/GPU data does not prove stalls or bandwidth saturation; short-lived processes and tails can be unobserved.",
+      "Q3_K_S released file only; Q2 and Q8 timing are not covered here.",
+      "Generic decoder wrappers also affect embed/row scheduling; existing native Q2/Q3 tests passed before screen."
+    ]
+  },
+  "mx_reference_context": {
+    "freshly_rerun": false,
+    "commit": "eefc4e7321c869496146697d63362f073941aed6",
+    "backend": "Vulkan",
+    "q3_k_s": {
+      "pp512": 6116.975,
+      "tg128": 255.99
+    }
+  },
+  "preflight_failures": [
+    "Native helper initially expected the old test absent from the original manifest; stopped before copy/container. Corrected with one explicit test override.",
+    "First timing attempt checked original test digest rather than approved override; zero model calls. New evidence directory and derived measurement manifest retain both originals."
+  ],
+  "remaining": [
+    "Independent HF checks at reached precision",
+    "Q2 packed affine half corrections",
+    "Decode recovery",
+    "Applicable final qualification and hosted landing",
+    "Separate Q3 BF16 policy disposition"
+  ],
+  "released_q3_f16_nll": {
+    "scope": "Retained released Q3_K_S whole-text/context123 NLL, batched and per-token; no full file/ranking/split gate.",
+    "numerical_passed": true,
+    "original_wrapper_passed": false,
+    "wrapper_failure_disposition": "All four numerical calls completed; post-scoring mixed-path assertion was stale. Independent source/inventory-derived batched block-int16 and per-token mixed paths verified against saved outputs, no inference rerun.",
+    "metrics": [
+      {
+        "mode": "batched",
+        "context": 0,
+        "logical_rows": 247,
+        "mean_nll": 3.862292352,
+        "reference_nll": 3.862358879443419,
+        "error": 6.652744341906214e-05,
+        "bound": 0.01,
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      {
+        "mode": "per-token",
+        "context": 0,
+        "logical_rows": 1,
+        "mean_nll": 3.862361324,
+        "reference_nll": 3.862358879443419,
+        "error": 2.4445565811603842e-06,
+        "bound": 0.01,
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      {
+        "mode": "batched",
+        "context": 123,
+        "logical_rows": 123,
+        "mean_nll": 4.163737497,
+        "reference_nll": 4.163740814493671,
+        "error": 3.3174936717728087e-06,
+        "bound": 0.02,
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        }
+      },
+      {
+        "mode": "per-token",
+        "context": 123,
+        "logical_rows": 1,
+        "mean_nll": 4.163750008,
+        "reference_nll": 4.163740814493671,
+        "error": 9.193506328664114e-06,
+        "bound": 0.02,
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        }
+      }
+    ],
+    "runtime": {
+      "binaries": {
+        "llmx": "7af428a30ea9736a1c2dbb586f7e6aa13350fd46582212113c335bae1f401d78",
+        "llmx-model-logits": "8c00af98cf3600d6510a9d30eb43e393c9c5a911c524b0f67bc5e2268db576fe",
+        "libllmx-vulkan.a": "6b3b7b7f6e01f0e5b8d384709221ad0acae4511c8dc78d7dfe4f17fbbbb8b7de"
+      },
+      "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "source_manifest_sha256": "d40cb0c47099df70a0381af3fb3185994f423f80d682a9ff3f2fffe38c630366",
+      "build_execution_sha256": "0dd1cc2bcdbe9b17254d8c7ae39c396033fc3ded15579ef39881c7bfc4dc882c",
+      "version": "llmx 0.1.0+unknown numerics 154dafc6e8e5af9a"
+    },
+    "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+    "reference_sha256": "982e11c1fa0dfe08a19f40d80b19e147d6b0891bc30a05f8b0d7c4a144cb26c5",
+    "inventory": {
+      "0": 113,
+      "14": 1,
+      "11": 196
+    },
+    "reach_proof": "196 Q3_K layer projection matrices; only Q6_K tensor is tied embedding/head. On guarded MI50 native Q3 block-int16 tile witnessed, prefer_integer_dot true and dense threshold64; score owner sends247/123rows with ub512. Thus layer products are Q3 integer tiles in batched calls; per-token Q3 rows stayF32 while Q6 head isint16. Norm F32 tensors are not products.",
+    "tiny_regression": {
+      "full_logits": 150,
+      "nll": 12,
+      "probe": 1,
+      "actual_paths": [
+        "f32"
+      ],
+      "new_tile_qualified": false
+    },
+    "removed": true,
+    "oom": false,
+    "artifacts": {
+      "execution.json": "344455f7f6e903ab9e6f495814d6d088df9d3c11214100def16d8f24d9fd482d",
+      "cases.jsonl": "7cb10510852f33476785b4d51c7a183b8188da30ab3fdd9c7f40836512cd47fa",
+      "run.log": "8c37aa074e6e8b535fb75e5418df4a60aede6226c34683a1b246f307b54d1e4f"
+    },
+    "limitations": [
+      "No new HF generation or numerical allowance. File-exact continuous0.01/window0.02 bounds unchanged.",
+      "No BF16 pending-policy, split, ranking or fullgate claim.",
+      "Original wrapper failure and ineligible tiny regression retained separately."
+    ],
+    "handoff_manifest": {
+      "summary.json": {
+        "sha256": "5cb7d9cae756033e818d8578efe5cdfa5982d976249f2a773732c191fefb01ce",
+        "bytes": 4072
+      },
+      "terminal-evidence.tar.gz": {
+        "sha256": "e121e5eb4fb7d75ff70b0eec92d36dddabdf97078f3ca0b4f9526fa34f3dd7b1",
+        "bytes": 44703
+      },
+      "audit.py": {
+        "sha256": "c37a883457d1ba068d55e79626626b53ab8f4dc27ae72b1e2e057edfe9fd5b1a",
+        "bytes": 5968
+      },
+      "replay.log": {
+        "sha256": "bdae22f2d855de354d1752c0adc80204010902d79fbffcc5878993b62dd638ba",
+        "bytes": 468
+      },
+      "docs-suggestion.txt": {
+        "sha256": "748bdbe45ebee76904592a205fdb0502905e4194c936fc9e403d4ecfdb01902c",
+        "bytes": 805
+      },
+      "collected/collection-manifest.json": {
+        "sha256": "2ddd98713cc8e9fe0f9b3d8974ccadca4383f1bacdf106caad1475e2a0af47d3",
+        "bytes": 2391
+      }
+    },
+    "root_audit": "Rehashed every handoff artifact and replayed all five saved calls through unchanged shared scoring; summary hash reproduced, no inference repeat."
+  }
+}

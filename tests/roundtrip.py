@@ -15,7 +15,7 @@ from common import run as cli, run_process, exe_path, write_bin, read_bin_floats
 import spec_decode as sd
 
 # Regression gate for quant/ + format/: build a random F32 model, quantize it to Q8_0 (and Q4_0) via the CLI, dequantize it back, and check the max error is within each type's quantization bound.
-# The Q8_0, Q4_0, Q4_1, Q4_K, Q5_K, Q6_K, IQ4_NL and MXFP4 decoders must also match the decoders of tests/spec_decode.py, written from the format descriptions, bit for bit.
+# The registered block decoders must also match the decoders of tests/spec_decode.py, written from the format descriptions, bit for bit.
 
 rng = random.Random(42)
 UNICODE_NAME = "layer.\u00e9.\u4e2d.\U0001f600.\"\\\n.weight"
@@ -238,7 +238,7 @@ def check_output_failures(d):
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
-TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4}
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q2_k": sd.Q2_K, "q3_k": sd.Q3_K, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4}
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -345,6 +345,24 @@ def q4_k_heads():
     return heads
 
 
+def q3_k_blocks():
+    from raw_blocks import q3_k_block
+    patterns = [[63] * 16, [0] * 16, [32] * 16, [4 * s for s in range(16)]]
+    patterns += [[63 ^ (1 << bit) if s == sub else 63 for s in range(16)] for sub in range(16) for bit in range(6)]
+    return b"".join(q3_k_block(d, scales, [((i + shift) % 8) - 4 for i in range(256)])
+                    for d in HALVES + (0, 0x8000) for scales in patterns for shift in range(8))
+
+
+def q2_k_blocks():
+    from raw_blocks import q2_k_block
+    scales = HALVES + (0, 0x8000)
+    heads = [(0x3C00, 0x4AAA, bytes(range(16 * k, 16 * k + 16))) for k in range(16)]
+    heads += [(d, m, bytes([0xFF, 0x0F, 0xF0, 0x00] * 4)) for d, m in itertools.product(scales, scales)]
+    # Address-keyed codes distinguish planes and half-blocks; each position takes all four codes.
+    return b"".join(q2_k_block(d, m, sm, [(i + i // 16 + i // 64 + shift) % 4 for i in range(256)])
+                    for d, m, sm in heads for shift in range(4))
+
+
 def q4_k_blocks():
     return b"".join(head + nibble_bytes(k, 128) for k, head in enumerate(q4_k_heads()))
 
@@ -374,7 +392,7 @@ def check_raw_decode(d):
     iq4 = b"".join(struct.pack("<H", h) + nibble_bytes(shift, 16)
                    for h in HALVES + (0, 0x8000) for shift in range(16))
     xs = b"".join(iq4_xs_block(*case) for case in iq4_xs_cases(random.Random(731)))
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks())):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks())):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block

@@ -9,6 +9,7 @@ Run once in the HF reference environment of tools/gen_baseline.py, then commit t
     python tools/calibrate_dtype.py --output FILE
     python tools/calibrate_dtype.py --family q5-1 --output FILE
     python tools/calibrate_dtype.py --family q5-0 --output FILE
+    python tools/calibrate_dtype.py --family q3-k --output FILE
     python tools/calibrate_dtype.py --family iq4-xs --output FILE
 """
 
@@ -136,9 +137,10 @@ def family_models(family):
     from f32 import weight_hash
     import q5_0
     import q5_1
+    import q3_k
     import iq4_xs
-    assert family in ("q5-0", "q5-1", "iq4-xs"), "unknown calibration family"
-    fixture = {"q5-0": q5_0.fixture, "q5-1": q5_1.fixture, "iq4-xs": iq4_xs.fixture}[family]
+    assert family in ("q5-0", "q5-1", "q3-k", "iq4-xs"), "unknown calibration family"
+    fixture = {"q5-0": q5_0.fixture, "q5-1": q5_1.fixture, "q3-k": q3_k.fixture, "iq4-xs": iq4_xs.fixture}[family]
     for split in (False, True):
         for name, tied, moe in VARIANTS:
             for seed in (12345,) + SEEDS:
@@ -166,13 +168,14 @@ def budgets(runs):
 
 
 def family_budget(family, torch, transformers):
-    # Extend only the named family; existing families and the original class
-    # budgets remain frozen, including on a reproducibility run.
+    # Extend only the named family; existing families and class budgets stay frozen on reproducibility runs.
     with open(BUDGET, encoding="utf-8") as f:
         doc = json.load(f)
-    runs = {d: [] for d in DTYPES}
+    # Q3_K's block-int16 paths use the generic F16 budget; this family covers BF16.
+    dtypes = ("bf16",) if family == "q3-k" else DTYPES
+    runs = {d: [] for d in dtypes}
     for model, identity in family_models(family):
-        for dtype in DTYPES:
+        for dtype in dtypes:
             routing = {}
             logit, nll = errors(model, torch, dtype, routing=routing)
             if not isinstance(routing.get("stable"), bool):
@@ -193,7 +196,7 @@ def family_budget(family, torch, transformers):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--output", required=True, help="new result file; never overwrites a frozen budget")
-    parser.add_argument("--family", choices=("q5-0", "q5-1", "iq4-xs"), help="extend the frozen budget for this raw-block fixture family only")
+    parser.add_argument("--family", choices=("q5-0", "q5-1", "q3-k", "iq4-xs"), help="measure this raw-block fixture family; Q3_K measures BF16 only")
     args = parser.parse_args(argv)
     import torch
     import transformers

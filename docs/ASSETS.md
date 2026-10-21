@@ -434,6 +434,16 @@ UD-Q8_K_XL now has `gate` true and joins `BASELINE_MODELS` with the approved Q8_
 
 The Q6_K tensor of the four lower files is the tied `token_embd`.
 
+Current-source note (2026-10-21): Q2_K and Q3_K have read-only CPU/Vulkan
+inference implementations using the existing decoder and matrix owners. On
+Vulkan integer-dot profiles, F16/int8 rows and eligible prompt products use
+block-int16 activations; other profiles retain F32. BF16 rounds matrix inputs.
+Neither format has a `quantize` writer. Their qualification is in progress.
+The hosted Q2_K file above contains 84 Q3_K tensors, so both types must be
+qualified before claiming that mixed file works or adding it to the HF gate.
+The separate Q3_K_S file is not marked hosted. See the current branch's
+[STATUS](STATUS.md) for qualification progress.
+
 `tests/spec_decode.py` decodes every one of these types, and every type llmx reads, in a pure form and a numpy form, written from the GGUF type layouts and, for MXFP4, the OCP Microscaling Formats (MX) v1.0 specification.
 Its MXFP4 rules: code 8 (-0) decodes as +0; every E8M0 byte e, 255 included, scales by 2^(e - 128) times the doubled E2M1 value, so e = 255 is 2^127 rather than NaN; exponents 0 and 1 keep their subnormal f32 scales; a value of 2^128 or more is an infinity of its sign.
 `tests/raw_blocks.py` holds both forms to values computed from the fields, each zero to the sign the format's arithmetic gives it (see AGENTS.md).
@@ -510,7 +520,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q2-k`, `q3-k`, `q5-0`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
 `moe-q8` writes the goldens of the Q8_0 model of `tests/moe.py`, needs numpy, accepts only `--output-dir` and is not part of `all`.
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.
@@ -4101,7 +4111,7 @@ paired statistics and all 12 loaded-model fingerprint comparisons.
 
 ## IQ4_XS CPU reconciliation (2026-10-20)
 
-IQ4_XS has read-only CPU decoding and Vulkan kernels. Independent native and raw-format checks cover six-bit subscales, lookup codes, finite binary16 scales and signed zero. Local released-file, raw/chat 16K and selected split qualification are complete; see the dated records below for exact scope and retained failures. The failed historical BF16 qualification and its unapproved budgets are not imported.
+At this 2026-10-20 reconciliation checkpoint, IQ4_XS had read-only CPU decoding and Vulkan kernels in development. The independent native/raw-format checks covered six-bit subscales, lookup codes, finite binary16 scales and signed zero; released-file, raw/chat 16K and final landing qualification were still pending at that dated checkpoint. Whole-block split fixtures and independently frozen narrower-policy budgets were added in the reference checkpoint below. Later local qualification and the approved exact-fixture split-F32 requalification are recorded in the current integration STATUS. The failed historical BF16 qualification and its unapproved budgets are not imported.
 
 `tests/data/baseline_iq4_xs.json` holds freshly generated dense untied, dense tied and MoE references from `python tools/gen_baseline.py iq4-xs --output-dir DIR`, using torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6, one CPU thread, float32 eager attention and independently spec-decoded raw weights. Its SHA-256 is `2758bf587712ace40f5c672087e930a0ec44feb7eaa31b58ad12488c8dd9f6be`.
 

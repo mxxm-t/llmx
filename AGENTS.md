@@ -139,7 +139,7 @@ change, or it does not exist as far as a user is concerned.
 
 The round-trip component (`tests/roundtrip.py`, under Tests below) checks the format and quantization paths.
 It builds a random F32 model, quantizes it to Q8_0 and Q4_0 through the CLI, dequantizes it back and bounds the error, and decodes the written blocks with the spec decoders of `tests/spec_decode.py`, written from the format descriptions, rather than with llmx's own reader.
-Q4_1, Q5_0, Q5_1, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included.
+Q4_1, Q5_0, Q5_1, Q2_K, Q3_K, Q4_K, Q5_K and Q6_K, which `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, are decoded the same way from raw blocks the test writes, chosen so every scale, min, high bit and nibble reaches a decoded value, and `dequantize` must match bit for bit, the sign of zero included. Q2_K and Q3_K are read-only and have no writers.
 Under a negative scale Q4_0's nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
 Run it alone against the root `llmx.exe` that `build.bat` writes, or as part of the suite for a CMake build:
 ```
@@ -183,6 +183,47 @@ using the existing tolerance owner and independently frozen Q5_0 fixture-family 
 writes ordinary and split-compatible goldens; split execution remains a separate
 qualification check. This tiny criterion does not establish released-file quality,
 real MTP-sidecar behavior, native integer-dot device coverage or performance.
+
+`q2-k` uses the shared raw-block fixture and HF consumer owners with Q2_K's
+256-value blocks. Its producer and consumer cover synthetic tied/untied, dense
+and MoE weights, with F32 norms/router and independently decoded Q2_K matrices;
+the shared fixture builder accepts block-aligned rows up to 256 values. The
+fixture is synthetic: the pinned Q2_K release file also contains Q3_K tensors,
+so qualification of both implementations is required before claiming that
+mixed file works. Q2_K remains read-only and has no `quantize` writer.
+
+`q3-k` uses the shared raw-block fixture and HF consumer owners with Q3_K's
+256-value blocks. Its synthetic dense/tied and MoE fixtures contain independently
+decoded Q3_K matrices and F32 norms/router. Q3_K uses the decoder in
+`quant/k_quants.hpp` and the existing generic CPU and Vulkan matrix owners; it is
+read-only and has no writer. On Vulkan integer-dot profiles, F16/int8 rows and
+eligible prompt tiles use the existing block-int16 activation twin; other
+profiles retain wider F32. Explicit F32 retains original inputs, while BF16
+rounds matrix inputs through the existing precision owner.
+Released-file, precision and performance qualification is tracked in STATUS.
+
+The native `q2-k` check covers every finite F16 scale encoding across codes,
+guards and zero signs, host/device embeddings, and all six matrix call forms in
+decode and prompt layouts under F32/F16/BF16/int8 requests. Products are checked
+against an independent double magnitude bound and the selected F32,
+block-int16 or rounded-input BF16 path is witnessed. Integer row and prompt references
+reconstruct the activations independently, and crossover edges are exercised.
+`q2-k-vulkan` repeats the backend checks
+with actual row/tile dispatch assertions when a Vulkan device is present. Both
+native checks compare Q2_K matmul and routed outputs across extents assigned to
+the same backend row class; they also check shared attention row-class identity.
+The Vulkan check returns the standard skip code when no device is available.
+Neither check is a released mixed-file or performance qualification.
+
+The native `q3-k` check covers every finite F16 scale encoding, signed 3-bit
+codes, scale bits, guard regions, embeddings and all six matrix-call forms
+against independent oracles. It checks F32, block-int16 and rounded-input BF16
+witnesses and Q3_K matmul/routed row-class identity. Integer row and prompt references
+reconstruct activations independently and cover the profile's crossover edges.
+`q3-k-vulkan` checks the corresponding row/tile dispatches when available and
+uses the standard skip code without a device. The Python `q3-k` fixture has a
+16-token context and cannot qualify a prompt tile whose threshold exceeds it;
+released-file and performance checks remain separate.
 
 Run the native backend, model, chat-template, KV storage, loader and streaming checks
 after a CMake build:
@@ -599,7 +640,7 @@ unchanged storage and a zero thread hint preserving the current pool.
 It pins that construction and count changes start no threads, and that the first dispatch at a count starts one pool of that size, which later dispatches reuse.
 A start that fails partway fails its dispatch and keeps the count, and the next dispatch starts the whole pool without a new count.
 It checks `quant::row_bytes` against the block layouts over one row and over several, zero rows taking zero bytes however wide a whole-block row, and its refusals of an unknown type and a partial block, with rows or with none, and of a size that wraps in one row or across rows.
-It checks sizing of known layouts without decoders, refusal order and exact messages, and that the registry's metadata agrees with `quant::storage_type`. The decoder registry and CPU support must remain exactly F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_0, Q5_1, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4; recognizing more storage layouts must not enable their execution.
+It checks sizing of known layouts without decoders, refusal order and exact messages, and that the registry's metadata agrees with `quant::storage_type`. The decoder registry and CPU support must remain exactly F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_0, Q5_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4; recognizing more storage layouts must not enable their execution.
 Decode and batched `matmul` and `embed` must refuse a Q8_0 row that ends inside a block, and `matmul` and `matmul_group` must refuse row runs that reach past the call, in order or not, are out of order or fall short of it, all before writing any output.
 It does not establish recovery of partially executed model sessions.
 
@@ -787,7 +828,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   A Vulkan device is refused with an error and nothing on stdout, never run on the CPU instead, through a model command and through the synthetic bench.
   A build without the Vulkan backend refuses it, and so does a Vulkan build that cannot open it; where device 0 opens, an index no machine has stands in for the missing device.
   `info` on the synthetic MoE model names its architecture and layer count, and lists every tensor written with its type, shape and size.
-  A known Q2_K layout, as an embedding and as an unused tensor, opens through `info`, `tokenize` and `detokenize`, with exact type/size and tokenizer output. CPU generation refuses each by tensor name and type, at its role or as unused by the model. `dequantize` refuses it before changing either existing raw output.
+  The recognized-storage-without-decoder refusal cases must not include Q3_K: its decoder is registered, `dequantize` reads it, and CPU/Vulkan execution uses the existing generic matrix owners. Q3_K has no quantizer, and its inference/reference quality remains a separate qualification.
   `--n-cpu-moe` and `--cpu-moe`, alone and beside `--moe-stream-from`, are refused on the synthetic dense model with status 1 and the name of the flag given by `generate`, `chat`, `logits`, `perplexity`, `bench --model` and `serve`, on the CPU and on the configured device when that is one device other than the CPU.
   `serve --generating-share 0.5` on the synthetic dense model on the CPU is refused with status 1 and the flag's name, since a stage on the CPU is not fed in pieces, and on one configured Vulkan device with the synthetic MoE model's experts on the CPU by its own text, a stage's parts running elsewhere.
   `serve --no-pacing` with `--generating-share` above 0 is a usage error, checked by its reason.
@@ -805,7 +846,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Also checks quantize's JSON tensor schema/dimension and binary-length rejection,
   output preservation on validation failure, and valid one-to-four-dimensional
   conversion for both writable types.
-  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q5_0, Q5_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for those types. MXFP4 additionally checks every exponent and code in every position through the actual dequantize CLI, against the independent spec decoder.
+  `dequantize` must match, bit for bit, the spec decoders of `tests/spec_decode.py`: Q8_0 and Q4_0 on the blocks quantize writes, and Q4_1, Q5_0, Q5_1, Q4_K, Q5_K, Q6_K, Q8_0 and Q4_0 on raw blocks that reach every scale, min, high bit and nibble, Q8_0's and Q4_0's under negative scales, which their quantizers never write, so the references of `q8-dots` and `backend-group`, which take them from llmx's decoders, rest on an independent decode for those types. Q2_K has separate raw blocks with independent scale, minimum and code patterns. MXFP4 additionally checks every exponent and code in every position through the actual dequantize CLI, against the independent spec decoder.
   Q4_0's raw blocks take each of the test's scales twice, negatives included, so every position takes every nibble, and under a negative scale nibble 8 must decode as -0, as the format's d*(nibble - 8) gives it (`docs/ASSETS.md`).
   Both types quantize and dequantize under a non-ASCII directory to the same bytes as under an ASCII one, and a type name quantize does not write is refused with exit status 2.
 - **Raw blocks** (`tests/raw_blocks.py`): the spec decoders of `tests/spec_decode.py`, one for each GGUF type the pinned fixtures and the MXFP4 writer's file hold (F32, F16, BF16, Q8_0, Q4_0, Q4_1, Q5_0, Q5_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS and MXFP4), each in a pure form, the readable reference, and a numpy form for whole files.
@@ -1047,7 +1088,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   Every qwen35 reference runs through one check of its environment (`qwen35_environment` in `tools/gen_baseline.py`), whose doubles must see a torch, transformers or tokenizers version other than the pinned ones refused, transformers pinned as the chat renderer pins it, and an installed `kernels`, `fla` or `causal_conv1d` package refused, since HF would run it in place of its torch functions.
   For `qwen35-tiny` its doubles hold the generator offline, to float32 and eager attention, and to its key checks: only `mtp.*` and `model.visual.*` keys unused, and none missing.
   The converter's tiled V-head order has one owner, `tests/qwen35.py`, for the tiny writer, file-exact and the layered reference alike, and the test maps HF's `dt_bias` of one Qwen3.5-4B layer onto that layer's `ssm_dt.bias` in a 4B GGUF bit for bit through it (`tests/data/qwen35_4b_dt_bias.json`), so a misreading of the order that the writer and the kernels share cannot pass the Hv = 3 Hk fixture.
-  It also checks `tests/data/fixtures.json`: each file pinned once with every field, the gate's models those with bounds, UD-Q8_K_XL hosted and gated at Q8_0's bounds, IQ4_XS and Q2_K the remaining future hosted additions, and of the qwen35 files the two 0.8B ones hosted and in the gate and the 4B checked by hand.
+  It also checks `tests/data/fixtures.json`: each file pinned once with every field, the gate's models those with bounds, UD-Q8_K_XL hosted and gated at Q8_0's bounds, IQ4_XS and Q2_K marked hosted but not in the gate, and of the qwen35 files the two 0.8B ones hosted and in the gate and the 4B checked by hand. The released Q2_K file also contains Q3_K tensors; both implementations need qualification before that mixed file can be claimed qualified.
   The qwen35 tokenizer golden, on a made-up vocabulary, must keep a merge that joins across a cut HF makes and drop one no text reaches.
   It must give an added token the GGUF files' type, control for a special one or one written `<|name|>` and user-defined otherwise, and keep a token only the config adds apart.
   The generator must refuse a tokenizer file whose SHA-256 is not the pinned one, and the committed golden must hold the generator's texts, commit and digests, so neither changes without regenerating it.
@@ -1137,7 +1178,7 @@ matters: **each layer depends only on the layers below it** -
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from, threads that run a job over its indices |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
-| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_0/Q5_1/Q4_K/Q5_K/Q6_K/IQ4_NL/IQ4_XS/MXFP4 kernels |
+| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_0/Q5_1/Q2_K/Q3_K/Q4_K/Q5_K/Q6_K/IQ4_NL/IQ4_XS/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |
@@ -1201,7 +1242,7 @@ They are part of the gates, not advice.
 - **A bound follows the precision a path computes in, never the weight type.** F32 bounds hold F32 paths. A path in another precision is held to a budget calibrated for that precision: a reference run with the exact weights, activations rounded to that precision and F32 sums, measured against file-exact HF over the dense, tied and MoE fixtures and extra seeds, then frozen with its headroom stated before any candidate is rerun. See `docs/PRECISION.md` for the sole user-approved, exact IQ4_XS split-MoE F32-logit fixture exception and its unchanged limits. A budget is never set just above a failing candidate, and the real-model bounds are not widened to let a path through.
 - **Correctness is not traded for speed by default.** A faster path in a lower precision than the rule gives (8-bit activations, say) is an opt-in with its own bound, never the default, and never decides a merge of the default path. A fallback is never narrower than the precision asked for, and says so when taken.
 - **Measure what a user runs.** Timing runs at the device's default clocks and power state. Setting performance levels or holding clocks high flatters a kernel and makes its figures incomparable with any other run; every arm, llmx before, llmx after and the reference, runs on the same device in the same environment (Principles, above).
-- **An open speed gate is recorded, not waived.** First support of a model or a type may merge while it is below the reference, with the cells below it listed in STATUS and the recovery work named, and that work follows at once. It never covers a slowdown on a path main already has, which the timing round against main catches at every merge.
+- **An open speed gate is recorded, not waived.** First model support may merge below the reference with its deficits and recovery work recorded. Quant support follows the Vulkan-first sequence in `docs/ROADMAP.md`: meet mx Vulkan before moving to the next quant, then tune all quants against mx ROCm while retaining Vulkan performance. Record ROCm deficits for that second stage; they do not block first-stage quant landings. Neither allowance covers a slowdown on a path main already has, which the timing round against main catches at every merge.
 - **A review finding is rechecked before it is acted on.** A reviewer's finding, a person's or a tool's, is checked against the code, then fixed or rejected with the evidence beside it.
 
 ## Checkpoints

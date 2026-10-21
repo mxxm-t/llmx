@@ -291,6 +291,18 @@ const uint32_t kSpvMatmulTileQ5i8Preserve[] = {
 const uint32_t kSpvMatmulTileQ50i8Preserve[] = {
 #include "vulkan/matmul_tile_q50i8_preserve.inc"
 };
+const uint32_t kSpvMatmulTileQ2[] = {
+#include "vulkan/matmul_tile_q2.inc"
+};
+const uint32_t kSpvMatmulTileQ2Preserve[] = {
+#include "vulkan/matmul_tile_q2_preserve.inc"
+};
+const uint32_t kSpvMatmulTileQ3[] = {
+#include "vulkan/matmul_tile_q3.inc"
+};
+const uint32_t kSpvMatmulTileQ3Preserve[] = {
+#include "vulkan/matmul_tile_q3_preserve.inc"
+};
 const uint32_t kSpvMatmulTileQ6[] = {
 #include "vulkan/matmul_tile_q6.inc"
 };
@@ -329,6 +341,30 @@ const uint32_t kSpvMatmulRowFloatX[] = {
 };
 const uint32_t kSpvMatmulRowFloatXPreserve[] = {
 #include "vulkan/matmul_row_float_x_preserve.inc"
+};
+const uint32_t kSpvMatmulRowFloatXQ2[] = {
+#include "vulkan/matmul_row_float_x_q2.inc"
+};
+const uint32_t kSpvMatmulRowFloatXQ2Preserve[] = {
+#include "vulkan/matmul_row_float_x_q2_preserve.inc"
+};
+const uint32_t kSpvMatmulRowFloatXQ3[] = {
+#include "vulkan/matmul_row_float_x_q3.inc"
+};
+const uint32_t kSpvMatmulRowFloatXQ3Preserve[] = {
+#include "vulkan/matmul_row_float_x_q3_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ2Dot[] = {
+#include "vulkan/matmul_row_q2_dot.inc"
+};
+const uint32_t kSpvMatmulRowQ2DotPreserve[] = {
+#include "vulkan/matmul_row_q2_dot_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ3Dot[] = {
+#include "vulkan/matmul_row_q3_dot.inc"
+};
+const uint32_t kSpvMatmulRowQ3DotPreserve[] = {
+#include "vulkan/matmul_row_q3_dot_preserve.inc"
 };
 const uint32_t kSpvMatmulRowPreserve[] = {
 #include "vulkan/matmul_row_preserve.inc"
@@ -723,6 +759,8 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_MATMUL_TILE_Q50I8, "matmul_tile_q50i8", kSpvMatmulTileQ50i8, sizeof(kSpvMatmulTileQ50i8), 5, kMatmulTileQCounts, kSpvMatmulTileQ50i8Preserve, sizeof(kSpvMatmulTileQ50i8Preserve)) \
     X(K_MATMUL_TILE_Q5I8_TALL, "matmul_tile_q5i8_tall", kSpvMatmulTileQ5i8, sizeof(kSpvMatmulTileQ5i8), 5, kMatmulTileQCounts, kSpvMatmulTileQ5i8Preserve, sizeof(kSpvMatmulTileQ5i8Preserve)) \
     X(K_MATMUL_TILE_Q50I8_TALL, "matmul_tile_q50i8_tall", kSpvMatmulTileQ50i8, sizeof(kSpvMatmulTileQ50i8), 5, kMatmulTileQCounts, kSpvMatmulTileQ50i8Preserve, sizeof(kSpvMatmulTileQ50i8Preserve)) \
+    X(K_MATMUL_TILE_Q2, "matmul_tile_q2", kSpvMatmulTileQ2, sizeof(kSpvMatmulTileQ2), 5, kMatmulTileQCounts, kSpvMatmulTileQ2Preserve, sizeof(kSpvMatmulTileQ2Preserve)) \
+    X(K_MATMUL_TILE_Q3, "matmul_tile_q3", kSpvMatmulTileQ3, sizeof(kSpvMatmulTileQ3), 5, kMatmulTileQCounts, kSpvMatmulTileQ3Preserve, sizeof(kSpvMatmulTileQ3Preserve)) \
     X(K_MATMUL_TILE_Q6, "matmul_tile_q6", kSpvMatmulTileQ6, sizeof(kSpvMatmulTileQ6), 5, kMatmulTileQCounts, kSpvMatmulTileQ6Preserve, sizeof(kSpvMatmulTileQ6Preserve)) \
     X(K_MATMUL_TILE_Q8, "matmul_tile_q8", kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts) \
     X(K_MATMUL_TILE_Q8_TALL, "matmul_tile_q8_tall", kSpvMatmulTileQ8, sizeof(kSpvMatmulTileQ8), 5, kMatmulTileQCounts) \
@@ -773,6 +811,10 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_ATTENTION_VEC_D256_V16_G4, "attention_vec_d256_v16_g4", kSpvAttentionVecD256V16G4, sizeof(kSpvAttentionVecD256V16G4), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_KV16_G4, "attention_vec_d256_kv16_g4", kSpvAttentionVecD256KV16G4, sizeof(kSpvAttentionVecD256KV16G4), 7, nullptr) \
     X(K_MATMUL_ROW_FLOAT_X, "matmul_row_float_x", kSpvMatmulRowFloatX, sizeof(kSpvMatmulRowFloatX), 12, kMatmulRowCounts, kSpvMatmulRowFloatXPreserve, sizeof(kSpvMatmulRowFloatXPreserve)) \
+    X(K_MATMUL_ROW_FLOAT_X_Q2, "matmul_row_float_x_q2", kSpvMatmulRowFloatXQ2, sizeof(kSpvMatmulRowFloatXQ2), 12, kMatmulRowCounts, kSpvMatmulRowFloatXQ2Preserve, sizeof(kSpvMatmulRowFloatXQ2Preserve)) \
+    X(K_MATMUL_ROW_FLOAT_X_Q3, "matmul_row_float_x_q3", kSpvMatmulRowFloatXQ3, sizeof(kSpvMatmulRowFloatXQ3), 12, kMatmulRowCounts, kSpvMatmulRowFloatXQ3Preserve, sizeof(kSpvMatmulRowFloatXQ3Preserve)) \
+    X(K_MATMUL_ROW_Q2_DOT, "matmul_row_q2_dot", kSpvMatmulRowQ2Dot, sizeof(kSpvMatmulRowQ2Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ2DotPreserve, sizeof(kSpvMatmulRowQ2DotPreserve)) \
+    X(K_MATMUL_ROW_Q3_DOT, "matmul_row_q3_dot", kSpvMatmulRowQ3Dot, sizeof(kSpvMatmulRowQ3Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ3DotPreserve, sizeof(kSpvMatmulRowQ3DotPreserve)) \
     X(K_MATMUL_TILE_BF16, "matmul_tile_bf16", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve)) \
     X(K_MATMUL_TILE_BF16_TALL, "matmul_tile_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve)) \
     X(K_EMBED_MXFP4, "embed_mxfp4", kSpvEmbedMxfp4, sizeof(kSpvEmbedMxfp4), 4, nullptr) \
@@ -862,6 +904,12 @@ const WeightKernels* weight_kernels(uint32_t type) {
         {quant::GGML_TYPE_Q5_1, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q5, K_MATMUL_ROW_Q5_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q5, K_MATMUL_TILE_Q5_TALL, K_MATMUL_ROW_Q5_I8, K_MATMUL_TILE_Q5I8, K_MATMUL_TILE_Q5I8_TALL, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
+        {quant::GGML_TYPE_Q2_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FLOAT_X_Q2, K_MATMUL_ROW_Q2_DOT, K_MATMUL_ROW_FLOAT_X_Q2,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q2, K_MATMUL_TILE_Q2, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4k},
+        {quant::GGML_TYPE_Q3_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FLOAT_X_Q3, K_MATMUL_ROW_Q3_DOT, K_MATMUL_ROW_FLOAT_X_Q3,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_Q3, K_MATMUL_TILE_Q3, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4k},
         {quant::GGML_TYPE_Q4_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_K4, K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_K4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4k},
@@ -897,6 +945,8 @@ inline bool is_row_kernel(KernelId id) {
     if (id == K_MATMUL_ROW_MXFP4 || id == K_MATMUL_ROW_MXFP4_DOT || id == K_MATMUL_ROW_MXFP4_FLOAT_X) return true;
     switch (id) {
     case K_MATMUL_ROW_WF16: case K_MATMUL_ROW_WBF16:
+    case K_MATMUL_ROW_FLOAT_X_Q2: case K_MATMUL_ROW_FLOAT_X_Q3:
+    case K_MATMUL_ROW_Q2_DOT: case K_MATMUL_ROW_Q3_DOT:
     case K_MATMUL_ROW_IQ4_DOT: case K_MATMUL_ROW_IQ4_XS_DOT:
     case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
@@ -919,7 +969,7 @@ inline bool is_tile_kernel(KernelId id) {
     case K_MATMUL_TILE: case K_MATMUL_TILE_TALL: case K_MATMUL_TILE_Q: case K_MATMUL_TILE_Q_TALL:
     case K_MATMUL_TILE_Q5: case K_MATMUL_TILE_Q50: case K_MATMUL_TILE_Q5_TALL: case K_MATMUL_TILE_Q50_TALL: case K_MATMUL_TILE_Q5I8: case K_MATMUL_TILE_Q50I8: case K_MATMUL_TILE_Q5I8_TALL: case K_MATMUL_TILE_Q50I8_TALL:
     case K_MATMUL_TILE_IQ4: case K_MATMUL_TILE_IQ4_TALL: case K_MATMUL_TILE_IQ4_XS: case K_MATMUL_TILE_IQ4_XS_TALL:
-    case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
+    case K_MATMUL_TILE_Q2: case K_MATMUL_TILE_Q3: case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
     case K_MATMUL_TILE_QI8: case K_MATMUL_TILE_QI8_TALL: case K_MATMUL_TILE_Q6I8: case K_MATMUL_TILE_Q8I8: case K_MATMUL_TILE_Q8I8_TALL:
     case K_MATMUL_TILE_BF16: case K_MATMUL_TILE_BF16_TALL:
         return true;
@@ -1735,7 +1785,7 @@ public:
         const WeightKernels* format = weight_kernels(type);
         return format && (!format->mxfp4 || dev_->mxfp4);
     }
-    // int8 where the integer dot is preferred; a format without an 8-bit build retains its wider kernel.
+    // Native dtype support is device-wide; each weight descriptor selects its build or a wider fallback.
     std::vector<Dtype> native_dtypes() const override {
         if (dev_->profile.prefer_integer_dot) return {Dtype::f16, Dtype::f32, Dtype::int8};
         return {Dtype::f16, Dtype::f32};
@@ -1743,11 +1793,11 @@ public:
     bool emulates_dtype(Dtype dtype) const override { return dtype == Dtype::bf16 && dev_->preserve_float32; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
-        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but MXFP4/IQ4_NL/IQ4_XS), block-int16 (MXFP4, IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)";
+        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/IQ4_NL/IQ4_XS), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, IQ4_NL/IQ4_XS fallback rows, other products, routers)";
         if (dtype == Dtype::f16)
             return dev_->profile.prefer_integer_dot
                 ? "block-int16 (quantized rows and eligible tiles; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)"
-                : "block-int16 (quantized rows; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+                : "block-int16 (quantized rows except Q2_K/Q3_K; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
         return "f32";
     }
     const std::string& name() const { return dev_->caps.device; }
@@ -3110,7 +3160,7 @@ public:
             units = nblocks * lanes;
             break;
         }
-        if ((dtype == Dtype::f32 || kernel == K_MATMUL_ROW_FLOAT_X) && format.layout != RowLayout::values) {
+        if ((dtype == Dtype::f32 || kernel == format.float_row) && format.layout != RowLayout::values) {
             kernel = format.float_row;
             units = nin;
             lanes = 1;
@@ -3135,7 +3185,7 @@ public:
     // Bind original floats for a float row build or policy, otherwise the packed activation twin (shaders/xquant.glsl).
     // Missing twins are quantized here into stream-ordered scratch.
     VkDescriptorBufferInfo row_twin(CSlice X, const RowPlan& plan, size_t n, Dtype dtype) {
-        if (weight_kernels(plan.type)->layout == RowLayout::values || plan.kernel == K_MATMUL_ROW_FLOAT_X || dtype == Dtype::f32) return bind(X);
+        if (weight_kernels(plan.type)->layout == RowLayout::values || plan.kernel == weight_kernels(plan.type)->float_row || dtype == Dtype::f32) return bind(X);
         return twin(X, n, reads_x8(plan.kernel), 0);
     }
 
@@ -3196,7 +3246,7 @@ public:
                   bind(a.data), bind(b.data), bind(c.data),
                   xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
                  pc, sizeof(pc), total, u32(entries), variant);
-        record_matrix_path(weight_kernels(a.type)->layout == RowLayout::values || (plan.kernel == K_MATMUL_ROW_FLOAT_X || plan.kernel == K_MATMUL_ROW_MXFP4_FLOAT_X) ? MatrixPath::f32
+        record_matrix_path(weight_kernels(a.type)->layout == RowLayout::values || plan.kernel == weight_kernels(a.type)->float_row ? MatrixPath::f32
                            : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
         // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
         for (const Projection* pr : live)
@@ -3405,7 +3455,7 @@ public:
         t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
         const WeightKernels& format = *weight_kernels(ps[0]->type);
         const KernelId tile = i8 ? format.int8_tile : format.integer_tile, tall = i8 ? format.int8_tall_tile : format.integer_tall_tile;
-        // Q6_K has only the short module: the tall build would hold twice the half sums.
+        // Types with one integer module keep the short height to bound live half sums.
         if (tile == tall && t.height == kTileRowsTall) t.height = kTileRowsShort;
         t.kernel = t.height == kTileRowsTall ? tall : tile;
         for (size_t i = 0; i < 3; ++i) {

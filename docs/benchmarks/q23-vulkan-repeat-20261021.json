@@ -1,0 +1,562 @@
+{
+  "scope": "Two matched ABBA blocks per model, four processes per arm/file; P512/G128 on MI50 GPU8, auto dtype, F32 KV. No large-model, other-device or ROCm claim.",
+  "identities": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "executables": {
+      "base": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/base/build/llmx",
+        "sha256": "a18aeb6e1569561e2f56db2af0e623323b6b1e9d2cf906d5b65b5a0100fba465",
+        "version": "llmx 0.1.0+unknown numerics 170c39dc3c749ce4"
+      },
+      "candidate": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/candidate/build/llmx",
+        "sha256": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+        "version": "llmx 0.1.0+unknown numerics 442daa3270a26f68"
+      },
+      "mx": {
+        "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+        "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+        "revision": "eefc4e7321c869496146697d63362f073941aed6",
+        "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+        "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+        "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+        "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+      }
+    },
+    "source_arms": {
+      "base": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/base",
+        "revision": "f7f99555b3c495eafb26b4a2192d4fefe7fcb511-runtime",
+        "library_sha256": "5baa0d8db83b0401df45ec91480ea4d1ced8746c7f098c813af86bd32915e2c8",
+        "manifest_sha256": "56262918802db56801eea86eeb40f68a6b0d932f252efca8ac52d528f987a647"
+      },
+      "candidate": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/q23-alignment-20261021/candidate",
+        "revision": "f7f99555b-alignment-ce30fca07205",
+        "library_sha256": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64",
+        "manifest_sha256": "56262918802db56801eea86eeb40f68a6b0d932f252efca8ac52d528f987a647"
+      }
+    },
+    "build_execution_sha256": "a76bf6fc78c7d7cb907a43308bd1896b7b925544c9f28c6206b250f78683ff18",
+    "source_manifest_sha256": "628592012e6f24d70b91fe7f1e4c68b8684b15902c6709fcac285b93693af9f3",
+    "threads": 4,
+    "ubatch": 512,
+    "dtype": "auto",
+    "cache_type_k": "f32",
+    "cache_type_v": "f32",
+    "gpu_node": "/dev/dri/renderD130",
+    "gpu_pci": "0000:c9:00.0",
+    "cpu_set": "4-7"
+  },
+  "activity_thresholds": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "rows": [
+    {
+      "model": "qwen3-q2_k",
+      "means": {
+        "candidate": {
+          "pp512": 6408.745,
+          "tg128": 275.0925
+        },
+        "mx": {
+          "pp512": 5443.2225,
+          "tg128": 260.0925
+        }
+      },
+      "medians": {
+        "candidate": {
+          "pp512": 6407.67,
+          "tg128": 275.185
+        },
+        "mx": {
+          "pp512": 5446.365,
+          "tg128": 259.86
+        }
+      },
+      "ranges": {
+        "candidate": {
+          "pp512": [
+            6405.83,
+            6413.81
+          ],
+          "tg128": [
+            274.43,
+            275.57
+          ]
+        },
+        "mx": {
+          "pp512": [
+            5387.7,
+            5492.46
+          ],
+          "tg128": [
+            259.66,
+            260.99
+          ]
+        }
+      },
+      "gain_percent": {
+        "pp512": 17.738067844920913,
+        "tg128": 5.767178984399779
+      },
+      "all_candidate_samples_above_all_mx": {
+        "pp512": true,
+        "tg128": true
+      }
+    },
+    {
+      "model": "qwen3-q3_k_s",
+      "means": {
+        "candidate": {
+          "pp512": 6823.6825,
+          "tg128": 271.3425
+        },
+        "mx": {
+          "pp512": 6110.22,
+          "tg128": 255.2875
+        }
+      },
+      "medians": {
+        "candidate": {
+          "pp512": 6823.84,
+          "tg128": 271.29499999999996
+        },
+        "mx": {
+          "pp512": 6110.855,
+          "tg128": 255.20999999999998
+        }
+      },
+      "ranges": {
+        "candidate": {
+          "pp512": [
+            6813.95,
+            6833.1
+          ],
+          "tg128": [
+            271.16,
+            271.62
+          ]
+        },
+        "mx": {
+          "pp512": [
+            6097.41,
+            6121.76
+          ],
+          "tg128": [
+            254.89,
+            255.84
+          ]
+        }
+      },
+      "gain_percent": {
+        "pp512": 11.676543561442942,
+        "tg128": 6.288987905792487
+      },
+      "all_candidate_samples_above_all_mx": {
+        "pp512": true,
+        "tg128": true
+      }
+    }
+  ],
+  "calls": [
+    {
+      "block": 1,
+      "model": "qwen3-q2_k",
+      "arm": "candidate-qwen3-q2_k",
+      "direction": "ABBA-0",
+      "exe": "candidate",
+      "start": 1792579221.5510118,
+      "end": 1792579223.6235974,
+      "rates": {
+        "pp512": 6407.83,
+        "tg128": 274.43
+      },
+      "status": "passed",
+      "stdout": "00-candidate-qwen3-q2_k.stdout",
+      "stderr": "00-candidate-qwen3-q2_k.stderr",
+      "usage": "00-candidate-qwen3-q2_k.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 1,
+      "index": 0,
+      "duration_seconds": 2.0725855827331543,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q2_k",
+      "arm": "mx-qwen3-q2_k",
+      "direction": "ABBA-1",
+      "exe": "mx",
+      "start": 1792579223.6244485,
+      "end": 1792579226.144898,
+      "rates": {
+        "pp512": 5387.7,
+        "tg128": 259.66
+      },
+      "status": "passed",
+      "stdout": "01-mx-qwen3-q2_k.stdout",
+      "stderr": "01-mx-qwen3-q2_k.stderr",
+      "usage": "01-mx-qwen3-q2_k.usage.json",
+      "activity_intervals": 4,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 1,
+      "duration_seconds": 2.52044939994812,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q2_k",
+      "arm": "mx-qwen3-q2_k",
+      "direction": "ABBA-2",
+      "exe": "mx",
+      "start": 1792579226.1457155,
+      "end": 1792579228.1149414,
+      "rates": {
+        "pp512": 5440.78,
+        "tg128": 260.99
+      },
+      "status": "passed",
+      "stdout": "02-mx-qwen3-q2_k.stdout",
+      "stderr": "02-mx-qwen3-q2_k.stderr",
+      "usage": "02-mx-qwen3-q2_k.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 2,
+      "index": 2,
+      "duration_seconds": 1.9692258834838867,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q2_k",
+      "arm": "candidate-qwen3-q2_k",
+      "direction": "ABBA-3",
+      "exe": "candidate",
+      "start": 1792579228.1158426,
+      "end": 1792579229.8352466,
+      "rates": {
+        "pp512": 6405.83,
+        "tg128": 275.07
+      },
+      "status": "passed",
+      "stdout": "03-candidate-qwen3-q2_k.stdout",
+      "stderr": "03-candidate-qwen3-q2_k.stderr",
+      "usage": "03-candidate-qwen3-q2_k.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 1,
+      "index": 3,
+      "duration_seconds": 1.7194039821624756,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q3_k_s",
+      "arm": "candidate-qwen3-q3_k_s",
+      "direction": "ABBA-0",
+      "exe": "candidate",
+      "start": 1792579229.8361866,
+      "end": 1792579231.6057224,
+      "rates": {
+        "pp512": 6833.1,
+        "tg128": 271.16
+      },
+      "status": "passed",
+      "stdout": "04-candidate-qwen3-q3_k_s.stdout",
+      "stderr": "04-candidate-qwen3-q3_k_s.stderr",
+      "usage": "04-candidate-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 2,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 4,
+      "duration_seconds": 1.769535779953003,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q3_k_s",
+      "arm": "mx-qwen3-q3_k_s",
+      "direction": "ABBA-1",
+      "exe": "mx",
+      "start": 1792579231.6067345,
+      "end": 1792579233.5766366,
+      "rates": {
+        "pp512": 6121.76,
+        "tg128": 255.38
+      },
+      "status": "passed",
+      "stdout": "05-mx-qwen3-q3_k_s.stdout",
+      "stderr": "05-mx-qwen3-q3_k_s.stderr",
+      "usage": "05-mx-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 5,
+      "duration_seconds": 1.9699020385742188,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q3_k_s",
+      "arm": "mx-qwen3-q3_k_s",
+      "direction": "ABBA-2",
+      "exe": "mx",
+      "start": 1792579233.5776982,
+      "end": 1792579235.4977703,
+      "rates": {
+        "pp512": 6109.94,
+        "tg128": 255.84
+      },
+      "status": "passed",
+      "stdout": "06-mx-qwen3-q3_k_s.stdout",
+      "stderr": "06-mx-qwen3-q3_k_s.stderr",
+      "usage": "06-mx-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 6,
+      "duration_seconds": 1.920072078704834,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 1,
+      "model": "qwen3-q3_k_s",
+      "arm": "candidate-qwen3-q3_k_s",
+      "direction": "ABBA-3",
+      "exe": "candidate",
+      "start": 1792579235.4991055,
+      "end": 1792579237.2193108,
+      "rates": {
+        "pp512": 6823.07,
+        "tg128": 271.62
+      },
+      "status": "passed",
+      "stdout": "07-candidate-qwen3-q3_k_s.stdout",
+      "stderr": "07-candidate-qwen3-q3_k_s.stderr",
+      "usage": "07-candidate-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 7,
+      "duration_seconds": 1.720205307006836,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q2_k",
+      "arm": "candidate-qwen3-q2_k",
+      "direction": "ABBA-0",
+      "exe": "candidate",
+      "start": 1792580990.909736,
+      "end": 1792580992.8829923,
+      "rates": {
+        "pp512": 6413.81,
+        "tg128": 275.57
+      },
+      "status": "passed",
+      "stdout": "00-candidate-qwen3-q2_k.stdout",
+      "stderr": "00-candidate-qwen3-q2_k.stderr",
+      "usage": "00-candidate-qwen3-q2_k.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 0,
+      "duration_seconds": 1.9732563495635986,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q2_k",
+      "arm": "mx-qwen3-q2_k",
+      "direction": "ABBA-1",
+      "exe": "mx",
+      "start": 1792580992.8838542,
+      "end": 1792580995.355671,
+      "rates": {
+        "pp512": 5492.46,
+        "tg128": 259.76
+      },
+      "status": "passed",
+      "stdout": "01-mx-qwen3-q2_k.stdout",
+      "stderr": "01-mx-qwen3-q2_k.stderr",
+      "usage": "01-mx-qwen3-q2_k.usage.json",
+      "activity_intervals": 4,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 1,
+      "duration_seconds": 2.4718167781829834,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q2_k",
+      "arm": "mx-qwen3-q2_k",
+      "direction": "ABBA-2",
+      "exe": "mx",
+      "start": 1792580995.356641,
+      "end": 1792580997.2765548,
+      "rates": {
+        "pp512": 5451.95,
+        "tg128": 259.96
+      },
+      "status": "passed",
+      "stdout": "02-mx-qwen3-q2_k.stdout",
+      "stderr": "02-mx-qwen3-q2_k.stderr",
+      "usage": "02-mx-qwen3-q2_k.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 2,
+      "duration_seconds": 1.9199137687683105,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q2_k",
+      "arm": "candidate-qwen3-q2_k",
+      "direction": "ABBA-3",
+      "exe": "candidate",
+      "start": 1792580997.277669,
+      "end": 1792580998.94724,
+      "rates": {
+        "pp512": 6407.51,
+        "tg128": 275.3
+      },
+      "status": "passed",
+      "stdout": "03-candidate-qwen3-q2_k.stdout",
+      "stderr": "03-candidate-qwen3-q2_k.stderr",
+      "usage": "03-candidate-qwen3-q2_k.usage.json",
+      "activity_intervals": 2,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 3,
+      "duration_seconds": 1.6695711612701416,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q3_k_s",
+      "arm": "candidate-qwen3-q3_k_s",
+      "direction": "ABBA-0",
+      "exe": "candidate",
+      "start": 1792580998.9482203,
+      "end": 1792581000.6679556,
+      "rates": {
+        "pp512": 6813.95,
+        "tg128": 271.31
+      },
+      "status": "passed",
+      "stdout": "04-candidate-qwen3-q3_k_s.stdout",
+      "stderr": "04-candidate-qwen3-q3_k_s.stderr",
+      "usage": "04-candidate-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 4,
+      "duration_seconds": 1.7197353839874268,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q3_k_s",
+      "arm": "mx-qwen3-q3_k_s",
+      "direction": "ABBA-1",
+      "exe": "mx",
+      "start": 1792581000.6689055,
+      "end": 1792581002.6395853,
+      "rates": {
+        "pp512": 6097.41,
+        "tg128": 254.89
+      },
+      "status": "passed",
+      "stdout": "05-mx-qwen3-q3_k_s.stdout",
+      "stderr": "05-mx-qwen3-q3_k_s.stderr",
+      "usage": "05-mx-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 5,
+      "duration_seconds": 1.970679759979248,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q3_k_s",
+      "arm": "mx-qwen3-q3_k_s",
+      "direction": "ABBA-2",
+      "exe": "mx",
+      "start": 1792581002.64065,
+      "end": 1792581004.6114352,
+      "rates": {
+        "pp512": 6111.77,
+        "tg128": 255.04
+      },
+      "status": "passed",
+      "stdout": "06-mx-qwen3-q3_k_s.stdout",
+      "stderr": "06-mx-qwen3-q3_k_s.stderr",
+      "usage": "06-mx-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 6,
+      "duration_seconds": 1.970785140991211,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "block": 2,
+      "model": "qwen3-q3_k_s",
+      "arm": "candidate-qwen3-q3_k_s",
+      "direction": "ABBA-3",
+      "exe": "candidate",
+      "start": 1792581004.6125646,
+      "end": 1792581006.2822094,
+      "rates": {
+        "pp512": 6824.61,
+        "tg128": 271.28
+      },
+      "status": "passed",
+      "stdout": "07-candidate-qwen3-q3_k_s.stdout",
+      "stderr": "07-candidate-qwen3-q3_k_s.stderr",
+      "usage": "07-candidate-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 7,
+      "duration_seconds": 1.669644832611084,
+      "monitor_covers_whole_call": true
+    }
+  ],
+  "planned": 16,
+  "completed": 16,
+  "filtered": 0,
+  "flagged_calls": 3,
+  "blocks": [
+    {
+      "name": "mx",
+      "summary_sha256": "275c7e2322735553573d171939c59ef2a47f612cda674e94af6cb76656cc4116",
+      "archive_sha256": "745b94223094007437465d9909225bbfa588901c54f6aaf8aa45c427fd8752ce",
+      "flagged_calls": 3
+    },
+    {
+      "name": "mx-repeat",
+      "summary_sha256": "92c039483ef1002320d470e0c7a6ebf4d13d53eca4309438419cc0f066e578b4",
+      "archive_sha256": "0e0e567e26b89ae77d6d3a8387813ff18e5552727e0ea5e1e0068ad91ede70b8",
+      "flagged_calls": 0
+    }
+  ],
+  "prelaunch_refusals": "Repeat preparation first normalized CRLF runner bytes and then duplicated the root suffix; both refused before container creation or timing. Exact runner bytes and root restored, original snapshots retained in repeat archive. No sample removed.",
+  "pending": "Q3 BF16 policy and hosted CI still required before merge."
+}

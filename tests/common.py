@@ -466,6 +466,8 @@ def hf_bounds(dtype, devices, family=None, fixture=None):
         dtype = "f16"
     with open(os.path.join(ROOT, "tests", "data", "dtype_budget.json"), encoding="utf-8") as f:
         doc = json.load(f)
+    if family == "q3-k" and dtype != "bf16":
+        family = None
     if family is not None:
         assert family in doc.get("families", {}), "missing frozen fixture-family budget"
         doc = doc["families"][family]

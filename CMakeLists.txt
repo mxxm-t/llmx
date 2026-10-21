@@ -86,12 +86,24 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_row_float_x=matmul_row=LLMX_FLOAT_X
         matmul_row_float_x_preserve=matmul_row=LLMX_FLOAT_X+LLMX_PRESERVE_F32
+        matmul_row_float_x_q2=matmul_row=LLMX_FLOAT_X+LLMX_Q2
+        matmul_row_float_x_q2_preserve=matmul_row=LLMX_FLOAT_X+LLMX_Q2+LLMX_PRESERVE_F32
+        matmul_row_float_x_q3=matmul_row=LLMX_FLOAT_X+LLMX_Q3
+        matmul_row_float_x_q3_preserve=matmul_row=LLMX_FLOAT_X+LLMX_Q3+LLMX_PRESERVE_F32
+        matmul_row_q2_dot=matmul_row=LLMX_Q2+LLMX_DOT
+        matmul_row_q2_dot_preserve=matmul_row=LLMX_Q2+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_q3_dot=matmul_row=LLMX_Q3+LLMX_DOT
+        matmul_row_q3_dot_preserve=matmul_row=LLMX_Q3+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_preserve=matmul_row=LLMX_PRESERVE_F32
         matmul_tile_preserve=matmul_tile=LLMX_PRESERVE_F32
         matmul_tile_bf16=matmul_tile=LLMX_BF16
         matmul_tile_bf16_preserve=matmul_tile=LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_q_preserve=matmul_tile_q=LLMX_PRESERVE_F32
         matmul_tile_q6_preserve=matmul_tile_q=LLMX_Q6+LLMX_PRESERVE_F32
+        matmul_tile_q3=matmul_tile_q=LLMX_Q3
+        matmul_tile_q3_preserve=matmul_tile_q=LLMX_Q3+LLMX_PRESERVE_F32
+        matmul_tile_q2=matmul_tile_q=LLMX_Q2
+        matmul_tile_q2_preserve=matmul_tile_q=LLMX_Q2+LLMX_PRESERVE_F32
         matmul_reduce_preserve=matmul_reduce=LLMX_PRESERVE_F32
         matmul_row_q8w_preserve=matmul_row=LLMX_Q8W+LLMX_PRESERVE_F32
         matmul_vec_q8_preserve=matmul_vec_q8=LLMX_PRESERVE_F32
@@ -199,6 +211,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
                     ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
                     ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl ${LLMX_VK_SHADER_DIR}/iq4_dot.glsl
+                    ${LLMX_VK_SHADER_DIR}/k23_dot.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})

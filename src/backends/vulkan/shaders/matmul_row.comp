@@ -1,4 +1,7 @@
 #version 450
+#if (defined(LLMX_Q2) || defined(LLMX_Q3)) && !defined(LLMX_FLOAT_X)
+#define LLMX_K23
+#endif
 // Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X per dispatch; a subgroup takes `rows_per_sg` clusters of `cluster` lanes, each a row, reducing with xor shuffles.
 // Quantized rows meet the activations as a signed 16-bit twin (xquant.glsl), or the 8-bit twin with LLMX_I8 (docs/PRECISION.md); block layouts and the module per type family are in docs/src/backends-vulkan.md, Shader notes.
 #extension GL_KHR_shader_subgroup_basic : require
@@ -15,7 +18,7 @@
 #if defined(LLMX_I8) && !(defined(LLMX_DOT) && (defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)))
 #error "the 8-bit twin is read by the Q4 and K-quant families through the integer dot"
 #endif
-#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4))
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_K23))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
 #endif
 #include "q.glsl"
@@ -98,7 +101,7 @@ vec4 weight4(uint i) {
 #define WEIGHT4(i) uintBitsToFloat(w128s[pi].w128[i])
 #define WEIGHT1(i) wfs[pi].wf[i]
 #endif
-#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_Q50)
+#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #include "qdecode.glsl"
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
@@ -126,6 +129,17 @@ float iq4_input(uint col, uint b, uint j) {
     return float(q) * xq_block(col, b).x;
 }
 #include "iq4_dot.glsl"
+#endif
+#ifdef LLMX_K23
+#define K23_WORD(i) w32s[pi].w32[i]
+#include "dot16.glsl"
+float k23_input(uint col, uint b, uint j) {
+    uvec2 pair = xq2[col * p.nin / 4u + b * 8u + j / 4u];
+    uint word = (j & 1u) == 0u ? pair.x : pair.y;
+    int q = int(int16_t(word >> ((j & 2u) * 8u)));
+    return float(q) * xq_block(col, b).x;
+}
+#include "k23_dot.glsl"
 #endif
 
 // The signed halves of a word.
@@ -458,9 +472,15 @@ void main() {
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
 
     uint lane = gl_SubgroupInvocationID;
+#if defined(LLMX_FLOAT_X) && (defined(LLMX_Q2) || defined(LLMX_Q3))
+    // Float rows contain whole 256-value blocks, so row_plan always assigns a whole subgroup to each row.
+    uint l = lane;
+    uint row = local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID;
+#else
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
     uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
+#endif
     uint col0 = p.col0, out0 = p.col0, wrow = row, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
@@ -681,15 +701,31 @@ void main() {
 #else
     float acc[MAX_COLS];
 #endif
-#ifdef LLMX_IQ4
+#if defined(LLMX_IQ4) || defined(LLMX_K23)
     uint repair[MAX_COLS];
     for (uint c = 0u; c < MAX_COLS; ++c) repair[c] = 0u;
 #endif
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
     if (row < nout) {
 #ifdef LLMX_FLOAT_X
+#if defined(LLMX_Q2) || defined(LLMX_Q3)
+        // These 256-value rows use a whole subgroup; unrolling within a block reuses its metadata without changing any lane's FMA order.
+        for (uint b = 0u; b < p.nin / 256u; ++b) {
+        [[unroll]] for (uint k = 0u; k < 256u / gl_SubgroupSize; ++k) {
+            uint local = l + k * gl_SubgroupSize;
+            uint j = b * 256u + local;
+#else
         for (uint j = l; j < p.nin; j += p.cluster) {
+#endif
+#ifdef LLMX_Q2
+            uint o = (wrow * (p.nin / 256u) + b) * Q2_K_BYTES;
+            float weight = q2_k_at(o, local);
+#elif defined(LLMX_Q3)
+            uint o = (wrow * (p.nin / 256u) + b) * Q3_K_BYTES;
+            float weight = q3_k_at(o, local);
+#else
             float weight = quantized_at(type, wrow, p.nin, j);
+#endif
             for (uint c = 0u; c < ncols; ++c) {
                 float value = x[XCOL(c) * p.nin + j];
 #ifdef LLMX_MXFP4
@@ -700,7 +736,42 @@ void main() {
                 acc[c] = fma(weight, value, acc[c]);
             }
         }
+#if defined(LLMX_Q2) || defined(LLMX_Q3)
+        }
+#endif
 #else
+#ifdef LLMX_K23
+        uint nblocks = p.nin / 256u;
+        uint first = l / 8u, part = l % 8u, stride = p.cluster / 8u;
+        for (uint b = first; b < nblocks; b += stride) {
+            uint o = (wrow * nblocks + b) * K23_BYTES, j = part * 32u;
+            uvec2 codes[8];
+            [[unroll]] for (uint w = 0u; w < 8u; ++w) codes[w] = weight16(k23_word(o, j + 4u * w));
+#ifdef LLMX_Q2
+            Q2KScale low = q2_k_scale(o, j), high = q2_k_scale(o, j + 16u);
+            vec4 weights = vec4(low.scale, high.scale, low.min, high.min);
+#else
+            vec4 weights = vec4(q3_k_scale(o, j).scale, q3_k_scale(o, j + 16u).scale, 0.0, 0.0);
+#endif
+            uint block = b * 8u + part;
+            for (uint c = 0u; c < ncols; ++c) {
+                uint col = XCOL(c), a = col * p.nin / 4u + block * 8u;
+                int lo = 0, hi = 0, ls = 0, hs = 0;
+                [[unroll]] for (uint w = 0u; w < 4u; ++w) {
+                    uvec2 xl = xq2[a + w], xh = xq2[a + w + 4u];
+                    lo = dot_pairs(codes[w], xl, lo);
+                    hi = dot_pairs(codes[w + 4u], xh, hi);
+#ifdef LLMX_Q2
+                    ls = dot_pairs(uvec2(0x00010001u), xl, ls);
+                    hs = dot_pairs(uvec2(0x00010001u), xh, hs);
+#endif
+                }
+                float scale = xq_block(col, block).x;
+                if (k23_repair_scale(scale)) repair[c] = 1u;
+                acc[c] += k23_term(weights, scale, lo, hi, ls, hs);
+            }
+        }
+#endif
 #ifdef LLMX_IQ4
         uint nblocks = p.nin / IQ4_NL_BLOCK;
         for (uint b = l; b < nblocks; b += p.cluster) {
@@ -811,7 +882,7 @@ void main() {
             }
         }
 #endif
-#if !defined(LLMX_IQ4) && !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
+#if !defined(LLMX_K23) && !defined(LLMX_IQ4) && !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
 #if !defined(LLMX_WEIGHT_F16) && !defined(LLMX_WEIGHT_BF16)
         if (type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
@@ -1025,6 +1096,8 @@ void main() {
         if (subgroupOr(wide) != 0u)
             for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) wide |= subgroupShuffleXor(wide, off);
         if (l == 0u && row < nout && (wide != 0u || isnan(s) || isinf(s))) s = mxfp4_wide(wrow, XCOL(c));
+#elif defined(LLMX_FLOAT_X) && (defined(LLMX_Q2) || defined(LLMX_Q3))
+        [[unroll]] for (uint off = gl_SubgroupSize / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
 #else
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
 #endif
@@ -1032,6 +1105,11 @@ void main() {
         uint unsafe = repair[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
         if (l == 0u && row < nout && (unsafe != 0u || isnan(s) || isinf(s))) s = iq4_float_twin(wrow, XCOL(c), p.nin, 0u, p.nin / IQ4_NL_BLOCK);
+#endif
+#ifdef LLMX_K23
+        uint unsafe = repair[c];
+        for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
+        if (l == 0u && row < nout && (unsafe != 0u || isnan(s) || isinf(s))) s = k23_float_twin(wrow, XCOL(c), p.nin, 0u, p.nin / 32u);
 #endif
         if (l == 0u && row < nout && c < ncols) {
             if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + row] += s;

@@ -10,6 +10,45 @@
 
 namespace quant {
 
+// Sixteen affine groups of 16 values, with scale/min nibbles followed by four interleaved 2-bit planes and two f16 scales.
+inline void dequantize_row_q2_K(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const uint8_t* p = src + b * Q2_K_TYPESIZE;
+        const float d = f16_to_f32((uint16_t)(p[80] | ((uint16_t)p[81] << 8)));
+        const float dmin = f16_to_f32((uint16_t)(p[82] | ((uint16_t)p[83] << 8)));
+        float* y = dst + b * Q2_K_BLOCK;
+        for (int group = 0; group < 16; group++) {
+            const float scale = d * (float)(p[group] & 15);
+            const float min = dmin * (float)(p[group] >> 4);
+            const uint8_t* codes = p + 16 + 32 * (group / 8) + 16 * (group % 2);
+            const int shift = 2 * ((group % 8) / 2);
+            for (int lane = 0; lane < 16; lane++)
+                y[16 * group + lane] = scale * (float)((codes[lane] >> shift) & 3) - min;
+        }
+    }
+}
+
+// Sixteen signed 6-bit scales multiply signed 3-bit codes; a clear high bit subtracts four from the stored low code.
+inline void dequantize_row_q3_K(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; b++) {
+        const uint8_t* p = src + b * Q3_K_TYPESIZE;
+        const float d = f16_to_f32((uint16_t)(p[108] | ((uint16_t)p[109] << 8)));
+        float* y = dst + b * Q3_K_BLOCK;
+        for (int group = 0; group < 16; group++) {
+            const int scale = ((p[96 + group % 8] >> (4 * (group / 8))) & 15)
+                            | (((p[104 + group % 4] >> (2 * (group / 4))) & 3) << 4);
+            const float ds = d * (float)(scale - 32);
+            for (int lane = 0; lane < 16; lane++) {
+                const int i = 16 * group + lane;
+                const int plane = i / 32;
+                const int low = (p[32 + 32 * (i / 128) + i % 32] >> (2 * (plane % 4))) & 3;
+                const int code = low - (((p[i % 32] >> plane) & 1) ? 0 : 4);
+                y[i] = ds * (float)code;
+            }
+        }
+    }
+}
+
 // Unpack the 6-bit sub-scale and sub-min of sub-block j (0..7) from the 12 packed bytes, shared by Q4_K and Q5_K.
 // The first four pairs sit in the low 6 bits of bytes 0..7; the last four take their low 4 bits from bytes 8..11 and their high 2 bits from the top of the earlier bytes.
 inline void get_scale_min_k4(int j, const uint8_t* q, uint8_t* d, uint8_t* m) {

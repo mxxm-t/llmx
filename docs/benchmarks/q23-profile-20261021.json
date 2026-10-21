@@ -1,0 +1,440 @@
+{
+  "scope": "Existing CLI per-kernel timestamps and driver compilation statistics; diagnostic only, not matched throughput or hardware stall counters.",
+  "source_revision": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+  "gpu": {
+    "physical": 4,
+    "render": "renderD134",
+    "pci": "0000:89:00.0"
+  },
+  "harness_sha256": "2dc57016c691ea131951a454829d77c129135907917e8e823e97e59640050cb4",
+  "models": {
+    "Q2_K": {
+      "phases": {
+        "pp": {
+          "device_ms": 483.982,
+          "dispatches": 340,
+          "rows": [
+            {
+              "kernel": "matmul_tile",
+              "ms": 467.363,
+              "percent": 96.5663
+            },
+            {
+              "kernel": "attention_tile",
+              "ms": 8.78864,
+              "percent": 1.8159
+            },
+            {
+              "kernel": "norm_rope_kv",
+              "ms": 3.3176,
+              "percent": 0.685481
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 2.36432,
+              "percent": 0.488514
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 1.51376,
+              "percent": 0.312772
+            },
+            {
+              "kernel": "matmul_row_k_dot_1col head",
+              "ms": 0.59456,
+              "percent": 0.122848
+            },
+            {
+              "kernel": "embed",
+              "ms": 0.03152,
+              "percent": 0.00651264
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 0.00816,
+              "percent": 0.00168601
+            }
+          ]
+        },
+        "tg": {
+          "device_ms": 1570.51,
+          "dispatches": 39040,
+          "rows": [
+            {
+              "kernel": "matmul_row_float_x_1col",
+              "ms": 1308.85,
+              "percent": 83.3387
+            },
+            {
+              "kernel": "matmul_row_k_dot_1col head",
+              "ms": 75.8472,
+              "percent": 4.82945
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 59.4078,
+              "percent": 3.7827
+            },
+            {
+              "kernel": "attention_vec",
+              "ms": 41.7334,
+              "percent": 2.65731
+            },
+            {
+              "kernel": "norm_rope_kv",
+              "ms": 35.8509,
+              "percent": 2.28275
+            },
+            {
+              "kernel": "attention_merge",
+              "ms": 24.7522,
+              "percent": 1.57605
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 21.8013,
+              "percent": 1.38816
+            },
+            {
+              "kernel": "embed",
+              "ms": 1.47136,
+              "percent": 0.0936865
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 0.80368,
+              "percent": 0.051173
+            }
+          ]
+        }
+      },
+      "compiled_kernels": {
+        "matmul_tile": {
+          "SGPRs": 48,
+          "VGPRs": 64,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 16384,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 4,
+          "Instructions": 3402
+        },
+        "matmul_row_float_x_1col": {
+          "SGPRs": 32,
+          "VGPRs": 24,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 0,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 10,
+          "Instructions": 952
+        }
+      },
+      "execution": {
+        "start": 1792562088.5273378,
+        "argv": [
+          "docker",
+          "create",
+          "--init",
+          "--name",
+          "llmx-xdev-q23-profile-q2-k",
+          "--label",
+          "llmx.q23-profile=llmx-xdev-q23-profile-q2-k",
+          "--network",
+          "none",
+          "--cpuset-cpus",
+          "4-7",
+          "--cpus",
+          "4",
+          "--memory",
+          "8g",
+          "--memory-swap",
+          "8g",
+          "--pids-limit",
+          "128",
+          "--ulimit",
+          "core=0",
+          "--read-only",
+          "--tmpfs",
+          "/tmp:rw,size=256m",
+          "-e",
+          "XDG_CACHE_HOME=/tmp/cache",
+          "--device",
+          "/dev/dri/renderD134",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/candidate:/w:ro",
+          "-v",
+          "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b:/models:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "/w/build/llmx",
+          "bench",
+          "--model",
+          "/models/Qwen3-0.6B-Q2_K.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ubatch",
+          "512",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--profile"
+        ],
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "binary_sha256": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+        "passed": true,
+        "removed": true,
+        "scope": "Per-kernel timestamp and compiler statistics diagnostic; not a throughput comparison.",
+        "exit": 0,
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-21T05:54:48.648712376Z",
+          "FinishedAt": "2026-10-21T05:54:55.946853691Z"
+        },
+        "end": 1792562097.3518424
+      },
+      "monitor_samples": 8,
+      "artifacts": {
+        "Q2_K\\container.cid": "b87a4825bb7398376392f79f8c1f33a2db86f7d4ec9d48ea9e30fcb9f252aa59",
+        "Q2_K\\container.json": "8ad0fb2df75fb588477b35d14469044fc93a06783532dbb65dad051ef7ffc769",
+        "Q2_K\\execution.json": "58076e1f7d7871ba51c45fd240bbf03528569b6faa97153434c3de7761089651",
+        "Q2_K\\launch.json": "0ccbfa79dd19477ec9ba4d8375a2cafb1ec307f75a195bfef32900e71b1f3906",
+        "Q2_K\\monitor.jsonl": "b75b08ee367d72ea363024e08c0646f2eca063a43569002992a4715ebd8e068b",
+        "Q2_K\\run.log": "a2b37279a50986de53544d73434f4d96593c2bbd3c88639dc09c8ecf950fda1d"
+      }
+    },
+    "Q3_K_S": {
+      "phases": {
+        "pp": {
+          "device_ms": 464.733,
+          "dispatches": 340,
+          "rows": [
+            {
+              "kernel": "matmul_tile",
+              "ms": 448.066,
+              "percent": 96.4137
+            },
+            {
+              "kernel": "attention_tile",
+              "ms": 8.78368,
+              "percent": 1.89005
+            },
+            {
+              "kernel": "norm_rope_kv",
+              "ms": 3.3208,
+              "percent": 0.714561
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 2.40656,
+              "percent": 0.517837
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 1.516,
+              "percent": 0.326209
+            },
+            {
+              "kernel": "matmul_row_k_dot_1col head",
+              "ms": 0.60048,
+              "percent": 0.12921
+            },
+            {
+              "kernel": "embed",
+              "ms": 0.03184,
+              "percent": 0.00685124
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 0.00752,
+              "percent": 0.00161813
+            }
+          ]
+        },
+        "tg": {
+          "device_ms": 1573.9,
+          "dispatches": 35456,
+          "rows": [
+            {
+              "kernel": "matmul_row_float_x_1col",
+              "ms": 1313.75,
+              "percent": 83.471
+            },
+            {
+              "kernel": "matmul_row_k_dot_1col head",
+              "ms": 75.5661,
+              "percent": 4.80119
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 58.7107,
+              "percent": 3.73026
+            },
+            {
+              "kernel": "attention_vec",
+              "ms": 41.667,
+              "percent": 2.64737
+            },
+            {
+              "kernel": "norm_rope_kv",
+              "ms": 35.6184,
+              "percent": 2.26306
+            },
+            {
+              "kernel": "attention_merge",
+              "ms": 24.6638,
+              "percent": 1.56705
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 21.604,
+              "percent": 1.37264
+            },
+            {
+              "kernel": "embed",
+              "ms": 1.50064,
+              "percent": 0.0953451
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 0.82064,
+              "percent": 0.0521404
+            }
+          ]
+        }
+      },
+      "compiled_kernels": {
+        "matmul_tile": {
+          "SGPRs": 48,
+          "VGPRs": 64,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 16384,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 4,
+          "Instructions": 3402
+        },
+        "matmul_row_float_x_1col": {
+          "SGPRs": 32,
+          "VGPRs": 24,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 0,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 10,
+          "Instructions": 952
+        }
+      },
+      "execution": {
+        "start": 1792562097.8077703,
+        "argv": [
+          "docker",
+          "create",
+          "--init",
+          "--name",
+          "llmx-xdev-q23-profile-q3-k-s",
+          "--label",
+          "llmx.q23-profile=llmx-xdev-q23-profile-q3-k-s",
+          "--network",
+          "none",
+          "--cpuset-cpus",
+          "4-7",
+          "--cpus",
+          "4",
+          "--memory",
+          "8g",
+          "--memory-swap",
+          "8g",
+          "--pids-limit",
+          "128",
+          "--ulimit",
+          "core=0",
+          "--read-only",
+          "--tmpfs",
+          "/tmp:rw,size=256m",
+          "-e",
+          "XDG_CACHE_HOME=/tmp/cache",
+          "--device",
+          "/dev/dri/renderD134",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/candidate:/w:ro",
+          "-v",
+          "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b:/models:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "/w/build/llmx",
+          "bench",
+          "--model",
+          "/models/Qwen3-0.6B-Q3_K_S.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ubatch",
+          "512",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--profile"
+        ],
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "binary_sha256": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+        "passed": true,
+        "removed": true,
+        "scope": "Per-kernel timestamp and compiler statistics diagnostic; not a throughput comparison.",
+        "exit": 0,
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-21T05:54:57.923457098Z",
+          "FinishedAt": "2026-10-21T05:55:05.090683168Z"
+        },
+        "end": 1792562105.5679991
+      },
+      "monitor_samples": 7,
+      "artifacts": {
+        "Q3_K_S\\container.cid": "40fddfa76cc995c39247f8c69e00f8eada7450cc0f29a4419bd6249fac924461",
+        "Q3_K_S\\container.json": "0cb081eacf6ddf56e6f3ba1fc825ba2c08aac00e04bfc98503ea0f538de10276",
+        "Q3_K_S\\execution.json": "8700878e34cfb332a45201e42303e2fff3c931e1a893330004a7454e0ca41136",
+        "Q3_K_S\\launch.json": "871936504954a988e0133028b0c13f37f5f290e52aeed99b88f31dfcf4bde7c0",
+        "Q3_K_S\\monitor.jsonl": "a687fce309839a1f8e2b636177982738c8b3c3b48ccedf3db2c33b8548a7a9b8",
+        "Q3_K_S\\run.log": "915ea9e37fc8b2aa39081e79da948a64944047931c9f740c6b47685a4242e045"
+      }
+    }
+  },
+  "finding": "Shared float matmul dominates sampled PP and TG. Both hot kernels report zero spills/scratch. This localizes work but does not identify memory stalls, bandwidth saturation or measured occupancy.",
+  "next": "Inspect and measure redundant packed-weight metadata decoding in the existing shared tile owner, preserving F32 operations. Screen a candidate with unprofiled matched timings before broader numerical qualification; integer dots remain a separate precision-qualified optimization."
+}

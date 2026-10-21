@@ -14,6 +14,8 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
   min + 16 bytes of nibbles (20 bytes). The nibble is unsigned and the block
   carries its own offset, so the value is `d*q + m`, not `d*(q-8)`.
   llmx reads Q4_1 and never writes it, so the registry gives it no quantizer, as it gives the K-quants none; the tests pack Q4_1 weights with their own (`tests/quantizers.hpp`).
+- `dequantize_row_q2_K` (in `k_quants.hpp`): read-only 256-value blocks with sixteen affine groups, decoded for conversion, CPU embedding and generic float products. No Q2_K quantizer is registered.
+- `dequantize_row_q3_K` (in `k_quants.hpp`): read-only 256-value blocks with sixteen signed-scale groups and signed 3-bit values, decoded for conversion, CPU embedding and generic float products. No Q3_K quantizer is registered.
 - `dequantize_row_q6_K` (in `k_quants.hpp`): Q6_K super-block of 256 values in 210 bytes - 128 low
   nibbles, 64 bytes of high 2-bit pairs, 16 int8 group scales, f16 super-block
   scale. Registered READ-ONLY: llmx must load it because common GGUF converters
@@ -23,7 +25,7 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ4_NL`, `IQ4_XS`, `MXFP4`, `F32`, `F16` and `BF16` on first use and never changes after, so no caller sets it up and any thread may read it.
+  The one registry fills itself with `Q8_0`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ4_NL`, `IQ4_XS`, `MXFP4`, `F32`, `F16` and `BF16` on first use and never changes after, so no caller sets it up and any thread may read it.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types

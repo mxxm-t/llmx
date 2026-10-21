@@ -1,0 +1,2659 @@
+{
+  "candidate": "0edb013db129eabc3df20af02977a951bc2b93c0",
+  "scope": "Focused native qualification and short matched ABBA screen; not full landing qualification.",
+  "root_audit": "Root reviewed and reran the summary owner; its digest reproduced exactly. All twelve observations retained.",
+  "summary_sha256": "8267e9bbee80568132c38a21bc2c3ced0687cef728eb9a7ad171b1a2c413bf45",
+  "archive_sha256": "38fb03db3d8e6bd51e212150fe945bfc729a05b56e08d0841d9f48786afe2a69",
+  "counts": {
+    "planned": 12,
+    "completed": 12,
+    "filtered": 0,
+    "samples_per_arm_per_file": 2
+  },
+  "rows": [
+    {
+      "model": "qwen3-q2_k",
+      "model_pin": {
+        "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q2_K.gguf",
+        "bytes": 296238784,
+        "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "repo": "unsloth/Qwen3-0.6B-GGUF",
+        "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+      },
+      "means": {
+        "base": {
+          "pp512": 1053.1799999999998,
+          "tg128": 84.465
+        },
+        "candidate": {
+          "pp512": 1586.3049999999998,
+          "tg128": 84.845
+        }
+      },
+      "candidate_change_percent": {
+        "pp512": 50.620501718604615,
+        "tg128": 0.4498904871840459
+      },
+      "activity_flags": [
+        "disk"
+      ]
+    },
+    {
+      "model": "qwen3-q3_k_s",
+      "model_pin": {
+        "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+        "bytes": 323075776,
+        "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "repo": "unsloth/Qwen3-0.6B-GGUF",
+        "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+      },
+      "means": {
+        "base": {
+          "pp512": 1094.9050000000002,
+          "tg128": 83.63499999999999
+        },
+        "candidate": {
+          "pp512": 1533.56,
+          "tg128": 83.095
+        }
+      },
+      "candidate_change_percent": {
+        "pp512": 40.06329316242046,
+        "tg128": -0.6456627010222871
+      },
+      "activity_flags": [
+        "disk"
+      ]
+    },
+    {
+      "model": "qwen3-q8_0",
+      "model_pin": {
+        "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+        "bytes": 639446688,
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+      },
+      "means": {
+        "base": {
+          "pp512": 8837.065,
+          "tg128": 400.18
+        },
+        "candidate": {
+          "pp512": 8829.315,
+          "tg128": 400.955
+        }
+      },
+      "candidate_change_percent": {
+        "pp512": -0.08769880045015332,
+        "tg128": 0.19366285171671382
+      },
+      "activity_flags": []
+    }
+  ],
+  "calls": [
+    {
+      "model": "qwen3-q2_k",
+      "arm": "base-qwen3-q2_k",
+      "direction": "ABBA-0",
+      "exe": "base",
+      "start": 1792562878.2616935,
+      "end": 1792562883.190438,
+      "rates": {
+        "pp512": 1051.78,
+        "tg128": 84.41
+      },
+      "status": "passed",
+      "stdout": "00-base-qwen3-q2_k.stdout",
+      "stderr": "00-base-qwen3-q2_k.stderr",
+      "usage": "00-base-qwen3-q2_k.usage.json",
+      "activity_intervals": 6,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 0,
+      "duration_seconds": 4.928744554519653,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q2_k",
+      "arm": "candidate-qwen3-q2_k",
+      "direction": "ABBA-1",
+      "exe": "candidate",
+      "start": 1792562883.191322,
+      "end": 1792562887.567407,
+      "rates": {
+        "pp512": 1586.82,
+        "tg128": 84.61
+      },
+      "status": "passed",
+      "stdout": "01-candidate-qwen3-q2_k.stdout",
+      "stderr": "01-candidate-qwen3-q2_k.stderr",
+      "usage": "01-candidate-qwen3-q2_k.usage.json",
+      "activity_intervals": 6,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 1,
+      "index": 1,
+      "duration_seconds": 4.376084804534912,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q2_k",
+      "arm": "candidate-qwen3-q2_k",
+      "direction": "ABBA-2",
+      "exe": "candidate",
+      "start": 1792562887.5682974,
+      "end": 1792562891.8929422,
+      "rates": {
+        "pp512": 1585.79,
+        "tg128": 85.08
+      },
+      "status": "passed",
+      "stdout": "02-candidate-qwen3-q2_k.stdout",
+      "stderr": "02-candidate-qwen3-q2_k.stderr",
+      "usage": "02-candidate-qwen3-q2_k.usage.json",
+      "activity_intervals": 5,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 4,
+      "index": 2,
+      "duration_seconds": 4.3246448040008545,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q2_k",
+      "arm": "base-qwen3-q2_k",
+      "direction": "ABBA-3",
+      "exe": "base",
+      "start": 1792562891.8939772,
+      "end": 1792562896.5192564,
+      "rates": {
+        "pp512": 1054.58,
+        "tg128": 84.52
+      },
+      "status": "passed",
+      "stdout": "03-base-qwen3-q2_k.stdout",
+      "stderr": "03-base-qwen3-q2_k.stderr",
+      "usage": "03-base-qwen3-q2_k.usage.json",
+      "activity_intervals": 6,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 4,
+      "index": 3,
+      "duration_seconds": 4.625279188156128,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q3_k_s",
+      "arm": "base-qwen3-q3_k_s",
+      "direction": "ABBA-0",
+      "exe": "base",
+      "start": 1792562896.5203745,
+      "end": 1792562901.145396,
+      "rates": {
+        "pp512": 1096.89,
+        "tg128": 84.02
+      },
+      "status": "passed",
+      "stdout": "04-base-qwen3-q3_k_s.stdout",
+      "stderr": "04-base-qwen3-q3_k_s.stderr",
+      "usage": "04-base-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 5,
+      "activity_flags": [
+        "disk"
+      ],
+      "flagged_intervals": 3,
+      "index": 4,
+      "duration_seconds": 4.625021457672119,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q3_k_s",
+      "arm": "candidate-qwen3-q3_k_s",
+      "direction": "ABBA-1",
+      "exe": "candidate",
+      "start": 1792562901.146385,
+      "end": 1792562905.5212345,
+      "rates": {
+        "pp512": 1535.5,
+        "tg128": 83.08
+      },
+      "status": "passed",
+      "stdout": "05-candidate-qwen3-q3_k_s.stdout",
+      "stderr": "05-candidate-qwen3-q3_k_s.stderr",
+      "usage": "05-candidate-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 6,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 5,
+      "duration_seconds": 4.374849557876587,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q3_k_s",
+      "arm": "candidate-qwen3-q3_k_s",
+      "direction": "ABBA-2",
+      "exe": "candidate",
+      "start": 1792562905.5222385,
+      "end": 1792562909.8463552,
+      "rates": {
+        "pp512": 1531.62,
+        "tg128": 83.11
+      },
+      "status": "passed",
+      "stdout": "06-candidate-qwen3-q3_k_s.stdout",
+      "stderr": "06-candidate-qwen3-q3_k_s.stderr",
+      "usage": "06-candidate-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 5,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 6,
+      "duration_seconds": 4.3241167068481445,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q3_k_s",
+      "arm": "base-qwen3-q3_k_s",
+      "direction": "ABBA-3",
+      "exe": "base",
+      "start": 1792562909.8474302,
+      "end": 1792562914.5226963,
+      "rates": {
+        "pp512": 1092.92,
+        "tg128": 83.25
+      },
+      "status": "passed",
+      "stdout": "07-base-qwen3-q3_k_s.stdout",
+      "stderr": "07-base-qwen3-q3_k_s.stderr",
+      "usage": "07-base-qwen3-q3_k_s.usage.json",
+      "activity_intervals": 6,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 7,
+      "duration_seconds": 4.6752660274505615,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q8_0",
+      "arm": "base-qwen3-q8_0",
+      "direction": "ABBA-0",
+      "exe": "base",
+      "start": 1792562914.5237603,
+      "end": 1792562916.0429509,
+      "rates": {
+        "pp512": 8837.84,
+        "tg128": 401.54
+      },
+      "status": "passed",
+      "stdout": "08-base-qwen3-q8_0.stdout",
+      "stderr": "08-base-qwen3-q8_0.stderr",
+      "usage": "08-base-qwen3-q8_0.usage.json",
+      "activity_intervals": 2,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 8,
+      "duration_seconds": 1.5191905498504639,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q8_0",
+      "arm": "candidate-qwen3-q8_0",
+      "direction": "ABBA-1",
+      "exe": "candidate",
+      "start": 1792562916.0440419,
+      "end": 1792562917.5636368,
+      "rates": {
+        "pp512": 8827.76,
+        "tg128": 399.77
+      },
+      "status": "passed",
+      "stdout": "09-candidate-qwen3-q8_0.stdout",
+      "stderr": "09-candidate-qwen3-q8_0.stderr",
+      "usage": "09-candidate-qwen3-q8_0.usage.json",
+      "activity_intervals": 3,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 9,
+      "duration_seconds": 1.5195949077606201,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q8_0",
+      "arm": "candidate-qwen3-q8_0",
+      "direction": "ABBA-2",
+      "exe": "candidate",
+      "start": 1792562917.5647929,
+      "end": 1792562919.0340464,
+      "rates": {
+        "pp512": 8830.87,
+        "tg128": 402.14
+      },
+      "status": "passed",
+      "stdout": "10-candidate-qwen3-q8_0.stdout",
+      "stderr": "10-candidate-qwen3-q8_0.stderr",
+      "usage": "10-candidate-qwen3-q8_0.usage.json",
+      "activity_intervals": 2,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 10,
+      "duration_seconds": 1.4692535400390625,
+      "monitor_covers_whole_call": true
+    },
+    {
+      "model": "qwen3-q8_0",
+      "arm": "base-qwen3-q8_0",
+      "direction": "ABBA-3",
+      "exe": "base",
+      "start": 1792562919.0352633,
+      "end": 1792562920.5547109,
+      "rates": {
+        "pp512": 8836.29,
+        "tg128": 398.82
+      },
+      "status": "passed",
+      "stdout": "11-base-qwen3-q8_0.stdout",
+      "stderr": "11-base-qwen3-q8_0.stderr",
+      "usage": "11-base-qwen3-q8_0.usage.json",
+      "activity_intervals": 2,
+      "activity_flags": [],
+      "flagged_intervals": 0,
+      "index": 11,
+      "duration_seconds": 1.5194475650787354,
+      "monitor_covers_whole_call": false
+    }
+  ],
+  "flagged_interval_counts": {
+    "system_idle": 0,
+    "iowait": 0,
+    "unrelated_cpu": 0,
+    "disk": 9,
+    "sample_gap": 0
+  },
+  "activity_thresholds": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "stages": {
+    "build": {
+      "passed": true,
+      "removed": true,
+      "oom": false,
+      "sha256": "150bcf3c303128a13e33bd9b89f9533da03b609f3a4fb0c9dc454ef99fbae840",
+      "seconds": 181.68479990959167
+    },
+    "native": {
+      "passed": true,
+      "removed": true,
+      "oom": false,
+      "sha256": "f3b6e7856afb4c3845572daa8c8b992188287cd0614c8d50584885e0c19b0db6",
+      "seconds": 5.723561763763428
+    },
+    "screen": {
+      "passed": true,
+      "removed": true,
+      "oom": false,
+      "sha256": "1d983fce52d042a8f7d4c294b011930b8bf769c41c5321c89cc37be1d21ba740",
+      "seconds": 49.088622093200684
+    }
+  },
+  "identities": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "executables": {
+      "base": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/base/build/llmx",
+        "sha256": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+        "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1"
+      },
+      "candidate": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/candidate/build/llmx",
+        "sha256": "9f0e30cabf026e98b15168e4f3f78ab9348ea1f4aa5a837265c65a391e5f73bf",
+        "version": "llmx 0.1.0+unknown numerics 4408fb09a960349f"
+      }
+    },
+    "source_arms": {
+      "base": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/base",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/source-pins.json",
+        "revision": "bb59ae431c2fee1a399fae94298d75df5d082db6",
+        "library_sha256": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+      },
+      "candidate": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/candidate",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/source-pins.json",
+        "revision": "0edb013db129eabc3df20af02977a951bc2b93c0",
+        "library_sha256": "a143ef79fb87f8fa02e9ba074ceff08e3b507e191c51c59dc0b0801f4eb46a31"
+      }
+    },
+    "build_execution_sha256": "150bcf3c303128a13e33bd9b89f9533da03b609f3a4fb0c9dc454ef99fbae840",
+    "source_manifest_sha256": "5aa8f2665457593a541d663b21066494f4afefed41777ebfc509e15624cb628f",
+    "threads": 4,
+    "ubatch": 512,
+    "dtype": "auto",
+    "cache_type_k": "f32",
+    "cache_type_v": "f32",
+    "gpu_node": "/dev/dri/renderD130",
+    "gpu_pci": "0000:c9:00.0",
+    "cpu_set": "4-7"
+  },
+  "limitations": [
+    "Short screen: two samples per arm/file, no established noise band or causal attribution for small changes.",
+    "Unchanged prior activity classification and thresholds, all samples retained including flagged intervals.",
+    "No fresh mx run: prior same-environment mx results remain historical separate context.",
+    "Sampled CPU/disk/GPU data does not prove stalls or bandwidth saturation; short-lived processes and tails can be unobserved.",
+    "Q2_K released file contains Q3_K matrices; this is a mixed-file result.",
+    "Generic decoder wrappers also affect embed/row scheduling; existing native Q2/Q3 tests passed before screen."
+  ],
+  "line_endings": {
+    "cmake/tests.cmake": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    },
+    "src/backends/vulkan/shaders/embed.comp": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    },
+    "src/backends/vulkan/shaders/matmul_tile.comp": {
+      "base_matches_crlf": false,
+      "base_matches_lf": false
+    },
+    "src/backends/vulkan/shaders/q.glsl": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    },
+    "src/backends/vulkan/shaders/qdecode.glsl": {
+      "base_matches_crlf": false,
+      "base_matches_lf": false
+    },
+    "src/backends/vulkan/vulkan_backend.cpp": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    },
+    "src/quant/k_quants.hpp": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    },
+    "src/quant/quant.hpp": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    },
+    "src/quant/types.hpp": {
+      "base_matches_crlf": true,
+      "base_matches_lf": false
+    }
+  },
+  "line_ending_note": "The rig export normalizes UTF-8 text to LF; seven otherwise unchanged source/build files differ from the mixed-line-ending baseline only by CRLF. Both arms use the same compiler/image/flags and archive-kind unknown revision. Numerical fingerprints differ as recorded.",
+  "profiles": {
+    "Q2_K": {
+      "base": {
+        "lines": [
+          "profile pp: 483.982 ms of device time over 340 dispatches sampled",
+          "profile:   matmul_tile 467.363 ms (96.5663%)",
+          "profile tg: 1570.51 ms of device time over 39040 dispatches sampled",
+          "profile:   matmul_row_float_x_1col 1308.85 ms (83.3387%)",
+          "profile: kernel matmul_tile: Driver pipeline hash=4459678919980645429 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=18644 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=58627624 Instructions=3402 Copies=435 Branches=181 Latency=244771 Inverse Throughput=62417 VMEM Clause=116 SMEM Clause=78 Pre-Sched SGPRs=31 Pre-Sched VGPRs=37 VALU=1972 SALU=599 VMEM=194 SMEM=78 VOPD=0",
+          "profile: kernel matmul_row_float_x_1col: Driver pipeline hash=1373703864072679865 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5008 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=761510464 Instructions=952 Copies=96 Branches=61 Latency=11178 Inverse Throughput=2359 VMEM Clause=24 SMEM Clause=15 Pre-Sched SGPRs=27 Pre-Sched VGPRs=15 VALU=581 SALU=196 VMEM=43 SMEM=15 VOPD=0"
+        ],
+        "artifacts": {
+          "container.cid": "b87a4825bb7398376392f79f8c1f33a2db86f7d4ec9d48ea9e30fcb9f252aa59",
+          "container.json": "8ad0fb2df75fb588477b35d14469044fc93a06783532dbb65dad051ef7ffc769",
+          "execution.json": "58076e1f7d7871ba51c45fd240bbf03528569b6faa97153434c3de7761089651",
+          "launch.json": "0ccbfa79dd19477ec9ba4d8375a2cafb1ec307f75a195bfef32900e71b1f3906",
+          "monitor.jsonl": "b75b08ee367d72ea363024e08c0646f2eca063a43569002992a4715ebd8e068b",
+          "run.log": "a2b37279a50986de53544d73434f4d96593c2bbd3c88639dc09c8ecf950fda1d"
+        }
+      },
+      "candidate": {
+        "lines": [
+          "profile pp: 323.331 ms of device time over 340 dispatches sampled",
+          "profile:   matmul_tile 306.16 ms (94.6894%)",
+          "profile tg: 1573.39 ms of device time over 39040 dispatches sampled",
+          "profile:   matmul_row_float_x_1col 1310.92 ms (83.3185%)",
+          "profile: kernel matmul_tile: Driver pipeline hash=9505511987690612421 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=20732 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=1721719206 Instructions=3783 Copies=439 Branches=180 Latency=244773 Inverse Throughput=62570 VMEM Clause=119 SMEM Clause=78 Pre-Sched SGPRs=31 Pre-Sched VGPRs=37 VALU=2303 SALU=601 VMEM=215 SMEM=78 VOPD=0",
+          "profile: kernel matmul_row_float_x_1col: Driver pipeline hash=3805297441804164779 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5016 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3118007791 Instructions=953 Copies=96 Branches=61 Latency=11181 Inverse Throughput=2362 VMEM Clause=24 SMEM Clause=15 Pre-Sched SGPRs=27 Pre-Sched VGPRs=15 VALU=582 SALU=196 VMEM=43 SMEM=15 VOPD=0"
+        ],
+        "artifacts": {
+          "container.cid": "84766716792cd953f54d2bc1f6cc0a7a6d394db7a2bc4207fe6b370e48ac1349",
+          "container.json": "a25e31b2da4d2b2776c98b67c03701e6d04a892b7456cafe1a430c1d36ee0402",
+          "execution.json": "071758c114e32a4d2ada03c329f3e6c99e5e34a4c0d064c04b915e3a52442f99",
+          "launch.json": "dcc3a16034f1ac1d076471f886d84b29e0f8a2b5e07d2662a3306baca96ee390",
+          "monitor.jsonl": "9832be07056d432a2d600505170dec4f1a9d6184fb6625e939bd4b9609816e5c",
+          "run.log": "4fdacd4253406ea5de1c4e3dd7621001dba44828a96d6bb93dab7539c4803ea1"
+        }
+      }
+    },
+    "Q3_K_S": {
+      "base": {
+        "lines": [
+          "profile pp: 464.733 ms of device time over 340 dispatches sampled",
+          "profile:   matmul_tile 448.066 ms (96.4137%)",
+          "profile tg: 1573.9 ms of device time over 35456 dispatches sampled",
+          "profile:   matmul_row_float_x_1col 1313.75 ms (83.471%)",
+          "profile: kernel matmul_tile: Driver pipeline hash=4459678919980645429 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=18644 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=58627624 Instructions=3402 Copies=435 Branches=181 Latency=244771 Inverse Throughput=62417 VMEM Clause=116 SMEM Clause=78 Pre-Sched SGPRs=31 Pre-Sched VGPRs=37 VALU=1972 SALU=599 VMEM=194 SMEM=78 VOPD=0",
+          "profile: kernel matmul_row_float_x_1col: Driver pipeline hash=1373703864072679865 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5008 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=761510464 Instructions=952 Copies=96 Branches=61 Latency=11178 Inverse Throughput=2359 VMEM Clause=24 SMEM Clause=15 Pre-Sched SGPRs=27 Pre-Sched VGPRs=15 VALU=581 SALU=196 VMEM=43 SMEM=15 VOPD=0"
+        ],
+        "artifacts": {
+          "container.cid": "40fddfa76cc995c39247f8c69e00f8eada7450cc0f29a4419bd6249fac924461",
+          "container.json": "0cb081eacf6ddf56e6f3ba1fc825ba2c08aac00e04bfc98503ea0f538de10276",
+          "execution.json": "8700878e34cfb332a45201e42303e2fff3c931e1a893330004a7454e0ca41136",
+          "launch.json": "871936504954a988e0133028b0c13f37f5f290e52aeed99b88f31dfcf4bde7c0",
+          "monitor.jsonl": "a687fce309839a1f8e2b636177982738c8b3c3b48ccedf3db2c33b8548a7a9b8",
+          "run.log": "915ea9e37fc8b2aa39081e79da948a64944047931c9f740c6b47685a4242e045"
+        }
+      },
+      "candidate": {
+        "lines": [
+          "profile pp: 331.569 ms of device time over 340 dispatches sampled",
+          "profile:   matmul_tile 314.025 ms (94.7088%)",
+          "profile tg: 1590.04 ms of device time over 35456 dispatches sampled",
+          "profile:   matmul_row_float_x_1col 1323.4 ms (83.2309%)",
+          "profile: kernel matmul_tile: Driver pipeline hash=9505511987690612421 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=20732 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=1721719206 Instructions=3783 Copies=439 Branches=180 Latency=244773 Inverse Throughput=62570 VMEM Clause=119 SMEM Clause=78 Pre-Sched SGPRs=31 Pre-Sched VGPRs=37 VALU=2303 SALU=601 VMEM=215 SMEM=78 VOPD=0",
+          "profile: kernel matmul_row_float_x_1col: Driver pipeline hash=3805297441804164779 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5016 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3118007791 Instructions=953 Copies=96 Branches=61 Latency=11181 Inverse Throughput=2362 VMEM Clause=24 SMEM Clause=15 Pre-Sched SGPRs=27 Pre-Sched VGPRs=15 VALU=582 SALU=196 VMEM=43 SMEM=15 VOPD=0"
+        ],
+        "artifacts": {
+          "container.cid": "b2813b1cb8f58ac94f19dbc735986f16f5dd1cc75efdb55758607f0c5d50e976",
+          "container.json": "707cff072ae64268922a71f2d032ae35471fe6df81f4d4e5c62e6a28e3b9604d",
+          "execution.json": "7dce4a3915b570ca0eb25d60067ff84cf6ef736e7914b650a64243d97b57c09d",
+          "launch.json": "c5347f581b20b90934b473d87fc5585837082be1b93efd2442d3f0b6cdf31781",
+          "monitor.jsonl": "31dc3a29e0b4648bf4633f824ef471c81557fc73703c19ebc205576f1b70811f",
+          "run.log": "7bb9b67509906df985b0ea97b587508401183bcf479de07ef46d6a89e542be23"
+        }
+      }
+    }
+  },
+  "profile_scope": "Same GPU4 per-kernel timestamps and driver compilation statistics, separate from unprofiled GPU8 ABBA. Tile register allocation, shared memory and reported subgroup limit remain unchanged; spills/scratch are zero. Instruction counts describe the whole compiled multi-type kernel, not executed instruction counts or stalls.",
+  "disposition": "Promising PP improvement, retained for model-output equivalence and applicable final checks. Small TG/control movements are not established causal gains/regressions. Q3 BF16 policy remains separate and unapproved.",
+  "released_output_identity": {
+    "root_audit": "Reviewed and replayed saved-output audit; summary digest reproduced exactly. All 12 captures independently rehashed on rig.",
+    "artifacts": {
+      "summary.json": "50a6acbdaa841497a59b44535b0176f00d8a6614ed785940a2f29fca6ca89af6",
+      "identity-reports.tar.gz": "5349a733925599284fc658e0225f1f5d3fdb546a089dc9820c4c78b58a7d3dab",
+      "audit.py": "5a04b0cea8f1b8f0606d231e05edb2552c1b0eb7f824fd24af2050b8a3320c5e"
+    },
+    "result": {
+      "scope": "Two released files, raw retained prompt only; full-vocabulary binary32 batched/per-token plus64greedy identity. No chat/performance/HF claim.",
+      "passed": true,
+      "cases": [
+        {
+          "file": "Qwen3-0.6B-Q2_K.gguf",
+          "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+          "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+          "tokens": 247,
+          "vocab": 151936,
+          "greedy_ids": [
+            4013,
+            576,
+            5724,
+            37625,
+            438,
+            1632,
+            438,
+            304,
+            279,
+            220,
+            17,
+            15,
+            15,
+            21,
+            9234,
+            315,
+            279,
+            1852,
+            4013,
+            13,
+            1260,
+            1083,
+            9723,
+            304,
+            279,
+            220,
+            17,
+            15,
+            15,
+            21,
+            9234,
+            315,
+            279,
+            1852,
+            4013,
+            13,
+            1260,
+            1083,
+            9723,
+            304,
+            279,
+            220,
+            17,
+            15,
+            15,
+            21,
+            9234,
+            315,
+            279,
+            1852,
+            4013,
+            13,
+            1260,
+            1083,
+            9723,
+            304,
+            279,
+            220,
+            17,
+            15,
+            15,
+            21,
+            9234,
+            315
+          ],
+          "matrix_paths": {
+            "batched": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "dtype": "f16",
+          "captures": {
+            "batched": {
+              "bytes": 150112768,
+              "sha256": "04a90f59291a391d7b1b9edaf716089e8e8282fe79c9106b430230156371ae5d"
+            },
+            "decode": {
+              "bytes": 150112768,
+              "sha256": "a1ce57752a74ee4639e4422c471c9fb349b6f19025e0c342f032b78f8f6124c3"
+            },
+            "greedy": {
+              "bytes": 38895616,
+              "sha256": "0592774e8386398afa01c8091194c72a348daf62a20161d50c54093bba061a60"
+            }
+          },
+          "binary32_identity": true
+        },
+        {
+          "file": "Qwen3-0.6B-Q3_K_S.gguf",
+          "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+          "tokens": 247,
+          "vocab": 151936,
+          "greedy_ids": [
+            4013,
+            576,
+            8596,
+            659,
+            1260,
+            1030,
+            264,
+            8640,
+            3476,
+            304,
+            279,
+            220,
+            17,
+            15,
+            15,
+            21,
+            9234,
+            315,
+            279,
+            12425,
+            4013,
+            576,
+            8596,
+            659,
+            1260,
+            572,
+            1083,
+            264,
+            8640,
+            518,
+            279,
+            220,
+            17,
+            15,
+            15,
+            21,
+            9234,
+            315,
+            279,
+            12425,
+            4013,
+            576,
+            8596,
+            659,
+            4710,
+            3983,
+            304,
+            220,
+            17,
+            15,
+            15,
+            21,
+            11,
+            425,
+            10965,
+            465,
+            572,
+            264,
+            8640,
+            518,
+            279,
+            220,
+            17,
+            15
+          ],
+          "matrix_paths": {
+            "batched": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "dtype": "f16",
+          "captures": {
+            "batched": {
+              "bytes": 150112768,
+              "sha256": "fb1655909d7d3fcde7dfb11514e7d4c969b7a7d4d3063c7995e1a5efcf874243"
+            },
+            "decode": {
+              "bytes": 150112768,
+              "sha256": "520d238f0126b2cfb0f2a602cac73f23a95154addba5b835c2af44ccf137bed2"
+            },
+            "greedy": {
+              "bytes": 38895616,
+              "sha256": "db1f820683591e50bb650a9a51601d443bf52305de5f392e40ef5a315c3ddf66"
+            }
+          },
+          "binary32_identity": true
+        }
+      ],
+      "source_binary_pins": {
+        "build_execution_sha256": "150bcf3c303128a13e33bd9b89f9533da03b609f3a4fb0c9dc454ef99fbae840",
+        "source_manifest_sha256": "5aa8f2665457593a541d663b21066494f4afefed41777ebfc509e15624cb628f",
+        "arms": {
+          "base": {
+            "revision": "bb59ae431c2fee1a399fae94298d75df5d082db6",
+            "binaries": {
+              "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+              "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+              "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+              "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+              "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f"
+            },
+            "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+            "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+          },
+          "candidate": {
+            "revision": "0edb013db129eabc3df20af02977a951bc2b93c0",
+            "binaries": {
+              "llmx": "9f0e30cabf026e98b15168e4f3f78ab9348ea1f4aa5a837265c65a391e5f73bf",
+              "llmx-model-logits": "cd1eb7a8c4b0cacc4744a7782f6965e81d5f4c09998957df4488dad91e00dfbb",
+              "libllmx-vulkan.a": "a143ef79fb87f8fa02e9ba074ceff08e3b507e191c51c59dc0b0801f4eb46a31",
+              "llmx-q2-k-test": "057701ffbb4d7b00ae762b3ca520bc3d10075abc56c1c44219ee7fc1aa4d4735",
+              "llmx-q3-k-test": "8ce3610ef9ce373aa7c09666abe7eb955561731aa9f37091d6635c9d6670e8c7"
+            },
+            "version": "llmx 0.1.0+unknown numerics 4408fb09a960349f",
+            "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+          }
+        }
+      },
+      "execution_sha256": "3ef67712fb2796a46c4cd63e6478c2a038c7f9f1a388386b007d0f395ce94756",
+      "result_sha256": "b2d8762760f6a17bd2f35aaaf9725ec04fa67b2ad445a09846f52b68ef1c459b",
+      "collection_manifest_sha256": "95d2aeed4218c3af3cad8c798b087e2980ba607c6ff7a0fa8aec8a0b63ec99e3",
+      "capture_verification_sha256": "a4fcb5d1866e4ad8cb786898467d1cf4c1cb144e19bde5586f6e9d0ed4148cc2",
+      "removed": true,
+      "oom": false,
+      "captures_retained_rig_directory": "/zpool1/llmx-xdev-quant-20261020/q23-tile-experiment-20261021/identity/evidence-identity-vulkan"
+    }
+  },
+  "windows_radeon": {
+    "root_audit": "Read and reran both-part summary, reproduced its SHA-256, and rehashed every handoff artifact. All twelve unique planned processes retained.",
+    "summary_sha256": "00273e7e35266c7db0b43aefc2c87e8c05f222f659de010fb61eb49f95b65f12",
+    "manifest": {
+      "summary-final.json": {
+        "bytes": 22526,
+        "sha256": "00273e7e35266c7db0b43aefc2c87e8c05f222f659de010fb61eb49f95b65f12"
+      },
+      "summary-original.json": {
+        "bytes": 81190,
+        "sha256": "a363359b93a80e30fcf5b59669f31b870ad61446c022910f20e7e95ff7345710"
+      },
+      "summary-continuation.json": {
+        "bytes": 25260,
+        "sha256": "4b9365c423adf6902c8011a4e1083867ef214c5fdc0336526f1fb77fe9a6b715"
+      },
+      "base-source.json": {
+        "bytes": 281782,
+        "sha256": "fc651dfa2004ad4abbe2236d8aa9ebe273ae30ab24969e4a6cf556f701501f3b"
+      },
+      "candidate-source.json": {
+        "bytes": 281782,
+        "sha256": "e66aa11c74c06056ef4428efc03368095fc360f1c3d5c0472d2cd6429ba391c9"
+      },
+      "base-execution.json": {
+        "bytes": 2321,
+        "sha256": "89560c4f15ee996449a75bce61fce2e9bad1837ac327c3ae6c2deaa0ae1d1bf2"
+      },
+      "candidate-execution.json": {
+        "bytes": 2337,
+        "sha256": "042d465ca1d0210396a6d365a5caa06e9146caa4b87b99e1fa61e8c99a5c7be2"
+      },
+      "build-summary.json": {
+        "bytes": 4922,
+        "sha256": "a8eae89b19f83eb4eff796b8c2a9b0dc29eb881ec497e0bd48c7187af7c5c6dd"
+      },
+      "matched-build-audit.json": {
+        "bytes": 36030,
+        "sha256": "195efb77875faef19166aa17cdaf76284c9b6ffa5bf49573cadea452ee581d89"
+      },
+      "native-result.json": {
+        "bytes": 1100,
+        "sha256": "38c1b2817a2255ca13df631384b092c56592a43579525d2ff6b43ec88954bc5d"
+      },
+      "native-q2.log": {
+        "bytes": 968,
+        "sha256": "d79ea4584ee63271b19f48e745a8c512e37434ceb0f27b597473df45f65cadae"
+      },
+      "native-q3.log": {
+        "bytes": 964,
+        "sha256": "c9d78a565457e5e46cece595b23ad20a713c3bd6b22fb9311a53ec2f5661a556"
+      },
+      "native-preflight.json": {
+        "bytes": 582471,
+        "sha256": "34c818c96b9c31a1175589d268ead794370c353ac592bf2625401fc5fbeae224"
+      },
+      "screen-results/execution.json": {
+        "bytes": 18310,
+        "sha256": "a4d201811ae49e54ace83124f7c42e02ca4e9fbbc7211b3b89f594f5fb602492"
+      },
+      "screen-results/activity.jsonl": {
+        "bytes": 10508834,
+        "sha256": "d025872de48120313dbdf0aa8ab553a918e70a26526c20cf69e027d0d15a2f00"
+      },
+      "screen-results/monitor.log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "screen-continuation/execution.json": {
+        "bytes": 11190,
+        "sha256": "e051d05a578f2180391a0a320dd2930f69c830dc04f66e127bca1e96bb30d900"
+      },
+      "screen-continuation/activity.jsonl": {
+        "bytes": 2293594,
+        "sha256": "055ce2522e201d87eac546637b6888f19296dc67325edc7cde513320f49bc4b6"
+      },
+      "screen-continuation/monitor.log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "summary": {
+      "scope": "Windows same-kind matched archives, twelve unique planned processes across original screen plus no-repeat continuation.",
+      "passed_after_harness_reconciliation": true,
+      "original_harness_passed": false,
+      "original_error": "Traceback (most recent call last):\n  File \"C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\run-screen.py\", line 35, in <module>\n    assert len(paths)==1 and paths[0]['dtype']=='f16' and paths[0]['devices']==[expected],paths\nAssertionError: [{'dtype': 'f16', 'devices': [['f32', 'block-int16']]}]\n",
+      "counts": {
+        "planned": 12,
+        "numeric_processes_exit0": 12,
+        "filtered": 0,
+        "repeated": 0
+      },
+      "calls": [
+        {
+          "index": 0,
+          "model": "qwen3-q2_k",
+          "arm": "base",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q2_K.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563872.756495,
+          "returncode": 0,
+          "rates": {
+            "pp512": 1343.53,
+            "tg128": 72.19
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563883.1139543,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 12,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "f48d6ac378341026afcf7a9016830fd841df2f5477caf10c511212c99061b58d",
+            "stderr": "880cd5bd897fe477ab8b23ace2626d5e750f2b79e1a49de32454552aa075d611"
+          }
+        },
+        {
+          "index": 1,
+          "model": "qwen3-q2_k",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q2_K.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563883.1149495,
+          "returncode": 0,
+          "rates": {
+            "pp512": 2416.5,
+            "tg128": 72.03
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563892.8701835,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 11,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "5167f435d431d8557952dfbaed98710f3a96c7364c64971576837e767f53181c",
+            "stderr": "14ea62309a498f60ed5c5ae6230e44457fec42363de8e516b79d3110498ebf50"
+          }
+        },
+        {
+          "index": 2,
+          "model": "qwen3-q2_k",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q2_K.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563892.8701835,
+          "returncode": 0,
+          "rates": {
+            "pp512": 2413.14,
+            "tg128": 72.05
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563902.591353,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 10,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "314423df9fd506c333fa78eec77aec073c2710e5ff8148037f52cbf2fc8e5073",
+            "stderr": "e491dc59bfb88795a1661fda35df76ba495f599c53264e65a4ede2f1b8c8e507"
+          }
+        },
+        {
+          "index": 3,
+          "model": "qwen3-q2_k",
+          "arm": "base",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q2_K.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563902.592351,
+          "returncode": 0,
+          "rates": {
+            "pp512": 1343.62,
+            "tg128": 72.18
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563913.134162,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 12,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "411ac2dcac18ea26eeeeb9b4d4944c5af978582c9fd99574e521ea5bac461fee",
+            "stderr": "bfb63a02c1d56c37f63bee31c6aac010784afbe9ca035761a35209c2023239fa"
+          }
+        },
+        {
+          "index": 4,
+          "model": "qwen3-q3_k_s",
+          "arm": "base",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q3_K_S.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563913.1351619,
+          "returncode": 0,
+          "rates": {
+            "pp512": 1220.1,
+            "tg128": 71.74
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563923.891191,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 12,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "ea884373ddde49e6c81d5eef3d47b957a1ede248fcf2935b6b34023a05a9fbdf",
+            "stderr": "7a33e54aee2696b8c82da042653a52f13ca68944f6733ea582eae67f99ea13f4"
+          }
+        },
+        {
+          "index": 5,
+          "model": "qwen3-q3_k_s",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q3_K_S.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563923.89219,
+          "returncode": 0,
+          "rates": {
+            "pp512": 2178.84,
+            "tg128": 71.3
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563933.8575087,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 11,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "189c7712f94cc7d6e4e36337bbfb36dfd6627ee97836346f100b5cff061e3556",
+            "stderr": "b065ee358de65a36bb63e16e3de288de911ba42421ac682b297ba0cbe2f30f61"
+          }
+        },
+        {
+          "index": 6,
+          "model": "qwen3-q3_k_s",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q3_K_S.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563933.8585093,
+          "returncode": 0,
+          "rates": {
+            "pp512": 2177.86,
+            "tg128": 71.74
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563943.556978,
+          "activity_flags": [
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 10,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "d1b4f575f4573e117578f99372485e8f9ad8063a4ba085ed117dac065f77611b",
+            "stderr": "678d4e74f214a83eb68e2ad6e9ea28322f58ac8b8071a7890dc41a27aaa293c7"
+          }
+        },
+        {
+          "index": 7,
+          "model": "qwen3-q3_k_s",
+          "arm": "base",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q2-q3-released\\windows\\models\\Qwen3-0.6B-Q3_K_S.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563943.5581603,
+          "returncode": 0,
+          "rates": {
+            "pp512": 1224.52,
+            "tg128": 72.37
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792563953.9844139,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 12,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "697d7d732db6d8f1a61a3f682ae11a5ef07bf086695b618e153bd13e0fe1830f",
+            "stderr": "f85c73483c24c0b25380322b35d09c74d14111d4fb342080cb8abc5a84d553be"
+          }
+        },
+        {
+          "index": 8,
+          "model": "qwen3-q8_0",
+          "arm": "base",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792563953.985413,
+          "returncode": 0,
+          "rates": {
+            "pp512": 3010.7,
+            "tg128": 198.94
+          },
+          "end": 1792563959.0755155,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 6,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "069463c33d0995197c474d32c33bf3ee203d67654ec9814c4b04a4d432a074d0",
+            "stderr": "547812a778f90fa8391c556aee0828ce13151ff7d3a431cae4ec1ecaea1c7a59"
+          },
+          "reviewed_harness_reconciliation": "Original completed exit0/rates retained; root approved actual Radeon mixed F32/block-int16 path, then only calls9-11 executed.",
+          "actual_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "index": 9,
+          "model": "qwen3-q8_0",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792564042.923042,
+          "returncode": 0,
+          "rates": {
+            "pp512": 3012.82,
+            "tg128": 199.73
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792564047.8800986,
+          "activity_flags": [
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 6,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "24087048ecac7d4b8ae72a2f7ce149b9627e89d667fa5c0b8c39a09de84c9aee",
+            "stderr": "3e9851b075ffe3b4c6aa2ac918a468049618f44ebdcaa01b556d748d695089e3"
+          }
+        },
+        {
+          "index": 10,
+          "model": "qwen3-q8_0",
+          "arm": "candidate",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792564047.8811255,
+          "returncode": 0,
+          "rates": {
+            "pp512": 3018.62,
+            "tg128": 199.97
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792564052.8579764,
+          "activity_flags": [
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 6,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "12a599f85a5cbad85c1fb20b11250b0b79454c517e1b516b23cfa373fc617594",
+            "stderr": "3e9851b075ffe3b4c6aa2ac918a468049618f44ebdcaa01b556d748d695089e3"
+          }
+        },
+        {
+          "index": 11,
+          "model": "qwen3-q8_0",
+          "arm": "base",
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build\\Release\\llmx.exe",
+            "bench",
+            "--model",
+            "C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792564052.8579764,
+          "returncode": 0,
+          "rates": {
+            "pp512": 3031.93,
+            "tg128": 199.38
+          },
+          "paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "passed": true,
+          "end": 1792564057.789241,
+          "activity_flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ],
+          "flagged_intervals": 6,
+          "monitor_covers_whole_call": true,
+          "logs": {
+            "stdout": "0057e195a3f25a9f57496eee4f11341c0088621288eb6ae0dcfba49633155c25",
+            "stderr": "92f846657f190b3c7e012bc3b67cdd1f81b6b5023ad0ccd6b28c4c054b59d70a"
+          }
+        }
+      ],
+      "rows": [
+        {
+          "model": "qwen3-q2_k",
+          "means": {
+            "base": {
+              "pp512": 1343.5749999999998,
+              "tg128": 72.185
+            },
+            "candidate": {
+              "pp512": 2414.8199999999997,
+              "tg128": 72.03999999999999
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 79.73094170403587,
+            "tg128": -0.20087275749810507
+          },
+          "flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ]
+        },
+        {
+          "model": "qwen3-q3_k_s",
+          "means": {
+            "base": {
+              "pp512": 1222.31,
+              "tg128": 72.055
+            },
+            "candidate": {
+              "pp512": 2178.3500000000004,
+              "tg128": 71.52
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": 78.21583722623562,
+            "tg128": -0.7424883769343027
+          },
+          "flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ]
+        },
+        {
+          "model": "qwen3-q8_0",
+          "means": {
+            "base": {
+              "pp512": 3021.3149999999996,
+              "tg128": 199.16
+            },
+            "candidate": {
+              "pp512": 3015.7200000000003,
+              "tg128": 199.85
+            }
+          },
+          "candidate_change_percent": {
+            "pp512": -0.18518426579152703,
+            "tg128": 0.346455111468158
+          },
+          "flags": [
+            "disk",
+            "unrelated_cpu",
+            "unrelated_gpu"
+          ]
+        }
+      ],
+      "activity_flags": {
+        "system_cpu_above_percent": 75,
+        "unrelated_cpu_at_least_percent": 100,
+        "any_whole_disk_bytes_per_second_above": 50000000,
+        "unrelated_gpu_engine_above_percent": 5,
+        "sample_gap_above_seconds": 2.5
+      },
+      "parts": [
+        {
+          "raw": {
+            "execution.json": "a4d201811ae49e54ace83124f7c42e02ca4e9fbbc7211b3b89f594f5fb602492",
+            "activity.jsonl": "d025872de48120313dbdf0aa8ab553a918e70a26526c20cf69e027d0d15a2f00",
+            "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "monitor_unavailable": {},
+          "benchmark_pids": [
+            5596,
+            8672,
+            37772,
+            56932,
+            59196,
+            64628,
+            64696,
+            76116,
+            87564
+          ]
+        },
+        {
+          "raw": {
+            "execution.json": "e051d05a578f2180391a0a320dd2930f69c830dc04f66e127bca1e96bb30d900",
+            "activity.jsonl": "055ce2522e201d87eac546637b6888f19296dc67325edc7cde513320f49bc4b6",
+            "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "monitor_unavailable": {},
+          "benchmark_pids": [
+            20868,
+            59356,
+            87052
+          ]
+        }
+      ],
+      "limitations": [
+        "Two samples per arm/file; no established noise band for small changes.",
+        "Desktop activity retained; no rejection/replacement/filtering.",
+        "Benchmark process attribution uses observed llmx.exe PIDs; monitor PID exact; driver Python overhead conservatively included with unrelated work.",
+        "Inaccessible/new/short-lived process deltas remain unknown; GPU engine percentages are not additive.",
+        "Radeon and MI50 results are separate environments, not subtracted. No fresh mx result.",
+        "Q8 ABBA interrupted after its first baseline by stale Linux-only path expectation; continuation ran only remaining three calls. All observations included."
+      ],
+      "all_calls_monitor_covered": true,
+      "flagged_calls": {
+        "system_cpu": [],
+        "unrelated_cpu": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "disk": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          7,
+          8,
+          11
+        ],
+        "unrelated_gpu": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "sample_gap": []
+      }
+    },
+    "builds": {
+      "base": {
+        "start": 1792563493.226662,
+        "passed": true,
+        "source_manifest_sha256": "fc651dfa2004ad4abbe2236d8aa9ebe273ae30ab24969e4a6cf556f701501f3b",
+        "memory": {
+          "at": 1792563493.8395395,
+          "available": 6175821824,
+          "page_available": 65508638720,
+          "load": 81
+        },
+        "configure": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "compile": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\base-build",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx",
+          "llmx-model-logits",
+          "llmx-q2-k-test",
+          "llmx-q3-k-test"
+        ],
+        "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+        "binaries": {
+          "llmx.exe": "b7fbe868004b502d7f03b4b4c4ae670e8bef43d347b3004b119076c713ac4797",
+          "llmx-model-logits.exe": "cf825d2d38e34f4153280ff3bc9208846582a44b8cb441416a11f3e91edb10de",
+          "llmx-vulkan.lib": "a3313a42c9739ab913af359cc6966418a7da9e9916d50eabf9f6932f519cfee2",
+          "llmx-q2-k-test.exe": "6c639f19ebe00538cf41b5b59e1c97b7df580b17985576f2ce28b8007535cd19",
+          "llmx-q3-k-test.exe": "c63f5e87d67a90c3bd0fa1f63dc8ef485a42dfd2f0c603692e33f07b20d81510"
+        },
+        "generated": {
+          "config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+          "llmx-build-info.hpp": "99c8402c077592979aa7b5a18cfe299b5edfe20417356dc3deb157fadc4d73c0"
+        },
+        "cache_sha256": "37a840dabeebbe7807b29bff70e51fba34f1b8b6521831e7acf2871ba21a76f8",
+        "compiler_metadata": {
+          "CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a"
+        },
+        "source_manifest_after": "fc651dfa2004ad4abbe2236d8aa9ebe273ae30ab24969e4a6cf556f701501f3b",
+        "logs": {
+          "configure": "8b1e0c3173553204d89be76ac451c02e9e4586b18d86c76ab990c1711aa8833f",
+          "build": "bd64240f7b596681045fba6ae24d21a88bbd4dd0bbd0f54ce5d319c61f98286f"
+        },
+        "end": 1792563587.3790464
+      },
+      "candidate": {
+        "start": 1792563587.3800457,
+        "passed": true,
+        "source_manifest_sha256": "e66aa11c74c06056ef4428efc03368095fc360f1c3d5c0472d2cd6429ba391c9",
+        "memory": {
+          "at": 1792563587.9197555,
+          "available": 6016774144,
+          "page_available": 65108840448,
+          "load": 82
+        },
+        "configure": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "compile": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx",
+          "llmx-model-logits",
+          "llmx-q2-k-test",
+          "llmx-q3-k-test"
+        ],
+        "version": "llmx 0.1.0+unknown numerics 4408fb09a960349f",
+        "binaries": {
+          "llmx.exe": "4a12e826e3d05ddf59927a79e8bdc5f9ce60c7afde79ed7d02478498cf2bf956",
+          "llmx-model-logits.exe": "17a02594b8505d33969d550b2b9e0bc63e4a7b0dbb8f80714463642f68f8ccb4",
+          "llmx-vulkan.lib": "5aad4f28e76a3c6b4d4b048f8e87fa4a5a045f4146ef85243990392b5fa3719f",
+          "llmx-q2-k-test.exe": "7df418439bc31c1c1dcf69c22a6b9c2f2f86f75b315d17b8c6e380ece59b0939",
+          "llmx-q3-k-test.exe": "a8c554768ebaab1b7dfec1809d4cfe753b0a3fc26e2f942e9534adbb6dc363b7"
+        },
+        "generated": {
+          "config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+          "llmx-build-info.hpp": "d553ea945c8084ad9ceeb28941451ad40ef800832cb9bb5351b1d59664c14699"
+        },
+        "cache_sha256": "a911bbaa84916f4ac6cba43746fbbcf085fb75f142e65f329f3680d7a68882ed",
+        "compiler_metadata": {
+          "CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a"
+        },
+        "source_manifest_after": "e66aa11c74c06056ef4428efc03368095fc360f1c3d5c0472d2cd6429ba391c9",
+        "logs": {
+          "configure": "57b34c5fadcd67ae02077a92b63ec97e4ff68fdebf10a9578ba42e4243b74f8d",
+          "build": "36f866b4bd5b85d550405a2ad8e1794d8269669955dde3cb6af03760579b13ff"
+        },
+        "end": 1792563675.4354324
+      }
+    },
+    "native": {
+      "start": 1792563780.3743145,
+      "passed": true,
+      "cases": [
+        {
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx-q2-k-test.exe",
+            "--vulkan"
+          ],
+          "start": 1792563780.8999438,
+          "exit": 0,
+          "end": 1792563787.5167549,
+          "log_sha256": "d79ea4584ee63271b19f48e745a8c512e37434ceb0f27b597473df45f65cadae"
+        },
+        {
+          "argv": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-tile-experiment\\windows\\candidate-build\\Release\\llmx-q3-k-test.exe",
+            "--vulkan"
+          ],
+          "start": 1792563787.5227528,
+          "exit": 0,
+          "end": 1792563791.1188133,
+          "log_sha256": "c9d78a565457e5e46cece595b23ad20a713c3bd6b22fb9311a53ec2f5661a556"
+        }
+      ],
+      "preflight_disposition": "Prior <5% per-engine admission was an unnecessary harness restriction. Parent approved functional tests under observed desktop activity; apps untouched, no timing claim.",
+      "end": 1792563791.7267218
+    },
+    "matched_build_audit": {
+      "passed": true,
+      "arms": {
+        "base": {
+          "cache": {
+            "CMAKE_CXX_FLAGS": "/DWIN32 /D_WINDOWS /GR /EHsc",
+            "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Ob0 /Od /RTC1",
+            "CMAKE_CXX_FLAGS_MINSIZEREL": "/O1 /Ob1 /DNDEBUG",
+            "CMAKE_CXX_FLAGS_RELEASE": "/O2 /Ob2 /DNDEBUG",
+            "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/Zi /O2 /Ob1 /DNDEBUG",
+            "LLMX_HAS_BACKEND_VULKAN": "ON",
+            "CMAKE_CXX_FLAGS-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_DEBUG-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_MINSIZEREL-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_RELEASE-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_RELWITHDEBINFO-ADVANCED": "1",
+            "CMAKE_GENERATOR": "Visual Studio 18 2026",
+            "CMAKE_GENERATOR_PLATFORM": "x64",
+            "CMAKE_GENERATOR_TOOLSET": ""
+          },
+          "compiler": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+          "compiler_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782",
+          "release_options": {
+            "llmx": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ],
+            "llmx-vulkan": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;C:/VulkanSDK/1.4.357.0/Include;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;C:/VulkanSDK/1.4.357.0/Include;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;C:/VulkanSDK/1.4.357.0/Include;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Lib": {
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64"
+                }
+              }
+            ],
+            "llmx-model-logits": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx-model-logits.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx-model-logits.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ],
+            "llmx-q2-k-test": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx-q2-k-test.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx-q2-k-test.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ],
+            "llmx-q3-k-test": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx-q3-k-test.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx-q3-k-test.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ]
+          }
+        },
+        "candidate": {
+          "cache": {
+            "CMAKE_CXX_FLAGS": "/DWIN32 /D_WINDOWS /GR /EHsc",
+            "CMAKE_CXX_FLAGS_DEBUG": "/Zi /Ob0 /Od /RTC1",
+            "CMAKE_CXX_FLAGS_MINSIZEREL": "/O1 /Ob1 /DNDEBUG",
+            "CMAKE_CXX_FLAGS_RELEASE": "/O2 /Ob2 /DNDEBUG",
+            "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "/Zi /O2 /Ob1 /DNDEBUG",
+            "LLMX_HAS_BACKEND_VULKAN": "ON",
+            "CMAKE_CXX_FLAGS-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_DEBUG-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_MINSIZEREL-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_RELEASE-ADVANCED": "1",
+            "CMAKE_CXX_FLAGS_RELWITHDEBINFO-ADVANCED": "1",
+            "CMAKE_GENERATOR": "Visual Studio 18 2026",
+            "CMAKE_GENERATOR_PLATFORM": "x64",
+            "CMAKE_GENERATOR_TOOLSET": ""
+          },
+          "compiler": "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe",
+          "compiler_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782",
+          "release_options": {
+            "llmx": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ],
+            "llmx-vulkan": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;C:/VulkanSDK/1.4.357.0/Include;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;C:/VulkanSDK/1.4.357.0/Include;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;C:/VulkanSDK/1.4.357.0/Include;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Lib": {
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64"
+                }
+              }
+            ],
+            "llmx-model-logits": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx-model-logits.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx-model-logits.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ],
+            "llmx-q2-k-test": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx-q2-k-test.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx-q2-k-test.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ],
+            "llmx-q3-k-test": [
+              {
+                "ClCompile": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /bigobj",
+                  "AssemblerListingLocation": "$(IntDir)",
+                  "BasicRuntimeChecks": "Default",
+                  "BufferSecurityCheck": null,
+                  "CallingConvention": null,
+                  "EnableEnhancedInstructionSet": "AdvancedVectorExtensions2",
+                  "ExceptionHandling": "Sync",
+                  "FloatingPointModel": null,
+                  "ForceConformanceInForLoopScope": null,
+                  "InlineFunctionExpansion": "AnySuitable",
+                  "LanguageStandard": "stdcpp17",
+                  "MinimalRebuild": null,
+                  "Optimization": "MaxSpeed",
+                  "PrecompiledHeader": "NotUsing",
+                  "RemoveUnreferencedCodeData": null,
+                  "RuntimeLibrary": "MultiThreadedDLL",
+                  "RuntimeTypeInfo": "true",
+                  "SupportJustMyCode": null,
+                  "TreatSpecificWarningsAsErrors": "4505;4101;4189",
+                  "TreatWChar_tAsBuiltInType": null,
+                  "UseFullPaths": "false",
+                  "WarningLevel": "Level4",
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\"",
+                  "ObjectFileName": "$(IntDir)",
+                  "DebugInformationFormat": "\n      ",
+                  "ScanSourceForModuleDependencies": "false"
+                }
+              },
+              {
+                "ResourceCompile": {
+                  "PreprocessorDefinitions": "%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=/\"Release/\"",
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)"
+                }
+              },
+              {
+                "Midl": {
+                  "AdditionalIncludeDirectories": "<BUILD>/generated;<SOURCE>/src;%(AdditionalIncludeDirectories)",
+                  "OutputDirectory": "$(ProjectDir)/$(IntDir)",
+                  "HeaderFileName": "%(Filename).h",
+                  "TypeLibraryName": "%(Filename).tlb",
+                  "InterfaceIdentifierFileName": "%(Filename)_i.c",
+                  "ProxyFileName": "%(Filename)_p.c"
+                }
+              },
+              {
+                "Link": {
+                  "AdditionalDependencies": "Release/llmx-vulkan.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib",
+                  "AdditionalLibraryDirectories": "%(AdditionalLibraryDirectories)",
+                  "AdditionalOptions": "%(AdditionalOptions) /machine:x64",
+                  "DataExecutionPrevention": null,
+                  "GenerateDebugInformation": "false",
+                  "IgnoreSpecificDefaultLibraries": "%(IgnoreSpecificDefaultLibraries)",
+                  "ImageHasSafeExceptionHandlers": null,
+                  "ImportLibrary": "<BUILD>/Release/llmx-q3-k-test.lib",
+                  "LinkErrorReporting": null,
+                  "ProgramDataBaseFile": "<BUILD>/Release/llmx-q3-k-test.pdb",
+                  "RandomizedBaseAddress": null,
+                  "SubSystem": "Console"
+                }
+              },
+              {
+                "ProjectReference": {
+                  "LinkLibraryDependencies": "false"
+                }
+              },
+              {
+                "Manifest": {
+                  "AdditionalManifestFiles": "<SOURCE>/cmake/windows.manifest;"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "normalization": "Only each arm absolute source/build directory and ../arm/ include prefix replaced. All Release compiler/link/manifest properties compared. Full original projects retained.",
+      "prior_audit_note": "Initial direct comparison rejected expected ImportLibrary/PDB/manifest source-path differences; normalized comparison proves no configuration difference."
+    }
+  }
+}

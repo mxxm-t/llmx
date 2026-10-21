@@ -29,10 +29,12 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
 | F16, BF16 | Supported | Supported | No |
 | IQ4_NL | Supported | Supported | No |
-| IQ4_XS | Yes | Yes | No |
-| Q3_K, Q2_K | Planned | Planned | No |
+| Q2_K | Implemented; qualification in progress | Implemented; qualification in progress | No |
+| Q3_K | Implemented; qualification in progress | Implemented; qualification in progress | No |
+| IQ4_XS | Supported | Supported | No |
 
-Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including Q3_K and Q2_K. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary. F16/BF16 weights widen to F32 through the existing CPU and Vulkan product paths. CPU and device checks include pinned BF16/F32 output identity. Exact half/F32 twins and representative released-file HF checks pass on CPU, MI50 and Radeon VII. Qualification evidence and measured performance limits are recorded in [STATUS](docs/STATUS.md).
+Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including IQ3_S. Q2_K and Q3_K have read-only CPU and Vulkan inference implementations. Vulkan F16/int8 rows and eligible prompt products use block-int16 activations on integer-dot profiles, with wider F32 on other profiles; BF16 paths round inputs. Neither type has a writer. The Qwen3-0.6B Q2_K file also contains Q3_K tensors, so qualification of both types is required before claiming that mixed file works. See [storage metadata](docs/src/quant-types.md) for that boundary and [STATUS](docs/STATUS.md) for current qualification.
+F16/BF16 weights widen to F32 through the existing CPU and Vulkan product paths. CPU and device checks include pinned BF16/F32 output identity. Exact half/F32 twins and representative released-file HF checks pass on CPU, MI50 and Radeon VII. Qualification evidence and measured performance limits are recorded in [STATUS](docs/STATUS.md).
 Activation precision is selected with `--dtype auto|f16|bf16|f32|int8`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices, and `int8` rounds the inputs of quantized matrix products that have an 8-bit build to 8 bits for speed, below the default precision; it runs so on a Vulkan device that prefers the integer dot product, the MI50 under Mesa, and elsewhere runs as `f16` and says so. Activation precision is separate from weight storage; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.
 The KV cache is stored as `f16` (default) or `f32` on every backend, independently of activation precision.
 

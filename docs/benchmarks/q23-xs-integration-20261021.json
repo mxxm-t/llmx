@@ -1,0 +1,4507 @@
+{
+  "scope": "Local combined Q2/Q3/XS qualification checkpoints; not a public landing or completed full-gate claim.",
+  "q23_parent": "7d001e8cf",
+  "xs_parent": "fad0012cdc85d603d87a138bc231dae1ba77db5a",
+  "public_base": "609ff078621181317e20daca67550cb7a5b39361",
+  "source_audit_sha256": "ece11c1e60f8c2ac8b6886ad0cbb8836b4d435bdcfcaadb80962767afe4860c0",
+  "source_audit": {
+    "status": "PASS",
+    "decoder_function_identity": [
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "q2_k_at",
+        "reference": "7d001e8cf",
+        "sha256_lf": "a8a400a8fe82ee27ce340840abf0567006dc834d14791f08a2738ff81b57fea1"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "q3_k_at",
+        "reference": "7d001e8cf",
+        "sha256_lf": "c6afa7805429b6dd3ad2d093fd299bd9a886bcb262febad9d5d7cf67fbb0f0c2"
+      },
+      {
+        "path": "src/quant/k_quants.hpp",
+        "function": "dequantize_row_q2_K",
+        "reference": "7d001e8cf",
+        "sha256_lf": "3a69950af47481f93395686c870fc35e58f26bebb0908986624378c595947d62"
+      },
+      {
+        "path": "src/quant/k_quants.hpp",
+        "function": "dequantize_row_q3_K",
+        "reference": "7d001e8cf",
+        "sha256_lf": "3d2064c1024010472096dfb33aed48286bb86e71a3ad0af8e4c26e63d0c548d9"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "iq4_nl_value",
+        "reference": "fad0012cd",
+        "sha256_lf": "fbe5c12e00918ab236422ae7e3835919d49319c28dc7e01213b3ad50ad3bc458"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "iq4_at",
+        "reference": "fad0012cd",
+        "sha256_lf": "9090b94e6588ed907135bb1272c78059f8dc81c78ff1dd2339c83b910cf4a064"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "iq4_nl_at",
+        "reference": "fad0012cd",
+        "sha256_lf": "5821c658671f6cb9fc9e768f10e5b4c8fb4743f101cbaaf1d2053245a82d62c3"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "iq4_xs_scale",
+        "reference": "fad0012cd",
+        "sha256_lf": "24403978640f143a4616b259cbb5eb28ea0a08f1db25fda81826364af4501aef"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "iq4_xs_at",
+        "reference": "fad0012cd",
+        "sha256_lf": "e30bfdb4373d52197fd1a2a9712175acd271d9d5ca3ce8183ee373ff52047030"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "function": "iq4_group",
+        "reference": "fad0012cd",
+        "sha256_lf": "4b15b6430ea4c4561a2bc3b2041f579e4d2ec5ac118942b4b3bcb97f23c3ce2c"
+      },
+      {
+        "path": "src/quant/quant.hpp",
+        "function": "dequantize_iq4_group",
+        "reference": "fad0012cd",
+        "sha256_lf": "f9e50efb50e8b60526f3e5e29147fc3d58f2361aa7150f624263f915b620383c"
+      },
+      {
+        "path": "src/quant/quant.hpp",
+        "function": "iq4_xs_scale",
+        "reference": "fad0012cd",
+        "sha256_lf": "af1a159dae381180c135757fc2d82c5dac33a597cf1dacf4e038eca4afc4cf92"
+      },
+      {
+        "path": "src/quant/quant.hpp",
+        "function": "dequantize_row_iq4_nl",
+        "reference": "fad0012cd",
+        "sha256_lf": "1850ee6871074ae49a0daaff580175cd02235592d8dec6532cb6a9342ac7ebbe"
+      },
+      {
+        "path": "src/quant/quant.hpp",
+        "function": "dequantize_row_iq4_xs",
+        "reference": "fad0012cd",
+        "sha256_lf": "ce5e4f723a4b5a0717237190481edffc6522a441b396e76abdd422e174eeb8fe"
+      }
+    ],
+    "fixtures": "Q2/Q3 exact old parent; XS exact qualified candidate",
+    "bounds": "Exact XS candidate budget/common/consumer; Q3 proposal not installed",
+    "limits": "This static source audit does not establish compiled shader identity, numerical correctness or performance."
+  },
+  "focused_tests": "26 shared owner/calibration tests pass after union of selectors and fixture registration; all 62 reference-generator unit tests pass.",
+  "configuration": "Fresh Visual Studio 18 2026/MSVC 19.50 Vulkan build, SDK 1.4.357.0. Initial compile rejected removed RowLayout::blocks in two descriptors; fixed to k_blocks, whose float dispatch resets row units/lanes/width before use. Rebuild passes at 09f10a0f8; edited sources are present in the compile log and no MSB8029 occurred.",
+  "policy": "Q3 BF16 proposal remains unapproved and uninstalled. XS exact-fixture allowance preserved unchanged.",
+  "remaining": [
+    "Resolve Q3 BF16 numerical-policy disposition and pass exact-head hosted Q2/Q3 landing checks. Selected Q2/Q3 split, released-file and depth checks are complete; IQ4_XS is published. First-support performance recovery remains open."
+  ],
+  "evidence_reuse": "Historical Q2/Q3 and XS evidence remains at its original source/binary identity. Decoder source identity alone does not prove compiled shader or full-model identity; do not silently relabel old results as this integration.",
+  "native_checkpoint": {
+    "build": {
+      "args": [
+        "cmake",
+        "--build",
+        "build-q23-xs",
+        "--config",
+        "Release",
+        "--parallel",
+        "1",
+        "--target",
+        "llmx",
+        "llmx-q2-k-test",
+        "llmx-q3-k-test",
+        "llmx-iq4-nl-test",
+        "llmx-iq4-nl-vulkan-test",
+        "llmx-backend-errors-test"
+      ],
+      "exit_code": 0,
+      "seconds": 45.53899574279785,
+      "source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4"
+    },
+    "cpu": {
+      "args": [
+        "ctest",
+        "--test-dir",
+        "build-q23-xs",
+        "-C",
+        "Release",
+        "--output-on-failure",
+        "-R",
+        "^(q2-k|q3-k|iq4-nl|backend-errors)$"
+      ],
+      "exit_code": 0,
+      "seconds": 11.020370960235596,
+      "source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+      "version": "llmx 0.1.0+g09f10a0f8266 numerics 0dbf39d4026dcda1",
+      "cli_sha256": "f053b82e604d87344d4c0129e9ab74beae64177cf99071d35ff0b0baa20d27b2"
+    },
+    "radeon": {
+      "args": [
+        "ctest",
+        "--test-dir",
+        "build-q23-xs",
+        "-C",
+        "Release",
+        "-V",
+        "-R",
+        "^(q2-k-vulkan|q3-k-vulkan|iq4-nl-vulkan)$"
+      ],
+      "exit_code": 0,
+      "seconds": 19.358139038085938,
+      "source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+      "preflight": "Fresh Windows GPU counter showed Firefox PID52828 at 3.34 percent 3D, no compute/test workload. Functional checks only; no performance claim.",
+      "library_sha256": "db431a74bbd96e5c546b287fce9e8a9afee5d54c760bf12cf9cad7443aa85a9d"
+    },
+    "roundtrip": "PASS with normal local file access, including independent Q2/Q3/XS raw decoders. Earlier sandbox run failed resolving temp output with Windows filesystem error 5; retained separately, not a numerical failure.",
+    "log_hashes": {
+      "build-initial-enum-failure.log": "8c4bc3c54d6ef3057bdf64ef484f1ad46ae16ca32fcc1f4dca115de87829a220",
+      "build-initial-enum-failure-execution.json": "bdaedd5e8237f0008761afa63abab598b8ca5d06234abdcb42194b3ca4ac0826",
+      "build.log": "c3afc6c2f5d38545af2de9228a291ccfa804adcfd6ab745df4cc9d23ec49960b",
+      "cpu-native.log": "8be6cfb0258bc3b8a66a403c4e94c3581a5e6a5f6da16ecdcf1fa132fdde85ab",
+      "radeon-native.log": "c3320f4019a88511a8d670c09be2ffc42883bd677f7fbd648dd521dd25c1555e",
+      "roundtrip-sandbox.log": "d3231d7c2c5ce0ee618e7c6324a2a87a630f9e534ef6a45a67f873068ed69e36",
+      "roundtrip-authorized.log": "ccc8fe38ad9ef6a4b7a5af9b2da5293ac83819f24a12c5225ed9c02a9b762a6a"
+    }
+  },
+  "ordinary_hf_integration": {
+    "runtime_source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+    "binary_sha256": "f053b82e604d87344d4c0129e9ab74beae64177cf99071d35ff0b0baa20d27b2",
+    "cells": [
+      {
+        "device": "cpu",
+        "execution": {
+          "args": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-X",
+            "utf8",
+            "tests/run_tests.py",
+            "--exe",
+            "build-q23-xs/Release/llmx.exe",
+            "--only",
+            "q2-k,q3-k,iq4-xs",
+            "--device",
+            "cpu",
+            "--dtype",
+            "auto"
+          ],
+          "exit_code": 0,
+          "seconds": 36.43884873390198,
+          "scope": "Ordinary full-logit/NLL fixtures, auto policy; separate CPU and Radeon processes in parallel, functional checks only. Q3 BF16 pending policy is not used."
+        },
+        "calls": 486,
+        "log_sha256": "2a0fd8ac731583ae547a54834ccb4190acae25ba81cf8e70e63bce447623fc59",
+        "full_log": "Q2_K dense-untied HF: max logit error 0.00000128, bounds [2e-05]; max NLL error 0.00000008, bounds [1e-05]\nQ2_K dense-tied HF: max logit error 0.00000118, bounds [2e-05]; max NLL error 0.00000010, bounds [1e-05]\nQ2_K moe HF: max logit error 0.00000113, bounds [2e-05]; max NLL error 0.00000009, bounds [1e-05]\nq2-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000128  [ok]\nQ3_K dense-untied HF: max logit error 0.00000302, bounds [2e-05]; max NLL error 0.00000019, bounds [1e-05]\nQ3_K dense-tied HF: max logit error 0.00000370, bounds [2e-05]; max NLL error 0.00000041, bounds [1e-05]\nQ3_K moe HF: max logit error 0.00000385, bounds [2e-05]; max NLL error 0.00000071, bounds [1e-05]\nq3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000385  [ok]\nIQ4_XS dense-untied HF: max logit error 0.00000788, bounds [2e-05]; max NLL error 0.00000077, bounds [1e-05]\nIQ4_XS dense-tied HF: max logit error 0.00000941, bounds [2e-05]; max NLL error 0.00000076, bounds [1e-05]\nIQ4_XS moe HF: max logit error 0.00000840, bounds [2e-05]; max NLL error 0.00000076, bounds [1e-05]\niq4-xs: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000941  [ok]\n\n  q2-k       PASS\n  q3-k       PASS\n  iq4-xs     PASS\n"
+      },
+      {
+        "device": "vulkan-0",
+        "execution": {
+          "args": [
+            "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "-X",
+            "utf8",
+            "tests/run_tests.py",
+            "--exe",
+            "build-q23-xs/Release/llmx.exe",
+            "--only",
+            "q2-k,q3-k,iq4-xs",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto"
+          ],
+          "exit_code": 0,
+          "seconds": 123.1094741821289,
+          "scope": "Ordinary full-logit/NLL fixtures, auto policy; separate CPU and Radeon processes in parallel, functional checks only. Q3 BF16 pending policy is not used."
+        },
+        "calls": 486,
+        "log_sha256": "27c28b42aed95d7fc7508e4541dbf55456bf39c0f95439284060ef7c80df5e44",
+        "full_log": "Q2_K dense-untied HF: max logit error 0.00000095, bounds [2e-05]; max NLL error 0.00000006, bounds [1e-05]\nQ2_K dense-tied HF: max logit error 0.00000092, bounds [2e-05]; max NLL error 0.00000007, bounds [1e-05]\nQ2_K moe HF: max logit error 0.00000123, bounds [2e-05]; max NLL error 0.00000006, bounds [1e-05]\nq2-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000123  [ok]\nQ3_K dense-untied HF: max logit error 0.00000296, bounds [2e-05]; max NLL error 0.00000024, bounds [1e-05]\nQ3_K dense-tied HF: max logit error 0.00000303, bounds [2e-05]; max NLL error 0.00000046, bounds [1e-05]\nQ3_K moe HF: max logit error 0.00000385, bounds [2e-05]; max NLL error 0.00000005, bounds [1e-05]\nq3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000385  [ok]\nIQ4_XS dense-untied HF: max logit error 0.00074398, bounds [0.05856519937515259]; max NLL error 0.00006249, bounds [0.005991059770607876]\nIQ4_XS dense-tied HF: max logit error 0.00071797, bounds [0.05856519937515259]; max NLL error 0.00006282, bounds [0.005991059770607876]\nIQ4_XS moe HF: max logit error 0.00080156, bounds [0.05856519937515259]; max NLL error 0.00002585, bounds [0.005991059770607876]\niq4-xs: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00080156  [ok]\n\n  q2-k       PASS\n  q3-k       PASS\n  iq4-xs     PASS\n"
+      }
+    ],
+    "interpretation": "972 ordinary full-vocabulary/NLL comparisons pass. CPU uses existing F32 limits for all three families; Radeon Q2/Q3 paths use F32 limits, XS uses its existing witnessed F16 budget. No split fixture, Q3 BF16 policy, released-file, identity or timing claim is made."
+  },
+  "rig_checkpoint": {
+    "runtime_source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+    "archive_source": "bb59ae431c2fee1a399fae94298d75df5d082db6",
+    "binaries": {
+      "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+      "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+      "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+    },
+    "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "collection_archive_sha256": "e53d16fc87159c6480a6b7e17cda73c0e4f53c38aebef51e39fab76d1d691dca",
+    "collection_manifest_sha256": "5bee8d80f7a94161e86e024021c0a699f0ae7fca441fd58da86f65330fea8720",
+    "evidence_root": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021",
+    "stages": {
+      "evidence-backend-remaining": {
+        "passed": false,
+        "exit": 1,
+        "seconds": 4.602120637893677,
+        "execution_sha256": "85e9c5a41031d7b9fab9559d51933d584c77d7102a89902300d2e81d5e1e08ea",
+        "log_sha256": "d37914217a57bc5f2196b8ca87b2ab429245d1f44b929b6915d2e9625426c151",
+        "commands": [
+          [
+            "/w/build/llmx-backend-vulkan-test",
+            "--isa",
+            "/out/isa"
+          ],
+          [
+            "/w/build/llmx-vulkan-quantization-test"
+          ]
+        ],
+        "removed": true
+      },
+      "evidence-backend-remaining-v2": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 48.76936078071594,
+        "execution_sha256": "5c19d0754deca95099cc3f35217175665630015cf629811854f21b3286083600",
+        "log_sha256": "f1293118457d077b6c90ca03740fefba90f05916b5354af9ab922413b433049b",
+        "commands": [
+          [
+            "/w/build/llmx-backend-vulkan-test",
+            "--isa",
+            "/out/isa"
+          ],
+          [
+            "/w/build/llmx-vulkan-quantization-test"
+          ]
+        ],
+        "removed": true
+      },
+      "evidence-backend-test-build": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 29.291677474975586,
+        "execution_sha256": "6450e2d0c21ef18179c9bf96aefb414444239a0da7b903ab8583c099d6d3f84e",
+        "log_sha256": "1bd14325993e15584dcad2c97563a09298b82ba1c99c69d6e380a81246b04bbf",
+        "commands": [
+          [
+            "cmake",
+            "--build",
+            "/w/build",
+            "--parallel",
+            "2",
+            "--target",
+            "llmx-backend-vulkan-test"
+          ]
+        ],
+        "removed": true
+      },
+      "evidence-backend-test-build-v2": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 31.257039308547974,
+        "execution_sha256": "14e560281975da08bca1a6b6c6a16b631fa9ff98253ece6d6a8330b2e4e98cf0",
+        "log_sha256": "1bd14325993e15584dcad2c97563a09298b82ba1c99c69d6e380a81246b04bbf",
+        "commands": [
+          [
+            "cmake",
+            "--build",
+            "/w/build",
+            "--parallel",
+            "2",
+            "--target",
+            "llmx-backend-vulkan-test"
+          ]
+        ],
+        "removed": true
+      },
+      "evidence-build-candidate": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 242.22475671768188,
+        "execution_sha256": "a0222cea31c8ac65439fc0b1ab895d9167897e537fa8194e63863caf5b86a7b8",
+        "log_sha256": "2eacc650481dea57c76bfec63879bb8c1687f78cae967ce7da25fe84df3e2f1d",
+        "commands": null,
+        "removed": true
+      },
+      "evidence-focused-cpu": {
+        "passed": false,
+        "exit": 1,
+        "seconds": 6.645481109619141,
+        "execution_sha256": "f1e33c33421e69b9d0f392827fb33d52c778859631207f330b59a4fbc58a0c48",
+        "log_sha256": "19a9bf497458d4d2b2b115e42e7ab4bf5a8dadc9c42d0d291a89ee3942730f70",
+        "commands": [
+          [
+            "/w/build/llmx-q2-k-test"
+          ],
+          [
+            "/w/build/llmx-q3-k-test"
+          ],
+          [
+            "/w/build/llmx-iq4-nl-test"
+          ],
+          [
+            "python3",
+            "-B",
+            "-u",
+            "tests/run_tests.py",
+            "--exe",
+            "build/llmx",
+            "--no-perf-floor",
+            "--dtype",
+            "auto",
+            "--require-baseline",
+            "--require-tools",
+            "--only",
+            "q2-k,q3-k,iq4-xs"
+          ]
+        ],
+        "removed": true
+      },
+      "evidence-focused-vulkan": {
+        "passed": false,
+        "exit": 1,
+        "seconds": 15.849967956542969,
+        "execution_sha256": "bd27ae7cd3e26eb1c0dbaead3921677be7bc635cedc2cba81575d65c2a5f26ce",
+        "log_sha256": "2e68d99ce020fd8acb73573440ea83bb8ed2c6841efa38df5fb2b9c7729a143a",
+        "commands": [
+          [
+            "/w/build/llmx-q2-k-test",
+            "--vulkan"
+          ],
+          [
+            "/w/build/llmx-q3-k-test",
+            "--vulkan"
+          ],
+          [
+            "/w/build/llmx-iq4-nl-vulkan-test"
+          ],
+          [
+            "/w/build/llmx-backend-vulkan-test",
+            "--isa",
+            "/out/isa"
+          ],
+          [
+            "/w/build/llmx-vulkan-quantization-test"
+          ],
+          [
+            "python3",
+            "-B",
+            "-u",
+            "tests/run_tests.py",
+            "--exe",
+            "build/llmx",
+            "--no-perf-floor",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--require-baseline",
+            "--require-tools",
+            "--only",
+            "q2-k,q3-k,iq4-xs"
+          ]
+        ],
+        "removed": true
+      },
+      "evidence-hf-cpu": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 29.14811611175537,
+        "execution_sha256": "ea58e0f2a7bd50a704b191889d303d7e2351b4bb1a23cea007dfc47c2b335dfb",
+        "log_sha256": "1ad259355a960cacd3aa9fdf4907d43f2f0ac97627d7d34a2fe2320959be7d4e",
+        "commands": [
+          [
+            "python3",
+            "-B",
+            "-u",
+            "tests/run_tests.py",
+            "--exe",
+            "build/llmx",
+            "--no-perf-floor",
+            "--dtype",
+            "auto",
+            "--require-tools",
+            "--only",
+            "q2-k,q3-k,iq4-xs"
+          ]
+        ],
+        "removed": true,
+        "comparisons": 486,
+        "full_log": "Q2_K dense-untied HF: max logit error 0.00000128, bounds [2e-05]; max NLL error 0.00000006, bounds [1e-05]\nQ2_K dense-tied HF: max logit error 0.00000163, bounds [2e-05]; max NLL error 0.00000007, bounds [1e-05]\nQ2_K moe HF: max logit error 0.00000129, bounds [2e-05]; max NLL error 0.00000009, bounds [1e-05]\nq2-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000163  [ok]\nQ3_K dense-untied HF: max logit error 0.00000328, bounds [2e-05]; max NLL error 0.00000029, bounds [1e-05]\nQ3_K dense-tied HF: max logit error 0.00000377, bounds [2e-05]; max NLL error 0.00000027, bounds [1e-05]\nQ3_K moe HF: max logit error 0.00000385, bounds [2e-05]; max NLL error 0.00000044, bounds [1e-05]\nq3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000385  [ok]\nIQ4_XS dense-untied HF: max logit error 0.00000788, bounds [2e-05]; max NLL error 0.00000085, bounds [1e-05]\nIQ4_XS dense-tied HF: max logit error 0.00000765, bounds [2e-05]; max NLL error 0.00000096, bounds [1e-05]\nIQ4_XS moe HF: max logit error 0.00000971, bounds [2e-05]; max NLL error 0.00000102, bounds [1e-05]\niq4-xs: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000971  [ok]\n\n  q2-k       PASS\n  q3-k       PASS\n  iq4-xs     PASS\n"
+      },
+      "evidence-hf-vulkan": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 58.80714559555054,
+        "execution_sha256": "6b3da2c58346d6c9bcc7b163fd99be46ceb226477f462f4df7d72c6334ed3b94",
+        "log_sha256": "35799b7d01d91c60acf2600379e6616ce1dc42614584c5a3d2adb0bd6bdf03a9",
+        "commands": [
+          [
+            "python3",
+            "-B",
+            "-u",
+            "tests/run_tests.py",
+            "--exe",
+            "build/llmx",
+            "--no-perf-floor",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--require-tools",
+            "--only",
+            "q2-k,q3-k,iq4-xs"
+          ]
+        ],
+        "removed": true,
+        "comparisons": 486,
+        "full_log": "Q2_K dense-untied HF: max logit error 0.00000095, bounds [2e-05]; max NLL error 0.00000006, bounds [1e-05]\nQ2_K dense-tied HF: max logit error 0.00000086, bounds [2e-05]; max NLL error 0.00000007, bounds [1e-05]\nQ2_K moe HF: max logit error 0.00000103, bounds [2e-05]; max NLL error 0.00000008, bounds [1e-05]\nq2-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000103  [ok]\nQ3_K dense-untied HF: max logit error 0.00000296, bounds [2e-05]; max NLL error 0.00000019, bounds [1e-05]\nQ3_K dense-tied HF: max logit error 0.00000303, bounds [2e-05]; max NLL error 0.00000046, bounds [1e-05]\nQ3_K moe HF: max logit error 0.00000324, bounds [2e-05]; max NLL error 0.00000005, bounds [1e-05]\nq3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000324  [ok]\nIQ4_XS dense-untied HF: max logit error 0.00072549, bounds [0.05856519937515259]; max NLL error 0.00004127, bounds [0.005991059770607876]\nIQ4_XS dense-tied HF: max logit error 0.00070548, bounds [0.05856519937515259]; max NLL error 0.00004712, bounds [0.005991059770607876]\nIQ4_XS moe HF: max logit error 0.00073656, bounds [0.05856519937515259]; max NLL error 0.00004572, bounds [0.005991059770607876]\niq4-xs: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00073656  [ok]\n\n  q2-k       PASS\n  q3-k       PASS\n  iq4-xs     PASS\n"
+      },
+      "evidence-identity-cpu": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 339.64106249809265,
+        "execution_sha256": "b2f222ee8eec62a3e724eca49e66df8f7981c2a0c82f17d678211cbcde6ceb61",
+        "log_sha256": "f8ee49754997794280be0b5abdd5c3ce84d100739084c1a757081f0605170063",
+        "commands": null,
+        "removed": true,
+        "result_sha256": "967172f607252f00630f8b38b997f872fd42889cc586d5ec6b7c37855361b6a7",
+        "cases": [
+          {
+            "file": "Qwen3-0.6B-IQ4_NL.gguf",
+            "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "284238cacd82dd293a3f793528b38208d6c416a1c68702c9bf5ad05801908710"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "725c60b9ae75b054ed648145ec1a8ec8c0e97c228ed864992e269508efd20c84"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "51016ae922c110dad3dd4e3dba709268036c182bdfad80674638f3ce6b24aaf8"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_0-converted.gguf",
+            "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "9ddfcbac0825ca7bf2fb0eed41310b4f8ede4033756ce6718eedb47d5013e502"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "9ddfcbac0825ca7bf2fb0eed41310b4f8ede4033756ce6718eedb47d5013e502"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "d9a080866d0001ed9addb9bd7a6291ea6321f096e88f118650022331ccf6be19"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-IQ4_XS.gguf",
+            "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "fa30a8c493e85a46a142ebb37f12e971d0189c4636741a57e6e4b74d7eb64fa7"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "e237703ee874d39cc93d084a6b07072cefb92ca21ad34198fe31b31a7e91881e"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "1ba30e6c2cffe9fc94b2b90797f19c4cea0ab557414be34dc443724f8936f37e"
+              }
+            },
+            "passed": true
+          }
+        ]
+      },
+      "evidence-identity-vulkan": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 73.32813477516174,
+        "execution_sha256": "32921783178007fce2e8aaf0ed297dfff68147700041f1285dae26ba1190e6ca",
+        "log_sha256": "98ecefe9955759d08cc40075ede3ab996df66fead1206ac69356b1c92f79d1a7",
+        "commands": null,
+        "removed": true,
+        "result_sha256": "b1abc14d50b259494570dbaf856a7e04f9e7df9df6ea6278654a86ceecf0b479",
+        "cases": [
+          {
+            "file": "Qwen3-0.6B-Q8_0.gguf",
+            "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_0.gguf",
+            "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "5aef4a07779b7f0e564d2fd8f5ea52fb7b7beca5c57dc5715516cf19812d5fe8"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "30a4c85cb1deb283c2e650d1a83bedb06e36497b1315377c8ef62aa71e614de2"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "8b61ebb23c95540b73ae995784ca500ad0ac03da15e347c66c552f9ca392d8c9"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_K_M.gguf",
+            "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "df13f3265c812abfbd30997835bab95edafb17413aa7ba2728dc1094ce4b6624"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "809ae872a936eb2034d98eaf15dae82e38039c6b380a1cb3da8cf0c2b5466009"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "3f251868eda97586423ff559400e3383beb57eb7eb327efc87340c5b4e90c4ae"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-Q4_K_M.gguf",
+            "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "adb2f05fc6ddc8f1652e57f77544496153debec32fc81306a2b16dbf4fa6cec4"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "9c71f49ddada0cc4c2c6657ff0fb25fc5b3779df9aae1d1d05b5f105dc062f53"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "a848c3f46e514079ff1c7f80afc7b7da62f53f90e5594c8158dc11e5bf76784a"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3.5-0.8B-Q8_0.gguf",
+            "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+            "tokens": 243,
+            "captures": {
+              "batched": {
+                "bytes": 241367040,
+                "sha256": "b6abad5a00f66c76aa98b5169d243a3bfc09dbacfda1534dcfb33568e1b890ed"
+              },
+              "decode": {
+                "bytes": 241367040,
+                "sha256": "37afa9a71899b84b129244bd17cca00bba69fe1725fd4fbb7e4ccca914bd65d3"
+              },
+              "greedy": {
+                "bytes": 63569920,
+                "sha256": "ec985c9cc4125dbcba296ed9e824c8c1b792248ddee43b6aff47817aa3a72265"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+            "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+            "tokens": 243,
+            "captures": {
+              "batched": {
+                "bytes": 241367040,
+                "sha256": "37ded02021c1e26167c6f67a892af3b687d4ad7293935cce8bd050be64c023c6"
+              },
+              "decode": {
+                "bytes": 241367040,
+                "sha256": "a6c511c1242b1403e31d0afff30765fd39301140ed4423bbcfd95d0d25f6c7ba"
+              },
+              "greedy": {
+                "bytes": 63569920,
+                "sha256": "98b0cee3c4f0e09518722a397da30eb3d14d3f233bf74cc2bab63450ad897883"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_1.gguf",
+            "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "e7c3a2a5b45a0ac71b3a8af1813b9fb2c26334b9d5c6784c3fdba0e1dcbf9615"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "84933d1d07326e2c7bc28a6a8eb87f5ce490b04871a3fcb5bed3d80136dfbbb2"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "262f804f27813064fda4eb7a4e40614748287c3df4cb36a88edde0989729bb6f"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-IQ4_NL.gguf",
+            "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "f549636af82e6f76902216ce18beaa0b4200bea684e0af0d570d6112bc7e6105"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "9343bf042f8574fe46a429d473fb273131ea10ffe0f2d447d32f537a70d96941"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "d55bc1b7c1ed240cb3d7fa644356800b26bf33a309944515605e097c025bd56c"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-F16-converted.gguf",
+            "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "a14fe69eaf30665c7903a9c8527f92508ae1884720b69dbdaddd937fd9daf411"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "eec0abe061fcc98b91ad432aff2d60f2a244f1ae827af574da93624991674eae"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "c7166035b1cf2efddaa18d1b70bedf4c4ddb6a3fa3250ff839e6fa31f07c3022"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-BF16.gguf",
+            "model_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "81a607c280e6cc06a007788246f609a12f9bfb2ae3c923c6f4107456b805cd39"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "b240bc8a68ee1f7d00da5969037ac79753f91d872ab4e2c6939b257b1bc6362f"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-Q5_0-converted.gguf",
+            "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "072b8bd1b400be7766558c49800cd89b665ba33ff7c6556bc81589e3edfe5328"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "0ebffb772c17cef20541c840c0060c6e4109680359bd838c13ec8b24390883da"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "774af7e553f30060c79233f5ffc89e27d8b0d0addf9902f695e22910655615a6"
+              }
+            },
+            "passed": true
+          },
+          {
+            "file": "Qwen3-0.6B-IQ4_XS.gguf",
+            "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+            "tokens": 247,
+            "captures": {
+              "batched": {
+                "bytes": 150112768,
+                "sha256": "36634b66ffd90c2e0d5a2517ca57835527d058210155741f4b04c7851d8a01c0"
+              },
+              "decode": {
+                "bytes": 150112768,
+                "sha256": "aa5d8bdcf0bf4e981ad6b6e0742364446df9bf77c3f44d2888d20784868e41d2"
+              },
+              "greedy": {
+                "bytes": 38895616,
+                "sha256": "df3522e9e6ea89bc15a0b11d1ad6dffcea693c5a8d4f39380990b11219332c9b"
+              }
+            },
+            "passed": true
+          }
+        ]
+      }
+    },
+    "test_only_delta": {
+      "path": "tests/backend_vulkan.cpp",
+      "sha256": "0e3b05feb427b22e9a7e0ead9012efe1b3d08e3007b7798205b999aa3261a750",
+      "test_binary_sha256": "4e413534d32b506a4b3d485a3d3545a350d645bb058db5d4c7f3871b6cbdd5b1",
+      "description": "Remove Q2_K ID10 from the unsupported-type list and update both exact F16 catalog strings for Q2/Q3 F32 fallback. Runtime binaries, source pins, policy and bounds unchanged."
+    },
+    "retained_failures": [
+      "CPU focused launcher requested unrelated baseline fixtures through global require-baseline; HF-only launcher passes all selected components.",
+      "First Vulkan check retained an unsupported Q2_K expectation; correction exposed the exact catalog string mismatch. Both test failures retained; corrected backend and quantization continuation passes."
+    ],
+    "interpretation": "972 ordinary CPU/MI50 HF comparisons and 3 CPU/12 GPU full-vocabulary byte-identity controls pass. All six dedicated native checks passed before the unrelated launcher/test failures. Identity covers existing paths, not independent new-format correctness. Original failures remain in the evidence archive; no performance claim for concurrent functional checks."
+  },
+  "device_suite_checkpoint": {
+    "runtime_source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+    "binary_pins": {
+      "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+      "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+      "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+    },
+    "tool_pins": {
+      "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+      "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+      "llmx-cpu-f32-check": "4268b419670244d87c0faf78230465a9d92a079c875025b0e8d28096ef863c90",
+      "llmx-decode-probe": "92a0f0de9f56fa1ed89979095b68039265db9b7e123c6e1116f268c6310f371b",
+      "llmx-drafter-pack": "bf22e53a95f0ddf34d517ff722e50780f0f1930ed664190efbc0fcf927c8df40",
+      "llmx-server-spec-test": "5e7916b79e377c08ab1dac2f44146a548f4da70541f5890529ccf39cf960c9eb"
+    },
+    "components": {
+      "perplexity": "PASS",
+      "f32": "PASS",
+      "half-weights": "PASS",
+      "moe": "PASS",
+      "int8": "PASS",
+      "mxfp4": "PASS",
+      "q5-0": "PASS",
+      "q5-1": "PASS",
+      "iq4-nl": "PASS",
+      "qwen35": "PASS",
+      "decode-probe": "PASS",
+      "drafters": "PASS",
+      "shards": "PASS",
+      "server": "PASS",
+      "chat": "PASS",
+      "baseline": "PASS"
+    },
+    "seconds": 503.1291103363037,
+    "gpu": {
+      "physical": 9,
+      "render": 131,
+      "pci": "0000:cc:00.0",
+      "busy": 0,
+      "vram_used": 10919936,
+      "fuser": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "execution_sha256": "1902d1ec5e15d47795c59d9e87b8d2ad30fada234da522d6b8e54366ca9fd95b",
+    "log_sha256": "a4824cbe5521b0aa54f58cf30f9e3fbb72aba9b31dfb2ab9878f82d7e3853d94",
+    "tools_execution_sha256": "152e80eb155bc39ca4396e6a30f7e0b19972769e971be2d6ff306fda06bfbb34",
+    "tools_build_log_sha256": "48759e2b3e6dcc767e3d6621ae3934b0af062b3e717ecae89bbddf2cd64bcb35",
+    "tool_compilation": [
+      "[100%] Building CXX object CMakeFiles/llmx-cpu-f32-check.dir/tools/cpu_f32_check.cpp.o",
+      "[100%] Building CXX object CMakeFiles/llmx-decode-probe.dir/tools/decode_probe.cpp.o",
+      "[  0%] Building CXX object CMakeFiles/llmx-drafter-pack.dir/tools/drafter_pack.cpp.o",
+      "[ 98%] Building CXX object CMakeFiles/llmx-server-spec-test.dir/tests/server_spec.cpp.o"
+    ],
+    "before_build": {
+      "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+      "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+      "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+    },
+    "after_build": {
+      "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+      "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+      "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+    },
+    "model_pins": {
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf": {
+        "bytes": 639446688,
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf": {
+        "bytes": 382156480,
+        "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf": {
+        "bytes": 444415680,
+        "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf": {
+        "bytes": 396705472,
+        "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+      },
+      "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-UD-Q8_K_XL.gguf": {
+        "bytes": 844288704,
+        "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad"
+      },
+      "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q8_0.gguf": {
+        "bytes": 811843840,
+        "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
+      },
+      "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q4_K_M.gguf": {
+        "bytes": 532517120,
+        "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+      }
+    },
+    "removed": true,
+    "oom": false,
+    "skipped": 0,
+    "scope": "Sixteen existing-path components, including server/chat and all seven pinned baseline files, pass. The three new-format ordinary HF components were already completed separately. This does not replace Q2/Q3 released-file, depth, selected split or timing qualification."
+  },
+  "matched_timing_checkpoint": {
+    "scope": "Twelve existing files: candidate vs retained XS base; two new files: candidate vs pinned mx Vulkan. P512/G128, two samples per arm, all calls retained.",
+    "counts": {
+      "planned": 56,
+      "observed": 56,
+      "existing": 48,
+      "reference": 8,
+      "filtered": 0
+    },
+    "all_calls_complete": true,
+    "activity_thresholds": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "samples": 119,
+    "calls": [
+      {
+        "model": "qwen3-q8_0",
+        "block": "forward-qwen3-q8_0",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-q8_0",
+        "start": 1792559502.9291823,
+        "end": 1792559504.852458,
+        "rates": {
+          "pp512": 8852.59,
+          "tg128": 401.34
+        },
+        "status": "passed",
+        "stdout": "00-base-qwen3-q8_0.stdout",
+        "stderr": "00-base-qwen3-q8_0.stderr",
+        "usage": "00-base-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 0,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          1,
+          2,
+          3
+        ],
+        "duration_seconds": 1.9232757091522217,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q8_0",
+        "block": "forward-qwen3-q8_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q8_0",
+        "start": 1792559504.8535166,
+        "end": 1792559506.423166,
+        "rates": {
+          "pp512": 8886.28,
+          "tg128": 401.64
+        },
+        "status": "passed",
+        "stdout": "01-candidate-qwen3-q8_0.stdout",
+        "stderr": "01-candidate-qwen3-q8_0.stderr",
+        "usage": "01-candidate-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 1,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          3,
+          4,
+          5
+        ],
+        "duration_seconds": 1.5696494579315186,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "block": "forward-qwen3-q4_0",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-q4_0",
+        "start": 1792559506.4244928,
+        "end": 1792559508.0938737,
+        "rates": {
+          "pp512": 8360.15,
+          "tg128": 348.59
+        },
+        "status": "passed",
+        "stdout": "02-base-qwen3-q4_0.stdout",
+        "stderr": "02-base-qwen3-q4_0.stderr",
+        "usage": "02-base-qwen3-q4_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 2,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          5,
+          6,
+          7
+        ],
+        "duration_seconds": 1.6693809032440186,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "block": "forward-qwen3-q4_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q4_0",
+        "start": 1792559508.094966,
+        "end": 1792559509.6144755,
+        "rates": {
+          "pp512": 8360.17,
+          "tg128": 349.33
+        },
+        "status": "passed",
+        "stdout": "03-candidate-qwen3-q4_0.stdout",
+        "stderr": "03-candidate-qwen3-q4_0.stderr",
+        "usage": "03-candidate-qwen3-q4_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 3,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          7,
+          8
+        ],
+        "duration_seconds": 1.5195095539093018,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "block": "forward-qwen3-q5_k_m",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-q5_k_m",
+        "start": 1792559509.615603,
+        "end": 1792559511.2851405,
+        "rates": {
+          "pp512": 8141.14,
+          "tg128": 357.69
+        },
+        "status": "passed",
+        "stdout": "04-base-qwen3-q5_k_m.stdout",
+        "stderr": "04-base-qwen3-q5_k_m.stderr",
+        "usage": "04-base-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 4,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          8,
+          9,
+          10
+        ],
+        "duration_seconds": 1.6695375442504883,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "block": "forward-qwen3-q5_k_m",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q5_k_m",
+        "start": 1792559511.286265,
+        "end": 1792559512.855776,
+        "rates": {
+          "pp512": 8105.41,
+          "tg128": 356.26
+        },
+        "status": "passed",
+        "stdout": "05-candidate-qwen3-q5_k_m.stdout",
+        "stderr": "05-candidate-qwen3-q5_k_m.stderr",
+        "usage": "05-candidate-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 5,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          10,
+          11
+        ],
+        "duration_seconds": 1.5695111751556396,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "block": "forward-qwen3-q4_k_m",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-q4_k_m",
+        "start": 1792559512.857116,
+        "end": 1792559514.4274862,
+        "rates": {
+          "pp512": 8204.23,
+          "tg128": 361.65
+        },
+        "status": "passed",
+        "stdout": "06-base-qwen3-q4_k_m.stdout",
+        "stderr": "06-base-qwen3-q4_k_m.stderr",
+        "usage": "06-base-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 6,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          11,
+          12,
+          13
+        ],
+        "duration_seconds": 1.5703701972961426,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "block": "forward-qwen3-q4_k_m",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q4_k_m",
+        "start": 1792559514.428957,
+        "end": 1792559515.9485083,
+        "rates": {
+          "pp512": 8197.23,
+          "tg128": 364.25
+        },
+        "status": "passed",
+        "stdout": "07-candidate-qwen3-q4_k_m.stdout",
+        "stderr": "07-candidate-qwen3-q4_k_m.stderr",
+        "usage": "07-candidate-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 7,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          13,
+          14
+        ],
+        "duration_seconds": 1.5195512771606445,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "block": "forward-qwen35-q8_0",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen35-q8_0",
+        "start": 1792559515.9497898,
+        "end": 1792559518.070829,
+        "rates": {
+          "pp512": 7551.8,
+          "tg128": 348.68
+        },
+        "status": "passed",
+        "stdout": "08-base-qwen35-q8_0.stdout",
+        "stderr": "08-base-qwen35-q8_0.stderr",
+        "usage": "08-base-qwen35-q8_0.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 8,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          14,
+          15,
+          16,
+          17
+        ],
+        "duration_seconds": 2.1210391521453857,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "block": "forward-qwen35-q8_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen35-q8_0",
+        "start": 1792559518.0722427,
+        "end": 1792559519.9426093,
+        "rates": {
+          "pp512": 7569.13,
+          "tg128": 351.44
+        },
+        "status": "passed",
+        "stdout": "09-candidate-qwen35-q8_0.stdout",
+        "stderr": "09-candidate-qwen35-q8_0.stderr",
+        "usage": "09-candidate-qwen35-q8_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 9,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          17,
+          18
+        ],
+        "duration_seconds": 1.8703665733337402,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "block": "forward-qwen35-q4_k_m",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen35-q4_k_m",
+        "start": 1792559519.944084,
+        "end": 1792559521.9146302,
+        "rates": {
+          "pp512": 7044.45,
+          "tg128": 310.96
+        },
+        "status": "passed",
+        "stdout": "10-base-qwen35-q4_k_m.stdout",
+        "stderr": "10-base-qwen35-q4_k_m.stderr",
+        "usage": "10-base-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 10,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          18,
+          19,
+          20
+        ],
+        "duration_seconds": 1.9705462455749512,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "block": "forward-qwen35-q4_k_m",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen35-q4_k_m",
+        "start": 1792559521.9161022,
+        "end": 1792559523.8367252,
+        "rates": {
+          "pp512": 7028.75,
+          "tg128": 314.46
+        },
+        "status": "passed",
+        "stdout": "11-candidate-qwen35-q4_k_m.stdout",
+        "stderr": "11-candidate-qwen35-q4_k_m.stderr",
+        "usage": "11-candidate-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 11,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          20,
+          21,
+          22
+        ],
+        "duration_seconds": 1.9206230640411377,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "block": "forward-qwen3-q5_1",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-q5_1",
+        "start": 1792559523.8381653,
+        "end": 1792559525.4577959,
+        "rates": {
+          "pp512": 8378.68,
+          "tg128": 355.56
+        },
+        "status": "passed",
+        "stdout": "12-base-qwen3-q5_1.stdout",
+        "stderr": "12-base-qwen3-q5_1.stderr",
+        "usage": "12-base-qwen3-q5_1.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 12,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          22,
+          23,
+          24
+        ],
+        "duration_seconds": 1.6196305751800537,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "block": "forward-qwen3-q5_1",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q5_1",
+        "start": 1792559525.4591699,
+        "end": 1792559527.079214,
+        "rates": {
+          "pp512": 8379.55,
+          "tg128": 357.25
+        },
+        "status": "passed",
+        "stdout": "13-candidate-qwen3-q5_1.stdout",
+        "stderr": "13-candidate-qwen3-q5_1.stderr",
+        "usage": "13-candidate-qwen3-q5_1.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 13,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          24,
+          25,
+          26
+        ],
+        "duration_seconds": 1.620044231414795,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "block": "forward-qwen3-iq4_nl",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-iq4_nl",
+        "start": 1792559527.0806282,
+        "end": 1792559528.9007683,
+        "rates": {
+          "pp512": 6722.48,
+          "tg128": 271.97
+        },
+        "status": "passed",
+        "stdout": "14-base-qwen3-iq4_nl.stdout",
+        "stderr": "14-base-qwen3-iq4_nl.stderr",
+        "usage": "14-base-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 14,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          26,
+          27
+        ],
+        "duration_seconds": 1.8201401233673096,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "block": "forward-qwen3-iq4_nl",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-iq4_nl",
+        "start": 1792559528.9022305,
+        "end": 1792559530.7226584,
+        "rates": {
+          "pp512": 6738.27,
+          "tg128": 268.69
+        },
+        "status": "passed",
+        "stdout": "15-candidate-qwen3-iq4_nl.stdout",
+        "stderr": "15-candidate-qwen3-iq4_nl.stderr",
+        "usage": "15-candidate-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ],
+        "flagged_intervals": 3,
+        "index": 15,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          27,
+          28,
+          29
+        ],
+        "duration_seconds": 1.8204278945922852,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "block": "forward-qwen3-f16",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-f16",
+        "start": 1792559530.7245252,
+        "end": 1792559533.5961254,
+        "rates": {
+          "pp512": 1532.79,
+          "tg128": 224.53
+        },
+        "status": "passed",
+        "stdout": "16-base-qwen3-f16.stdout",
+        "stderr": "16-base-qwen3-f16.stderr",
+        "usage": "16-base-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ],
+        "flagged_intervals": 4,
+        "index": 16,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          29,
+          30,
+          31,
+          32
+        ],
+        "duration_seconds": 2.8716001510620117,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "block": "forward-qwen3-f16",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-f16",
+        "start": 1792559533.5976727,
+        "end": 1792559536.417082,
+        "rates": {
+          "pp512": 1536.73,
+          "tg128": 224.81
+        },
+        "status": "passed",
+        "stdout": "17-candidate-qwen3-f16.stdout",
+        "stderr": "17-candidate-qwen3-f16.stderr",
+        "usage": "17-candidate-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 17,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          32,
+          33,
+          34,
+          35
+        ],
+        "duration_seconds": 2.8194093704223633,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "block": "forward-qwen3-bf16",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-bf16",
+        "start": 1792559536.41905,
+        "end": 1792559538.7879732,
+        "rates": {
+          "pp512": 1529.47,
+          "tg128": 325.82
+        },
+        "status": "passed",
+        "stdout": "18-base-qwen3-bf16.stdout",
+        "stderr": "18-base-qwen3-bf16.stderr",
+        "usage": "18-base-qwen3-bf16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 18,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          35,
+          36,
+          37
+        ],
+        "duration_seconds": 2.3689231872558594,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "block": "forward-qwen3-bf16",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-bf16",
+        "start": 1792559538.789567,
+        "end": 1792559541.1082923,
+        "rates": {
+          "pp512": 1529.21,
+          "tg128": 326.96
+        },
+        "status": "passed",
+        "stdout": "19-candidate-qwen3-bf16.stdout",
+        "stderr": "19-candidate-qwen3-bf16.stderr",
+        "usage": "19-candidate-qwen3-bf16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 19,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          37,
+          38,
+          39,
+          40
+        ],
+        "duration_seconds": 2.318725347518921,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "block": "forward-qwen3-q5_0",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-q5_0",
+        "start": 1792559541.109935,
+        "end": 1792559542.8799477,
+        "rates": {
+          "pp512": 8165.65,
+          "tg128": 302.04
+        },
+        "status": "passed",
+        "stdout": "20-base-qwen3-q5_0.stdout",
+        "stderr": "20-base-qwen3-q5_0.stderr",
+        "usage": "20-base-qwen3-q5_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 20,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          40,
+          41
+        ],
+        "duration_seconds": 1.770012617111206,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "block": "forward-qwen3-q5_0",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q5_0",
+        "start": 1792559542.8815374,
+        "end": 1792559544.6019325,
+        "rates": {
+          "pp512": 8135.89,
+          "tg128": 301.13
+        },
+        "status": "passed",
+        "stdout": "21-candidate-qwen3-q5_0.stdout",
+        "stderr": "21-candidate-qwen3-q5_0.stderr",
+        "usage": "21-candidate-qwen3-q5_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 21,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          41,
+          42,
+          43
+        ],
+        "duration_seconds": 1.7203950881958008,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "block": "forward-qwen3-iq4_xs",
+        "direction": "forward",
+        "exe": "base",
+        "arm": "base-qwen3-iq4_xs",
+        "start": 1792559544.603806,
+        "end": 1792559546.5246735,
+        "rates": {
+          "pp512": 6539.82,
+          "tg128": 260.29
+        },
+        "status": "passed",
+        "stdout": "22-base-qwen3-iq4_xs.stdout",
+        "stderr": "22-base-qwen3-iq4_xs.stderr",
+        "usage": "22-base-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 22,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          43,
+          44,
+          45
+        ],
+        "duration_seconds": 1.9208674430847168,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "block": "forward-qwen3-iq4_xs",
+        "direction": "forward",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-iq4_xs",
+        "start": 1792559546.5263462,
+        "end": 1792559548.3961794,
+        "rates": {
+          "pp512": 6493.23,
+          "tg128": 257.88
+        },
+        "status": "passed",
+        "stdout": "23-candidate-qwen3-iq4_xs.stdout",
+        "stderr": "23-candidate-qwen3-iq4_xs.stderr",
+        "usage": "23-candidate-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 23,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          45,
+          46,
+          47
+        ],
+        "duration_seconds": 1.86983323097229,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "block": "reverse-qwen3-iq4_xs",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-iq4_xs",
+        "start": 1792559548.3979418,
+        "end": 1792559550.168504,
+        "rates": {
+          "pp512": 6553.02,
+          "tg128": 259.2
+        },
+        "status": "passed",
+        "stdout": "24-candidate-qwen3-iq4_xs.stdout",
+        "stderr": "24-candidate-qwen3-iq4_xs.stderr",
+        "usage": "24-candidate-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 24,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          47,
+          48,
+          49
+        ],
+        "duration_seconds": 1.7705621719360352,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "block": "reverse-qwen3-iq4_xs",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-iq4_xs",
+        "start": 1792559550.1702816,
+        "end": 1792559551.9405057,
+        "rates": {
+          "pp512": 6560.38,
+          "tg128": 259.7
+        },
+        "status": "passed",
+        "stdout": "25-base-qwen3-iq4_xs.stdout",
+        "stderr": "25-base-qwen3-iq4_xs.stderr",
+        "usage": "25-base-qwen3-iq4_xs.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 25,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          49,
+          50
+        ],
+        "duration_seconds": 1.7702240943908691,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "block": "reverse-qwen3-q5_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q5_0",
+        "start": 1792559551.9422925,
+        "end": 1792559553.6120877,
+        "rates": {
+          "pp512": 8142.35,
+          "tg128": 302.43
+        },
+        "status": "passed",
+        "stdout": "26-candidate-qwen3-q5_0.stdout",
+        "stderr": "26-candidate-qwen3-q5_0.stderr",
+        "usage": "26-candidate-qwen3-q5_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 26,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          50,
+          51,
+          52
+        ],
+        "duration_seconds": 1.669795274734497,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_0",
+        "block": "reverse-qwen3-q5_0",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-q5_0",
+        "start": 1792559553.6138928,
+        "end": 1792559555.2338967,
+        "rates": {
+          "pp512": 8137.16,
+          "tg128": 301.65
+        },
+        "status": "passed",
+        "stdout": "27-base-qwen3-q5_0.stdout",
+        "stderr": "27-base-qwen3-q5_0.stderr",
+        "usage": "27-base-qwen3-q5_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 27,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          52,
+          53,
+          54
+        ],
+        "duration_seconds": 1.6200039386749268,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "block": "reverse-qwen3-bf16",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-bf16",
+        "start": 1792559555.2356482,
+        "end": 1792559557.5551682,
+        "rates": {
+          "pp512": 1523.11,
+          "tg128": 326.71
+        },
+        "status": "passed",
+        "stdout": "28-candidate-qwen3-bf16.stdout",
+        "stderr": "28-candidate-qwen3-bf16.stderr",
+        "usage": "28-candidate-qwen3-bf16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 28,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          54,
+          55,
+          56
+        ],
+        "duration_seconds": 2.3195199966430664,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-bf16",
+        "block": "reverse-qwen3-bf16",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-bf16",
+        "start": 1792559557.5574803,
+        "end": 1792559559.8771908,
+        "rates": {
+          "pp512": 1526.83,
+          "tg128": 324.49
+        },
+        "status": "passed",
+        "stdout": "29-base-qwen3-bf16.stdout",
+        "stderr": "29-base-qwen3-bf16.stderr",
+        "usage": "29-base-qwen3-bf16.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 29,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          56,
+          57,
+          58
+        ],
+        "duration_seconds": 2.3197104930877686,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "block": "reverse-qwen3-f16",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-f16",
+        "start": 1792559559.8792164,
+        "end": 1792559562.6493447,
+        "rates": {
+          "pp512": 1537.61,
+          "tg128": 224.73
+        },
+        "status": "passed",
+        "stdout": "30-candidate-qwen3-f16.stdout",
+        "stderr": "30-candidate-qwen3-f16.stderr",
+        "usage": "30-candidate-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 30,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          58,
+          59,
+          60,
+          61
+        ],
+        "duration_seconds": 2.7701282501220703,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-f16",
+        "block": "reverse-qwen3-f16",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-f16",
+        "start": 1792559562.6512232,
+        "end": 1792559565.3712647,
+        "rates": {
+          "pp512": 1539.18,
+          "tg128": 224.13
+        },
+        "status": "passed",
+        "stdout": "31-base-qwen3-f16.stdout",
+        "stderr": "31-base-qwen3-f16.stderr",
+        "usage": "31-base-qwen3-f16.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 31,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          61,
+          62,
+          63,
+          64
+        ],
+        "duration_seconds": 2.720041513442993,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "block": "reverse-qwen3-iq4_nl",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-iq4_nl",
+        "start": 1792559565.3732514,
+        "end": 1792559567.143795,
+        "rates": {
+          "pp512": 6725.56,
+          "tg128": 271.8
+        },
+        "status": "passed",
+        "stdout": "32-candidate-qwen3-iq4_nl.stdout",
+        "stderr": "32-candidate-qwen3-iq4_nl.stderr",
+        "usage": "32-candidate-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 32,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          64,
+          65,
+          66
+        ],
+        "duration_seconds": 1.7705435752868652,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "block": "reverse-qwen3-iq4_nl",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-iq4_nl",
+        "start": 1792559567.1459816,
+        "end": 1792559568.8671575,
+        "rates": {
+          "pp512": 6715.08,
+          "tg128": 271.74
+        },
+        "status": "passed",
+        "stdout": "33-base-qwen3-iq4_nl.stdout",
+        "stderr": "33-base-qwen3-iq4_nl.stderr",
+        "usage": "33-base-qwen3-iq4_nl.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 33,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          66,
+          67
+        ],
+        "duration_seconds": 1.7211759090423584,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "block": "reverse-qwen3-q5_1",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q5_1",
+        "start": 1792559568.869119,
+        "end": 1792559570.4895117,
+        "rates": {
+          "pp512": 8357.21,
+          "tg128": 356.0
+        },
+        "status": "passed",
+        "stdout": "34-candidate-qwen3-q5_1.stdout",
+        "stderr": "34-candidate-qwen3-q5_1.stderr",
+        "usage": "34-candidate-qwen3-q5_1.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 34,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          67,
+          68,
+          69
+        ],
+        "duration_seconds": 1.6203927993774414,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_1",
+        "block": "reverse-qwen3-q5_1",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-q5_1",
+        "start": 1792559570.4917676,
+        "end": 1792559572.0625348,
+        "rates": {
+          "pp512": 8355.0,
+          "tg128": 355.45
+        },
+        "status": "passed",
+        "stdout": "35-base-qwen3-q5_1.stdout",
+        "stderr": "35-base-qwen3-q5_1.stderr",
+        "usage": "35-base-qwen3-q5_1.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 35,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          69,
+          70,
+          71
+        ],
+        "duration_seconds": 1.5707671642303467,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "block": "reverse-qwen35-q4_k_m",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen35-q4_k_m",
+        "start": 1792559572.0645165,
+        "end": 1792559574.0363853,
+        "rates": {
+          "pp512": 7028.82,
+          "tg128": 314.71
+        },
+        "status": "passed",
+        "stdout": "36-candidate-qwen35-q4_k_m.stdout",
+        "stderr": "36-candidate-qwen35-q4_k_m.stderr",
+        "usage": "36-candidate-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 36,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          71,
+          72
+        ],
+        "duration_seconds": 1.9718687534332275,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "block": "reverse-qwen35-q4_k_m",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen35-q4_k_m",
+        "start": 1792559574.0389478,
+        "end": 1792559575.9107308,
+        "rates": {
+          "pp512": 7043.08,
+          "tg128": 315.29
+        },
+        "status": "passed",
+        "stdout": "37-base-qwen35-q4_k_m.stdout",
+        "stderr": "37-base-qwen35-q4_k_m.stderr",
+        "usage": "37-base-qwen35-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 37,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          72,
+          73,
+          74
+        ],
+        "duration_seconds": 1.8717830181121826,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "block": "reverse-qwen35-q8_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen35-q8_0",
+        "start": 1792559575.9128277,
+        "end": 1792559577.8341124,
+        "rates": {
+          "pp512": 7534.15,
+          "tg128": 353.43
+        },
+        "status": "passed",
+        "stdout": "38-candidate-qwen35-q8_0.stdout",
+        "stderr": "38-candidate-qwen35-q8_0.stderr",
+        "usage": "38-candidate-qwen35-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 38,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          74,
+          75,
+          76
+        ],
+        "duration_seconds": 1.9212846755981445,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen35-q8_0",
+        "block": "reverse-qwen35-q8_0",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen35-q8_0",
+        "start": 1792559577.8364363,
+        "end": 1792559579.659684,
+        "rates": {
+          "pp512": 7542.78,
+          "tg128": 350.6
+        },
+        "status": "passed",
+        "stdout": "39-base-qwen35-q8_0.stdout",
+        "stderr": "39-base-qwen35-q8_0.stderr",
+        "usage": "39-base-qwen35-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 39,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          76,
+          77,
+          78
+        ],
+        "duration_seconds": 1.8232476711273193,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "block": "reverse-qwen3-q4_k_m",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q4_k_m",
+        "start": 1792559579.6624508,
+        "end": 1792559581.2327209,
+        "rates": {
+          "pp512": 8168.37,
+          "tg128": 362.07
+        },
+        "status": "passed",
+        "stdout": "40-candidate-qwen3-q4_k_m.stdout",
+        "stderr": "40-candidate-qwen3-q4_k_m.stderr",
+        "usage": "40-candidate-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 40,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          78,
+          79,
+          80
+        ],
+        "duration_seconds": 1.57027006149292,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "block": "reverse-qwen3-q4_k_m",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-q4_k_m",
+        "start": 1792559581.234859,
+        "end": 1792559582.705339,
+        "rates": {
+          "pp512": 8184.32,
+          "tg128": 362.34
+        },
+        "status": "passed",
+        "stdout": "41-base-qwen3-q4_k_m.stdout",
+        "stderr": "41-base-qwen3-q4_k_m.stderr",
+        "usage": "41-base-qwen3-q4_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 41,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          80,
+          81
+        ],
+        "duration_seconds": 1.470479965209961,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "block": "reverse-qwen3-q5_k_m",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q5_k_m",
+        "start": 1792559582.7079773,
+        "end": 1792559584.2788224,
+        "rates": {
+          "pp512": 8102.9,
+          "tg128": 352.62
+        },
+        "status": "passed",
+        "stdout": "42-candidate-qwen3-q5_k_m.stdout",
+        "stderr": "42-candidate-qwen3-q5_k_m.stderr",
+        "usage": "42-candidate-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 42,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          81,
+          82,
+          83
+        ],
+        "duration_seconds": 1.570845127105713,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "block": "reverse-qwen3-q5_k_m",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-q5_k_m",
+        "start": 1792559584.2811174,
+        "end": 1792559585.8019207,
+        "rates": {
+          "pp512": 8101.09,
+          "tg128": 356.34
+        },
+        "status": "passed",
+        "stdout": "43-base-qwen3-q5_k_m.stdout",
+        "stderr": "43-base-qwen3-q5_k_m.stderr",
+        "usage": "43-base-qwen3-q5_k_m.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 2,
+        "index": 43,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          83,
+          84
+        ],
+        "duration_seconds": 1.5208032131195068,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "block": "reverse-qwen3-q4_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q4_0",
+        "start": 1792559585.8041747,
+        "end": 1792559587.3745828,
+        "rates": {
+          "pp512": 8325.01,
+          "tg128": 348.2
+        },
+        "status": "passed",
+        "stdout": "44-candidate-qwen3-q4_0.stdout",
+        "stderr": "44-candidate-qwen3-q4_0.stderr",
+        "usage": "44-candidate-qwen3-q4_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ],
+        "flagged_intervals": 3,
+        "index": 44,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          84,
+          85,
+          86
+        ],
+        "duration_seconds": 1.5704081058502197,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q4_0",
+        "block": "reverse-qwen3-q4_0",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-q4_0",
+        "start": 1792559587.3768227,
+        "end": 1792559588.8969219,
+        "rates": {
+          "pp512": 8320.1,
+          "tg128": 349.12
+        },
+        "status": "passed",
+        "stdout": "45-base-qwen3-q4_0.stdout",
+        "stderr": "45-base-qwen3-q4_0.stderr",
+        "usage": "45-base-qwen3-q4_0.usage.json",
+        "activity_intervals": 2,
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ],
+        "flagged_intervals": 2,
+        "index": 45,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          86,
+          87
+        ],
+        "duration_seconds": 1.52009916305542,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q8_0",
+        "block": "reverse-qwen3-q8_0",
+        "direction": "reverse",
+        "exe": "candidate",
+        "arm": "candidate-qwen3-q8_0",
+        "start": 1792559588.8992145,
+        "end": 1792559590.5702987,
+        "rates": {
+          "pp512": 8793.7,
+          "tg128": 401.84
+        },
+        "status": "passed",
+        "stdout": "46-candidate-qwen3-q8_0.stdout",
+        "stderr": "46-candidate-qwen3-q8_0.stderr",
+        "usage": "46-candidate-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ],
+        "flagged_intervals": 3,
+        "index": 46,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          87,
+          88,
+          89
+        ],
+        "duration_seconds": 1.6710841655731201,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q8_0",
+        "block": "reverse-qwen3-q8_0",
+        "direction": "reverse",
+        "exe": "base",
+        "arm": "base-qwen3-q8_0",
+        "start": 1792559590.5727131,
+        "end": 1792559592.0933633,
+        "rates": {
+          "pp512": 8842.67,
+          "tg128": 402.82
+        },
+        "status": "passed",
+        "stdout": "47-base-qwen3-q8_0.stdout",
+        "stderr": "47-base-qwen3-q8_0.stderr",
+        "usage": "47-base-qwen3-q8_0.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 47,
+        "category": "existing_vs_base",
+        "activity_interval_indices": [
+          89,
+          90,
+          91
+        ],
+        "duration_seconds": 1.5206501483917236,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q2_k",
+        "block": "newtype-abba-qwen3-q2_k",
+        "direction": null,
+        "exe": "candidate",
+        "arm": "candidate",
+        "start": 1792559592.095801,
+        "end": 1792559596.8717413,
+        "rates": {
+          "pp512": 1055.09,
+          "tg128": 85.2
+        },
+        "status": "passed",
+        "stdout": "48-candidate.stdout",
+        "stderr": "48-candidate.stderr",
+        "usage": "48-candidate.usage.json",
+        "activity_intervals": 5,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 5,
+        "index": 48,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          91,
+          92,
+          93,
+          94,
+          95
+        ],
+        "duration_seconds": 4.775940179824829,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q2_k",
+        "block": "newtype-abba-qwen3-q2_k",
+        "direction": null,
+        "exe": "mx",
+        "arm": "mx",
+        "start": 1792559596.8746583,
+        "end": 1792559599.4471064,
+        "rates": {
+          "pp512": 5442.78,
+          "tg128": 261.37
+        },
+        "status": "passed",
+        "stdout": "49-mx.stdout",
+        "stderr": "49-mx.stderr",
+        "usage": "49-mx.usage.json",
+        "activity_intervals": 4,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 4,
+        "index": 49,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          95,
+          96,
+          97,
+          98
+        ],
+        "duration_seconds": 2.5724480152130127,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q2_k",
+        "block": "newtype-abba-qwen3-q2_k",
+        "direction": null,
+        "exe": "mx",
+        "arm": "mx",
+        "start": 1792559599.4497836,
+        "end": 1792559601.3709612,
+        "rates": {
+          "pp512": 5466.19,
+          "tg128": 261.05
+        },
+        "status": "passed",
+        "stdout": "50-mx.stdout",
+        "stderr": "50-mx.stderr",
+        "usage": "50-mx.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 50,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          98,
+          99,
+          100
+        ],
+        "duration_seconds": 1.921177625656128,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q2_k",
+        "block": "newtype-abba-qwen3-q2_k",
+        "direction": null,
+        "exe": "candidate",
+        "arm": "candidate",
+        "start": 1792559601.3735764,
+        "end": 1792559605.999641,
+        "rates": {
+          "pp512": 1062.64,
+          "tg128": 84.72
+        },
+        "status": "passed",
+        "stdout": "51-candidate.stdout",
+        "stderr": "51-candidate.stderr",
+        "usage": "51-candidate.usage.json",
+        "activity_intervals": 5,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 5,
+        "index": 51,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          100,
+          101,
+          102,
+          103,
+          104
+        ],
+        "duration_seconds": 4.6260645389556885,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "block": "newtype-abba-qwen3-q3_k_s",
+        "direction": null,
+        "exe": "candidate",
+        "arm": "candidate",
+        "start": 1792559606.0021765,
+        "end": 1792559610.7291276,
+        "rates": {
+          "pp512": 1100.75,
+          "tg128": 84.14
+        },
+        "status": "passed",
+        "stdout": "52-candidate.stdout",
+        "stderr": "52-candidate.stderr",
+        "usage": "52-candidate.usage.json",
+        "activity_intervals": 6,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 6,
+        "index": 52,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "duration_seconds": 4.7269511222839355,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "block": "newtype-abba-qwen3-q3_k_s",
+        "direction": null,
+        "exe": "mx",
+        "arm": "mx",
+        "start": 1792559610.7317834,
+        "end": 1792559612.703559,
+        "rates": {
+          "pp512": 6099.17,
+          "tg128": 255.48
+        },
+        "status": "passed",
+        "stdout": "53-mx.stdout",
+        "stderr": "53-mx.stderr",
+        "usage": "53-mx.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 53,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          109,
+          110,
+          111
+        ],
+        "duration_seconds": 1.9717755317687988,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "block": "newtype-abba-qwen3-q3_k_s",
+        "direction": null,
+        "exe": "mx",
+        "arm": "mx",
+        "start": 1792559612.7062879,
+        "end": 1792559614.6783466,
+        "rates": {
+          "pp512": 6134.78,
+          "tg128": 256.5
+        },
+        "status": "passed",
+        "stdout": "54-mx.stdout",
+        "stderr": "54-mx.stderr",
+        "usage": "54-mx.usage.json",
+        "activity_intervals": 3,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 3,
+        "index": 54,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          111,
+          112,
+          113
+        ],
+        "duration_seconds": 1.9720587730407715,
+        "monitor_covers_whole_call": true
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "block": "newtype-abba-qwen3-q3_k_s",
+        "direction": null,
+        "exe": "candidate",
+        "arm": "candidate",
+        "start": 1792559614.681068,
+        "end": 1792559619.3096404,
+        "rates": {
+          "pp512": 1096.15,
+          "tg128": 83.75
+        },
+        "status": "passed",
+        "stdout": "55-candidate.stdout",
+        "stderr": "55-candidate.stderr",
+        "usage": "55-candidate.usage.json",
+        "activity_intervals": 5,
+        "activity_flags": [
+          "disk"
+        ],
+        "flagged_intervals": 5,
+        "index": 55,
+        "category": "new_type_vs_mx",
+        "activity_interval_indices": [
+          113,
+          114,
+          115,
+          116,
+          117
+        ],
+        "duration_seconds": 4.628572463989258,
+        "monitor_covers_whole_call": false
+      }
+    ],
+    "existing_path_rows": [
+      {
+        "model": "qwen3-q8_0",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+          "bytes": 639446688,
+          "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 8847.630000000001,
+            "tg128": 402.08
+          },
+          "candidate": {
+            "pp512": 8839.990000000002,
+            "tg128": 401.74
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.0863508080695019,
+          "tg128": -0.08456028651013803
+        },
+        "call_indices": [
+          0,
+          1,
+          46,
+          47
+        ],
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "model": "qwen3-q4_0",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf",
+          "bytes": 382156480,
+          "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 8340.125,
+            "tg128": 348.855
+          },
+          "candidate": {
+            "pp512": 8342.59,
+            "tg128": 348.765
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": 0.029555911931766765,
+          "tg128": -0.02579868426710874
+        },
+        "call_indices": [
+          2,
+          3,
+          44,
+          45
+        ],
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "model": "qwen3-q5_k_m",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf",
+          "bytes": 444415680,
+          "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 8121.115,
+            "tg128": 357.015
+          },
+          "candidate": {
+            "pp512": 8104.155,
+            "tg128": 354.44
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.20883831838361955,
+          "tg128": -0.721258210439335
+        },
+        "call_indices": [
+          4,
+          5,
+          42,
+          43
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen3-q4_k_m",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf",
+          "bytes": 396705472,
+          "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 8194.275,
+            "tg128": 361.995
+          },
+          "candidate": {
+            "pp512": 8182.799999999999,
+            "tg128": 363.15999999999997
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.14003679398116864,
+          "tg128": 0.32182764955315246
+        },
+        "call_indices": [
+          6,
+          7,
+          40,
+          41
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen35-q8_0",
+        "model_pin": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q8_0.gguf",
+          "bytes": 811843840,
+          "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 7547.29,
+            "tg128": 349.64
+          },
+          "candidate": {
+            "pp512": 7551.639999999999,
+            "tg128": 352.435
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": 0.0576365821374214,
+          "tg128": 0.7993936620523945
+        },
+        "call_indices": [
+          8,
+          9,
+          38,
+          39
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "model_pin": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q4_K_M.gguf",
+          "bytes": 532517120,
+          "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 7043.764999999999,
+            "tg128": 313.125
+          },
+          "candidate": {
+            "pp512": 7028.785,
+            "tg128": 314.585
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.21267035456179473,
+          "tg128": 0.4662674650698584
+        },
+        "call_indices": [
+          10,
+          11,
+          36,
+          37
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen3-q5_1",
+        "model_pin": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q5-file-reference/Qwen3-0.6B-Q5_1.gguf",
+          "bytes": 569888576,
+          "sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 8366.84,
+            "tg128": 355.505
+          },
+          "candidate": {
+            "pp512": 8368.38,
+            "tg128": 356.625
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": 0.01840599318259084,
+          "tg128": 0.3150447954318514
+        },
+        "call_indices": [
+          12,
+          13,
+          34,
+          35
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "model_pin": {
+          "path": "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+          "bytes": 381566656,
+          "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 6718.78,
+            "tg128": 271.855
+          },
+          "candidate": {
+            "pp512": 6731.915000000001,
+            "tg128": 270.245
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": 0.19549680150268145,
+          "tg128": -0.5922274742050093
+        },
+        "call_indices": [
+          14,
+          15,
+          32,
+          33
+        ],
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "model": "qwen3-f16",
+        "model_pin": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/half-f16-file-reference/Qwen3-0.6B-F16-converted.gguf",
+          "bytes": 1509347136,
+          "sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 1535.9850000000001,
+            "tg128": 224.32999999999998
+          },
+          "candidate": {
+            "pp512": 1537.17,
+            "tg128": 224.76999999999998
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": 0.07714919091006411,
+          "tg128": 0.19613961574465044
+        },
+        "call_indices": [
+          16,
+          17,
+          30,
+          31
+        ],
+        "activity_flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "model": "qwen3-bf16",
+        "model_pin": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/half-bf16-file-reference/Qwen3-0.6B-BF16.gguf",
+          "bytes": 1198182848,
+          "sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 1528.15,
+            "tg128": 325.155
+          },
+          "candidate": {
+            "pp512": 1526.1599999999999,
+            "tg128": 326.835
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.13022281844061734,
+          "tg128": 0.5166766618997176
+        },
+        "call_indices": [
+          18,
+          19,
+          28,
+          29
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen3-q5_0",
+        "model_pin": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q50-real-reference-a1fc99258/Qwen3-0.6B-Q5_0-converted.gguf",
+          "bytes": 522915648,
+          "sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 8151.405,
+            "tg128": 301.845
+          },
+          "candidate": {
+            "pp512": 8139.120000000001,
+            "tg128": 301.78
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.1507102149874595,
+          "tg128": -0.021534231145137195
+        },
+        "call_indices": [
+          20,
+          21,
+          26,
+          27
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "model_pin": {
+          "path": "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "bytes": 367804096,
+          "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "base": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "base": {
+            "pp512": 6550.1,
+            "tg128": 259.995
+          },
+          "candidate": {
+            "pp512": 6523.125,
+            "tg128": 258.53999999999996
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -0.411825773652319,
+          "tg128": -0.5596261466566776
+        },
+        "call_indices": [
+          22,
+          23,
+          24,
+          25
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      }
+    ],
+    "new_type_reference_rows": [
+      {
+        "model": "qwen3-q2_k",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q2_K.gguf",
+          "bytes": 296238784,
+          "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "mx": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "mx": {
+            "pp512": 5454.485,
+            "tg128": 261.21000000000004
+          },
+          "candidate": {
+            "pp512": 1058.865,
+            "tg128": 84.96000000000001
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -80.58725984212991,
+          "tg128": -67.47444584816814
+        },
+        "call_indices": [
+          48,
+          49,
+          50,
+          51
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "model_pin": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+          "bytes": 323075776,
+          "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "expected_samples_per_arm": 2,
+        "actual_samples_per_arm": {
+          "mx": 2,
+          "candidate": 2
+        },
+        "complete": true,
+        "means": {
+          "mx": {
+            "pp512": 6116.975,
+            "tg128": 255.99
+          },
+          "candidate": {
+            "pp512": 1098.45,
+            "tg128": 83.945
+          }
+        },
+        "candidate_change_percent": {
+          "pp512": -82.04259458310685,
+          "tg128": -67.20770342591507
+        },
+        "call_indices": [
+          52,
+          53,
+          54,
+          55
+        ],
+        "activity_flags": [
+          "disk"
+        ]
+      }
+    ],
+    "flagged_interval_counts": {
+      "system_idle": 0,
+      "iowait": 0,
+      "unrelated_cpu": 4,
+      "disk": 118,
+      "sample_gap": 0
+    },
+    "provenance": {
+      "activity_owner": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-model-timing\\summarize.py",
+      "activity_owner_sha256": "c7b7fdc0dbe5a329ce431d44147222ac03bd2795ebe25fef81041671b2658e87",
+      "plan_sha256": "b0c9496d0010948789e0db65ac23e662a42a3e837a5ebb53e23c398a34fd6059",
+      "complete_sha256": "a47aa76fd0db0d6870311bf13b6b42586580c807ecbe1d25cfc96ae8b61d08a3"
+    },
+    "execution_identities": {
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "executables": {
+        "mx": {
+          "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+          "revision": "eefc4e7321c869496146697d63362f073941aed6",
+          "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+          "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+          "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+          "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+        },
+        "base": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/base/build/llmx",
+          "sha256": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568",
+          "version": "llmx 0.1.0+unknown numerics a167275ca2df1ffc"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/candidate/build/llmx",
+          "sha256": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+          "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1"
+        }
+      },
+      "source_arms": {
+        "base": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/base",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/source-pins.json",
+          "revision": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+          "library_sha256": "f0e6f6c28f6c145e3366073490e9fda4c0380f91a18b7645ed7dbfb25916d3ab"
+        },
+        "candidate": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/candidate",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/q23-xs-integration-20261021/source-pins.json",
+          "revision": "bb59ae431c2fee1a399fae94298d75df5d082db6",
+          "library_sha256": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+        }
+      },
+      "threads": 4,
+      "ubatch": 512,
+      "dtype": "auto",
+      "cache_type_k": "f32",
+      "cache_type_v": "f32",
+      "gpu_node": "/dev/dri/renderD130",
+      "gpu_pci": "0000:c9:00.0",
+      "cpu_set": "4-7"
+    },
+    "limitations": [
+      "Only two samples per arm/file; these means do not establish a noise band or causal attribution for small changes.",
+      "Original activity classification and thresholds are unchanged. All calls, slow samples and flagged samples remain included.",
+      "Process lifetimes between samples and monitor tails may be unobserved; per-call coverage and missing process deltas are retained.",
+      "Disk counters are the retained aggregate whole-device rate, not attributed model reads. GPU values are snapshots, not phase timings.",
+      "Q2_K file contains Q3_K matrices; its new-type comparison exercises both formats. Prior first-support speed deficits remain historical evidence.",
+      "Reference is the same pinned mx Vulkan eefc4e7321c8/F32-KV adapter, not ROCm or latest mx. No server/MTP claim."
+    ],
+    "summary_sha256": "28c9d2a98b04a71e73b5d135e2a58b82be4a44a4b7fdac1a6b2b3d2dbe7e3422",
+    "raw_activity_sha256": "90a4cae47e54450b1b3364ff05c2515f319abab311bd0f8467eed8df325e294d",
+    "archive_sha256": "2d39da4d61934c89bfa157e619e0a8860069cd7ca7e76725af3312b0b1819fa1",
+    "launch_sha256": "b6efe5578c264c7129c86810a7b97c57033e6a54f33adbd9ba1c75613b98fcee",
+    "raw_call_artifact_hashes": {
+      "00-base-qwen3-q8_0.stdout": "0ce3c233ed9c2b6aa624440d8a6be72a2e978fe001d57e04588181c09c3c9481",
+      "00-base-qwen3-q8_0.stderr": "7a4685718898b7f8318649c18ee8b381e491dc1d3c5b84474f4ca664d28c13e3",
+      "00-base-qwen3-q8_0.usage.json": "63d86ae172a450bee7aa6feaa51a43ad88e64fcff2458b88edb6fe1883002a64",
+      "01-candidate-qwen3-q8_0.stdout": "e3d9081e7b50bb8f50c4841cf0e51170a42ae5d46d99203a52fca06eb8600d39",
+      "01-candidate-qwen3-q8_0.stderr": "85aa7b625ea93322f54355e5eb95e8ee61a7a1401dd4be677b7595febb63b3c6",
+      "01-candidate-qwen3-q8_0.usage.json": "67fe20bc8bea3d48da182f4fe4da21e7e3aab267e04c2c60cfe52c3e013500cd",
+      "02-base-qwen3-q4_0.stdout": "60d9924930006a647191b351f9e58cec7a065a00711f9341bc3f4265136d3df6",
+      "02-base-qwen3-q4_0.stderr": "719c44d9305ec9dfd4a7d7889b5a15c53e3e8f538d7fe74d0b6ecfc7b13ed89d",
+      "02-base-qwen3-q4_0.usage.json": "3ab54362677f145acafddbb8055cb8268fd8c8b9c3d765adab446610d5b1d83f",
+      "03-candidate-qwen3-q4_0.stdout": "f512da3fa6be67c5fca806e2e3647a613649358f06b47abe80a2dd7c69cf05f6",
+      "03-candidate-qwen3-q4_0.stderr": "a532bdb6fa0a7ea42f3f7595a3190cc17f14f80a38aa40e46be7ad7c6e238362",
+      "03-candidate-qwen3-q4_0.usage.json": "a783fc4d50722439918f367f3fdea15b6f13bf7c9631ae0f9c1c82673c3b751e",
+      "04-base-qwen3-q5_k_m.stdout": "6ee57fc07fb6a3b834a733dd25ac350a7921a1690650ee86804bf2efdbc25e8c",
+      "04-base-qwen3-q5_k_m.stderr": "f0b64d3288366c413337de203b81d377667b27135a5ff43e9f650e3b6df34831",
+      "04-base-qwen3-q5_k_m.usage.json": "a27e2cb04c65ee98bf45676926ef5755968ca9e88fe224e837fc396f3ff49730",
+      "05-candidate-qwen3-q5_k_m.stdout": "4461a16e4cfd4674ecaa76535ffb989e87595ced1671480c8f1b792628fb02f7",
+      "05-candidate-qwen3-q5_k_m.stderr": "276f9deea277147bb4aa12e7d5c7ccb4ba1d2fe12119ae2a4d95170ae7f5f2db",
+      "05-candidate-qwen3-q5_k_m.usage.json": "0e91a09521ac6e32e357a70e2c1dd89c0560e58cc523d376abb8f2930e586f19",
+      "06-base-qwen3-q4_k_m.stdout": "ec1eb4212ea016e7203089df7b69ea0259c657227fb37eb6209e2a8c287088c1",
+      "06-base-qwen3-q4_k_m.stderr": "c82343ebe4fdd5a3f4c5a0638dadb6668526f106988199825cb6f490b4400e2a",
+      "06-base-qwen3-q4_k_m.usage.json": "b42cd0123d27c8f744114909d920f3e883286fb84656335eb5a15b9ab2dc8dce",
+      "07-candidate-qwen3-q4_k_m.stdout": "aa79dfb9f16164f8cab677e7caaacbdd7c2f030b49882c02f673a8d6fc2252fb",
+      "07-candidate-qwen3-q4_k_m.stderr": "4cb6236d4dd50ccb6396cfb39a550e58375d4782cd51df5f2d07f0ae07f78dfa",
+      "07-candidate-qwen3-q4_k_m.usage.json": "2d9378bd32ad007d13a71b5cf1290e44382e583dc7c12cd4a3034841c5bb85d1",
+      "08-base-qwen35-q8_0.stdout": "2a4c51524fc9715de4dc754f79f10fef8215495c13cd0cab1fcda8592cfdf785",
+      "08-base-qwen35-q8_0.stderr": "3ba06085cad3a29db698e192e3d36b17f67cf98c75a483c60a2b87ece6099c93",
+      "08-base-qwen35-q8_0.usage.json": "6900c6ec029f3a7ca3128b77ff41e96136353a7f787c983296ee1eb592f13aec",
+      "09-candidate-qwen35-q8_0.stdout": "5da8b101227ab11cf3aa345645e0ca221a8e19576164cf24b544687eedf7928e",
+      "09-candidate-qwen35-q8_0.stderr": "0b316903efb4f991db5578a7feff4d19ff778f5087f67e1827d932e53a20fbc9",
+      "09-candidate-qwen35-q8_0.usage.json": "4738fb15839337a3ac761a698a4fa2b360f99d1f06153dcab53c597a10162cd6",
+      "10-base-qwen35-q4_k_m.stdout": "26e0689ce79b16743b51a37d4fed742e87853298f1a2d8c769e8c49038e32bd0",
+      "10-base-qwen35-q4_k_m.stderr": "3423ce9d8c594a04f7e6c4a7fb10f7402932ee11b8f3af31af10cdfe577de502",
+      "10-base-qwen35-q4_k_m.usage.json": "e0ccb4b7b8821575a0ee727e0e1e7be813519ccd6bd0e55a4c9bad7ff56f18ad",
+      "11-candidate-qwen35-q4_k_m.stdout": "bea0322d4ba63f74c6df2bc11f00be3e15207f8f31fac79b743c19eb975948ae",
+      "11-candidate-qwen35-q4_k_m.stderr": "548698e98111b624c351a4151bd7a5eef58135292d3ea9554106b17254638de8",
+      "11-candidate-qwen35-q4_k_m.usage.json": "05457b4d8391a5fe86853df89569a322d74193994eaade1605b0e21ea1573fe5",
+      "12-base-qwen3-q5_1.stdout": "a172c1262b853014fc69bb24730eef786fb375a0493accc0746f82a1dd054497",
+      "12-base-qwen3-q5_1.stderr": "dae8b4e145ed8018e0b887ac2f3011e0bde6db2ab3836078d354c2e2663082c2",
+      "12-base-qwen3-q5_1.usage.json": "ec8ceca3ff7756751a42419ce0f02625bad2026e0e58d42ceca4801480290e7a",
+      "13-candidate-qwen3-q5_1.stdout": "24d8e97245aa7b7bc760e878b5ce94151ac1c08684d5ad518344e810cb7ba290",
+      "13-candidate-qwen3-q5_1.stderr": "f48474ac9c3fdcf6bb5cceae4f830a913545fffc3bb8c54f8511c6edb0abd478",
+      "13-candidate-qwen3-q5_1.usage.json": "6c7faa43a65500814dd1c90e629659413080f9673a712a0e9979ec0e6ff62f8b",
+      "14-base-qwen3-iq4_nl.stdout": "26f52ebf0c462f427f2d6ca81e0126cf3f76f883a8eb51415bd402bf81dda299",
+      "14-base-qwen3-iq4_nl.stderr": "36592c03b4cc04e7198e2de3972d4e577372dbd9fe7253f5f9a0063967f5a0f4",
+      "14-base-qwen3-iq4_nl.usage.json": "f2229007fb536be52cfd525b201c487f27bde359ce6107ae7f3ff80b786f5b49",
+      "15-candidate-qwen3-iq4_nl.stdout": "a636204271209851045d6a49df8c57c7e999c2b02c5e5d7eca2d87442d6ff593",
+      "15-candidate-qwen3-iq4_nl.stderr": "b726094395362192578fdec721079a33824ae3b96df4112a53104bff8b80493a",
+      "15-candidate-qwen3-iq4_nl.usage.json": "de7299de3b47f6957d907449f81012b5404ea2096a2d053296fa5c1e208f4b10",
+      "16-base-qwen3-f16.stdout": "e9e11d11571f123a0743a2315789a2a28e49cd01d17de0accf7c394032f726cb",
+      "16-base-qwen3-f16.stderr": "4c4f67936529df216777388a90cce0c32b37a1bec7742b4cf1a7a4c09498cd58",
+      "16-base-qwen3-f16.usage.json": "5ec43afbd9b3fd43d3bc3da0a0c9e7133ab5277b501b0628dfcd32d74bc99364",
+      "17-candidate-qwen3-f16.stdout": "0b6ff58cc7890e66522def370b22149a55a91f3c28179a010cf5a80158394cf1",
+      "17-candidate-qwen3-f16.stderr": "55fa26b08e378cf71e24adf643ce4e1f2478a654f11ef88ae07dbf21aa9d8488",
+      "17-candidate-qwen3-f16.usage.json": "f428fcfdb8da07fab2eff7727e883f6ba13469fb0b14649c23ad9883bd365d7c",
+      "18-base-qwen3-bf16.stdout": "16398986b36b4c5b609dd931d870dca66667ee117ccd1e2ecf1eb238c2d803ff",
+      "18-base-qwen3-bf16.stderr": "83eec93be70bae6be92266aca4e2c9d8125adb0f503164d564bb671c501bcb6a",
+      "18-base-qwen3-bf16.usage.json": "1b0e2b1f6861b019b63cf10318320e631a471418bb1dcd5833e2975cc6305044",
+      "19-candidate-qwen3-bf16.stdout": "553163c04c2cd91dff9af9b2af8f717584a978256e6745427314a67633b13646",
+      "19-candidate-qwen3-bf16.stderr": "301e6e5fa5f6ffa371391a9b6c6a2359dace90fe361294aa98b281dc3032407e",
+      "19-candidate-qwen3-bf16.usage.json": "e5af547f859af55bd68b92a32b1ec686c9d5797dcc0eac9388701b77a6cef1b9",
+      "20-base-qwen3-q5_0.stdout": "24f829d2cd35e751e9748df5dd9ab302828f242b08109e90bec037b4d9303335",
+      "20-base-qwen3-q5_0.stderr": "bf354ff625e51958d3df0fd088267ac835311af7143dddec5769b33497317883",
+      "20-base-qwen3-q5_0.usage.json": "36cb6ccf94c4a3069f514036ae90c3ad402bc2f54b0adb3c74ffbe46584eab6b",
+      "21-candidate-qwen3-q5_0.stdout": "6299953a39cf08145cfffec58e462345e097d1afc033e65f87343669db376905",
+      "21-candidate-qwen3-q5_0.stderr": "ba18339e6ef62b2b1815e8cdd701301375054c9936dc3564760b46b5dd4d43c1",
+      "21-candidate-qwen3-q5_0.usage.json": "bed345d7c6e2263a77a8ba9b2cbe94a61673c0503bfefbe37974688e50383694",
+      "22-base-qwen3-iq4_xs.stdout": "c49d64ae04701b8ef18df83e8043f0ce1962fb902b7b88de06b332a5cd6a1565",
+      "22-base-qwen3-iq4_xs.stderr": "039aa39ed7d83dd1863aa9eb24ce17fabd71afe3196e5db62168a5808e91a8cb",
+      "22-base-qwen3-iq4_xs.usage.json": "f6cd078a3bf7e37d3c593a822f94eeba9447579b127b6413f1178aac90976177",
+      "23-candidate-qwen3-iq4_xs.stdout": "13ce06e96f5988d0880bb692c336ec397499f5c5ea41af1d63787687bb0e145a",
+      "23-candidate-qwen3-iq4_xs.stderr": "bc13827c0f6b5c0879e4f47e192982d42199500c67e2196f97bc06eadde99bba",
+      "23-candidate-qwen3-iq4_xs.usage.json": "dfef67ee650a66edc5e5794becd9a5fcbff6f3ed6237f206bd7619270eb97483",
+      "24-candidate-qwen3-iq4_xs.stdout": "520271951980c26ff50c4c32a3fb9ff62ac509c2dbf5afb9bb7e6f1f47894393",
+      "24-candidate-qwen3-iq4_xs.stderr": "b4118400723b1eb29460f37ab5a1e564633c1861c0ae062a27c3a6fcfb3df7a2",
+      "24-candidate-qwen3-iq4_xs.usage.json": "cb70a15b789157c07cad02f3f93595ecb3ed00a381980a3f6e733e9fb247d933",
+      "25-base-qwen3-iq4_xs.stdout": "19827d7512adbcbe166ad748bfde5d01b8b5755cea283d7a8af8ebc8d7b9193c",
+      "25-base-qwen3-iq4_xs.stderr": "92d91128bdf26e2027ff3db3ae1bc49e8e24c366c043591cfd13bd70505aace1",
+      "25-base-qwen3-iq4_xs.usage.json": "4507ce3dd8ed212b9ec00cb6cd92c9dab38b0921af3cd2973e8aeb279c5b64b9",
+      "26-candidate-qwen3-q5_0.stdout": "aaa95108ce8e4b9f4c6f9c535812d379f7cde5bbfadc4317f9befceadf789115",
+      "26-candidate-qwen3-q5_0.stderr": "ba18339e6ef62b2b1815e8cdd701301375054c9936dc3564760b46b5dd4d43c1",
+      "26-candidate-qwen3-q5_0.usage.json": "4c367f2b2e3ce3c71462fe76268c138ab34fc0d91cc7f35bfb4ae94753109256",
+      "27-base-qwen3-q5_0.stdout": "959ec840c4ce26532545358b32aae5638256dcd444a205089f7013f62a8c0e2a",
+      "27-base-qwen3-q5_0.stderr": "e2910ce2ca22d75677e3478e42a555fe0b931cd9f7269da91e407eb080b3a4ac",
+      "27-base-qwen3-q5_0.usage.json": "60a429ffd7a643f066a7fe77df1753ed15a35d90fcde2dc687a0c8a3c2d9de65",
+      "28-candidate-qwen3-bf16.stdout": "103b6b9c49d4fcb9032a864a02846c060dba640724b06d8f5d7b609ae98009e8",
+      "28-candidate-qwen3-bf16.stderr": "30e9592606c91fc4fb8a61844a26f6aba979ab80fabf33b64b87606ae9edfbcb",
+      "28-candidate-qwen3-bf16.usage.json": "3ea257038fcc449cc5d571261f8b2dff2dc2e8c1962c3cff0fd49562b44573f7",
+      "29-base-qwen3-bf16.stdout": "d442edf4e943dd9caf5142d1e26c1203a43121dc1e8060b2925b78daeb486f47",
+      "29-base-qwen3-bf16.stderr": "04bc3785261abbdc763e3154658a4f0735471499bdaa7ba224545b9b4f757f88",
+      "29-base-qwen3-bf16.usage.json": "b92caf0f6f0c0c28c1bce91d88c336437a9836124effc51c0c7ee0b37d896441",
+      "30-candidate-qwen3-f16.stdout": "044fa8c50b3f6a657ddb743798ebffe8cca73c80f428687ddb55ca5542d8cab1",
+      "30-candidate-qwen3-f16.stderr": "de8ae647aeb4a45b1971de89d7019a086ded0d86e72df6d22eadb377e0f9b46a",
+      "30-candidate-qwen3-f16.usage.json": "7b766c6017d304efdc2ce2df61f16ba42e145c8d932502aa4a889d9cc7cc3e59",
+      "31-base-qwen3-f16.stdout": "ec9f135d567f093f0b90bfffe58f49cf756e11a8aa562c18ffba2219f5abdd40",
+      "31-base-qwen3-f16.stderr": "3e6e4c7bbf91d17f2f16d2a3d89df5202d8feffc4c95e9a9bd3880c7992f8324",
+      "31-base-qwen3-f16.usage.json": "c38d2d7931d46968c8ea634627ee5bc4d3fdbdcc889cf0aaca912612b62c6071",
+      "32-candidate-qwen3-iq4_nl.stdout": "f4ac25ffc15b04037632569c1192bbca0ce872be91f838de19bd60b00c1038da",
+      "32-candidate-qwen3-iq4_nl.stderr": "5972c1390ec276765d21a95f7211d2ac40652484adc4bddc0a72aa96403fa32e",
+      "32-candidate-qwen3-iq4_nl.usage.json": "33a58512f4088ac39d21ae4b1d4660e545ba246063689151692ee5dfb8b3848d",
+      "33-base-qwen3-iq4_nl.stdout": "6d017200c1d818636d440972d23d9223d37e9d91b1b4aa9d10f023f6f8918b44",
+      "33-base-qwen3-iq4_nl.stderr": "078d244f9a73ef8ff7d891f17af8b76492bc0f6b8438396b9532dee0bb4a34a1",
+      "33-base-qwen3-iq4_nl.usage.json": "4e7ef25f88a591d98ba26d60c534cadad4c1b3dc360d9a941eaf1a9b92db38c4",
+      "34-candidate-qwen3-q5_1.stdout": "c2a377cc4b099d51c4a15eed761e926c9e36846149061d0e4f90426ce9e6ae02",
+      "34-candidate-qwen3-q5_1.stderr": "96f271204134decf939edda423f52b3722a9da4351b124334cabb0a460b6d4b2",
+      "34-candidate-qwen3-q5_1.usage.json": "0402c509ffaa5852fb628a019b79dd33b9c347f76e0562fc6037b46608b7e274",
+      "35-base-qwen3-q5_1.stdout": "df99232b50c51f5f164f530e9918ed21ceb7382b9d75c9c443ffcb4ed825d8e1",
+      "35-base-qwen3-q5_1.stderr": "bfc11e4f4208b945016fccb9c3f7b1bc428b6b6f832989b9418e125b0d2446e9",
+      "35-base-qwen3-q5_1.usage.json": "dbb4bc2c570d123890cd5683b6caf1c71c7edf3396c6ea8ba1bc72c7c8bbe59e",
+      "36-candidate-qwen35-q4_k_m.stdout": "6b6213c33cd79523947dee1756c7196639616ff7cbff0f5093b5d18d7448e460",
+      "36-candidate-qwen35-q4_k_m.stderr": "a962e6d59d4e23b659beae3555f38aac6570409a577e26baed9473b02f2afbd8",
+      "36-candidate-qwen35-q4_k_m.usage.json": "f095e441342280ce62f0779d5e6efe00ab8bf844bb8687a83840cefe40a0305c",
+      "37-base-qwen35-q4_k_m.stdout": "b965e60677661e2e72778c7e7ea33fc89242aa8c869cfbe69575416a7e7f9a68",
+      "37-base-qwen35-q4_k_m.stderr": "2ddcd898aefdfb7f178c7dbc14a7172e05f8bef76a1f9a7a4a04b82870ac85f5",
+      "37-base-qwen35-q4_k_m.usage.json": "b0e55792e023e3da9ad89be2f81d9a3844a4d19724e5e696ef4a72c6d3972699",
+      "38-candidate-qwen35-q8_0.stdout": "458729d5bfefb1349271beab68b90b4ec597bd78f1108b5bc5314e1a4caf13dd",
+      "38-candidate-qwen35-q8_0.stderr": "17b71562709b2dbbd2e6a68dc8d296d76f2b8cbaf6619778463b570faf3047c9",
+      "38-candidate-qwen35-q8_0.usage.json": "cb7a1b8fd44aa3018da6e953faef7bc1901b766a88e00732abb23e1d65e5686d",
+      "39-base-qwen35-q8_0.stdout": "d18c2f37a5af8f6f6409d06845b3072e9dffbbd189e894c4cf842399636910c9",
+      "39-base-qwen35-q8_0.stderr": "11c201c2d1d21caa95182438e9cf1792a4e473b7cc4b84419be41f90acfbbcd6",
+      "39-base-qwen35-q8_0.usage.json": "b2ea8e668402c076bff0c386a136ed071037ea08325f1ce97ca5c8372bc2924c",
+      "40-candidate-qwen3-q4_k_m.stdout": "da17b118adb19ffd39a89ddbfd2414faf4fdcd11de8da7816376a875fbe2a098",
+      "40-candidate-qwen3-q4_k_m.stderr": "21c16329a4714540088fc5882688ef5e35bf6e234b8ecd6a880a24e16b555b98",
+      "40-candidate-qwen3-q4_k_m.usage.json": "b667880500bb415d319ecc38f35477e744fbcd363ee469752ec8e9d0b9893f05",
+      "41-base-qwen3-q4_k_m.stdout": "86ef995230ce50d116a91777c5f8c82c22fd4244907d039db74c90ada690f47e",
+      "41-base-qwen3-q4_k_m.stderr": "f30c877f3c86607fff0df4e99e9578043ce22d9cd86355c7d46a966bc57b3130",
+      "41-base-qwen3-q4_k_m.usage.json": "575ea2a742e7ca66bb1a8b813b7ec6751a5a985171a65f518046184ff1c3ff00",
+      "42-candidate-qwen3-q5_k_m.stdout": "b5a56aae5c94a2f03efae33a5c596f6223504897306c9e0c0199266e6b4fa010",
+      "42-candidate-qwen3-q5_k_m.stderr": "75083d5392a3aba16358b57877a39a981b8b28dc1f98914d54006e2d31725a9f",
+      "42-candidate-qwen3-q5_k_m.usage.json": "8c481311afa3f11711c7f6baed285f832c21fd3e2db2ce811efc517a5e1e06c4",
+      "43-base-qwen3-q5_k_m.stdout": "ac312359b7b7d2c62bb3e9930546f4f78b7fdb869ade7c0c071f6af30dd2521a",
+      "43-base-qwen3-q5_k_m.stderr": "4d877973a28accfc426746c3fd899ac30f6ba994fa724d1551917bb6bf2eadd7",
+      "43-base-qwen3-q5_k_m.usage.json": "98c395c781e5c23d924c97c2363d3f1b43445263a52a9f9a7ace5f7cf17676f2",
+      "44-candidate-qwen3-q4_0.stdout": "2acbfd404d8da7396913f67b02ff60c68ce0bb467c678529702f5f609f7a8859",
+      "44-candidate-qwen3-q4_0.stderr": "df172020cbb164e5e860a4d3799b4e1ef44a48c1afc13477fddc06d5915583c8",
+      "44-candidate-qwen3-q4_0.usage.json": "f6414939760631e40b514167665d5831ef9c12090a447804e2a142193daf5bd1",
+      "45-base-qwen3-q4_0.stdout": "c778c69e29203418d414b7c3c17e7e2d72c0195f8891c94cf5b81ce1059c8abf",
+      "45-base-qwen3-q4_0.stderr": "3a3db5053c39b592b553824d83f768fe2ca4dc7f67625aad5bbed6a6c02af6b9",
+      "45-base-qwen3-q4_0.usage.json": "c66e0e0445edd9290223f3351dfaba9210b8d85096bef0bd54f17918720f632d",
+      "46-candidate-qwen3-q8_0.stdout": "b68909b0965f4430b438143aa3eaf580dcd53ba7387060131bc0f49e6f5e04c3",
+      "46-candidate-qwen3-q8_0.stderr": "c90b1d1641db1c3d8fd19efa84f97c2c968d266fa7c0da22f8fbada4f40dcb0d",
+      "46-candidate-qwen3-q8_0.usage.json": "a14be510df3a9438e278b6d2d499e81f812ec4a0c10eda831db4a287b75d0219",
+      "47-base-qwen3-q8_0.stdout": "538886392adc42963149745bd6f7ecf733771621e36fc24a764211240f89e12d",
+      "47-base-qwen3-q8_0.stderr": "02c5587560cf3a2b7563199ca6cff6c234302e80859ddfa989e4177e8845efcb",
+      "47-base-qwen3-q8_0.usage.json": "be83220b6e15401b311d1ed2360746576719f6d18318532cb508e6685d32925c",
+      "48-candidate.stdout": "474942df97d3098066581496765ce7e289d6a6bd45d792e6a32e5dc7eaba08d3",
+      "48-candidate.stderr": "7ba0cb0396ca5279b65e6e8aab8a504aa81fc9fe3c5f26808001919bcd45699a",
+      "48-candidate.usage.json": "dbf71eafb61d8d52a1c53a4f1aa69c054dce69d71b30e4844c33287e583a2f7e",
+      "49-mx.stdout": "912569a9c29f9f5be8f4f1d2654069278264e9f8948bfe1c2e06117e772c7422",
+      "49-mx.stderr": "02b44f9b71c971d9825391769860b480e0a8be28675b407574333131ffefed1f",
+      "49-mx.usage.json": "7c1c74a068fa925189f35b4a97fc4a2aff31d0b84402da27f9bdb6a124fae28e",
+      "50-mx.stdout": "ae90194f3a90eafe95cdbf22421996eb625c5ee68ca0c67375313c205908b163",
+      "50-mx.stderr": "9f92a52f34489fad206e01170269c7738eeac00aad662150c5c3034db318acc2",
+      "50-mx.usage.json": "4e83476c76eb2c9bed1cb6cb4f8eed299f829f5fd179cacc13f9fba557bea1cc",
+      "51-candidate.stdout": "325b31e718d43066ce0147bd9b14890c3fec9ab53c4e7049cd06f728b8b6b245",
+      "51-candidate.stderr": "36754686f6ef373c60952f3155f765f8290e8420d0e54f389b3eaec7043976ad",
+      "51-candidate.usage.json": "16efa609c87c4a7570a3f93ffaddef1588fc06befde254acae2c92f5debb3ddd",
+      "52-candidate.stdout": "9ad265305c21384720d145c106f4ae1899d67451eaea84bd4458addd75a16865",
+      "52-candidate.stderr": "eefccf4ed355088d8835af60b43f6550b4c9f6bddec309576387f404e7d5b382",
+      "52-candidate.usage.json": "266f474daf58dfe98f12e6b53b75f0c1184fcd6c7ef24871a51baf52178e2b7c",
+      "53-mx.stdout": "86bc125d1e092a036acb749b473108e716f9923ef6eefcdbbe905faf072d5dd7",
+      "53-mx.stderr": "ed4f949dfd151696da02311e0051feb5bd91bfd54f9188c410b1a671ee4d03f6",
+      "53-mx.usage.json": "00e4fdce9bf9cfc5023ad7a726cc157780a376376f6bfb9a3d326189a1ece297",
+      "54-mx.stdout": "866de84126d92c42dcb86323de0d5b23e01c121b524e4b7df0f41e533dc88cc7",
+      "54-mx.stderr": "43f8ee4b60fc8e07b0928a3ba81e0f94a433c059c050a488c68c71718607179c",
+      "54-mx.usage.json": "434511352d56d8c622d498969c6ffa3c1203a60b3e995ddd49aa6e85a7a8a327",
+      "55-candidate.stdout": "03f8017ff4c31cdcb702cfff24506f580e806ace5d06894939d7fdbd60bba991",
+      "55-candidate.stderr": "f09300137155e38a4b2ba970bf4fd4198efa7b63e8df4de80c97acc9c4a975fe",
+      "55-candidate.usage.json": "dcad3e27e818a0c02cd4e3f42fd45f5f06a7908654d730499a99c35ad608bf22"
+    },
+    "removed": true,
+    "seconds": 132.6044580936432,
+    "evidence_root": "/zpool1/llmx-xdev-quant-20261020/q23-xs-timing-bb59-20261021",
+    "interpretation": "All 56 planned calls retained. Existing-path phase deltas span -0.7213% to +0.7994%; this two-sample screen shows no material existing-path slowdown, but does not establish a precise noise band. Q2_K and Q3_K_S remain far below pinned mx Vulkan on both phases; first-support recovery remains open. Disk activity flags affect the round, and four intervals flag unrelated CPU work. No idle-machine, ROCm, latest-mx or MTP claim."
+  },
+  "released_file_checkpoint": {
+    "runtime_source": "09f10a0f8266198951c68e8b85f80ab6a368f9c4",
+    "cells": [
+      {
+        "variant": "Q2_K",
+        "passed": true,
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "reference_hashes": {
+          "baseline_perplexity.json": "c5baa553ac3031e0eeebe14d758e6771d20359fd293925f81ab17c23f9cda79c",
+          "baseline_logits.json": "1fe29b68d4df1c99a8bb7f8915903b458a4baa19f01437695de9afd9647864bf"
+        },
+        "sources": {
+          "tests/baseline.py": "45a79515e02021a702976634fac0e30b889a124ef53fdec4b9f50774f921d935",
+          "tests/common.py": "dafe9c2db2ab5e6e82d7261263fbe09cfd26271ed85efff545b75131ce5cb066",
+          "tests/server.py": "4ff79b74b4e5a0e90d28d6aeb860699d831829c4d9924161583515d82b542a5f"
+        },
+        "actual_binary_sha256": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+        "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+        "report_sha256": "7c786564ad3e1309100a6c00b4996e6e93e2eb7598690adaaf55654b7bcf732b",
+        "execution_sha256": "a9e3c744eff77aaa9bb5d8344728991cb1ae35a8628568571f502e3538090003",
+        "raw_artifacts": {
+          "run.log": "8bc4c5c7184201dd91002a00b6a130bb2c01108a0586644c64e15a2f85afce46",
+          "execution.json": "a9e3c744eff77aaa9bb5d8344728991cb1ae35a8628568571f502e3538090003",
+          "container.json": "46017f9f748cba5278a1846a33242840bb3217e4067b2dc0709668ca8f53d572",
+          "containers.json": "4bdbd98dc7ea7d309f1c5feeea18121ddfa5270f61a1be8ee493b6b0dde16df3",
+          "launch.json": "a8e393512a3c7ada9dcd3a6e52708f2a07e064c26e4d8ef29e44690340a2dd76",
+          "memory.jsonl": "473dc826345c9b521a7cc03d08598be945b4c213aa2943fd72f5f1fc3be3a2c7",
+          "container.cid": "531b9d9c3d6241ca90b473f12ed8668f1a08094cc0f7514c73e1b2f038ba063e",
+          "Q2_K/report.json": "7c786564ad3e1309100a6c00b4996e6e93e2eb7598690adaaf55654b7bcf732b",
+          "Q2_K/06.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/10.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/01.stdout": "da75a895c2582c20380ff1cdc66fcdf8b49ca9a4a78e80fd065846135e528407",
+          "Q2_K/04.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/09.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/12.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/03.stdout": "d3fe19b69fbada54d5ded49600e4ba8820ac35620a38b1ab661578f0e434d3c1",
+          "Q2_K/15.stdout": "53e94853d4b261fb168bb5986d90ec13e82fdf5a4be1a53bb55b8a2089db6e20",
+          "Q2_K/14.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/02.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/13.stdout": "371b98b968234fb9f7651c15f5ff78306c7d2ae0d6cc28e364df06d2c0d057f0",
+          "Q2_K/08.stdout": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+          "Q2_K/05.stdout": "746d1b2e8cd9d0cec12010d329f88b7bf5075dc2a7b31c4cb6de1bdfe5241fa3",
+          "Q2_K/16.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/00.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "Q2_K/11.stdout": "1ade3c5c35972ad79d08b5b4c609e5f3e4140c0a4325d29b1fbcc7a46484920b",
+          "Q2_K/07.stdout": "72cbd01237e7053fd46cc5a3f3d6cd76f913317bf5b477778323c8151aa9c408",
+          "Q2_K/04.stdout": "50148d505f640f0e7fe7ae6d391a45acbc3aa0eacf1e96aec4c434473e0dc5ca",
+          "Q2_K/12.stdout": "d3cddb74746e0447ea1e0c74cfe44017be8fd1a5c4633ad6e2cf5a15980d0ddd",
+          "Q2_K/09.stdout": "ea325122a71dadf9b306b6ce256fdf836bff0a63fc9b068add73050b7fe7747e",
+          "Q2_K/03.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/15.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/06.stdout": "cf960429eb6dbbf2805d6aaf95fed88d0e12c5d0872edc5e638c9efc6ef5b6cb",
+          "Q2_K/10.stdout": "0c2262a6c7e7c6ec8452dd994a1cb1a9c261b80be708c6bac6c3fa58aa109987",
+          "Q2_K/01.stderr": "968cb7d419fed0113f24949c50271e32b04a2c25d239192a80e9e3ff1937868f",
+          "Q2_K/16.stdout": "6e5e661b7bb954f83656dba1f6c99e067d89811eec719c4abd137055c924adf4",
+          "Q2_K/00.stdout": "86243d1619550f598025af5bb8f029e059083b95ec6ac1c3832bb9be6b000c51",
+          "Q2_K/11.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/07.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/14.stdout": "b60144f3c1f52b50b373e83e9b3f1dc74f572456c9287c45e9590ee2f3d94cb9",
+          "Q2_K/02.stdout": "7d7ee1380bcf5a5b67f8df2682841e1b64470c71d087360392bb5e7cebe1f364",
+          "Q2_K/08.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "Q2_K/13.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q2_K/05.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7"
+        },
+        "rankings": 6,
+        "nll_checks": 8,
+        "max_printed_nll_delta": 9e-06,
+        "cli_server_reply_tokens": 8,
+        "seconds": 27.368146419525146,
+        "wrapper_passed": false,
+        "reconciliation": "Independent terminal container exit, completed consumer and binary/source audit; original monitoring race retained. No inference replay."
+      },
+      {
+        "variant": "Q3_K_S",
+        "passed": true,
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "reference_hashes": {
+          "baseline_perplexity.json": "982e11c1fa0dfe08a19f40d80b19e147d6b0891bc30a05f8b0d7c4a144cb26c5",
+          "baseline_logits.json": "1d56f16d10558091abc9a0914575449ecb958d445216e92e676c1028656a8ccb"
+        },
+        "sources": {
+          "tests/baseline.py": "45a79515e02021a702976634fac0e30b889a124ef53fdec4b9f50774f921d935",
+          "tests/common.py": "dafe9c2db2ab5e6e82d7261263fbe09cfd26271ed85efff545b75131ce5cb066",
+          "tests/server.py": "4ff79b74b4e5a0e90d28d6aeb860699d831829c4d9924161583515d82b542a5f"
+        },
+        "actual_binary_sha256": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+        "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+        "report_sha256": "8c7d6cde7246775397eb75e442bc0bfd9ba86a7aff2bd229f2e32b4aeebdf3f7",
+        "execution_sha256": "7dcff6742b5538cd808502ad761573ebdca03a820add528c7c4c75cf6b25d5aa",
+        "raw_artifacts": {
+          "container.json": "cb990dd2ee580588bb3ffbec8beb0388ec98f729d059d932c153ba705d66223a",
+          "execution.json": "7dcff6742b5538cd808502ad761573ebdca03a820add528c7c4c75cf6b25d5aa",
+          "run.log": "431ed5a35d8174babb211024f770200a273ee544d531c640cc456bbad976cfe3",
+          "containers.json": "657417d0fc00cdde4cd8f2732839fb7bfb625ad36148a417cffab70c277bdff0",
+          "launch.json": "3dbd4bd0acc3fa5c471cc23c4b999ab41dbd464cc9ed75f89ed00add212397b0",
+          "container.cid": "1e1f764f298d5a8b6c9a7069167cd4a8224b69d6a1c5cd5c163f778f11c3df89",
+          "memory.jsonl": "886ede185e6b875271da70c89178b83f3c5d1994a085960dd48b4304509027b1",
+          "Q3_K_S/09.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/12.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/04.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/15.stdout": "982bfa6f2f64a4654cd98f956c00bf895a118946fe88a191815eb0ae6a72c730",
+          "Q3_K_S/03.stdout": "b78e9138916e41905554bd872910f6dd9e82dcaab398802d36977d8ba1948ba0",
+          "Q3_K_S/10.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/06.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/01.stdout": "f5162fdba4b42bec2e257dce61e068c8937f0e5a234fd215b736b105d401ade3",
+          "Q3_K_S/00.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "Q3_K_S/16.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/report.json": "8c7d6cde7246775397eb75e442bc0bfd9ba86a7aff2bd229f2e32b4aeebdf3f7",
+          "Q3_K_S/07.stdout": "adb564cb4d79c4ed18a953516705d563781ad7dffdcf10d91aa8a69d5552b252",
+          "Q3_K_S/11.stdout": "80b38c72959e9e80a092a32238d879212c5e481b15d54756d0d9c3066dded88c",
+          "Q3_K_S/02.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/14.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/05.stdout": "d1f34791a75feb65311060f7f1ec7593c69216c0f347c91625bc6f1eb784e9dd",
+          "Q3_K_S/13.stdout": "55e4c79a36840d9fad9aaab940fe14d338b0380c0f6dbccc3bf75fac6800129a",
+          "Q3_K_S/08.stdout": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+          "Q3_K_S/10.stdout": "7c7faeb6033d1cc887c833c9245f95bce219b92b2b0ee1b0809862a5b9bf504b",
+          "Q3_K_S/06.stdout": "c3678b98391450e00f18a2e4c0b9b16f994dd7edc18923130994f2b0eda5741e",
+          "Q3_K_S/01.stderr": "968cb7d419fed0113f24949c50271e32b04a2c25d239192a80e9e3ff1937868f",
+          "Q3_K_S/12.stdout": "89d7102cfd1ff9009d1388ed6d6dab9b4efaa5d8f3e0fa0765d934b05fbb5151",
+          "Q3_K_S/09.stdout": "92085aab0173a809d5d70b8ad1499f19680d8d94f3311cc56e69983e0d28ad75",
+          "Q3_K_S/04.stdout": "e8446c05df0c6eaed9a5dc75bdb7ff661942f8b35e29779a3217f0a0d98ee990",
+          "Q3_K_S/15.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/03.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/02.stdout": "0b6ae9049fb2bbccbb7b8957b5b9c3fa759a379a5edfddc98c9189101da042af",
+          "Q3_K_S/14.stdout": "0efad9bb841cd42d43511ecf3b0c6c13c83648a1460ebc617c12ee1e74d9cfa2",
+          "Q3_K_S/05.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/08.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "Q3_K_S/13.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/00.stdout": "06e416c86c4869c9d72aee8d947783c9618e72e85f6f2ead7047322174f5c891",
+          "Q3_K_S/16.stdout": "db05a765aef36f0cc9d8cd81ec93bdcf2628ceb2cf36dbc1c3ae018dd50858c0",
+          "Q3_K_S/07.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7",
+          "Q3_K_S/11.stderr": "16e3018a947dcb3e1e9d0794f6de57521758c5bad7682f396245240906f957f7"
+        },
+        "rankings": 6,
+        "nll_checks": 8,
+        "max_printed_nll_delta": 1.2e-05,
+        "cli_server_reply_tokens": 8,
+        "seconds": 26.578274250030518,
+        "wrapper_passed": true,
+        "reconciliation": "Independent terminal container exit, completed consumer and binary/source audit; original monitoring race retained. No inference replay."
+      }
+    ],
+    "audit_sha256": "7c167e77496c4334494bda8b70b83e2f152a07aa9f23a0e0b6d57ef066f0f067",
+    "archive_sha256": "f3bf5cff973756b0d90fecc29cf6f503d103608056887aa86f02cb9329b679ec",
+    "configuration": {
+      "physical_gpu": 8,
+      "render": 130,
+      "cpus": "4-7",
+      "dtype": "auto",
+      "cache": "f32",
+      "threads": 2,
+      "container_bytes": 8589934592
+    },
+    "limitations": [
+      "HF uses each file own decoded weights; no original-weight quantization-quality claim.",
+      "Initial wrapper path error before inference retained in evidence-released-q2.",
+      "Q2 completed successfully but wrapper observed a disappearing /proc PID while reading cgroup after exit; terminal container exit zero, completed report and source/binary hashes independently audited. Original execution record stays failed; no inference replay.",
+      "Concurrent functional checks are not performance evidence."
+    ]
+  },
+  "depth_checkpoint": {
+    "summary": {
+      "scope": "Current combined Q2/Q3/XS depth requalification: four file-policy cells/eight raw/chat captures against retained exact-file F32 HF; no reference/bound changes.",
+      "stages": [
+        {
+          "stage": "build-probes",
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "seconds": 62.36713242530823,
+          "binaries": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+          "build_execution_sha256": "a0222cea31c8ac65439fc0b1ab895d9167897e537fa8194e63863caf5b86a7b8",
+          "execution_sha256": "a903c111ddb15d8bc6516d525322cb7f028649f43448d937479428bfb26fd9cf",
+          "run_log_sha256": "a1850ee6f97ad6e39b6d85e0212a454a62894b3792ff89be48afdf775ac28e43",
+          "monitor_unavailable_samples": 0,
+          "probe_build": {
+            "commands": [
+              [
+                "/usr/bin/c++",
+                "-I/source/build/generated",
+                "-I/source/src",
+                "-O3",
+                "-DNDEBUG",
+                "-std=c++17",
+                "-mavx2",
+                "-mfma",
+                "-mf16c",
+                "-Wall",
+                "-Wextra",
+                "-Werror=unused-function",
+                "-Werror=unused-variable",
+                "-Werror=unused-but-set-variable",
+                "/bundle/quant-depth-default-probe.cpp",
+                "/source/build/libllmx-vulkan.a",
+                "-ldl",
+                "-o",
+                "/out/default-probe"
+              ],
+              [
+                "/usr/bin/c++",
+                "-I/source/build/generated",
+                "-I/source/src",
+                "-O3",
+                "-DNDEBUG",
+                "-std=c++17",
+                "-mavx2",
+                "-mfma",
+                "-mf16c",
+                "-Wall",
+                "-Wextra",
+                "-Werror=unused-function",
+                "-Werror=unused-variable",
+                "-Werror=unused-but-set-variable",
+                "/bundle/quant-depth-f32-probe.cpp",
+                "/source/build/libllmx-vulkan.a",
+                "-ldl",
+                "-o",
+                "/out/f32-probe"
+              ]
+            ],
+            "probes": {
+              "default": "211ca9eec235d497df68f61368caf8fc76cf9735c637e4195854e5e3f10309a7",
+              "f32": "930fb81794c49f03a5f7ebb063723b3d56dd4f3e0e46fd5424985d6403d7c5f0"
+            },
+            "sources": {
+              "quant-depth-f32-probe.cpp": "03fef5042d157053b1bc0817be52d74a0a8cb306d58d893dba0810f4720cd99b",
+              "quant-depth-default-probe.cpp": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6"
+            },
+            "library_sha256": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+          }
+        },
+        {
+          "stage": "q2-k-default",
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "seconds": 66.10817623138428,
+          "binaries": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+          "build_execution_sha256": "a0222cea31c8ac65439fc0b1ab895d9167897e537fa8194e63863caf5b86a7b8",
+          "execution_sha256": "7042a0080bcd77ed00eeedbfe6ca3b99fbe8b03bd90c1e497818ae86c1a6dc3f",
+          "run_log_sha256": "7b1ef0dc1e508c99d2852c880c862cfa941d2a7cc7840f320d24db37f88e56fb",
+          "monitor_unavailable_samples": 0,
+          "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+          "probe_sha256": "211ca9eec235d497df68f61368caf8fc76cf9735c637e4195854e5e3f10309a7",
+          "role": "default-f32-reference",
+          "reference_report_sha256": "74e80ca882483bdc27e75e9027c8e9e471fc25cbcea46b4174f9fe7b6f140c43",
+          "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+          "comparison_sha256": "57d3d29960548710550c025aae71be96f4b6e29b2b2a93976e6c12ce002eef62",
+          "capture_sha256": "d3087384c8217e744ff260eb6377362be10777fa7348f0f7c55e8959fc98fcc5",
+          "cells": [
+            {
+              "variant": "raw",
+              "counts": {
+                "exact": 511,
+                "accepted-tie": 1,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f16",
+                "devices": [
+                  [
+                    "f32",
+                    "block-int16"
+                  ]
+                ]
+              }
+            },
+            {
+              "variant": "chat",
+              "counts": {
+                "exact": 512,
+                "accepted-tie": 0,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f16",
+                "devices": [
+                  [
+                    "f32",
+                    "block-int16"
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "stage": "q2-k-f32",
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "seconds": 69.68286967277527,
+          "binaries": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+          "build_execution_sha256": "a0222cea31c8ac65439fc0b1ab895d9167897e537fa8194e63863caf5b86a7b8",
+          "execution_sha256": "b4e84e4eed49bae9d526a976851e1b85df0126f09ebca6d8143e84eb8a9b369c",
+          "run_log_sha256": "c9b47ff860f083d1c4c30ceda5f8899a9f64a2db37ec19a1a7e5ec68dcf6c0bd",
+          "monitor_unavailable_samples": 0,
+          "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+          "probe_sha256": "930fb81794c49f03a5f7ebb063723b3d56dd4f3e0e46fd5424985d6403d7c5f0",
+          "role": "selected-f32",
+          "reference_report_sha256": "74e80ca882483bdc27e75e9027c8e9e471fc25cbcea46b4174f9fe7b6f140c43",
+          "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+          "comparison_sha256": "8ce79dccb02e196ae45c12dbc7d0b3a324387df69ba9391935642a4d9b7a2d73",
+          "capture_sha256": "748cd8852313aca994a2c26de00252d77e5c4797096e300cb1d7fc64ee5a66ef",
+          "cells": [
+            {
+              "variant": "raw",
+              "counts": {
+                "exact": 512,
+                "accepted-tie": 0,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f32",
+                "devices": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            },
+            {
+              "variant": "chat",
+              "counts": {
+                "exact": 512,
+                "accepted-tie": 0,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f32",
+                "devices": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "stage": "q3-k-s-default",
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "seconds": 63.0736346244812,
+          "binaries": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+          "build_execution_sha256": "a0222cea31c8ac65439fc0b1ab895d9167897e537fa8194e63863caf5b86a7b8",
+          "execution_sha256": "fd392e73f0e948f0234a74b1fba7ff6f975cbf9d9947b82e109f8e7e8cd4ebd4",
+          "run_log_sha256": "56dd6e3f69fa725708a5b88cbebd0195ea86ad4b624e191bc2503a0add4566ba",
+          "monitor_unavailable_samples": 0,
+          "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "probe_sha256": "211ca9eec235d497df68f61368caf8fc76cf9735c637e4195854e5e3f10309a7",
+          "role": "default-f32-reference",
+          "reference_report_sha256": "525331d1c5f5bfb5bf86d66da13f6501633107f81744e3b8b313b28287904e93",
+          "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+          "comparison_sha256": "720892071ad0caa3f7b836d0b452ffa2536066f2a47468c15e8e51a05059394c",
+          "capture_sha256": "ef664ad300b37a56ea03ce1bf43f7a5a5a37fa79931ec45e2186fced8b78aa53",
+          "cells": [
+            {
+              "variant": "raw",
+              "counts": {
+                "exact": 511,
+                "accepted-tie": 1,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f16",
+                "devices": [
+                  [
+                    "f32",
+                    "block-int16"
+                  ]
+                ]
+              }
+            },
+            {
+              "variant": "chat",
+              "counts": {
+                "exact": 512,
+                "accepted-tie": 0,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f16",
+                "devices": [
+                  [
+                    "f32",
+                    "block-int16"
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "stage": "q3-k-s-f32",
+          "passed": true,
+          "removed": true,
+          "oom": false,
+          "seconds": 68.14397764205933,
+          "binaries": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-model-logits": "e580f3a3ee971a8bffb69236ee2bcf99da97b66e9ed5b801745596ff8768996a",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d"
+          },
+          "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "version": "llmx 0.1.0+unknown numerics 0dbf39d4026dcda1",
+          "build_execution_sha256": "a0222cea31c8ac65439fc0b1ab895d9167897e537fa8194e63863caf5b86a7b8",
+          "execution_sha256": "d09fbb6bf1c9648debe515b599ee2083725337714ce9acdf318202d27f1fbae9",
+          "run_log_sha256": "b990b73571126a57c23629eaaf93b385ed7c5775f131e2c7a26ceb0b24a5b672",
+          "monitor_unavailable_samples": 0,
+          "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "probe_sha256": "930fb81794c49f03a5f7ebb063723b3d56dd4f3e0e46fd5424985d6403d7c5f0",
+          "role": "selected-f32",
+          "reference_report_sha256": "525331d1c5f5bfb5bf86d66da13f6501633107f81744e3b8b313b28287904e93",
+          "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+          "comparison_sha256": "ba13bedde3943458aebd2d022447d657a0ceeccc2b5bcc6147f06c8480ab43ac",
+          "capture_sha256": "99dd0929d4d73e292150ed92fc9c592a204e176d5662f8bef1f51b1592e34549",
+          "cells": [
+            {
+              "variant": "raw",
+              "counts": {
+                "exact": 512,
+                "accepted-tie": 0,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f32",
+                "devices": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            },
+            {
+              "variant": "chat",
+              "counts": {
+                "exact": 512,
+                "accepted-tie": 0,
+                "miss": 0
+              },
+              "matrix_paths": {
+                "dtype": "f32",
+                "devices": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "capture_count": 8,
+      "positions": 4096,
+      "limits": "Existing tests/common.py hf_depth_top1, 0.1 top-two tie rule, every miss fails; no original-weight quality claim.",
+      "collection_manifest_sha256": "48957fb5c3bbab3c6c0176faa52e091dfbf14c0b8f2c7f77d5add3bd8db71c99"
+    },
+    "summary_sha256": "a503b06391c665bc35f95f271ff1bb2d60f5f37fe0175821f95cb23d767e484f",
+    "archive_sha256": "a9946122227a2769ef897d7ae6090502ca3f99b9e94171beeddf5bf06ac9895d",
+    "root_replays": [
+      {
+        "stage": "q2-k-default",
+        "sha256": "f70e278d425b84e55179d70daabecc1da6527a56c157e77e4349d8268a295bab",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\compare-default-depth.py",
+          "--source",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-xs-integration-20261021",
+          "--reference",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-depth\\completed\\released-depth-q2_k-f32\\reference",
+          "--captures",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\collected\\evidence-q2-k-default",
+          "--kind",
+          "q2-k",
+          "--role",
+          "default-f32-reference",
+          "--variant",
+          "both",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\root-replay-q2-k-default.json"
+        ]
+      },
+      {
+        "stage": "q2-k-f32",
+        "sha256": "82ae0684fadace7ec9191620dc9e7ddc64e3138daf3ea7f2eb792f367f015480",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\compare-default-depth.py",
+          "--source",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-xs-integration-20261021",
+          "--reference",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-depth\\completed\\released-depth-q2_k-f32\\reference",
+          "--captures",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\collected\\evidence-q2-k-f32",
+          "--kind",
+          "q2-k",
+          "--role",
+          "selected-f32",
+          "--variant",
+          "both",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\root-replay-q2-k-f32.json"
+        ]
+      },
+      {
+        "stage": "q3-k-s-default",
+        "sha256": "638ea6de901a86c991fedd2927aba84a9005c467b6e001a4297747a142d6146d",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\compare-default-depth.py",
+          "--source",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-xs-integration-20261021",
+          "--reference",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-depth\\completed\\released-depth-q3_k_s-f32\\reference",
+          "--captures",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\collected\\evidence-q3-k-s-default",
+          "--kind",
+          "q3-k-s",
+          "--role",
+          "default-f32-reference",
+          "--variant",
+          "both",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\root-replay-q3-k-s-default.json"
+        ]
+      },
+      {
+        "stage": "q3-k-s-f32",
+        "sha256": "aebfcf6411f394aad5cfa8c3a2893e92c3a8568fe4db13ead5f3805cfd7a81be",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\compare-default-depth.py",
+          "--source",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-xs-integration-20261021",
+          "--reference",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-depth\\completed\\released-depth-q3_k_s-f32\\reference",
+          "--captures",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\collected\\evidence-q3-k-s-f32",
+          "--kind",
+          "q3-k-s",
+          "--role",
+          "selected-f32",
+          "--variant",
+          "both",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\depth-requalification\\root-replay-q3-k-s-f32.json"
+        ]
+      }
+    ],
+    "total_counts": {
+      "exact": 4094,
+      "accepted-tie": 2,
+      "miss": 0
+    },
+    "scope": "Two released files, raw/chat 16K histories and 512 scored positions each, auto/F16 KV and explicit F32/F32 KV. Independent root replay of all retained captures through the existing HF owner matches every saved verdict. No inference replay, HF regeneration or bound change."
+  },
+  "q2_selected_split_checkpoint": {
+    "summary": {
+      "scope": "Six completed current-runtime Q2 TP2 split variants, output-only replay through existing common.check_hf_fixture; no model execution.",
+      "stages": [
+        {
+          "policy": "auto",
+          "variant": "dense-untied",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 1.954902648870771e-06,
+          "max_nll_error": 3.332217346496691e-08,
+          "limits": {
+            "logit": [
+              2e-05
+            ],
+            "nll": [
+              1e-05
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "seconds": 293.55353450775146,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "a6939611d5cd0ae0d6d44864c813739891a7cc4283682c3b3776a6d4737b0218",
+          "cases_sha256": "c0cfd9162cb1ea86eeeef29147074284a92c695163ff7b2bb441596e5ab0c053",
+          "run_log_sha256": "2d3f7828447ca9c3250bf7982fe0dcf0d4ec419dc57039c18b2f3fcb38cc0638",
+          "replay_metrics_sha256": "b1f8fe232a2ba9ccb8c8d052edf75f94e71130b20f3720b2ae0cb21f29c87380",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "auto",
+          "variant": "dense-tied",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 1.91317749020925e-06,
+          "max_nll_error": 1.6654821433093048e-07,
+          "limits": {
+            "logit": [
+              2e-05
+            ],
+            "nll": [
+              1e-05
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "seconds": 289.77976727485657,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "dd0838b9469815428d2129862d8ffbc25950b30842ddf20a7457a525dee4d9ff",
+          "cases_sha256": "5186f16e5f3354b635bb0fa0cdba7f24c0a8a7e244f747a7da9dd7239cefd4f5",
+          "run_log_sha256": "e22d759f2310959d274091d676e633f2431f7e9415bc5bbee91054da71d947a3",
+          "replay_metrics_sha256": "ca73c945f7324821c4d712121e058b740bc51f817be25f67750d290b5a463658",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "auto",
+          "variant": "moe",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 2.5852661132974575e-06,
+          "max_nll_error": 2.7932557511434197e-07,
+          "limits": {
+            "logit": [
+              2e-05
+            ],
+            "nll": [
+              1e-05
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "seconds": 308.0026969909668,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "f9d4d2e8bb3c5945c4556c56adeeab4131cd7fe1da9e178a84303fd049b60e8a",
+          "cases_sha256": "a55a509f1dc26a2294c02528c0a4e2bb031ea7210bd4147d1c11cf05ce6a8cdb",
+          "run_log_sha256": "c3e0f7992a836649d9281050a92a4ccbe0392a4e6900a1b5cd68c5f89006aaa2",
+          "replay_metrics_sha256": "9793550178b643416794d081215138c136e526ab77bb77952d1c582e3c07ba90",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "bf16",
+          "variant": "dense-untied",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 0.008777469406128002,
+          "max_nll_error": 0.00038105467782667546,
+          "limits": {
+            "logit": [
+              0.05409973859786987
+            ],
+            "nll": [
+              0.007924573802609913
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "bf16",
+              "devices": [
+                [
+                  "bf16"
+                ],
+                [
+                  "bf16"
+                ]
+              ]
+            }
+          ],
+          "seconds": 290.8803234100342,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "affa2b0c2f195aba82b8b4b655b694c7f546c43e5da456a5afaab95656f80837",
+          "cases_sha256": "f8545f5b795389dcd7bb423db71b9f31f96df58a2a8fb3e3a7a5ba5d7e24de62",
+          "run_log_sha256": "14aea2db1f5280fd281fc261922b54bab86ca59d79932f0c7c9277f846aa74f8",
+          "replay_metrics_sha256": "98b4b4a88300a52552a7d20e4678731f96eccdd007696b86531f850482e4c65e",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "bf16",
+          "variant": "dense-tied",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 0.008224690288543723,
+          "max_nll_error": 0.0009658364625728666,
+          "limits": {
+            "logit": [
+              0.05409973859786987
+            ],
+            "nll": [
+              0.007924573802609913
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "bf16",
+              "devices": [
+                [
+                  "bf16"
+                ],
+                [
+                  "bf16"
+                ]
+              ]
+            }
+          ],
+          "seconds": 290.7282679080963,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "034a23049758dcaacff36a4f8cdc1dd5551aebc80ba65ea89c9560cca433bfdf",
+          "cases_sha256": "75844bede99d6470a34743a9233f804b279b0a309acb9fa644ed0a0b15c9ca8e",
+          "run_log_sha256": "b2953309c4d24fccfe83b44b4d24573156e2491663d8deb9eebbfdd1d2a9a684",
+          "replay_metrics_sha256": "5fee1814c3ee0c94169bfb836a418c3b0a824d40e20ab946995bba2c29c7056f",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "bf16",
+          "variant": "moe",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 0.00822761904907221,
+          "max_nll_error": 0.00048378816046401596,
+          "limits": {
+            "logit": [
+              0.05409973859786987
+            ],
+            "nll": [
+              0.007924573802609913
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "bf16",
+              "devices": [
+                [
+                  "f32",
+                  "bf16"
+                ],
+                [
+                  "f32",
+                  "bf16"
+                ]
+              ]
+            }
+          ],
+          "seconds": 307.9352123737335,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "e9f03f2f71e9adc912badf00cb16895e021ea87e75f08b249190b28ce7ee2f0e",
+          "cases_sha256": "c37a5400c17c499731d98c7d442372904fd47b79db94d8e80acdf7714f6585a1",
+          "run_log_sha256": "09b9bce5167edbe9265a046908a9a65d739dfafb384aec24c90e96cda34d3243",
+          "replay_metrics_sha256": "c36f1f5c3d51294e6f16db6c60c7bbe1abb3620883074ee094a78b5f4544110f",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        }
+      ],
+      "source_revision": "bb59ae431c2fee1a399fae94298d75df5d082db6",
+      "source_manifest_sha256": "d3694be1941b4faa207f3928011d596058996869bc83e81cfdf76f2b57a50547",
+      "collection_manifest_sha256": "f2e9ea1053f9d5dec9878c5738b6e985ba0e6df42483e5ff05b91fad1e5229a0",
+      "policy_changes": false,
+      "calls": 324,
+      "retained_setup_failure": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\split-current-results\\q2-raw\\evidence-split-q3-k-auto-dense-untied\\execution.json",
+        "sha256": "b9394e59fc2eab1db73518057d46ee88e0a873fef50c7e789ac904c3a0255858",
+        "scope": "Original CPU16-19 Docker-create failure, no container/inference, excluded from successful variants."
+      }
+    },
+    "summary_sha256": "fe8d450626c9b13c38f52fe64d7bf25ed8f82874311a8f038ad729c994238743",
+    "raw_archive_sha256": "2c26811e66a1d4709434d39cb1da41052052e715711792403636fcb7b306ae33",
+    "root_replay": "Root reviewed and reran audit-q2.py against saved outputs through unchanged check_hf_fixture: all324 calls reproduced. No inference replay.",
+    "audit_script_sha256": "4306355abd959365743a1b7fa282051eff4e56067993daa2ee2daa1dff102b83",
+    "scope": "Q2_K TP2 auto and BF16, dense tied/untied and MoE, full vocabulary, threads1/4 and ubatches1/2/3/5/16. F32 cache. Existing limits unchanged; no Q3 BF16 disposition."
+  },
+  "q3_selected_split_checkpoint": {
+    "summary": {
+      "scope": "Three completed current-runtime Q3 auto TP2 split variants, output-only replay through existing common.check_hf_fixture; no model execution.",
+      "stages": [
+        {
+          "policy": "auto",
+          "variant": "dense-untied",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 8.485183715767342e-06,
+          "max_nll_error": 1.1560589951997713e-06,
+          "limits": {
+            "logit": [
+              2e-05
+            ],
+            "nll": [
+              1e-05
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "seconds": 295.30867171287537,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "f94abb9d9b166720df87da6feb3bbbb6943bce36edeaae65bafb120a394f0907",
+          "cases_sha256": "ff7763b93340bfdc7f02ae2b27b226944cb24612c809fad567522cb4d3580ed3",
+          "run_log_sha256": "494692e427fac41f272f0b757dd0cedf6e56aa0a123dc62a0197a6ca6a38771f",
+          "replay_metrics_sha256": "5c69f24bc128ebc07045018374693f3a2c2f0829c8ccb3dcc14bc7d57814e3eb",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "auto",
+          "variant": "dense-tied",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 9.38179016118923e-06,
+          "max_nll_error": 7.212708386106215e-07,
+          "limits": {
+            "logit": [
+              2e-05
+            ],
+            "nll": [
+              1e-05
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "seconds": 295.09801983833313,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "abe910112cac61c9ef4b2cbbc1e3b55c67e598ad07937974de78ae4eeb56d01f",
+          "cases_sha256": "58ffcb18ed6478a51a63b6e88fe22d032c510abb2d68c4cb13b251b7d1bbaef5",
+          "run_log_sha256": "7486fda39f6ddb58efe5227ed12aae77c57ca6481cc88fbf5235cc9d9765b5a6",
+          "replay_metrics_sha256": "d7129f6903e7b20fdbc56dbb6832bd7d2a475bae2f9abbe46e4cb1e466d45417",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        },
+        {
+          "policy": "auto",
+          "variant": "moe",
+          "calls": 54,
+          "logits": 50,
+          "nll": 4,
+          "max_logit_error": 1.401766967773499e-05,
+          "max_nll_error": 2.3064428944508109e-07,
+          "limits": {
+            "logit": [
+              2e-05
+            ],
+            "nll": [
+              1e-05
+            ]
+          },
+          "witnesses": [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "seconds": 319.65244483947754,
+          "source_binary_pins": {
+            "llmx": "e0af46e95f4338f49a458edb8555426788065f0ff583fae0e510a0c266a4ee16",
+            "llmx-q3-k-test": "df01e2ae91d975e2cc78b65f4f3c15ddb4d4b07222979a9c1bb9f74e1414b32f",
+            "llmx-q2-k-test": "c1ce21ad610df05126301ce03cbc025fb3628cb19aa40085cbbf8176d1fd5429",
+            "libllmx-vulkan.a": "52db3a8bfdc3643c473edd655a8326330cd8a43a2525d1a368e51f68a5c8a27d",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "8f5d9ab3b891f7a2ff8b66b735496b3f9896abdfae5e457adab9fa5adda936c0",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "execution_sha256": "65df2571e68549cd4ba1d0f0c3cf038afe4f22a93ced5fb6f9f45dabb2463d7a",
+          "cases_sha256": "f9e0f8d552f810b29a53ed0ce69f7a1d8834314ca448019783851e126167803b",
+          "run_log_sha256": "790cb6b0b0fafd27b7d01384be4323fb5518f83827740209a93292943b2c1657",
+          "replay_metrics_sha256": "9388c94a38917d8a223210b58b24fe5dc2c428a0bb4fcaa9b6ec345b4c30e9de",
+          "passed": true,
+          "removed": true,
+          "oom": false
+        }
+      ],
+      "source_revision": "bb59ae431c2fee1a399fae94298d75df5d082db6",
+      "source_manifest_sha256": "d3694be1941b4faa207f3928011d596058996869bc83e81cfdf76f2b57a50547",
+      "collection_manifest_sha256": "8dbc364661b6781a7190e801034d0d38abd3db18e41abe2eaf1ac2ef73a5fb50",
+      "policy_changes": false,
+      "calls": 162,
+      "retained_setup_failure": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\q23-xs-integration\\split-current-results\\q3-raw\\evidence-split-q3-k-auto-dense-untied\\execution.json",
+        "sha256": "b9394e59fc2eab1db73518057d46ee88e0a873fef50c7e789ac904c3a0255858",
+        "scope": "Original CPU16-19 Docker-create failure, no container/inference, excluded from successful variants."
+      }
+    },
+    "summary_sha256": "5df5438f99b4f31f4f546d481430d201f08f9a6bbb647ba989df6f74c674b64d",
+    "raw_archive_sha256": "0a5e4d8cfccec9aa88bf1a1d06469cf8c3af5c3e86fc80303a38c603850285d1",
+    "audit_script_sha256": "b2592bb007c751ebe6cbe64b3139708c6f3aeec231acc7bb7decbfd9049d6a13",
+    "root_replay": "Root reviewed and reran audit-q3.py against saved outputs through unchanged check_hf_fixture: all 162 calls reproduced. No inference replay.",
+    "scope": "Q3_K TP2 auto, dense tied/untied and MoE, full vocabulary, threads 1/4 and ubatches 1/2/3/5/16. F32 cache and products; original F32 limits unchanged. Q3 BF16 remains unapproved."
+  }
+}

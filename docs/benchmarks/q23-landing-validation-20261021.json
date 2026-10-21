@@ -1,0 +1,776 @@
+{
+  "scope": "Final affected validation of runtime 6c5e51f6e; pending Q3 BF16 policy and hosted qualification, not a merge pass.",
+  "runtime_commit": "6c5e51f6ef6a19c640ab0fb9dca1201600773fe2",
+  "landing_base": "a78f06abbff71a432990ec32746f8f180ee6bc89",
+  "hf": {
+    "path": "build-quant-resume-20261020/q23-alignment/hf/summary.json",
+    "sha256": "79c3db5b6d0b16afe31162a432d0fb7e1ca770714caaa859cc6ea137d54a6730",
+    "archive_sha256": "b8b0c6d6361ea6b2dc931516b8159d5c26f862072bd64e9dc49a0de898b13492",
+    "stages": [
+      {
+        "stage": "ordinary-q2",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 163,
+        "seconds": 21.315123558044434,
+        "execution_sha256": "63dd32988e860936a68668d543fd64e3743480a04d877e58889fec728c27dc6a",
+        "result_sha256": "5605530ca882850a63d48e22e980a9a80d6e19c8e67e3a4575ea0d7732c05f59",
+        "cases_sha256": "348668fa9bd2fc31172b588cda7cdfb6a914700c3edc70975d16838e782c89f0",
+        "golden_sha256": "70e2afe50f4f820fa4f9af83fe9565e99a9370c2fe10cc3eddce06d4b43599c8",
+        "metrics": [
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.796340372,
+            "reference_nll": 5.7963491064355,
+            "signed_delta": -8.73443549931352e-06,
+            "error": 8.73443549931352e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002879078990476458
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.813077484,
+            "reference_nll": 5.813081608902226,
+            "signed_delta": -4.124902226010363e-06,
+            "error": 4.124902226010363e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029251743232094896
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.796340372,
+            "reference_nll": 5.7963491064355,
+            "signed_delta": -8.73443549931352e-06,
+            "error": 8.73443549931352e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002879078990476458
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.813077484,
+            "reference_nll": 5.813081608902226,
+            "signed_delta": -4.124902226010363e-06,
+            "error": 4.124902226010363e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029251743232094896
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.656509336,
+            "reference_nll": 5.656508854164751,
+            "signed_delta": 4.818352490332245e-07,
+            "error": 4.818352490332245e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002961604992979261
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.59164749,
+            "reference_nll": 5.5916479777035955,
+            "signed_delta": -4.87703595730693e-07,
+            "error": 4.87703595730693e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002961546309512286
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.656509336,
+            "reference_nll": 5.656508854164751,
+            "signed_delta": 4.818352490332245e-07,
+            "error": 4.818352490332245e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002961604992979261
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.59164749,
+            "reference_nll": 5.5916479777035955,
+            "signed_delta": -4.87703595730693e-07,
+            "error": 4.87703595730693e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002961546309512286
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.640192043,
+            "reference_nll": 5.640192342869589,
+            "signed_delta": -2.99869588715751e-07,
+            "error": 2.99869588715751e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029634246495824357
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.564439285,
+            "reference_nll": 5.564440377736733,
+            "signed_delta": -1.0927367330992865e-06,
+            "error": 1.0927367330992865e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029554959781386003
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.640192043,
+            "reference_nll": 5.640192342869589,
+            "signed_delta": -2.99869588715751e-07,
+            "error": 2.99869588715751e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029634246495824357
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.564439285,
+            "reference_nll": 5.564440377736733,
+            "signed_delta": -1.0927367330992865e-06,
+            "error": 1.0927367330992865e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029554959781386003
+          }
+        ],
+        "full_logits": 150,
+        "nll": 12,
+        "max_logit_error": 4.8501525878930085e-05,
+        "logit_bound": 0.003304719924926758,
+        "logit_headroom": 0.0032562183990478277,
+        "max_nll_error": 8.73443549931352e-06,
+        "nll_bound": 0.0002966423345469593,
+        "nll_headroom": 0.0002879078990476458
+      },
+      {
+        "stage": "ordinary-q3",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 163,
+        "seconds": 24.36369252204895,
+        "execution_sha256": "bdafd7c847b845803de8ce16ea49269ba085b999d1dd1c6db45ed3c060257bc8",
+        "result_sha256": "c84db2e973425787bb891fbf7c4ff313aa5ba0a88e1774476d1342571ae792c4",
+        "cases_sha256": "f36b7d87c873b051a0d3bbf83e413ef7f3d94dddd2a7f31f642a0794514b4fb4",
+        "golden_sha256": "24c02075c3f0e3824a557eb797aa31078ee3aa1131dfaf9515c4fa2f9e30275f",
+        "metrics": [
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.613181741,
+            "reference_nll": 6.613158177457322,
+            "signed_delta": 2.3563542677962346e-05,
+            "error": 2.3563542677962346e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00027307879186899697
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.150705442,
+            "reference_nll": 6.150725747873086,
+            "signed_delta": -2.0305873086101656e-05,
+            "error": 2.0305873086101656e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00027633646146085766
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.613181741,
+            "reference_nll": 6.613158177457322,
+            "signed_delta": 2.3563542677962346e-05,
+            "error": 2.3563542677962346e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00027307879186899697
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.150705442,
+            "reference_nll": 6.150725747873086,
+            "signed_delta": -2.0305873086101656e-05,
+            "error": 2.0305873086101656e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00027633646146085766
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.548026191,
+            "reference_nll": 6.548031183434475,
+            "signed_delta": -4.992434474715424e-06,
+            "error": 4.992434474715424e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002916499000722439
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.209529845,
+            "reference_nll": 6.209517183579863,
+            "signed_delta": 1.266142013633953e-05,
+            "error": 1.266142013633953e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002839809144106198
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.548026191,
+            "reference_nll": 6.548031183434475,
+            "signed_delta": -4.992434474715424e-06,
+            "error": 4.992434474715424e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002916499000722439
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.209529845,
+            "reference_nll": 6.209517183579863,
+            "signed_delta": 1.266142013633953e-05,
+            "error": 1.266142013633953e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002839809144106198
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.230076306,
+            "reference_nll": 6.230067567701486,
+            "signed_delta": 8.738298514110454e-06,
+            "error": 8.738298514110454e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00028790403603284886
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.004740106,
+            "reference_nll": 6.004704450491353,
+            "signed_delta": 3.565550864692568e-05,
+            "error": 3.565550864692568e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00026098682590003364
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.230076306,
+            "reference_nll": 6.230067567701486,
+            "signed_delta": 8.738298514110454e-06,
+            "error": 8.738298514110454e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00028790403603284886
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.004740106,
+            "reference_nll": 6.004704450491353,
+            "signed_delta": 3.565550864692568e-05,
+            "error": 3.565550864692568e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00026098682590003364
+          }
+        ],
+        "full_logits": 150,
+        "nll": 12,
+        "max_logit_error": 0.00036066302490234126,
+        "logit_bound": 0.003304719924926758,
+        "logit_headroom": 0.0029440569000244166,
+        "max_nll_error": 3.565550864692568e-05,
+        "nll_bound": 0.0002966423345469593,
+        "nll_headroom": 0.00026098682590003364
+      },
+      {
+        "stage": "released-q2",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 5,
+        "seconds": 8.025790452957153,
+        "execution_sha256": "4b7a86287461774f7fab7941825b9c778e05007f38fab9344566407657328042",
+        "result_sha256": "0f2f071dc2eccffc487ec82f6928e15296ecc2f2232db54e88a8b41d7167d4dd",
+        "cases_sha256": "c42c48d1f187d2bccdddb2e987b43ac0cdd450d6a7ed0d38efb7fb4f887d5d09",
+        "golden_sha256": "c5baa553ac3031e0eeebe14d758e6771d20359fd293925f81ab17c23f9cda79c",
+        "metrics": [
+          {
+            "context": 0,
+            "per_token": false,
+            "mean_nll": 4.214097189,
+            "reference_nll": 4.214239008706614,
+            "signed_delta": -0.000141819706613866,
+            "error": 0.000141819706613866,
+            "bound": 0.01,
+            "headroom": 0.009858180293386134
+          },
+          {
+            "context": 0,
+            "per_token": true,
+            "mean_nll": 4.214104187,
+            "reference_nll": 4.214239008706614,
+            "signed_delta": -0.00013482170661394122,
+            "error": 0.00013482170661394122,
+            "bound": 0.01,
+            "headroom": 0.009865178293386059
+          },
+          {
+            "context": 123,
+            "per_token": false,
+            "mean_nll": 4.418707733,
+            "reference_nll": 4.418779123124132,
+            "signed_delta": -7.139012413226453e-05,
+            "error": 7.139012413226453e-05,
+            "bound": 0.02,
+            "headroom": 0.019928609875867736
+          },
+          {
+            "context": 123,
+            "per_token": true,
+            "mean_nll": 4.418691974,
+            "reference_nll": 4.418779123124132,
+            "signed_delta": -8.714912413232412e-05,
+            "error": 8.714912413232412e-05,
+            "bound": 0.02,
+            "headroom": 0.019912850875867676
+          }
+        ]
+      },
+      {
+        "stage": "released-q3",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 5,
+        "seconds": 8.044428825378418,
+        "execution_sha256": "1e4dc8ac732f616910a89886e58abd31f82602e1292cb85774fbbf06a8e7c552",
+        "result_sha256": "652210d1d6ad627d3bd363a513957c30255c4645ce48e6889fb9b8b03c8f6220",
+        "cases_sha256": "1256ec25e6a60457f9f453d1810457b758967954abf2a36000d0fcba85085e4b",
+        "golden_sha256": "982e11c1fa0dfe08a19f40d80b19e147d6b0891bc30a05f8b0d7c4a144cb26c5",
+        "metrics": [
+          {
+            "context": 0,
+            "per_token": false,
+            "mean_nll": 3.862292352,
+            "reference_nll": 3.862358879443419,
+            "signed_delta": -6.652744341906214e-05,
+            "error": 6.652744341906214e-05,
+            "bound": 0.01,
+            "headroom": 0.009933472556580938
+          },
+          {
+            "context": 0,
+            "per_token": true,
+            "mean_nll": 3.86231732,
+            "reference_nll": 3.862358879443419,
+            "signed_delta": -4.155944341910356e-05,
+            "error": 4.155944341910356e-05,
+            "bound": 0.01,
+            "headroom": 0.009958440556580897
+          },
+          {
+            "context": 123,
+            "per_token": false,
+            "mean_nll": 4.163737497,
+            "reference_nll": 4.163740814493671,
+            "signed_delta": -3.3174936717728087e-06,
+            "error": 3.3174936717728087e-06,
+            "bound": 0.02,
+            "headroom": 0.019996682506328228
+          },
+          {
+            "context": 123,
+            "per_token": true,
+            "mean_nll": 4.163756067,
+            "reference_nll": 4.163740814493671,
+            "signed_delta": 1.5252506328167215e-05,
+            "error": 1.5252506328167215e-05,
+            "bound": 0.02,
+            "headroom": 0.019984747493671833
+          }
+        ]
+      }
+    ]
+  },
+  "default_depth": {
+    "path": "build-quant-resume-20261020/q23-alignment/depth/summary.json",
+    "sha256": "2c163c02ef77448b2e9e59860356ce7ff48a48b3a408b08ab60fc4b21b91fac8",
+    "archive_sha256": "1b79e7f257ba64ff2d9f47094471fa3ab49099a0397b1f848bbe7fbf3d9ee069",
+    "stages": [
+      {
+        "stage": "q2-k-default",
+        "passed": true,
+        "removed": true,
+        "execution_sha256": "6f52e0760f1487ff5822cfb90a7d34f977bc3fcce20fbbcbd7578ec58588b9bc",
+        "comparison_sha256": "0b001b4e258bc76a3e5887610d35135289d284c85d501beeb5b2d79b4de9a52c",
+        "binaries": {
+          "llmx": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+          "llmx-model-logits": "853db38215d464f1b7f75b0c1649a397f2f0d91cafe7bb47c575e0f08ab98d36",
+          "libllmx-vulkan.a": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64"
+        },
+        "counts": [
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          }
+        ]
+      },
+      {
+        "stage": "q3-k-s-default",
+        "passed": true,
+        "removed": true,
+        "execution_sha256": "8b072b6da4d5a4855cbcffb2181311d381b01fe345dc5138d86168714997fa3b",
+        "comparison_sha256": "4eeb7a3fd929044f077f67e2c9bd55c0803a046b5b46fa5ecf01519fe867fe47",
+        "binaries": {
+          "llmx": "37f7e584e96b9d760bf616a86858336063052e9cc6cef209789b585e3e8cb57d",
+          "llmx-model-logits": "853db38215d464f1b7f75b0c1649a397f2f0d91cafe7bb47c575e0f08ab98d36",
+          "libllmx-vulkan.a": "c4fa9d0e8253b48d4911dd0b919e29c392422f4e18b07f809610f1e8487fff64"
+        },
+        "counts": [
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          }
+        ]
+      }
+    ]
+  },
+  "selected_tp2": {
+    "path": "build-quant-resume-20261020/q23-alignment/split/summary.json",
+    "sha256": "15d704db67eeec1e353a8bbc4c0332b281012fa6ba8752a7725cc6170b5306aa",
+    "archive_sha256": "bef0c8ff5318fc196c45f43914577c4b274c72279227e9bf5a389646392150ad",
+    "stages": [
+      {
+        "stage": "ordinary-q2",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 36,
+        "seconds": 237.47710990905762,
+        "execution_sha256": "761e72fd03988148a17c3b98ac4ac102f6f9f4ee37fc5b7880f7a6db8008893f",
+        "result_sha256": "c3632fea452c2adbcf9e0dccc75158e75d76dfdbe4d2c531640b7a4111d5dfde",
+        "cases_sha256": "e65d5add2059e42160747e5fdacf73ae01e73f549c9687252486e90fd38574f7",
+        "golden_sha256": "cca84e4b0ee192e04493229218ecdc34a0547f9b5d97662756737538315a2397",
+        "metrics": [
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.70821509,
+            "reference_nll": 5.708225011394392,
+            "signed_delta": -9.921394391376737e-06,
+            "error": 9.921394391376737e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002867209401555826
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.552644668,
+            "reference_nll": 5.552646763677827,
+            "signed_delta": -2.095677826829956e-06,
+            "error": 2.095677826829956e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029454665672012936
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 5.70821509,
+            "reference_nll": 5.708225011394392,
+            "signed_delta": -9.921394391376737e-06,
+            "error": 9.921394391376737e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002867209401555826
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.552644668,
+            "reference_nll": 5.552646763677827,
+            "signed_delta": -2.095677826829956e-06,
+            "error": 2.095677826829956e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029454665672012936
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.344449642,
+            "reference_nll": 6.344433936537427,
+            "signed_delta": 1.570546257312344e-05,
+            "error": 1.570546257312344e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002809368719738359
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.860941628,
+            "reference_nll": 5.860941967548214,
+            "signed_delta": -3.3954821443415995e-07,
+            "error": 3.3954821443415995e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029630278633252516
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.344449642,
+            "reference_nll": 6.344433936537427,
+            "signed_delta": 1.570546257312344e-05,
+            "error": 1.570546257312344e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002809368719738359
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 5.860941628,
+            "reference_nll": 5.860941967548214,
+            "signed_delta": -3.3954821443415995e-07,
+            "error": 3.3954821443415995e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00029630278633252516
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.1995994,
+            "reference_nll": 6.1996072583255755,
+            "signed_delta": -7.85832557514965e-06,
+            "error": 7.85832557514965e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00028878400897180967
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.067802029,
+            "reference_nll": 6.067793376839536,
+            "signed_delta": 8.652160464528436e-06,
+            "error": 8.652160464528436e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002879901740824309
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.1995994,
+            "reference_nll": 6.1996072583255755,
+            "signed_delta": -7.85832557514965e-06,
+            "error": 7.85832557514965e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00028878400897180967
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 6.067802029,
+            "reference_nll": 6.067793376839536,
+            "signed_delta": 8.652160464528436e-06,
+            "error": 8.652160464528436e-06,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002879901740824309
+          }
+        ],
+        "full_logits": 24,
+        "nll": 12,
+        "max_logit_error": 0.00012545983123779525,
+        "logit_bound": 0.003304719924926758,
+        "logit_headroom": 0.0031792600936889626,
+        "max_nll_error": 1.570546257312344e-05,
+        "nll_bound": 0.0002966423345469593,
+        "nll_headroom": 0.0002809368719738359
+      },
+      {
+        "stage": "ordinary-q3",
+        "passed": true,
+        "removed": true,
+        "oom": false,
+        "calls": 36,
+        "seconds": 258.92152762413025,
+        "execution_sha256": "bace4221c4591e0921155d66f7bf2aa265c228c21e32c4d8b50efa224ac657e1",
+        "result_sha256": "234b5b62919f380ae770de03e080957d304b430c9cdbdad0b2c0bc69faf10402",
+        "cases_sha256": "0460234288d5491b001794326112c2fa221032f36c927106b105c76b9485b201",
+        "golden_sha256": "fbaf2a324514ce2344fc6da21183e30110bd9427fba00b6f0292eeb3956c4417",
+        "metrics": [
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 7.223054973,
+            "reference_nll": 7.223079883555286,
+            "signed_delta": -2.491055528608399e-05,
+            "error": 2.491055528608399e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00027173177926087533
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 7.693379257,
+            "reference_nll": 7.693314143058995,
+            "signed_delta": 6.511394100527923e-05,
+            "error": 6.511394100527923e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002315283935416801
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 7.223054973,
+            "reference_nll": 7.223079883555286,
+            "signed_delta": -2.491055528608399e-05,
+            "error": 2.491055528608399e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00027173177926087533
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 7.693379257,
+            "reference_nll": 7.693314143058995,
+            "signed_delta": 6.511394100527923e-05,
+            "error": 6.511394100527923e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002315283935416801
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 8.20922523,
+            "reference_nll": 8.209252061228215,
+            "signed_delta": -2.683122821522943e-05,
+            "error": 2.683122821522943e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002698111063317299
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 8.081881532,
+            "reference_nll": 8.081935871729161,
+            "signed_delta": -5.433972916080165e-05,
+            "error": 5.433972916080165e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00024230260538615767
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 8.20922523,
+            "reference_nll": 8.209252061228215,
+            "signed_delta": -2.683122821522943e-05,
+            "error": 2.683122821522943e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002698111063317299
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 8.081881532,
+            "reference_nll": 8.081935871729161,
+            "signed_delta": -5.433972916080165e-05,
+            "error": 5.433972916080165e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.00024230260538615767
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.655525252,
+            "reference_nll": 6.655497681517236,
+            "signed_delta": 2.7570482764360804e-05,
+            "error": 2.7570482764360804e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002690718517825985
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 8.061954331,
+            "reference_nll": 8.061954614355711,
+            "signed_delta": -2.8335571045090546e-07,
+            "error": 2.8335571045090546e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002963589788365084
+          },
+          {
+            "context": 4,
+            "per_token": false,
+            "mean_nll": 6.655525252,
+            "reference_nll": 6.655497681517236,
+            "signed_delta": 2.7570482764360804e-05,
+            "error": 2.7570482764360804e-05,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002690718517825985
+          },
+          {
+            "context": 16,
+            "per_token": false,
+            "mean_nll": 8.061954331,
+            "reference_nll": 8.061954614355711,
+            "signed_delta": -2.8335571045090546e-07,
+            "error": 2.8335571045090546e-07,
+            "bound": 0.0002966423345469593,
+            "headroom": 0.0002963589788365084
+          }
+        ],
+        "full_logits": 24,
+        "nll": 12,
+        "max_logit_error": 0.0012940176696777383,
+        "logit_bound": 0.003304719924926758,
+        "logit_headroom": 0.0020107022552490195,
+        "max_nll_error": 6.511394100527923e-05,
+        "nll_bound": 0.0002966423345469593,
+        "nll_headroom": 0.0002315283935416801
+      }
+    ]
+  },
+  "backend_isa": {
+    "summary_path": "build-quant-resume-20261020/q23-alignment/final-isa/summary.json",
+    "summary_sha256": "2a7973fa057247282b96ce0db3762758b671f5d0b4dd71a471a8468545c3c6f9",
+    "archive_sha256": "6fd477895d10bb21aef7abdaaf1d6e0230e38706bf7cea07a5ed6176f822e9f6",
+    "mi50_exports": 212,
+    "radeon_exports": 113,
+    "initial_failure": "Frozen test expected the old path catalog; exact tracked test was privately rebuilt with unchanged runtime/library. Original failure retained.",
+    "collectives": "Single-device generic ISA checks explicitly skip collectives; selected TP2 HF is separate."
+  },
+  "applicability": {
+    "unchanged_checked_owners": "CPU source, existing-format shaders, model/server/placement owners, tests, fixtures and relevant build configuration retain the earlier reviewed evidence. Eight Q2/Q3 integer shader payloads changed; 181 payloads are byte-identical.",
+    "historical_runtime": "e8d1737eea8c199da111826c163d57cec544b60e",
+    "historical_records": [
+      "q23-row-int16-final-20261021.json",
+      "q23-row-int16-mi50-final-20261021.json"
+    ],
+    "carried": "Existing-format byte identity, device integration, main timing and explicit F32 depth retain their original tested identities; they are not labeled final-runtime reruns.",
+    "affected_completed": "Final native, F16 fixtures and released NLL, default depth, selected TP2, per-driver ISA and released byte identity cover the changed packed reader. Retained released server/ranking observations remain historical; code/address equivalence, exact binary32 identity and final independent HF evidence support their applicability without claiming a fresh server run."
+  },
+  "pending": [
+    "Explicit disposition of the Q3-only BF16 reference calibration proposal; no allowance installed.",
+    "Applicable hosted CI on the final landing commit."
+  ],
+  "policy": "For every quant: correctness and mx Vulkan first, then move to next quant. After support is complete, tune against mx ROCm while retaining Vulkan performance.",
+  "production_changed": false,
+  "merged": false
+}

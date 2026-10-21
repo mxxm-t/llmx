@@ -1,12 +1,14 @@
 # llmx - Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / F32 transformers
+writes GGUF v3, runs Q8_0 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / F32 transformers
 on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, including read-only MXFP4 where the device provides its required float preservation and double arithmetic. Both backends support read-only F16/BF16 weight matrices; their published qualification and remaining workload limits are recorded in STATUS. It
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
 IQ4_XS read-only CPU and Vulkan support reuses the quant registry and existing product families. Local operator, tiny, released-file, selected split and 16K qualification is complete; STATUS records the exact approved split-MoE F32 exception and matched timing evidence.
+
+Q2_K and Q3_K reuse the same owners for read-only CPU and Vulkan inference; qualification of their newer packed-prefill and specialized decode paths, numerical policy and landing checks is recorded in STATUS.
 
 ## Layer diagram
 
@@ -42,7 +44,7 @@ format/        GGUF reader/writer (headers read, payload mapped and read
    |
    v
 quant/         storage metadata and checked row sizes, decoder registry;
-               Q8_0 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / MXFP4 kernels
+               Q8_0 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / MXFP4 kernels
    |
    v
 core/          fp16 and bf16 <-> f32, minimal JSON parser, UTF-8, file hashes, available

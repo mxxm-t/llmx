@@ -110,6 +110,53 @@ float q5_1_at(uint o, uint j, float d, float m) {
     return d * float(q5_code(o, j, 8u)) + m;
 }
 
+// Q2_K has a scale/min nibble pair per 16 values and interleaves four code planes within each 128-value half.
+struct Q2KScale { float scale; float min; uint zero_sign; };
+Q2KScale q2_k_scale(uint o, uint j) {
+    float d = half_at(QBYTE(o + 80u), QBYTE(o + 81u));
+    float m = half_at(QBYTE(o + 82u), QBYTE(o + 83u));
+    uint sc = QBYTE(o + j / 16u);
+    precise float scale = d * float(sc & 15u), min = m * float(sc >> 4u);
+    return Q2KScale(scale, min, floatBitsToUint(d) & ~floatBitsToUint(m) & 0x80000000u);
+}
+uint q2_k_code(uint o, uint j) {
+    return (QBYTE(o + 16u + 32u * (j / 128u) + j % 32u) >> (2u * ((j % 128u) / 32u))) & 3u;
+}
+float q2_k_at(uint o, uint j, Q2KScale s) {
+    uint code = q2_k_code(o, j);
+    precise float value = s.scale * float(code) - s.min;
+    // Preserve subtraction's zero sign even when the embedding shader lacks signed-zero float controls.
+    return value == 0.0 ? uintBitsToFloat(s.zero_sign) : value;
+}
+float q2_k_at(uint o, uint j) {
+    return q2_k_at(o, j, q2_k_scale(o, j));
+}
+
+struct Q3KScale { float scale; uint sign; };
+Q3KScale q3_k_scale(uint o, uint j) {
+    float d = half_at(QBYTE(o + 108u), QBYTE(o + 109u));
+    uint group = j / 16u;
+    uint low_scale = (QBYTE(o + 96u + group % 8u) >> (4u * (group / 8u))) & 15u;
+    uint high_scale = (QBYTE(o + 104u + group % 4u) >> (2u * (group / 4u))) & 3u;
+    int scale = int(low_scale | (high_scale << 4u)) - 32;
+    precise float ds = d * float(scale);
+    return Q3KScale(ds, (floatBitsToUint(d) ^ (scale < 0 ? 0x80000000u : 0u)) & 0x80000000u);
+}
+int q3_k_code(uint o, uint j) {
+    uint plane = j / 32u;
+    return int((QBYTE(o + 32u + 32u * (j / 128u) + j % 32u) >> (2u * (plane % 4u))) & 3u)
+             - (((QBYTE(o + j % 32u) >> plane) & 1u) == 0u ? 4 : 0);
+}
+float q3_k_at(uint o, uint j, Q3KScale s) {
+    int code = q3_k_code(o, j);
+    precise float value = s.scale * float(code);
+    uint sign = s.sign ^ (code < 0 ? 0x80000000u : 0u);
+    return uintBitsToFloat((floatBitsToUint(value) & 0x7fffffffu) | sign);
+}
+float q3_k_at(uint o, uint j) {
+    return q3_k_at(o, j, q3_k_scale(o, j));
+}
+
 // Q6_K, 256 values in 210 bytes: 128 low nibbles, 64 bytes of high bit pairs, 16 signed sub-scales, a half; value = d * sc * (q - 32).
 float q6_k_at(uint o, uint j, float d) {
     uint n = j / 128u, r = j - n * 128u;
@@ -163,6 +210,8 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     }
     uint block = block_values(type), j = column % block;
     uint o = (row * (width / block) + column / block) * block_bytes(type);
+    if (type == TYPE_Q2_K) return q2_k_at(o, j);
+    if (type == TYPE_Q3_K) return q3_k_at(o, j);
     uint scale = o + (type == TYPE_Q6_K ? 208u : 0u);
     float d = half_at(QBYTE(scale), QBYTE(scale + 1u));
     if (type == TYPE_Q8_0) return d * float(int(QBYTE(o + 2u + j) << 24u) >> 24);

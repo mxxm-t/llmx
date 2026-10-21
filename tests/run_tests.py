@@ -21,6 +21,8 @@ import half_weights
 import moe
 import mxfp4
 import q5_0
+import q2_k
+import q3_k
 import q5_1
 import iq4_nl
 import iq4_xs
@@ -117,6 +119,8 @@ def main():
                   ("int8", int8.run),
                   ("mxfp4", lambda: mxfp4.run(require=args.require_tools)),
                   ("q5-0", q5_0.run),
+                  ("q2-k", q2_k.run),
+                  ("q3-k", q3_k.run),
                   ("q5-1", q5_1.run),
                   ("iq4-nl", iq4_nl.run),
                   ("iq4-xs", iq4_xs.run),

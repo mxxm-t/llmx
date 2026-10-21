@@ -1,0 +1,345 @@
+{
+  "scope": "Focused Q2_K implementation checkpoint, not a merge or performance gate.",
+  "base": "609ff078621181317e20daca67550cb7a5b39361",
+  "source": {
+    "runtime": {
+      "src/backends/backend.hpp": "0545a25e72a719e0d478dce9ac3ad1b6f7ace7851224a8b0f337e3a8beb45d37",
+      "src/backends/cpu/cpu_backend.hpp": "b51da5bc736bcb33701fdca6486c2bc28d7d5a71cc72f60854efda54d6781798",
+      "src/backends/cpu/prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+      "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+      "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+      "src/backends/devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+      "src/backends/kv_storage.hpp": "a6ccbaa4bd25e6aeec72c73d88f0de718555e21f4f7618432e5f011e7129205f",
+      "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+      "src/backends/vulkan/shaders/argmax_rows.comp": "47fb244ee8c073f10ea14f72418a9c5f3e3be81446e2268f2b843e6aae49525e",
+      "src/backends/vulkan/shaders/attention.comp": "9857edf78d7a9075109d7830db4ac0c7eefd6af7b2408105bfb2e70dfdf4fd6a",
+      "src/backends/vulkan/shaders/attention_merge.comp": "293dbea703c38fc4f0eda9cd9c7808e1076b3f66b1a675134acee741e5ea8ac4",
+      "src/backends/vulkan/shaders/attention_tile.comp": "f2615202f163d111ba7199fe8dba16ec7385b6799f06ec7f9665e04fefd112e6",
+      "src/backends/vulkan/shaders/attention_vec.comp": "bd09e79cee7870dc06ed7766dfbb000c5d7745af3d3e87480a4522a9bb10ee53",
+      "src/backends/vulkan/shaders/causal_conv_silu.comp": "51b69700e841cf7683002d452d2fea638d71747bd0ecc3babeb20b57a0ea0033",
+      "src/backends/vulkan/shaders/copy_mxfp4.comp": "5d6221c47353792268523d8d0618b8ab54ea14235ff61889badaf1fa692f39ef",
+      "src/backends/vulkan/shaders/delta_rule.comp": "9c394c87e066749224705b20902f20a54541ab41930bd8de3183a06bd67805b3",
+      "src/backends/vulkan/shaders/dilated_conv_silu_add.comp": "dc2aa5272207a300801baec4e5dffbb19ca31c9be46e73d74daf32dd45577fe8",
+      "src/backends/vulkan/shaders/dot16.glsl": "0f81744a84ab0c58b8bc3f09559f2eedabeafca119457021efef0d1948cae7c7",
+      "src/backends/vulkan/shaders/embed.comp": "c440a859da199bcff79b4550e3776919bfb440938d227227e6bd90993084a414",
+      "src/backends/vulkan/shaders/f16.glsl": "d79911a5b8cf132d2400fcd8c54eda4d4ccbf1dd8c9daa37fd877dd56d6f5c0c",
+      "src/backends/vulkan/shaders/float_controls.glsl": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+      "src/backends/vulkan/shaders/gated_rms_norm.comp": "000a100c6129e8b7d491ca7585ef06f69ac535585a0f78411c910636052b06b0",
+      "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+      "src/backends/vulkan/shaders/group_rms_norm.comp": "ce6794fc7ac36a96fc61f2d25ed9fff25ae6b3083fa88f6fdcefae4924391527",
+      "src/backends/vulkan/shaders/inject_streams.comp": "826e3fd7477e3f1c5c64e0fcb9fa9cbdf8c22d0ec17f9dd00ab9f2a80349e74f",
+      "src/backends/vulkan/shaders/iq4_dot.glsl": "2e56dba7177d3d90f83edf61b61c0565deed7a7ae023cd64ae56358823b205e4",
+      "src/backends/vulkan/shaders/kv_index_pool.comp": "04ac320bc2efafe22cfdc1c6830a0fb71f799a394749f49435d0743a74b1e8d3",
+      "src/backends/vulkan/shaders/kv_index_scores.comp": "746e2d52d60465ed5f252c783edae203d929aa63d8b6b6bd143bb08917e95335",
+      "src/backends/vulkan/shaders/kv_index_select.comp": "439336dd43fb9cb0c3ac2af79857021f38e3fa48cbbb21ae2ec3cd8b6cf7f84b",
+      "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+      "src/backends/vulkan/shaders/matmul_reduce.comp": "cc4d037cda7e984873d0286c04efa57f477758c3f5da3326b5340ccb56d8d033",
+      "src/backends/vulkan/shaders/matmul_row.comp": "1870b867ca0a49eb4bfd052a617c11970b12f2532b3d85669925b47e2c1cf573",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "8613d3703353c22502d3d4fec098e300380c0fe6aebad0935626fbaf98e409f1",
+      "src/backends/vulkan/shaders/matmul_tile_q.comp": "3fbf577b6cd573c6455d5c15cba3449efe58d7f3e08d3596d2dabb42a3a35046",
+      "src/backends/vulkan/shaders/matmul_vec_q8.comp": "2fb7f991673acd466f2541051a1519d52394f3ee00e2415d400be1302938ef26",
+      "src/backends/vulkan/shaders/mix_streams.comp": "979a0a0d363524cc5287ed04342702caa9f40e54ca4ac5eb4c28eef5e9af4848",
+      "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+      "src/backends/vulkan/shaders/moe_group.comp": "9426ae02b002cb8d5214470b16e53bf3916b7bc313314b9bf9aa0d6f109a88be",
+      "src/backends/vulkan/shaders/moe_route.comp": "f38e46361719035207a851bfc2d05cee89d6d41f5797041d140c79354bf35ad7",
+      "src/backends/vulkan/shaders/norm_rope_kv.comp": "f54feb6fdbdce4c754427d468b6dd3f32d6811eec09fee5034a0b00ee01a8ea8",
+      "src/backends/vulkan/shaders/norm_rope_partial.comp": "d3633e79bd4ea9fc83c5ed488bc1abaefb06422a7c130a43edd6b1a38330b29b",
+      "src/backends/vulkan/shaders/q.glsl": "4d0c051a3e4c8b979af654ad9eb7f667575c0c7ce929bd501bc3104532027b1d",
+      "src/backends/vulkan/shaders/qdecode.glsl": "ddd34b3967084db16a601a1d50ba069de05cb376512cc6a351c4be4b2d3b2789",
+      "src/backends/vulkan/shaders/quantize_x.comp": "2b1dddcd091c173a93c53efa8ee4fdda83e372255a879354c49721c88a2553f9",
+      "src/backends/vulkan/shaders/quantize_xw.comp": "9e97ab1aa13872414d350b98ca11c20aef199042fabdb1e5d86681bda05432df",
+      "src/backends/vulkan/shaders/rms_norm_rows.comp": "9f511beceb9bf54961812aff7f2222a5feff50820b3e631ce31e6ec4479dcb55",
+      "src/backends/vulkan/shaders/sigmoid_mul.comp": "78d59039a4dfcfb0b5699915ec50d1fabfdd336f54c510daa2555794ec70531c",
+      "src/backends/vulkan/shaders/signed_sqrt_gate.comp": "a80bf1c98f7243e487d6a92ca15760c1688980e468f3a803312e2778991dedff",
+      "src/backends/vulkan/shaders/silu_mul.comp": "e0aae0fade7ac1c1c1ce4870e78cb0e6a7127c9e40d2929df023dfa85cb1bd6e",
+      "src/backends/vulkan/shaders/silu_scaled.comp": "a67fb31a488eaa6e1595e75275e16b7b4f72a83c88da70baafbc0e87b8399bd8",
+      "src/backends/vulkan/shaders/views.glsl": "4c9e5d73457962993f166ad7d08c6031b399b7ad09a3d665ff11a2d5edce8479",
+      "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+      "src/backends/vulkan/vulkan_backend.cpp": "475dcce1709b723e026524287e5229d2377bed46a534886a0bc1a5d65e6980ab",
+      "src/backends/vulkan/vulkan_backend.hpp": "78bcc6e84906cf1477ccc0be2bd1bea52c98031dc0687f2ab63b97240b10ee34",
+      "src/cli/main.cpp": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b",
+      "src/config.hpp": "35ddfbc82366e80b69cd7c003791fb988bcd82523bac6652303e3e28fc2a33e7",
+      "src/core/bf16.hpp": "43cf134cdb167547e47cd0f821505247965e6b07b9d2fdc2b67e08c8835d9174",
+      "src/core/cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+      "src/core/cpus.hpp": "6c4fd98658e9928b5852d8783dfa70597b7b2805c8ef5f978bb47b5fb3ebbbd5",
+      "src/core/crc32c.hpp": "306b0c5b9fa180c108aa12afb2714caf09dd4e1ddcccf0922af8bf39c65e2a15",
+      "src/core/fp16.hpp": "3cbe60800d9ec5acd3214e503225b508dd0dfda13871740665ab014cdaa52539",
+      "src/core/host_memory.hpp": "12442033770c6c320d1a0df52d8616a3a4924bdfeed6c289eba1e21cda6bf73a",
+      "src/core/job_threads.hpp": "0a803d8b0e6d83f6c630c800046aa4384e7c463e2e83c166af28c22742307f06",
+      "src/core/json.hpp": "dd4c77e427e5747447e332dec87b2af735f3718635de9fa3ab65a931d2cb3ea6",
+      "src/core/list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+      "src/core/sha.hpp": "1577285ffd2f995ba5a087dc6c91cb8431415fdce4e7a6febf11cd2e0df7ef72",
+      "src/core/utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+      "src/format/file_digest.hpp": "04808bb33cd5cc6e29abaa1108e163d751bd499af487aa6ade407afbad72143a",
+      "src/format/file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+      "src/format/file_writer.hpp": "5815af0b5202748dee737d04d2a86407f7c4b4a7b939d009994fb01d6f898c41",
+      "src/format/format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+      "src/format/gguf.hpp": "ddc503d932f6f2e978ea2308337c987bc3a4c137e477da0a18628d7431723e9a",
+      "src/format/mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+      "src/format/output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+      "src/format/raw_convert.hpp": "a9bdd462fe5c66e6ff72a308cf09c330fb3359bd6fd8302f979a0ea07bd56483",
+      "src/hub/manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+      "src/hub/pull.hpp": "f37b814b27669d8d73862ecf5eac74a304ce5d0a895534cb220d4ea929deba56",
+      "src/hub/transport.hpp": "a8331ccd19af945f0a823b1987e64cb1bff75b4f5fcdc900eda8ddbb7596ada7",
+      "src/inference/chat.hpp": "093bbd91cc3e244ac20ff08b855cccedd4afb400111330be558c2f3dfd3dbb8a",
+      "src/inference/generate.hpp": "08d0d7a9a0d296195ddfc91ab0ed9bad4b67f4c1ae477612d49683f4ed3b7398",
+      "src/inference/load.hpp": "bca78e588fae926728e57fe47f42225b7a6ac7dfa67572474ebb422b912bade5",
+      "src/inference/logprobs.hpp": "7ce38bda7aec94e3bcfd4a1ec06eeb88289062690e88a39b24f5973219da03b7",
+      "src/inference/pair.hpp": "b24bbd74c366c3ae702fb06af5d037003553236b8f86fb73f4b31e06544590e3",
+      "src/inference/perplexity.hpp": "95768b8e2a536ed5b846d9fa63a6b1a3ec145ab15be2f2c9867c0b85533efa96",
+      "src/inference/read_ring.hpp": "5a34df8e0f37f1bcc790fc1d1c00200cbec721d4625965620c54ae216dcd9147",
+      "src/inference/sampler.hpp": "4a99d620a949fbeb24dda2d4a285dbd83370450b1e5c7b0bf304e9d03e31db23",
+      "src/inference/spec.hpp": "57a8cce7828f7d9bc9a6e8080878f553e41d466319165884cc83dc4ab3b6b4c2",
+      "src/model/arch/blocks.hpp": "8a4925166dce168953b8a3fc659d18e69f87d3ac371ea44b854a85a83f8f9a76",
+      "src/model/arch/metadata.hpp": "51a9f7319684c8f8c5d5c4f2a0bb17ff4b8d075caa76ad345ca4a779eb9b588e",
+      "src/model/arch/qwen3.hpp": "da63c0711d628afb1ba346dbb4ac71e621cdb95d9bf083bb085338b60955dd43",
+      "src/model/arch/qwen35.hpp": "c7b53e281a6e6c742112d848dc3d1e09edb3c8451eec40c324ee152e7f695473",
+      "src/model/arch/qwen4exp.hpp": "65b0d57c038929cd29b66c92c3b36d5a60785e7e5885f8f1e43b9d1ea1351ff3",
+      "src/model/arch/registry.hpp": "bce6957855f0beb5f5a14d962ac3b547c36213888392dd3984b65262c10da6d6",
+      "src/model/architecture.hpp": "959366348c6b959d1d68175375014907eea0ad23280c3c19e4b9a72b8540381c",
+      "src/model/history.hpp": "3ee73ae1ed27e7ee6688eeef84b2a8a80b0af9621acfe6253869ce1e2bba9c43",
+      "src/model/kv_cache.hpp": "02930aeda059494a33a681f30479b48111ffd49daeb81cd13d3ec7c1327c3a25",
+      "src/model/layer_split.hpp": "8cd35c0696acda23a190c0dc4848695f541c97fa1e2962813826c1bafbc438cb",
+      "src/model/passes.hpp": "a5739ac768a8f32665c51edc42f3f5e1beb73ccf96dee83f86d6c357132541f3",
+      "src/model/place.hpp": "631cf809eb896ec28d852837793a29a3791ac3301fd1dfbcf6527fec8da3ca25",
+      "src/model/runtime.hpp": "eb8e5db84ac925d77344f80bcb28112ebbf390d1b1a6bc29420e9e95edb3d35c",
+      "src/model/shard.hpp": "17fde7ab2275fbe7c5fcf76231e2455f0deb62a3054f2aa83f217cede11a5a71",
+      "src/model/weight_rows.hpp": "2fbd19d71f241821fe9a7c27c9b3638e81b17dd3c2b938f979597d432f5544d1",
+      "src/model/weights.hpp": "7f5f641cba448526eb588b08db9fb755418360fe49ca98869255d4b01bf17cb1",
+      "src/quant/k_quants.hpp": "1b439dbc5241838a1ef21dd35674c6c56bc9ccf536ee34b4a1ce1ee8fa6b3e6e",
+      "src/quant/mxfp4.hpp": "28120ca0b5307eb56f360a1d0c5beceef8c9a43296568ba2f345af95086c4d96",
+      "src/quant/quant.hpp": "95436dda0228b5320a44782e44cc788d59f8af96ba167f11e5395114b1ce0f74",
+      "src/quant/types.hpp": "0ea86cfb33c427c8b6c8ca11195af3d98afef4cb149c6fd8d085c05fa2e24de1",
+      "src/server/api.hpp": "7189c8e0b09b4e91751b9bdfa603edc885eb0e549839520554e37d95e104d075",
+      "src/server/cache.hpp": "2467b3c5161835fed7fd39005b88853c40f8802d3a16e16798f2705d8f51a8cc",
+      "src/server/context_cut.hpp": "669130a5929e1662d14e70134cd114433c40def7d75362e8993b1952376126a7",
+      "src/server/disk_index.hpp": "972ca858669086103a5bb45ce1a2c59b9b103f51190ca1552602d6ee8d2c6feb",
+      "src/server/disk_store.hpp": "870878254326132d760be83854f42bb01bec52b8e83097a50b98e446c1349d75",
+      "src/server/disk_tier.hpp": "6e61d8f3d31c4a30faf3a21f1de332ff03ac1de7269e95dae51e969d2e166da4",
+      "src/server/http.hpp": "e4eead42ea76e8e7ce365d24c6ee1f717a5b700a05ae7deb1f7a6aa86888d932",
+      "src/server/policy.hpp": "f6c8ecb818d0ca0c4665af780427e3b2c120e892a13065a964978adca66629fc",
+      "src/server/scheduler.hpp": "2a7948926082c106ac85cf60465a0336f0cd917ea0f8a22b51a74268332c40b7",
+      "src/tokenizer/tokenizer.hpp": "9dde67500c722f1a7490cb3a5d3cb0bb7b56bbe424dee3e5411710a3533c6614"
+    },
+    "test": {
+      "path": "worktrees/q2-k-20261021/tests/q2_k.cpp",
+      "sha256": "f5c393008436f62cbd5b1959ddf4090152a94b235f228ea68c6775d9f92ebb8c"
+    }
+  },
+  "reference": {
+    "source_pins": {
+      "path": "build-quant-resume-20261020/q2-reference/source-pins.json",
+      "sha256": "44471ce8602e9d8b17dd037e2ca60a7de6f05b13a6eb569d1532d4fe8d9ca3c9"
+    },
+    "execution": {
+      "path": "build-quant-resume-20261020/q2-reference/execution.json",
+      "sha256": "f163f95feb9195cb02992313ee7fb1cd2bf23341d4ac389a8676ecf82ffa035a"
+    },
+    "log": {
+      "path": "build-quant-resume-20261020/q2-reference/run.log",
+      "sha256": "afa8fdc0d76a2f3ce7fb86e977a079b5ef0a56379da4aa408279810c0b265724"
+    },
+    "fixtures": {
+      "baseline_q2_k_split.json": "cca84e4b0ee192e04493229218ecdc34a0547f9b5d97662756737538315a2397",
+      "run.log": "afa8fdc0d76a2f3ce7fb86e977a079b5ef0a56379da4aa408279810c0b265724",
+      "baseline_q2_k.json": "70e2afe50f4f820fa4f9af83fe9565e99a9370c2fe10cc3eddce06d4b43599c8"
+    },
+    "environment": "Pinned offline image 57cd7c3a; torch 2.5.1+cpu and transformers 4.55.2; fixed synthetic raw blocks, one HF thread.",
+    "bounds": "Existing strict F32 2e-5 logits/1e-5 NLL unchanged; no Q2_K-specific allowance."
+  },
+  "windows": {
+    "compiler": "MSVC 19.50.35728.0, Visual Studio 18 2026, Release",
+    "binaries": {
+      "build-q2": {
+        "file": {
+          "path": "worktrees/q2-k-20261021/build-q2/Release/llmx.exe",
+          "sha256": "7df6b3f4770d2f498d6054fc2bb3d92b349f2b94468aa16f620ad8500c164bfb"
+        },
+        "version": "llmx 0.1.0+g609ff0786211.dirty numerics e2186c3f8744745a"
+      },
+      "build-q2-vulkan": {
+        "file": {
+          "path": "worktrees/q2-k-20261021/build-q2-vulkan/Release/llmx.exe",
+          "sha256": "4da9efbf6ebb4c7f29b76cda37a69ab9439b5f36d85315f1a5394d056dfb7587"
+        },
+        "version": "llmx 0.1.0+g609ff0786211.dirty numerics 813eee2074a33fd5"
+      }
+    },
+    "native_binary": {
+      "path": "worktrees/q2-k-20261021/build-q2-vulkan/Release/llmx-q2-k-test.exe",
+      "sha256": "f39f04bba1ca956fdef6f1f131fe9a22cce64b0226a6adcd5a1597328824b880",
+      "note": "Historical initial binary; this output path was rebuilt for the test-only row-class extension."
+    },
+    "native": {
+      "cpu": "PASS",
+      "radeon_vii": "PASS",
+      "decoded_values_per_run": 65011712,
+      "embedding_range_product_values_per_run": 549616,
+      "dispatch": "Observed float row, float tile and BF16 tile; no integer-dot builds.",
+      "log": {
+        "path": "worktrees/q2-k-20261021/build-q2-vulkan/native-initial.log",
+        "sha256": "0bc744404234388d7915a371b851a704b190daef8ec344f8b1efbacf34fa1431"
+      }
+    },
+    "cpu_hf": {
+      "logits": 150,
+      "nll": 12,
+      "max_logit_error_printed": 1.28e-06,
+      "max_nll_error_printed": 1e-07,
+      "log": {
+        "path": "worktrees/q2-k-20261021/build-q2/hf-f32.log",
+        "sha256": "9b1d9663dfc98d59d118751caef60fbc03106994f6e72cbe917b7013b71fbcaf"
+      }
+    },
+    "conversion": {
+      "q2_values": 118784,
+      "blocks": 464,
+      "exact_float_bits_including_zero_sign": true,
+      "log": {
+        "path": "worktrees/q2-k-20261021/build-q2/focused-cpu-unsandboxed.log",
+        "sha256": "9a0e1955855bb3357b0498ddf8f7313657fa487e1356827a6d917fd6166dc077"
+      },
+      "limitation": "POSIX file-size limit subcase unavailable on Windows; both components passed."
+    },
+    "raw_spec": {
+      "path": "worktrees/q2-k-20261021/build-q2/raw-blocks.log",
+      "sha256": "bc8ba6d8feb40d5449de83fa379745634b54b2dc46e03fe12159bb479500184e"
+    },
+    "reference_generator": {
+      "tests": 59,
+      "result": "PASS",
+      "log": {
+        "path": "worktrees/q2-k-20261021/build-q2/reference-generator.log",
+        "sha256": "e629f02a463ec91ef7e4d85505b75b89a5b0bc1ec5a6d3f0f0b5a689394fdf2e"
+      }
+    },
+    "build_logs": [
+      {
+        "path": "worktrees/q2-k-20261021/build-q2/compile.log",
+        "sha256": "3529fde594a9e8260deaab29b1e56c184c21e5dff92a3a110654beb1a3dd8741"
+      },
+      {
+        "path": "worktrees/q2-k-20261021/build-q2-vulkan/q2-native-build.log",
+        "sha256": "2e9ecf2a400ada5ba337946f82d3c62ac06b3b3d85b7275bb1d5a59915edd2cb"
+      }
+    ],
+    "limitations": [
+      "Initial sandbox conversion/CLI run failed at filesystem canonicalization before decoding; the unsandboxed scoped run passed.",
+      "GPU counter access was initially denied; subsequent counters show Firefox/RuneLite activity. These are functional checks, not timing evidence."
+    ],
+    "row_classes": {
+      "delta": "Only tests/q2_k.cpp adds the existing shared row-class check. Runtime, HF fixtures and bounds are unchanged from e4d95b221.",
+      "source": {
+        "path": "worktrees/q2-k-20261021/tests/q2_k.cpp",
+        "sha256": "9a118b2362169df3f7cf972397c1a33f8253ebf66cbcfcfc61469b1c663cd8c4"
+      },
+      "binary": {
+        "path": "worktrees/q2-k-20261021/build-q2-vulkan/Release/llmx-q2-k-test.exe",
+        "sha256": "dd6d8683a273baa9ac3b03cca57d9510b1cf6866bd46d9a9f527e62abaff8ef3"
+      },
+      "build_log": {
+        "path": "worktrees/q2-k-20261021/build-q2-vulkan/row-classes-build.log",
+        "sha256": "c9394f540b676d42dcc5f8c1e22cc5fb3373d7e759fd9c42a698c2b529f50589"
+      },
+      "cpu": {
+        "result": "PASS",
+        "pairs": 17914,
+        "log": {
+          "path": "worktrees/q2-k-20261021/build-q2-vulkan/row-classes-cpu-detail.log",
+          "sha256": "4dcffe27e07a9c229d0ce895e9c7c083239285e467cdf58358cf0515754d6bcc"
+        }
+      },
+      "radeon_vii": {
+        "result": "PASS",
+        "pairs": 1625,
+        "log": {
+          "path": "worktrees/q2-k-20261021/build-q2-vulkan/row-classes-radeon-detail.log",
+          "sha256": "3bb2448f881f03caa8b7cb2269a9def54e6c7eda0ab9b89fa118b0222265ba8f"
+        }
+      },
+      "scope": "Matrix and routed gate/down products, attention, dtype paths and row-class boundaries use tests/row_classes.hpp. Pair counts follow backend classes.",
+      "activity": "Firefox and RuneLite GPU activity observed before the Radeon functional check; no performance conclusion."
+    }
+  },
+  "remaining": [
+    "Remaining split/server/long-context coverage and applicable final regression/performance/hosted checks.",
+    "Released Q2_K fixture contains Q3_K tensors; its complete-file qualification requires Q3_K support."
+  ],
+  "mi50": {
+    "revision": "e4d95b2211b5e78b62aa997dd451de7644c60e79",
+    "source_manifest_sha256": "515520735bbf284f2b17adc281a6f0a688d86fd97b6830532cd6b39f84f19cbc",
+    "evidence": {
+      "path": "build-quant-resume-20261020/q2-k-focused-rig/focused-evidence.json",
+      "sha256": "8d28cca16cff57a17b6c6d09666da4ec5730c6adae29a14c0d629935f7d45d0f"
+    },
+    "version": "llmx 0.1.0+unknown numerics 813eee2074a33fd5",
+    "binaries": {
+      "llmx": "d9d6531d32c5a9de82bb1a35e0b80558cf6a2799c8eaf9d24f57fc3975ad35b0",
+      "llmx-q2-k-test": "b56750c2a6736a5045145e1c6c449b2ef2edad79473303e893ea763a6f05847f",
+      "libllmx-vulkan.a": "9303dcf0195dd13f6cf71680526991feca6f5403d247db7b865566fe9d3848ee",
+      "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "generated/llmx-build-info.hpp": "53b32049f3266b7f6c28b32c7caccf58b1f4e3d00d9856dd0dbbbe61022c8b75",
+      "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+      "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+    },
+    "stages": {
+      "build": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 128.2251842021942
+      },
+      "native-cpu": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 2.653609275817871
+      },
+      "native-vulkan": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 3.7462880611419678
+      },
+      "hf-auto": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 20.128052949905396
+      },
+      "hf-f32": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 21.14975357055664
+      },
+      "hf-bf16": {
+        "passed": true,
+        "exit": 0,
+        "seconds": 21.135260581970215
+      }
+    },
+    "hf": {
+      "auto_and_f32": {
+        "logits_each": 150,
+        "nll_each": 12,
+        "max_logit_error_printed": 1.03e-06,
+        "max_nll_error_printed": 8e-08
+      },
+      "bf16": {
+        "logits": 150,
+        "nll": 12,
+        "max_logit_error_printed": 0.00411263,
+        "max_nll_error_printed": 0.00032453
+      }
+    },
+    "bounds": "Existing F32 and BF16 policies unchanged; no family-specific Q2_K allowance.",
+    "delta": "Later edits add native row-class coverage and documentation only; e4 checks do not cover that added test.",
+    "row_classes": {
+      "result": "PASS",
+      "pairs": 1309,
+      "source_sha256": "9a118b2362169df3f7cf972397c1a33f8253ebf66cbcfcfc61469b1c663cd8c4",
+      "binary_sha256": "4d786802bd1d5e7cb2a3c5573c46c3b973731ceea53431acabd76e1eaff86df4",
+      "evidence": {
+        "path": "build-quant-resume-20261020/q2-k-focused-rig/rowclass-followup/rowclass-evidence.json",
+        "sha256": "54a0749ee4d0ec054603bc52bc92de361faed2205a8bda064372e5fde02a7d09"
+      },
+      "delta": "Native test only; CLI, device library and configuration unchanged. Original e4 native source/binary retained. No repeated HF."
+    }
+  }
+}

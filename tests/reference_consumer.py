@@ -781,6 +781,39 @@ class LayeredConsumer(unittest.TestCase):
 
 
 class MXFP4Consumer(unittest.TestCase):
+    def test_q3_family_changes_only_witnessed_bf16(self):
+        doc = json.loads((Path(common.ROOT) / "tests/data/dtype_budget.json").read_text())
+        family = doc["families"]["q3-k"]
+        self.assertEqual(set(family["dtypes"]), {"bf16"})
+        expected = {"logit": 0.2348918914794922, "nll": 0.020625951050400104}
+        for paths in ([["bf16"]], [["f32"], ["bf16"]]):
+            self.assertEqual(common.hf_bounds("bf16", paths, "q3-k"), expected)
+        for dtype in ("f32", "f16", "bf16", "int8"):
+            self.assertEqual(common.hf_bounds(dtype, [["f32"]], "q3-k"), {"logit": 2e-5, "nll": 1e-5})
+        for dtype, paths in (("f16", [["f16"]]), ("f16", [["block-int16"]]),
+                             ("int8", [["block-int16"]]), ("int8", [["block-int8"]])):
+            self.assertEqual(common.hf_bounds(dtype, paths, "q3-k"), common.hf_bounds(dtype, paths))
+        for dtype, paths in (("f32", [["bf16"]]), ("bf16", [["f16"]]), ("bf16", [[]]), ("unknown", [["bf16"]])):
+            with self.subTest(dtype=dtype, paths=paths), self.assertRaises(AssertionError):
+                common.hf_bounds(dtype, paths, "q3-k")
+        import q3_k
+        with patch.object(q3_k, "run_family", return_value=True) as run:
+            self.assertTrue(q3_k.run())
+        run.assert_called_once_with("q3-k", "Q3_K", q3_k.fixture, family="q3-k")
+
+    def test_q3_family_does_not_hide_missing_calibration(self):
+        doc = json.loads((Path(common.ROOT) / "tests/data/dtype_budget.json").read_text())
+        del doc["families"]["q3-k"]
+        with patch("builtins.open", unittest.mock.mock_open(read_data=json.dumps(doc))):
+            with self.assertRaisesRegex(AssertionError, "missing frozen fixture-family"):
+                common.hf_bounds("bf16", [["bf16"]], "q3-k")
+        doc["families"]["q3-k"] = {"dtypes": {}}
+        doc["families"]["other"] = {"dtypes": {}}
+        with patch("builtins.open", unittest.mock.mock_open(read_data=json.dumps(doc))):
+            for family, dtype, path in (("q3-k", "bf16", "bf16"), ("other", "f16", "block-int16")):
+                with self.subTest(family=family), self.assertRaises(KeyError):
+                    common.hf_bounds(dtype, [[path]], family)
+
     def test_xs_reference_allowance_is_fixture_and_path_scoped(self):
         directory = Path(common.ROOT) / "tests" / "data"
         ordinary = json.loads((directory / "baseline_iq4_xs.json").read_text())["fixtures"]

@@ -53,6 +53,28 @@ def write_routed_layer(path):
 
 
 class ReferenceGenerator(unittest.TestCase):
+    def test_small_k_uses_shared_raw_block_reference(self):
+        import q2_k
+        import q3_k
+        import spec_decode as sd
+        for family, module, kind, size, make in (("q2-k", q2_k, sd.Q2_K, 84, generator.gen_q2_k),
+                                                ("q3-k", q3_k, sd.Q3_K, 110, generator.gen_q3_k)):
+            with self.subTest(family=family):
+                self.assertEqual(generator.parse_args([family]).output_dir, generator.OUT_DIR)
+                with patch.object(generator, "gen_block_family") as generate:
+                    make("output")
+                generate.assert_called_once_with(family, family.upper().replace("-", "_"), module.fixture, "output")
+                for _, tied, moe in module.VARIANTS:
+                    config, weights, packed = module.fixture(tied, moe)
+                    self.assertEqual(config["embedding_length"] % 256, 0)
+                    self.assertTrue(packed)
+                    decoded = {name: values for name, _, _, values in weights}
+                    for name, shape, actual, data in packed:
+                        self.assertEqual(actual, kind)
+                        self.assertEqual(shape[0] % 256, 0)
+                        self.assertEqual(len(data), math.prod(shape) // 256 * size)
+                        self.assertEqual(decoded[name], sd.decode(kind, data, math.prod(shape)))
+
     def test_q5_0_uses_shared_raw_block_reference(self):
         selected = generator.parse_args(["q5-0"])
         self.assertEqual(selected.output_dir, generator.OUT_DIR)
@@ -1333,6 +1355,42 @@ class DtypeCalibration(unittest.TestCase):
                 self.calibration.budgets({"int8": [{"logit_error": value, "nll_error": 0.0}]})
         with self.assertRaisesRegex(ValueError, "invalid reference errors"):
             self.calibration.budgets({"f16": []})
+
+    def test_q3_k_reference_scope_and_existing_limits(self):
+        import q3_k
+        identities = []
+        fixture = ({"context_length": 16}, [], [])
+        with patch.object(q3_k, "fixture", return_value=fixture) as source, \
+                patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
+            for _, identity in self.calibration.family_models("q3-k"):
+                identities.append((identity["fixture"], identity["split"], identity["seed"]))
+        expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
+                    for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
+        self.assertEqual(set(identities), expected)
+        self.assertEqual(source.call_count, len(expected))
+        original = {"dtypes": {"bf16": {"nll_budget": 0.007}}, "families": {"prior": {"frozen": True}}}
+        torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1, set_num_threads=lambda n: None)
+        transformers = SimpleNamespace(__version__="4.55.2")
+        def measured(model, torch, dtype, routing):
+            self.assertEqual(dtype, "bf16")
+            routing.update(stable=True, calls=0)
+            return 0.25, 0.125
+        with tempfile.TemporaryDirectory() as directory:
+            frozen, output = Path(directory) / "frozen.json", Path(directory) / "proposal.json"
+            frozen.write_text(json.dumps(original))
+            with patch.object(self.calibration, "BUDGET", str(frozen)), \
+                    patch.object(self.calibration, "family_models", return_value=[(object(), {"fixture": "dense-untied", "split": False, "seed": 12345})]), \
+                    patch.object(self.calibration, "errors", side_effect=measured) as errors, \
+                    patch.dict(sys.modules, {"torch": torch, "transformers": transformers}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.calibration.main(["--family", "q3-k", "--output", str(output)])
+            result = json.loads(output.read_text())
+            self.assertEqual(errors.call_count, 1)
+            self.assertEqual(json.loads(frozen.read_text()), original)
+            self.assertEqual(result["dtypes"], original["dtypes"])
+            self.assertEqual(result["families"]["prior"], original["families"]["prior"])
+            self.assertEqual(set(result["families"]["q3-k"]["dtypes"]), {"bf16"})
+            self.assertEqual(result["families"]["q3-k"]["dtypes"]["bf16"]["nll_budget"], 0.25)
 
     def test_rounds_matrix_inputs_but_not_router_or_norm(self):
         class Linear:

@@ -1,0 +1,2921 @@
+{
+  "scope": "Q3_K development checkpoint on Q2_K parent83e9f95ba: focused native/HF plus seven released-file checks; not merge qualification.",
+  "source": {
+    "runtime": {
+      "src/backends/backend.hpp": "0545a25e72a719e0d478dce9ac3ad1b6f7ace7851224a8b0f337e3a8beb45d37",
+      "src/backends/cpu/cpu_backend.hpp": "b51da5bc736bcb33701fdca6486c2bc28d7d5a71cc72f60854efda54d6781798",
+      "src/backends/cpu/prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+      "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+      "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+      "src/backends/devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+      "src/backends/kv_storage.hpp": "a6ccbaa4bd25e6aeec72c73d88f0de718555e21f4f7618432e5f011e7129205f",
+      "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+      "src/backends/vulkan/shaders/argmax_rows.comp": "47fb244ee8c073f10ea14f72418a9c5f3e3be81446e2268f2b843e6aae49525e",
+      "src/backends/vulkan/shaders/attention.comp": "9857edf78d7a9075109d7830db4ac0c7eefd6af7b2408105bfb2e70dfdf4fd6a",
+      "src/backends/vulkan/shaders/attention_merge.comp": "293dbea703c38fc4f0eda9cd9c7808e1076b3f66b1a675134acee741e5ea8ac4",
+      "src/backends/vulkan/shaders/attention_tile.comp": "f2615202f163d111ba7199fe8dba16ec7385b6799f06ec7f9665e04fefd112e6",
+      "src/backends/vulkan/shaders/attention_vec.comp": "bd09e79cee7870dc06ed7766dfbb000c5d7745af3d3e87480a4522a9bb10ee53",
+      "src/backends/vulkan/shaders/causal_conv_silu.comp": "51b69700e841cf7683002d452d2fea638d71747bd0ecc3babeb20b57a0ea0033",
+      "src/backends/vulkan/shaders/copy_mxfp4.comp": "5d6221c47353792268523d8d0618b8ab54ea14235ff61889badaf1fa692f39ef",
+      "src/backends/vulkan/shaders/delta_rule.comp": "9c394c87e066749224705b20902f20a54541ab41930bd8de3183a06bd67805b3",
+      "src/backends/vulkan/shaders/dilated_conv_silu_add.comp": "dc2aa5272207a300801baec4e5dffbb19ca31c9be46e73d74daf32dd45577fe8",
+      "src/backends/vulkan/shaders/dot16.glsl": "0f81744a84ab0c58b8bc3f09559f2eedabeafca119457021efef0d1948cae7c7",
+      "src/backends/vulkan/shaders/embed.comp": "3450318e455c032f25435078f35c0ffc80adaf86ecaf1bc215489bf948a9ee77",
+      "src/backends/vulkan/shaders/f16.glsl": "d79911a5b8cf132d2400fcd8c54eda4d4ccbf1dd8c9daa37fd877dd56d6f5c0c",
+      "src/backends/vulkan/shaders/float_controls.glsl": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+      "src/backends/vulkan/shaders/gated_rms_norm.comp": "000a100c6129e8b7d491ca7585ef06f69ac535585a0f78411c910636052b06b0",
+      "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+      "src/backends/vulkan/shaders/group_rms_norm.comp": "ce6794fc7ac36a96fc61f2d25ed9fff25ae6b3083fa88f6fdcefae4924391527",
+      "src/backends/vulkan/shaders/inject_streams.comp": "826e3fd7477e3f1c5c64e0fcb9fa9cbdf8c22d0ec17f9dd00ab9f2a80349e74f",
+      "src/backends/vulkan/shaders/iq4_dot.glsl": "2e56dba7177d3d90f83edf61b61c0565deed7a7ae023cd64ae56358823b205e4",
+      "src/backends/vulkan/shaders/kv_index_pool.comp": "04ac320bc2efafe22cfdc1c6830a0fb71f799a394749f49435d0743a74b1e8d3",
+      "src/backends/vulkan/shaders/kv_index_scores.comp": "746e2d52d60465ed5f252c783edae203d929aa63d8b6b6bd143bb08917e95335",
+      "src/backends/vulkan/shaders/kv_index_select.comp": "439336dd43fb9cb0c3ac2af79857021f38e3fa48cbbb21ae2ec3cd8b6cf7f84b",
+      "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+      "src/backends/vulkan/shaders/matmul_reduce.comp": "cc4d037cda7e984873d0286c04efa57f477758c3f5da3326b5340ccb56d8d033",
+      "src/backends/vulkan/shaders/matmul_row.comp": "1870b867ca0a49eb4bfd052a617c11970b12f2532b3d85669925b47e2c1cf573",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "e3c4cd54085875aedecaf5f8905bf9b3e3850d2cd821cc76a375099035084f2b",
+      "src/backends/vulkan/shaders/matmul_tile_q.comp": "3fbf577b6cd573c6455d5c15cba3449efe58d7f3e08d3596d2dabb42a3a35046",
+      "src/backends/vulkan/shaders/matmul_vec_q8.comp": "2fb7f991673acd466f2541051a1519d52394f3ee00e2415d400be1302938ef26",
+      "src/backends/vulkan/shaders/mix_streams.comp": "979a0a0d363524cc5287ed04342702caa9f40e54ca4ac5eb4c28eef5e9af4848",
+      "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+      "src/backends/vulkan/shaders/moe_group.comp": "9426ae02b002cb8d5214470b16e53bf3916b7bc313314b9bf9aa0d6f109a88be",
+      "src/backends/vulkan/shaders/moe_route.comp": "f38e46361719035207a851bfc2d05cee89d6d41f5797041d140c79354bf35ad7",
+      "src/backends/vulkan/shaders/norm_rope_kv.comp": "f54feb6fdbdce4c754427d468b6dd3f32d6811eec09fee5034a0b00ee01a8ea8",
+      "src/backends/vulkan/shaders/norm_rope_partial.comp": "d3633e79bd4ea9fc83c5ed488bc1abaefb06422a7c130a43edd6b1a38330b29b",
+      "src/backends/vulkan/shaders/q.glsl": "443276ece324fcbcc4856f18fa66b352dd92e3a9420df84962e4d629b182a9db",
+      "src/backends/vulkan/shaders/qdecode.glsl": "c3f0ca1bf2e2d8e94b08b9fd2c0362815dbce86792f8e362d7f8d5243f099475",
+      "src/backends/vulkan/shaders/quantize_x.comp": "2b1dddcd091c173a93c53efa8ee4fdda83e372255a879354c49721c88a2553f9",
+      "src/backends/vulkan/shaders/quantize_xw.comp": "9e97ab1aa13872414d350b98ca11c20aef199042fabdb1e5d86681bda05432df",
+      "src/backends/vulkan/shaders/rms_norm_rows.comp": "9f511beceb9bf54961812aff7f2222a5feff50820b3e631ce31e6ec4479dcb55",
+      "src/backends/vulkan/shaders/sigmoid_mul.comp": "78d59039a4dfcfb0b5699915ec50d1fabfdd336f54c510daa2555794ec70531c",
+      "src/backends/vulkan/shaders/signed_sqrt_gate.comp": "a80bf1c98f7243e487d6a92ca15760c1688980e468f3a803312e2778991dedff",
+      "src/backends/vulkan/shaders/silu_mul.comp": "e0aae0fade7ac1c1c1ce4870e78cb0e6a7127c9e40d2929df023dfa85cb1bd6e",
+      "src/backends/vulkan/shaders/silu_scaled.comp": "a67fb31a488eaa6e1595e75275e16b7b4f72a83c88da70baafbc0e87b8399bd8",
+      "src/backends/vulkan/shaders/views.glsl": "4c9e5d73457962993f166ad7d08c6031b399b7ad09a3d665ff11a2d5edce8479",
+      "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+      "src/backends/vulkan/vulkan_backend.cpp": "e5569b2d2640eac3fb2cb753038451cc91576c0181c3f23e76ff405a83722de6",
+      "src/backends/vulkan/vulkan_backend.hpp": "78bcc6e84906cf1477ccc0be2bd1bea52c98031dc0687f2ab63b97240b10ee34",
+      "src/cli/main.cpp": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b",
+      "src/config.hpp": "35ddfbc82366e80b69cd7c003791fb988bcd82523bac6652303e3e28fc2a33e7",
+      "src/core/bf16.hpp": "43cf134cdb167547e47cd0f821505247965e6b07b9d2fdc2b67e08c8835d9174",
+      "src/core/cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+      "src/core/cpus.hpp": "6c4fd98658e9928b5852d8783dfa70597b7b2805c8ef5f978bb47b5fb3ebbbd5",
+      "src/core/crc32c.hpp": "306b0c5b9fa180c108aa12afb2714caf09dd4e1ddcccf0922af8bf39c65e2a15",
+      "src/core/fp16.hpp": "3cbe60800d9ec5acd3214e503225b508dd0dfda13871740665ab014cdaa52539",
+      "src/core/host_memory.hpp": "12442033770c6c320d1a0df52d8616a3a4924bdfeed6c289eba1e21cda6bf73a",
+      "src/core/job_threads.hpp": "0a803d8b0e6d83f6c630c800046aa4384e7c463e2e83c166af28c22742307f06",
+      "src/core/json.hpp": "dd4c77e427e5747447e332dec87b2af735f3718635de9fa3ab65a931d2cb3ea6",
+      "src/core/list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+      "src/core/sha.hpp": "1577285ffd2f995ba5a087dc6c91cb8431415fdce4e7a6febf11cd2e0df7ef72",
+      "src/core/utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+      "src/format/file_digest.hpp": "04808bb33cd5cc6e29abaa1108e163d751bd499af487aa6ade407afbad72143a",
+      "src/format/file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+      "src/format/file_writer.hpp": "5815af0b5202748dee737d04d2a86407f7c4b4a7b939d009994fb01d6f898c41",
+      "src/format/format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+      "src/format/gguf.hpp": "ddc503d932f6f2e978ea2308337c987bc3a4c137e477da0a18628d7431723e9a",
+      "src/format/mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+      "src/format/output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+      "src/format/raw_convert.hpp": "a9bdd462fe5c66e6ff72a308cf09c330fb3359bd6fd8302f979a0ea07bd56483",
+      "src/hub/manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+      "src/hub/pull.hpp": "f37b814b27669d8d73862ecf5eac74a304ce5d0a895534cb220d4ea929deba56",
+      "src/hub/transport.hpp": "a8331ccd19af945f0a823b1987e64cb1bff75b4f5fcdc900eda8ddbb7596ada7",
+      "src/inference/chat.hpp": "093bbd91cc3e244ac20ff08b855cccedd4afb400111330be558c2f3dfd3dbb8a",
+      "src/inference/generate.hpp": "08d0d7a9a0d296195ddfc91ab0ed9bad4b67f4c1ae477612d49683f4ed3b7398",
+      "src/inference/load.hpp": "bca78e588fae926728e57fe47f42225b7a6ac7dfa67572474ebb422b912bade5",
+      "src/inference/logprobs.hpp": "7ce38bda7aec94e3bcfd4a1ec06eeb88289062690e88a39b24f5973219da03b7",
+      "src/inference/pair.hpp": "b24bbd74c366c3ae702fb06af5d037003553236b8f86fb73f4b31e06544590e3",
+      "src/inference/perplexity.hpp": "95768b8e2a536ed5b846d9fa63a6b1a3ec145ab15be2f2c9867c0b85533efa96",
+      "src/inference/read_ring.hpp": "5a34df8e0f37f1bcc790fc1d1c00200cbec721d4625965620c54ae216dcd9147",
+      "src/inference/sampler.hpp": "4a99d620a949fbeb24dda2d4a285dbd83370450b1e5c7b0bf304e9d03e31db23",
+      "src/inference/spec.hpp": "57a8cce7828f7d9bc9a6e8080878f553e41d466319165884cc83dc4ab3b6b4c2",
+      "src/model/arch/blocks.hpp": "8a4925166dce168953b8a3fc659d18e69f87d3ac371ea44b854a85a83f8f9a76",
+      "src/model/arch/metadata.hpp": "51a9f7319684c8f8c5d5c4f2a0bb17ff4b8d075caa76ad345ca4a779eb9b588e",
+      "src/model/arch/qwen3.hpp": "da63c0711d628afb1ba346dbb4ac71e621cdb95d9bf083bb085338b60955dd43",
+      "src/model/arch/qwen35.hpp": "c7b53e281a6e6c742112d848dc3d1e09edb3c8451eec40c324ee152e7f695473",
+      "src/model/arch/qwen4exp.hpp": "65b0d57c038929cd29b66c92c3b36d5a60785e7e5885f8f1e43b9d1ea1351ff3",
+      "src/model/arch/registry.hpp": "bce6957855f0beb5f5a14d962ac3b547c36213888392dd3984b65262c10da6d6",
+      "src/model/architecture.hpp": "959366348c6b959d1d68175375014907eea0ad23280c3c19e4b9a72b8540381c",
+      "src/model/history.hpp": "3ee73ae1ed27e7ee6688eeef84b2a8a80b0af9621acfe6253869ce1e2bba9c43",
+      "src/model/kv_cache.hpp": "02930aeda059494a33a681f30479b48111ffd49daeb81cd13d3ec7c1327c3a25",
+      "src/model/layer_split.hpp": "8cd35c0696acda23a190c0dc4848695f541c97fa1e2962813826c1bafbc438cb",
+      "src/model/passes.hpp": "a5739ac768a8f32665c51edc42f3f5e1beb73ccf96dee83f86d6c357132541f3",
+      "src/model/place.hpp": "631cf809eb896ec28d852837793a29a3791ac3301fd1dfbcf6527fec8da3ca25",
+      "src/model/runtime.hpp": "eb8e5db84ac925d77344f80bcb28112ebbf390d1b1a6bc29420e9e95edb3d35c",
+      "src/model/shard.hpp": "17fde7ab2275fbe7c5fcf76231e2455f0deb62a3054f2aa83f217cede11a5a71",
+      "src/model/weight_rows.hpp": "2fbd19d71f241821fe9a7c27c9b3638e81b17dd3c2b938f979597d432f5544d1",
+      "src/model/weights.hpp": "7f5f641cba448526eb588b08db9fb755418360fe49ca98869255d4b01bf17cb1",
+      "src/quant/k_quants.hpp": "b6e6097e61ec19f12895c00f4c471728b2a79cdd57595af48f9d87e37d41e45b",
+      "src/quant/mxfp4.hpp": "28120ca0b5307eb56f360a1d0c5beceef8c9a43296568ba2f345af95086c4d96",
+      "src/quant/quant.hpp": "6da2bac55434fa984ca609d8af1d37b28c516075e2206eb22c23f4a5a41cb12e",
+      "src/quant/types.hpp": "8c8c0638f0e33cf9ccfeffb7835f9448756084e667d414034f433f29fc1e23b0",
+      "src/server/api.hpp": "7189c8e0b09b4e91751b9bdfa603edc885eb0e549839520554e37d95e104d075",
+      "src/server/cache.hpp": "2467b3c5161835fed7fd39005b88853c40f8802d3a16e16798f2705d8f51a8cc",
+      "src/server/context_cut.hpp": "669130a5929e1662d14e70134cd114433c40def7d75362e8993b1952376126a7",
+      "src/server/disk_index.hpp": "972ca858669086103a5bb45ce1a2c59b9b103f51190ca1552602d6ee8d2c6feb",
+      "src/server/disk_store.hpp": "870878254326132d760be83854f42bb01bec52b8e83097a50b98e446c1349d75",
+      "src/server/disk_tier.hpp": "6e61d8f3d31c4a30faf3a21f1de332ff03ac1de7269e95dae51e969d2e166da4",
+      "src/server/http.hpp": "e4eead42ea76e8e7ce365d24c6ee1f717a5b700a05ae7deb1f7a6aa86888d932",
+      "src/server/policy.hpp": "f6c8ecb818d0ca0c4665af780427e3b2c120e892a13065a964978adca66629fc",
+      "src/server/scheduler.hpp": "2a7948926082c106ac85cf60465a0336f0cd917ea0f8a22b51a74268332c40b7",
+      "src/tokenizer/tokenizer.hpp": "9dde67500c722f1a7490cb3a5d3cb0bb7b56bbe424dee3e5411710a3533c6614"
+    },
+    "native_test": {
+      "path": "worktrees/q3-k-20261021/tests/q3_k.cpp",
+      "sha256": "e3b9279b67bc942afe2b9c46c4eb1254a3aef5ee2432e31c47b736789200385b"
+    },
+    "tested_native_source": {
+      "path": "worktrees/q3-k-20261021/build-q3-vulkan/tested-q3_k.cpp",
+      "sha256": "a2c484d3e733882a6b1127b931bb0191fd57f89d1858c0611cc50eb8dc4eb6fc"
+    },
+    "delta": "After native tests, only a comment spelling was corrected. Equivalent explicit CMake target declarations replace a loop unsupported by static source discovery."
+  },
+  "reference": {
+    "execution": {
+      "path": "build-quant-resume-20261020/q3-reference/execution.json",
+      "sha256": "22663aa14b97f78fc58752aa5823fdfd94a48cd1202f81fccd13c824a7b6993a"
+    },
+    "source_pins": {
+      "path": "build-quant-resume-20261020/q3-reference/source-pins.json",
+      "sha256": "6b2acae8544342d32962a8b4fcabe69b5b5f28ab0f907c0e90893e14b145fc55"
+    },
+    "log": {
+      "path": "build-quant-resume-20261020/q3-reference/run.log",
+      "sha256": "247868f9d3b8f5079ad54480b36931aae813faafb4f9b5420e16b9abf9dde036"
+    },
+    "fixtures": {
+      "baseline_q3_k.json": {
+        "path": "worktrees/q3-k-20261021/tests/data/baseline_q3_k.json",
+        "sha256": "24c02075c3f0e3824a557eb797aa31078ee3aa1131dfaf9515c4fa2f9e30275f"
+      },
+      "baseline_q3_k_split.json": {
+        "path": "worktrees/q3-k-20261021/tests/data/baseline_q3_k_split.json",
+        "sha256": "fbaf2a324514ce2344fc6da21183e30110bd9427fba00b6f0292eeb3956c4417"
+      }
+    },
+    "seconds": 120.98996686935425,
+    "environment": "Pinned offline image57cd7c3, torch2.5.1+cpu, transformers4.55.2, one HF thread; CPU4-5/6GiB, no GPUs.",
+    "bounds": "Existing F32 2e-5 logits/1e-5 NLL unchanged; no Q3-specific allowance."
+  },
+  "windows": {
+    "cli": {
+      "path": "worktrees/q3-k-20261021/build-q3-vulkan/Release/llmx.exe",
+      "sha256": "5265e2bfa5260975c4bb728994a4fc4bac71c391c1d5cfd6759eb3f3effab3a6"
+    },
+    "version": "llmx 0.1.0+g83e9f95bab58.dirty numerics 7e7a3e456e87174e",
+    "native_binary": {
+      "path": "worktrees/q3-k-20261021/build-q3-vulkan/Release/llmx-q3-k-test.exe",
+      "sha256": "47e1421ed523f8217b255821b8f506a0c1109d129520463f609d6f991c8321da"
+    },
+    "native": {
+      "cpu": "PASS",
+      "radeon_vii": "PASS",
+      "decoded_per_run": 32505856,
+      "embedding_range_product_per_run": 1182488,
+      "cpu_row_pairs": 17914,
+      "radeon_row_pairs": 1625,
+      "log": {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-native-final-detail.log",
+        "sha256": "5e34a7abe846e16c63eefa5b631188078c2065b546956e39fc8a9609a58f473f"
+      },
+      "witness": "Observed shared float row/tile/BF16 tile, no integer-dot dispatch."
+    },
+    "conversion": {
+      "result": "PASS",
+      "q3_values": 2048000,
+      "q3_blocks": 8000,
+      "log": {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-conversion-cli.log",
+        "sha256": "33628f8aa16cfc89730f9bf73971d1e06352de509fdf7e4839450dde8c62d39b"
+      }
+    },
+    "cpu_hf": {
+      "result": "PASS",
+      "logits": 150,
+      "nll": 12,
+      "max_logit_error_printed": 3.85e-06,
+      "max_nll_error_printed": 7.1e-07,
+      "log": {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-hf-cpu.log",
+        "sha256": "2dc9350bc9eb42145965c405fe19503d48a8f6bc0f9bd2bf990e5cb7ea8571db"
+      }
+    },
+    "reference_generator": {
+      "tests": 71,
+      "result": "PASS",
+      "log": {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-reference-generator.log",
+        "sha256": "540b4187e21cf276be214a8b507278d8cd1cd22f5b9c71f7abad0203235fcb0e"
+      }
+    },
+    "registry": {
+      "tests": 2,
+      "result": "PASS",
+      "log": {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-registry.log",
+        "sha256": "357b38e4bdf4d69790138d357919cee0b3a95abdd963e5434bdb461afd1a8601"
+      }
+    },
+    "build_logs": [
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-configure.log",
+        "sha256": "1141b830204984bb917d01e50ff79bd1e42a4968357f38005f6e2713f232e565"
+      },
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-build.log",
+        "sha256": "5432937c0f0f9cd2102edfc63a563a191ced9d24538754f3b5bdb94cce0430d6"
+      },
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-native-clean-build.log",
+        "sha256": "b6bf7ecc3b0eeacd6e4d2f1c35d9d28b66f9153c466690feeabd572c241277f4"
+      },
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-explicit-configure.log",
+        "sha256": "a72397279b6eb0ad91807f6342884b9d4a3605928436264c7682cff42cc19124"
+      }
+    ],
+    "retained_initial_results": [
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-native-build.log",
+        "sha256": "0c1452ee9c120d4c4ede425455e1884b9ea044c4910b5292310fc30ba40d30bc"
+      },
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-native-initial-detail.log",
+        "sha256": "b35bf7f4b78443ca18b71f59b2310c4bcd88a08b33a641dd36ce0b5ba199fcd0"
+      },
+      {
+        "path": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q3-static.log",
+        "sha256": "76dedb47af141e59e8611710fd862b0ec4e30c7849d2adc0eb0d9d0f2599b4cf"
+      }
+    ],
+    "limitations": [
+      "Functional checks only: Firefox and RuneLite were active on the Radeon; no speed claim.",
+      "POSIX file-size-limit injection is unavailable on Windows.",
+      "Initial native build warned that test constant bytes shadows a header local; renamed block_bytes and rebuilt/retested.",
+      "Initial static checks could not discover interpolated CMake names; restored explicit declarations without changing the test contract."
+    ]
+  },
+  "remaining": [
+    "Q3 BF16 TP2 dense-untied failed the frozen context-16 NLL bound; diagnosis/requalification remains open. Q3 auto and Q2 BF16 variant segments passed, but complete applicable split coverage is still required.",
+    "Q2 whole consumer timed out during its tied prefix at the original 600-second limit; dense-untied 50+4 variant completed separately, but no whole-consumer replay was run.",
+    "Optional CPU depth diagnostics are separate: the retained 4 GiB probe OOM and the 8 GiB raw probe timeout after 1200 seconds produced no numerical verdict and are not device-only 16K merge blockers. Complete released-file landing qualification remains open.",
+    "Exact-head hosted CI and complete applicable split coverage remain. Existing-path device suite, CPU/Vulkan identity and main/candidate timing are complete. Original-weight quality and hosted download inclusion remain separate."
+  ],
+  "mi50": {
+    "index": {
+      "path": "build-quant-resume-20261020/q3-k-focused-rig/focused-evidence.json",
+      "sha256": "4d2eb66f1f73a8258a3356806ce0104c763e1deeaa1fe2c095a0b78d679161cb"
+    },
+    "stages": {
+      "build": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 141.69052934646606,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 1725079552,
+        "gpu": null,
+        "raw_files": {
+          "container.cid": "91ebb14accbe94ab456f357237bfa353fcff710a35b4cdd927cbc67c4e678420",
+          "container.json": "4658f180b5d3f9318ebcc7d7cbb393d48a739eb1f05c2d6415af3545ef6c6102",
+          "containers.json": "bb9d2432b4ae7b7166317fb1b9116d7f84da1ec8dddb9136613ff68b70a5d93f",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "03faa1ff4220d168230a9fe446587369b95fb420d7fb79f74d6191528c19f548",
+          "launch.json": "3401f01fab96f7a51047973a3061856ab7f1835f525e4f816fb9898a2ae418fd",
+          "memory.jsonl": "de0f97e4b177c32d8cf78d55aae22e2955476c4c0b8e53d62ed861f672d9766d",
+          "processes.txt": "446fe0cfbce0245c53abbbea763a33b9b507bd5a84d31d4313f98dab5492c622",
+          "run.log": "f2a715e5a1c0b3a0b4d7e751eca667b683a3e4e551cf4b946cb8737906c00b8e"
+        },
+        "summary": [
+          "llmx 0.1.0+unknown numerics 7e7a3e456e87174e"
+        ]
+      },
+      "native-cpu": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 2.6540722846984863,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 25124864,
+        "gpu": null,
+        "raw_files": {
+          "container.cid": "7d5468371943c60b52262d721cc85c345ab4aae105e10dc532d0e7e63c3fe55d",
+          "container.json": "494452b1743e19c6ac08fadd7e382af0b36cf66506d84c7ff947fa553a48003b",
+          "containers.json": "b4b39d8279c0f765699a199aa85a9a5cf3f5d4360ec5238516c4ce988aadeef5",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "07598be3a673ab9fa84cdb70686d082941dfb10c686b5e9ab862c1bf71ca390d",
+          "launch.json": "cb70536778ed6f77a8e1c55cf197f17ba40454c7c55149cb03de846ed7cdb364",
+          "memory.jsonl": "aad944563765db57079c0b99ad7b51dc64e5ced5f13d8e0036ee4f9c5a079c67",
+          "processes.txt": "919b007176158913961b8104f052b21f018586139755de2331552f1f882bbb8a",
+          "run.log": "a6c28410d75ee0cb7adf25c4305973892cb2218687dc2c5e728c5816541676bb"
+        },
+        "summary": [
+          "Q3_K: 32505856 exact decoded values, 1182488 independent embedding/range/product values, 17914 exact row-class pairs; F32/BF16 fallback witnesses checked"
+        ]
+      },
+      "native-vulkan": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 3.740565061569214,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 45633536,
+        "gpu": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224,
+          "fuser_exit": 1,
+          "fuser_stdout": "",
+          "fuser_stderr": ""
+        },
+        "raw_files": {
+          "container.cid": "cda3808f3a230eb64996725c25f3933cb751f7d142c14952db80aa6a31b5987a",
+          "container.json": "37ac14d5e3fb95d42b66b55521ec3748fad2b4fa236f3959121ce313084b7084",
+          "containers.json": "c3031d25eea29d79640c48dac5d2194c17e2764359dae55be7942a316af634e3",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "8d600444aa35de2b3aeca0fe92894da7f23c6e2810e2da88b7a19321e500f86c",
+          "launch.json": "bb9b5f27459bb71e9a9ec33ab5bb73992701635a7a1c8f0a3b2e77a070d7dcc4",
+          "memory.jsonl": "a1d7a750d2cce166153dba68c303e6af38c897fddfb5afd932500616370eaf73",
+          "processes.txt": "1ad114e26d90307491a58a390b268a6e18fdbd34c70f640383dac03352d3c9e0",
+          "run.log": "404909a0f2369b28c53b4c3c6e9006796d5893fd9ad62e8973bf30692faf7ee4"
+        },
+        "summary": [
+          "Q3_K: 32505856 exact decoded values, 1182488 independent embedding/range/product values, 1309 exact row-class pairs; F32/BF16 fallback witnesses checked"
+        ]
+      },
+      "q2-regression": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 3.753805637359619,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 34226176,
+        "gpu": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224,
+          "fuser_exit": 1,
+          "fuser_stdout": "",
+          "fuser_stderr": ""
+        },
+        "raw_files": {
+          "container.cid": "98374a730fe58c0b8bd1d06db4264b023e8ee45e5141b99077ec0c8fd492348d",
+          "container.json": "8820a784514dfb70c9558a31bed54136d382d6b0ad3121b837f3a2089b9b2324",
+          "containers.json": "4cb82599f156228423ee3bfbaf8af1ab8fced0850bd4ae9322d934170c953d5d",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "ab11ef5d54d1b75d87bf061a3d3e4dddfe331f85fd2e4aba06c980e07273a8e0",
+          "launch.json": "c076592a5c26d60a6c33ad44fe2e3efc075a1e0391e2aeda2375fa41a6e1dc27",
+          "memory.jsonl": "8a21105393482386b87a5e00efd07b28adf43257ecf397b851a2f36cdd521894",
+          "processes.txt": "f217110b4ef4a4ea710cc820245a59e9f5547ea984b11c71791a8852ca4eb0e9",
+          "run.log": "6dca68890cf9c2b57598cc2da72944d2f15790bd01eef24f5062a3fd9f92e2f1"
+        },
+        "summary": [
+          "Q2_K: 65011712 exact decoded values, 549616 independent embedding/range/product values, 1309 exact row-class pairs; wider F32 and rounded BF16 paths checked"
+        ]
+      },
+      "hf-auto": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 23.187808990478516,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 315650048,
+        "gpu": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224,
+          "fuser_exit": 1,
+          "fuser_stdout": "",
+          "fuser_stderr": ""
+        },
+        "raw_files": {
+          "container.cid": "ab00decee29a8a2e8e34b172fa249e1516ef7d9cbc9f0ae66e676b322e41d9a7",
+          "container.json": "dd8306b566923453a1c056b8ee44106dea2fb5a3175dcaa7c4cd0a8bb13c1f72",
+          "containers.json": "4de44529f705a6bfd787e8b8919e8b1eed2e82b2d76f17427ff65a5465f890be",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "6bc3ee0d6bfea0595d5d7ec77e8c9e4b18f234fceb0988aba5fa9bdd2728490d",
+          "launch.json": "e140f51e4f18890b82fca3a59f8e22cd737110a127da389b65c075dd01ca8db2",
+          "memory.jsonl": "8cf885f9023eeedd69602abaadc48caf902a5b7f46fbfb7720795369e514ce5e",
+          "processes.txt": "3517bd7252506d99c5d807ea3790a6a3b307164ab839cdfb22e4239a52b80438",
+          "run.log": "6a098d978d0b800c0fe780b8dc3f3c886ff8f5dd42c14ef3fd45ebf80743b049"
+        },
+        "summary": [
+          "Q3_K dense-untied HF: max logit error 0.00000296, bounds [2e-05]; max NLL error 0.00000019, bounds [1e-05]",
+          "Q3_K dense-tied HF: max logit error 0.00000303, bounds [2e-05]; max NLL error 0.00000046, bounds [1e-05]",
+          "Q3_K moe HF: max logit error 0.00000324, bounds [2e-05]; max NLL error 0.00000005, bounds [1e-05]",
+          "q3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000324  [ok]",
+          "  q3-k       PASS"
+        ]
+      },
+      "hf-f32": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 23.202255487442017,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 315359232,
+        "gpu": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224,
+          "fuser_exit": 1,
+          "fuser_stdout": "",
+          "fuser_stderr": ""
+        },
+        "raw_files": {
+          "container.cid": "f85af06587b7d2b586db6499e57107b929a432ec741c3576a15df7bb214e1e52",
+          "container.json": "99a7545ecc54d3b28aaa82669a956239f44324a91b073916b59e763f562fea43",
+          "containers.json": "96876e40d072a58997e906fac2adc7002695ee75446701d6436ce1946f7e303e",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "8b85998c0d806fad8f4ce02be6d0f26e5d999bd555b386fc6612204b03e9cb96",
+          "launch.json": "9f02bb440b256943c02bd761aea5c17ca1b3c36ad2ccafda65d028468db971f3",
+          "memory.jsonl": "171b2a16bfcaab114fbdfc2fb5f6b8a2fcc1af5e68823381cd17eefe4a8d4e7f",
+          "processes.txt": "2b1197e71b1e48804b62c6617d417178bbc9c0051ddc9a2c542a8d8204e62da7",
+          "run.log": "6a098d978d0b800c0fe780b8dc3f3c886ff8f5dd42c14ef3fd45ebf80743b049"
+        },
+        "summary": [
+          "Q3_K dense-untied HF: max logit error 0.00000296, bounds [2e-05]; max NLL error 0.00000019, bounds [1e-05]",
+          "Q3_K dense-tied HF: max logit error 0.00000303, bounds [2e-05]; max NLL error 0.00000046, bounds [1e-05]",
+          "Q3_K moe HF: max logit error 0.00000324, bounds [2e-05]; max NLL error 0.00000005, bounds [1e-05]",
+          "q3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000324  [ok]",
+          "  q3-k       PASS"
+        ]
+      },
+      "hf-bf16": {
+        "passed": true,
+        "removed": true,
+        "exit": 0,
+        "seconds": 24.221507787704468,
+        "binary_build_pins": {
+          "llmx": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+          "llmx-q3-k-test": "833d2414f168e841cca1364ae3d9b760c58caa97a127e44a127bf3e99b76ee3b",
+          "llmx-q2-k-test": "dba612aff0499ea4ada7961557a5df9be31b9507d129e6081212434bcec6656a",
+          "libllmx-vulkan.a": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+          "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "generated/llmx-build-info.hpp": "4fcf2b6bc0ce7e0359fd94fd42695f73d13815b2e74ea7b948ea9c1e8a8c6a6d",
+          "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+          "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+        },
+        "peak_memory_bytes": 315314176,
+        "gpu": {
+          "physical": 8,
+          "render": 130,
+          "pci": "0000:c9:00.0",
+          "busy": 0,
+          "vram": 10932224,
+          "fuser_exit": 1,
+          "fuser_stdout": "",
+          "fuser_stderr": ""
+        },
+        "raw_files": {
+          "container.cid": "aaa7444f4b5566f6fea52f3dfde992565f0f2f1c9323c88ace285039077cfee3",
+          "container.json": "05e2cf98614d726702278c954e070994cc539164ba7f6db4d556015ffdbc48c7",
+          "containers.json": "062399979fdb258a5a368771b1def6ba5bf547266e3bd87e3037cd48e546dc71",
+          "containers.txt": "b076fe340c6c36fc56098650f7b1b72836ddc86be1f206f85de315868ce5255e",
+          "execution.json": "68ac8a8e3c96794f798ad1a3d60bd46997f6facf2444f61bb4223aa6f556cb73",
+          "launch.json": "137ea040b1cbec1e87d03acef256f3a4a4fdda48c935f1d3c535466ebdb995fc",
+          "memory.jsonl": "06b39798d0b3ae81523a850a0aa8b7918fb1b8aa858e66ae31faaaac3e1d7423",
+          "processes.txt": "5f50c83a995896184c612440deea53e7224fa5f5f727ef9fac3815c9a5e6f8f1",
+          "run.log": "71ba4abb1909b4e2ced3be7dd1f7b9ced29d344efbbd636139df4e0166141cfc"
+        },
+        "summary": [
+          "Q3_K dense-untied HF: max logit error 0.02408498, bounds [0.05409973859786987]; max NLL error 0.00075220, bounds [0.007924573802609913]",
+          "Q3_K dense-tied HF: max logit error 0.02819030, bounds [0.05409973859786987]; max NLL error 0.00082456, bounds [0.007924573802609913]",
+          "Q3_K moe HF: max logit error 0.03530302, bounds [0.05409973859786987]; max NLL error 0.00314192, bounds [0.007924573802609913]",
+          "q3-k: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.03530302  [ok]",
+          "  q3-k       PASS"
+        ]
+      }
+    },
+    "scope": "Exact d2 build, CPU/MI50 native, Q2 native regression, ordinary Q3 HF auto/F32/BF16. All 63 raw artifacts independently rehashed; no changed bounds."
+  },
+  "released_windows": {
+    "scope": "Released Qwen3-0.6B mixed Q2_K and Q3_K_S loading, eight-token CLI/server identity and short file-exact HF checks; not original-weight quality or long-context qualification.",
+    "cells": [
+      {
+        "cell": "cpu-f32",
+        "passed": true,
+        "device": "cpu",
+        "dtype": "f32",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "reference_hashes": {
+          "baseline_logits.json": "1fe29b68d4df1c99a8bb7f8915903b458a4baa19f01437695de9afd9647864bf",
+          "baseline_perplexity.json": "c5baa553ac3031e0eeebe14d758e6771d20359fd293925f81ab17c23f9cda79c"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 0.0,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/report.json",
+          "sha256": "1f23d107979268e1701ec9a8d913e80985f884ce5412ce12a78d875e6d2c33ab"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32.log",
+          "sha256": "13f48a4abd91cda6434cc4ebd83821dfc8017bd06564035749c352c286195ef5"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/00.stdout",
+            "sha256": "2539daf79450b86cdabbf61d69bd54888777292326ff66b79c9221b08d2b192f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/01.stderr",
+            "sha256": "934e5de02d10d2a1ed3b0f43cccce1e98318f449d33e6252988b6a46e4c76622"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/01.stdout",
+            "sha256": "b63524490faa4d90d7077921db9e1445a7e8565a52fc9d4ee1b7363f518ed036"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/02.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/02.stdout",
+            "sha256": "b922baa95dde3789c06870fde32ad9c48801e3b9f4cecb51c5b8db700cc9a078"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/03.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/03.stdout",
+            "sha256": "028a7671264da374e6c0526adb51d4dfdc7fd27b9b47ac72449361d55b4ed07d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/04.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/04.stdout",
+            "sha256": "ce8e73d615d285d9da9029d717ae6fc7c226f41c35c43ce96c6be6eb96cea49b"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/05.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/05.stdout",
+            "sha256": "655cb56653fcffa9abceee4db267a21e7a7167170ff9b550d5c6b8ff07508a6a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/06.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/06.stdout",
+            "sha256": "703d9bda7908cffc472034913dad409a75b7f3a30e9e338332bfeece48e07ec8"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/07.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/07.stdout",
+            "sha256": "5a6e6f6613bf089b262f801df57530f8693be569787c9282aa032700f97d9166"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/09.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/09.stdout",
+            "sha256": "56c7ef55b93bd60ac39a4247873a7620011df9ea7990ea304405a39f09315313"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/10.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/10.stdout",
+            "sha256": "135f7ad526e719ff3baec26024986fe331eb333088cdd2a44aaa28dd39ad74de"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/11.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/11.stdout",
+            "sha256": "537c8a445b4fc6f919b97fc28ec74d07654e55af03937f7acfae4d8717ffcc11"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/12.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/12.stdout",
+            "sha256": "250d5b87f57f328f36dcb0c642b66ece7bedc8e7a7832e78bdbc54ec79ac21e4"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/13.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/13.stdout",
+            "sha256": "3e1424877a311669a28a5dfb6d3273d0ee439113e853d320e196de78b4e93649"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/14.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/14.stdout",
+            "sha256": "6b1579c4a51605ee4e2c72feb3e1f7654f0d22b4b2068559f8b9141445601565"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/15.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/15.stdout",
+            "sha256": "30c73097447ef171ef12be828001272def0ab3418fa7db92e7955e6da0a4f4b7"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/16.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/16.stdout",
+            "sha256": "f244d0f84701b4a95c4a63b8200dd7d8f924c80eefb1f2e06b667f0ea8ee45ca"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/cpu-f32/report.json",
+            "sha256": "1f23d107979268e1701ec9a8d913e80985f884ce5412ce12a78d875e6d2c33ab"
+          }
+        ]
+      },
+      {
+        "cell": "vulkan-0-f32",
+        "passed": true,
+        "device": "vulkan:0",
+        "dtype": "f32",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "reference_hashes": {
+          "baseline_logits.json": "1fe29b68d4df1c99a8bb7f8915903b458a4baa19f01437695de9afd9647864bf",
+          "baseline_perplexity.json": "c5baa553ac3031e0eeebe14d758e6771d20359fd293925f81ab17c23f9cda79c"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 1e-06,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/report.json",
+          "sha256": "2665babb47727ea350e3665378bd8c384e0c96eb931e24fc80d946f7c0c09e13"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-f32.log",
+          "sha256": "582d9753f2dae9f9b16dd91b4afd3eb627b55d8e74a6ddbd48186f1a6216231a"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/00.stdout",
+            "sha256": "2539daf79450b86cdabbf61d69bd54888777292326ff66b79c9221b08d2b192f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/01.stderr",
+            "sha256": "487b1fb7f5c754b39df668c4d2a900df5d51b80afbace4973e1d049657fc568e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/01.stdout",
+            "sha256": "1ecf199ebc4aaf55eb9f7b03974f676372a860511afa9435ff70941c47d2280e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/02.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/02.stdout",
+            "sha256": "a4e5f47f6d21c5156f7af73e22a62c15f6565beaea428769b16b9bc775b96cc4"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/03.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/03.stdout",
+            "sha256": "981b4f51611ea69c65394860a494b07be94ec472290130f93d4646c0a407d0ef"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/04.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/04.stdout",
+            "sha256": "410978db9bf38e520a9037836f9430c24a2a065d9fc499fc5940bb13a6000aaa"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/05.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/05.stdout",
+            "sha256": "a4219d375c8d9dfbd28bcedc1f8ad8cfb40088c2618ddeb00e1f4a15397d528d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/06.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/06.stdout",
+            "sha256": "ccb840483ccf35c0ddf515bf934a813eb9b39544f2ac868a473cee08f5546763"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/07.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/07.stdout",
+            "sha256": "147378338ac3c23afc0ddda9f4b793f2dadd897e5ac37f645513fa05ea84c03d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/09.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/09.stdout",
+            "sha256": "02d6f71dbb9513939e6ee85b4fe7fbdc723a6ab2cc3cbf0be86200f3f4c3163c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/10.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/10.stdout",
+            "sha256": "fa624e98239b8654a5ee3fc98be653cb2437b8f40fc9c078f5d15a5b61493b37"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/11.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/11.stdout",
+            "sha256": "eb5dd976f30528d0bda48e11a626385cfaa3a5b764ccf7883923bfb2e6562cf5"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/12.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/12.stdout",
+            "sha256": "2df29ff964d6da05ccc687993000c6e62427da5a184401400c9ea0b1e380842f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/13.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/13.stdout",
+            "sha256": "86bf8a6458e63a85ad95597f0a85e79f4078184c339359befc7eb2326a394532"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/14.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/14.stdout",
+            "sha256": "544df8e7bd9f3f006f1554d5d97647d9962440011f8e18dc9eaf9e2cd8d32e36"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/15.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/15.stdout",
+            "sha256": "bc7249c1c476176d6441f6a3ecc2c36ac8448aaf2573c268c4eab6c06770169a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/16.stderr",
+            "sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/16.stdout",
+            "sha256": "f5f3449ec8fba3ecd27bdebe022008d75a9e5611b5c3d226ee228c254e8d66ff"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-f32/report.json",
+            "sha256": "2665babb47727ea350e3665378bd8c384e0c96eb931e24fc80d946f7c0c09e13"
+          }
+        ]
+      },
+      {
+        "cell": "vulkan-0-auto",
+        "passed": true,
+        "device": "vulkan:0",
+        "dtype": "auto",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "reference_hashes": {
+          "baseline_logits.json": "1fe29b68d4df1c99a8bb7f8915903b458a4baa19f01437695de9afd9647864bf",
+          "baseline_perplexity.json": "c5baa553ac3031e0eeebe14d758e6771d20359fd293925f81ab17c23f9cda79c"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 8e-06,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/report.json",
+          "sha256": "11fb9ca26d909aaa0add7cd4ba43d31abe8cd1bc083c6e7c2af098fc337ac8a2"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-auto.log",
+          "sha256": "d3a129c2681a058c2701631c92a9bdd8521d7f99bab72ee5b18969bb5621c557"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/00.stdout",
+            "sha256": "2539daf79450b86cdabbf61d69bd54888777292326ff66b79c9221b08d2b192f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/01.stderr",
+            "sha256": "333feda44d5f6d32bf4de8238e79a21c980dbc4c3e544ed01dd105912b845c53"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/01.stdout",
+            "sha256": "2728afc8ea36b52fc3647a6aa3483e481357b81c0323e22fc86d66744c08215a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/02.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/02.stdout",
+            "sha256": "cf9ed6c76bb084c3381261658423e5836533ac0eaf464217f51d676e3997a65c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/03.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/03.stdout",
+            "sha256": "4f0dccee76606f71afa5a056d34bb700a2ba5efb5487f46dec6f387704a69783"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/04.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/04.stdout",
+            "sha256": "f397aa89cebe96c1b4c66674348d3c049681b5940644f84305150299a6c0f9f6"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/05.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/05.stdout",
+            "sha256": "c5e6a36207a6f9199af07a843c4872f43efc7f8d2b7ac6ddaa4b909b2493feeb"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/06.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/06.stdout",
+            "sha256": "74a3380c7da750aaa0f8584ed58dad50743d06a8098a635217fb676fbed6ffb2"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/07.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/07.stdout",
+            "sha256": "3f68de0a0ecaf3dc583d0249324feda78adbed71d472277cb0a83ca1bc820e00"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/09.stderr",
+            "sha256": "1f8c0c830a2e30fe0a7d40994db46bf196915c8b7690356f915fed66e773389d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/09.stdout",
+            "sha256": "02d6f71dbb9513939e6ee85b4fe7fbdc723a6ab2cc3cbf0be86200f3f4c3163c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/10.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/10.stdout",
+            "sha256": "70cd423177630d97d5717aee9d678951f239a86c91d3b9e07043abbb60b26306"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/11.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/11.stdout",
+            "sha256": "b166167dd250fba3f6a45e4d1adb21158ba14a6b8cc61a1744ba4deda5dcafec"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/12.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/12.stdout",
+            "sha256": "02df4aefeca5cfd921fcd1180e4a65b057e8cab29612ac23c325f6db68337e1c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/13.stderr",
+            "sha256": "1f8c0c830a2e30fe0a7d40994db46bf196915c8b7690356f915fed66e773389d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/13.stdout",
+            "sha256": "86bf8a6458e63a85ad95597f0a85e79f4078184c339359befc7eb2326a394532"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/14.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/14.stdout",
+            "sha256": "1dde46dd83ccf86645987a8dd3f0630044e9f5ba8a69e5bd75f71402ff16f551"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/15.stderr",
+            "sha256": "1f8c0c830a2e30fe0a7d40994db46bf196915c8b7690356f915fed66e773389d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/15.stdout",
+            "sha256": "bc7249c1c476176d6441f6a3ecc2c36ac8448aaf2573c268c4eab6c06770169a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/16.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/16.stdout",
+            "sha256": "cc7545e8e727e17c47d07b316ef71b7fc760d66b6036b69a29419fe8eafe0b0a"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-auto/report.json",
+            "sha256": "11fb9ca26d909aaa0add7cd4ba43d31abe8cd1bc083c6e7c2af098fc337ac8a2"
+          }
+        ]
+      },
+      {
+        "cell": "vulkan-0-bf16",
+        "passed": true,
+        "device": "vulkan:0",
+        "dtype": "bf16",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "reference_hashes": {
+          "baseline_logits.json": "1fe29b68d4df1c99a8bb7f8915903b458a4baa19f01437695de9afd9647864bf",
+          "baseline_perplexity.json": "c5baa553ac3031e0eeebe14d758e6771d20359fd293925f81ab17c23f9cda79c"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 0.00243,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/report.json",
+          "sha256": "fd7bb2330453fc3eec43f65197cd35ee7ca66d706c4a87de70f44e9601b9266a"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-bf16.log",
+          "sha256": "9c26fd36c9a4ec2bda60861e58d277bad9426408054e5c2dc2825aaec38188aa"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/00.stdout",
+            "sha256": "2539daf79450b86cdabbf61d69bd54888777292326ff66b79c9221b08d2b192f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/01.stderr",
+            "sha256": "57804fa29918a6176342523f6525a5d3cb2a42bdf13fba91c135b414ed9e8efc"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/01.stdout",
+            "sha256": "5f5ae1e5e8cf09f99f7140a170ce8da26743972a8ab01c1dd54b436df9d0d172"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/02.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/02.stdout",
+            "sha256": "39b4879995664cb9e01e4d673e284d49cfdcc6efb443c7437db2799b0e52849c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/03.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/03.stdout",
+            "sha256": "acfcdc6c9e8625210456366b806d5cfe05a2c049722c91de70aa0993e7e368bc"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/04.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/04.stdout",
+            "sha256": "4eacc02763065d4a49d7eab7958835ed2ad61d9bd4ab59c0d60eb76d119649fd"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/05.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/05.stdout",
+            "sha256": "546cb6bb7a0974737bbd4049bf878bfabf30079701650b08aa35b69969517548"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/06.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/06.stdout",
+            "sha256": "b649cc6f418ad148b7d5645a55f56cbd711d1441257003ea6ad9971892f52005"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/07.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/07.stdout",
+            "sha256": "75dfa743af661d00440b88f7584df58a590e8136397cb5a783200243e7482a79"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/09.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/09.stdout",
+            "sha256": "3e1b91fc317e27a3f75379323a72b847c79b4500d7ac4f7fb9bffe4b9b2ead05"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/10.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/10.stdout",
+            "sha256": "4c505fe05179efff9a667b29a6d835aac47fa0e7fda1915fe6c8151ba141ff1d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/11.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/11.stdout",
+            "sha256": "43f9c7446b9d5c486c2f2dd74dd79c29621ee22b61b737180a22dd5682f897ac"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/12.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/12.stdout",
+            "sha256": "8f26922a29acefde4789092024f0a22a00e477f81a899c03837a740b2cc7b4ec"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/13.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/13.stdout",
+            "sha256": "2c644e7324e708e7bc78ba0d78606bb15327703b72211b16407669d75c7270ec"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/14.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/14.stdout",
+            "sha256": "27324b296ce365c76685c4628c4b1a65f866fd222723b7d5238a12388ec86d57"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/15.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/15.stdout",
+            "sha256": "2bfe6c93df8f450c90c0f17a59c4fb7d002cfca79b0f72b45592da5f8b534ee7"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/16.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/16.stdout",
+            "sha256": "b5da5e6a6edcb38c7b6fff2898bfd1959cedaf20ffc68032c04e9f82cbbbe018"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/vulkan-0-bf16/report.json",
+            "sha256": "fd7bb2330453fc3eec43f65197cd35ee7ca66d706c4a87de70f44e9601b9266a"
+          }
+        ]
+      },
+      {
+        "cell": "Q3_K_S-cpu-f32",
+        "passed": true,
+        "device": "cpu",
+        "dtype": "f32",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "reference_hashes": {
+          "baseline_logits.json": "1d56f16d10558091abc9a0914575449ecb958d445216e92e676c1028656a8ccb",
+          "baseline_perplexity.json": "982e11c1fa0dfe08a19f40d80b19e147d6b0891bc30a05f8b0d7c4a144cb26c5"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 1e-06,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/report.json",
+          "sha256": "86aaddb73d258ed274f912b30b4fef2d78b1a23c3818a2b2ad8df559759912f2"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/q3-cpu-f32.log",
+          "sha256": "fa9183578051ead25aa5418cf7d6ca005ed2a83cd0c8957ceb5021d86c936542"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/00.stdout",
+            "sha256": "a2220ab1c68fed403c1f128a5df91e807f4484ec6116f87693f73023b4b68367"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/01.stderr",
+            "sha256": "934e5de02d10d2a1ed3b0f43cccce1e98318f449d33e6252988b6a46e4c76622"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/01.stdout",
+            "sha256": "fa3b8be2bf519f749f928f7c9fc45da864949ccf1010fdae51200010028d6e4c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/02.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/02.stdout",
+            "sha256": "0f9955064802b3148c0e9efffbaf3c54b97def039f871b3dd508291028bc1c01"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/03.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/03.stdout",
+            "sha256": "86f9a5ecaabe23e4bdddddbe5a1c90d5cf0e8add36a724c326df4fad5b674cb0"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/04.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/04.stdout",
+            "sha256": "191088bce310d1fb200d7e96781e8d052864e389c1394b9361151d106743879f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/05.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/05.stdout",
+            "sha256": "b9659f66627eb86a5018ef80c82cf7eaa15a40a2da047c900dfba75ef92d9d66"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/06.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/06.stdout",
+            "sha256": "accfd227254483f7f65f2dc90701b5e8f00689ef3a27c2b6c5f62b0d92d0fe5c"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/07.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/07.stdout",
+            "sha256": "293d0c5dc49eaea35cccd701dc12ef65700da5ba5d5d8798de66e5cb67916343"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/09.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/09.stdout",
+            "sha256": "fc6b5efdbeaf0f929218d4e8d29860508b86a1d5d8ebe6e288b26791e581a986"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/10.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/10.stdout",
+            "sha256": "0135d1f0503c1855a6edab88312b2dd639886ddb557712c0f06120bcadbe4c13"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/11.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/11.stdout",
+            "sha256": "cbd0543ce2bc1f7bec9815195678a4d888c9c00732156ec9e12118d2764a4efe"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/12.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/12.stdout",
+            "sha256": "271d63268b88aaffc010cf70ec07cb2a4cd1ba6ed835b06414a4b8962cdce8c3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/13.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/13.stdout",
+            "sha256": "ef1dd1039a7737e3d7f6e3a5ad66af49e2af70bad55484027a052f54ed659e15"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/14.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/14.stdout",
+            "sha256": "e6e2331e84c6c2d038f2cc55cf5f3f9e07e3a5f7a719fa6989ae65b6e5efcb41"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/15.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/15.stdout",
+            "sha256": "d013d006f24dd729db18b0fda673665a27207d2d39cd39f713df50dc6babd965"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/16.stderr",
+            "sha256": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/16.stdout",
+            "sha256": "d87f0f0eb1ab0d9444e277e40ec998aa050790605af5eb4dc917bd9d4f9beaef"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-cpu-f32/report.json",
+            "sha256": "86aaddb73d258ed274f912b30b4fef2d78b1a23c3818a2b2ad8df559759912f2"
+          }
+        ]
+      },
+      {
+        "cell": "Q3_K_S-vulkan-0-auto",
+        "passed": true,
+        "device": "vulkan:0",
+        "dtype": "auto",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "reference_hashes": {
+          "baseline_logits.json": "1d56f16d10558091abc9a0914575449ecb958d445216e92e676c1028656a8ccb",
+          "baseline_perplexity.json": "982e11c1fa0dfe08a19f40d80b19e147d6b0891bc30a05f8b0d7c4a144cb26c5"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 1.2e-05,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/report.json",
+          "sha256": "e507fea8edd68f8765733dd0dea03330302eeb3f8a81f36b0e03e98fc05c6a1d"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/q3-vulkan-auto.log",
+          "sha256": "68d88cb97e970788f37c24727fd15a52ee14b125a86bf56aba6eca6b755f40b5"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/00.stdout",
+            "sha256": "a2220ab1c68fed403c1f128a5df91e807f4484ec6116f87693f73023b4b68367"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/01.stderr",
+            "sha256": "333feda44d5f6d32bf4de8238e79a21c980dbc4c3e544ed01dd105912b845c53"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/01.stdout",
+            "sha256": "a09797cfa9b761868a22fbc767a2fe9571bb2038344527c11beca3787e1b516e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/02.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/02.stdout",
+            "sha256": "6d17549bbaf2d82537e8806d3c320b97cb03a760912c6811c8e30b92c5ebdbe4"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/03.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/03.stdout",
+            "sha256": "89497fc27742125fe002a3fc959bafa87b4c17dba2415e198149b6e49c47b018"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/04.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/04.stdout",
+            "sha256": "f65b3ea2ef11c2a89064bfef65f8e88986c404f4d9dfa265a58f5fa1077db277"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/05.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/05.stdout",
+            "sha256": "833b311da9b23285ebe78cc75e07922b355014ecafcc4e7ac40ea5f012ce8fbd"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/06.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/06.stdout",
+            "sha256": "5413c3db8977dcb39d53b089cddb3102f9b6ebb4c6493bbd30b6124eaf5879ea"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/07.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/07.stdout",
+            "sha256": "da7150d1d1bdb62b4a3cd15a3875a1683275e802f7ee46bbfe836335c852b5ae"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/09.stderr",
+            "sha256": "1f8c0c830a2e30fe0a7d40994db46bf196915c8b7690356f915fed66e773389d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/09.stdout",
+            "sha256": "33da1b3b9eb5b84ca490e093439d4f4c6ed8e0b3f69581af9acad9d8e27d0a18"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/10.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/10.stdout",
+            "sha256": "b9362d3276b817010cbeddada62780d6418163fd66d9483db4fab975d1e36111"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/11.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/11.stdout",
+            "sha256": "feb9771d56a710cf6a4f1dce53df7f589ce61e3f4ab589a9a51db36702f929f9"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/12.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/12.stdout",
+            "sha256": "d85abdcb311fe5efae26a3f93ebb3e39ff664954691ffa555df1bbdc58b4f42d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/13.stderr",
+            "sha256": "1f8c0c830a2e30fe0a7d40994db46bf196915c8b7690356f915fed66e773389d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/13.stdout",
+            "sha256": "daaf7d8f8c300da05cd41523ee1398357f3ca2bdaa86c010aeff0922f1830af9"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/14.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/14.stdout",
+            "sha256": "adf9b7f0d9b288f63b82921bb4c1b335f1ee47e8fb4b1b57fea35ac77756ef07"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/15.stderr",
+            "sha256": "1f8c0c830a2e30fe0a7d40994db46bf196915c8b7690356f915fed66e773389d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/15.stdout",
+            "sha256": "b022a862b41dceda0164bae5d0114700b551015db2217924ad46b8b1848827a1"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/16.stderr",
+            "sha256": "893f0853773a0f781f60cd5d2b76206827c49ed7e3c55114058d30eace8f31f3"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/16.stdout",
+            "sha256": "4dcd9c4d97bbf7e2ef8618de614de913742b5a4a77bd9270ba44f5a4d393441f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-auto/report.json",
+            "sha256": "e507fea8edd68f8765733dd0dea03330302eeb3f8a81f36b0e03e98fc05c6a1d"
+          }
+        ]
+      },
+      {
+        "cell": "Q3_K_S-vulkan-0-bf16",
+        "passed": true,
+        "device": "vulkan:0",
+        "dtype": "bf16",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "reference_hashes": {
+          "baseline_logits.json": "1d56f16d10558091abc9a0914575449ecb958d445216e92e676c1028656a8ccb",
+          "baseline_perplexity.json": "982e11c1fa0dfe08a19f40d80b19e147d6b0891bc30a05f8b0d7c4a144cb26c5"
+        },
+        "top1": "6/6",
+        "top5_sets": "6/6",
+        "top5_order": "6/6",
+        "nll_checks": 8,
+        "max_nll_error_printed": 0.002373,
+        "server_tokens": 8,
+        "server_cli_text_identity": true,
+        "report": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/report.json",
+          "sha256": "805d7c1a5830f9b43d8f26c0b6e510b8b2b190be4232779f1cffc6780f6d6f5a"
+        },
+        "log": {
+          "path": "build-quant-resume-20261020/q2-q3-released/windows/q3-vulkan-bf16.log",
+          "sha256": "a1433e262a8d86c140529062ee4ce46e8defdf5ec87d560e4dfd132bca2938f8"
+        },
+        "raw_artifacts": [
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/00.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/00.stdout",
+            "sha256": "a2220ab1c68fed403c1f128a5df91e807f4484ec6116f87693f73023b4b68367"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/01.stderr",
+            "sha256": "57804fa29918a6176342523f6525a5d3cb2a42bdf13fba91c135b414ed9e8efc"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/01.stdout",
+            "sha256": "0929e4e03e638ee619d7d6f69082f747bd898624f310dd2f0abdd66de7d082b8"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/02.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/02.stdout",
+            "sha256": "f107932b2549707cde7085a3f76b64a6f4ead5abdb941b6541581e6318c6e41f"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/03.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/03.stdout",
+            "sha256": "cde13c05a7f820e6530abc33acae9dc12c832426cb962061f6fb98d11186a873"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/04.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/04.stdout",
+            "sha256": "7c8fbf38543087cf6480f8291a4476d3cd6002675eb8899651da47ce7120cb90"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/05.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/05.stdout",
+            "sha256": "41292c6cd06b26e21106270bbad6874b52bf03063051de1fa68bbc41607f48cc"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/06.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/06.stdout",
+            "sha256": "c7baf8a59e59dd4488ef72eef3f77adb57291f647c07fb35003a22382e5bf3d8"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/07.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/07.stdout",
+            "sha256": "1a05a28da84604926ec862e82f8696adf78e12d8ccce57d1c1b60099cdae8703"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/08.stderr",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/08.stdout",
+            "sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/09.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/09.stdout",
+            "sha256": "bbce8ad213323c7b472e1cea6fa41695cb7c367eecd397abb1c006f1e975d78d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/10.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/10.stdout",
+            "sha256": "f38a3e94d7fade1b6f76177f7267528cf43e66a2ebba1a8df057b887c3634d72"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/11.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/11.stdout",
+            "sha256": "29f5dff9844c66be3aaa43c95f349721b6b40b0e50370bb24f1dfcf6a978cc16"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/12.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/12.stdout",
+            "sha256": "d5d3a06855ce715853f5cc9eb80781c4f26d3dd7aff00823c86e6f7867b84622"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/13.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/13.stdout",
+            "sha256": "0d0722ec89e63fc7d34b4b270fc32aa36ca03bf6df14ea1382f265a2c42cdd01"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/14.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/14.stdout",
+            "sha256": "f4583b866a2509f817bcf32e44fa3b019460244c1687020f94cff6f491ca5af5"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/15.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/15.stdout",
+            "sha256": "310cfa4c113fc02ad81b72215612e6606486ef95439acc36a3d986725e3f31e1"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/16.stderr",
+            "sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/16.stdout",
+            "sha256": "b81d48f17e91438bec02fdea8b2a09c903a0b2223fb967ca9ea96e119ae0ea1d"
+          },
+          {
+            "path": "build-quant-resume-20261020/q2-q3-released/windows/Q3_K_S-vulkan-0-bf16/report.json",
+            "sha256": "805d7c1a5830f9b43d8f26c0b6e510b8b2b190be4232779f1cffc6780f6d6f5a"
+          }
+        ]
+      }
+    ],
+    "harnesses": [
+      {
+        "path": "build-quant-resume-20261020/q2-q3-released/windows/check.py",
+        "sha256": "567596660e0d5284b596477d4f844e424fc3c6f67253074c2844ac5400dc52d5"
+      },
+      {
+        "path": "build-quant-resume-20261020/q2-q3-released/windows/check-released.py",
+        "sha256": "7b1b45aff998abbefadce9c0c33457fdc9ce80bcc1f22fbd3f42c12988a538e8"
+      }
+    ],
+    "bounds": "Existing exact top-1/top-5 tie rule and NLL 0.01 continuous/0.02 windowed unchanged.",
+    "reference_provenance": "Retained September file-exact HF goldens, exact model hashes/type counts, HF revision c1899de289a04d12100db370d81485cdf75e47ca, torch 2.5.1+cpu and transformers 4.55.2 match metadata and ASSETS. Original generator source hash is not in these retained JSON files.",
+    "limitations": "Functional checks on an interactive workstation, no performance claim. Server smoke does not replace the full server suite or POSIX signal checks."
+  },
+  "checkpoint_static": {
+    "result": "PASS",
+    "components": [
+      "docs",
+      "dead-code"
+    ],
+    "log": "worktrees/q3-k-20261021/build-q3-vulkan/logs/q23-released-static.log",
+    "sha256": "ede37ba7447424638470db3f0bffbfc8cf85417079707e5384d883f72b0a004e"
+  },
+  "released_file_depth_f32": {
+    "status": "PASS for this explicit policy and fixture scope",
+    "source_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+    "source_manifest_sha256": "c51356a3ea299540e1cebc67831d160578460145909caa0d81d7d574f8142c62",
+    "scope": "MI50 explicit F32 activations/F32 KV, raw and chat 16K fixed histories with 512 scored positions per case. Same-file independent HF; no original-weight quality or default-policy claim.",
+    "rule": "tests/common.py:hf_depth_top1",
+    "evidence": {
+      "path": "build-quant-resume-20261020/q23-depth/completed/depth-f32-evidence.json",
+      "sha256": "1a5a2fa2d8a2f0ae2bfdfabb3b35a2ecb607d2ded24770700d8d49b9a7883411"
+    },
+    "cells": [
+      {
+        "file_type": "Q2_K",
+        "comparison_sha256": "2bc1fdc808b6d0574ab5ee8d90c51a6b40e31bcf3a39fd8b79e762c3f8feeefe",
+        "raw": {
+          "exact": 512,
+          "accepted_tie": 0,
+          "miss": 0
+        },
+        "chat": {
+          "exact": 512,
+          "accepted_tie": 0,
+          "miss": 0
+        }
+      },
+      {
+        "file_type": "Q3_K_S",
+        "comparison_sha256": "9b2d7da25e693453e2a89c09ef99585c4203b4d7c91d2425707cafc67b6f17c7",
+        "raw": {
+          "exact": 512,
+          "accepted_tie": 0,
+          "miss": 0
+        },
+        "chat": {
+          "exact": 512,
+          "accepted_tie": 0,
+          "miss": 0
+        }
+      }
+    ],
+    "fixture_context": "Same-file GGUF decoded weights, F32 activations and F32 KV; fixed raw/chat 16K histories, 512 scored positions per cell. GPU evidence only; does not establish default/auto-policy depth or original-weight quality.",
+    "reference_and_capture_hashes": {
+      "q2-k": {
+        "comparison": "2bc1fdc808b6d0574ab5ee8d90c51a6b40e31bcf3a39fd8b79e762c3f8feeefe",
+        "reference_report": "74e80ca882483bdc27e75e9027c8e9e471fc25cbcea46b4174f9fe7b6f140c43",
+        "reference_execution": "b317be605f2aa6d2ef9d11308333ec68b3158db65364878738f4b6b8f3316fc2",
+        "capture_report": "276c363f0c2d89bd62422270d41672ab26860ac2db1e9eb60c27053976daaf45",
+        "capture_execution": "2e70300caf8d95a02d5f2ba06d3155e355735338953b323459fb563519a9fa79"
+      },
+      "q3-k-s": {
+        "comparison": "9b2d7da25e693453e2a89c09ef99585c4203b4d7c91d2425707cafc67b6f17c7",
+        "reference_report": "525331d1c5f5bfb5bf86d66da13f6501633107f81744e3b8b313b28287904e93",
+        "reference_execution": "053c7c573eb99889cb15ba86549b9f1d8f565481d119c2c5e6b8a78fe5670bd9",
+        "capture_report": "0fe856dedd3e6ed1087242facf5e2a0d378989003df2124c8df3637c8c19722f",
+        "capture_execution": "e325daa97acb8f3f5bd6880a798b112e9e7ada5dd0231fd6d2f67e9febb8e8d9"
+      }
+    },
+    "limitations": [
+      "Full released-file landing qualification remains open.",
+      "CPU depth attempts are optional diagnostics, not blockers under the device-only raw/chat 16K requirement; see optional_cpu_depth_diagnostic for the retained 4 GiB OOM and 8 GiB timeout."
+    ]
+  },
+  "q2_tp2_auto_split_assembled": {
+    "status": "assembled diagnostic component evidence; not a clean whole-consumer pass",
+    "revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+    "scope": "Q2 auto-request TP2 split on MI50 physical8/9, CPU4-7, F32 arithmetic and F32 KV; actual F32 arithmetic is selected by the auto request. Strict 2e-5/1e-5 bounds unchanged. Explicit-F32 consumer reuse is supported by source/native witness proof. BF16 and Q3 are not included.",
+    "evidence": {
+      "path": "build-quant-resume-20261020/q3-k-focused-rig/q2-auto-split-assembled.json",
+      "sha256": "7cb90afd48780b5366c829775083606af33a9a40df88816abeb8fef9bcb70a2a"
+    },
+    "assembled_coverage": {
+      "full_logits": 150,
+      "nll": 12,
+      "request_policy": "auto (executes F32 arithmetic)",
+      "cache": "F32 KV",
+      "dense_tied": "50 logits + 4 NLL complete",
+      "moe": "50 logits + 4 NLL complete",
+      "dense_untied": "50 logits + 4 NLL complete before the whole-consumer timeout"
+    },
+    "bounds_unchanged": {
+      "logits": 2e-05,
+      "nll": 1e-05
+    },
+    "equivalence_sha256": "06aeb40c3662d394481bb1c8f8828e30c582fc07b1754b88920100b8224a345a",
+    "timeout": "Original 600-second whole-consumer timeout retained; that run timed out during the tied prefix after the dense-untied variant had completed 50 logits + 4 NLL. No whole-consumer replay; do not report a clean full-consumer exit 0.",
+    "limitations": [
+      "Q2 TP2 only; does not qualify Q3_K split behavior.",
+      "Does not close remaining split coverage, default-policy GPU depth, or full landing gates; CPU depth diagnostics are outside this GPU split evidence."
+    ]
+  },
+  "first_support_timing_screen": {
+    "scope": "Exploratory same-device P512/G128 ABBA screen for Q2_K and Q3_K_S, candidate d2 versus pinned mx Vulkan; not a final main regression gate.",
+    "result": {
+      "calls_passed": 8,
+      "calls_planned": 8,
+      "container_removed": true,
+      "oom": false
+    },
+    "candidate": {
+      "revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+      "candidate_version": "llmx 0.1.0+unknown numerics 7e7a3e456e87174e",
+      "candidate_cli_sha256": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+      "candidate_vulkan_library_sha256": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c"
+    },
+    "reference": {
+      "revision": "eefc4e7321c869496146697d63362f073941aed6",
+      "cli_sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+      "backend": "pinned mx Vulkan"
+    },
+    "environment": {
+      "gpu": "MI50 physical4, renderD134, PCI 0000:89:00.0",
+      "driver": "Mesa 25.0.7-2+deb13u1",
+      "cpu_set": "8-11",
+      "threads": 4,
+      "prompt": 512,
+      "decode": 128,
+      "ubatch": 512,
+      "dtype": "auto",
+      "load": "auto",
+      "kv": "F32"
+    },
+    "models": {
+      "qwen3-q2_k": {
+        "model": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q2_K.gguf",
+          "bytes": 296238784,
+          "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "calls": [
+          {
+            "arm": "candidate",
+            "rate": {
+              "pp512": 1059.66,
+              "tg128": 78.77
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 8
+          },
+          {
+            "arm": "mx",
+            "rate": {
+              "pp512": 4780.34,
+              "tg128": 233.04
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 5
+          },
+          {
+            "arm": "mx",
+            "rate": {
+              "pp512": 4860.9,
+              "tg128": 225.17
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 4
+          },
+          {
+            "arm": "candidate",
+            "rate": {
+              "pp512": 1061.08,
+              "tg128": 78.13
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 6
+          }
+        ],
+        "means_tok_s": {
+          "candidate": {
+            "pp512": 1060.37,
+            "tg128": 78.44999999999999
+          },
+          "mx": {
+            "pp512": 4820.62,
+            "tg128": 229.105
+          },
+          "candidate_vs_mx_percent": {
+            "pp512": -78.0034518381453,
+            "tg128": -65.75805853211409
+          }
+        }
+      },
+      "qwen3-q3_k_s": {
+        "model": {
+          "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+          "bytes": 323075776,
+          "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+          "repo": "unsloth/Qwen3-0.6B-GGUF",
+          "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+        },
+        "calls": [
+          {
+            "arm": "candidate",
+            "rate": {
+              "pp512": 1100.48,
+              "tg128": 76.01
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 6
+          },
+          {
+            "arm": "mx",
+            "rate": {
+              "pp512": 5339.4,
+              "tg128": 221.0
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 5
+          },
+          {
+            "arm": "mx",
+            "rate": {
+              "pp512": 5322.69,
+              "tg128": 219.75
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 3
+          },
+          {
+            "arm": "candidate",
+            "rate": {
+              "pp512": 1095.9,
+              "tg128": 79.2
+            },
+            "activity_flags": [
+              "unrelated_cpu"
+            ],
+            "flagged_intervals": 6
+          }
+        ],
+        "means_tok_s": {
+          "candidate": {
+            "pp512": 1098.19,
+            "tg128": 77.605
+          },
+          "mx": {
+            "pp512": 5331.045,
+            "tg128": 220.375
+          },
+          "candidate_vs_mx_percent": {
+            "pp512": -79.40009885491493,
+            "tg128": -64.78502552467384
+          }
+        }
+      }
+    },
+    "activity": {
+      "samples": 38,
+      "intervals": 37,
+      "flags": {
+        "system_idle": 0,
+        "iowait": 0,
+        "unrelated_cpu": 37,
+        "disk": 0,
+        "sample_gap": 0
+      },
+      "all_samples_retained": true,
+      "no_filtered_calls": true,
+      "concurrent_correctness_work": "CPU 0-7 and GPUs 8-9 were monitored concurrently; each call window overlaps intervals flagged unrelated_cpu."
+    },
+    "summary_artifact": {
+      "path": "build-quant-resume-20261020/q23-timing/summary.json",
+      "sha256": "7b38182d5fdd459232c79c88d8ea0146b20bb827e26f18f08a3f46297de622bf",
+      "analyzer_path": "build-quant-resume-20261020/q23-timing/summarize-q23-timing.py",
+      "analyzer_sha256": "afdb457b2f811fa20811a5d81c87378b1e3ab08f4c3020606071e98d9b19da4f"
+    },
+    "raw_artifacts": {
+      "plan_sha256": "0b4e701ba92c47492ab457bdfa4121ae4652ec1e7f2ec4d8c9b5b85cb47409ee",
+      "complete_sha256": "534c400b10b31869c0f8f88cb07582d5480b25e761e09d53e6bc78588a100cdc",
+      "activity_jsonl_sha256": "212d5d0ed22ea5edfcc3f876aafdccb7f2f4a5a189f40bde243c522d653cf7c8",
+      "launch_result_sha256": "c17a07d09f62dba5a0d9e5742a79f187d842636522dde86cf597210cb7f15fac"
+    },
+    "limitations": [
+      "All 37 monitored intervals carry the predeclared unrelated_cpu flag; no other declared flag occurred. Preserve every result and flag.",
+      "Two observations per arm/model are diagnostic, not a precise noise estimate.",
+      "The reference is pinned mx Vulkan, not ROCm or latest mx.",
+      "Large first-support performance gaps remain open for recovery, including native integer-dot/tile work. No numerical bounds changed."
+    ]
+  },
+  "released_file_depth_default": {
+    "status": "PASS for this default-policy and fixture scope",
+    "source_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+    "source_manifest_sha256": "c51356a3ea299540e1cebc67831d160578460145909caa0d81d7d574f8142c62",
+    "scope": "MI50 auto activation policy with F32 and block-int16 weight products and F16 KV, raw and chat 16K fixed histories, 512 scored positions per case, versus the existing same-file unrounded F32 HF references. References were reused, not regenerated. No original-weight quality claim.",
+    "rule": {
+      "owner": "tests/common.py:hf_depth_top1",
+      "source_sha256": "6f5ee60f31ac4816d82d5291ec8ae8b0ccc92236e50771c5d7ebe9f55503523f",
+      "tie_margin": 0.1,
+      "miss_behavior": "The comparator exits nonzero if any position is a miss."
+    },
+    "evidence_index": {
+      "path": "build-quant-resume-20261020/q23-depth/completed/depth-default-evidence.json",
+      "sha256": "c9fa98babbc4d78f7ea8b8439a01aa63301c8af570ba35a5bd82e6768707661a"
+    },
+    "build": {
+      "result": "build-quant-resume-20261020/q23-depth/completed/depth-probe-default-build/result.json",
+      "result_sha256": "0d0b9ec333fdfd0f84099b5d456c026bcf6f06552026aad93828e6ed43f81a6d",
+      "cli_sha256": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+      "library_sha256": "883cfbfc9ad70f6ed910f76e25ea413abe29b2cc9e51f791580c677865881e4c",
+      "probe_sha256": "b7f27fb7f916f97240366fa803065c52901f4a5f399011b80ec039e6ba97ea9d",
+      "probe_source_sha256": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+      "comparator_source_sha256": "12bd21cad5cdd55b8cdad0a6b31aa7563366b05291977ef9eef65d371b3aa92e",
+      "build_exit": 0,
+      "oom_killed": false
+    },
+    "cells": [
+      {
+        "file_type": "Q2_K",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "comparison": "build-quant-resume-20261020/q23-depth/completed/depth-q2-k-default-comparison.json",
+        "comparison_sha256": "b46854e6de009bb91aab3e6d4787d1286cc492313641e9649be1ad10246695ce",
+        "reference_report_sha256": "74e80ca882483bdc27e75e9027c8e9e471fc25cbcea46b4174f9fe7b6f140c43",
+        "capture": {
+          "report": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q2-k-default/report.json",
+          "report_sha256": "28e3d389fc806bd9df0112144ca51f153b80a27e4a39db1496a6d222196d5b41",
+          "execution": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q2-k-default/execution.json",
+          "execution_sha256": "55e3a00c52e0d35a08d5a17903ade25ae0705987151804f77e665074e9e424b2"
+        },
+        "execution": {
+          "activation_policy": "auto",
+          "kv": "f16",
+          "weight_product_paths": [
+            "f32",
+            "block-int16"
+          ]
+        },
+        "raw": {
+          "exact": 511,
+          "accepted_tie": 1,
+          "miss": 0
+        },
+        "chat": {
+          "exact": 512,
+          "accepted_tie": 0,
+          "miss": 0
+        },
+        "capture_exit": 0,
+        "oom_killed": false
+      },
+      {
+        "file_type": "Q3_K_S",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "comparison": "build-quant-resume-20261020/q23-depth/completed/depth-q3-k-s-default-comparison.json",
+        "comparison_sha256": "86e198c4f4dcdb9c2b38003bd6a5460fe5fe4d677eb68e7393ab8d33f502bbc1",
+        "reference_report_sha256": "525331d1c5f5bfb5bf86d66da13f6501633107f81744e3b8b313b28287904e93",
+        "capture": {
+          "report": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q3-k-s-default/report.json",
+          "report_sha256": "044ec37fe566979ca371de5f5b7e6452feb22aafc4932866ee617ec1d873f64b",
+          "execution": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q3-k-s-default/execution.json",
+          "execution_sha256": "2d93d06a277baa6943ecd67931c4ecf882bd21908d9ae092765ffc5543ac4139"
+        },
+        "execution": {
+          "activation_policy": "auto",
+          "kv": "f16",
+          "weight_product_paths": [
+            "f32",
+            "block-int16"
+          ]
+        },
+        "raw": {
+          "exact": 511,
+          "accepted_tie": 1,
+          "miss": 0
+        },
+        "chat": {
+          "exact": 512,
+          "accepted_tie": 0,
+          "miss": 0
+        },
+        "capture_exit": 0,
+        "oom_killed": false
+      }
+    ],
+    "capture_outcome": "Both GPU captures and the probe build completed with exit 0, OOMKilled false; containers were removed.",
+    "limitations": [
+      "This is same-file numerical depth evidence, not original-weight quality approval.",
+      "Q3_K split qualification and complete released-file landing qualification remain open.",
+      "CPU depth attempts are optional diagnostics, not blockers under the device-only raw/chat 16K requirement; see optional_cpu_depth_diagnostic for the retained 4 GiB OOM and 8 GiB timeout."
+    ]
+  },
+  "optional_cpu_depth_diagnostic": {
+    "scope": "Q2_K CPU raw 16K probe only; diagnostic attempts, no numerical verdict and not a merge blocker.",
+    "four_gibibyte_attempt": {
+      "report": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q2-k-cpu-f32/report.json",
+      "report_sha256": "0b927945229d363c5cdbc8d3a8d66f0920ce55eaaa97dd383a87115f2fea0486",
+      "execution": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q2-k-cpu-f32/execution.json",
+      "execution_sha256": "bee5fef48c8fdbadfa0c249eb3d3a5c836fd841108b209ffe5e87e81debb8b02",
+      "outcome": "OOMKilled true; the raw probe was terminated after about 209 seconds and produced no accepted depth result."
+    },
+    "eight_gibibyte_attempt": {
+      "execution": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q2-k-cpu-f32-8g/execution.json",
+      "execution_sha256": "435c61444fcfea8b0cdf3e7aa5ab7c856ae653b1199d4a0d380345f3afa84a19",
+      "run_log": "build-quant-resume-20261020/q23-depth/completed/depth-capture-q2-k-cpu-f32-8g/run.log",
+      "run_log_sha256": "e5417c639c089208c4661acf1303a18da4167b0b0ee1e67109b134a059085352",
+      "outcome": "Raw probe subprocess timed out after 1200 seconds; container exited 1 with OOMKilled false. No numerical verdict."
+    },
+    "disposition": "The device-only raw/chat 16K depth requirement is covered by the explicit-F32 and default-policy MI50 records above. CPU depth attempts do not block landing; ordinary CPU regression and identity checks remain required."
+  },
+  "existing_path_main_timing_screen": {
+    "status": "PASS for the scoped existing-path main/candidate timing screen; this is not completion of all release gates.",
+    "scope": "Eleven existing Qwen3 and Qwen3.5 model files; base versus Q2/Q3 candidate, P512/G128, one repeat in each forward and reverse order per arm/file. No mx timing calls in this round.",
+    "identity": {
+      "base_revision": "5b545e772950498fbab9ba159dc11e77956e676b",
+      "base_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+      "base_relation": "Runtime-identical to published main 609ff078; recorded difference is three documentation/plan files.",
+      "candidate_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+      "candidate_manifest_sha256": "c51356a3ea299540e1cebc67831d160578460145909caa0d81d7d574f8142c62",
+      "binary_sha256": {
+        "mx": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+        "base": "6ebf4ce12e4031ec0f7ed493bd509ad45dc156d8acf8b67fba8ec2aecc2de4c0",
+        "candidate": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12"
+      }
+    },
+    "settings": {
+      "backend": "MI50 Vulkan, target PCI 0000:89:00.0 (/dev/dri/renderD134)",
+      "cpu_set": "8-11",
+      "threads": 4,
+      "ubatch": 512,
+      "dtype": "auto",
+      "load_mode": "auto",
+      "kv": "f32/f32",
+      "prompt_tokens": 512,
+      "decode_tokens": 128,
+      "container_memory_gib": 8
+    },
+    "outcome": {
+      "calls_planned": 44,
+      "calls_completed": 44,
+      "all_passed": true,
+      "all_returncodes_zero": true,
+      "calls_per_model": 4,
+      "models": [
+        "qwen3-q8_0",
+        "qwen3-q4_0",
+        "qwen3-q5_k_m",
+        "qwen3-q4_k_m",
+        "qwen35-q8_0",
+        "qwen35-q4_k_m",
+        "qwen3-q5_1",
+        "qwen3-iq4_nl",
+        "qwen3-f16",
+        "qwen3-bf16",
+        "qwen3-q5_0"
+      ],
+      "container_removed": true,
+      "oom_killed": false,
+      "monitor_returncode": 0,
+      "filtered_calls": 0,
+      "per_model_candidate_vs_base_percent": [
+        {
+          "model": "qwen3-q8_0",
+          "pp512": -0.05177949813284233,
+          "tg128": 0.09420631182288641
+        },
+        {
+          "model": "qwen3-q4_0",
+          "pp512": 0.0540634935063844,
+          "tg128": 0.2493372501253699
+        },
+        {
+          "model": "qwen3-q5_k_m",
+          "pp512": -0.11424359909787407,
+          "tg128": 0.4595342823817239
+        },
+        {
+          "model": "qwen3-q4_k_m",
+          "pp512": 0.03177184649207909,
+          "tg128": 0.042652724270775266
+        },
+        {
+          "model": "qwen35-q8_0",
+          "pp512": 0.20126475246817765,
+          "tg128": -0.028417163967042747
+        },
+        {
+          "model": "qwen35-q4_k_m",
+          "pp512": -0.04997575644155594,
+          "tg128": -0.45705429298917855
+        },
+        {
+          "model": "qwen3-q5_1",
+          "pp512": 0.05491707819655911,
+          "tg128": -0.1775923550719538
+        },
+        {
+          "model": "qwen3-iq4_nl",
+          "pp512": 0.09326735642525286,
+          "tg128": -0.3435920992191144
+        },
+        {
+          "model": "qwen3-f16",
+          "pp512": 0.9805015756302549,
+          "tg128": -0.22258330180069397
+        },
+        {
+          "model": "qwen3-bf16",
+          "pp512": 0.5110467521721063,
+          "tg128": -0.17920323484813538
+        },
+        {
+          "model": "qwen3-q5_0",
+          "pp512": 0.2414740951616201,
+          "tg128": 0.619184795205463
+        }
+      ]
+    },
+    "relative_candidate_vs_base_percent_range": {
+      "pp512": {
+        "min_percent": -0.11424359909787407,
+        "max_percent": 0.9805015756302549
+      },
+      "tg128": {
+        "min_percent": -0.45705429298917855,
+        "max_percent": 0.619184795205463
+      }
+    },
+    "activity": {
+      "plan_flags": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "records": {
+        "start": 1,
+        "samples": 81,
+        "stop": 1,
+        "errors": 0
+      },
+      "interval_count": 80,
+      "threshold_flagged_interval_counts": {
+        "system_idle": 0,
+        "iowait": 0,
+        "unrelated_cpu": 0,
+        "disk": 1,
+        "disk_unknown": 0,
+        "sample_gap": 0
+      },
+      "flagged_call_windows": [
+        {
+          "model": "qwen3-bf16",
+          "arm": "candidate",
+          "direction": "forward",
+          "start_utc": "2026-10-21T03:04:40.580962+00:00",
+          "end_utc": "2026-10-21T03:04:41.593339+00:00",
+          "flags": [
+            "disk"
+          ],
+          "disk_aggregate_bytes_per_second": 126788994.8454875
+        },
+        {
+          "model": "qwen3-q5_0",
+          "arm": "base",
+          "direction": "forward",
+          "start_utc": "2026-10-21T03:04:40.580962+00:00",
+          "end_utc": "2026-10-21T03:04:41.593339+00:00",
+          "flags": [
+            "disk"
+          ],
+          "disk_aggregate_bytes_per_second": 126788994.8454875
+        }
+      ],
+      "unknown_interval_counts": {
+        "system_idle": 0,
+        "iowait": 0,
+        "process_cpu_observation": 78,
+        "disk_io": 0,
+        "target_gpu_busy": 0,
+        "other_gpu_busy": 0
+      },
+      "process_observations": {
+        "new_or_no_prior_delta": 485,
+        "missed": 43,
+        "unknown_role": 0
+      },
+      "boundary_tail_unknowns": [
+        {
+          "model": "qwen3-q8_0",
+          "arm": "base",
+          "direction": "reverse",
+          "coverage_fraction": 0.8585161286660759,
+          "nearest_sample_before_call_utc": "2026-10-21T03:05:20.588231+00:00",
+          "nearest_sample_after_call_utc": null
+        }
+      ],
+      "concurrent_work": "BF16 CPU correctness on CPUs 4-7 and device correctness on GPUs 8/9 were monitored concurrently; no activity was assumed absent.",
+      "method_note": "CPU/iowait counters use first eight /proc/stat fields; process CPU roles separate benchmark and monitor from unrelated/unknown; disk threshold uses summed read+write bytes/s across common whole-disk devices. Counter coverage and activity are reported as observed, never assigned to a particular benchmark arm."
+    },
+    "mx_reference": {
+      "head": "eefc4e7321c869496146697d63362f073941aed6",
+      "manifest_path": "build-quant-resume-20261020/q23-main-timing/round1/mx-reference.json",
+      "manifest_sha256": "fca9236ab9863d3954f2ffcf233e914ff99925ccccfae0c14194c1960e78e083",
+      "timing_calls": 0
+    },
+    "analysis": {
+      "summary_path": "build-quant-resume-20261020/q23-main-timing/existing-path-timing-summary.json",
+      "summary_sha256": "069ce114962e231d37e98a2a86f77b8c5d6bcbb881fb9edbaeee7bd9a99e4755",
+      "analyzer_path": "build-quant-resume-20261020/q23-main-timing/analyze-existing-path.py",
+      "analyzer_sha256": "efd93309f7f2986919904055942cf2461cb6a3fc0b72decaa0aed3768c81b4d1",
+      "input_hashes": {
+        "plan": "10188d083e2ee33b170c100f2933ed61353449b18f1a9523fb0bea8b32d0edca",
+        "complete": "5a1bdccf159c8838d560af2fea5fa6accfee08160cbf9be24170044e8b60f27b",
+        "activity": "0f181ff19e5ccc3b61e7c43784734a759b30f7c09ea70e76dced3c5a639f8cc1",
+        "launch": "421896144812866ec08a8dadd9a959eb923720d0e2438400257f4d170afcb030",
+        "mx_reference_manifest": "fca9236ab9863d3954f2ffcf233e914ff99925ccccfae0c14194c1960e78e083",
+        "source_verification": "ec650519ff82b86b93428b9e98acf47a3ca7a82870bb3f2bc1d0d410774278aa",
+        "end_verification": "c337e363c2006797d89e3d774e4b5b5d70122c442b11cc5472b7a069c4c48215",
+        "monitor": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf"
+      }
+    },
+    "interpretation": "Cross-model deltas range from -0.114% to +0.981% prompt and -0.457% to +0.619% decode. Do not attribute these small differences or treat the range as a precision/noise bound. This completes the scoped existing-path main/candidate screen only; the separate Q2/Q3 first-support versus pinned-mx gap and broader applicable release gates remain."
+  },
+  "q23_tp2_split_variant_followup": {
+    "source_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+    "scope": "Focused MI50 TP2 HF split variants; per-variant consumer segments, not one uninterrupted whole-consumer pass.",
+    "configuration": {
+      "physical_gpus": [
+        8,
+        9
+      ],
+      "renders": [
+        130,
+        131
+      ],
+      "pci": [
+        "0000:c9:00.0",
+        "0000:cc:00.0"
+      ],
+      "cpus": "4-7",
+      "memory_bytes": 8589934592,
+      "tensor_width": 2,
+      "kv": "f32",
+      "variant_timeout_seconds": 600
+    },
+    "index": {
+      "path": "build-quant-resume-20261020/q3-k-focused-rig/split-variant-evidence.json",
+      "sha256": "9c1aed59ead4e368e502a7c1e4058de196627b7a6913cfcc3ecb9d7531cd41d4"
+    },
+    "passed_variants": {
+      "q3-k-auto-dense-untied": {
+        "passed": true,
+        "exit": 0,
+        "completed_calls": 54,
+        "full_logits": 50,
+        "nll": 4,
+        "max_logit_error": 8.49e-06,
+        "max_nll_error": 1.16e-06,
+        "actual_paths": [
+          {
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32"
+              ]
+            ],
+            "dtype": "f16"
+          }
+        ],
+        "raw_sha256": {
+          "cases.jsonl": "c299f071ff7a297de93e225710d8fede901c8f5d38c2e9dfaae8b94ef53b1890",
+          "container.cid": "61d579eb2dcaec951022c4e15bcdcc48ab0639598cf3f036c17e11143cbc349a",
+          "container.json": "c8ac973d60477d674875b76f7c9e701c353bc04b6da1ed5dccaaa3eb1634e014",
+          "containers.json": "c9c0660f7466e2fa2c50678ae38040cbd8bcec13269792632fb2cd063ba376c4",
+          "containers.txt": "09994587ef1fbc47b7ac72d3c5cece717da6a8264811a062f7ea14a1683bbaf1",
+          "execution.json": "3bf83bc8b1de1d05d57fe007519055b29c78f56b5e33a45daffe0d4101e6dca7",
+          "launch.json": "450b661f7fc6d6f2ffa77eebbe54c4a7e502b785c3751a068f7b9cca004654dc",
+          "memory.jsonl": "2e5427fe4cbbab62a48dcd6c09ab207f1b91636e59613903524e84a169fb8fee",
+          "processes.txt": "29fbfbcc7b934ce109f4ad271bbbe40ca1a00c82a3fa9c6285b5445294dc9e80",
+          "run.log": "494692e427fac41f272f0b757dd0cedf6e56aa0a123dc62a0197a6ca6a38771f"
+        }
+      },
+      "q3-k-auto-dense-tied": {
+        "passed": true,
+        "exit": 0,
+        "completed_calls": 54,
+        "full_logits": 50,
+        "nll": 4,
+        "max_logit_error": 9.38e-06,
+        "max_nll_error": 7.2e-07,
+        "actual_paths": [
+          {
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32"
+              ]
+            ],
+            "dtype": "f16"
+          }
+        ],
+        "raw_sha256": {
+          "cases.jsonl": "4cd303771685435759c2921a268dab3536868de04bf91883f7b1e19b3e1c7ecc",
+          "container.cid": "b186f21e8c319e748fbadcd9c1631118817b77eebe667baf07e2745be4b6564d",
+          "container.json": "cc29e34fca1c39ce27b184386664c718630d8e346670eb78339fdfbaf4856cf4",
+          "containers.json": "be6b9381b080a6d893e39faa1791e6f78092b2e9f9db7a0e035f161b728499c8",
+          "containers.txt": "b439984fb8e350e9c1e491d24924ec0e5670bf333209bb2957a1c1ea256459e7",
+          "execution.json": "fb0662a3c8e60e5f3e7af826e8d282e65637f21e52d5c23cb0575d0723351c19",
+          "launch.json": "8de278c30d30e0f0de7257bb9c2e6bcea462721a6c91862690fd0367609afa49",
+          "memory.jsonl": "750187fc3c753e9e2d3abba4c3e68cf4959911a2f12c8fc2cf520a8891ce7258",
+          "processes.txt": "46920ee3f057f1b1ff3aa359ee80369c28494b3c7d0eeb1ee2ace896084aabcc",
+          "run.log": "7486fda39f6ddb58efe5227ed12aae77c57ca6481cc88fbf5235cc9d9765b5a6"
+        }
+      },
+      "q3-k-auto-moe": {
+        "passed": true,
+        "exit": 0,
+        "completed_calls": 54,
+        "full_logits": 50,
+        "nll": 4,
+        "max_logit_error": 1.402e-05,
+        "max_nll_error": 2.3e-07,
+        "actual_paths": [
+          {
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32"
+              ]
+            ],
+            "dtype": "f16"
+          }
+        ],
+        "raw_sha256": {
+          "cases.jsonl": "b014ed0c797ed9d5ab19deb9aecd88fab5f90af70a8e450facb08483d9b2e5c8",
+          "container.cid": "5cf38d904b3ee87bfddae83aa44d589d86d8eda4d0c33ae3afd23eb94f0e199b",
+          "container.json": "3eaba7a5db54259aa3de21ad433ced45caeba266e3ccf7e76c235fa294fab82b",
+          "containers.json": "364fc26c5b94f649681403fe752d97967db389e2135ae66a030c850613e99358",
+          "containers.txt": "d1cfab63b07046059621170fd10070be7805cc6b2dc4e31145b42e23d37abd10",
+          "execution.json": "d290de4b66fffd261f737b40a3c9fb30cf360f481b755c5716b3afbc7b7b21fe",
+          "launch.json": "b5e8c50a6e9de65dfbfc1afe7f7c24d8f57272a313811e6da7e95efc48aef064",
+          "memory.jsonl": "86c05946bca7aa6233b851b62e30181d6eddac62dcec1dbca04f50ef133389ee",
+          "processes.txt": "d55089c8b6507978000f6afa2235453375b4f58117257256fa247eaf6475225c",
+          "run.log": "790cb6b0b0fafd27b7d01384be4323fb5518f83827740209a93292943b2c1657"
+        }
+      },
+      "q2-k-bf16-dense-untied": {
+        "passed": true,
+        "exit": 0,
+        "completed_calls": 54,
+        "full_logits": 50,
+        "nll": 4,
+        "max_logit_error": 0.00877747,
+        "max_nll_error": 0.00038105,
+        "actual_paths": [
+          {
+            "devices": [
+              [
+                "bf16"
+              ],
+              [
+                "bf16"
+              ]
+            ],
+            "dtype": "bf16"
+          }
+        ],
+        "raw_sha256": {
+          "cases.jsonl": "bb1a11755f7a88aaff13fb17e9ba4dbce017ed68d8430681837e2e9825341001",
+          "container.cid": "bde211689b6aafb32ac084f1d39c1c30a50dc2186e30ffa18a7e31babf562f4b",
+          "container.json": "6753c484dbbd46ebda86082379fb75581fa48cd4a62eac620ae7e94bda17d092",
+          "containers.json": "617d44e1971d2e66d6cb6fadd7366a84176ca4488f181f0dff641c2d3532481e",
+          "containers.txt": "1eff0c8a43df7fb0b811a93cff7a84414d46cc078f88bd1e3e692d8e4af809ed",
+          "execution.json": "50595a8880a3a3fb7ad62a063693590b527f377abab1f3d846fc9ba06cd345ad",
+          "launch.json": "231459020497e3eabcea574db7211084e35efa22575d796c15b3e05e25d2c02a",
+          "memory.jsonl": "79e66ea3ed48de7fb961bd8e4fa9a7001b0f23a6a01ed136f34b084a4433ddd2",
+          "processes.txt": "4862468ee4a658027afcec90c7fbf2326bbdf5247eb038eed5f4ed483c8e9754",
+          "run.log": "14aea2db1f5280fd281fc261922b54bab86ca59d79932f0c7c9277f846aa74f8"
+        }
+      },
+      "q2-k-bf16-dense-tied": {
+        "passed": true,
+        "exit": 0,
+        "completed_calls": 54,
+        "full_logits": 50,
+        "nll": 4,
+        "max_logit_error": 0.00822469,
+        "max_nll_error": 0.00096584,
+        "actual_paths": [
+          {
+            "devices": [
+              [
+                "bf16"
+              ],
+              [
+                "bf16"
+              ]
+            ],
+            "dtype": "bf16"
+          }
+        ],
+        "raw_sha256": {
+          "cases.jsonl": "629c12c29b099d113b36a96f83adabfaed503ea37c4f35945fcb8360e0e7bd26",
+          "container.cid": "5fd391bf26aac0c2068969650762a9c78ceabf141bfe6fd944f26d71fe3d42eb",
+          "container.json": "c4922168b660dadf0f6413ecbd971d0a1950c11f59e02d55f2c574026b06dd5c",
+          "containers.json": "c9d68583430cad0385037663060dd62acafb5544ff002a149c72781812c684e4",
+          "containers.txt": "96813ab12494e093d14ec8653e915f6b792e28d2676ea2e3c6dde3cc39f0e801",
+          "execution.json": "e73c13aa24f18f3b3872b902397a37fce716bb96cd567b533ddffa6781dc1c56",
+          "launch.json": "7a11a557046ede47f07371734d564db6ab822030c15e45ce30dfefe3b4eba9ac",
+          "memory.jsonl": "c98a9fb6305c9f81628695fadeceaadd8a207d3b4b78bac45cb8888ca2053d00",
+          "processes.txt": "07c2a4e1f707dd8e0192a6719c3f2c1d7b26b9b81cd77cfcc58523d1e38f2177",
+          "run.log": "b2953309c4d24fccfe83b44b4d24573156e2491663d8deb9eebbfdd1d2a9a684"
+        }
+      },
+      "q2-k-bf16-moe": {
+        "passed": true,
+        "exit": 0,
+        "completed_calls": 54,
+        "full_logits": 50,
+        "nll": 4,
+        "max_logit_error": 0.00822762,
+        "max_nll_error": 0.00048379,
+        "actual_paths": [
+          {
+            "devices": [
+              [
+                "f32",
+                "bf16"
+              ],
+              [
+                "f32",
+                "bf16"
+              ]
+            ],
+            "dtype": "bf16"
+          }
+        ],
+        "raw_sha256": {
+          "cases.jsonl": "74b24261404a59f779c821ff0723e07584932f52e2649215aa195251e2d2c9a8",
+          "container.cid": "e7a3661e8426ab7cea4fe4bcb3955d0d92fbbc2450a5f2f49db3d5a1d7949944",
+          "container.json": "50202ed3a9dd3a85cf0c513e5cee164b6914052f7aa85fb86cd272f62367cfd2",
+          "containers.json": "068d4beb997e5e9170a7a45af9827cba773422ced4d53cf1c2e04c24b233dbee",
+          "containers.txt": "59bdcc94879fdd9673211e7b7c6ace4968a02b062962e5fb9ee5ade39ee661cb",
+          "execution.json": "060be3d63fdc374b2745eacaf85b13d513eff0f3053ed0c1c96ee80f8bbafe70",
+          "launch.json": "ecf7d8b500074b6be2111fa758815348e0808214f1111cc793f5e731c207174d",
+          "memory.jsonl": "bba40bf93a10f58bc5c86d32866a84c2457a2ee6911b26b98d59e5950feac866",
+          "processes.txt": "97d6ae81899b30d801f5e8d70956db783d2360ac16d59e28698650671b8c90e1",
+          "run.log": "09b9bce5167edbe9265a046908a9a65d739dfafb384aec24c90e96cda34d3243"
+        }
+      }
+    },
+    "q3_bf16_dense_untied_failure": {
+      "path": "build-quant-resume-20261020/q3-k-focused-rig/q3-bf16-split-failure.json",
+      "sha256": "2a0aef3d73d222bb9595b84286e22c542033a980c50cd8fcdf0abfbe72a2801a",
+      "variant_index_stage": {
+        "passed": false,
+        "exit": 1,
+        "completed_calls": 27,
+        "raw_sha256": {
+          "cases.jsonl": "8f17660e34b245a4ae2907363051aa4c20de9148772f999dcdc88f2aaa9118f5",
+          "container.cid": "a606995ca1ba056c45d881b44a53b654575d165a15aca8f12d4ea37768bad83f",
+          "container.json": "586b61c1034a7899af30408dad5bb8f44437c5565cecf1feeccfe3b3d605689f",
+          "containers.json": "7914d1e00234957cecac24f063173dcb06456209f0795a4b12f3ee3c3d9590d8",
+          "containers.txt": "b439984fb8e350e9c1e491d24924ec0e5670bf333209bb2957a1c1ea256459e7",
+          "execution.json": "260d98ebcf841a504a4cd925d616911cd5653c0fe3383b2e5d133d5b452fd322",
+          "launch.json": "c43afa9bd80bfb947d6c474712e9100f8cd4d790e9e4671887d670c838766c06",
+          "memory.jsonl": "8194a548bf3b02a82c069df53ae1e43f7e9f82537c1339f634cb756f7d006782",
+          "processes.txt": "9e3c354ef6a97055c11978ef841e48145f346c26bce680afde031e8fe5c514f2",
+          "run.log": "91be0ae40f51964405e9658a5f3d3d0b61ea6fa9b283421f59f0496edd335936"
+        }
+      },
+      "prompt": "abcdefghijklm",
+      "seed": 12345,
+      "threads": 1,
+      "context": 16,
+      "kv": "f32",
+      "tensor_parallel": 2,
+      "actual_matrix_paths": [
+        "bf16",
+        "bf16"
+      ],
+      "completed_before_failure": {
+        "logits_cases": 25,
+        "max_abs_logit_error": 0.047442685417175334,
+        "logit_bound": 0.05409973859786987,
+        "context4_abs_nll_error": 0.004577994555286402,
+        "context4_nll_bound": 0.007924573802609913
+      },
+      "failed_check": {
+        "context": 16,
+        "native_nll": 7.683668762,
+        "hf_nll": 7.693314143058995,
+        "absolute_error": 0.009645381058994928,
+        "frozen_nll_bound": 0.007924573802609913
+      },
+      "disposition": "The BF16 variant stopped at the failed consumer assertion; no whole-variant continuation or rerun. No bound or policy change. Independent diagnosis is in progress.",
+      "controlled_diagnostic": {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/q3-bf16-diagnostic-evidence.json",
+        "sha256": "0e15d5292695493340693a2bcdabd033266df0ce07f6bf57dbd12babad8f5577",
+        "source_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+        "retained_failure_sha256": "2a0aef3d73d222bb9595b84286e22c542033a980c50cd8fcdf0abfbe72a2801a",
+        "weights_sha256": "3c7dca37eb2aee3f70c557fcbab88bfda92be17775e26774ddc29af3b7e0166a",
+        "packed_model_sha256": "b04167cbd6dced002a3931083b07f3ebf01a87ca0c924fabc11e39c67157951c",
+        "widened_model_sha256": "c28d58b92e7b166a2018ad997b8de6847c3fb93360a5655ba52e34828bd8c3df",
+        "identical_decoded_tensors": 26,
+        "identical_decoded_values": 13121568,
+        "aggregate_nll": {
+          "main_widened": 7.683668762,
+          "candidate_widened": 7.683668762,
+          "retained_packed": 7.683668762,
+          "same_printed_stdout": true
+        },
+        "original_hf_nll": 7.693314143058995,
+        "independent_bf16_rounded_hf_nll": 7.683802263672291,
+        "bf16_reference_delta_from_original": -0.009511879386703725,
+        "runtime_minus_bf16_rounded_hf": -0.00013350167229120302,
+        "unchanged_frozen_nll_bound": 0.007924573802609913,
+        "stages": {
+          "hf-control": {
+            "passed": false,
+            "exit": 1,
+            "removed": true,
+            "seconds": 27.926124095916748,
+            "raw_sha256": {
+              "container.cid": "bf7eaba6041076d6ce2e97ee34e2071dfb274dd5cb9daf84bb8ce57715b93999",
+              "container.json": "8820cfd2539c0837891d9b93b2b2ee1409c15b9395542a90c1e746a1e3f6b781",
+              "containers.json": "5b18ec28d9972225f968acd41403fdcd6c53df7d43f6ed7632a1fe7d391cf4fa",
+              "containers.txt": "8f6d0d252fb5e10af5d736615f8f7026755327ee083f7df2514925b5fe9a5dd3",
+              "execution.json": "8cb16f4ce2fab20b69cdbbeb3c22fbce1fb694e7f339e672a800953592d22d43",
+              "launch.json": "abfa971e4690ac4d336d26346fb8fcb6ce4abb083464fd1f1f9fdd88fff3e948",
+              "memory.jsonl": "99537da253531ac2c974a122dad473ba1982d8efbb8794f9d268a93eb8f81c9d",
+              "packed.gguf": "b04167cbd6dced002a3931083b07f3ebf01a87ca0c924fabc11e39c67157951c",
+              "processes.txt": "3e954acb66e9fc167f6e053a958bd5d62d3d660565f2aff46832df9fb740a738",
+              "run.log": "caa86dc5d40b21c99b0b86a804c6534669a8d86b94c1f2e0ae27068e199c0d6e",
+              "widened.gguf": "c28d58b92e7b166a2018ad997b8de6847c3fb93360a5655ba52e34828bd8c3df"
+            }
+          },
+          "hf-control-namejoin": {
+            "passed": true,
+            "exit": 0,
+            "removed": true,
+            "seconds": 30.63056707382202,
+            "raw_sha256": {
+              "container.cid": "29ff04b4b9f6dfa1b513e1e2a2da4ab3280d1df8d6d79913bb83d36f99fb942f",
+              "container.json": "dcd14828ebc2d9e91fba6ef32dfb34bdc11262562b8cfd971273f2d87357dd6e",
+              "containers.json": "54e6f135f189f3f24029636799b0cf1580334f0c6541754bf31f780aa73773f3",
+              "containers.txt": "1b16a0f81737662e9beae4a4ba89909435724048d2967faa02539c0ed65c6eca",
+              "execution.json": "58c0174da2b6e5c952c7d334c35ea370f5c312705419ce1c8bd0f38e06ecba55",
+              "launch.json": "d78b449da65f93f4bebc6b81e0307180cf091d6e44c3cee584944bff124af0d9",
+              "memory.jsonl": "3cca2bf9f5b49e4f6eb477b6d33e27e0bd1cba85931244906fcd913a5e4cf9e6",
+              "packed.gguf": "b04167cbd6dced002a3931083b07f3ebf01a87ca0c924fabc11e39c67157951c",
+              "processes.txt": "9990729aa2c7db083d29bde988a4fb68b235aee47865e367ae6990a0b27e4dea",
+              "reference-control.json": "3c1fe182d0efe797c4994a59c78837c556d0fabef7217d33e75c54bfe0260479",
+              "run.log": "f2b7528b0fdc402ff21f5715f8aebd32d7f674212093363de1a80ae15f1848bb",
+              "widened.gguf": "c28d58b92e7b166a2018ad997b8de6847c3fb93360a5655ba52e34828bd8c3df"
+            }
+          },
+          "runtime-controls": {
+            "passed": true,
+            "exit": 0,
+            "removed": true,
+            "seconds": 12.387061834335327,
+            "raw_sha256": {
+              "calls.json": "72ad71d4544a5bc2e966dfc973475cf8cdc7faee8f0ce770363f300620dd403e",
+              "candidate-widened.stderr": "dc755153fb40d78fbc85c533398288c7fb18e57cce988c63afbd4ff9f98d9e89",
+              "candidate-widened.stdout": "4ae507d3a0df2f437606b6424065db896002f011630ef860a4df11dc5c7dfa46",
+              "container.cid": "dbfe9bf094c7311de5591e587cdf4a055442cbb4d600f24745826e67b813a2dd",
+              "container.json": "5814514865ed5e5c86025d342c3c77b73ce4275599464c3ec723823af0a058ce",
+              "containers.json": "405ce37a9b79e4d285c395b0b43a6eb2b4b5a870f1cecdaeef3203816bb1d628",
+              "containers.txt": "1b16a0f81737662e9beae4a4ba89909435724048d2967faa02539c0ed65c6eca",
+              "execution.json": "a1de3122197b477644863479595a47c1d5975f68d1446b6689f55b18756866ac",
+              "launch.json": "b51a5fcfcc9a16f79c8f5b9eed3a70894e9da3053276d46051e6f4ef056d609f",
+              "main-widened.stderr": "dc755153fb40d78fbc85c533398288c7fb18e57cce988c63afbd4ff9f98d9e89",
+              "main-widened.stdout": "4ae507d3a0df2f437606b6424065db896002f011630ef860a4df11dc5c7dfa46",
+              "memory.jsonl": "6175841b5473febae196d51e6a9977722d2a2be9357c0889560435c3231cac88",
+              "processes.txt": "19b9511c258bf0a952666732cff962bf03390f17fe5303a1f3a619649f23f497",
+              "run.log": "7a3aaaa8057b797fc03c2a9a583c6855b8df2bdb2375c361de27e8cbfa20581f"
+            }
+          }
+        },
+        "interpretation": "The retained aggregate NLL is reproduced at printed precision by main-widened and candidate-widened controls; the independent BF16-rounded HF NLL also differs from original HF by more than the frozen bound. This supports reference-coverage sensitivity for this case, but is not per-token identity, a gate pass, a budget approval or a complete operator diagnosis.",
+        "initial_setup_refusal": "The first HF-control attempt failed its tensor-name/shape order assertion; the retained name-join control completed successfully. Both attempts are preserved.",
+        "decision": "The original split gate remains failed; no bound/reference policy change and no candidate pass are approved.",
+        "separate_follow_up": "A reference-only 30-model proposal is being prepared separately; it makes no product or budget change and does not itself authorize a candidate rerun."
+      }
+    },
+    "limitations": [
+      "Q3 auto and Q2 BF16 are independently completed variant-level segments (50 logits + 4 NLL each); they do not establish an uninterrupted full consumer pass.",
+      "Q3 BF16 TP2 numerical qualification remains open."
+    ]
+  },
+  "q23_cpu_vulkan_identity": {
+    "scope": "Existing-path CPU and Vulkan byte identity only; not new Q2_K/Q3_K correctness or performance. For each file, main and candidate binary32 batched, decode and greedy capture hashes match exactly.",
+    "base_revision": "5b545e772950498fbab9ba159dc11e77956e676b",
+    "base_relation": "Runtime-identical to public main 609ff078621181317e20daca67550cb7a5b39361; only recorded docs/plan files differ.",
+    "candidate_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+    "candidate_binary_sha256": "2c4b38ced75f178f9bb88062471e87efd4452eddb579c25466cd0d32b6722d12",
+    "audit_path": "build-quant-resume-20261020/q23-landing/identity-audit.json",
+    "audit_sha256": "9b6568bdfb089090781e4a71b292a6ea1f007343375d8b2a1655f09d53e86e1e",
+    "auditor_sha256": "77f55711329ae27ee5f110a9ce53d81d1fab8dd64dd591b840845e8aad0bc921",
+    "stages": {
+      "identity-cpu": {
+        "result_path": "build-quant-resume-20261020/q23-landing/identity-cpu/result.json",
+        "result_sha256": "624abef32116645417a66c2d40b515beb5bf700dab605dedf155e49eb21394b7",
+        "execution_path": "build-quant-resume-20261020/q23-landing/identity-cpu/execution.json",
+        "execution_sha256": "8ad6b4e7823e6afb1842373200f32b806cb5b62c4644dab102f3d8f31c26fce5",
+        "run_log_sha256": "a28a33bafcafd10e0888344c65ac180396fbb195274f8e9321a460a257dc6edb",
+        "device": "cpu",
+        "files": [
+          "Qwen3-0.6B-Q8_0.gguf",
+          "Qwen3-0.6B-Q4_0.gguf"
+        ],
+        "case_count": 2,
+        "prompt_rows_per_file": "243 (Qwen3.5) or 247 (Qwen3)",
+        "greedy_rows_per_file": 64,
+        "exact_batched_decode_greedy_capture_hashes": true,
+        "container_removed": true,
+        "oom": false,
+        "elapsed_seconds": 76.51246118545532
+      },
+      "identity-vulkan": {
+        "result_path": "build-quant-resume-20261020/q23-landing/identity-vulkan/result.json",
+        "result_sha256": "575b2e61c630e81da69a99df04f95c769241d7b60633ff88b3aa3e5e26dd147a",
+        "execution_path": "build-quant-resume-20261020/q23-landing/identity-vulkan/execution.json",
+        "execution_sha256": "c245581cdc4c5013f10f0d3b8f16010ebf437ea206a10c2eb5b6b431887ab286",
+        "run_log_sha256": "ca243ee4800eaff385020c70205c0814055d5af475c4864f052324d57d67e19b",
+        "device": "vulkan:0",
+        "files": [
+          "Qwen3-0.6B-Q8_0.gguf",
+          "Qwen3-0.6B-Q4_0.gguf",
+          "Qwen3-0.6B-Q5_K_M.gguf",
+          "Qwen3-0.6B-Q4_K_M.gguf",
+          "Qwen3.5-0.8B-Q8_0.gguf",
+          "Qwen3.5-0.8B-Q4_K_M.gguf",
+          "Qwen3-0.6B-Q5_1.gguf",
+          "Qwen3-0.6B-IQ4_NL.gguf",
+          "Qwen3-0.6B-F16-converted.gguf",
+          "Qwen3-0.6B-BF16.gguf",
+          "Qwen3-0.6B-Q5_0-converted.gguf"
+        ],
+        "case_count": 11,
+        "prompt_rows_per_file": "243 (Qwen3.5) or 247 (Qwen3)",
+        "greedy_rows_per_file": 64,
+        "exact_batched_decode_greedy_capture_hashes": true,
+        "container_removed": true,
+        "oom": false,
+        "elapsed_seconds": 70.08457326889038
+      }
+    },
+    "raw_hashes_independently_audited": true
+  },
+  "q23_existing_path_device_suite": {
+    "scope": "Existing-path MI50 device-suite regression only; not Q2_K/Q3_K HF/native/split qualification.",
+    "source_revision": "d2d5d6daa81912eb9edf0137d0ab510a799800f6",
+    "audit_path": "build-quant-resume-20261020/q23-landing/suite-audit.json",
+    "audit_sha256": "dd4967840967f0452e05fa7dbdcac58b953d0b9de9d15df29202a68cdcaf1d45",
+    "execution_path": "build-quant-resume-20261020/q23-landing/execution.json",
+    "execution_sha256": "b0c97a652067d6b1b49d97b5ff044f2f361c6bfcbffda681883b6c47e9cad4ce",
+    "run_log_sha256": "03e73c1b338669771940dbc09c4dd659d3ab7eed01ae5f6f68f6bf8a2dbac477",
+    "source_pins_sha256": "8e00fd58fb3202b6ff6b82a389b3777e47d0fa6aecca178ffd99f8f2345c2753",
+    "container_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "device": {
+      "kind": "Vulkan MI50",
+      "pci": "0000:89:00.0",
+      "render": "renderD134",
+      "power": "auto"
+    },
+    "cpu_set": "8-11",
+    "container_memory_gib": 8,
+    "components": {
+      "perplexity": "PASS",
+      "f32": "PASS",
+      "half-weights": "PASS",
+      "moe": "PASS",
+      "int8": "PASS",
+      "mxfp4": "PASS",
+      "q5-0": "PASS",
+      "q5-1": "PASS",
+      "iq4-nl": "PASS",
+      "qwen35": "PASS",
+      "decode-probe": "PASS",
+      "drafters": "PASS",
+      "shards": "PASS",
+      "server": "PASS",
+      "chat": "PASS",
+      "baseline": "PASS"
+    },
+    "component_passes": 16,
+    "component_skips": 0,
+    "elapsed_seconds": 527.677169084549,
+    "exit": 0,
+    "source_pins_before_after_equal": true,
+    "container_removed": true,
+    "oom": false,
+    "required_device_types": "F16,BF16,Q5_0,Q5_1,IQ4_NL,Q2_K,Q3_K",
+    "no_perf_floor": true
+  },
+  "q3_bf16_policy_proposal": {
+    "scope": "Reference-only proposal for a Q3_K-only BF16 family limit. Not installed or approved; original generic limit remains active pending explicit policy decision.",
+    "decision_requested": "Authorize or decline the Q3_K-only BF16 addition after the original generic-limit failure, using the existing maximum-independent-reference-error times two rule.",
+    "generic_limits_unchanged": {
+      "logit_abs": 0.05409973859786987,
+      "mean_nll_abs": 0.007924573802609913
+    },
+    "accepted_reference_maxima": {
+      "logit_abs": 0.1174459457397461,
+      "mean_nll_abs": 0.010312975525200052,
+      "both_from": "additional-seed split MoE, seed 1"
+    },
+    "hypothetical_times_two_limits": {
+      "logit_abs": 0.2348918914794922,
+      "mean_nll_abs": 0.020625951050400104
+    },
+    "coverage": {
+      "models": 30,
+      "accepted_routing_stable": 29,
+      "refused_routing_changed": 1,
+      "original_seed_models": 6,
+      "additional_seed_models": 24,
+      "paired_full_vocab_cases": 150,
+      "paired_nll_cases": 60,
+      "held_out_partition": false
+    },
+    "limits": "Tiny synthetic Q3_K BF16 fixtures only; no F32, released-file, real-model or server-bound changes. Both original and additional seeds enter maxima; none is held out. Refused ordinary MoE seed 2 is retained but excluded from maxima.",
+    "proposal_document": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+    "evidence": [
+      {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/bf16-family-proposal/reference-only-evidence.json",
+        "sha256": "b0999ab1ee0d5ffd95b25cf84616795ec7e9ebada694c124c83ee5f46afb08c1"
+      },
+      {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/bf16-family-proposal/protocol.json",
+        "sha256": "1b9c0d3b8bbde5066fa7e009f3cbfc7fdc40a32c52c2cf973c1cc88ff444fcde"
+      },
+      {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/bf16-family-proposal/q3-k-family-proposal.json",
+        "sha256": "c60db18f8f9302b9577457a3e607cb861435abbb803b95061243e19d20e7fef3"
+      },
+      {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/bf16-family-proposal/selector-serialization-audit.json",
+        "sha256": "849d2751eaccd36106c54359352236574e703a6cb114d73646de42d79d429440"
+      },
+      {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/q3-bf16-split-failure.json",
+        "sha256": "2a0aef3d73d222bb9595b84286e22c542033a980c50cd8fcdf0abfbe72a2801a"
+      },
+      {
+        "path": "build-quant-resume-20261020/q3-k-focused-rig/q3-bf16-diagnostic-evidence.json",
+        "sha256": "0e15d5292695493340693a2bcdabd033266df0ce07f6bf57dbd12babad8f5577"
+      }
+    ],
+    "selector_serialization": "Proposal-only; no HF or candidate calls, no product file write, and other frozen budget values unchanged in memory."
+  }
+}

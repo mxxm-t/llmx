@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Usage flag synopsis audit (2026-10-21)
+
+- **Goal:** reconcile the live command synopses in `docs/USAGE.md` with the accepted spellings in `src/cli/main.cpp` on public `github/main` at `5815ec4bd69985c655cd10625b2a55e86480dfd2`.
+- **Done:** added the supported `-f`, `-c`, `-ctk` and `-ctv` aliases to the exhaustive `logits`, `serve` and real-model `bench` synopses. Changed the general `bench` heading to `[flags...]`; the following real-model synopsis documents its model-only options. No runtime behavior changed.
+- **Source review:** compared `src/cli/main.cpp`'s accepted spellings, help, parser scopes, and flag interactions against the full reference. The supplied binary archive's CLI source SHA256 matches this public-main file exactly. All pull, conversion, GGUF, generation/chat, logits/perplexity, bench, serve, and shared execution flags agree in description, scope, defaults and conflicts; only the synopsis omissions above needed correction.
+- **Checks:** `docs` passed with zero findings and all 21 planted faults using the frozen archived Windows binary; source-only `dead-code` passed with the five existing listed findings and all 18 planted faults. No build or runtime workload was run for this docs-only change.
+- **Landing:** docs-only fast-forward from `5815ec4bd69985c655cd10625b2a55e86480dfd2`; no runtime gate or temporary CI branch is required for this scope. Parent independently replayed both applicable checks and reviewed the two-file diff. Other Markdown pages are unchanged from the public-main checkpoint; this review rechecked the usage reference against its CLI owner.
+- **Left:** none.
+- **Gotchas:** this is a separate docs-only branch from public `github/main`; it does not include pending work from other branches.
+
 ## IQ4_XS landing (2026-10-21)
 
 Published read-only IQ4_XS CPU and Vulkan support on main `fad0012cdc85d603d87a138bc231dae1ba77db5a` by fast-forward from the tested candidate `fad0012cdc85d603d87a138bc231dae1ba77db5a`. Exact-head [hosted CI run 39543341333](https://github.com/mxxm-t/llmx/actions/runs/39543341333) passed all required jobs at `fad0012cdc85d603d87a138bc231dae1ba77db5a`.

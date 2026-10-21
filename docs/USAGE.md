@@ -221,7 +221,7 @@ comma-separated list on one line.
 
 Decode a comma- or whitespace-separated list of token ids back into text and print it.
 
-## `llmx logits <in.gguf> ("<text>" | --file <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--lookup-storage S] [--dtype T]`
+## `llmx logits <in.gguf> ("<text>" | --file <path> | -f <path>) [--chat] [--then-ids F] [--last N] [--per-token] [--top N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T | -ctk T] [--cache-type-v T | -ctv T] [--load-mode M] [--lookup-storage S] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -631,7 +631,7 @@ Enter `My name is Marko. Remember it.`, wait for the reply, then enter
 `What is my name?`. Each line continues the same conversation; starting a new
 process starts a new history. Press Ctrl+C to exit.
 
-## `llmx bench [--size N] [--iters N] [--threads N] [--p N] [--n N] [--device D] [--model PATH] [--dtype T]`
+## `llmx bench [flags...]`
 
 `--dtype` selects activation precision only with `--model` (Precision, above); the synthetic benchmark refuses it.
 
@@ -662,7 +662,7 @@ comparison below for that path.
 | `--p N`         | tokens to prompt-process for the TPS gate    | 64      |
 | `--n N`         | tokens to decode for the TPS gate            | 64      |
 
-## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N] [--kv-tokens N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--lookup-storage S] [--dtype T]`
+## `llmx serve <in.gguf> [--host H] [--port N] [--max-seqs N] [--max-queue N] [--passes N] [--no-pacing] [--generating-share X] [--state-checkpoints N] [--context-overflow HOW] [--host-cache-bytes N] [--disk-cache-bytes N] [--disk-cache-dir PATH] [--disk-cache-floor N] [--disk-cache-keep] [--disk-cache-max-age TIME] [--disk-cache-adopt WHICH] [--timing] [--ctx-size N | -c N] [--kv-tokens N] [--drafter D] [--draft-max N] [--ubatch N] [--threads N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T | -ctk T] [--cache-type-v T | -ctv T] [--load-mode M] [--lookup-storage S] [--dtype T]`
 
 `--dtype` selects activation precision (Precision, above).
 
@@ -1038,7 +1038,7 @@ llmx serve Qwen3-0.6B-Q8_0.gguf --max-queue 256
 python tools/server_load.py --input-len-range 64:1024 --output-len 128 --rate 1 2 4 8 inf --num-prompts 200 --json open.json
 ```
 
-## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T] [--cache-type-v T] [--load-mode M] [--lookup-storage S] [--profile] [--drafter D] [--draft-max N]`
+## `llmx bench --model <in.gguf> [--p N] [--n N] [--r N] [--seqs N] [--depth N] [--threads N] [--ubatch N] [--device D] [--layer-shares A,B] [--tensor-width N] [--n-cpu-moe N] [--cpu-moe] [--moe-stream-from N] [--cache-type-k T | -ctk T] [--cache-type-v T | -ctv T] [--load-mode M] [--lookup-storage S] [--dtype T] [--profile] [--drafter D] [--draft-max N]`
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an

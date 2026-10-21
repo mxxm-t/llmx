@@ -1,0 +1,4236 @@
+{
+  "checkpoint_base": "6ac523a71",
+  "scope": "New IQ4_XS two matched candidate/mx Vulkan pairs; no existing-path before/after claim.",
+  "summary": {
+    "passed": true,
+    "activity_thresholds": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "raw_activity_sha256": "85b29b69869e2c981a5d79d72ab2bd50bf75ebe1a339778f34a31cfebaa3db64",
+    "samples": 13,
+    "intervals": [
+      {
+        "start": 1792537414.481622,
+        "end": 1792537415.456084,
+        "seconds": 1.0022210550960153,
+        "idle_percent": 92.50936329588015,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 103.76952217396445,
+          "monitor": 3.9911354682294014
+        },
+        "disk_bytes_per_second": 98086.14526720578,
+        "new_or_missing_process_delta": 1,
+        "flags": [
+          "unrelated_cpu"
+        ],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537415.456084,
+        "end": 1792537416.456172,
+        "seconds": 1.0004699298879132,
+        "idle_percent": 91.55193992490614,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 123.94175606446485,
+          "monitor": 3.9981211633698344
+        },
+        "disk_bytes_per_second": 241550.4882061519,
+        "new_or_missing_process_delta": 3,
+        "flags": [
+          "unrelated_cpu"
+        ],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537416.456172,
+        "end": 1792537417.462366,
+        "seconds": 1.000370717025362,
+        "idle_percent": 92.10031347962382,
+        "iowait_percent": 0.06269592476489028,
+        "process_cpu_percent": {
+          "unrelated": 30.988512030999473,
+          "monitor": 4.998147101774109,
+          "benchmark": 1.9992588407096434
+        },
+        "disk_bytes_per_second": 8483766.92316238,
+        "new_or_missing_process_delta": 45,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "99",
+            "vram_used": "557887488"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537417.462366,
+        "end": 1792537418.460005,
+        "seconds": 1.0005715630250052,
+        "idle_percent": 96.42857142857143,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 7.995430107781379,
+          "monitor": 3.9977150538906896,
+          "benchmark": 13.992002688617413
+        },
+        "disk_bytes_per_second": 130997.12688589012,
+        "new_or_missing_process_delta": 3,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "89",
+            "vram_used": "557924352"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537418.460005,
+        "end": 1792537419.461645,
+        "seconds": 1.000737288966775,
+        "idle_percent": 95.79937304075236,
+        "iowait_percent": 0.31347962382445144,
+        "process_cpu_percent": {
+          "unrelated": 19.985265084555085,
+          "monitor": 3.997053016911017
+        },
+        "disk_bytes_per_second": 1006873.6431719528,
+        "new_or_missing_process_delta": 19,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537419.461645,
+        "end": 1792537420.460454,
+        "seconds": 1.0004943810636178,
+        "idle_percent": 92.30287859824782,
+        "iowait_percent": 0.0625782227784731,
+        "process_cpu_percent": {
+          "unrelated": 17.991105538108414,
+          "monitor": 3.99802345291298
+        },
+        "disk_bytes_per_second": 229262.65688384193,
+        "new_or_missing_process_delta": 5,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "100",
+            "vram_used": "805048320"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537420.460454,
+        "end": 1792537421.461964,
+        "seconds": 1.000453258980997,
+        "idle_percent": 93.796992481203,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 23.98912671287112,
+          "monitor": 4.9977347318481495,
+          "benchmark": 56.97417594306891
+        },
+        "disk_bytes_per_second": 85977.03013893009,
+        "new_or_missing_process_delta": 1,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "97",
+            "vram_used": "837611520"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537421.461964,
+        "end": 1792537422.464327,
+        "seconds": 1.0004574599443004,
+        "idle_percent": 92.14824120603015,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 25.988111479969902,
+          "monitor": 3.9981709969184465
+        },
+        "disk_bytes_per_second": 2947771.512608032,
+        "new_or_missing_process_delta": 24,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "0",
+            "vram_used": "373346304"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537422.464327,
+        "end": 1792537423.462945,
+        "seconds": 1.0004916910547763,
+        "idle_percent": 95.30075187969925,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 21.989188112903093,
+          "monitor": 3.998034202346017,
+          "benchmark": 48.975918978738704
+        },
+        "disk_bytes_per_second": 0.0,
+        "new_or_missing_process_delta": 0,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "97",
+            "vram_used": "837611520"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537423.462945,
+        "end": 1792537424.464647,
+        "seconds": 1.0004610599717125,
+        "idle_percent": 93.40866290018832,
+        "iowait_percent": 0.18832391713747645,
+        "process_cpu_percent": {
+          "unrelated": 16.992165592612533,
+          "monitor": 3.998156610026479
+        },
+        "disk_bytes_per_second": 859763.5974200941,
+        "new_or_missing_process_delta": 23,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "44",
+            "vram_used": "396656640"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537424.464647,
+        "end": 1792537425.467648,
+        "seconds": 1.0003995180595666,
+        "idle_percent": 96.49122807017544,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 23.990415395792873,
+          "monitor": 4.998003207456849,
+          "benchmark": 12.994808339387808
+        },
+        "disk_bytes_per_second": 0.0,
+        "new_or_missing_process_delta": 2,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "98",
+            "vram_used": "557924352"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      },
+      {
+        "start": 1792537425.467648,
+        "end": 1792537426.473346,
+        "seconds": 1.0004184190183878,
+        "idle_percent": 97.36842105263158,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 14.993726339742949,
+          "monitor": 4.997908779914317,
+          "benchmark": 11.99498107179436
+        },
+        "disk_bytes_per_second": 0.0,
+        "new_or_missing_process_delta": 1,
+        "flags": [],
+        "gpu": {
+          "card0": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card1": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card2": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+            "busy": "99",
+            "vram_used": "557924352"
+          },
+          "card3": {
+            "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+            "busy": "0",
+            "vram_used": "10919936"
+          },
+          "card4": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+            "busy": "0",
+            "vram_used": "31947931648"
+          },
+          "card5": {
+            "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+            "busy": "0",
+            "vram_used": "31948922880"
+          },
+          "card6": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card7": {
+            "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+            "busy": "0",
+            "vram_used": "10932224"
+          },
+          "card8": {
+            "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+            "busy": "0",
+            "vram_used": "28606988288"
+          },
+          "card9": {
+            "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+            "busy": "0",
+            "vram_used": "28606967808"
+          }
+        }
+      }
+    ],
+    "calls": [
+      {
+        "direction": "forward",
+        "exe": "candidate",
+        "start": 1792537416.3873456,
+        "end": 1792537419.3615448,
+        "rates": {
+          "pp512": 4833.0,
+          "tg128": 142.71
+        },
+        "activity_intervals": 4,
+        "activity_flags": [
+          "unrelated_cpu"
+        ],
+        "flagged_intervals": 1
+      },
+      {
+        "direction": "forward",
+        "exe": "mx",
+        "start": 1792537419.3624623,
+        "end": 1792537421.883498,
+        "rates": {
+          "pp512": 3827.21,
+          "tg128": 245.08
+        },
+        "activity_intervals": 4,
+        "activity_flags": [],
+        "flagged_intervals": 0
+      },
+      {
+        "direction": "reverse",
+        "exe": "mx",
+        "start": 1792537421.884531,
+        "end": 1792537423.9546878,
+        "rates": {
+          "pp512": 3844.56,
+          "tg128": 245.66
+        },
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0
+      },
+      {
+        "direction": "reverse",
+        "exe": "candidate",
+        "start": 1792537423.9557002,
+        "end": 1792537426.6257124,
+        "rates": {
+          "pp512": 4943.34,
+          "tg128": 142.72
+        },
+        "activity_intervals": 3,
+        "activity_flags": [],
+        "flagged_intervals": 0
+      }
+    ],
+    "means": {
+      "candidate": {
+        "pp512": 4888.17,
+        "tg128": 142.715
+      },
+      "mx": {
+        "pp512": 3835.885,
+        "tg128": 245.37
+      }
+    },
+    "relative_percent": {
+      "pp512": 27.432652438746196,
+      "tg128": -41.83681786689489
+    },
+    "limitations": [
+      "CPU, disk and GPU counters are sampled, not phase-scoped GPU timings.",
+      "Short-lived processes and sample tails may be missed; raw process identities and counters retained.",
+      "Disk counters cover whole devices seen by the retained monitor; they are not attributed model reads.",
+      "Two paired measurements do not establish a precise noise band or an existing-path regression."
+    ]
+  },
+  "execution": {
+    "start": 1792537412.1574268,
+    "argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-iq4-xs-model-timing",
+      "--label",
+      "llmx.timing=llmx-xdev-iq4-xs-model-timing",
+      "--cidfile",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021/container.cid",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "4-7",
+      "--cpus",
+      "4",
+      "--memory",
+      "16g",
+      "--memory-swap",
+      "16g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD130",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=256m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020:/zpool1/llmx-xdev-quant-20261020:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021:/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021:rw",
+      "-v",
+      "/zpool1/models:/zpool1/models:ro",
+      "-v",
+      "/opt/claude-work/llmx-vulkan-mi50/models:/opt/claude-work/llmx-vulkan-mi50/models:ro",
+      "-v",
+      "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "passed": true,
+    "removed": true,
+    "exit": 0,
+    "container_state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 1243703,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T23:03:32.253352806Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792537427.7520347
+  },
+  "plan": {
+    "prepared_only": false,
+    "scope": "Two interleaved IQ4_XS P512/G128 candidate versus mx Vulkan pairs. New-type performance only; existing-path timing waits for final main integration.",
+    "platform": "mi50",
+    "models": {
+      "qwen3-iq4_xs": {
+        "path": "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+        "bytes": 367804096,
+        "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+      }
+    },
+    "threads": 4,
+    "ubatch": 512,
+    "cache_type_k": "f32",
+    "cache_type_v": "f32",
+    "dtype": "auto",
+    "load_mode": "auto",
+    "repeats": 1,
+    "call_timeout_seconds": 300,
+    "calls": [
+      {
+        "direction": "forward",
+        "model": "qwen3-iq4_xs",
+        "arm": "candidate-qwen3-iq4_xs",
+        "exe": "candidate",
+        "block": "forward-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "bench",
+          "--model",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ]
+      },
+      {
+        "direction": "forward",
+        "model": "qwen3-iq4_xs",
+        "arm": "mx-qwen3-iq4_xs",
+        "exe": "mx",
+        "block": "forward-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ]
+      },
+      {
+        "direction": "reverse",
+        "model": "qwen3-iq4_xs",
+        "arm": "mx-qwen3-iq4_xs",
+        "exe": "mx",
+        "block": "reverse-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ]
+      },
+      {
+        "direction": "reverse",
+        "model": "qwen3-iq4_xs",
+        "arm": "candidate-qwen3-iq4_xs",
+        "exe": "candidate",
+        "block": "reverse-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "bench",
+          "--model",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ]
+      }
+    ],
+    "preserve": "All planned calls, failures, raw logs and activity samples retained without filtering.",
+    "limitations": [
+      "Two matched interleaved pairs; all samples retained, no isolated sample rejection.",
+      "New-type candidate versus pinned mx Vulkan eefc4e only; no before/after runtime or existing-path claim.",
+      "Same rig GPU8, driver, default clocks, four CPUs4-7, F32 KV and exact model. Candidate auto selects block-int16.",
+      "Identical LCG prompt and decode generators, retained warmups; TG128 resets history and does not continue P512.",
+      "Production remains online on GPUs0-3; activity monitored throughout.",
+      "This is model-bench quant performance, not Flash MTP serving throughput."
+    ],
+    "admission": [
+      "Fresh GPU8 availability, default clocks, no competing owned rig builds/tests/downloads.",
+      "Exact binary/library and retained source hashes checked; original source/test discrepancies remain recorded.",
+      "No candidate correctness bound changes."
+    ],
+    "command_prefix": [],
+    "root": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021",
+    "output": "round1",
+    "container": "llmx-xdev-iq4-xs-model-timing",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_set": "4-7",
+    "quota": 4,
+    "memory_gib": 16,
+    "minimum_host_available_gib": 8,
+    "candidate_head": "6ac523a71",
+    "library_path": "/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+    "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+    "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "activity_flags": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "monitor_seconds": 7380,
+    "gpu_node": "/dev/dri/renderD130",
+    "gpu_pci": "0000:c9:00.0",
+    "executables": {
+      "mx": {
+        "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+        "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+        "revision": "eefc4e7321c869496146697d63362f073941aed6",
+        "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+        "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+        "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+        "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+      },
+      "candidate": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+        "sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+        "version": "llmx 0.1.0+unknown numerics b95b8023244846e2"
+      }
+    },
+    "resource_handoff_pending": false,
+    "gpu_uuid": "00000000-c900-0000-0000-000000000000",
+    "gpu_driver": "Mesa 25.0.7-2+deb13u1",
+    "provenance": {
+      "runner_origin_sha256": "9a402c5ded376af9c885a1a990a60a0b862c74729cf8d3369b3bb52242fc6599",
+      "runner_sha256": "aad0de4ff5d4a271c94f084dbba3b6a5905977d9990efc1469a3bc45246644b5",
+      "delta": "Only single-candidate source admission adapted. Measurement, witness checks and activity monitor unchanged."
+    },
+    "expected_candidate_paths": {
+      "qwen3-iq4_xs": [
+        "block-int16"
+      ]
+    },
+    "layers": {
+      "qwen3-iq4_xs": 28
+    },
+    "preflight_failures": [],
+    "source_arms": {
+      "candidate": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/identity/source-pins.json",
+        "library_sha256": "d05a9c197e0e6f346c7945dd49420badfacfac272c16aab2dece2d8b42a20f49",
+        "revision": "ee03deab2 runtime;6ac523a71 evidence; retained unused test delta pinned"
+      }
+    }
+  },
+  "complete": {
+    "pid": 1243720,
+    "start": 1792537412.479833,
+    "calls": [
+      {
+        "direction": "forward",
+        "model": "qwen3-iq4_xs",
+        "arm": "candidate-qwen3-iq4_xs",
+        "exe": "candidate",
+        "block": "forward-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "bench",
+          "--model",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-iq4-xs-model-timing",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021/round1/00-candidate-qwen3-iq4_xs.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "4-7",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "bench",
+          "--model",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "start": 1792537416.3873456,
+        "cgroup_before": {
+          "at": 1792537416.3873477,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 582021\nuser_usec 315724\nsystem_usec 266297\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 17\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=9210\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=2112",
+            "memory.current": "16158720",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 14655488\nkernel 843776\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 3043328\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3198976\ninactive_file 0\nactive_file 11612160\nunevictable 0\nslab_reclaimable 390640\nslab_unreclaimable 294680\nslab 685320\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 38961\npgmajfault 2835\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4591616 wbytes=0 rios=280 wios=0 dbytes=0 dios=0\n8:16 rbytes=4341760 wbytes=0 rios=271 wios=0 dbytes=0 dios=0\n8:32 rbytes=4825088 wbytes=0 rios=291 wios=0 dbytes=0 dios=0\n8:48 rbytes=4280320 wbytes=0 rios=265 wios=0 dbytes=0 dios=0\n8:64 rbytes=4530176 wbytes=0 rios=277 wios=0 dbytes=0 dios=0\n8:80 rbytes=4591616 wbytes=0 rios=284 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.14 avg60=0.03 avg300=0.00 total=23268\nfull avg10=0.14 avg60=0.03 avg300=0.00 total=23259"
+          },
+          "unavailable": {}
+        },
+        "stdout": "00-candidate-qwen3-iq4_xs.stdout",
+        "stderr": "00-candidate-qwen3-iq4_xs.stderr",
+        "usage": "00-candidate-qwen3-iq4_xs.usage.json",
+        "returncode": 0,
+        "rates": {
+          "pp512": 4833.0,
+          "tg128": 142.71
+        },
+        "completed_matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "end": 1792537419.3615448,
+        "cgroup_after": {
+          "at": 1792537419.3615458,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 1733456\nuser_usec 993407\nsystem_usec 740048\nnice_usec 1000\ncore_sched.force_idle_usec 0\nnr_periods 47\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=20151\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=11124",
+            "memory.current": "17436672",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 15282176\nkernel 1097728\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 3502080\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3657728\ninactive_file 0\nactive_file 11780096\nunevictable 0\nslab_reclaimable 524784\nslab_unreclaimable 413664\nslab 938448\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 100212\npgmajfault 2876\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4640768 wbytes=0 rios=285 wios=0 dbytes=0 dios=0\n8:16 rbytes=4395008 wbytes=0 rios=277 wios=0 dbytes=0 dios=0\n8:32 rbytes=4894720 wbytes=0 rios=297 wios=0 dbytes=0 dios=0\n8:48 rbytes=4308992 wbytes=0 rios=268 wios=0 dbytes=0 dios=0\n8:64 rbytes=4591616 wbytes=0 rios=283 wios=0 dbytes=0 dios=0\n8:80 rbytes=4628480 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.12 avg60=0.02 avg300=0.00 total=23428\nfull avg10=0.12 avg60=0.02 avg300=0.00 total=23418"
+          },
+          "unavailable": {}
+        }
+      },
+      {
+        "direction": "forward",
+        "model": "qwen3-iq4_xs",
+        "arm": "mx-qwen3-iq4_xs",
+        "exe": "mx",
+        "block": "forward-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-iq4-xs-model-timing",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021/round1/01-mx-qwen3-iq4_xs.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "4-7",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "start": 1792537419.3624623,
+        "cgroup_before": {
+          "at": 1792537419.3624628,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 1733456\nuser_usec 993407\nsystem_usec 740048\nnice_usec 1000\ncore_sched.force_idle_usec 0\nnr_periods 47\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=20151\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=11124",
+            "memory.current": "17436672",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 15282176\nkernel 1097728\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 3502080\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3657728\ninactive_file 0\nactive_file 11780096\nunevictable 0\nslab_reclaimable 524784\nslab_unreclaimable 413664\nslab 938448\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 100212\npgmajfault 2876\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4640768 wbytes=0 rios=285 wios=0 dbytes=0 dios=0\n8:16 rbytes=4395008 wbytes=0 rios=277 wios=0 dbytes=0 dios=0\n8:32 rbytes=4894720 wbytes=0 rios=297 wios=0 dbytes=0 dios=0\n8:48 rbytes=4308992 wbytes=0 rios=268 wios=0 dbytes=0 dios=0\n8:64 rbytes=4591616 wbytes=0 rios=283 wios=0 dbytes=0 dios=0\n8:80 rbytes=4628480 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.12 avg60=0.02 avg300=0.00 total=23428\nfull avg10=0.12 avg60=0.02 avg300=0.00 total=23418"
+          },
+          "unavailable": {}
+        },
+        "stdout": "01-mx-qwen3-iq4_xs.stdout",
+        "stderr": "01-mx-qwen3-iq4_xs.stderr",
+        "usage": "01-mx-qwen3-iq4_xs.usage.json",
+        "returncode": 0,
+        "rates": {
+          "pp512": 3827.21,
+          "tg128": 245.08
+        },
+        "offloaded_transformer_and_output_layers": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28
+        ],
+        "offloaded_kv_layers": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27
+        ],
+        "offload_witness": [
+          "reference_commit=eefc4e7321c869496146697d63362f073941aed6 clean=1 compiler=14.2.0 backend=Vulkan index=0 device=Vulkan0 description=AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "load_tensors: offloaded 29/29 layers to GPU",
+          "llama_kv_cache:    Vulkan0 KV buffer size =   112.00 MiB",
+          "llama_kv_cache: size =  112.00 MiB (   512 cells,  28 layers,  1/1 seqs), K (f32):   56.00 MiB, V (f32):   56.00 MiB"
+        ],
+        "end": 1792537421.883498,
+        "cgroup_after": {
+          "at": 1792537421.8834991,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 3614509\nuser_usec 2391690\nsystem_usec 1222819\nnice_usec 4000\ncore_sched.force_idle_usec 0\nnr_periods 72\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=31421\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22003",
+            "memory.current": "21417984",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 19591168\nkernel 1212416\nkernel_stack 32768\npagetables 102400\nsec_pagetables 0\npercpu 6984\nsock 0\nvmalloc 16384\nshmem 3567616\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3723264\ninactive_file 0\nactive_file 16011264\nunevictable 0\nslab_reclaimable 596120\nslab_unreclaimable 460464\nslab 1056584\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 141706\npgmajfault 3912\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4681728 wbytes=0 rios=293 wios=0 dbytes=0 dios=0\n8:16 rbytes=4427776 wbytes=0 rios=282 wios=0 dbytes=0 dios=0\n8:32 rbytes=4927488 wbytes=0 rios=303 wios=0 dbytes=0 dios=0\n8:48 rbytes=4349952 wbytes=0 rios=274 wios=0 dbytes=0 dios=0\n8:64 rbytes=4632576 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n8:80 rbytes=4661248 wbytes=0 rios=294 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.09 avg60=0.02 avg300=0.00 total=24732\nfull avg10=0.09 avg60=0.02 avg300=0.00 total=24722"
+          },
+          "unavailable": {}
+        }
+      },
+      {
+        "direction": "reverse",
+        "model": "qwen3-iq4_xs",
+        "arm": "mx-qwen3-iq4_xs",
+        "exe": "mx",
+        "block": "reverse-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-iq4-xs-model-timing",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021/round1/02-mx-qwen3-iq4_xs.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "4-7",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "start": 1792537421.884531,
+        "cgroup_before": {
+          "at": 1792537421.8845313,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 3614509\nuser_usec 2391690\nsystem_usec 1222819\nnice_usec 4000\ncore_sched.force_idle_usec 0\nnr_periods 72\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=31421\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=22003",
+            "memory.current": "21417984",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 19591168\nkernel 1212416\nkernel_stack 32768\npagetables 102400\nsec_pagetables 0\npercpu 6984\nsock 0\nvmalloc 16384\nshmem 3567616\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3723264\ninactive_file 0\nactive_file 16011264\nunevictable 0\nslab_reclaimable 596120\nslab_unreclaimable 460464\nslab 1056584\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 141706\npgmajfault 3912\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4681728 wbytes=0 rios=293 wios=0 dbytes=0 dios=0\n8:16 rbytes=4427776 wbytes=0 rios=282 wios=0 dbytes=0 dios=0\n8:32 rbytes=4927488 wbytes=0 rios=303 wios=0 dbytes=0 dios=0\n8:48 rbytes=4349952 wbytes=0 rios=274 wios=0 dbytes=0 dios=0\n8:64 rbytes=4632576 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n8:80 rbytes=4661248 wbytes=0 rios=294 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.09 avg60=0.02 avg300=0.00 total=24732\nfull avg10=0.09 avg60=0.02 avg300=0.00 total=24722"
+          },
+          "unavailable": {}
+        },
+        "stdout": "02-mx-qwen3-iq4_xs.stdout",
+        "stderr": "02-mx-qwen3-iq4_xs.stderr",
+        "usage": "02-mx-qwen3-iq4_xs.usage.json",
+        "returncode": 0,
+        "rates": {
+          "pp512": 3844.56,
+          "tg128": 245.66
+        },
+        "offloaded_transformer_and_output_layers": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28
+        ],
+        "offloaded_kv_layers": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27
+        ],
+        "offload_witness": [
+          "reference_commit=eefc4e7321c869496146697d63362f073941aed6 clean=1 compiler=14.2.0 backend=Vulkan index=0 device=Vulkan0 description=AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "load_tensors: offloaded 29/29 layers to GPU",
+          "llama_kv_cache:    Vulkan0 KV buffer size =   112.00 MiB",
+          "llama_kv_cache: size =  112.00 MiB (   512 cells,  28 layers,  1/1 seqs), K (f32):   56.00 MiB, V (f32):   56.00 MiB"
+        ],
+        "end": 1792537423.9546878,
+        "cgroup_after": {
+          "at": 1792537423.9546883,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 4936253\nuser_usec 3295161\nsystem_usec 1641092\nnice_usec 4000\ncore_sched.force_idle_usec 0\nnr_periods 93\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=42436\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31857",
+            "memory.current": "21745664",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 19591168\nkernel 1204224\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 3567616\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3723264\ninactive_file 0\nactive_file 16023552\nunevictable 0\nslab_reclaimable 596320\nslab_unreclaimable 448824\nslab 1045144\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 168389\npgmajfault 3912\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4681728 wbytes=0 rios=293 wios=0 dbytes=0 dios=0\n8:16 rbytes=4427776 wbytes=0 rios=282 wios=0 dbytes=0 dios=0\n8:32 rbytes=4927488 wbytes=0 rios=303 wios=0 dbytes=0 dios=0\n8:48 rbytes=4349952 wbytes=0 rios=274 wios=0 dbytes=0 dios=0\n8:64 rbytes=4632576 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n8:80 rbytes=4661248 wbytes=0 rios=294 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.08 avg60=0.02 avg300=0.00 total=24732\nfull avg10=0.08 avg60=0.02 avg300=0.00 total=24722"
+          },
+          "unavailable": {}
+        }
+      },
+      {
+        "direction": "reverse",
+        "model": "qwen3-iq4_xs",
+        "arm": "candidate-qwen3-iq4_xs",
+        "exe": "candidate",
+        "block": "reverse-p512-n128",
+        "prompt": 512,
+        "decode": 128,
+        "argv": [
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "bench",
+          "--model",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "command": [
+          "docker",
+          "exec",
+          "--env",
+          "LD_LIBRARY_PATH=/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "llmx-xdev-iq4-xs-model-timing",
+          "python3",
+          "-c",
+          "import json, resource, subprocess, sys, time\nstarted = time.time()\nresult = subprocess.run(sys.argv[2:])\nusage = resource.getrusage(resource.RUSAGE_CHILDREN)\nfields = ('ru_utime', 'ru_stime', 'ru_maxrss', 'ru_minflt', 'ru_majflt',\n          'ru_inblock', 'ru_oublock', 'ru_nvcsw', 'ru_nivcsw')\nwith open(sys.argv[1], 'x') as stream:\n    json.dump(dict(start=started, end=time.time(), returncode=result.returncode,\n                   usage={field: getattr(usage, field) for field in fields}), stream)\nsys.exit(result.returncode)\n",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021/round1/03-candidate-qwen3-iq4_xs.usage.json",
+          "prlimit",
+          "--core=0",
+          "taskset",
+          "-c",
+          "4-7",
+          "timeout",
+          "--kill-after=10s",
+          "300s",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "bench",
+          "--model",
+          "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "start": 1792537423.9557002,
+        "cgroup_before": {
+          "at": 1792537423.9557004,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 4936253\nuser_usec 3295161\nsystem_usec 1641092\nnice_usec 4000\ncore_sched.force_idle_usec 0\nnr_periods 93\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=42436\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=31857",
+            "memory.current": "21745664",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 19591168\nkernel 1204224\nkernel_stack 32768\npagetables 98304\nsec_pagetables 0\npercpu 6696\nsock 0\nvmalloc 16384\nshmem 3567616\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3723264\ninactive_file 0\nactive_file 16023552\nunevictable 0\nslab_reclaimable 596320\nslab_unreclaimable 448824\nslab 1045144\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 168389\npgmajfault 3912\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4681728 wbytes=0 rios=293 wios=0 dbytes=0 dios=0\n8:16 rbytes=4427776 wbytes=0 rios=282 wios=0 dbytes=0 dios=0\n8:32 rbytes=4927488 wbytes=0 rios=303 wios=0 dbytes=0 dios=0\n8:48 rbytes=4349952 wbytes=0 rios=274 wios=0 dbytes=0 dios=0\n8:64 rbytes=4632576 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n8:80 rbytes=4661248 wbytes=0 rios=294 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.08 avg60=0.02 avg300=0.00 total=24732\nfull avg10=0.08 avg60=0.02 avg300=0.00 total=24722"
+          },
+          "unavailable": {}
+        },
+        "stdout": "03-candidate-qwen3-iq4_xs.stdout",
+        "stderr": "03-candidate-qwen3-iq4_xs.stderr",
+        "usage": "03-candidate-qwen3-iq4_xs.usage.json",
+        "returncode": 0,
+        "rates": {
+          "pp512": 4943.34,
+          "tg128": 142.72
+        },
+        "completed_matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "end": 1792537426.6257124,
+        "cgroup_after": {
+          "at": 1792537426.6257129,
+          "values": {
+            "cpu.max": "400000 100000",
+            "cpuset.cpus.effective": "4-7",
+            "cpu.stat": "usage_usec 5731934\nuser_usec 3670195\nsystem_usec 2061739\nnice_usec 4000\ncore_sched.force_idle_usec 0\nnr_periods 119\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+            "cpu.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=55149\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=40413",
+            "memory.current": "21463040",
+            "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+            "memory.stat": "anon 155648\nfile 19591168\nkernel 1175552\nkernel_stack 32768\npagetables 102400\nsec_pagetables 0\npercpu 6984\nsock 0\nvmalloc 16384\nshmem 3567616\nzswap 0\nzswapped 0\nfile_mapped 0\nfile_dirty 0\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 0\nactive_anon 3723264\ninactive_file 0\nactive_file 16023552\nunevictable 0\nslab_reclaimable 593984\nslab_unreclaimable 414304\nslab 1008288\nworkingset_refault_anon 0\nworkingset_refault_file 0\nworkingset_activate_anon 0\nworkingset_activate_file 0\nworkingset_restore_anon 0\nworkingset_restore_file 0\nworkingset_nodereclaim 0\npgdemote_kswapd 0\npgdemote_direct 0\npgdemote_khugepaged 0\npgdemote_proactive 0\npgpromote_success 0\npgscan 0\npgsteal 0\npswpin 0\npswpout 0\npgscan_kswapd 0\npgscan_direct 0\npgscan_khugepaged 0\npgscan_proactive 0\npgsteal_kswapd 0\npgsteal_direct 0\npgsteal_khugepaged 0\npgsteal_proactive 0\npgfault 217888\npgmajfault 3912\npgrefill 0\npgactivate 0\npgdeactivate 0\npglazyfree 0\npglazyfreed 0\nswpin_zero 0\nswpout_zero 0\nzswpin 0\nzswpout 0\nzswpwb 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\nthp_swpout 0\nthp_swpout_fallback 0\nnuma_pages_migrated 0\nnuma_pte_updates 0\nnuma_hint_faults 0",
+            "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=0",
+            "io.stat": "8:0 rbytes=4681728 wbytes=0 rios=293 wios=0 dbytes=0 dios=0\n8:16 rbytes=4427776 wbytes=0 rios=282 wios=0 dbytes=0 dios=0\n8:32 rbytes=4927488 wbytes=0 rios=303 wios=0 dbytes=0 dios=0\n8:48 rbytes=4349952 wbytes=0 rios=274 wios=0 dbytes=0 dios=0\n8:64 rbytes=4632576 wbytes=0 rios=289 wios=0 dbytes=0 dios=0\n8:80 rbytes=4661248 wbytes=0 rios=294 wios=0 dbytes=0 dios=0\n259:0 rbytes=45056 wbytes=0 rios=1 wios=0 dbytes=0 dios=0",
+            "io.pressure": "some avg10=0.05 avg60=0.02 avg300=0.00 total=24732\nfull avg10=0.05 avg60=0.02 avg300=0.00 total=24722"
+          },
+          "unavailable": {}
+        }
+      }
+    ],
+    "passed": true,
+    "monitor_returncode": 0,
+    "end": 1792537427.4764504
+  },
+  "source_verification": {
+    "candidate": {
+      "revision": "ee03deab2 runtime;6ac523a71 evidence; retained unused test delta pinned",
+      "files": 343,
+      "manifest_sha256": "eb41f8db0a1965a922b8ee9dfe2b3adbb9a9c1dde352bbc66cf1aad24a16ae62"
+    }
+  },
+  "build_flags": {
+    "candidate": {
+      "CMakeFiles/llmx.dir/flags.make": "# CMAKE generated file: DO NOT EDIT!\n# Generated by \"Unix Makefiles\" Generator, CMake Version 3.31\n\n# compile CXX with /usr/bin/c++\nCXX_DEFINES = \n\nCXX_INCLUDES = -I/w/build/generated -I/w/src\n\nCXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable\n\n",
+      "CMakeFiles/llmx-vulkan.dir/flags.make": "# CMAKE generated file: DO NOT EDIT!\n# Generated by \"Unix Makefiles\" Generator, CMake Version 3.31\n\n# compile CXX with /usr/bin/c++\nCXX_DEFINES = \n\nCXX_INCLUDES = -I/w/build/generated -I/w/src\n\nCXX_FLAGS = -O3 -DNDEBUG -std=c++17 -O3 -mavx2 -mfma -mf16c -Wall -Wextra -Werror=unused-function -Werror=unused-variable -Werror=unused-but-set-variable\n\n",
+      "generated/config.hpp": "// Generated by CMake from cmake/llmx-config.hpp.in. Do not edit by hand.\n// The checked-in src/config.hpp is the fallback for the plain build.bat path.\n#pragma once\n\n#define LLMX_RELEASE_VERSION \"0.1.0\"\n#if __has_include(\"llmx-build-info.hpp\")\n#include \"llmx-build-info.hpp\"\n#endif\n#ifndef LLMX_BUILD_REVISION\n#define LLMX_BUILD_REVISION \"unknown\"\n#endif\n#define LLMX_VERSION_STRING LLMX_RELEASE_VERSION \"+\" LLMX_BUILD_REVISION\n// The numerics fingerprint and what else the build gives the disk tier's identity (cmake/numerics-sources.txt); a build without them adopts only its own kind's entries.\n#ifndef LLMX_NUMERICS\n#define LLMX_NUMERICS \"unknown\"\n#define LLMX_BUILD_FLAGS \"\"\n#define LLMX_GLSLC_VERSION \"\"\n#endif\n\n// Backends compiled in besides the CPU, which is always built: the Vulkan backend is opt-in and needs its SDK at build time.\n#define LLMX_HAS_BACKEND_VULKAN 1\n"
+    }
+  },
+  "mx_reference": {
+    "status": "pass",
+    "pid": 1416455,
+    "head": "eefc4e7321c869496146697d63362f073941aed6",
+    "commands": [
+      {
+        "name": "headers-configure",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "cmake",
+          "-S",
+          "/work/mxfp4-vulkan-reference-20260929/headers-source",
+          "-B",
+          "/work/mxfp4-vulkan-reference-20260929/headers-build",
+          "-DCMAKE_INSTALL_PREFIX=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+          "-DSPIRV_HEADERS_ENABLE_TESTS=OFF",
+          "-DSPIRV_HEADERS_ENABLE_INSTALL=ON"
+        ],
+        "started": "2026-09-29T04:17:46.879511+00:00",
+        "pid": 1416505,
+        "exit": 0,
+        "completed": "2026-09-29T04:17:46.979758+00:00"
+      },
+      {
+        "name": "headers-install",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "cmake",
+          "--install",
+          "/work/mxfp4-vulkan-reference-20260929/headers-build"
+        ],
+        "started": "2026-09-29T04:17:46.979991+00:00",
+        "pid": 1416542,
+        "exit": 0,
+        "completed": "2026-09-29T04:17:47.063506+00:00"
+      },
+      {
+        "name": "container-head",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "git",
+          "-C",
+          "/work/mxfp4-vulkan-reference-20260929/source",
+          "rev-parse",
+          "HEAD"
+        ],
+        "started": "2026-09-29T04:17:47.063878+00:00",
+        "pid": 1416574,
+        "exit": 0,
+        "completed": "2026-09-29T04:17:47.130871+00:00"
+      },
+      {
+        "name": "compiler",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "g++",
+          "--version"
+        ],
+        "started": "2026-09-29T04:17:47.152181+00:00",
+        "pid": 1416618,
+        "exit": 0,
+        "completed": "2026-09-29T04:17:47.214839+00:00"
+      },
+      {
+        "name": "shader-compiler",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "glslc",
+          "--version"
+        ],
+        "started": "2026-09-29T04:17:47.215168+00:00",
+        "pid": 1416650,
+        "exit": 0,
+        "completed": "2026-09-29T04:17:47.283701+00:00"
+      },
+      {
+        "name": "configure",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "cmake",
+          "-S",
+          "/work/mxfp4-vulkan-reference-20260929/source",
+          "-B",
+          "/work/mxfp4-vulkan-reference-20260929/build-r2",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DBUILD_SHARED_LIBS=ON",
+          "-DGGML_BACKEND_DL=OFF",
+          "-DGGML_NATIVE=OFF",
+          "-DGGML_AVX=ON",
+          "-DGGML_AVX2=ON",
+          "-DGGML_FMA=ON",
+          "-DGGML_F16C=ON",
+          "-DGGML_AVX512=OFF",
+          "-DGGML_AVX512_VBMI=OFF",
+          "-DGGML_AVX512_VNNI=OFF",
+          "-DGGML_AVX512_BF16=OFF",
+          "-DGGML_AVX_VNNI=OFF",
+          "-DGGML_BLAS=OFF",
+          "-DGGML_CUDA=OFF",
+          "-DGGML_HIP=OFF",
+          "-DGGML_SYCL=OFF",
+          "-DGGML_VULKAN=ON",
+          "-DLLAMA_BUILD_COMMON=ON",
+          "-DLLAMA_BUILD_TESTS=OFF",
+          "-DLLAMA_BUILD_TOOLS=ON",
+          "-DLLAMA_BUILD_EXAMPLES=OFF",
+          "-DLLAMA_BUILD_SERVER=OFF",
+          "-DLLAMA_BUILD_APP=OFF",
+          "-DLLAMA_OPENSSL=OFF",
+          "-DLLAMA_LLGUIDANCE=OFF",
+          "-DCMAKE_PREFIX_PATH=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+          "-DCMAKE_CXX_FLAGS=-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+        ],
+        "started": "2026-09-29T04:17:47.284028+00:00",
+        "pid": 1416683,
+        "exit": 0,
+        "completed": "2026-09-29T04:17:48.893479+00:00"
+      },
+      {
+        "name": "build",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "cmake",
+          "--build",
+          "/work/mxfp4-vulkan-reference-20260929/build-r2",
+          "--target",
+          "llama",
+          "llama-bench",
+          "--parallel",
+          "6"
+        ],
+        "started": "2026-09-29T04:17:48.893963+00:00",
+        "pid": 1416760,
+        "exit": 0,
+        "completed": "2026-09-29T04:22:56.745642+00:00"
+      },
+      {
+        "name": "wrapper",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "g++",
+          "-std=c++17",
+          "-O3",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-pthread",
+          "-I/work/mxfp4-vulkan-reference-20260929/source/include",
+          "-I/work/mxfp4-vulkan-reference-20260929/source/ggml/include",
+          "/work/mxfp4-vulkan-reference-20260929/wrapper.cpp",
+          "-L/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "-Wl,-rpath,/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+          "-lllama",
+          "-lggml",
+          "-lggml-base",
+          "-o",
+          "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan"
+        ],
+        "started": "2026-09-29T04:22:56.746513+00:00",
+        "pid": 1426442,
+        "exit": 0,
+        "completed": "2026-09-29T04:22:57.521871+00:00"
+      },
+      {
+        "name": "device-enumeration",
+        "argv": [
+          "docker",
+          "exec",
+          "llmx-p2-x-mxfp4-gpu3-20260928",
+          "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "--list-devices"
+        ],
+        "started": "2026-09-29T04:22:57.522339+00:00",
+        "pid": 1426489,
+        "exit": 0,
+        "completed": "2026-09-29T04:22:57.633993+00:00"
+      }
+    ],
+    "container": {
+      "name": "llmx-p2-x-mxfp4-gpu3-20260928",
+      "id": "58b7e3ab39ce19a714feba8bdbd661dea12418f4565ecb7eba5b6297339b5a74",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "devices": [
+        {
+          "PathOnHost": "/dev/dri/renderD133",
+          "PathInContainer": "/dev/dri/renderD133",
+          "CgroupPermissions": "rwm"
+        }
+      ]
+    },
+    "scope": "Clean pinned Vulkan reference library, stock benchmark and same-workload API adapter; no model or timing",
+    "sdk_headers": {
+      "revision": "09913f088a1197aba4aefd300a876b2ebbaa3391",
+      "tag": "vulkan-sdk-1.4.309.0",
+      "scope": "Private header-only prefix; container package DNS failure retained in sdk/record.json"
+    },
+    "compiler": "g++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "shader_compiler": "shaderc 2025.2-1\nspirv-tools 2025.1~rc1-1\nglslang 15.1.0+1.4.309.0-1\n\nTarget: SPIR-V 1.0\n",
+    "cmake_options": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "BUILD_SHARED_LIBS": "ON",
+      "GGML_BACKEND_DL": "OFF",
+      "GGML_NATIVE": "OFF",
+      "GGML_AVX": "ON",
+      "GGML_AVX2": "ON",
+      "GGML_FMA": "ON",
+      "GGML_F16C": "ON",
+      "GGML_AVX512": "OFF",
+      "GGML_AVX512_VBMI": "OFF",
+      "GGML_AVX512_VNNI": "OFF",
+      "GGML_AVX512_BF16": "OFF",
+      "GGML_AVX_VNNI": "OFF",
+      "GGML_BLAS": "OFF",
+      "GGML_CUDA": "OFF",
+      "GGML_HIP": "OFF",
+      "GGML_SYCL": "OFF",
+      "GGML_VULKAN": "ON",
+      "LLAMA_BUILD_COMMON": "ON",
+      "LLAMA_BUILD_TESTS": "OFF",
+      "LLAMA_BUILD_TOOLS": "ON",
+      "LLAMA_BUILD_EXAMPLES": "OFF",
+      "LLAMA_BUILD_SERVER": "OFF",
+      "LLAMA_BUILD_APP": "OFF",
+      "LLAMA_OPENSSL": "OFF",
+      "LLAMA_LLGUIDANCE": "OFF",
+      "CMAKE_PREFIX_PATH": "/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+      "CMAKE_CXX_FLAGS": "-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+    },
+    "artifacts": {
+      "build-r2/CMakeCache.txt": "03fdb77626548756e9465da2a7105bc903523c426436779dc29e2c2f936e66b7",
+      "build-r2/bin/libllama-bench-impl.so": "d43e9e36136c3e4d4d0f125428156c6498d667956b4b5e61771662de0f5c3288",
+      "build-r2/bin/libggml-vulkan.so.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+      "build-r2/bin/libllama-common.so.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+      "build-r2/bin/libllama.so": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+      "build-r2/bin/libggml-base.so.0.22.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+      "build-r2/bin/libggml.so.0.22.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+      "build-r2/bin/llama-bench": "d1e9fbc78d7150e37b7381be5e76a8e1cb05d7e20d4aead45bb735356daa39a1",
+      "build-r2/bin/libggml-cpu.so": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+      "build-r2/bin/libllama-common.so.0.3.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+      "build-r2/bin/libggml-cpu.so.0.22.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+      "build-r2/bin/libggml-base.so.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+      "build-r2/bin/libggml-base.so": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+      "build-r2/bin/libggml-cpu.so.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+      "build-r2/bin/libggml-vulkan.so": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+      "build-r2/bin/libllama.so.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+      "build-r2/bin/libllama-common.so": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+      "build-r2/bin/libllama.so.0.3.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+      "build-r2/bin/libggml.so": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+      "build-r2/bin/libggml.so.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+      "build-r2/bin/libggml-vulkan.so.0.22.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+      "build-r2/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-build/CMakeCache.txt": "a4fec47793fc377747f6c90372bf073c9bc19c165b3ecc509f3a9b7d4ff63047"
+    },
+    "wrapper_sha256": "6765e943a7e3963f6b1a6044adfae026e9d41a22f408535be0560520d8ee8f5c",
+    "exe_sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+    "completed": "2026-09-29T04:22:57.863432+00:00"
+  },
+  "remote_evidence": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-timing-20261021",
+  "artifacts": {
+    "launch-result.json": "06e62926d4aa2d505d8312d42a9fddf7045a0338555f5aebeb2a5e1ba81a6f1c",
+    "launch.py": "9a15c8361b5e1349138d6743e8c3f0a8c49e4224d8433e8326db8e26f39d84e3",
+    "model-timing-plan.json": "23c592b5fd8014e82ac3f3ecf719a4f8a3ee06d0d13cd45f427134f13a5846ec",
+    "rig-model-timing.py": "aad0de4ff5d4a271c94f084dbba3b6a5905977d9990efc1469a3bc45246644b5",
+    "summarize.py": "c7b7fdc0dbe5a329ce431d44147222ac03bd2795ebe25fef81041671b2658e87",
+    "transfer-pins.json": "ed176fa85decd21635ce18ea5f32c6b0c8c8a20a60294b6228f36579054f6852",
+    "round1\\00-candidate-qwen3-iq4_xs.stderr": "7227acd0c71f19163ccca5e0170d35ef33f3483a0e47f373ed44c57bdbb7c56b",
+    "round1\\00-candidate-qwen3-iq4_xs.stdout": "db2e26b6e04bca80aeaef3a3f22adac4c7452e3139d031add7ef828d7b64d45e",
+    "round1\\00-candidate-qwen3-iq4_xs.usage.json": "ea0beb149149b2ea1baf88ce9ecf5a43e84384d17308c412001beb90d2fa638b",
+    "round1\\01-mx-qwen3-iq4_xs.stderr": "24e3ddc854ca5ddf90eb9106e27231856eee59ededbac82446d2e27c90c6946d",
+    "round1\\01-mx-qwen3-iq4_xs.stdout": "cfdba5c77302a41db19a30d38167b33d7b5b9e57d7e9b04966b80bd02062f59d",
+    "round1\\01-mx-qwen3-iq4_xs.usage.json": "22f91f1b2dd27edc3b79eae4d5828241bb22e69109cbf0ce43de197f0e8ddb50",
+    "round1\\02-mx-qwen3-iq4_xs.stderr": "3f638baf6a84c2d3f8ccdeccbfbb8bddfaab60bddcb1530c6ac970b07a567ccc",
+    "round1\\02-mx-qwen3-iq4_xs.stdout": "2d4278a3d2c5ced0ec46b093184a76324da5758d70cb640807cc4beea8a136a9",
+    "round1\\02-mx-qwen3-iq4_xs.usage.json": "053639d632d4c24af44c48f8d683e4a8ecb146d03914cebd1491972868ba4c57",
+    "round1\\03-candidate-qwen3-iq4_xs.stderr": "e39d6be1cfd3e31e4e81f7f5e45078e599c3dccdf8f1b336164c186f7ec5b2c5",
+    "round1\\03-candidate-qwen3-iq4_xs.stdout": "edd334d20de0c43e2c00cbad7d042e055df16a3c7e6ea5439066f05f459d508d",
+    "round1\\03-candidate-qwen3-iq4_xs.usage.json": "795a20cf9077781c083f1352afaa01ecdf591102623f0d2d881fd297a18fd9f3",
+    "round1\\activity.jsonl": "85b29b69869e2c981a5d79d72ab2bd50bf75ebe1a339778f34a31cfebaa3db64",
+    "round1\\build-flags.json": "99a1cfd5445c4acce3b4a044fabb97a0a522629c38742c683be891906f2a175b",
+    "round1\\complete.json": "0843e75975071d9024c01b87780e9d03eb4211d6f251e50c16c2a53196977dc2",
+    "round1\\end-verification.json": "15f42a8e6f773519867ce7a8ad6848b42bafcda5dc542f8dd2b3f45367307bdf",
+    "round1\\gpu-after.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "round1\\gpu-before.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "round1\\idle-owned-containers.json": "505847c62c86039acef984effa885b6b0cdec90ba9cfadc45071a5d0043d945f",
+    "round1\\mx-reference.json": "fca9236ab9863d3954f2ffcf233e914ff99925ccccfae0c14194c1960e78e083",
+    "round1\\plan.json": "b3df76000f18e7f28a4f7d575e4f168c1261d36e99ca55a2ed262dbb23f11f6f",
+    "round1\\preflight.json": "167a6597d258aa91f49df64ae9810b8acf6ff4bebe1c2d06a12a809b932dc156",
+    "round1\\progress.json": "90be365b9f830c175d497d51e0439336921e7afcb8d9355188c06d84938d05c5",
+    "round1\\source-verification.json": "06b7b365c5ba5b7de7a853254ac8e62ebd8b801de329b67bd25e1045a22f8299",
+    "round1\\summary.json": "c9fdc63a42be5542195b8498a2a10829fb2cd9778f72fa29e1c134b6d35d97e1"
+  },
+  "recovery": "Decode deficit remains open. Compare IQ4_XS row work and dispatch with existing IQ4_NL and the pinned mx Vulkan path; obtain kernel timing/profiling before selecting a change. Existing-path timing follows final main integration.",
+  "profile_followup": {
+    "scope": "Existing --profile GPU timestamps and pipeline statistics, with unprofiled controls before and after each model. No runtime or probe build changes.",
+    "summary": {
+      "passed": true,
+      "activity_thresholds": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "raw_activity_sha256": "91210ddb175d6ffc2deecc9ce7db1a2ecd8cd65b69f808df72fa7de7a208f197",
+      "samples": 22,
+      "intervals": [
+        {
+          "start": 1792537735.837099,
+          "end": 1792537736.80715,
+          "seconds": 1.0024422119604424,
+          "idle_percent": 97.68894440974391,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 22.943965971883483,
+            "monitor": 3.9902549516319104
+          },
+          "disk_bytes_per_second": 81720.42140942153,
+          "new_or_missing_process_delta": 1,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537736.80715,
+          "end": 1792537737.8145,
+          "seconds": 1.000567618990317,
+          "idle_percent": 97.8125,
+          "iowait_percent": 0.1875,
+          "process_cpu_percent": {
+            "unrelated": 11.993192436218678,
+            "monitor": 4.997163515091115
+          },
+          "disk_bytes_per_second": 2231053.6116016395,
+          "new_or_missing_process_delta": 26,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537737.8145,
+          "end": 1792537738.809881,
+          "seconds": 1.0004946130793542,
+          "idle_percent": 93.17470256731372,
+          "iowait_percent": 0.06261740763932373,
+          "process_cpu_percent": {
+            "unrelated": 18.990606997394217,
+            "monitor": 4.997528157209004
+          },
+          "disk_bytes_per_second": 98255.40159325478,
+          "new_or_missing_process_delta": 20,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "557887488"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537738.809881,
+          "end": 1792537739.809792,
+          "seconds": 1.0005095229716972,
+          "idle_percent": 97.11959924859111,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 21.988796203214488,
+            "monitor": 4.997453682548749,
+            "benchmark": 14.992361047646247
+          },
+          "disk_bytes_per_second": 8789633.47982923,
+          "new_or_missing_process_delta": 5,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "557924352"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537739.809792,
+          "end": 1792537740.812215,
+          "seconds": 1.0005022019613534,
+          "idle_percent": 95.17241379310344,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 19.989961002377225,
+            "monitor": 3.9979922004754456
+          },
+          "disk_bytes_per_second": 0.0,
+          "new_or_missing_process_delta": 5,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537740.812215,
+          "end": 1792537741.81276,
+          "seconds": 1.000526062096469,
+          "idle_percent": 91.78683385579937,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 19.989484289987075,
+            "monitor": 3.997896857997415,
+            "benchmark": 75.96004030195088
+          },
+          "disk_bytes_per_second": 171941.5480687528,
+          "new_or_missing_process_delta": 22,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "96",
+              "vram_used": "557887488"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537741.81276,
+          "end": 1792537742.812027,
+          "seconds": 1.0004803088959306,
+          "idle_percent": 97.24310776942356,
+          "iowait_percent": 0.3132832080200501,
+          "process_cpu_percent": {
+            "unrelated": 6.996639451829666,
+            "monitor": 5.997119530139715,
+            "benchmark": 12.993758981969382
+          },
+          "disk_bytes_per_second": 1089012.937398384,
+          "new_or_missing_process_delta": 3,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "100",
+              "vram_used": "557924352"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537742.812027,
+          "end": 1792537743.812861,
+          "seconds": 1.000441709998995,
+          "idle_percent": 95.16635279347143,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 23.989403640542047,
+            "monitor": 3.9982339400903406,
+            "benchmark": 11.994701820271022
+          },
+          "disk_bytes_per_second": 2861839.896702104,
+          "new_or_missing_process_delta": 5,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "84",
+              "vram_used": "557924352"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537743.812861,
+          "end": 1792537744.811906,
+          "seconds": 1.0004290390061215,
+          "idle_percent": 96.80451127819549,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 26.988420914713966,
+            "monitor": 3.998284579957624,
+            "benchmark": 10.995282594883466
+          },
+          "disk_bytes_per_second": 2624410.025730905,
+          "new_or_missing_process_delta": 4,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "557924352"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537744.811906,
+          "end": 1792537745.813696,
+          "seconds": 1.0005171520169824,
+          "idle_percent": 94.28750784682988,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 14.99224672936481,
+            "monitor": 4.997415576454937
+          },
+          "disk_bytes_per_second": 4093.882840231884,
+          "new_or_missing_process_delta": 12,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "89",
+              "vram_used": "557887488"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537745.813696,
+          "end": 1792537746.81769,
+          "seconds": 1.0004313790705055,
+          "idle_percent": 96.74389480275516,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 20.990944945680297,
+            "monitor": 4.9978440346857855,
+            "benchmark": 11.994825683245885
+          },
+          "disk_bytes_per_second": 0.0,
+          "new_or_missing_process_delta": 1,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "557924352"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537746.81769,
+          "end": 1792537747.816113,
+          "seconds": 1.000463549979031,
+          "idle_percent": 95.35759096612296,
+          "iowait_percent": 0.12547051442910917,
+          "process_cpu_percent": {
+            "unrelated": 24.988416619999782,
+            "monitor": 4.997683323999956
+          },
+          "disk_bytes_per_second": 1355147.8212558727,
+          "new_or_missing_process_delta": 29,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "0",
+              "vram_used": "12271616"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537747.816113,
+          "end": 1792537748.811379,
+          "seconds": 1.0004591399338096,
+          "idle_percent": 95.67398119122257,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 8.995869637010303,
+            "monitor": 3.99816428311569,
+            "benchmark": 51.97613568050397
+          },
+          "disk_bytes_per_second": 13625232.111830033,
+          "new_or_missing_process_delta": 3,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "98",
+              "vram_used": "571686912"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537748.811379,
+          "end": 1792537749.818365,
+          "seconds": 1.0004250589990988,
+          "idle_percent": 97.18045112781955,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 20.991077553585068,
+            "monitor": 4.997875607996445,
+            "benchmark": 10.995326337592179
+          },
+          "disk_bytes_per_second": 2436084.520352059,
+          "new_or_missing_process_delta": 4,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "96",
+              "vram_used": "571703296"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537749.818365,
+          "end": 1792537750.814928,
+          "seconds": 1.000491110025905,
+          "idle_percent": 94.03640929064657,
+          "iowait_percent": 0.25109855618330196,
+          "process_cpu_percent": {
+            "unrelated": 15.992146096716164,
+            "monitor": 3.998036524179041
+          },
+          "disk_bytes_per_second": 8187.978801518676,
+          "new_or_missing_process_delta": 5,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "0",
+              "vram_used": "445997056"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537750.814928,
+          "end": 1792537751.81565,
+          "seconds": 1.0005251900292933,
+          "idle_percent": 94.35736677115987,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 16.99107645605832,
+            "monitor": 4.997375428252447,
+            "benchmark": 42.97742868297104
+          },
+          "disk_bytes_per_second": 0.0,
+          "new_or_missing_process_delta": 7,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "571686912"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537751.81565,
+          "end": 1792537752.815171,
+          "seconds": 1.0004488819977269,
+          "idle_percent": 97.3700688791484,
+          "iowait_percent": 0.06261740763932373,
+          "process_cpu_percent": {
+            "unrelated": 13.993718471696797,
+            "monitor": 4.997756597034571,
+            "benchmark": 10.995064513476056
+          },
+          "disk_bytes_per_second": 843397.4140838884,
+          "new_or_missing_process_delta": 7,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "571703296"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537752.815171,
+          "end": 1792537753.819104,
+          "seconds": 1.0004392289556563,
+          "idle_percent": 98.24561403508773,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 17.99209734987095,
+            "monitor": 4.997804819408597,
+            "benchmark": 11.994731566580633
+          },
+          "disk_bytes_per_second": 0.0,
+          "new_or_missing_process_delta": 0,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "99",
+              "vram_used": "571703296"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537753.819104,
+          "end": 1792537754.819986,
+          "seconds": 1.0004256890388206,
+          "idle_percent": 96.23588456712673,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 16.99276636561892,
+            "monitor": 3.9982979683809217
+          },
+          "disk_bytes_per_second": 2706303.9560701842,
+          "new_or_missing_process_delta": 10,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "0",
+              "vram_used": "12271616"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537754.819986,
+          "end": 1792537755.818506,
+          "seconds": 1.0004814609419554,
+          "idle_percent": 94.49311639549437,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 22.988931727276036,
+            "monitor": 4.99759385375566,
+            "benchmark": 42.97930714229868
+          },
+          "disk_bytes_per_second": 0.0,
+          "new_or_missing_process_delta": 2,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "98",
+              "vram_used": "571695104"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        },
+        {
+          "start": 1792537755.818506,
+          "end": 1792537756.81849,
+          "seconds": 1.0004647700116038,
+          "idle_percent": 97.05513784461152,
+          "iowait_percent": 0.0,
+          "process_cpu_percent": {
+            "unrelated": 13.993496242588954,
+            "monitor": 4.9976772294960545,
+            "benchmark": 11.994425350790532
+          },
+          "disk_bytes_per_second": 0.0,
+          "new_or_missing_process_delta": 1,
+          "flags": [],
+          "gpu": {
+            "card0": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.1/0000:c1:00.0/0000:c2:00.0/0000:c3:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card1": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:01.3/0000:c4:00.0/0000:c5:00.0/0000:c6:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card2": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0",
+              "busy": "96",
+              "vram_used": "571703296"
+            },
+            "card3": {
+              "device": "/sys/devices/pci0000:c0/0000:c0:03.3/0000:ca:00.0/0000:cb:00.0/0000:cc:00.0",
+              "busy": "0",
+              "vram_used": "10919936"
+            },
+            "card4": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.1/0000:81:00.0/0000:82:00.0/0000:83:00.0",
+              "busy": "0",
+              "vram_used": "31947931648"
+            },
+            "card5": {
+              "device": "/sys/devices/pci0000:80/0000:80:01.3/0000:84:00.0/0000:85:00.0/0000:86:00.0",
+              "busy": "0",
+              "vram_used": "31948922880"
+            },
+            "card6": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.1/0000:87:00.0/0000:88:00.0/0000:89:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card7": {
+              "device": "/sys/devices/pci0000:80/0000:80:03.3/0000:8a:00.0/0000:8b:00.0/0000:8c:00.0",
+              "busy": "0",
+              "vram_used": "10932224"
+            },
+            "card8": {
+              "device": "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/0000:02:00.0/0000:03:00.0",
+              "busy": "0",
+              "vram_used": "28606988288"
+            },
+            "card9": {
+              "device": "/sys/devices/pci0000:40/0000:40:03.1/0000:42:00.0/0000:43:00.0/0000:44:00.0",
+              "busy": "0",
+              "vram_used": "28606967808"
+            }
+          }
+        }
+      ],
+      "calls": [
+        {
+          "direction": "before",
+          "model": "qwen3-iq4_xs",
+          "exe": "candidate",
+          "start": 1792537737.7314095,
+          "end": 1792537740.6562343,
+          "rates": {
+            "pp512": 4825.6,
+            "tg128": 141.85
+          },
+          "activity_intervals": 4,
+          "activity_flags": [],
+          "flagged_intervals": 0
+        },
+        {
+          "direction": "profile",
+          "model": "qwen3-iq4_xs",
+          "exe": "candidate",
+          "start": 1792537740.6571407,
+          "end": 1792537744.9802504,
+          "rates": {
+            "pp512": 4668.25,
+            "tg128": 126.33
+          },
+          "activity_intervals": 6,
+          "activity_flags": [],
+          "flagged_intervals": 0
+        },
+        {
+          "direction": "after",
+          "model": "qwen3-iq4_xs",
+          "exe": "candidate",
+          "start": 1792537744.9812043,
+          "end": 1792537747.601145,
+          "rates": {
+            "pp512": 4934.26,
+            "tg128": 141.69
+          },
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0
+        },
+        {
+          "direction": "before",
+          "model": "qwen3-iq4_nl",
+          "exe": "candidate",
+          "start": 1792537747.6020236,
+          "end": 1792537750.3223786,
+          "rates": {
+            "pp512": 5011.43,
+            "tg128": 143.55
+          },
+          "activity_intervals": 4,
+          "activity_flags": [],
+          "flagged_intervals": 0
+        },
+        {
+          "direction": "profile",
+          "model": "qwen3-iq4_nl",
+          "exe": "candidate",
+          "start": 1792537750.323391,
+          "end": 1792537754.6468225,
+          "rates": {
+            "pp512": 4969.53,
+            "tg128": 127.42
+          },
+          "activity_intervals": 5,
+          "activity_flags": [],
+          "flagged_intervals": 0
+        },
+        {
+          "direction": "after",
+          "model": "qwen3-iq4_nl",
+          "exe": "candidate",
+          "start": 1792537754.6478186,
+          "end": 1792537757.2178144,
+          "rates": {
+            "pp512": 5007.28,
+            "tg128": 143.38
+          },
+          "activity_intervals": 3,
+          "activity_flags": [],
+          "flagged_intervals": 0
+        }
+      ],
+      "profiles": [
+        {
+          "model": "qwen3-iq4_xs",
+          "sections": {
+            "pp": {
+              "total_ms": 104.521,
+              "dispatches": 312,
+              "kernels": [
+                {
+                  "name": "matmul_tile_iq4_xs",
+                  "ms": 89.9086,
+                  "percent": 86.02
+                },
+                {
+                  "name": "attention_tile",
+                  "ms": 8.556,
+                  "percent": 8.18594
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 2.57632,
+                  "percent": 2.46489
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 1.14688,
+                  "percent": 1.09728
+                },
+                {
+                  "name": "matmul_reduce",
+                  "ms": 1.03424,
+                  "percent": 0.989508
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 0.94,
+                  "percent": 0.899344
+                },
+                {
+                  "name": "matmul_row_k_dot_1col head",
+                  "ms": 0.32128,
+                  "percent": 0.307384
+                },
+                {
+                  "name": "embed",
+                  "ms": 0.03104,
+                  "percent": 0.0296975
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.00624,
+                  "percent": 0.00597011
+                }
+              ]
+            },
+            "tg": {
+              "total_ms": 953.98,
+              "dispatches": 35456,
+              "kernels": [
+                {
+                  "name": "matmul_row_iq4_xs_dot_1col",
+                  "ms": 732.056,
+                  "percent": 76.737
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 58.0931,
+                  "percent": 6.08956
+                },
+                {
+                  "name": "matmul_row_k_dot_1col head",
+                  "ms": 41.067,
+                  "percent": 4.30481
+                },
+                {
+                  "name": "attention_vec",
+                  "ms": 40.5613,
+                  "percent": 4.2518
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 34.7861,
+                  "percent": 3.64642
+                },
+                {
+                  "name": "attention_merge",
+                  "ms": 23.9499,
+                  "percent": 2.51053
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 21.3288,
+                  "percent": 2.23577
+                },
+                {
+                  "name": "embed",
+                  "ms": 1.36448,
+                  "percent": 0.14303
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.77328,
+                  "percent": 0.0810583
+                }
+              ]
+            }
+          },
+          "resource_statistics": {
+            "silu_mul": "Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+            "gather_rows": "Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+            "rms_norm_rows": "Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+            "embed": "Driver pipeline hash=15784316850897062024 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=3476 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=2411918228 Instructions=638 Copies=99 Branches=42 Latency=4111 Inverse Throughput=691 VMEM Clause=18 SMEM Clause=13 Pre-Sched SGPRs=21 Pre-Sched VGPRs=9 VALU=343 SALU=132 VMEM=54 SMEM=15 VOPD=0",
+            "attention_merge": "Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+            "norm_rope_kv": "Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+            "attention_tile": "Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+            "matmul_row_k_dot_1col": "Driver pipeline hash=2168091942666504193 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+            "matmul_reduce": "Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+            "attention_vec": "Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+            "matmul_row_iq4_xs_dot_1col": "Driver pipeline hash=5834721322326958759 SGPRs=48 VGPRs=60 Spilled SGPRs=0 Spilled VGPRs=0 Code size=25228 LDS size=0 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2303496245 Instructions=4296 Copies=1013 Branches=408 Latency=341580 Inverse Throughput=133195 VMEM Clause=38 SMEM Clause=23 Pre-Sched SGPRs=35 Pre-Sched VGPRs=52 VALU=3116 SALU=628 VMEM=48 SMEM=27 VOPD=0",
+            "matmul_tile_iq4_xs": "Driver pipeline hash=2588602179742688950 SGPRs=80 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=33196 LDS size=17920 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4193354025 Instructions=5170 Copies=914 Branches=352 Latency=1174600 Inverse Throughput=464180 VMEM Clause=58 SMEM Clause=17 Pre-Sched SGPRs=73 Pre-Sched VGPRs=69 VALU=3655 SALU=868 VMEM=69 SMEM=22 VOPD=0"
+          },
+          "stdout_sha256": "279a1b79b11baac73caa00bb71f12d5a69227603d6fcc59c073888c34bec7db8"
+        },
+        {
+          "model": "qwen3-iq4_nl",
+          "sections": {
+            "pp": {
+              "total_ms": 104.879,
+              "dispatches": 312,
+              "kernels": [
+                {
+                  "name": "matmul_tile_iq4",
+                  "ms": 88.9661,
+                  "percent": 84.8271
+                },
+                {
+                  "name": "attention_tile",
+                  "ms": 8.5472,
+                  "percent": 8.14955
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 2.77184,
+                  "percent": 2.64288
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 1.6736,
+                  "percent": 1.59574
+                },
+                {
+                  "name": "matmul_reduce",
+                  "ms": 1.61728,
+                  "percent": 1.54204
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 0.94528,
+                  "percent": 0.901302
+                },
+                {
+                  "name": "matmul_row_k_dot_1col head",
+                  "ms": 0.32,
+                  "percent": 0.305112
+                },
+                {
+                  "name": "embed",
+                  "ms": 0.03216,
+                  "percent": 0.0306638
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.00592,
+                  "percent": 0.00564458
+                }
+              ]
+            },
+            "tg": {
+              "total_ms": 949.564,
+              "dispatches": 35456,
+              "kernels": [
+                {
+                  "name": "matmul_row_iq4_dot_1col",
+                  "ms": 724.31,
+                  "percent": 76.2781
+                },
+                {
+                  "name": "rms_norm_rows",
+                  "ms": 60.1461,
+                  "percent": 6.33407
+                },
+                {
+                  "name": "attention_vec",
+                  "ms": 40.4499,
+                  "percent": 4.25984
+                },
+                {
+                  "name": "matmul_row_k_dot_1col head",
+                  "ms": 40.2739,
+                  "percent": 4.2413
+                },
+                {
+                  "name": "norm_rope_kv",
+                  "ms": 35.6434,
+                  "percent": 3.75365
+                },
+                {
+                  "name": "attention_merge",
+                  "ms": 24.0371,
+                  "percent": 2.53138
+                },
+                {
+                  "name": "silu_mul",
+                  "ms": 22.4533,
+                  "percent": 2.36459
+                },
+                {
+                  "name": "embed",
+                  "ms": 1.30928,
+                  "percent": 0.137882
+                },
+                {
+                  "name": "gather_rows",
+                  "ms": 0.94192,
+                  "percent": 0.0991949
+                }
+              ]
+            }
+          },
+          "resource_statistics": {
+            "silu_mul": "Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+            "gather_rows": "Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+            "rms_norm_rows": "Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+            "embed": "Driver pipeline hash=15784316850897062024 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=3476 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=2411918228 Instructions=638 Copies=99 Branches=42 Latency=4111 Inverse Throughput=691 VMEM Clause=18 SMEM Clause=13 Pre-Sched SGPRs=21 Pre-Sched VGPRs=9 VALU=343 SALU=132 VMEM=54 SMEM=15 VOPD=0",
+            "attention_merge": "Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+            "norm_rope_kv": "Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+            "attention_tile": "Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+            "matmul_row_k_dot_1col": "Driver pipeline hash=2168091942666504193 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+            "matmul_reduce": "Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+            "attention_vec": "Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+            "matmul_row_iq4_dot_1col": "Driver pipeline hash=1189828964725759104 SGPRs=48 VGPRs=56 Spilled SGPRs=0 Spilled VGPRs=0 Code size=24856 LDS size=0 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=40358854 Instructions=4224 Copies=1009 Branches=408 Latency=338652 Inverse Throughput=130459 VMEM Clause=37 SMEM Clause=23 Pre-Sched SGPRs=35 Pre-Sched VGPRs=52 VALU=3065 SALU=615 VMEM=44 SMEM=27 VOPD=0",
+            "matmul_tile_iq4": "Driver pipeline hash=17646661216718251825 SGPRs=80 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=32612 LDS size=17920 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3000531421 Instructions=5060 Copies=902 Branches=352 Latency=1165024 Inverse Throughput=451388 VMEM Clause=56 SMEM Clause=17 Pre-Sched SGPRs=72 Pre-Sched VGPRs=70 VALU=3570 SALU=854 VMEM=63 SMEM=22 VOPD=0"
+          },
+          "stdout_sha256": "f212f8c64e3741d9ecda29e64c3f7ed636eecd514e55fea58fec579c927117f4"
+        }
+      ],
+      "scope": "Existing CLI GPU timestamps; before/after unprofiled controls retained per model. Profiling wall rates are diagnostic, not compared as speed wins.",
+      "limitations": [
+        "Shader statistics count static instructions and theoretical wave limits, not executed instruction costs or measured occupancy.",
+        "No spills does not rule out memory stalls. These measurements identify row dominance, not its instruction-level cause.",
+        "IQ4_NL and IQ4_XS files differ in weight values/types. Their timing difference is not isolated decoder cost.",
+        "All activity retained; short-lived processes and sampling tails may be missed."
+      ]
+    },
+    "plan": {
+      "prepared_only": false,
+      "scope": "Existing CLI GPU timestamps and shader resource statistics on IQ4_XS and IQ4_NL; unprofiled controls before and after each capture, no profiler throughput claim.",
+      "platform": "mi50",
+      "models": {
+        "qwen3-iq4_xs": {
+          "path": "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+          "bytes": 367804096,
+          "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+        },
+        "qwen3-iq4_nl": {
+          "path": "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+          "bytes": 381566656,
+          "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+        }
+      },
+      "threads": 4,
+      "ubatch": 512,
+      "cache_type_k": "f32",
+      "cache_type_v": "f32",
+      "dtype": "auto",
+      "load_mode": "auto",
+      "repeats": 1,
+      "call_timeout_seconds": 300,
+      "calls": [
+        {
+          "direction": "before",
+          "model": "qwen3-iq4_xs",
+          "arm": "candidate-qwen3-iq4_xs-before",
+          "exe": "candidate",
+          "block": "qwen3-iq4_xs-before",
+          "prompt": 512,
+          "decode": 128,
+          "argv": [
+            "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+            "bench",
+            "--model",
+            "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ]
+        },
+        {
+          "direction": "profile",
+          "model": "qwen3-iq4_xs",
+          "arm": "candidate-qwen3-iq4_xs-profile",
+          "exe": "candidate",
+          "block": "qwen3-iq4_xs-profile",
+          "prompt": 512,
+          "decode": 128,
+          "argv": [
+            "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+            "bench",
+            "--model",
+            "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto",
+            "--profile"
+          ]
+        },
+        {
+          "direction": "after",
+          "model": "qwen3-iq4_xs",
+          "arm": "candidate-qwen3-iq4_xs-after",
+          "exe": "candidate",
+          "block": "qwen3-iq4_xs-after",
+          "prompt": 512,
+          "decode": 128,
+          "argv": [
+            "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+            "bench",
+            "--model",
+            "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ]
+        },
+        {
+          "direction": "before",
+          "model": "qwen3-iq4_nl",
+          "arm": "candidate-qwen3-iq4_nl-before",
+          "exe": "candidate",
+          "block": "qwen3-iq4_nl-before",
+          "prompt": 512,
+          "decode": 128,
+          "argv": [
+            "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+            "bench",
+            "--model",
+            "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ]
+        },
+        {
+          "direction": "profile",
+          "model": "qwen3-iq4_nl",
+          "arm": "candidate-qwen3-iq4_nl-profile",
+          "exe": "candidate",
+          "block": "qwen3-iq4_nl-profile",
+          "prompt": 512,
+          "decode": 128,
+          "argv": [
+            "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+            "bench",
+            "--model",
+            "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto",
+            "--profile"
+          ]
+        },
+        {
+          "direction": "after",
+          "model": "qwen3-iq4_nl",
+          "arm": "candidate-qwen3-iq4_nl-after",
+          "exe": "candidate",
+          "block": "qwen3-iq4_nl-after",
+          "prompt": 512,
+          "decode": 128,
+          "argv": [
+            "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+            "bench",
+            "--model",
+            "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ]
+        }
+      ],
+      "preserve": "All planned calls, failures, raw logs and activity samples retained without filtering.",
+      "limitations": [
+        "GPU timestamp attribution is diagnostic; profile wall throughput is not a performance score.",
+        "IQ4_NL and IQ4_XS files differ in weights and head formats; model totals are not an isolated quant comparison.",
+        "Same retained candidate binary, selected GPU and default clocks; all controls and activity retained."
+      ],
+      "admission": [
+        "Fresh GPU8 availability, default clocks, no competing owned rig builds/tests/downloads.",
+        "Exact binary/library and retained source hashes checked; original source/test discrepancies remain recorded.",
+        "No candidate correctness bound changes."
+      ],
+      "command_prefix": [],
+      "root": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-profile-20261021",
+      "output": "round1",
+      "container": "llmx-xdev-iq4-xs-model-profile",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "cpu_set": "4-7",
+      "quota": 4,
+      "memory_gib": 16,
+      "minimum_host_available_gib": 8,
+      "candidate_head": "6ac523a71",
+      "library_path": "/fixtures/mxfp4-vulkan-reference-20260929/build-r2/bin",
+      "monitor": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+      "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "activity_flags": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "monitor_seconds": 2100,
+      "gpu_node": "/dev/dri/renderD130",
+      "gpu_pci": "0000:c9:00.0",
+      "executables": {
+        "mx": {
+          "path": "/fixtures/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+          "sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+          "revision": "eefc4e7321c869496146697d63362f073941aed6",
+          "required_recheck": "actual F32-KV Vulkan adapter source/hash, linked libraries and --list-devices; do not substitute CPU or default-f16-KV wrapper",
+          "linked_library_manifest": ".tmp-half-weight-perf-20261002/cpu-initial/mx-reference.json reference_artifacts; reuse only matching GPU build-r2 libraries, not that manifest CPU executable",
+          "manifest": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929/retry2/complete.json",
+          "reference_root": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src/build/llmx",
+          "sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+          "version": "llmx 0.1.0+unknown numerics b95b8023244846e2"
+        }
+      },
+      "resource_handoff_pending": false,
+      "gpu_uuid": "00000000-c900-0000-0000-000000000000",
+      "gpu_driver": "Mesa 25.0.7-2+deb13u1",
+      "provenance": {
+        "runner_origin_sha256": "9a402c5ded376af9c885a1a990a60a0b862c74729cf8d3369b3bb52242fc6599",
+        "runner_sha256": "aad0de4ff5d4a271c94f084dbba3b6a5905977d9990efc1469a3bc45246644b5",
+        "delta": "Only single-candidate source admission adapted. Measurement, witness checks and activity monitor unchanged."
+      },
+      "expected_candidate_paths": {
+        "qwen3-iq4_xs": [
+          "block-int16"
+        ],
+        "qwen3-iq4_nl": [
+          "block-int16"
+        ]
+      },
+      "layers": {
+        "qwen3-iq4_xs": 28,
+        "qwen3-iq4_nl": 28
+      },
+      "preflight_failures": [],
+      "source_arms": {
+        "candidate": {
+          "tree": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src",
+          "manifest": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/identity/source-pins.json",
+          "library_sha256": "d05a9c197e0e6f346c7945dd49420badfacfac272c16aab2dece2d8b42a20f49",
+          "revision": "ee03deab2 runtime;6ac523a71 evidence; retained unused test delta pinned"
+        }
+      }
+    },
+    "execution": {
+      "start": 1792537733.1165776,
+      "argv": [
+        "docker",
+        "create",
+        "--init",
+        "--name",
+        "llmx-xdev-iq4-xs-model-profile",
+        "--label",
+        "llmx.timing=llmx-xdev-iq4-xs-model-profile",
+        "--cidfile",
+        "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-profile-20261021/container.cid",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "4-7",
+        "--cpus",
+        "4",
+        "--memory",
+        "16g",
+        "--memory-swap",
+        "16g",
+        "--pids-limit",
+        "128",
+        "--ulimit",
+        "core=0",
+        "--device",
+        "/dev/dri/renderD130",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,size=256m",
+        "-e",
+        "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020:/zpool1/llmx-xdev-quant-20261020:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-profile-20261021:/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-profile-20261021:rw",
+        "-v",
+        "/zpool1/models:/zpool1/models:ro",
+        "-v",
+        "/opt/claude-work/llmx-vulkan-mi50/models:/opt/claude-work/llmx-vulkan-mi50/models:ro",
+        "-v",
+        "/opt/claude-work/llmx-p2-x-mxfp4-cpu:/fixtures:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "sleep",
+        "infinity"
+      ],
+      "passed": true,
+      "removed": true,
+      "exit": 0,
+      "container_state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 1254667,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-20T23:08:53.218352574Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      },
+      "end": 1792537758.0716379
+    },
+    "remote_evidence": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-model-profile-20261021",
+    "artifacts": {
+      "launch-result.json": "554ce17243926cc86d7f42ff60bf43dcbfe967e6493f3f214ef4be89086f87ad",
+      "launch.py": "94eac913230942a72355efff88ef423d73e36301861d7420e9511d29a61fbae5",
+      "model-timing-plan.json": "467d055a6f5940fdd1248bbb2cc0c1fe4878133cf02b536079cfb2a84719127a",
+      "rig-model-timing.py": "aad0de4ff5d4a271c94f084dbba3b6a5905977d9990efc1469a3bc45246644b5",
+      "summarize.py": "d5e77a9d056df0ba1f74d40010c3f74fca7bab51d0bdc5789b204fb00bad10c8",
+      "transfer-pins.json": "87e373434b9ce789a45dd7b7865eedff23909a1117e0bb10b7e1d7c341daadc5",
+      "round1\\00-candidate-qwen3-iq4_xs-before.stderr": "de1c1461b4c0ecbf65c9d1d886a3ade5f8c1ae522cd284aaa4d6ae7fb1a7dbca",
+      "round1\\00-candidate-qwen3-iq4_xs-before.stdout": "ba03768d5e8c451868b187b122238f5ca25b500a45ad4f316415d1647697cb67",
+      "round1\\00-candidate-qwen3-iq4_xs-before.usage.json": "16f554b419482d6ab0ad214773758b8c72ad9eaa391ac7c8d59040145bae8971",
+      "round1\\01-candidate-qwen3-iq4_xs-profile.stderr": "61e14911bc68987b72af9e342b209ec03e8c1925ca1255a441c98fad3159e6a5",
+      "round1\\01-candidate-qwen3-iq4_xs-profile.stdout": "279a1b79b11baac73caa00bb71f12d5a69227603d6fcc59c073888c34bec7db8",
+      "round1\\01-candidate-qwen3-iq4_xs-profile.usage.json": "d5bc5f707919d7c475355a2f02d5eb3a1a63f5527b7ecd159c8981476b6316ae",
+      "round1\\02-candidate-qwen3-iq4_xs-after.stderr": "9eb8631a6e5a4ded4803b9a44e5bb8fed670a9686fbf534115414aa525b28848",
+      "round1\\02-candidate-qwen3-iq4_xs-after.stdout": "9644282dcec543cfecd4e25b14f328c09cdb210e8e6adeabb11e34041b21f265",
+      "round1\\02-candidate-qwen3-iq4_xs-after.usage.json": "41160b3effc1d8ba7c8bb6e880c5b89fcae4fc9e2c085bf1e6ea7b1ee2076341",
+      "round1\\03-candidate-qwen3-iq4_nl-before.stderr": "87d663dd585885fef080ca03c798f1fb23d5bc136343875cc3dcca73d34c5432",
+      "round1\\03-candidate-qwen3-iq4_nl-before.stdout": "1c1b4c50eaca0ee69f6d07c5267cce566461a33a3cc49f4fbb9173a74c634358",
+      "round1\\03-candidate-qwen3-iq4_nl-before.usage.json": "8176ac2ff256a9c11ebfbbed836ec709b2e9d556df661d50580327256ab3a6cc",
+      "round1\\04-candidate-qwen3-iq4_nl-profile.stderr": "3c15878f7e9d1cbdf4297574443649f2ded0d1a251089d5ecb8da4c069a62958",
+      "round1\\04-candidate-qwen3-iq4_nl-profile.stdout": "f212f8c64e3741d9ecda29e64c3f7ed636eecd514e55fea58fec579c927117f4",
+      "round1\\04-candidate-qwen3-iq4_nl-profile.usage.json": "9e92b9a853e3c16255a49ca4ce7a4b1fefec9179c47c98a79e23db4993682e9b",
+      "round1\\05-candidate-qwen3-iq4_nl-after.stderr": "4364d8c9016ca44e5703839597ca7981dfd187b39a05a8c7ca28763327badabe",
+      "round1\\05-candidate-qwen3-iq4_nl-after.stdout": "5ffe7a77b6dfbe5151ee3c452ebcc66c8b4c96abe94026c82a5fbf991b54905b",
+      "round1\\05-candidate-qwen3-iq4_nl-after.usage.json": "77167c75f6647c41ea9a37985abbc6a64cb3887d2fed72d06cea4be86696127d",
+      "round1\\activity.jsonl": "91210ddb175d6ffc2deecc9ce7db1a2ecd8cd65b69f808df72fa7de7a208f197",
+      "round1\\build-flags.json": "99a1cfd5445c4acce3b4a044fabb97a0a522629c38742c683be891906f2a175b",
+      "round1\\complete.json": "773c3cae61b9b91dee6a5edd9d0d8ac83db7d7c65d6a57666be12adb92a06f81",
+      "round1\\end-verification.json": "661bc0be93220e2670e2a273d4596fc450bf077ac78026c52f973b2b0ee503d8",
+      "round1\\gpu-after.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+      "round1\\gpu-before.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+      "round1\\idle-owned-containers.json": "505847c62c86039acef984effa885b6b0cdec90ba9cfadc45071a5d0043d945f",
+      "round1\\mx-reference.json": "fca9236ab9863d3954f2ffcf233e914ff99925ccccfae0c14194c1960e78e083",
+      "round1\\plan.json": "e2d133f5ff453e2d368bee2ac36fc402ea821ee6ba19762e388dbc95b4794497",
+      "round1\\preflight.json": "578a0acb6da531eee09683c6cc0ddb01f526fed7f4a02928ab1d60be84cc12fa",
+      "round1\\progress.json": "811249666139cb84de53fb478b23f32f588ce56472cdb69376264de763320394",
+      "round1\\source-verification.json": "06b7b365c5ba5b7de7a853254ac8e62ebd8b801de329b67bd25e1045a22f8299",
+      "round1\\summary.json": "326b1d957245396c98f367fe512d151d6661c8742d8a818e09341999be203da9"
+    },
+    "finding": "IQ4_XS row matmul is76.737%of decode GPU time; IQ4_NL row is76.2781%. XS row has60VGPRs,0spills/scratch,4reported subgroups/SIMD,4296static instructions. No instruction-level cause or measured occupancy claim; ISA collection follows."
+  }
+}

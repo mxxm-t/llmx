@@ -1,0 +1,1503 @@
+{
+  "status": "proposal only; not installed in a consumer",
+  "family": "iq4-xs",
+  "method": "Original fixed F32 logit margin plus the worst routing-stable HF F32 full-forward versus one-token cached-forward final-logit discrepancy, across existing family_models. No llmx candidate output is read. NLL remains unchanged.",
+  "base_logit_margin": 2e-05,
+  "nll_budget_unchanged": 1e-05,
+  "versions": [
+    "2.5.1+cpu",
+    "4.55.2",
+    "2.2.6"
+  ],
+  "seeds": [
+    12345,
+    0,
+    1,
+    2,
+    3
+  ],
+  "runs": [
+    {
+      "fixture": "dense-untied",
+      "split": false,
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "e657e3bdce3bb455060a652c4fdb183750f49084bd0f89e9c06eeaac8f579f9f",
+      "packed_sha256": "a0cd63642c9296b3ceda69702849b7e8417e58b01867065ed0b2e13f43dd06d5",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 4.76837158203125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.76837158203125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 6.973743438720703e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.152557373046875e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 7.152557373046875e-06
+    },
+    {
+      "fixture": "dense-untied",
+      "split": false,
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "cd5ba8220d2ba0b73f759730a08b0220c5e9d12b1f4f83d394fddce0e929d9f4",
+      "packed_sha256": "758b761ab7ab20db30cfa3370304ef80e1f6e68b5b2973cbf2d7741ab1e524d3",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.152557373046875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.291534423828125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 8.106231689453125e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.049041748046875e-05
+    },
+    {
+      "fixture": "dense-untied",
+      "split": false,
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "a248ed1ebd4de1c4696f70b34743c1cb598aa5a9a85a1f03675e904cfbf096f5",
+      "packed_sha256": "35d09fc5a05985445b7700498995d9d723fb5fe5d4dc39bacad9fcc0e44eca57",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.0067901611328125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.291534423828125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 6.4373016357421875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.7220458984375e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 6.4373016357421875e-06
+    },
+    {
+      "fixture": "dense-untied",
+      "split": false,
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "0094f7ecfdfa035a4763ae13aebb7d48b447eef4df9f3cb34ecf9423fe400934",
+      "packed_sha256": "17e137d36575c28abfafbc8f39e0151135e8f531813d0cf8848e3d6ae785f1a8",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.245208740234375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 5.245208740234375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 7.510185241699219e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 7.62939453125e-06
+    },
+    {
+      "fixture": "dense-untied",
+      "split": false,
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "5550dfbf5159f17af1f5808a28913c1b85bf89e53fe58f5e58a061cb41622806",
+      "packed_sha256": "c196eae38823e0db1b8eaeadd08cdf8d1037dfba552f8a60eccca6d273f44c1d",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 3.0994415283203125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.291534423828125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 7.3909759521484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.3909759521484375e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 7.3909759521484375e-06
+    },
+    {
+      "fixture": "dense-tied",
+      "split": false,
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "0e51fb6634eafe8bebe8401cdf1fdcc4db2a8847404ba02c1873e1db94215b7c",
+      "packed_sha256": "ff9f581f71dc1e7faa56b94ffad240379d61a72717e79c4ecc1ad3146e5686a1",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 3.337860107421875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.0013580322265625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.9604644775390625e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.0013580322265625e-05
+    },
+    {
+      "fixture": "dense-tied",
+      "split": false,
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "8386c0a63fc09af976706d46b04bf763b1a869040a3ccba28543ab7c857131b9",
+      "packed_sha256": "04a3f09315a61422b09f48c67ffb25c4e14995fcdb79ee66f1839381d15c2ae3",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.245208740234375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.172325134277344e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.4836273193359375e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 7.62939453125e-06
+    },
+    {
+      "fixture": "dense-tied",
+      "split": false,
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "218ca1fdd6825817e1f3dc2c270a52e1c8db609582bb5b26f0c926eba11af43b",
+      "packed_sha256": "e4285dd9d13f678ba8bfcb7e49d2ddf5f9d0813c022e1f137da9e564c35cfba5",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.258487701416016e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.291534423828125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 9.298324584960938e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 9.298324584960938e-06
+    },
+    {
+      "fixture": "dense-tied",
+      "split": false,
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "fc43d6a21e348e868b0f825b1711d0cda192d3c36608fc571ac929e80acd0e96",
+      "packed_sha256": "b9983b9a126290af71a571d747a62662c67d3d9d8a3863a6f348ccece65389c3",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 3.337860107421875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 9.298324584960938e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.125999450683594e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 9.298324584960938e-06
+    },
+    {
+      "fixture": "dense-tied",
+      "split": false,
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "6bc6ff6038929adac6583619e9389cb6a6e7df53a0f1ad9e6d09d238f3ed027e",
+      "packed_sha256": "8d933294bace61afc4f0cc9f80204167c0ee923a3ceefe7f639412747b84aa5c",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 3.337860107421875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 5.9604644775390625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 4.5299530029296875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.152557373046875e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 7.152557373046875e-06
+    },
+    {
+      "fixture": "moe",
+      "split": false,
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "5fdc3b88d16fe0901db513c3d77dc034b6cd9c17cc6dd2f9ed5cf45c914ef7fe",
+      "packed_sha256": "bcc5d43ecbe3184383b8e123cc55f1adaf2c3babd240e20829d76137381a6a17",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.304813385009766e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.6927719116210938e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.68899917602539e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.6927719116210938e-05
+    },
+    {
+      "fixture": "moe",
+      "split": false,
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "d3cde94f2e7483a79c1cc3aa125c3c1f488052486fda00e63dd7ea337523a781",
+      "packed_sha256": "0e7360810c96deded7646d39a1291b46d4db7d6b44c082599a2ad2864453591b",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.245208740234375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 5.0067901611328125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.1026859283447266e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.0067901611328125e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.1026859283447266e-05
+    },
+    {
+      "fixture": "moe",
+      "split": false,
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "a760c63904b2c3103359b478316a152b8f369a066506ca2f8f8702aa556f99fc",
+      "packed_sha256": "f9c573a2323996599631fa8a435f7ab40663bc84538691db1b3c7818f0c8a6f2",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 5.602836608886719e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 7.510185241699219e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 8.344650268554688e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 8.344650268554688e-06
+    },
+    {
+      "fixture": "moe",
+      "split": false,
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "0c5a416d3b0173d3a2868ea8ee8cdc0a16bbd7f38e33237a908dfd28086c00aa",
+      "packed_sha256": "c88c35b80d1611e2bc940ae277b2b1306ea2f9761ab5d6633f32873d3de556b5",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.271766662597656e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 9.059906005859375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.0967254638671875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.0967254638671875e-05
+    },
+    {
+      "fixture": "moe",
+      "split": false,
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "5e4d8fffc321292a82eba45103895c3a1a36dbffb31a5a7fad92610cf4a58bbe",
+      "packed_sha256": "c9b438ce4ae3be430f44ac91194f1c844f2174baa3d991380d8754e2ff6c0c02",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 8.821487426757812e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 7.092952728271484e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 9.08970832824707e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 6.9141387939453125e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 9.08970832824707e-06
+    },
+    {
+      "fixture": "dense-untied",
+      "split": true,
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "6ffc58e3586b312e0e681372f2108ecf8f18b6c2c8b5c0ee75dcd12e2792aa34",
+      "packed_sha256": "bcd91f75f049ad2b250948e12c0799ccb0f759d487820e30738b8141040167f3",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 8.821487426757812e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.0728836059570312e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.288818359375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.4781951904296875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 2.288818359375e-05
+    },
+    {
+      "fixture": "dense-untied",
+      "split": true,
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "8395a8a43ddd2f246a0125c6a2a00cfd9cf88bb0ca38144900277161e0767a80",
+      "packed_sha256": "b0e764cbed34d87e027bb6677d3790a59411b56932edda32d9695c954b76445a",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.2874603271484375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.344650268554688e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.5020370483398438e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.7642974853515625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.7642974853515625e-05
+    },
+    {
+      "fixture": "dense-untied",
+      "split": true,
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "a3152208b2767db49eedd02c7604a82e7386df8e4c2c5ffe3f9fd96f30785dc0",
+      "packed_sha256": "2b7f19d06cda6bf8ee02be32f036b49f21541c24fa80f7dac94e7d39d9abccad",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.1920928955078125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.9311904907226562e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.8358230590820312e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.9311904907226562e-05
+    },
+    {
+      "fixture": "dense-untied",
+      "split": true,
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "9bb09ff2a046d24f896574265673122366e3d00c0232d45e75797a3ad19393e1",
+      "packed_sha256": "f755188a3e37fa7191791fd9ef4b847d7d111069ba96e63719764d5ea5e7cb63",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.5676021575927734e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.1205673217773438e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.9311904907226562e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.5974044799804688e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.9311904907226562e-05
+    },
+    {
+      "fixture": "dense-untied",
+      "split": true,
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "757bbb945bb4bced6ba2144185824c3ad9cc893a908320a2a3043d2ad08671f1",
+      "packed_sha256": "33da9a12b3eb83b8ea05b5b497e63e952b361ea74a9b29ebc7f2efa047cd69ba",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.33514404296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.4781951904296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.4543533325195312e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.7404556274414062e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.7404556274414062e-05
+    },
+    {
+      "fixture": "dense-tied",
+      "split": true,
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "7043c791753074e573aaf7d1b1072104e1d1b4a18d8af9080d9fc36ebe310b53",
+      "packed_sha256": "495268707aeb06f48a115fb4168aaf35c79f9a1228eb6f50de8b59e3de6758e3",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.0848045349121094e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.1563301086425781e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.7881393432617188e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.7881393432617188e-05
+    },
+    {
+      "fixture": "dense-tied",
+      "split": true,
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "321e6e50ee31f81b6b57080b524f6d5311fefcd389436d8864d58a2b3c06fe06",
+      "packed_sha256": "2cd445cc5e9e7421aee81a46809d219c563252b5d0a8a3198374ca261e1dffa6",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.1444091796875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.8358230590820312e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.0503997802734375e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 2.0503997802734375e-05
+    },
+    {
+      "fixture": "dense-tied",
+      "split": true,
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "31d889b8809b6e6298e7e7c693ece3c011c33cd17748a552ad1cc31adf82df42",
+      "packed_sha256": "6ce8b300e8054508110f8277ab1dc5fbe601db8733ae482c9d34b9b947e0c499",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.4781951904296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.1920928955078125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.7642974853515625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.7642974853515625e-05
+    },
+    {
+      "fixture": "dense-tied",
+      "split": true,
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "19093bb8f567fd31c7892776e364b5dc06818d3b3e9ad5398d5317ddaefc1120",
+      "packed_sha256": "a7138eb1170f7e00a6a6b7a18c24de3843da1ca62da9d05af3a1523a91838a2f",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.3828277587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.2874603271484375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.4066696166992188e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.5272369384765625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 2.5272369384765625e-05
+    },
+    {
+      "fixture": "dense-tied",
+      "split": true,
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "621dd72f8fad7b47fa66d5342a9fc2941c4749713c7c344fc2ec374750975ecc",
+      "packed_sha256": "62b6509d98f370c18aacca495b8e38823542b9eeb168c4a8e37c5c405b70d820",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.0848045349121094e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.1682510375976562e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.193450927734375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.6450881958007812e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 2.193450927734375e-05
+    },
+    {
+      "fixture": "moe",
+      "split": true,
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "6987dcf3706710452ca1d34530df35282567bc191c9b4e9b7017f4a36de4c88f",
+      "packed_sha256": "9c2cde556f08da46e8b17fdfd030d12daa239b65127fc62e3431befba833627d",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.3365020751953125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.2874603271484375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.7404556274414062e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 4.38690185546875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 4.38690185546875e-05
+    },
+    {
+      "fixture": "moe",
+      "split": true,
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "67c02aef410f293b783471070ce17ef8f4929a3a8d58621f23cd8285d94c7d4e",
+      "packed_sha256": "2d4ae2f9a1da85e0b5e85bc5841a2b7fdbe8a6c0c9c5ef84a68317cd4fad55df",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.9073486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.5676021575927734e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.9550323486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.3126602172851562e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 2.3126602172851562e-05
+    },
+    {
+      "fixture": "moe",
+      "split": true,
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "a7cb686016d81ad37abf704b981d8557af973aced6cb6bd57c3c3ea8c64a187a",
+      "packed_sha256": "84e8145c3487018b61f17f49ee282e57a7390647a1af26bb92d9b039238bf630",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.2411346435546875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.5020370483398438e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 6.875395774841309e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 6.875395774841309e-05
+    },
+    {
+      "fixture": "moe",
+      "split": true,
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "7fe4df83edb624c8e803ba79018935b6112a34540b48aa6d03e575516e025abb",
+      "packed_sha256": "00cf8465952f2313440848713a01aa3883e1b48b2a558ceb1e1a5305712a9ea0",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.430511474609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.7404556274414062e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.9073486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.9073486328125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 1.9073486328125e-05
+    },
+    {
+      "fixture": "moe",
+      "split": true,
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "8eab3e26071214227493712ca19eaf072c2d9de101445aebe704866ff2e22cb3",
+      "packed_sha256": "216f45d1d94fbdd040c54825dcfba9cbfdcfd2f247c489e7ff310904ce175ea0",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.3828277587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.627206802368164e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.47955322265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "accepted",
+      "max_logit_error": 2.47955322265625e-05
+    }
+  ],
+  "sources": {
+    "tools/calibrate_dtype.py": "0b7558a17a261a5f8b672d22cfcecce8e4d371113f61a9b2caf11bff8360f197",
+    "tools/gen_baseline.py": "0f20ee244ac05b383bef7aa46788cc692d89e050d952da93b50c9277de364a80",
+    "tests/iq4_xs.py": "a645b1e552fa5c3dec5b6dc8927ed34174646b9bc99770b4f54a04e02c9bf7ba",
+    "tests/block_fixture.py": "9ba1bcd3c1fc5d5d65df13b62b35578ab3a696462ffc1296007d3f0ada02c9cd"
+  },
+  "max_reference_discrepancy": 6.875395774841309e-05,
+  "proposed_logit_budget": 8.875395774841308e-05,
+  "complete": true,
+  "producer_source": "import gc\nimport hashlib\nimport json\nfrom pathlib import Path\nimport sys\n\nsys.path[:0]=['/w/tools','/w/tests']\nimport torch\nimport transformers\nimport numpy\nimport calibrate_dtype as calibration\nfrom f32 import TEXTS\n\nassert (torch.__version__,transformers.__version__,numpy.__version__)==('2.5.1+cpu','4.55.2','2.2.6')\ntorch.set_num_threads(1)\nreport=dict(status='proposal only; not installed in a consumer',family='iq4-xs',method='Original fixed F32 logit margin plus the worst routing-stable HF F32 full-forward versus one-token cached-forward final-logit discrepancy, across existing family_models. No llmx candidate output is read. NLL remains unchanged.',base_logit_margin=2e-5,nll_budget_unchanged=1e-5,versions=[torch.__version__,transformers.__version__,numpy.__version__],seeds=[12345]+list(calibration.SEEDS),runs=[])\nreport['sources']={n:hashlib.sha256((Path('/w')/n).read_bytes()).hexdigest() for n in ('tools/calibrate_dtype.py','tools/gen_baseline.py','tests/iq4_xs.py','tests/block_fixture.py')}\ndef routes(trace):\n    rows={}\n    for call in trace:\n        rows.setdefault(call['router'],[]).extend(call['experts'])\n    return rows\nfor model,identity in calibration.family_models('iq4-xs'):\n    trace=[]\n    hooks=calibration.routing_hooks(model,trace)\n    row=dict(identity,cases=[],routing_stable=True)\n    try:\n        with torch.inference_mode():\n            for index,text in enumerate(TEXTS):\n                ids=torch.tensor([list(text.encode('ascii'))])\n                trace.clear()\n                full=model(ids,use_cache=False).logits[0,-1]\n                original=routes(trace)\n                if identity['seed']==12345:\n                    name='baseline_iq4_xs_split.json' if identity['split'] else 'baseline_iq4_xs.json'\n                    doc=json.loads((Path('/w/tests/data')/name).read_text())\n                    fixture=next(f for f in doc['fixtures'] if f['name']==identity['fixture'])\n                    assert identity['weights_sha256']==fixture['weights_sha256'] and identity['packed_sha256']==fixture['packed_sha256']\n                    assert torch.equal(full,torch.tensor(fixture['cases'][index]['logits']))\n                trace.clear()\n                cache=None\n                for pos in range(ids.shape[1]):\n                    result=model(ids[:,pos:pos+1],past_key_values=cache,use_cache=True)\n                    cache=result.past_key_values\n                final=result.logits[0,-1]\n                stable=original==routes(trace)\n                error=float((full-final).abs().max())\n                assert torch.isfinite(full).all() and torch.isfinite(final).all()\n                row['cases'].append(dict(text=text,logit_error=error,routing_stable=stable))\n                row['routing_stable'] &= stable\n                del cache,result,full,final\n    finally:\n        for hook in hooks:\n            hook.remove()\n    row['status']='accepted' if row['routing_stable'] else 'refused'\n    row['max_logit_error']=max(c['logit_error'] for c in row['cases'])\n    report['runs'].append(row)\n    Path('/out/proposal.json').write_text(json.dumps(report,indent=2)+'\\n')\n    print(json.dumps({k:v for k,v in row.items() if k not in ('cases','config')}),flush=True)\n    del model\n    gc.collect()\nassert len(report['runs'])==30\nassert all(r['routing_stable'] for r in report['runs'] if r['seed']==12345)\nreport['max_reference_discrepancy']=max(r['max_logit_error'] for r in report['runs'] if r['routing_stable'])\nreport['proposed_logit_budget']=report['base_logit_margin']+report['max_reference_discrepancy']\nreport['complete']=True\nPath('/out/proposal.json').write_text(json.dumps(report,indent=2)+'\\n')\nprint(json.dumps({k:v for k,v in report.items() if k not in ('runs','sources')}),flush=True)\n",
+  "producer_sha256": "b119f37556e373a733754c3028508b38ef5e5c568cf71a7aa575c9f61a0e9e66",
+  "execution": {
+    "start": 1792534769.7012906,
+    "mem_available": 24767393792,
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-iq4-xs-f32-proposal-20261021",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "14,15",
+      "--memory",
+      "6g",
+      "--memory-swap",
+      "6g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=256m",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/calibrate-f32-proposal.py:/runner.py:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/f32-reference-proposal:/out",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "/runner.py"
+    ],
+    "exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T22:19:29.802901204Z",
+      "FinishedAt": "2026-10-20T22:25:12.271090934Z"
+    },
+    "end": 1792535112.5216205
+  },
+  "review": "Independent helper reviewed coverage and method: coherent family-scoped proposal, but a material relaxation that can mask errors in other family variants. User approval is required before installation under docs/PRECISION.md section 4. No approval or consumer change is claimed."
+}

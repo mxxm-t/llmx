@@ -80,6 +80,7 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(generator.parse_args(["qwen4exp-tiny"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["q5-1"]).output_dir, generator.OUT_DIR)
         self.assertEqual(generator.parse_args(["iq4-nl"]).output_dir, generator.OUT_DIR)
+        self.assertEqual(generator.parse_args(["iq4-xs"]).output_dir, generator.OUT_DIR)
         alternate = ["logits", "--repo", "Qwen/Qwen3-8B", "--revision", "a" * 40]
         invalid = [
             ["typo"], ["logits", "--revision", "main"],
@@ -98,6 +99,7 @@ class ReferenceGenerator(unittest.TestCase):
             ["q5-0", "--threads", "2"], ["q5-0", "--revision", "b" * 40],
             ["q5-1", "--threads", "2"], ["q5-1", "--revision", "b" * 40],
             ["iq4-nl", "--threads", "2"], ["iq4-nl", "--revision", "c" * 40],
+            ["iq4-xs", "--threads", "2"], ["iq4-xs", "--revision", "c" * 40],
             ["file-exact"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
@@ -139,6 +141,40 @@ class ReferenceGenerator(unittest.TestCase):
                     self.assertEqual(config, golden["config"])
                     self.assertEqual(module.weight_hash(weights), golden["weights_sha256"])
                     self.assertEqual(module.packed_hash(packed), golden["packed_sha256"])
+
+    def test_iq4_xs_fixture_block_layout(self):
+        import iq4_xs
+        import spec_decode as sd
+
+        config, weights, packed = iq4_xs.fixture(True, False)
+        self.assertEqual((config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]), (256, 768, 128))
+        for _, shape, type_id, payload in packed:
+            self.assertEqual(type_id, sd.IQ4_XS)
+            self.assertEqual(shape[0] % 256, 0)
+            self.assertEqual(len(payload), math.prod(shape) // 256 * 136)
+        self.assertEqual(config["context_length"], 16)
+        self.assertEqual(next(shape[1] for name, _, shape, _ in weights if name == "token_embd.weight"), 257)
+
+    def test_iq4_xs_uses_shared_generator_and_f32_bounds(self):
+        import iq4_xs
+        import common
+
+        with patch.object(generator, "gen_block_family") as generate:
+            generator.main(["iq4-xs"])
+        generate.assert_called_once_with("iq4-xs", "IQ4_XS", iq4_xs.fixture, generator.OUT_DIR)
+        self.assertEqual(common.hf_bounds("f32", [["f32"]], "iq4-xs"), {"logit": 2e-5, "nll": 1e-5})
+        with open(Path(common.ROOT) / "tests/data/dtype_budget.json", encoding="utf-8") as f:
+            budget = json.load(f)["families"]["iq4-xs"]["dtypes"]
+        for dtype, path in (("f16", "block-int16"), ("bf16", "bf16"), ("int8", "block-int8")):
+            self.assertEqual(common.hf_bounds(dtype, [[path]], "iq4-xs"),
+                             {key: budget[dtype][key + "_budget"] for key in ("logit", "nll")})
+        with self.assertRaisesRegex(AssertionError, "missing frozen fixture-family budget"):
+            common.hf_bounds("f16", [["block-int16"]], "unfrozen-family")
+        config, _, packed = iq4_xs.fixture(True, False, split=True)
+        self.assertEqual((config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]), (1024, 1024, 256))
+        for name, shape, _, _ in packed:
+            if name.endswith(("attn_output.weight", "ffn_down.weight")):
+                self.assertEqual((shape[0] // 4) % 256, 0, name)
 
     def test_iq4_split_fixture_layout(self):
         import iq4_nl
@@ -1263,16 +1299,17 @@ class DtypeCalibration(unittest.TestCase):
 
     def test_family_covers_shapes_variants_and_seeds(self):
         import q5_1
-        identities = []
+        import iq4_xs
         fixture = ({"context_length": 16}, [], [])
-        with patch.object(q5_1, "fixture", return_value=fixture) as source, \
-                patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
-            for _, identity in self.calibration.family_models("q5-1"):
-                identities.append((identity["fixture"], identity["split"], identity["seed"]))
         expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
                     for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
-        self.assertEqual(set(identities), expected)
-        self.assertEqual(source.call_count, len(expected))
+        for family, module in (("q5-1", q5_1), ("iq4-xs", iq4_xs)):
+            with self.subTest(family=family), patch.object(module, "fixture", return_value=fixture) as source, \
+                    patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
+                identities = [(identity["fixture"], identity["split"], identity["seed"])
+                              for _, identity in self.calibration.family_models(family)]
+                self.assertEqual(set(identities), expected)
+                self.assertEqual(source.call_count, len(expected))
 
     def test_q5_0_family_covers_frozen_shapes_variants_and_seeds(self):
         self.assertEqual(self.calibration.SEEDS, (0, 1, 2, 3))

@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q5-0|q5-1|iq4-nl|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q5-0|q5-1|iq4-nl|iq4-xs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -16,7 +16,7 @@ file-exact writes the logit and PPL goldens of the reference model holding a qwe
 The independent synthetic f32, moe, mxfp4 and iq4-nl fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 int8 writes the goldens of tests/int8.py's 512-token Q8_0 fixtures, HF float32 holding each fixture's file's own weights at its own seed, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
-all includes f32 and moe regardless of --repo; mxfp4, q5-0, q5-1 and iq4-nl are generated explicitly.
+all includes f32 and moe regardless of --repo; mxfp4, q5-0, q5-1, iq4-nl and iq4-xs are generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
@@ -959,6 +959,11 @@ def gen_iq4_nl(output_dir=OUT_DIR):
     gen_block_family("iq4-nl", "IQ4_NL", fixture, output_dir)
 
 
+def gen_iq4_xs(output_dir=OUT_DIR):
+    from iq4_xs import fixture
+    gen_block_family("iq4-xs", "IQ4_XS", fixture, output_dir)
+
+
 def tiny_moe(seed=67890, config=None, vocab=257):
     """The tiny qwen3moe model of tests/moe.py, or one of `config`'s shapes over `vocab` tokens, as an HF Qwen3MoeForCausalLM holding the weights moe.tensors builds from `seed`; returns the model and those weights."""
     import torch
@@ -1585,6 +1590,7 @@ FIXED_KINDS = {
     "q5-1": "uses fixed synthetic raw blocks and one thread",
 
     "iq4-nl": "uses fixed synthetic raw blocks and one thread",
+    "iq4-xs": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
     "qwen35-mtp": "uses fixed synthetic weights and one thread",
@@ -1594,7 +1600,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q5-0", "q5-1", "iq4-nl", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1708,6 +1714,8 @@ def main(argv=None):
 
     if args.kind == "iq4-nl":
         gen_iq4_nl(args.output_dir)
+    if args.kind == "iq4-xs":
+        gen_iq4_xs(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
     if args.kind == "qwen35-tiny":

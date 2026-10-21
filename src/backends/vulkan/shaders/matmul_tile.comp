@@ -195,12 +195,12 @@ void main() {
                 uint o = (wr * nblocks + k0 / 32u) * Q5_0_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = q5_0_at(o, wseg * WVALS + i, d);
-            } else if (p.type == TYPE_IQ4_NL) {
-                uint o = (wr * nblocks + k0 / IQ4_NL_BLOCK) * IQ4_NL_BYTES;
-                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+            } else if (p.type == TYPE_IQ4_NL || p.type == TYPE_IQ4_XS) {
+                float d;
+                uint codes = iq4_group(p.type, wr, p.nin, k0 / 32u, d);
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
-                    ws[k][wrow] = iq4_nl_at(o, k, d);
+                    ws[k][wrow] = iq4_at(codes, k, d);
                 }
             } else if (p.type == TYPE_Q4_1 || p.type == TYPE_Q5_1) {
                 uint o = (wr * nblocks + k0 / 32u) * block_bytes(p.type);

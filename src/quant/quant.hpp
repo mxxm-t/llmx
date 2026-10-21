@@ -157,16 +157,36 @@ inline void dequantize_row_q5_1(const uint8_t* src, float* dst, size_t nblocks) 
 
 inline constexpr int8_t IQ4_NL_VALUES[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};
 
+// Both IQ4 formats store each 32-value group's low nibbles before its high nibbles.
+inline void dequantize_iq4_group(const uint8_t* qs, float d, float* dst) {
+    for (size_t j = 0; j < 16; ++j) {
+        dst[j] = d * float(IQ4_NL_VALUES[qs[j] & 15]);
+        dst[j + 16] = d * float(IQ4_NL_VALUES[qs[j] >> 4]);
+    }
+}
+
+// IQ4_XS sub-block g: four low bits in a nibble, two high bits in the little-endian word.
+inline int iq4_xs_scale(const uint8_t* block, size_t g) {
+    const unsigned high = unsigned(block[2]) | (unsigned(block[3]) << 8);
+    return int(((block[4 + g / 2] >> (4 * (g % 2))) & 15) | (((high >> (2 * g)) & 3) << 4)) - 32;
+}
+
 // IQ4_NL keeps the low nibbles in the first half of the block and the high nibbles in the second.
 inline void dequantize_row_iq4_nl(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; ++b) {
         const uint8_t* y = src + b * IQ4_NL_TYPESIZE;
         float* x = dst + b * IQ4_NL_BLOCK;
         const float d = f16_to_f32(uint16_t(y[0] | (uint16_t(y[1]) << 8)));
-        for (size_t j = 0; j < IQ4_NL_BLOCK / 2; ++j) {
-            x[j] = d * float(IQ4_NL_VALUES[y[2 + j] & 15]);
-            x[j + IQ4_NL_BLOCK / 2] = d * float(IQ4_NL_VALUES[y[2 + j] >> 4]);
-        }
+        dequantize_iq4_group(y + 2, d, x);
+    }
+}
+
+inline void dequantize_row_iq4_xs(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const uint8_t* y = src + b * IQ4_XS_TYPESIZE;
+        const float d = f16_to_f32(uint16_t(y[0] | (uint16_t(y[1]) << 8)));
+        for (size_t g = 0; g < 8; ++g)
+            dequantize_iq4_group(y + 8 + 16 * g, d * float(iq4_xs_scale(y, g)), dst + b * IQ4_XS_BLOCK + 32 * g);
     }
 }
 
@@ -216,6 +236,8 @@ private:
           { *storage_type(GGML_TYPE_BF16), nullptr, dequantize_row_bf16 } },
         { GGML_TYPE_IQ4_NL,
           { *storage_type(GGML_TYPE_IQ4_NL), nullptr, dequantize_row_iq4_nl } },
+        { GGML_TYPE_IQ4_XS,
+          { *storage_type(GGML_TYPE_IQ4_XS), nullptr, dequantize_row_iq4_xs } },
         { GGML_TYPE_F32,
           { *storage_type(GGML_TYPE_F32), nullptr, nullptr } },
     } {}

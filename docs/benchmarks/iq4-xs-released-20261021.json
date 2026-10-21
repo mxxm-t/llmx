@@ -1,0 +1,2237 @@
+{
+  "source_checkpoint": "b53f9197a0fbdba48e22948f604407498c7705d6",
+  "scope": "Released file-exact short checks and retained split diagnosis; no changed model/precision bound and no merge qualification.",
+  "reference": {
+    "start": 1792533353.301326,
+    "source_pins": {
+      "tools/gen_baseline.py": "0f20ee244ac05b383bef7aa46788cc692d89e050d952da93b50c9277de364a80",
+      "tools/gen_chat_baseline.py": "1ec057bf7d9ec18a69531d662ff58c5a82b41efac7f19cf3470ff4f7adc75998",
+      "tests/spec_decode.py": "89ea4338b8009147338ce6fb8c5b1663dec3d7e107934ee3b942d6106ab6ccda",
+      "tests/f32.py": "33f5649419b907922b997c17647403f4b91b1c2d0cc470221d25144468535da0",
+      "tests/baseline.py": "45a79515e02021a702976634fac0e30b889a124ef53fdec4b9f50774f921d935",
+      "tests/baseline_8b.py": "5458095d73e4a17316d39d0ba546ccad1d7cb300500b4811e99c0a0b7a01e1f3",
+      "tests/tokenizer.py": "e1c383c6b5f9aa7ee4e9ff860a8b50a22efdb53eeb0288a10ad595eabbd618ae",
+      "tests/data/fixtures.json": "706a54cf94b90a05b6ffbac9a00d2cab9b205e527c50b367baf4153478c0c091"
+    },
+    "model": "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+    "model_spec": {
+      "family": "qwen3",
+      "repo": "unsloth/Qwen3-0.6B-GGUF",
+      "file": "Qwen3-0.6B-IQ4_XS.gguf",
+      "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+      "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+      "size": 367804096,
+      "gate": false,
+      "hosted": true
+    },
+    "snapshot": {
+      "config.json": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+      "tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+      "tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+      "generation_config.json": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2",
+      "model.safetensors": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"
+    },
+    "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--init",
+      "--name",
+      "llmx-xdev-iq4-xs-file-reference-20261021",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "2,3",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=256m",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "HF_HOME=/cache",
+      "-e",
+      "HF_HUB_CACHE=/cache/hub",
+      "-e",
+      "TOKENIZERS_PARALLELISM=false",
+      "-e",
+      "OMP_NUM_THREADS=2",
+      "-e",
+      "MKL_NUM_THREADS=2",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q5-file-reference/hf-cache:/cache:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src:/w:ro",
+      "-v",
+      "/zpool1/models/llmx-xdev-iq4-xs-20261021:/models:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/released-reference-v2:/out",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "-c",
+      "import torch,transformers,numpy,runpy,sys; assert (torch.__version__,transformers.__version__,numpy.__version__)==('2.5.1+cpu','4.55.2','2.2.6'); print('pinned HF environment verified',flush=True); sys.argv=['tools/gen_baseline.py','file-exact','--weights-gguf','/models/Qwen3-0.6B-IQ4_XS.gguf','--output-dir','/out/goldens','--threads','2']; runpy.run_path(sys.argv[0],run_name='__main__')"
+    ],
+    "exit": 0,
+    "end": 1792533383.0740159
+  },
+  "consumer": {
+    "binary_sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+    "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+    "version": "llmx 0.1.0+unknown numerics b95b8023244846e2",
+    "sources": {
+      "tests/baseline.py": "155314c96478ffa4e65d4a7fe7fe2db44fc022e7b1da03e06962224ca19e5ff8",
+      "tests/common.py": "6f5ee60f31ac4816d82d5291ec8ae8b0ccc92236e50771c5d7ebe9f55503523f"
+    },
+    "goldens": {
+      "baseline_logits.json": "e2c93baee47dcd34af7c0f1e15147b82a060f1018d866432abc5f60389371577",
+      "baseline_perplexity.json": "122a5d042a7e3dba19ed89242055725bec7bbc66fe66df42b44bdd1e741433e3"
+    },
+    "calls": [
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.6917827129364014,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.4246201515197754,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.45352673530578613,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.42646217346191406,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.5173065662384033,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.5460209846496582,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "tokenize",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+        ],
+        "exit": 0,
+        "seconds": 0.15868663787841797,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.9414818286895752,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 2.4794673919677734,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.9407637119293213,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 2.364722490310669,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.6636364459991455,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 1.4720077514648438,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 0.7939450740814209,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_wmaf5gx7/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto"
+        ],
+        "exit": 0,
+        "seconds": 2.4101381301879883,
+        "dtype": "auto"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.4630300998687744,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.4814271926879883,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.432265043258667,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.48592519760131836,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.4590270519256592,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.5158100128173828,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "tokenize",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+        ],
+        "exit": 0,
+        "seconds": 0.15584659576416016,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.985192060470581,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 5.179356813430786,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.9970250129699707,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 5.1418211460113525,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.7051599025726318,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 2.894301176071167,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 0.9250249862670898,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_1hdn_z1c/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32"
+        ],
+        "exit": 0,
+        "seconds": 5.27594518661499,
+        "dtype": "f32"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.6071805953979492,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.4948852062225342,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.4415440559387207,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.46805381774902344,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.43961334228515625,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.5105745792388916,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "tokenize",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+        ],
+        "exit": 0,
+        "seconds": 0.16647839546203613,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 1.068873405456543,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 7.510096549987793,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.9974961280822754,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 7.507126092910767,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.7211494445800781,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 4.075892686843872,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 0.9627704620361328,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_k3cyely0/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 7.7256457805633545,
+        "dtype": "bf16"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.46877503395080566,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "Machine learning is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.4634101390838623,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "def add(a, b):",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.4372379779815674,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.42350125312805176,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "In 1969, humans first walked on the",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.4331789016723633,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "logits",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.4687764644622803,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "tokenize",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+        ],
+        "exit": 0,
+        "seconds": 0.16039466857910156,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.8529872894287109,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 2.67756986618042,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.8323493003845215,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 2.38179349899292,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.6313207149505615,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "64",
+          "--chunks",
+          "2",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 1.4914395809173584,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 0.8632028102874756,
+        "dtype": "int8"
+      },
+      {
+        "argv": [
+          "/source/build/llmx",
+          "perplexity",
+          "/models/Qwen3-0.6B-IQ4_XS.gguf",
+          "--file",
+          "/tmp/llmx_ppl_zmh57nux/excerpt.txt",
+          "--threads",
+          "6",
+          "--per-token",
+          "--ctx-size",
+          "123",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8"
+        ],
+        "exit": 0,
+        "seconds": 2.4212331771850586,
+        "dtype": "int8"
+      }
+    ],
+    "steps": [
+      {
+        "dtype": "auto",
+        "exit": 0,
+        "seconds": 15.554288148880005
+      },
+      {
+        "dtype": "f32",
+        "exit": 0,
+        "seconds": 25.365574598312378
+      },
+      {
+        "dtype": "bf16",
+        "exit": 0,
+        "seconds": 33.96439480781555
+      },
+      {
+        "dtype": "int8",
+        "exit": 0,
+        "seconds": 15.276435136795044
+      }
+    ]
+  },
+  "execution": {
+    "start": 1792533750.6512558,
+    "availability": {
+      "pci": "0000:89:00.0",
+      "busy": 0,
+      "vram": 10932224
+    },
+    "mem_available": 30783225856,
+    "passed": true,
+    "exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T22:02:30.753175315Z",
+      "FinishedAt": "2026-10-20T22:04:01.703049691Z"
+    },
+    "end": 1792533841.9516473
+  },
+  "policies": {
+    "auto": {
+      "ranking": "file-exact-logits[Qwen3-0.6B-IQ4_XS.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]",
+      "nll_rows": [
+        [
+          3.5e-05,
+          0.01
+        ],
+        [
+          0.000115,
+          0.01
+        ],
+        [
+          0.000184,
+          0.02
+        ],
+        [
+          0.000194,
+          0.02
+        ],
+        [
+          0.00031,
+          0.02
+        ],
+        [
+          0.00034,
+          0.02
+        ],
+        [
+          9.3e-05,
+          0.02
+        ],
+        [
+          0.000133,
+          0.02
+        ]
+      ],
+      "max_continuous_nll": 0.000115,
+      "max_window_nll": 0.00034
+    },
+    "f32": {
+      "ranking": "file-exact-logits[Qwen3-0.6B-IQ4_XS.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]",
+      "nll_rows": [
+        [
+          0.000115,
+          0.01
+        ],
+        [
+          0.000155,
+          0.01
+        ],
+        [
+          0.000194,
+          0.02
+        ],
+        [
+          0.000184,
+          0.02
+        ],
+        [
+          0.00028,
+          0.02
+        ],
+        [
+          0.00028,
+          0.02
+        ],
+        [
+          5.3e-05,
+          0.02
+        ],
+        [
+          9.3e-05,
+          0.02
+        ]
+      ],
+      "max_continuous_nll": 0.000155,
+      "max_window_nll": 0.00028
+    },
+    "bf16": {
+      "ranking": "file-exact-logits[Qwen3-0.6B-IQ4_XS.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]",
+      "nll_rows": [
+        [
+          3.5e-05,
+          0.01
+        ],
+        [
+          0.000945,
+          0.01
+        ],
+        [
+          0.001416,
+          0.02
+        ],
+        [
+          0.000786,
+          0.02
+        ],
+        [
+          0.00275,
+          0.02
+        ],
+        [
+          0.00105,
+          0.02
+        ],
+        [
+          0.001633,
+          0.02
+        ],
+        [
+          0.001793,
+          0.02
+        ]
+      ],
+      "max_continuous_nll": 0.000945,
+      "max_window_nll": 0.00275
+    },
+    "int8": {
+      "ranking": "file-exact-logits[Qwen3-0.6B-IQ4_XS.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]",
+      "nll_rows": [
+        [
+          0.000245,
+          0.01
+        ],
+        [
+          0.000245,
+          0.01
+        ],
+        [
+          0.003204,
+          0.02
+        ],
+        [
+          0.003294,
+          0.02
+        ],
+        [
+          0.00274,
+          0.02
+        ],
+        [
+          0.00217,
+          0.02
+        ],
+        [
+          0.000777,
+          0.02
+        ],
+        [
+          0.000807,
+          0.02
+        ]
+      ],
+      "max_continuous_nll": 0.000245,
+      "max_window_nll": 0.003294
+    }
+  },
+  "split_cpu": {
+    "binary_sha256": "4145137158f235fd39a376b0daea7e1e66c1fc709c1843dda0319120ff494a43",
+    "packed_widened_printed_byte_identity": true,
+    "cases": [
+      {
+        "storage": "packed",
+        "ubatch": 1,
+        "case": 0,
+        "seconds": 0.16933059692382812,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "a",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.341914749147799e-05,
+        "worst_id": 220,
+        "got": -0.275954,
+        "expected": -0.27596741914749146,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "packed",
+        "ubatch": 1,
+        "case": 1,
+        "seconds": 0.029973506927490234,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "ab",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.168328857412362e-05,
+        "worst_id": 18,
+        "got": -3.911979,
+        "expected": -3.912020683288574,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "packed",
+        "ubatch": 1,
+        "case": 2,
+        "seconds": 0.03654623031616211,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "abc",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 3.286351013187527e-05,
+        "worst_id": 42,
+        "got": 3.014087,
+        "expected": 3.014119863510132,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "packed",
+        "ubatch": 1,
+        "case": 3,
+        "seconds": 0.06760644912719727,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "abcdefg",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.2334289550608446e-05,
+        "worst_id": 176,
+        "got": 6.34581,
+        "expected": 6.345822334289551,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "packed",
+        "ubatch": 1,
+        "case": 4,
+        "seconds": 0.11517572402954102,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "abcdefghijklm",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.341357421910885e-05,
+        "worst_id": 18,
+        "got": 4.803843,
+        "expected": 4.803886413574219,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "packed",
+        "ubatch": 16,
+        "case": 0,
+        "seconds": 0.02300119400024414,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "a",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.341914749147799e-05,
+        "worst_id": 220,
+        "got": -0.275954,
+        "expected": -0.27596741914749146,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "packed",
+        "ubatch": 16,
+        "case": 1,
+        "seconds": 0.022517919540405273,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "ab",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.168328857412362e-05,
+        "worst_id": 18,
+        "got": -3.911979,
+        "expected": -3.912020683288574,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "packed",
+        "ubatch": 16,
+        "case": 2,
+        "seconds": 0.023101329803466797,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "abc",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 3.286351013187527e-05,
+        "worst_id": 42,
+        "got": 3.014087,
+        "expected": 3.014119863510132,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "packed",
+        "ubatch": 16,
+        "case": 3,
+        "seconds": 0.024544715881347656,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "abcdefg",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.2334289550608446e-05,
+        "worst_id": 176,
+        "got": 6.34581,
+        "expected": 6.345822334289551,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "packed",
+        "ubatch": 16,
+        "case": 4,
+        "seconds": 0.02563953399658203,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\packed.gguf",
+          "abcdefghijklm",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.341357421910885e-05,
+        "worst_id": 18,
+        "got": 4.803843,
+        "expected": 4.803886413574219,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "widened",
+        "ubatch": 1,
+        "case": 0,
+        "seconds": 0.05355358123779297,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "a",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.341914749147799e-05,
+        "worst_id": 220,
+        "got": -0.275954,
+        "expected": -0.27596741914749146,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "widened",
+        "ubatch": 1,
+        "case": 1,
+        "seconds": 0.04957413673400879,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "ab",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.168328857412362e-05,
+        "worst_id": 18,
+        "got": -3.911979,
+        "expected": -3.912020683288574,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "widened",
+        "ubatch": 1,
+        "case": 2,
+        "seconds": 0.06264543533325195,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "abc",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 3.286351013187527e-05,
+        "worst_id": 42,
+        "got": 3.014087,
+        "expected": 3.014119863510132,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "widened",
+        "ubatch": 1,
+        "case": 3,
+        "seconds": 0.0772850513458252,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "abcdefg",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.2334289550608446e-05,
+        "worst_id": 176,
+        "got": 6.34581,
+        "expected": 6.345822334289551,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "widened",
+        "ubatch": 1,
+        "case": 4,
+        "seconds": 0.11307477951049805,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "abcdefghijklm",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.341357421910885e-05,
+        "worst_id": 18,
+        "got": 4.803843,
+        "expected": 4.803886413574219,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "widened",
+        "ubatch": 16,
+        "case": 0,
+        "seconds": 0.04858207702636719,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "a",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.341914749147799e-05,
+        "worst_id": 220,
+        "got": -0.275954,
+        "expected": -0.27596741914749146,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "widened",
+        "ubatch": 16,
+        "case": 1,
+        "seconds": 0.04608654975891113,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "ab",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.168328857412362e-05,
+        "worst_id": 18,
+        "got": -3.911979,
+        "expected": -3.912020683288574,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "widened",
+        "ubatch": 16,
+        "case": 2,
+        "seconds": 0.04704880714416504,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "abc",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 3.286351013187527e-05,
+        "worst_id": 42,
+        "got": 3.014087,
+        "expected": 3.014119863510132,
+        "within_existing_bound": false
+      },
+      {
+        "storage": "widened",
+        "ubatch": 16,
+        "case": 3,
+        "seconds": 0.050475120544433594,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "abcdefg",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 1.2334289550608446e-05,
+        "worst_id": 176,
+        "got": 6.34581,
+        "expected": 6.345822334289551,
+        "within_existing_bound": true
+      },
+      {
+        "storage": "widened",
+        "ubatch": 16,
+        "case": 4,
+        "seconds": 0.04972028732299805,
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq4-xs-vulkan\\split-moe-cpu\\widened.gguf",
+          "abcdefghijklm",
+          "--top",
+          "260",
+          "--threads",
+          "2",
+          "--ubatch",
+          "16",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--device",
+          "cpu"
+        ],
+        "max_error": 4.341357421910885e-05,
+        "worst_id": 18,
+        "got": 4.803843,
+        "expected": 4.803886413574219,
+        "within_existing_bound": false
+      }
+    ],
+    "limitation": "Six-decimal CLI logits, not binary capture identity."
+  },
+  "hf_self": {
+    "cases": [
+      {
+        "text": "a",
+        "max_full_vs_cached_error": 0.0,
+        "worst_id": 0,
+        "same_existing_2e5_bound": true
+      },
+      {
+        "text": "ab",
+        "max_full_vs_cached_error": 2.3365020751953125e-05,
+        "worst_id": 18,
+        "same_existing_2e5_bound": false
+      },
+      {
+        "text": "abc",
+        "max_full_vs_cached_error": 1.2874603271484375e-05,
+        "worst_id": 144,
+        "same_existing_2e5_bound": true
+      },
+      {
+        "text": "abcdefg",
+        "max_full_vs_cached_error": 1.7404556274414062e-05,
+        "worst_id": 69,
+        "same_existing_2e5_bound": true
+      },
+      {
+        "text": "abcdefghijklm",
+        "max_full_vs_cached_error": 4.38690185546875e-05,
+        "worst_id": 142,
+        "same_existing_2e5_bound": false
+      }
+    ],
+    "interpretation": "Pinned HF full-forward exactly reproduces saved goldens but its cached forward exceeds2e-5 on two of five cases. This establishes reference-path sensitivity, not a candidate pass or proof of no shared arithmetic defect."
+  },
+  "retained_failures": [
+    "First reference launcher used obsolete snapshot manifest directory and stopped before container creation; corrected v2 uses pinned q50-real-reference-a1fc99258 manifest.",
+    "Original split2/4 stopped at six-significant-digit NLL summary. Separate output fix clears dense cases at both widths, then MoE fails at TP2 3.568e-5 and TP4 3.268e-5 against2e-5. Original and diagnostic failures retained; no bound changed."
+  ],
+  "artifact_sha256": {
+    "released-reference-v2\\reference.log": "58dad96f210205d4ba561e442fef08ae25319b85702e4bfdd6ccb5b4c2825a58",
+    "released-consumer\\consumer.log": "f58cbf60464c419d88b06358a33d9c165326a54911993f95266fa8824e485a8e",
+    "released-consumer\\report.json": "6a16ff7b9e26980428e8873943ea33bb05cbd1e61b8a6499ebfe03485b4aa31d",
+    "split-moe-cpu\\result.json": "f347c0a4f8859ac8f7acf6f335fb366ebc02dab41babc5736d98d0f787ae272c",
+    "hf-moe-self\\result.json": "b7ff83e6087e84273c21e8c672e23e3532bc722f881ca4e513e4c1c9358b3131"
+  },
+  "golden_sha256": {
+    "baseline_logits.json": "e2c93baee47dcd34af7c0f1e15147b82a060f1018d866432abc5f60389371577",
+    "baseline_perplexity.json": "122a5d042a7e3dba19ed89242055725bec7bbc66fe66df42b44bdd1e741433e3"
+  },
+  "wide_diagnostic": {
+    "scope": "Diagnostic only: HF model double weights/products/state, RMS reductions and softmax in F64. Original HF rotary F32 phase table intentionally retained. Not a new acceptance oracle or changed golden.",
+    "cases": [
+      {
+        "text": "a",
+        "cpu_vs_wide": 5.442755697693258e-06,
+        "hf_f32_vs_wide": 1.1517123499560356e-05,
+        "wide_full_vs_cached": 0.0
+      },
+      {
+        "text": "ab",
+        "cpu_vs_wide": 8.815356131286478e-06,
+        "hf_f32_vs_wide": 3.7512412725426714e-05,
+        "wide_full_vs_cached": 5.417888360170764e-14
+      },
+      {
+        "text": "abc",
+        "cpu_vs_wide": 1.0249925215255473e-05,
+        "hf_f32_vs_wide": 3.0068550896267254e-05,
+        "wide_full_vs_cached": 6.572520305780927e-14
+      },
+      {
+        "text": "abcdefg",
+        "cpu_vs_wide": 1.0156804163941047e-05,
+        "hf_f32_vs_wide": 1.3761973294279528e-05,
+        "wide_full_vs_cached": 3.907985046680551e-14
+      },
+      {
+        "text": "abcdefghijklm",
+        "cpu_vs_wide": 2.356093966504602e-05,
+        "hf_f32_vs_wide": 2.4638317336567184e-05,
+        "wide_full_vs_cached": 1.0125233984581428e-13
+      }
+    ],
+    "result_sha256": "6f3e9374c49627bff22db3b8fe2e7e2bd2a2d98db2c72fa381c41058fa7f2393",
+    "interpretation": "Higher precision narrows full/cached discrepancy to1.02e-13. CPU and HF each differ from this diagnostic by small F32-scale errors; original F32-vs-F32 acceptance remains unresolved, not waived."
+  },
+  "split_nll_output_diagnostic": {
+    "start": 1792532945.5283022,
+    "availability": [
+      {
+        "render": 128,
+        "pci": "0000:c3:00.0",
+        "busy": 0,
+        "vram": 10919936
+      },
+      {
+        "render": 129,
+        "pci": "0000:c6:00.0",
+        "busy": 0,
+        "vram": 10919936
+      },
+      {
+        "render": 130,
+        "pci": "0000:c9:00.0",
+        "busy": 0,
+        "vram": 10932224
+      },
+      {
+        "render": 131,
+        "pci": "0000:cc:00.0",
+        "busy": 0,
+        "vram": 10919936
+      }
+    ],
+    "binary_sha256": "15f93cdfb110ea0eea3119855db6f471b9221de8313f394cf90eca52574a4c4d",
+    "steps": [
+      {
+        "name": "split2-f32",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "f32",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--tensor-width",
+          "2",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 1,
+        "seconds": 607.685271024704
+      },
+      {
+        "name": "split4-f32",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "f32",
+          "--device",
+          "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+          "--tensor-width",
+          "4",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 1,
+        "seconds": 621.6248445510864
+      }
+    ],
+    "passed": false,
+    "original_binary_sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+    "cli_sha256": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b",
+    "nll_fix": "00537e114 output-only one-line delta; no arithmetic or bounds change",
+    "container_state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 1025824,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T21:49:05.62783866Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792534255.6115339,
+    "logs": {
+      "split2-f32.log": "IQ4_XS dense-untied HF: max logit error 0.00001472, bounds [2e-05]; max NLL error 0.00000194, bounds [1e-05]\nIQ4_XS dense-tied HF: max logit error 0.00001391, bounds [2e-05]; max NLL error 0.00000132, bounds [1e-05]\n  error: IQ4_XS moe/HF logit error: 0.00003568\n\n  iq4-xs     FAIL\n",
+      "split4-f32.log": "IQ4_XS dense-untied HF: max logit error 0.00001514, bounds [2e-05]; max NLL error 0.00000124, bounds [1e-05]\nIQ4_XS dense-tied HF: max logit error 0.00001391, bounds [2e-05]; max NLL error 0.00000096, bounds [1e-05]\n  error: IQ4_XS moe/HF logit error: 0.00003268\n\n  iq4-xs     FAIL\n"
+    },
+    "build_log_sha256": "98e39e584c2baaa8bdedfb3f92ae4dde587667ce7af4eed8c2904e4509068f70",
+    "build_verified": "CLI main.cpp compiled and linked; source delta exactly one NLL printf precision line. Both dense variants pass each width; MoE fails the unchanged F32 limit at TP2 3.568e-5 and TP4 3.268e-5. No OOM; owned container removed after completion."
+  }
+}

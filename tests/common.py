@@ -436,7 +436,7 @@ def perplexity_fields(out):
 F32_HF_LOGIT_BOUND = 2e-5
 
 
-def hf_bounds(dtype, devices, family=None):
+def hf_bounds(dtype, devices, family=None, fixture=None):
     """Tiny-fixture bounds from the matrix paths the completed measurement dispatched, one list per device; a capability record is not a witness."""
     assert dtype in ("f32", "f16", "bf16", "int8"), "unknown execution dtype"
     assert isinstance(devices, list) and devices, "missing matrix-path witness"
@@ -449,7 +449,18 @@ def hf_bounds(dtype, devices, family=None):
     allowed = {"f32": {"f32"}, "f16": {"f32", "f16", "block-int16"}, "bf16": {"f32", "bf16"}, "int8": {"f32", "block-int16", "block-int8"}}
     assert paths <= allowed[dtype], "matrix paths disagree with the execution dtype"
     if paths == {"f32"}:
-        return {"logit": F32_HF_LOGIT_BOUND, "nll": 1e-5}
+        bound = F32_HF_LOGIT_BOUND
+        if fixture is not None:
+            with open(os.path.join(ROOT, "tests", "data", "dtype_budget.json"), encoding="utf-8") as f:
+                allowances = json.load(f).get("f32_reference_allowances", [])
+            for allowance in allowances:
+                keys = ("name", "config", "weights_sha256", "packed_sha256")
+                if allowance["family"] == family and all(fixture.get(k) == allowance[k] for k in keys):
+                    spread = allowance["max_reference_logit_error"]
+                    assert math.isfinite(spread) and spread > 0, "invalid frozen reference allowance"
+                    bound += spread
+                    break
+        return {"logit": bound, "nll": 1e-5}
     # int8 runs as f16 where no product had an 8-bit build, and is held to f16's budget there.
     if dtype == "int8" and "block-int8" not in paths:
         dtype = "f16"
@@ -611,23 +622,23 @@ def ppl_command(model, path, case, mode, ubatch=None):
     return args
 
 
-def hf_execution(stderr, family=None):
+def hf_execution(stderr, family=None, fixture=None):
     """Exactly one completed CLI diagnostic witness; only actual paths choose the frozen bound."""
     records = [line[len("matrix-paths: "):] for line in stderr.splitlines() if line.startswith("matrix-paths: ")]
     assert len(records) == 1, "missing or repeated matrix-path witness"
     record = json.loads(records[0])
     assert isinstance(record, dict) and set(record) == {"dtype", "devices"}, "malformed matrix-path record"
-    return hf_bounds(record["dtype"], record["devices"], family)
+    return hf_bounds(record["dtype"], record["devices"], family, fixture)
 
 
-def run_hf(args, family=None):
+def run_hf(args, family=None, fixture=None):
     """A successful diagnostic command with f32 caches, its stdout and witnessed logit/NLL bounds."""
     p = run_process(args, cache="f32", text=True)
     assert p.returncode == 0, "HF diagnostic failed: " + p.stdout + p.stderr
-    return p.stdout, hf_execution(p.stderr, family)
+    return p.stdout, hf_execution(p.stderr, family, fixture)
 
 
-def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),), *, family=None):
+def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=((),), *, family=None, fixture=None):
     """A tiny model against its HF fixture at 1 and 4 threads, with f32 caches.
     Every case's full vocabulary and windowed NLL must stay within the bounds of the actual execution paths (a placement other than the empty one runs at 4 threads only).
     Returns the largest logit error and the number of logit comparisons."""
@@ -637,12 +648,12 @@ def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=
         for ubatch in ubatches:
             for case, placement in ((c, p) for c in cases for p in placements if threads == 4 or not p):
                 out, bounds = run_hf(["logits", model, case["text"], "--top", str(len(case["logits"])),
-                                      "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement), family=family)
+                                      "--threads", str(threads), "--ubatch", str(ubatch)] + list(placement), family=family, fixture=fixture)
                 worst = max(worst, hf_logit_error(name, dict(zip(*parse_logits(out))), case["logits"], bound=bounds["logit"]))
                 logit_bounds.add(bounds["logit"])
                 count += 1
         for case in perplexity:
-            out, bounds = run_hf(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])], family=family)
+            out, bounds = run_hf(["perplexity", model, text, "--threads", str(threads), "-c", str(case["context"])], family=family, fixture=fixture)
             error = abs(float(perplexity_fields(out)["mean NLL"]) - case["mean_nll"])
             assert math.isfinite(error) and error < bounds["nll"], "%s/HF NLL error: %.8f (bound %.8f)" % (name, error, bounds["nll"])
             worst_nll = max(worst_nll, error)

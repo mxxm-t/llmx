@@ -1,0 +1,1041 @@
+{
+  "scope": "IQ4_XS current-base integration: focused Windows/Linux checks, CPU/Vulkan baseline identity, MI50 model timing, integrated 17-component device suite, selected split policies and affected F32 requalification complete. Exact-head hosted CI and landing remain pending.",
+  "base": "609ff078621181317e20daca67550cb7a5b39361",
+  "xs": "14e723d9e76c09d211edb8284ada45174630661c",
+  "dependency": "Packed lookup is published on main609ff0786; this XS branch is rebased onto it. The intervening delta from qualified staged tree fe0 is documentation only.",
+  "runtime_tests_build_tree": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+  "source_delta_since_snapshot": "Runtime, fixture bytes and build inputs unchanged from fe0abd785. Later changes document evidence and implement the user-approved exact-fixture F32 allowance in the shared test-bound owner, its IQ4_XS caller and scope tests.",
+  "version": "llmx 0.1.0+g0f1a08a52280.dirty numerics a167275ca2df1ffc",
+  "python": "3.12.1",
+  "numpy": "2.4.3",
+  "binary_hashes": {
+    "llmx-backend-errors-test.exe": "83ec5e7d1efee1f8339d63521177d925f0b8030582585d8c367de5009d535c6a",
+    "llmx-backend-group-test.exe": "10c58da4eeeb44379c0f929441c7d2e213e356c45ea373ac993b77aa51ac7e88",
+    "llmx-backend-vulkan-test.exe": "a7fbf0179bf7b1b4330056e05955e953faba7256791205ecdc24a4607adc85ca",
+    "llmx-gguf-validation-test.exe": "67587f788748de625f2fccfedd3164fe463d558b01fd2c6a30e5b7c8b94bc900",
+    "llmx-iq4-nl-test.exe": "1b53f25a15f26a0ab665e0b08b49fc91b63230f4e4fcae223238ae87e332b216",
+    "llmx-iq4-nl-vulkan-test.exe": "3cab3eeaa82c11c4d41a6afc8f64f9013ce33c931e9d39170d36309b9eb03084",
+    "llmx-q8-dots-test.exe": "c81e651c81bc7a8e9c8c846b12dccf022f2dd160239063dbea3595955f325ddf",
+    "llmx-vulkan-quantization-test.exe": "87fb39124a11ce2d55cc888707ad54545501f8a13297f7073a92162409fa802b",
+    "llmx-vulkan.lib": "23e269ad5cd25a1f3ce2a77b7beb177cdf89b81ddacd18b7a416cfc16fda7408",
+    "llmx.exe": "3c358afa2e1ffa553b4badd6bfd9d3576ce9eeb56bef616a1a963165541d5062"
+  },
+  "build": {
+    "fresh": true,
+    "parallel": 1,
+    "compiler": "MSVC19.50.35728.0",
+    "generator": "VisualStudio18 2026",
+    "sdk": "Vulkan1.4.357.0",
+    "generated_config_sha256": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "generated_build_info_sha256": "6683b429efcdaea068d13238b91ce289d1317de00ecc203dc6c8730feca6daff",
+    "cmake_cache_sha256": "ef3b1e8afca5cdae11640b6d53bd4772e676d0bb5db74c6d5d1e58f5501ec171",
+    "cli_project_sha256": "9aa44bc37d34654841b39b4c52a5ee2288fd1253800c25a3eaac2e81180ff18a",
+    "memory": "Preflight3.69GiB freephysical; chose one worker. Sparse resource samples retained; no performance claim."
+  },
+  "checks": {
+    "cpu_native": "5/5PASS:gguf-validation,backend-group,q8-dots,backend-errors,iq4-nl",
+    "radeon_native": "3/3PASS:iq4-nl-vulkan,backend-vulkan,vulkan-quantization;42,067,056 independent decoded/product values and3,125row-class pairs.",
+    "format_reference": "3/3PASS:raw-blocks,roundtrip,reference-generator;72generator unit tests.",
+    "ordinary_hf": {
+      "hf-cpu-f32": "PASS150full-logit+12NLL",
+      "hf-cpu-bf16": "PASS150full-logit+12NLL",
+      "hf-vulkan-auto": "PASS150full-logit+12NLL",
+      "hf-vulkan-f32": "PASS150full-logit+12NLL",
+      "hf-vulkan-bf16": "PASS150full-logit+12NLL"
+    },
+    "docs": "PASS; scoped final documentation/source checks",
+    "dead-code": "PASS; scoped final documentation/source checks"
+  },
+  "hf_max_logit": {
+    "cpu_f32": 9.41e-06,
+    "cpu_bf16": 0.08048627,
+    "radeon_auto": 0.00080156,
+    "radeon_f32": 7.8e-06,
+    "radeon_bf16": 0.06318427
+  },
+  "unchanged_limits": "All previous budget values remain unchanged. One user-approved identity-scoped F32 reference allowance was added for the existing IQ4_XS split-MoE fixture only: 8.875395774841308e-5 logits with all-F32 path witnesses. Its NLL remains 1e-5; all other F32 fixtures remain 2e-5 logits. Operator, released-file and depth limits unchanged.",
+  "coverage_reuse": "CPU F16/int8 requests retain the existing F32 arithmetic for these lookup weights; GPU int8 retains block-int16/F32 with no native8 builds. Full duplicate policy sweeps were not rerun; native tests cover all requested policies and the distinct arithmetic sweeps are listed.",
+  "expected_subcase_skip": "Windows roundtrip cannot inject the POSIX child-only file-size limit; component PASS and skip retained in raw log. No component or CTest skip.",
+  "activity": "Light existing Firefox video and RuneLite activity in GPU preflights; no llmx process before launch. Functional correctness only.",
+  "audit": {
+    "path": "build-quant-resume-20261020/iq4-xs-integration/integration-review.json",
+    "sha256": "c55f4732bb4a5e4c68ac64c182d19c5b9fe397ba2c869eceb66880b2e55d0e81"
+  },
+  "artifacts": {
+    "build-quant-resume-20261020/iq4-xs-integration/build.log": "78f78149770d667d0093646adb4dcc85d4e20b2e2da8edd2e8b9b8085fd9c0af",
+    "build-quant-resume-20261020/iq4-xs-integration/configure.log": "2636851beb756bdbe65f505f05ab9b557f718ebb5f34ab548b499d3220e1eb51",
+    "build-quant-resume-20261020/iq4-xs-integration/docs-dead-code-final.log": "e548ebfd2ecf1a6d828f6515d0347faf4fed81ad177f301cf541958028679864",
+    "build-quant-resume-20261020/iq4-xs-integration/docs-dead-code.log": "d03812669e472fe40721d9329e1a573aaa07467082ad41643da90746b9f8077f",
+    "build-quant-resume-20261020/iq4-xs-integration/format-reference.log": "5b5b062707048a7e95583251890e479618255c07b61895e5baa8d8c6a65dde74",
+    "build-quant-resume-20261020/iq4-xs-integration/gpu-hf-preflight.json": "5310608ec46be040e6b170f0baa20b5774bb3b927a8d3837ac4df1bdfc244ade",
+    "build-quant-resume-20261020/iq4-xs-integration/gpu-native-preflight.json": "1e80c4daa602de8f7f74b5a984e4d547edf96973b14146c60bd508e3e03a3800",
+    "build-quant-resume-20261020/iq4-xs-integration/gpu-preflight.json": "185de159f02cc8b357504af9ee2282173e55a87d2a2531f84176e1a4ab5cd58f",
+    "build-quant-resume-20261020/iq4-xs-integration/hf-cpu-bf16.log": "1959304c81b66ebf75bd849d6f5ccf254dbad39809d543ac65ffba33abfb6d47",
+    "build-quant-resume-20261020/iq4-xs-integration/hf-cpu-f32.log": "c29d08a759628f79ffc831af1898f2df5c7fedb8eaab2184713e45b15bae1af2",
+    "build-quant-resume-20261020/iq4-xs-integration/hf-vulkan-auto.log": "8090edfdb207734a235726a072a85c9c1c38659846b845aa7197f5d6c8094acb",
+    "build-quant-resume-20261020/iq4-xs-integration/hf-vulkan-bf16.log": "8b556d61fcae012fb32403f504a8eeb90224cb0a22a9d29ff6173109d5475ca6",
+    "build-quant-resume-20261020/iq4-xs-integration/hf-vulkan-f32.log": "7bbd0c413c24f8b885fe1b0a56fd89781f0b49b8fadd13b35b810cbac9a3b715",
+    "build-quant-resume-20261020/iq4-xs-integration/integration-review.json": "c55f4732bb4a5e4c68ac64c182d19c5b9fe397ba2c869eceb66880b2e55d0e81",
+    "build-quant-resume-20261020/iq4-xs-integration/memory.jsonl": "1b28568783a1f79be2b7bce981ebcad7ab4c11f354255f82affa462704c58556",
+    "build-quant-resume-20261020/iq4-xs-integration/native-cpu.log": "90fef7c686e198fd25b4a1d14d82855da8002e70164ce3508f898b553d200642",
+    "build-quant-resume-20261020/iq4-xs-integration/native-vulkan-detail.log": "cf1f7d584295ad8f7f41cc81019dd3f2e6c97b5f7a6bc74b66f40ccdca5499b2",
+    "build-quant-resume-20261020/iq4-xs-integration/native-vulkan.log": "2b7f668b08ca5c2d4d0995e9e7d22826bf53f52b352c10df246dce29bffcb682",
+    "build-quant-resume-20261020/iq4-xs-integration/root-source-review.json": "44079726e672d63fc38bad77630e0f9958766129b86361e9c7ddc78d018d89cf"
+  },
+  "remaining": [
+    "Strict F32 split arithmetic/reference sensitivity and the unapproved additive allowance remain unresolved; retain the observed failures and proposal without treating them as a pass or waiver.",
+    "One integrated 17-component MI50 device-suite round is complete. Remaining split coverage, hosted CI and final landing remain pending. Focused Windows/Linux checks, CPU/Vulkan baseline identity and MI50 timing are complete. Packed lookup is published separately on main609ff0786; no XS full-gate pass is claimed.",
+    "The prior depth campaign was not repeated; its dated evidence and original inputs remain unchanged."
+  ],
+  "integrated_device_suite": {
+    "scope": "One selected 17-component run on the integrated runtime/test tree; functional qualification only, not the complete landing suite.",
+    "source_tree": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+    "docs_head": "ff755fea8 (documentation-only delta; runtime, tests, fixtures and build inputs match the tested tree)",
+    "summary": "build-quant-resume-20261020/iq4-xs-integration/rig/device-suite-17-summary.json",
+    "summary_sha256": "9c994126a8f1a2cad035e2bec84653953f4354dc9a82de90684c4c5efac9fe85",
+    "raw_rig": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-integration-20261021/evidence-device-suite-17",
+    "execution_sha256": "0ef29a96feb00f81dbd5058be9a73262c3d612005f67e4e8e8308385db3f9cf2",
+    "run_log_sha256": "1d031938ad74deb0d207af992d4ad98e934cd6d09175f3016ee2d3e59a0a1e5d",
+    "result": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0,
+      "duration_seconds": 563.8667342662811,
+      "components": [
+        "perplexity",
+        "f32",
+        "half-weights",
+        "moe",
+        "int8",
+        "mxfp4",
+        "q5-0",
+        "q5-1",
+        "iq4-nl",
+        "iq4-xs",
+        "qwen35",
+        "decode-probe",
+        "drafters",
+        "shards",
+        "server",
+        "chat",
+        "baseline"
+      ]
+    },
+    "configuration": {
+      "backend": "MI50 physical GPU 8, exposed as vulkan:0",
+      "policy": "ordinary auto/F16; exact-F32 components explicitly request F32 arithmetic and F32 KV",
+      "required_device_types": "F16,BF16,Q5_0,Q5_1,IQ4_NL,IQ4_XS",
+      "cpu_set": "4-7",
+      "container_memory_cap_gib": 8,
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "cli_sha256": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568"
+    },
+    "cleanup": {
+      "container_removed": true,
+      "oom": false,
+      "peak_memory_bytes": 388653056,
+      "memory_oom_events": 0
+    },
+    "limitations": [
+      "The split/tensor-split components are not included; remaining split coverage and the strict split-F32 issue remain open.",
+      "No new depth or released-file qualification was run in this suite; previously dated evidence remains separately scoped.",
+      "No performance claim or full-gate pass is implied; hosted CI and final landing remain pending."
+    ]
+  },
+  "linux": {
+    "evidence_path": "build-quant-resume-20261020/iq4-xs-integration/rig/focused-evidence.json",
+    "evidence_sha256": "1608c6253aad693f5433a7aa8c77b5f88a2644443ba66b44fb656b2403b0aec3",
+    "source_tree": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+    "binaries": {
+      "llmx": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568",
+      "llmx-model-logits": "7e0f233432e28450ae19469eb34947c6a49b183c0896354c652c67783171a038",
+      "libllmx-vulkan.a": "f0e6f6c28f6c145e3366073490e9fda4c0380f91a18b7645ed7dbfb25916d3ab"
+    },
+    "version": "llmx 0.1.0+unknown numerics a167275ca2df1ffc",
+    "stages": {
+      "build-candidate": {
+        "passed": true,
+        "removed": true,
+        "artifacts": {
+          "execution.json": "32a3b29c460b6d278336fa342eea68eb5fd15653a96b8f9edf130e92a83256e7",
+          "run.log": "3ffa48e6322437f07f656350860d46665a7bb6170767052f3d38ab124e81b93f",
+          "memory.jsonl": "d962e986fc8cb5accd193f1dbf82ac7db1961c8b2a599c0bbae56e5017be3d7e"
+        }
+      },
+      "focused-cpu": {
+        "passed": true,
+        "removed": true,
+        "artifacts": {
+          "execution.json": "916d5e1049ea8797402cfc698705cba86d4d6a32aa371ba8f38bcd1be05c94a5",
+          "run.log": "6e189cf948051452548287c99e4f8f8a9e2f8c8dfbe185c8e0476d00ea799f86",
+          "memory.jsonl": "4e5cb90a8a4669b562f29173d20225366c2fa79db3d442e204109cd4e026c748"
+        }
+      },
+      "focused-vulkan": {
+        "passed": true,
+        "removed": true,
+        "artifacts": {
+          "execution.json": "d0c9df4cc3afd9098679653ea3222045a8aeffc6b1eb79ca293c582f30eaa2cb",
+          "run.log": "b4bb588120b8c887e9c1f327fe8550aa472346116e621655f0444725f6f901f9",
+          "memory.jsonl": "d848df585ea73af4e993fd66902f95184e75cfeecbdeb8c29fe341e22c19ab9f"
+        }
+      }
+    },
+    "cpu": "16,416,768XS and32,505,856NL decoded values,4,028,160widened product/embedding values,34,450row pairs;XS F32HF150+12,max9.71e-6/1.02e-6.",
+    "mi50": "42,067,056native values/2,541row pairs;backend ISA+quantization PASS;autoXS/NL/Q50PASS;XS F32 andBF16each150+12,existinglimits.",
+    "limits": [
+      "Focused integration evidence only; no new depth or split-F32 pass claimed.",
+      "Quantization omits subnormal-only cases on modules compiled without float preservation; supported cases pass.",
+      "No performance claim from functional backend timing output.",
+      "Strict split-F32 discrepancy and required decision remain open."
+    ],
+    "source_and_module_artifact_hashes": {
+      "source-pins.json": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+      "shader-module-audit.json": "f97892bd4f04cc97437dc5b038dff88dac46329b6b87e2f5bacaa918841d0f52",
+      "normalized-module-audit.json": "13cdeff949305e2add9a0cdef61e60057fb672d9bd89ca9b341f35d131af185a"
+    }
+  },
+  "module_scope": {
+    "base": "5b545e772",
+    "raw_identical": 81,
+    "raw_changed": 94,
+    "added": [
+      "matmul_row_iq4_xs_dot.inc",
+      "matmul_tile_iq4_xs.inc"
+    ],
+    "canonical_equal": 83,
+    "canonical_different": [
+      "embed.spv",
+      "embed_ids.spv",
+      "matmul_row_float_x.spv",
+      "matmul_row_float_x_preserve.spv",
+      "matmul_row_iq4_dot.spv",
+      "matmul_row_mxfp4_float_x.spv",
+      "matmul_tile.spv",
+      "matmul_tile_bf16.spv",
+      "matmul_tile_bf16_preserve.spv",
+      "matmul_tile_iq4.spv",
+      "matmul_tile_preserve.spv"
+    ],
+    "canonicalization_flags": [
+      "--strip-debug",
+      "--eliminate-dead-const",
+      "--compact-ids"
+    ],
+    "canonicalization_tool_sha256": "d5ae37abd1a642c0cdd38e242fd43e6b20e3ab421d18fd68e9474f2d88888ab5",
+    "note": "81raw-identical plus83canonical-identical;11remain different and2XS modules are new. Canonicalization strips debug/dead constants and compactsIDs,without modifying runtime binaries. Raw or canonical non-equality alone does not prove arithmetic changes."
+  },
+  "identity_checkpoint": {
+    "scope": "Exact output identity against the lookup-qualified baseline build 5b545e772; functional equivalence evidence only, not performance or split-F32 qualification.",
+    "source_pins_sha256": "992342f97c6272262c5262369198428c472dbb916ec9a603cc556d77acf5b112",
+    "cpu": {
+      "cases": 2,
+      "passed": 2,
+      "result": "build-quant-resume-20261020/iq4-xs-integration/rig/identity-cpu/result.json",
+      "result_sha256": "19bb8c2815a88a9ec53b171e4128c6ad0fe36ece2ca3f48d36cc28a93cb81e82",
+      "execution": "build-quant-resume-20261020/iq4-xs-integration/rig/identity-cpu/execution.json",
+      "execution_sha256": "c0dffb1f4c718133d771b5c7dac6fe7587a38322f701d1442e54d01bfb9cddd6",
+      "result_complete": true,
+      "container_removed": true
+    },
+    "vulkan": {
+      "device": "vulkan:0 (MI50 physical 8)",
+      "cases": 11,
+      "passed": 11,
+      "result": "build-quant-resume-20261020/iq4-xs-integration/rig/identity-vulkan/result.json",
+      "result_sha256": "1b81ca774be3ab3ff6055d31a444f7ced6ae04cea09a2a36bf121875a821ad70",
+      "execution": "build-quant-resume-20261020/iq4-xs-integration/rig/identity-vulkan/execution.json",
+      "execution_sha256": "4bc700720393633f8a86724a329408f768c4bcb477fe204481c6f6a8742b0543",
+      "result_complete": true,
+      "container_removed": true
+    },
+    "exact_checks": {
+      "full_reports_equal_main_candidate": "13/13",
+      "batched_decode_greedy_tensor_capture_hashes_equal": "13/13",
+      "model_logit_capture_hashes_equal": "13/13",
+      "tokenizer_output_hashes_equal": "13/13"
+    },
+    "coverage": "CPU: Qwen3-0.6B IQ4_NL and converted Q5_0. Vulkan: Qwen3-0.6B Q8_0, Q4_0, Q5_K_M, Q4_K_M, Q5_1, IQ4_NL, F16, BF16 and converted Q5_0; Qwen3.5-0.8B Q8_0 and Q4_K_M.",
+    "timing": "See timing_checkpoint; identity checks do not measure or compare performance."
+  },
+  "timing_checkpoint": {
+    "scope": "Completed MI50 Vulkan model screen; one matched block, two measurements per arm, not a ROCm, latest-upstream or server/MTP result.",
+    "plan": "build-quant-resume-20261020/iq4-xs-integration/landing-timing/round1/plan.json",
+    "plan_sha256": "08c23e425e4f4e3c42174716b7d686b9819586ccb3379775f2045556211cc479",
+    "launch": "build-quant-resume-20261020/iq4-xs-integration/landing-timing/launch-result.json",
+    "launch_sha256": "488efc1fd1199249d63d40521913e29b13c95dfb2945b37f097d65942bca78e3",
+    "summary": "build-quant-resume-20261020/iq4-xs-integration/landing-timing/round1/summary.json",
+    "summary_sha256": "4bbfe04f866b132380dea4ff26f35550e604fd9af7ad04067f414ed01e4893d4",
+    "completion": "build-quant-resume-20261020/iq4-xs-integration/landing-timing/round1/complete.json",
+    "completion_sha256": "6b5f1e5cacde6e3251997eb0c7fd7e4b4701ed49fc4455396707ec4c784dc064",
+    "activity": {
+      "sample_records": 91,
+      "derived_intervals": 90,
+      "flagged_call_windows": [
+        "candidate Qwen3-0.6B Q5_1 forward: one disk-flagged interval",
+        "base Qwen3-0.6B IQ4_NL forward: one disk-flagged interval"
+      ],
+      "iq4_xs_reference_flagged_intervals": 0,
+      "retention": "All 48 calls and all 91 monitor sample records are retained."
+    },
+    "activity_sha256": "ad5732ff5836b3b224b28b1ceab925deedfc566e3a9f4cb8bc249e218cf38af6",
+    "outcome": "48/48 calls passed; own container removed, exit 0, OOMKilled false; monitor exit 0.",
+    "environment": {
+      "device": "MI50 physical GPU 8, Vulkan, Mesa 25.0.7-2+deb13u1",
+      "cpu_set": "4-7",
+      "threads": 4,
+      "dtype": "auto",
+      "load_mode": "auto",
+      "cache_kv": "f32/f32",
+      "prompt_tokens": 512,
+      "decode_tokens": 128,
+      "ubatch": 512,
+      "repeats_per_arm": 2,
+      "candidate_head": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+      "base_head": "5b545e772950498fbab9ba159dc11e77956e676b"
+    },
+    "iq4_xs_file": {
+      "path": "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+      "bytes": 367804096,
+      "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+    },
+    "iq4_xs_candidate_mean_tok_s": {
+      "pp512": 6537.825,
+      "tg128": 258.73
+    },
+    "iq4_xs_pinned_mx_mean_tok_s": {
+      "pp512": 3815.48,
+      "tg128": 245.36
+    },
+    "candidate_over_mx_percent": {
+      "pp512": 71.35000052418043,
+      "tg128": 5.449135963482221
+    },
+    "existing_control_change_percent_range": {
+      "minimum": -0.5463557508167183,
+      "maximum": 1.040287398253148,
+      "note": "Range across phase changes for the eleven other files; not a causal attribution or precision comparison."
+    },
+    "older_development_timing": "Preserved as a dated record; this is the current completed candidate-versus-pinned-mx result."
+  },
+  "f32_independent_review": {
+    "path": "build-quant-resume-20261020/iq4-xs-integration/f32-independent-review.md",
+    "sha256": "6e280538076f80a005b87d9e5b843c3cdaff8b7f1f837eeee256c8c897279199",
+    "cached_hf_strict_logits_failures": 3,
+    "native_vs_hf_f64_long_case_max_abs": 2.35609e-05,
+    "strict_logits_bound": 2e-05,
+    "proposed_additive_allowance": "unapproved and not installed",
+    "disposition": "Strict split-F32 gate remains unresolved; no pass or waiver."
+  },
+  "root_source_review_sha256": "44079726e672d63fc38bad77630e0f9958766129b86361e9c7ddc78d018d89cf",
+  "inherited_f32_control": {
+    "scope": "Three arms per device: main 2b9e84eaa with independently widened F32 weights, integrated XS with the same widened file, and integrated packed XS. Only the long abcdefghijklm case, ubatch 1, threads 2, explicit F32 products and F32 KV; 260 printed logits, six decimal places, not binary32 identity or all split cases.",
+    "controls": {
+      "cpu": {
+        "comparison": "build-quant-resume-20261020/iq4-xs-integration/cpu-three-arm/comparison.json",
+        "comparison_sha256": "ad4ec6982a48daab2b62ece44b3394d88c06fb7f92c5a491b21857bd60c8e913",
+        "errors": {
+          "main-widened": {
+            "hf_full_f32": 3.341357421859925e-05,
+            "hf_cached_f32": 2.776370239221393e-05,
+            "hf_diagnostic_f64": 1.756093966598371e-05
+          },
+          "xs-widened": {
+            "hf_full_f32": 3.341357421859925e-05,
+            "hf_cached_f32": 2.776370239221393e-05,
+            "hf_diagnostic_f64": 1.756093966598371e-05
+          },
+          "xs-packed": {
+            "hf_full_f32": 3.341357421859925e-05,
+            "hf_cached_f32": 2.776370239221393e-05,
+            "hf_diagnostic_f64": 1.756093966598371e-05
+          }
+        },
+        "matrix_paths": {
+          "main-widened": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "xs-widened": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "xs-packed": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        },
+        "interpretation": "On this pinned Linux CPU workload main2b widened, XS widened and XS packed produce identical260printedlogits. The observed strict-HF discrepancy is inherited on main F32 weights at printed precision; no XS-specific decode/integration effect is observed. Does not prove allF32 arithmetic defect-free, close GPU TP2/4, or approve any allowance."
+      },
+      "tp2": {
+        "comparison": "build-quant-resume-20261020/iq4-xs-integration/tp2-three-arm/comparison.json",
+        "comparison_sha256": "2cdec3d25a7853843971dd8079eedc24e2809ea4afcc6cfafd72026c25cc9a9c",
+        "errors": {
+          "main-widened": {
+            "hf_full_f32": 2.810531616237455e-05,
+            "hf_cached_f32": 2.28723754887028e-05,
+            "hf_diagnostic_f64": 1.1772465956072509e-05
+          },
+          "xs-widened": {
+            "hf_full_f32": 2.810531616237455e-05,
+            "hf_cached_f32": 2.28723754887028e-05,
+            "hf_diagnostic_f64": 1.1772465956072509e-05
+          },
+          "xs-packed": {
+            "hf_full_f32": 3.0413574219068096e-05,
+            "hf_cached_f32": 3.381553649894897e-05,
+            "hf_diagnostic_f64": 1.6385979241917425e-05
+          }
+        },
+        "matrix_paths": {
+          "main-widened": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32"
+              ]
+            ]
+          },
+          "xs-widened": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32"
+              ]
+            ]
+          },
+          "xs-packed": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ],
+              [
+                "f32"
+              ]
+            ]
+          }
+        },
+        "interpretation": "Main2b widened and XS widened produce identical260printedlogits. XS packed differs from independently widened by2.7e-5; decoder/operator controls constrain but do not by themselves explain this model reduction difference. Both paths are within2e-5 versus retained diagnosticF64 on this one case, supporting arithmetic-order sensitivity, not approving an oracle/bound change or whole split qualification."
+      }
+    },
+    "full_review": "build-quant-resume-20261020/iq4-xs-integration/f32-main-control-full-review.json",
+    "full_review_sha256": "f222f7a0606130a985279338ba15db86f8c8ef26c454e6c36f650eed7534d747",
+    "conclusion": "The original-HF F32 failure also occurs on main with F32 weights. CPU outputs match across all three arms; TP2 main and candidate widened match, while packed versus widened differs by at most 2.7e-5. Both TP2 paths are within 2e-5 of the retained diagnostic F64 output on this case. This supports arithmetic-order sensitivity but does not qualify a new oracle, waive the strict failure or cover all split shapes.",
+    "next": "Peer technical review requested with complete values and source-level reduction-order observations. No allowance or reference change installed."
+  },
+  "initial_base": "0f1a08a52280eff3bfb1907d10b7d21ae9c57c01",
+  "current_main_integration": {
+    "main": "609ff078621181317e20daca67550cb7a5b39361",
+    "pre_rebase_checkpoint": "6c8e29d65",
+    "rebased_checkpoint": "652221e3c",
+    "intervening_paths": [
+      "docs/STATUS.md",
+      "docs/benchmarks/iq4-packed-lookup-screen-20261021.json"
+    ],
+    "runtime_tests_tools_fixtures_build_inputs": "Exact Git blob identity before and after rebase; retained archive binaries, source pins and qualified evidence unchanged. Only STATUS had a conflict; preserved XS records and published lookup results."
+  },
+  "exact_three_arm_split_f32_diagnostic": {
+    "scope": "Original-seed 13-token split-MoE, ubatch 1, two threads, explicit F32 arithmetic/F32 KV; exact binary32 logits, diagnostic only.",
+    "evidence": {
+      "comparison": {
+        "path": "build-quant-resume-20261020/iq4-xs-integration/exact-control/exact-three-arm/comparison.json",
+        "sha256": "77df9a361cb1a2813af337eecb042ae5297d7892157349344f876a2b683f9feb"
+      },
+      "execution": {
+        "path": "build-quant-resume-20261020/iq4-xs-integration/exact-control/exact-three-arm/execution.json",
+        "sha256": "41fc4111630888865bd9e6f2625e5d0babea9c6ba261ab28aceeb7bc189cd0ee"
+      }
+    },
+    "source_and_binary_pins": {
+      "main_revision": "2b9e84eaa21ff91524e41aeda432037919a3ede2",
+      "xs_revision": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+      "main_source_manifest_sha256": "a87f76eb8486fa964fa455ab3fe42f90d3e2afe110a8407df38f545200d5f54e",
+      "xs_source_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+      "main_binary_sha256": "50f883a4fff106073a22b6962226e0b76052297d8ebe0ea1c3eba3dda148b823",
+      "xs_binary_sha256": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568"
+    },
+    "environment": {
+      "gpu_physical": [
+        4,
+        5
+      ],
+      "render_nodes": [
+        134,
+        135
+      ],
+      "pci": [
+        "0000:89:00.0",
+        "0000:8c:00.0"
+      ],
+      "cpu_set": "0-1",
+      "threads": 2,
+      "prompt_positions": 13,
+      "ubatch": 1,
+      "kv": "F32"
+    },
+    "results": {
+      "cpu": {
+        "main_widened_vs_xs_widened": "bit-identical in batched and decode",
+        "xs_widened_vs_xs_packed": "bit-identical in batched and decode"
+      },
+      "tp2": {
+        "main_widened_vs_xs_widened": "bit-identical in batched and decode",
+        "xs_widened_vs_xs_packed": {
+          "different_values": 3232,
+          "total_values": 3380,
+          "first_position": 0,
+          "max_abs_delta": 2.7179718017578125e-05,
+          "phases": [
+            "batched",
+            "decode"
+          ]
+        }
+      }
+    },
+    "interpretation": "The packed-versus-widened difference is reproducible in this TP2 capture while main-widened and XS-widened match. This does not localize the first differing projection or establish a general split result.",
+    "next_measurement": "First-projection capture is complete. Later projections and full-model localization remain open.",
+    "gate": "Strict split-F32 remains unresolved. No tolerance change, pass or waiver."
+  },
+  "first_projection_capture": {
+    "scope": "First TP2 per-device Q/K/V projections, original-seed 13-token split-MoE, explicit F32. Diagnostic only; later projections are not captured.",
+    "evidence": {
+      "analysis": {
+        "path": "build-quant-resume-20261020/iq4-xs-integration/projection-control/analysis.json",
+        "sha256": "5edf7cdae5abe0a68b972b5351b107c7436e6b33d2c4e467f8973a660fe183de"
+      },
+      "capture_index": {
+        "path": "build-quant-resume-20261020/iq4-xs-integration/projection-control/projection-first/capture-index.json",
+        "sha256": "be847d1f6ac8943ecd6b446cc5a41f18a61ac894e1438553f6be047bcc02c169"
+      },
+      "execution": {
+        "path": "build-quant-resume-20261020/iq4-xs-integration/projection-control/projection-first/execution.json",
+        "sha256": "40a78677c309bef61b024c4311c5a0554191e78395dc50e0c025e518bb567c3b"
+      },
+      "analyzer_sha256": "dd98c856c09e42fbc28e3d4d5a6634e6ff3f3106bd5e924a2b6783c9625ae081",
+      "independent_decoder_sha256": "789d8140841641c1ecf57e32d90467e43983bf7aa2dfdccf1c1aa859d8ee4d11"
+    },
+    "source_and_binary_pins": {
+      "main_revision": "2b9e84eaa21ff91524e41aeda432037919a3ede2",
+      "xs_revision": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+      "main_source_manifest_sha256": "a87f76eb8486fa964fa455ab3fe42f90d3e2afe110a8407df38f545200d5f54e",
+      "xs_source_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+      "main_binary_sha256": "50f883a4fff106073a22b6962226e0b76052297d8ebe0ea1c3eba3dda148b823",
+      "xs_binary_sha256": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568"
+    },
+    "checks": {
+      "per_device_projections": 6,
+      "input_bytes_packed_vs_widened": "identical for all six projections",
+      "independently_decoded_weight_bytes": "identical for all six projections",
+      "maximum_packed_vs_widened_gpu_output_delta": 1.9073486328125e-06,
+      "reference": "math.fsum of products of captured binary32 operands and independently decoded IQ4_XS weights",
+      "maximum_absolute_error_packed": 1.8283651730399697e-06,
+      "maximum_absolute_error_widened": 1.6503268351897304e-06,
+      "instrumented_vs_uninstrumented": "Full 13-position batched and decode outputs match bit for bit.",
+      "execution": "Completed with exit 0, OOMKilled false; container removed."
+    },
+    "interpretation": "Consistent with an initial F32 accumulation-order effect. The conservative gamma bound is a local arithmetic sanity check, not a replacement HF bound. This capture does not explain later projections or resolve the full-model strict-HF miss.",
+    "gate": "Strict split-F32 remains unresolved. Preserve prior failures; no tolerance change, pass or waiver."
+  },
+  "selected_split_checks": {
+    "scope": "Selected retained TP2 auto and TP4 BF16 split variants only; 324 retained full-vocabulary/NLL calls audited from stdout/stderr through unchanged common.check_hf_fixture. Not full Cartesian split qualification; strict F32 remains unresolved.",
+    "audit_path": "build-quant-resume-20261020/iq4-xs-integration/split-remaining-audit.json",
+    "audit_sha256": "1817aaa98aca5bf26a2e4d6940a68283afaebf4acb5701fcf391ef2786a55621",
+    "audit_status": "PASS: retained-output audit; no new inference calls",
+    "source_revision": "fe0abd785e440a2eed40c5e30eb74ec2765482f5",
+    "fixtures_sha256": "473711fc4c36d75c488d3634e3553089fd4c232df6b0369a7e69d58b36dd1f5f",
+    "unchanged_budget_sha256": "7c9bc20b11f63c14ee892a14d00b4fa8393fd79c4acfb9bddecbbb0f76fdb84d",
+    "coverage": {
+      "modes": [
+        "tp2-auto",
+        "tp4-bf16"
+      ],
+      "variants": [
+        "dense-untied",
+        "dense-tied",
+        "moe"
+      ],
+      "full_vocabulary_cases": 300,
+      "nll_cases": 24,
+      "total_checks": 324,
+      "all_checks_passed": true
+    },
+    "results": [
+      {
+        "mode": "tp2-auto",
+        "variant": "dense-untied",
+        "full_vocabulary_cases": 50,
+        "nll_cases": 4,
+        "max_abs_logit_error": 0.0010614418945312787,
+        "logit_bound": 0.05856519937515259,
+        "max_abs_nll_error": 0.00010450012768004058,
+        "nll_bound": 0.005991059770607876,
+        "matrix_witness": {
+          "devices": [
+            [
+              "block-int16"
+            ],
+            [
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "seconds": 286.4887812137604,
+        "raw_sha256": {
+          "execution.json": "9e3b935f2a353b3f08ebbf02c3f972054366188a134935e910f626e2bdd4b851",
+          "cases.jsonl": "a72abb67c304b020bf7c45432e4e1935a3a8b45805c646ea6e6eaa51db407671",
+          "run.log": "655a83b44905a76bdda660c044218b3231bbe4feebfd2af1e64e5aed7f353ae5"
+        }
+      },
+      {
+        "mode": "tp2-auto",
+        "variant": "dense-tied",
+        "full_vocabulary_cases": 50,
+        "nll_cases": 4,
+        "max_abs_logit_error": 0.0012473563232422435,
+        "logit_bound": 0.05856519937515259,
+        "max_abs_nll_error": 0.00020615728515416265,
+        "nll_bound": 0.005991059770607876,
+        "matrix_witness": {
+          "devices": [
+            [
+              "block-int16"
+            ],
+            [
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "seconds": 286.1107316017151,
+        "raw_sha256": {
+          "execution.json": "a182c7aefea506e63441d47419f2ec7cb097401159499f74eab7439266cf734e",
+          "cases.jsonl": "1bd9f58cbe09eb7e7456dea410db41d7b83a5921c912ad3871d7d2466e712bb2",
+          "run.log": "55d3d60f07c0841a36f792586d8506403604c514c6f634ecc336f22b4afea4f1"
+        }
+      },
+      {
+        "mode": "tp2-auto",
+        "variant": "moe",
+        "full_vocabulary_cases": 50,
+        "nll_cases": 4,
+        "max_abs_logit_error": 0.001818012817382808,
+        "logit_bound": 0.05856519937515259,
+        "max_abs_nll_error": 0.00020446075744651182,
+        "nll_bound": 0.005991059770607876,
+        "matrix_witness": {
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ],
+            [
+              "f32",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "seconds": 300.327431678772,
+        "raw_sha256": {
+          "execution.json": "de3e18507b9bcf379c64cb22e7c0be2054a96c0391504b8daca0d93817779666",
+          "cases.jsonl": "d8bc7abcab2ebdd051ab96a681d8cdeac031c598e2a7197242269eaf62ef6145",
+          "run.log": "637c24c1b8b1daffb58b1f2ba66c315d53e64ddbbec7ef279164859d4e3235cb"
+        }
+      },
+      {
+        "mode": "tp4-bf16",
+        "variant": "dense-untied",
+        "full_vocabulary_cases": 50,
+        "nll_cases": 4,
+        "max_abs_logit_error": 0.07739937046051026,
+        "logit_bound": 0.486957311630249,
+        "max_abs_nll_error": 0.008229674872319848,
+        "nll_bound": 0.06390129666191768,
+        "matrix_witness": {
+          "devices": [
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ]
+          ],
+          "dtype": "bf16"
+        },
+        "seconds": 293.609087228775,
+        "raw_sha256": {
+          "execution.json": "89721b9064c7b5a11031145084b4f6cfa660b7b9627728da17fe912c6f9c9250",
+          "cases.jsonl": "cab9ca202910bd4396ffc66a4a321fb68ec7302003eafecf84a6f27bcc49a925",
+          "run.log": "18b5709511942280966faeca82ca8254e12ec4c383774190ba512f2651944321"
+        }
+      },
+      {
+        "mode": "tp4-bf16",
+        "variant": "dense-tied",
+        "full_vocabulary_cases": 50,
+        "nll_cases": 4,
+        "max_abs_logit_error": 0.10340986718749967,
+        "logit_bound": 0.486957311630249,
+        "max_abs_nll_error": 0.005941071544423693,
+        "nll_bound": 0.06390129666191768,
+        "matrix_witness": {
+          "devices": [
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ]
+          ],
+          "dtype": "bf16"
+        },
+        "seconds": 293.41644287109375,
+        "raw_sha256": {
+          "execution.json": "3881c6b6861cecfc6799ce8c6382081114cb471acabf76f5f8cf011135be500a",
+          "cases.jsonl": "f5782ac3dc7e202033976407be4db37586b02ca65da4bb86f71c840ee9bf8f42",
+          "run.log": "6756d296779fa065dc9804b2da99d3e5f81b2689b8a51671cbc94bfef1e933ea"
+        }
+      },
+      {
+        "mode": "tp4-bf16",
+        "variant": "moe",
+        "full_vocabulary_cases": 50,
+        "nll_cases": 4,
+        "max_abs_logit_error": 0.15588813648986832,
+        "logit_bound": 0.486957311630249,
+        "max_abs_nll_error": 0.0017711162425531057,
+        "nll_bound": 0.06390129666191768,
+        "matrix_witness": {
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ],
+            [
+              "f32",
+              "bf16"
+            ],
+            [
+              "f32",
+              "bf16"
+            ],
+            [
+              "f32",
+              "bf16"
+            ]
+          ],
+          "dtype": "bf16"
+        },
+        "seconds": 307.53529024124146,
+        "raw_sha256": {
+          "execution.json": "78cfb4e956a9f3c3404eb57b4bd8ec66d2ca49d46199b7c0d17ab00551dd2642",
+          "cases.jsonl": "24a2a0bee7c81969404bdd1919e1a1d0c91a511241f48e76101f0b06f0d23bc9",
+          "run.log": "798be6949a8d6862c2c072b4b30f2d163fe2c3dfaf42e7dea4cb8b8e020fb0d0"
+        }
+      }
+    ],
+    "execution_cleanup": {
+      "containers": 6,
+      "all_removed": true,
+      "oom": false,
+      "review": "Root audited retained stdout/stderr and execution evidence; the audit made no new inference calls."
+    },
+    "interpretation": "Selected TP2 auto and TP4 BF16 split checks pass against the existing frozen bounds. TP2 witnesses F16 effective policy with block-int16 products (MoE router products include F32); TP4 witnesses BF16 products (MoE router products include F32). This does not cover TP2/TP4 across all dtypes, does not resolve the strict F32 split failure, and is not a family-wide pass or waiver.",
+    "remaining": [
+      "Strict F32 split arithmetic/reference sensitivity remains unresolved; no tolerance change, pass or waiver.",
+      "Exact-head hosted CI and final landing remain pending.",
+      "Prior depth campaign was not repeated; its dated evidence and original inputs remain unchanged."
+    ],
+    "llmx_binary_sha256": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568",
+    "vulkan_library_sha256": "f0e6f6c28f6c145e3366073490e9fda4c0380f91a18b7645ed7dbfb25916d3ab",
+    "source_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315"
+  },
+  "approved_f32_requalification": {
+    "approval": "User explicitly approved the exact-fixture scope on 2026-10-21 after the original failures; not a family-wide waiver.",
+    "policy": "iq4-xs-split-f32-policy-proposal-20261021.md",
+    "rig_artifacts": "/zpool1/llmx-xdev-quant-20261020/iq4-xs-integration-20261021/f32-approved-requalification",
+    "summary_sha256": "1a45e40775514b1c4a1def673579ae146ebc5e5dc36d589ff4526516283fcfba",
+    "summary": {
+      "scope": "Approved affected XS split-MoE F32 requalification only; original strict observations retained. No runtime/source rebuild.",
+      "stages": [
+        {
+          "stage": "cpu-f32-moe",
+          "passed": true,
+          "calls": 54,
+          "full_vocabulary": 50,
+          "nll": 4,
+          "seconds": 24.19244909286499,
+          "strict_failed_logit_calls": 20,
+          "strict_failed_nll_calls": 0,
+          "approved_failed_calls": 0,
+          "max_logit_error": 3.341357421859925e-05,
+          "max_nll_error": 1.7477574463242718e-06,
+          "strict_logit_limits": [
+            2e-05
+          ],
+          "approved_logit_limits": [
+            8.875395774841308e-05
+          ],
+          "nll_limits": [
+            1e-05
+          ],
+          "actual_matrix_witnesses": [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "source_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+          "golden_sha256": "800c4d7343b114d6c54e1aa7023d2b2dc93027737fb5de83f6ae706b8e05ed12",
+          "binary_inputs": {
+            "llmx": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568",
+            "libllmx-vulkan.a": "f0e6f6c28f6c145e3366073490e9fda4c0380f91a18b7645ed7dbfb25916d3ab",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "5504515c34b6526bb8d584816f25f3d684da234d9f73a8508351bf3da7ed070d",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "devices": [],
+          "removed": true,
+          "oom": false,
+          "artifacts": {
+            "execution.json": "7017320bad39a28c761930598e22fee8b9d824d32b9ce834fc91749641314ae6",
+            "run.log": "ab97d641cea10c1c65e5e0d375c14245f148c6ae060a8a2b91581e58a7a52d35",
+            "cases.jsonl": "cfc4ed42b425520fe6d172247b9290a8c9d50a16a9a2e1dc5f03c689066b9722",
+            "comparisons.jsonl": "bb1a7b685a07abb8476cb44a4d4e5ca56e48c38b766314926284fed35424d7b3"
+          }
+        },
+        {
+          "stage": "tp2-f32-moe",
+          "passed": true,
+          "calls": 54,
+          "full_vocabulary": 50,
+          "nll": 4,
+          "seconds": 300.08597350120544,
+          "strict_failed_logit_calls": 30,
+          "strict_failed_nll_calls": 0,
+          "approved_failed_calls": 0,
+          "max_logit_error": 3.6863510131990296e-05,
+          "max_nll_error": 3.815242553883991e-06,
+          "strict_logit_limits": [
+            2e-05
+          ],
+          "approved_logit_limits": [
+            8.875395774841308e-05
+          ],
+          "nll_limits": [
+            1e-05
+          ],
+          "actual_matrix_witnesses": [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "source_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+          "golden_sha256": "800c4d7343b114d6c54e1aa7023d2b2dc93027737fb5de83f6ae706b8e05ed12",
+          "binary_inputs": {
+            "llmx": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568",
+            "libllmx-vulkan.a": "f0e6f6c28f6c145e3366073490e9fda4c0380f91a18b7645ed7dbfb25916d3ab",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "5504515c34b6526bb8d584816f25f3d684da234d9f73a8508351bf3da7ed070d",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "devices": [
+            {
+              "render": 134,
+              "pci": "0000:89:00.0",
+              "busy": 0,
+              "vram": 10932224,
+              "power": "auto"
+            },
+            {
+              "render": 135,
+              "pci": "0000:8c:00.0",
+              "busy": 0,
+              "vram": 10932224,
+              "power": "auto"
+            }
+          ],
+          "removed": true,
+          "oom": false,
+          "artifacts": {
+            "execution.json": "3fced5a53a997b3ed5cc4cb26c5bfc6befc953ddb7a1381a1f1500de9319effb",
+            "run.log": "b9b6d105d6f1331a200f247659c00ce4acd18c7ae12f31465497c04bfe81c14e",
+            "cases.jsonl": "b392f0693f701914b9c46a05feb8b12a37ea1688c0fd8519a0921515dc8fc05c",
+            "comparisons.jsonl": "83614dc4f2c347294b841ba14ab93d569af9fc66df6203a84a7a6cbed3699db8"
+          }
+        },
+        {
+          "stage": "tp4-f32-moe",
+          "passed": true,
+          "calls": 54,
+          "full_vocabulary": 50,
+          "nll": 4,
+          "seconds": 307.5444703102112,
+          "strict_failed_logit_calls": 30,
+          "strict_failed_nll_calls": 0,
+          "approved_failed_calls": 0,
+          "max_logit_error": 3.586351013185052e-05,
+          "max_nll_error": 4.302242553322344e-06,
+          "strict_logit_limits": [
+            2e-05
+          ],
+          "approved_logit_limits": [
+            8.875395774841308e-05
+          ],
+          "nll_limits": [
+            1e-05
+          ],
+          "actual_matrix_witnesses": [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ],
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          "source_manifest_sha256": "8942785c5b29e4699bcba2e51ad9fdcd42aaa2f38ec2ca53a822b4724f471315",
+          "golden_sha256": "800c4d7343b114d6c54e1aa7023d2b2dc93027737fb5de83f6ae706b8e05ed12",
+          "binary_inputs": {
+            "llmx": "34ed0fb507a65118bd9d3f733a77db76ea92055bca3868083c67e49b02140568",
+            "libllmx-vulkan.a": "f0e6f6c28f6c145e3366073490e9fda4c0380f91a18b7645ed7dbfb25916d3ab",
+            "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+            "generated/llmx-build-info.hpp": "5504515c34b6526bb8d584816f25f3d684da234d9f73a8508351bf3da7ed070d",
+            "CMakeFiles/llmx.dir/flags.make": "d5954ca993edb32c4316c2d8d902cc37dca47c08622e029dd8faae4f9c69fbb4",
+            "CMakeFiles/llmx.dir/link.txt": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+          },
+          "devices": [
+            {
+              "render": 128,
+              "pci": "0000:c3:00.0",
+              "busy": 0,
+              "vram": 10919936,
+              "power": "auto"
+            },
+            {
+              "render": 129,
+              "pci": "0000:c6:00.0",
+              "busy": 0,
+              "vram": 10919936,
+              "power": "auto"
+            },
+            {
+              "render": 130,
+              "pci": "0000:c9:00.0",
+              "busy": 0,
+              "vram": 10932224,
+              "power": "auto"
+            },
+            {
+              "render": 131,
+              "pci": "0000:cc:00.0",
+              "busy": 0,
+              "vram": 10919936,
+              "power": "auto"
+            }
+          ],
+          "removed": true,
+          "oom": false,
+          "artifacts": {
+            "execution.json": "605e436e394a17592ad24f8b38fc965d3f2ea69a42e26795cf102e040f40f119",
+            "run.log": "0aaf480b0b751c63f78a430d773cad69c0cc8419685a8ba6b26638f21bad917c",
+            "cases.jsonl": "f1c4bc8d3b946752209f5e45068d278a71f065d31400fd3f0b14f35fbe39a0a2",
+            "comparisons.jsonl": "642c50e901288ecbf38bb61b86f937d914ea03dc39706a28fbe94e4f26f89a58"
+          }
+        }
+      ],
+      "total_calls": 162
+    },
+    "root_audit_sha256": "e3f0598c9ae61bef8725c1f92c75770d2aa8222f16cfaff69dc155affd95520b",
+    "root_audit": {
+      "status": "PASS: all retained calls consumed by the actual approved bound owner; no inference rerun",
+      "summary_sha256": "1a45e40775514b1c4a1def673579ae146ebc5e5dc36d589ff4526516283fcfba",
+      "stages": [
+        {
+          "stage": "cpu-f32-moe",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit_error": 3.341357421859925e-05,
+          "strict_failed_logits": 20,
+          "approved_failures": 0
+        },
+        {
+          "stage": "tp2-f32-moe",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit_error": 3.6863510131990296e-05,
+          "strict_failed_logits": 30,
+          "approved_failures": 0
+        },
+        {
+          "stage": "tp4-f32-moe",
+          "full_logits": 50,
+          "nll": 4,
+          "max_logit_error": 3.586351013185052e-05,
+          "strict_failed_logits": 30,
+          "approved_failures": 0
+        }
+      ]
+    },
+    "audit_scope": "Root checked artifact hashes, exact arguments, source/binary pins, canonical coverage and completed witnesses; replayed all 162 retained outputs through actual common.check_hf_fixture with the approved exact fixture. No inference repeated by this audit.",
+    "original_criterion": "CPU/TP2/TP4 retain 20/30/30 full-logit failures under the original 2e-5 criterion. All NLL calls pass unchanged 1e-5. Earlier strict failures and diagnostic records remain unchanged.",
+    "owner_tests": "25 focused owner/calibration tests; full 48-test reference_consumer module with 10 nested tests; end-to-end identity scope test pass. Generic consumers without explicit approved fixture identity remain strict.",
+    "remaining": "Exact-head hosted CI and final landing."
+  }
+}

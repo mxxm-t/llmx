@@ -66,7 +66,7 @@ layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #include "qdecode.glsl"
 #endif
 #ifdef LLMX_IQ4
-float iq4_nl_input(uint col, uint b, uint j) {
+float iq4_input(uint col, uint b, uint j) {
     uint word = xq[col * p.nin / 2u + b * 16u + (j / 4u) * 2u + (j & 1u)];
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
@@ -295,21 +295,22 @@ void main() {
         }
 #elif defined(LLMX_IQ4)
         {
-            // One half scale and 32 lookup codes; stage the same signed bytes as Q8_0's dot loop reads.
+            // One scaled group of 32 lookup codes; stage the signed bytes the Q8_0 dot loop reads.
             for (uint s = 0u; s < STEP; ++s) {
                 uint kb = k0 + s;
                 bool ok = row < nout && kb < kend;
-                uint o = ok ? (wr * nblk + kb) * IQ4_NL_BYTES : 0u;
+                float scale;
+                uint codes = iq4_group(IQ4_TYPE, ok ? wr : 0u, p.nin, ok ? kb : 0u, scale);
                 for (uint m = 0u; m < WW; ++m) {
                     uint packed = 0u, word = wseg * WW + m;
                     for (uint j = 0u; j < 4u; ++j) {
-                        uint pos = word * 4u + j, byte = QBYTE(o + 2u + (pos & 15u));
+                        uint pos = word * 4u + j, byte = QBYTE(codes + (pos & 15u));
                         uint code = pos < 16u ? byte & 15u : byte >> 4u;
                         packed |= (uint(iq4_nl_value(code)) & 255u) << (8u * j);
                     }
                     wq[s * 8u + word][wrow] = WIDEN(ok ? packed : 0u);
                 }
-                if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = ok ? half_at(QBYTE(o), QBYTE(o + 1u)) : 0.0;
+                if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = ok ? scale : 0.0;
             }
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
         }
@@ -511,10 +512,10 @@ void main() {
 #ifdef LLMX_IQ4
             // Each exact integer block sum is at most 32 * 127 * 32767 = 133165088.
             float d0 = d * c0, d1 = d * c1, d2 = d * c2, d3 = d * c3;
-            if (iq4_nl_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
-            if (iq4_nl_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
-            if (iq4_nl_unsafe_scale(d, c2, d2)) repair[i] |= 4u;
-            if (iq4_nl_unsafe_scale(d, c3, d3)) repair[i] |= 8u;
+            if (iq4_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
+            if (iq4_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
+            if (iq4_unsafe_scale(d, c2, d2)) repair[i] |= 4u;
+            if (iq4_unsafe_scale(d, c3, d3)) repair[i] |= 8u;
             precise float p0 = d0 * float(t[i][0]), p1 = d1 * float(t[i][1]);
             precise float p2 = d2 * float(t[i][2]), p3 = d3 * float(t[i][3]);
 #else
@@ -592,7 +593,7 @@ void main() {
 #else
 #ifdef LLMX_IQ4
                 if (((repair[i] >> j) & 1u) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]))
-                    acc[i][j] = iq4_nl_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);
+                    acc[i][j] = iq4_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);
 #endif
                 if (p.accum != 0u) ys[pi].y[yo + col * nout + row] += acc[i][j];
                 else ys[pi].y[yo + col * nout + row] = acc[i][j];

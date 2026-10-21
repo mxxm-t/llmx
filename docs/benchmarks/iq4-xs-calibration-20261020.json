@@ -1,0 +1,616 @@
+{
+  "frozen_at_utc": "2026-10-20T21:35:48.423976+00:00",
+  "base": "ee03deab2e1e909a844555b9686cffba01c3cbf3",
+  "scope": "New IQ4_XS tiny family only; no existing budget or real-model bound changes. Frozen before lower-precision candidate model tests.",
+  "review": "Root and independent read-only helper verified pinned environment, all 30 identities per dtype, unchanged other budgets, exact 2x margin, stable own seeds and retained refusals.",
+  "proposal_sha256": "dee085e16bab31341809adadc17609574fa6bb8d0fc7c3388df39a46ce7b4928",
+  "previous_budget_sha256": "d4f16d083a65b49f5347c74c362c8f57fe245095dacaccd8f6e259374709822d",
+  "calibration": {
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--init",
+      "--name",
+      "llmx-xdev-iq4-xs-calibration-20261020",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "2,3",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=256m",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/split-calibration:/out",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "-c",
+      "import torch,transformers,numpy,runpy,sys,hashlib,pathlib; assert (torch.__version__,transformers.__version__,numpy.__version__)==('2.5.1+cpu','4.55.2','2.2.6'); print('pinned versions verified',flush=True); assert hashlib.sha256(pathlib.Path('/out/baseline_iq4_xs.json').read_bytes()).hexdigest()=='2758bf587712ace40f5c672087e930a0ec44feb7eaa31b58ad12488c8dd9f6be'; print('ordinary fixture unchanged; starting independent calibration',flush=True); sys.argv=['tools/calibrate_dtype.py','--family','iq4-xs','--output','/out/dtype-budget-proposal.json']; runpy.run_path(sys.argv[0],run_name='__main__')"
+    ],
+    "start": 1792531593.9242482,
+    "source_sha256": "23520e2729ca3a206c9d225013206064295abe9c08b8c09b91a2d3e3d801b742",
+    "exit": 0,
+    "end": 1792531930.3421395
+  },
+  "dtypes": {
+    "f16": {
+      "max_logit_error": 0.029282599687576294,
+      "max_nll_error": 0.002995529885303938,
+      "logit_budget": 0.05856519937515259,
+      "nll_budget": 0.005991059770607876,
+      "accepted": 30,
+      "refused": []
+    },
+    "bf16": {
+      "max_logit_error": 0.2434786558151245,
+      "max_nll_error": 0.03195064833095884,
+      "logit_budget": 0.486957311630249,
+      "nll_budget": 0.06390129666191768,
+      "accepted": 30,
+      "refused": []
+    },
+    "int8": {
+      "max_logit_error": 0.5237889289855957,
+      "max_nll_error": 0.08796889031525268,
+      "logit_budget": 1.0475778579711914,
+      "nll_budget": 0.17593778063050536,
+      "accepted": 28,
+      "refused": [
+        {
+          "fixture": "moe",
+          "split": false,
+          "seed": 1,
+          "routing": {
+            "stable": false,
+            "calls": 18,
+            "first_change": {
+              "call": 9,
+              "original": {
+                "router": "model.layers.1.mlp.gate",
+                "experts": [
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    1,
+                    2
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ]
+                ]
+              },
+              "rounded": {
+                "router": "model.layers.1.mlp.gate",
+                "experts": [
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    0,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    1,
+                    3
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "fixture": "moe",
+          "split": false,
+          "seed": 3,
+          "routing": {
+            "stable": false,
+            "calls": 18,
+            "first_change": {
+              "call": 14,
+              "original": {
+                "router": "model.layers.0.mlp.gate",
+                "experts": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    0,
+                    2
+                  ],
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "rounded": {
+                "router": "model.layers.0.mlp.gate",
+                "experts": [
+                  [
+                    0,
+                    2
+                  ],
+                  [
+                    0,
+                    2
+                  ],
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "fixtures": {
+    "baseline_iq4_xs.json": "2758bf587712ace40f5c672087e930a0ec44feb7eaa31b58ad12488c8dd9f6be",
+    "baseline_iq4_xs_split.json": "800c4d7343b114d6c54e1aa7023d2b2dc93027737fb5de83f6ae706b8e05ed12"
+  },
+  "evidence_files": {
+    "calibration-result.json": "fdd9b789e970d73f9df9df0fb0aa14d69e39f3964a074a7e28543210895e4164",
+    "calibration-only.log": "8e1641d94981ede7ac3a14cf1211bb30c0a728cde1cddb8e767016300b8b48e2",
+    "layer-split-checked.log": "88e6b07e815ebdb1fa31d9fbe43ac5e7095d3cda70b882f976783a841629d775",
+    "layer-split.log": "307af8bb17993eacc6b1153d98f92387a0d4ec940c7bbd19c22a5ad1660ee861",
+    "nll-output-diagnostic.log": "a4970c9669d61fe6daca17bd8682b4bc890b8e66d49549f705f7bd4731ad0584",
+    "check-nll-output.py": "1bb773e60dad928a588b15e76497c2be8fa126db9b0d6a2f6b03cf70a431f11f",
+    "hf-mi50-result.json": "ea41a0068d4370bae90099cd2192e5881c777ed595e0885b906966e95006a48a",
+    "build-iq4-xs-vulkan/reference-budget-checks.log": "ab7eeee0a2fcd55107eb8a52da776f7977595bf72dd98bd4cb96911f3f370491",
+    "build-iq4-xs-vulkan/reference-checkpoint-checks.log": "818c3d7d988a2e4c1aef3a25862323be0ef405b495c4bd13f1d0f0cd66ede1b4",
+    "build-iq4-xs-vulkan/split-tool-build.log": "c7a9ff671b69d4ebb525d60b60df72d274568fec33087a1f101bf8ff4f388c51",
+    "build-iq4-xs-vulkan/hf-split2-cpu-f32.log": "f5967993bb2d240330aff0c1b33fdcd9f38eaa56bfdbacee80a5c9d76f76a805",
+    "hf-split-mi50-result.json": "69b2b16d66784b8c49dbbecc52bd25890090dd77d46d612b4979fe94616dc7a1",
+    "split2-f32.log": "db97ec5af3c4c45413d22c579507c26e489e9933978612ea0720dd719cf33e08",
+    "split4-f32.log": "db97ec5af3c4c45413d22c579507c26e489e9933978612ea0720dd719cf33e08",
+    "hf-policies-mi50-result.json": "11af6bf40dbdf69418da079a19867290ecdea4a31a3e373b4b3485f2608cf584",
+    "f16.log": "edfa2f5b796b6f207e2ec68994953be88f9aad2f027d9328951e7c577a7b9434",
+    "bf16.log": "d01115f1a80dfe3452d3822e40e8de277a0da996450b860515f391605879cec8",
+    "int8.log": "edfa2f5b796b6f207e2ec68994953be88f9aad2f027d9328951e7c577a7b9434",
+    "local-policies/result.json": "941938b35e153d186be753d1573856bd42158d325198a905ad9fffd81e55396b",
+    "local-policies/cpu-bf16.log": "23164ed04340e12e5338afbfba9495b275b85ccee15807a1d32c332cb68e2722",
+    "local-policies/vulkan-0-f16.log": "7a310a35c1ea5256ab31b8782d99396f9bd46ccd736e2b4287dc007e803a90e2",
+    "local-policies/vulkan-0-bf16.log": "9d910fa95aa07e8c9b4f67436c4ca30fd5983a211956b90007ef716b02dac4fc"
+  },
+  "mi50_ordinary_f32": {
+    "start": 1792531522.273033,
+    "steps": [
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "build",
+          "--parallel",
+          "4",
+          "--target",
+          "llmx"
+        ],
+        "exit": 0,
+        "seconds": 84.62229895591736
+      },
+      {
+        "name": "hf-f32",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "f32",
+          "--device",
+          "vulkan:0",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 0,
+        "seconds": 17.29536247253418
+      }
+    ],
+    "passed": true,
+    "version": "llmx 0.1.0+unknown numerics b95b8023244846e2",
+    "binary_sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+    "container_state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 975151,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T21:25:22.438069806Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792531624.8373485
+  },
+  "reference_checks": {
+    "generator": "70 tests PASS",
+    "consumer": "10 plus 67 tests PASS, four existing skips",
+    "prior_failure": "A test still expected the newly added family to be absent. Updated to verify the frozen family and retain unknown-family rejection; original log retained.",
+    "layer_split": "18/18 added CPU F32 layer-split cases PASS; initial wrapper referenced root llmx.exe and was refused before inference.",
+    "split_f32": "Two-MI50 full consumer failed at first dense NLL; width4 remains running. CPU repeated-device CLI attempt was refused before inference."
+  },
+  "nll_output_diagnostic": {
+    "hf": 10.524159040069513,
+    "cpu_detailed_weighted": 10.524156359666668,
+    "cpu_summary": 10.5242,
+    "detailed_absolute_error": 2.6804028454563422e-06,
+    "summary_absolute_error": 4.095993048736091e-05,
+    "bound": 1e-05,
+    "conclusion": "CPU verbose nine-decimal windows meet unchanged HF bound while six-significant-digit summary fails. GPU failure matches the rounded summary delta; GPU high-precision verification remains required. Separate output-only fix is being prepared."
+  },
+  "split_f32_result": {
+    "start": 1792532090.368614,
+    "availability": [
+      {
+        "render": 128,
+        "pci": "0000:c3:00.0",
+        "busy": 0,
+        "vram": 10919936
+      },
+      {
+        "render": 129,
+        "pci": "0000:c6:00.0",
+        "busy": 0,
+        "vram": 10919936
+      },
+      {
+        "render": 130,
+        "pci": "0000:c9:00.0",
+        "busy": 0,
+        "vram": 10932224
+      },
+      {
+        "render": 131,
+        "pci": "0000:cc:00.0",
+        "busy": 0,
+        "vram": 10919936
+      }
+    ],
+    "binary_sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+    "steps": [
+      {
+        "name": "split2-f32",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "f32",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--tensor-width",
+          "2",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 1,
+        "seconds": 176.6995391845703
+      },
+      {
+        "name": "split4-f32",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "f32",
+          "--device",
+          "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+          "--tensor-width",
+          "4",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 1,
+        "seconds": 179.05690240859985
+      }
+    ],
+    "passed": false,
+    "container_state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 994546,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T21:34:50.472268331Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792532446.6341262
+  },
+  "mi50_ordinary_policies": {
+    "start": 1792532573.7496173,
+    "availability": [
+      {
+        "render": 130,
+        "pci": "0000:c9:00.0",
+        "busy": 0,
+        "vram": 10932224
+      }
+    ],
+    "binary_sha256": "28a4e1cb059dae457c7cd098c7566201638bf7c5d9b01c14ddab77d7f4cacb2a",
+    "steps": [
+      {
+        "name": "f16",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "f16",
+          "--device",
+          "vulkan:0",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 0,
+        "seconds": 17.694080114364624
+      },
+      {
+        "name": "bf16",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "bf16",
+          "--device",
+          "vulkan:0",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 0,
+        "seconds": 17.544517040252686
+      },
+      {
+        "name": "int8",
+        "command": [
+          "python3",
+          "-B",
+          "tests/run_tests.py",
+          "--exe",
+          "build/llmx",
+          "--only",
+          "iq4-xs",
+          "--dtype",
+          "int8",
+          "--device",
+          "vulkan:0",
+          "--require-device-types",
+          "IQ4_XS"
+        ],
+        "exit": 0,
+        "seconds": 17.393139600753784
+      }
+    ],
+    "passed": true,
+    "budget_commit": "b53f9197a0fbdba48e22948f604407498c7705d6",
+    "container_state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 1011868,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-20T21:42:53.851474163Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792532626.8913465,
+    "scope": "150 full-logit and 12 NLL cases per request policy. The int8 request exercised wider F16 arithmetic on these small fixtures, as shown by F16 bounds; native int8 model qualification remains open."
+  },
+  "local_ordinary_policies": {
+    "start": 1792532488.2338073,
+    "reference_commit": "b53f9197a0fbdba48e22948f604407498c7705d6",
+    "binary_sha256": "4145137158f235fd39a376b0daea7e1e66c1fc709c1843dda0319120ff494a43",
+    "steps": [
+      {
+        "name": "cpu-bf16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "--only",
+          "iq4-xs",
+          "--device",
+          "cpu",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 7.834476470947266
+      },
+      {
+        "name": "vulkan-0-f16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "--only",
+          "iq4-xs",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16"
+        ],
+        "exit": 0,
+        "seconds": 123.33412265777588
+      },
+      {
+        "name": "vulkan-0-bf16",
+        "command": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq4-xs-resume-20261020\\build-iq4-xs-vulkan\\Release\\llmx.exe",
+          "--only",
+          "iq4-xs",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16"
+        ],
+        "exit": 0,
+        "seconds": 132.85061049461365
+      }
+    ],
+    "passed": true,
+    "end": 1792532752.2580562
+  }
+}

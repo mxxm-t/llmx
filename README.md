@@ -29,7 +29,8 @@ Outputs are checked against Hugging Face reference outputs; [ASSETS](docs/ASSETS
 | MXFP4 | Supported | Supported on devices with the required float preservation and double arithmetic | No |
 | F16, BF16 | Supported | Supported | No |
 | IQ4_NL | Supported | Supported | No |
-| IQ4_XS, Q3_K, Q2_K | Planned | Planned | No |
+| IQ4_XS | Yes | Yes | No |
+| Q3_K, Q2_K | Planned | Planned | No |
 
 Inference requires each used tensor's type to be supported by its assigned backend; a device never falls back to the CPU on its own. `info`, `tokenize` and `detokenize` also accept known storage layouts without execution support, including Q3_K and Q2_K. Recognizing a layout does not add a decoder or kernel; [storage metadata](docs/src/quant-types.md) lists that boundary. F16/BF16 weights widen to F32 through the existing CPU and Vulkan product paths. CPU and device checks include pinned BF16/F32 output identity. Exact half/F32 twins and representative released-file HF checks pass on CPU, MI50 and Radeon VII. Qualification evidence and measured performance limits are recorded in [STATUS](docs/STATUS.md).
 Activation precision is selected with `--dtype auto|f16|bf16|f32|int8`; `auto` selects F16 on the supported AVX2 CPU, MI50 and Radeon VII paths. Explicit BF16 is emulated on those tested devices, and `int8` rounds the inputs of quantized matrix products that have an 8-bit build to 8 bits for speed, below the default precision; it runs so on a Vulkan device that prefers the integer dot product, the MI50 under Mesa, and elsewhere runs as `f16` and says so. Activation precision is separate from weight storage; see [precision](docs/USAGE.md#precision) for the execution policy and reported fallbacks.

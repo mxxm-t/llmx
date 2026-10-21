@@ -781,6 +781,36 @@ class LayeredConsumer(unittest.TestCase):
 
 
 class MXFP4Consumer(unittest.TestCase):
+    def test_xs_reference_allowance_is_fixture_and_path_scoped(self):
+        directory = Path(common.ROOT) / "tests" / "data"
+        ordinary = json.loads((directory / "baseline_iq4_xs.json").read_text())["fixtures"]
+        split = json.loads((directory / "baseline_iq4_xs_split.json").read_text())["fixtures"]
+        tight = {"logit": 2e-5, "nll": 1e-5}
+        expected = {"logit": 2e-5 + 6.875395774841309e-5, "nll": 1e-5}
+        for fixture in ordinary + split[:2]:
+            self.assertEqual(common.hf_bounds("f32", [["f32"]], "iq4-xs", fixture), tight)
+        golden = split[2]
+        self.assertEqual(common.hf_bounds("f32", [["f32"], ["f32"]], "iq4-xs", golden), expected)
+        for family, fixture in ((None, golden), ("iq4-nl", golden), ("iq4-xs", None)):
+            self.assertEqual(common.hf_bounds("f32", [["f32"]], family, fixture), tight)
+        for key in ("name", "config", "weights_sha256", "packed_sha256"):
+            changed = dict(golden, **{key: "changed"})
+            self.assertEqual(common.hf_bounds("f32", [["f32"]], "iq4-xs", changed), tight)
+        for dtype, paths in (("f16", [["block-int16"]]), ("bf16", [["bf16"]]), ("int8", [["block-int8"]])):
+            self.assertEqual(common.hf_bounds(dtype, paths, "iq4-xs", golden), common.hf_bounds(dtype, paths, "iq4-xs"))
+        witness = 'matrix-paths: {"dtype":"f32","devices":[["f32"]]}\n'
+        self.assertEqual(common.hf_execution(witness, "iq4-xs", golden), expected)
+        with self.assertRaises(AssertionError):
+            common.hf_logit_error("XS split MoE", {0: expected["logit"] * 1.01}, [0.0], bound=expected["logit"])
+        def result(args, **kwargs):
+            out = "tokens: 1\n0 0.00005\n" if args[0] == "logits" else "mean NLL: 1.000005\n"
+            return subprocess.CompletedProcess(args, 0, out, witness)
+        with patch.object(common, "run_process", side_effect=result), contextlib.redirect_stdout(io.StringIO()):
+            args = ("XS split MoE", "model", [{"text": "a", "logits": [0.0]}], [{"context": 4, "mean_nll": 1.0}], "a", (1,))
+            self.assertEqual(common.check_hf_fixture(*args, family="iq4-xs", fixture=golden), (5e-5, 2))
+            with self.assertRaises(AssertionError):
+                common.check_hf_fixture(*args, family="iq4-xs", fixture=ordinary[2])
+
     def test_fixture_family_bounds_do_not_change_existing_families(self):
         original = common.hf_bounds("int8", [["block-int8"]])
         doc = {"dtypes": {"int8": {"logit_budget": original["logit"], "nll_budget": original["nll"]}},

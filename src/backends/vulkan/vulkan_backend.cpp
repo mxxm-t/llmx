@@ -644,9 +644,15 @@ const uint32_t kSpvMatmulTileWbf16Bf16Preserve[] = {
 const uint32_t kSpvMatmulRowIq4Dot[] = {
 #include "vulkan/matmul_row_iq4_dot.inc"
 };
+const uint32_t kSpvMatmulRowIq4XsDot[] = {
+#include "vulkan/matmul_row_iq4_xs_dot.inc"
+};
 
 const uint32_t kSpvMatmulTileIq4[] = {
 #include "vulkan/matmul_tile_iq4.inc"
+};
+const uint32_t kSpvMatmulTileIq4Xs[] = {
+#include "vulkan/matmul_tile_iq4_xs.inc"
 };
 
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
@@ -807,14 +813,17 @@ const uint32_t kSpvMatmulTileIq4[] = {
     X(K_EMBED_IDS_WBF16, "embed_ids_wbf16", kSpvEmbedIdsWbf16, sizeof(kSpvEmbedIdsWbf16), 4, nullptr) \
     X(K_MATMUL_ROW_IQ4_DOT, "matmul_row_iq4_dot", kSpvMatmulRowIq4Dot, sizeof(kSpvMatmulRowIq4Dot), 12, kMatmulRowCounts) \
     X(K_MATMUL_TILE_IQ4, "matmul_tile_iq4", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts) \
-    X(K_MATMUL_TILE_IQ4_TALL, "matmul_tile_iq4_tall", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts)
+    X(K_MATMUL_TILE_IQ4_TALL, "matmul_tile_iq4_tall", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts) \
+    X(K_MATMUL_ROW_IQ4_XS_DOT, "matmul_row_iq4_xs_dot", kSpvMatmulRowIq4XsDot, sizeof(kSpvMatmulRowIq4XsDot), 12, kMatmulRowCounts) \
+    X(K_MATMUL_TILE_IQ4_XS, "matmul_tile_iq4_xs", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts) \
+    X(K_MATMUL_TILE_IQ4_XS_TALL, "matmul_tile_iq4_xs_tall", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,
 enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };
 #undef LLMX_KERNEL_ID
 
 // A supported weight format's dispatch choices, independent of the requested activation dtype.
-enum class RowLayout { values, blocks, q8_pairs, q4_pairs, k_blocks };
+enum class RowLayout { values, groups32, q8_pairs, q4_pairs, k_blocks };
 struct WeightKernels {
     uint32_t type;
     RowLayout layout;
@@ -844,13 +853,13 @@ const WeightKernels* weight_kernels(uint32_t type) {
         {quant::GGML_TYPE_Q4_0, RowLayout::q4_pairs, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_Q4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
-        {quant::GGML_TYPE_Q4_1, RowLayout::blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
+        {quant::GGML_TYPE_Q4_1, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q4, K_MATMUL_ROW_Q4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q, K_MATMUL_TILE_Q_TALL, K_MATMUL_ROW_Q4_I8, K_MATMUL_TILE_QI8, K_MATMUL_TILE_QI8_TALL, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
-        {quant::GGML_TYPE_Q5_0, RowLayout::blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q50, K_MATMUL_ROW_Q50_DOT, K_MATMUL_ROW_FLOAT_X,
+        {quant::GGML_TYPE_Q5_0, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q50, K_MATMUL_ROW_Q50_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q50, K_MATMUL_TILE_Q50_TALL, K_MATMUL_ROW_Q50_I8, K_MATMUL_TILE_Q50I8, K_MATMUL_TILE_Q50I8_TALL, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
-        {quant::GGML_TYPE_Q5_1, RowLayout::blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q5, K_MATMUL_ROW_Q5_DOT, K_MATMUL_ROW_FLOAT_X,
+        {quant::GGML_TYPE_Q5_1, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q5, K_MATMUL_ROW_Q5_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q5, K_MATMUL_TILE_Q5_TALL, K_MATMUL_ROW_Q5_I8, K_MATMUL_TILE_Q5I8, K_MATMUL_TILE_Q5I8_TALL, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
         {quant::GGML_TYPE_Q4_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_K4, K_MATMUL_ROW_K4_DOT, K_MATMUL_ROW_FLOAT_X,
@@ -862,10 +871,13 @@ const WeightKernels* weight_kernels(uint32_t type) {
         {quant::GGML_TYPE_Q6_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_K, K_MATMUL_ROW_K_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6, K_MATMUL_ROW_K_I8, K_MATMUL_TILE_Q6I8, K_MATMUL_TILE_Q6I8, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from},
-        {quant::GGML_TYPE_IQ4_NL, RowLayout::blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FLOAT_X, K_MATMUL_ROW_IQ4_DOT, K_MATMUL_ROW_FLOAT_X,
+        {quant::GGML_TYPE_IQ4_NL, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FLOAT_X, K_MATMUL_ROW_IQ4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_IQ4, K_MATMUL_TILE_IQ4_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::lookup_integer_dot, &DeviceProfile::moe_tile_from_q4},
-        {quant::GGML_TYPE_MXFP4, RowLayout::blocks, K_EMBED_MXFP4, K_EMBED_IDS_MXFP4, K_MATMUL_ROW_MXFP4, K_MATMUL_ROW_MXFP4_DOT, K_MATMUL_ROW_MXFP4_FLOAT_X,
+        {quant::GGML_TYPE_IQ4_XS, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FLOAT_X, K_MATMUL_ROW_IQ4_XS_DOT, K_MATMUL_ROW_FLOAT_X,
+         K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
+         K_MATMUL_TILE_IQ4_XS, K_MATMUL_TILE_IQ4_XS_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::lookup_integer_dot, &DeviceProfile::moe_tile_from_q4},
+        {quant::GGML_TYPE_MXFP4, RowLayout::groups32, K_EMBED_MXFP4, K_EMBED_IDS_MXFP4, K_MATMUL_ROW_MXFP4, K_MATMUL_ROW_MXFP4_DOT, K_MATMUL_ROW_MXFP4_FLOAT_X,
          K_MATMUL_TILE_MXFP4, K_MATMUL_TILE_MXFP4_TALL, K_MATMUL_TILE_MXFP4_BF16, K_MATMUL_TILE_MXFP4_BF16_TALL,
          K_MATMUL_TILE_Q8MX, K_MATMUL_TILE_Q8MX_TALL, K_COUNT, K_COUNT, K_COUNT, false, true, &DeviceProfile::lookup_integer_dot, &DeviceProfile::moe_tile_from},
     };
@@ -885,7 +897,7 @@ inline bool is_row_kernel(KernelId id) {
     if (id == K_MATMUL_ROW_MXFP4 || id == K_MATMUL_ROW_MXFP4_DOT || id == K_MATMUL_ROW_MXFP4_FLOAT_X) return true;
     switch (id) {
     case K_MATMUL_ROW_WF16: case K_MATMUL_ROW_WBF16:
-    case K_MATMUL_ROW_IQ4_DOT:
+    case K_MATMUL_ROW_IQ4_DOT: case K_MATMUL_ROW_IQ4_XS_DOT:
     case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_Q5_DOT: case K_MATMUL_ROW_Q50_DOT:
@@ -906,7 +918,7 @@ inline bool is_tile_kernel(KernelId id) {
     case K_MATMUL_TILE_WBF16: case K_MATMUL_TILE_WBF16_TALL: case K_MATMUL_TILE_WBF16_BF16: case K_MATMUL_TILE_WBF16_BF16_TALL:
     case K_MATMUL_TILE: case K_MATMUL_TILE_TALL: case K_MATMUL_TILE_Q: case K_MATMUL_TILE_Q_TALL:
     case K_MATMUL_TILE_Q5: case K_MATMUL_TILE_Q50: case K_MATMUL_TILE_Q5_TALL: case K_MATMUL_TILE_Q50_TALL: case K_MATMUL_TILE_Q5I8: case K_MATMUL_TILE_Q50I8: case K_MATMUL_TILE_Q5I8_TALL: case K_MATMUL_TILE_Q50I8_TALL:
-    case K_MATMUL_TILE_IQ4: case K_MATMUL_TILE_IQ4_TALL:
+    case K_MATMUL_TILE_IQ4: case K_MATMUL_TILE_IQ4_TALL: case K_MATMUL_TILE_IQ4_XS: case K_MATMUL_TILE_IQ4_XS_TALL:
     case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
     case K_MATMUL_TILE_QI8: case K_MATMUL_TILE_QI8_TALL: case K_MATMUL_TILE_Q6I8: case K_MATMUL_TILE_Q8I8: case K_MATMUL_TILE_Q8I8_TALL:
     case K_MATMUL_TILE_BF16: case K_MATMUL_TILE_BF16_TALL:
@@ -1723,7 +1735,7 @@ public:
         const WeightKernels* format = weight_kernels(type);
         return format && (!format->mxfp4 || dev_->mxfp4);
     }
-    // int8 where the integer dot is preferred, which every quantized type but MXFP4 has 8-bit row and tile builds for.
+    // int8 where the integer dot is preferred; a format without an 8-bit build retains its wider kernel.
     std::vector<Dtype> native_dtypes() const override {
         if (dev_->profile.prefer_integer_dot) return {Dtype::f16, Dtype::f32, Dtype::int8};
         return {Dtype::f16, Dtype::f32};
@@ -1731,11 +1743,11 @@ public:
     bool emulates_dtype(Dtype dtype) const override { return dtype == Dtype::bf16 && dev_->preserve_float32; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
-        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but MXFP4/IQ4_NL), block-int16 (MXFP4, IQ4_NL rows on lookup-dot profiles and eligible tiles), f32 (IQ4_NL fallback, other products, routers)";
+        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but MXFP4/IQ4_NL/IQ4_XS), block-int16 (MXFP4, IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)";
         if (dtype == Dtype::f16)
             return dev_->profile.prefer_integer_dot
-                ? "block-int16 (quantized rows and eligible tiles; IQ4_NL rows on lookup-dot profiles), f32 (IQ4_NL fallback, other products, routers)"
-                : "block-int16 (quantized rows; IQ4_NL rows on lookup-dot profiles), f32 (IQ4_NL fallback rows, tiles, F32 weights, routers)";
+                ? "block-int16 (quantized rows and eligible tiles; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)"
+                : "block-int16 (quantized rows; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
         return "f32";
     }
     const std::string& name() const { return dev_->caps.device; }
@@ -3081,7 +3093,7 @@ public:
         KernelId kernel = dot ? format.dot_row : format.row;
         switch (format.layout) {
         case RowLayout::values: break;
-        case RowLayout::blocks: units = nblocks; break;
+        case RowLayout::groups32: units = nin / 32; break;
         case RowLayout::q8_pairs:
             wide = nblocks % 2 == 0 && nblocks / 2 >= kQ8LanesPerPair;
             lanes = wide ? kQ8LanesPerPair : 1;
@@ -3948,7 +3960,7 @@ private:
             ci.stage.pName = "main";
             // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
             const bool tile = is_tile_kernel(id);
-            const bool tall_tile = id == K_MATMUL_TILE_Q5_TALL || id == K_MATMUL_TILE_Q50_TALL || id == K_MATMUL_TILE_Q5I8_TALL || id == K_MATMUL_TILE_Q50I8_TALL || id == K_MATMUL_TILE_IQ4_TALL || id == K_MATMUL_TILE_WF16_TALL || id == K_MATMUL_TILE_WF16_BF16_TALL ||
+            const bool tall_tile = id == K_MATMUL_TILE_Q5_TALL || id == K_MATMUL_TILE_Q50_TALL || id == K_MATMUL_TILE_Q5I8_TALL || id == K_MATMUL_TILE_Q50I8_TALL || id == K_MATMUL_TILE_IQ4_TALL || id == K_MATMUL_TILE_IQ4_XS_TALL || id == K_MATMUL_TILE_WF16_TALL || id == K_MATMUL_TILE_WF16_BF16_TALL ||
                                    id == K_MATMUL_TILE_WBF16_TALL || id == K_MATMUL_TILE_WBF16_BF16_TALL || id == K_MATMUL_TILE_Q8MX_TALL || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_BF16_TALL || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_BF16_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL ||
                                    id == K_MATMUL_TILE_QI8_TALL || id == K_MATMUL_TILE_Q8I8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)

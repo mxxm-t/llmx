@@ -238,7 +238,7 @@ def check_output_failures(d):
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
-TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "mxfp4": sd.MXFP4}
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4}
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -370,9 +370,11 @@ def mxfp4_blocks():
 
 # The formats `quantize` does not write, and Q8_0 and Q4_0 under negative scales, which their quantizers never write, get their blocks from the test, written into a one-tensor GGUF with no metadata.
 def check_raw_decode(d):
+    from raw_blocks import iq4_xs_block, iq4_xs_cases
     iq4 = b"".join(struct.pack("<H", h) + nibble_bytes(shift, 16)
                    for h in HALVES + (0, 0x8000) for shift in range(16))
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("mxfp4", mxfp4_blocks())):
+    xs = b"".join(iq4_xs_block(*case) for case in iq4_xs_cases(random.Random(731)))
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks())):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block
@@ -411,7 +413,7 @@ def check_non_ascii_directory(d):
 # quantize takes only the names of the types it writes, and Q4_1 is one llmx reads but never writes.
 def check_type_names(d):
     mj, mb, mg = (os.path.join(d, n) for n in ("model.json", "model.bin", "names.gguf"))
-    for name in ("q4_1", "Q8_0"):
+    for name in ("q4_1", "iq4_nl", "iq4_xs", "Q8_0"):
         result = run_process(["quantize", mj, mb, mg, name], text=True, timeout=30)
         assert result.returncode == 2 and "unknown quant type" in result.stderr, (
             "quantize did not refuse type %a with status 2: %d %a" % (name, result.returncode, result.stderr))

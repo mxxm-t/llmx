@@ -119,7 +119,7 @@ vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
 vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
 #ifdef LLMX_IQ4
 #include "dot16.glsl"
-float iq4_nl_input(uint col, uint b, uint j) {
+float iq4_input(uint col, uint b, uint j) {
     uvec2 pair = xq2[col * p.nin / 4u + b * 8u + j / 4u];
     uint word = (j & 1u) == 0u ? pair.x : pair.y;
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
@@ -704,14 +704,14 @@ void main() {
 #ifdef LLMX_IQ4
         uint nblocks = p.nin / IQ4_NL_BLOCK;
         for (uint b = l; b < nblocks; b += p.cluster) {
-            uint o = (wrow * nblocks + b) * IQ4_NL_BYTES;
-            float dw = half_at(QBYTE(o), QBYTE(o + 1u));
+            float dw;
+            uint codes = iq4_group(IQ4_TYPE, wrow, p.nin, b, dw);
             uvec2 weights[8];
             for (uint j = 0u; j < 8u; ++j) {
                 uint packed = 0u;
                 for (uint k = 0u; k < 4u; ++k) {
                     uint pos = j * 4u + k;
-                    uint byte = QBYTE(o + 2u + (pos & 15u));
+                    uint byte = QBYTE(codes + (pos & 15u));
                     uint code = pos < 16u ? byte & 15u : byte >> 4u;
                     packed |= (uint(iq4_nl_value(code)) & 255u) << (8u * k);
                 }
@@ -723,7 +723,7 @@ void main() {
                 int sum = 0;
                 for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], xq2[a2 + j], sum);
                 float dx = xq_block(col, b).x, scale = dw * dx;
-                if (iq4_nl_unsafe_scale(dw, dx, scale)) repair[c] = 1u;
+                if (iq4_unsafe_scale(dw, dx, scale)) repair[c] = 1u;
                 acc[c] = fma(scale, float(sum), acc[c]);
             }
         }
@@ -1031,7 +1031,7 @@ void main() {
 #ifdef LLMX_IQ4
         uint unsafe = repair[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
-        if (l == 0u && row < nout && (unsafe != 0u || isnan(s) || isinf(s))) s = iq4_nl_float_twin(wrow, XCOL(c), p.nin, 0u, p.nin / IQ4_NL_BLOCK);
+        if (l == 0u && row < nout && (unsafe != 0u || isnan(s) || isinf(s))) s = iq4_float_twin(wrow, XCOL(c), p.nin, 0u, p.nin / IQ4_NL_BLOCK);
 #endif
         if (l == 0u && row < nout && c < ncols) {
             if (p.accum != 0u) ys[pi].y[OCOL(c) * nout + row] += s;

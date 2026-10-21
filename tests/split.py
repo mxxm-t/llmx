@@ -9,6 +9,7 @@ import f32
 import moe
 import mxfp4
 import iq4_nl
+import iq4_xs
 import qwen35
 import tensor_split
 from block_fixture import write_fixture
@@ -113,7 +114,7 @@ def run(require=False):
                   for name, tied in (("tied", True), ("untied", False))]
         models.append((f32.write_model(os.path.join(directory, "tiny-moe.gguf"), moe.tensors(), config=moe.CONFIG, arch="qwen3moe"),
                        ["cpu,cpu", "cpu,cpu,cpu"]))
-        for family, module in (("mxfp4", mxfp4), ("iq4-nl", iq4_nl)):
+        for family, module in (("mxfp4", mxfp4), ("iq4-nl", iq4_nl), ("iq4-xs", iq4_xs)):
             for name, tied, routed in module.VARIANTS:
                 config, weights, packed = module.fixture(tied, routed)
                 model = write_fixture(os.path.join(directory, "tiny-" + family + "-" + name + ".gguf"), config, weights, packed, routed)
@@ -149,7 +150,7 @@ def run(require=False):
                     assert forked == 2, "split: %d recomputes from a fork on the Q8_0 model's %d-token history, against 2" % (forked, length + steps)
                     assert verifies or steps < 17, "split: no rounds of verifies after %d decode steps" % steps
                     runs += 1
-    print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4 and IQ4_NL (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
+    print("split: %d runs of the tiny F32 (tied, untied), MoE, MXFP4, IQ4_NL and IQ4_XS (dense tied/untied and MoE), qwen35 and Q8_0 models over 2, 3 and 4 CPU backends at ubatch %s with %s caches, "
           "bit-identical to one, the tensor-split fixtures (dense, qwen3moe in F32 and in Q8_0 with covering blocks, qwen35 and qwen35moe) as two stages of groups of two against one group, the Q8_0 model's recompute also from a fork at a block and its verifies of drafts  [ok]" % (runs, "/".join(map(str, UBATCHES)), " and ".join(CACHE_TYPES)))
     return True
 

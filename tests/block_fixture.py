@@ -15,17 +15,21 @@ VARIANTS = (("dense-untied", False, False), ("dense-tied", True, False), ("moe",
 
 def fixture(tied, moe, type_id, make_block, seed=12345, context=16, split=False):
     """Raw-block matrices in the shared tiny dense/MoE layout, independently decoded for HF; norms and routers stay F32."""
-    config = {"block_count": 2, "embedding_length": 96, "feed_forward_length": 160,
+    block = sd.TYPES[type_id][1]
+    assert block in (32, 256), "unsupported tiny block width"
+    width, hidden, head = (96, 160, 32) if block == 32 else (256, 768, 128)
+    config = {"block_count": 2, "embedding_length": width, "feed_forward_length": hidden,
               "attention.head_count": 2, "attention.head_count_kv": 1,
-              "attention.key_length": 32, "context_length": context}
+              "attention.key_length": head, "context_length": context}
     if moe:
-        config.update(expert_count=4, expert_used_count=2, expert_feed_forward_length=160)
+        config.update(expert_count=4, expert_used_count=2, expert_feed_forward_length=hidden)
     vocab = VOCAB
     if split:
-        config.update(embedding_length=128, feed_forward_length=256,
-                      **{"attention.head_count": 4, "attention.head_count_kv": 2})
+        width, hidden, head = (128, 256, 32) if block == 32 else (1024, 1024, 256)
+        config.update(embedding_length=width, feed_forward_length=hidden,
+                      **{"attention.head_count": 4, "attention.head_count_kv": 2, "attention.key_length": head})
         if moe:
-            config["expert_feed_forward_length"] = 256
+            config["expert_feed_forward_length"] = hidden
             config["expert_used_count"] = config["expert_count"]
         vocab = 260
     width, hidden = config["embedding_length"], config["feed_forward_length"]
@@ -45,8 +49,8 @@ def fixture(tied, moe, type_id, make_block, seed=12345, context=16, split=False)
             values = [(((next_value() >> 16) & 1023) - 512) / 8192 for _ in range(n)]
             values = [1.0 + x if norm else x * 4 for x in values]
         else:
-            assert shape[0] % 32 == 0
-            payload = b"".join(make_block(next_value, b) for b in range(n // 32))
+            assert shape[0] % block == 0
+            payload = b"".join(make_block(next_value, b) for b in range(n // block))
             values = sd.decode(type_id, payload, n)
             packed.append((name, shape, type_id, payload))
         weights.append((name, hf or hf_name(name), shape, values))

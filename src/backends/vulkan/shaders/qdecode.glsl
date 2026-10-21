@@ -27,19 +27,44 @@ float mxfp4_at(uint o, uint j) {
     return uintBitsToFloat(magnitude == 0u ? 0u : bits | ((code & 8u) << 28u));
 }
 
-// IQ4_NL uses signed lookup values, scaled by one binary16 per block.
+// IQ4_NL and IQ4_XS share signed lookup values and 32-value nibble groups.
 int iq4_nl_value(uint code) {
     // Four signed bytes per word keep the lane-local lookup in integer registers.
     uint lo = code < 4u ? 0xbfad9881u : 0xf6eaddcfu;
     uint hi = code < 12u ? 0x26190d01u : 0x71594535u;
     return bitfieldExtract(int(code < 8u ? lo : hi), int((code & 3u) * 8u), 8);
 }
-float iq4_nl_at(uint o, uint j, float d) {
-    uint packed = QBYTE(o + 2u + (j & 15u));
+float iq4_at(uint codes, uint j, float d) {
+    uint packed = QBYTE(codes + (j & 15u));
     int value = iq4_nl_value(j < 16u ? packed & 15u : packed >> 4u);
     // Embedding builds lack float-control modes, so construct the format's zero sign as bits.
     uint sign = (floatBitsToUint(d) ^ (value < 0 ? 0x80000000u : 0u)) & 0x80000000u;
     return uintBitsToFloat((floatBitsToUint(d * float(value)) & 0x7fffffffu) | sign);
+}
+float iq4_nl_at(uint o, uint j, float d) {
+    return iq4_at(o + 2u, j, d);
+}
+float iq4_xs_scale(uint o, uint group, float d) {
+    uint low = (QBYTE(o + 4u + group / 2u) >> (4u * (group & 1u))) & 15u;
+    uint high = (QBYTE(o + 2u + group / 4u) >> (2u * (group & 3u))) & 3u;
+    int scale = int(low | (high << 4u)) - 32;
+    uint sign = (floatBitsToUint(d) ^ (scale < 0 ? 0x80000000u : 0u)) & 0x80000000u;
+    return uintBitsToFloat((floatBitsToUint(d * float(scale)) & 0x7fffffffu) | sign);
+}
+float iq4_xs_at(uint o, uint j, float d) {
+    uint group = j / 32u;
+    return iq4_at(o + 8u + group * 16u, j % 32u, iq4_xs_scale(o, group, d));
+}
+// Resolve one 32-value group; row and tile variants make the format a compile-time constant.
+uint iq4_group(uint type, uint row, uint width, uint group, out float scale) {
+    if (type == TYPE_IQ4_XS) {
+        uint o = (row * (width / IQ4_XS_BLOCK) + group / 8u) * IQ4_XS_BYTES;
+        scale = iq4_xs_scale(o, group % 8u, half_at(QBYTE(o), QBYTE(o + 1u)));
+        return o + 8u + (group % 8u) * 16u;
+    }
+    uint o = (row * (width / IQ4_NL_BLOCK) + group) * IQ4_NL_BYTES;
+    scale = half_at(QBYTE(o), QBYTE(o + 1u));
+    return o + 2u;
 }
 
 // Q4_0: (nibble - 8) * d as nibble * d - 8 * d, the same value under a finite scale except +0 for the -0 that nibble 8 gives under a negative scale, which the tile's sums never see.
@@ -144,6 +169,7 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     if (type == TYPE_Q4_0) return q4_0_exact(o, j, d);
     if (type == TYPE_Q5_0) return q5_0_at(o, j, d);
     if (type == TYPE_IQ4_NL) return iq4_nl_at(o, j, d);
+    if (type == TYPE_IQ4_XS) return iq4_xs_at(o, j, d);
     if (type == TYPE_Q6_K) return q6_k_at(o, j, d);
     float m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
     if (type == TYPE_Q4_1) return q4_1_at(o, j, d, m);

@@ -158,6 +158,14 @@ def iq4_xs_block(d, scales, cs):
     return struct.pack("<HH", d, high) + low + qs
 
 
+def iq4_xs_cases(rng):
+    patterns = [[63] * 8, [0] * 8, [0, 9, 18, 27, 36, 45, 54, 63]]
+    patterns += [[63 & ~(1 << bit) if b == sub else 63 for b in range(8)] for sub in range(8) for bit in range(6)]
+    runs = code_runs(rng, 256, 4)
+    for d, scales in [(d, patterns[0]) for d in HALVES] + [(0x3C00, s) for s in patterns] + [(0x0001, patterns[2]), (0xB555, patterns[2])]:
+        yield d, scales, next(runs)
+
+
 # IQ4_NL and IQ4_XS: every code in both nibbles, scales d positive, negative, zero, subnormal and the largest finite, and for IQ4_XS every one of the 48 scale bits cleared once, all scales 0 and all 63.
 def check_iq4(rng):
     payload, expected, runs = b"", [], code_runs(rng, 32, 4)
@@ -172,11 +180,8 @@ def check_iq4(rng):
     assert sd.decode(sd.IQ4_NL, iq4_nl_block(0x3800, list(range(16)) + list(range(15, -1, -1))), 32) == hand + hand[::-1]
     nl = len(expected)
 
-    patterns = [[63] * 8, [0] * 8, [0, 9, 18, 27, 36, 45, 54, 63]]
-    patterns += [[63 & ~(1 << bit) if b == sub else 63 for b in range(8)] for sub in range(8) for bit in range(6)]
-    payload, expected, runs = b"", [], code_runs(rng, 256, 4)
-    for d, scales in [(d, patterns[0]) for d in HALVES] + [(0x3C00, s) for s in patterns] + [(0x0001, patterns[2]), (0xB555, patterns[2])]:
-        cs = next(runs)
+    payload, expected = b"", []
+    for d, scales, cs in iq4_xs_cases(rng):
         payload += iq4_xs_block(d, scales, cs)
         expected += [cell(lambda h: h(d) * (scales[v // 32] - 32) * IQ4[c]) for v, c in enumerate(cs)]
     assert_values("IQ4_XS", expected, sd.decode(sd.IQ4_XS, payload, len(expected)))

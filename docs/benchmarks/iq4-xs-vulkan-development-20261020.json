@@ -1,0 +1,1752 @@
+{
+  "scope": "IQ4_XS initial Windows Vulkan operators, not full-model or landing qualification",
+  "base": "3118afbd293aff1db0d69936e5d747ced8b20e4d",
+  "source_snapshot": {
+    "base": "3118afbd293aff1db0d69936e5d747ced8b20e4d",
+    "overlay": {
+      "CMakeLists.txt": "5515baa036bfd1c1a2fbcccc4b04ceebd496e918c2f2ee99ca3f4f9f63e9d508",
+      "src/backends/vulkan/vulkan_backend.cpp": "066424201167ed6c404917bce58e7547692c026776b16348fbeddf3661043b0e",
+      "tests/iq4_nl_vulkan.cpp": "cee404ff232d8f2893f16a57630c08af8fd701509d6693dec323ed147353abb7",
+      "tests/backend_vulkan.cpp": "034d7c48c9e52e7465f7aa065084e539b2d9bd0ca5cb566070861e405a887270",
+      "src/backends/vulkan/shaders/embed.comp": "497cef7a0a477f831121358ba7657c009d19ec840ab45d8aad21182947be33a2",
+      "src/backends/vulkan/shaders/iq4_dot.glsl": "77255b8f6466c64ed0b65c272e5e8089a3d2d589e05c53742877f0110ab033c6",
+      "src/backends/vulkan/shaders/matmul_row.comp": "9074aeb72a0ee23cb6c03038f150400f3dc015d5d33a9a846e9e02b998b3004b",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "cbddf3c3fc460655e2998a59973a05a42ebc120ae74ea64d3be4b8b9e2a92ada",
+      "src/backends/vulkan/shaders/matmul_tile_q.comp": "f05de486c94e3bdd9939bce7b72855d536b606c2f62b73088eb0d0ec0bd43424",
+      "src/backends/vulkan/shaders/q.glsl": "0a6b92b58fabe54930751affcf5387bf846c158de074288a8f083660691d6f43",
+      "src/backends/vulkan/shaders/qdecode.glsl": "6c618e22026959d7f79164063026d70bc0809b2236245273e1c83959fed1e1c8"
+    },
+    "archive_sha256": "85966383df0eb56c0c8a2114e0e224a1c06f01e4f2a536bddd627f48bfd73be7"
+  },
+  "results": {
+    "iq4_nl_vulkan": {
+      "passed": true,
+      "seconds": 8.4,
+      "decoded_product_values": 42067056,
+      "coverage": "NL and XS finite-half embedding, device-ID gathers, all dtype matrix policies, ranged products, cancellation, six matrix APIs, row classes, actual row/float/BF16 dispatch; Radeon keeps F32 tiles"
+    },
+    "backend_vulkan": {
+      "passed": true,
+      "seconds": 39.89
+    },
+    "gguf_validation": {
+      "passed": true,
+      "seconds": 1.82
+    },
+    "docs_dead_code": {
+      "passed": true,
+      "listed_findings": 5,
+      "docs_findings": 0
+    },
+    "mi50": {
+      "passed": true,
+      "seconds": 8.16,
+      "decoded_product_values": 42067056,
+      "row_class_pairs": 2541,
+      "witnesses": [
+        "matmul_row_iq4_xs_dot",
+        "matmul_tile_iq4_xs",
+        "matmul_tile_iq4_xs_small",
+        "matmul_tile_iq4_xs head"
+      ],
+      "rig_record": {
+        "start": 1792530607.1973193,
+        "source": {
+          "base": "3118afbd293aff1db0d69936e5d747ced8b20e4d",
+          "overlay": {
+            "CMakeLists.txt": "5515baa036bfd1c1a2fbcccc4b04ceebd496e918c2f2ee99ca3f4f9f63e9d508",
+            "src/backends/vulkan/vulkan_backend.cpp": "066424201167ed6c404917bce58e7547692c026776b16348fbeddf3661043b0e",
+            "tests/iq4_nl_vulkan.cpp": "cee404ff232d8f2893f16a57630c08af8fd701509d6693dec323ed147353abb7",
+            "tests/backend_vulkan.cpp": "034d7c48c9e52e7465f7aa065084e539b2d9bd0ca5cb566070861e405a887270",
+            "src/backends/vulkan/shaders/embed.comp": "497cef7a0a477f831121358ba7657c009d19ec840ab45d8aad21182947be33a2",
+            "src/backends/vulkan/shaders/iq4_dot.glsl": "77255b8f6466c64ed0b65c272e5e8089a3d2d589e05c53742877f0110ab033c6",
+            "src/backends/vulkan/shaders/matmul_row.comp": "9074aeb72a0ee23cb6c03038f150400f3dc015d5d33a9a846e9e02b998b3004b",
+            "src/backends/vulkan/shaders/matmul_tile.comp": "cbddf3c3fc460655e2998a59973a05a42ebc120ae74ea64d3be4b8b9e2a92ada",
+            "src/backends/vulkan/shaders/matmul_tile_q.comp": "f05de486c94e3bdd9939bce7b72855d536b606c2f62b73088eb0d0ec0bd43424",
+            "src/backends/vulkan/shaders/q.glsl": "0a6b92b58fabe54930751affcf5387bf846c158de074288a8f083660691d6f43",
+            "src/backends/vulkan/shaders/qdecode.glsl": "6c618e22026959d7f79164063026d70bc0809b2236245273e1c83959fed1e1c8"
+          },
+          "archive_sha256": "85966383df0eb56c0c8a2114e0e224a1c06f01e4f2a536bddd627f48bfd73be7"
+        },
+        "passed": true,
+        "steps": [
+          {
+            "name": "configure",
+            "command": [
+              "cmake",
+              "-S",
+              ".",
+              "-B",
+              "build",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_HAS_BACKEND_VULKAN=ON"
+            ],
+            "exit": 0,
+            "seconds": 0.9155292510986328
+          },
+          {
+            "name": "build",
+            "command": [
+              "cmake",
+              "--build",
+              "build",
+              "--parallel",
+              "4",
+              "--target",
+              "llmx-iq4-nl-vulkan-test",
+              "llmx-moe-kernel-bench"
+            ],
+            "exit": 0,
+            "seconds": 27.223238468170166
+          },
+          {
+            "name": "native",
+            "command": [
+              "ctest",
+              "--test-dir",
+              "build",
+              "--output-on-failure",
+              "-R",
+              "^iq4-nl-vulkan$"
+            ],
+            "exit": 0,
+            "seconds": 8.290709733963013
+          }
+        ],
+        "container": "c831e07ff1d6274915203b0c891b17ea92bf7939e4aceb4d84764cbfaea3ff66",
+        "container_state": {
+          "Status": "running",
+          "Running": true,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 903124,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-20T21:10:07.317391943Z",
+          "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "end": 1792530644.2548904
+      },
+      "log_sha256": "a1c8fa7b1e1ab84079454e34395f2a3e2f8d17df391e9ad61e3369b7d0f76b2a"
+    },
+    "tiny_hf_cpu_f32": {
+      "passed": true,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "max_logit_error": 9.41e-06,
+      "logit_bound": 2e-05,
+      "max_nll_error": 3.48e-06,
+      "nll_bound": 1e-05,
+      "golden_sha256": "2758bf587712ace40f5c672087e930a0ec44feb7eaa31b58ad12488c8dd9f6be",
+      "generation": {
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--init",
+          "--name",
+          "llmx-xdev-iq4-xs-hf-20261020",
+          "--network",
+          "none",
+          "--cpuset-cpus",
+          "2,3",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--pids-limit",
+          "128",
+          "--ulimit",
+          "core=0",
+          "--read-only",
+          "--tmpfs",
+          "/tmp:rw,size=256m",
+          "-e",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "-e",
+          "HF_HUB_OFFLINE=1",
+          "-e",
+          "TRANSFORMERS_OFFLINE=1",
+          "-e",
+          "OMP_NUM_THREADS=1",
+          "-e",
+          "MKL_NUM_THREADS=1",
+          "-v",
+          "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/src:/w:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/iq4-xs-vulkan-3118-20261020/hf-reference:/out",
+          "-w",
+          "/w",
+          "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "-c",
+          "import torch,transformers,numpy,runpy,sys; assert (torch.__version__,transformers.__version__,numpy.__version__)==('2.5.1+cpu','4.55.2','2.2.6'); print(torch.__version__,transformers.__version__,numpy.__version__,flush=True); sys.argv=['tools/gen_baseline.py','iq4-xs','--output-dir','/out']; runpy.run_path(sys.argv[0],run_name='__main__')"
+        ],
+        "exit": 0,
+        "start": 1792530797.1257727,
+        "end": 1792530811.6641777,
+        "source_tar_sha256": "d5fba043414d1a7a2bfd5f1759753d68115df0b58c8a2db6000965fc5e47f575"
+      }
+    },
+    "tiny_hf_radeon_f32": {
+      "passed": true,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "max_logit_error": 7.8e-06,
+      "logit_bound": 2e-05,
+      "max_nll_error": 3.48e-06,
+      "nll_bound": 1e-05,
+      "log_sha256": "d6b4a3129e3f0f485f7f7988c8d3dd0f419d6cb485185320a83680b6b14e0da2"
+    }
+  },
+  "range_test_correction": {
+    "case": "XS half0x7bff, code0, subscales[-32,-23,-14,-5,4,13,22,31], x2^-140, 256 FMA",
+    "old_bound": "NL 32-value relative2e-7, inappropriate for256 mixed-sign terms",
+    "gpu_bits": 142467072,
+    "independent_f32_gpu_bits": 142467072,
+    "independent_sequential_fma_bits": 142467072,
+    "rounded_double_bits": 142467136,
+    "new_test": "XS gamma256*sumabs +256*denorm_min; F32 tile also bit-identical to independent ordered scalarFMA. OriginalNL and allHF/model limits unchanged. Independently checked by peer.",
+    "control_limitation": "Generic F32 GPU row flushes a subnormal in anothercase while XS retains it; cannot use genericGPU as exact oracle over allrange. ScalarFMA oracle retained."
+  },
+  "row_layout_correction": "Rows counted256storageblocks despiteprocessing32valuegroups; groups32 layout nowmatches shader. Existingtypes already32. Preserved originalcancellationfailure; corrected native suitepasses. No performanceclaim.",
+  "logs": {
+    "build-focused.log": {
+      "bytes": 25026,
+      "sha256": "ce61de9dbc2220eb1879bdfa8afb452bb51fd7237ba3ee50ef57a4d715046372"
+    },
+    "iq4-native-passed.log": {
+      "bytes": 2599,
+      "sha256": "46ff4513b437f3fe208b8d30155bbec2465a68bac026276f8020258855243e46"
+    },
+    "ctest-focused.log": {
+      "bytes": 1718,
+      "sha256": "0bfc2813710b8fa68789d9ee031bb955e9f6fb46af570adeac2e80229b762634"
+    },
+    "range-control.log": {
+      "bytes": 1296,
+      "sha256": "75a36bd35f584f3dd98a4a9fdfe5fac406320701739a66132201ebd2842a7f1d"
+    },
+    "range-parity-diagnostic.log": {
+      "bytes": 1132,
+      "sha256": "2ddd7213a197ed9decb2d0d84295cb6c6a3726a10491db15751d6444003e5d0c"
+    },
+    "cancel-diagnostic.log": {
+      "bytes": 1036,
+      "sha256": "954c7d5a05b4c4a323252b9a47b0470bf4a4b6449bdf5a1cdc54cf617fb344b7"
+    },
+    "ctest-logical-groups.log": {
+      "bytes": 580,
+      "sha256": "68df72768052f7d7bc3ed78a1cb48c8495de6a1027b0864aeb8b6081c75b85bb"
+    },
+    "ctest-backend.log": {
+      "bytes": 582,
+      "sha256": "8e55246089ecc586afcdca2e094e6c3e7c3975b7cbc9d4a9255558d96d44a470"
+    },
+    "docs-dead-code.log": {
+      "bytes": 426,
+      "sha256": "8917606a608c88014ad755ace2485319a3e391bcb61be06af82f47f027d7190b"
+    }
+  },
+  "binary": {
+    "sha256": "4145137158f235fd39a376b0daea7e1e66c1fc709c1843dda0319120ff494a43",
+    "version": "llmx 0.1.0+g3118afbd293a.dirty numerics b95b8023244846e2"
+  },
+  "remaining": [
+    "tinyHF device F32 and independent lower-precision calibration",
+    "splitfixtures",
+    "releasedfile and16Kchecks",
+    "identity/device suite/matchedtiming/hostedCI beforelanding"
+  ],
+  "screen": {
+    "scope": "two interleaved synthetic runs per type20/23 in NL,XS,XS,NL order; not model/reference or before/after comparison",
+    "record": {
+      "start": 1792530712.3389351,
+      "kind": "development synthetic operator screen, not matched model/reference gate",
+      "flags": {
+        "unrelated_process_cpu": "more than one core averaged over sample interval",
+        "disk": "read or write sectors over100MB/s; physical and virtualdevice rows retained separately",
+        "target_gpu": "unexpected process/card activity retained; no sample excluded"
+      },
+      "power": "auto",
+      "runs": [
+        {
+          "type": 20,
+          "index": 0,
+          "start": 1792530713.5504813,
+          "end": 1792530717.7228563,
+          "command": [
+            "docker",
+            "exec",
+            "95dd72a12a54e5e5dd6ac0cef4ef67ef37b08267a8e06c1d20865cdca296f20d",
+            "build/llmx-moe-kernel-bench",
+            "0",
+            "20",
+            "20",
+            "20",
+            "1"
+          ],
+          "exit": 0
+        },
+        {
+          "type": 23,
+          "index": 1,
+          "start": 1792530717.7229786,
+          "end": 1792530721.844983,
+          "command": [
+            "docker",
+            "exec",
+            "95dd72a12a54e5e5dd6ac0cef4ef67ef37b08267a8e06c1d20865cdca296f20d",
+            "build/llmx-moe-kernel-bench",
+            "0",
+            "20",
+            "23",
+            "23",
+            "1"
+          ],
+          "exit": 0
+        },
+        {
+          "type": 23,
+          "index": 2,
+          "start": 1792530721.8449907,
+          "end": 1792530725.9667273,
+          "command": [
+            "docker",
+            "exec",
+            "95dd72a12a54e5e5dd6ac0cef4ef67ef37b08267a8e06c1d20865cdca296f20d",
+            "build/llmx-moe-kernel-bench",
+            "0",
+            "20",
+            "23",
+            "23",
+            "1"
+          ],
+          "exit": 0
+        },
+        {
+          "type": 20,
+          "index": 3,
+          "start": 1792530725.9667344,
+          "end": 1792530730.1382637,
+          "command": [
+            "docker",
+            "exec",
+            "95dd72a12a54e5e5dd6ac0cef4ef67ef37b08267a8e06c1d20865cdca296f20d",
+            "build/llmx-moe-kernel-bench",
+            "0",
+            "20",
+            "20",
+            "20",
+            "1"
+          ],
+          "exit": 0
+        }
+      ],
+      "passed": true,
+      "end": 1792530730.3727958,
+      "gpu_after": {
+        "busy": 0,
+        "vram": 10932224
+      }
+    },
+    "rows": [
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "floor silu_mul 2048",
+        "wall_us": 14.9,
+        "device_us": 7.6
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "floor add 2048",
+        "wall_us": 11.7,
+        "device_us": 5.4
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2048 T=64",
+        "wall_us": 769.2,
+        "device_us": 761.5
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2080 T=64",
+        "wall_us": 524.3,
+        "device_us": 517.3
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2048 T=512",
+        "wall_us": 6016.8,
+        "device_us": 6009.7
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2080 T=512",
+        "wall_us": 2296.9,
+        "device_us": 2290.1
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "rms_norm T=1",
+        "wall_us": 17.8,
+        "device_us": 11.7
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 T=1",
+        "wall_us": 23.2,
+        "device_us": 15.5
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "route T=1",
+        "wall_us": 24.2,
+        "device_us": 18.7
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "silu_mul T=1",
+        "wall_us": 13.1,
+        "device_us": 7.1
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "rms_norm T=32",
+        "wall_us": 19.3,
+        "device_us": 13.5
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 T=32",
+        "wall_us": 106.1,
+        "device_us": 96.3
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 rows T=32",
+        "wall_us": 154.5,
+        "device_us": 138.8
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "route T=32",
+        "wall_us": 23.1,
+        "device_us": 17.0
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "silu_mul T=32",
+        "wall_us": 22.2,
+        "device_us": 15.5
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "rms_norm T=128",
+        "wall_us": 32.2,
+        "device_us": 26.0
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 T=128",
+        "wall_us": 166.8,
+        "device_us": 158.1
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 rows T=128",
+        "wall_us": 436.2,
+        "device_us": 406.8
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "route T=128",
+        "wall_us": 16.4,
+        "device_us": 8.9
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "silu_mul T=128",
+        "wall_us": 26.6,
+        "device_us": 19.2
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "rms_norm T=512",
+        "wall_us": 43.2,
+        "device_us": 35.2
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 T=512",
+        "wall_us": 307.4,
+        "device_us": 299.2
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "router f32 rows T=512",
+        "wall_us": 1164.1,
+        "device_us": 1102.3
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "route T=512",
+        "wall_us": 15.4,
+        "device_us": 10.4
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048",
+        "wall_us": 365.3,
+        "device_us": 358.2
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 3072x8192",
+        "wall_us": 266.6,
+        "device_us": 258.4
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense down 2048x6144",
+        "wall_us": 109.4,
+        "device_us": 101.4
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 8192x8192",
+        "wall_us": 451.5,
+        "device_us": 444.9
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 24576x8192",
+        "wall_us": 1282.8,
+        "device_us": 1273.9
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 8192x24576",
+        "wall_us": 1307.2,
+        "device_us": 1299.1
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 2304x2048",
+        "wall_us": 47.3,
+        "device_us": 40.6
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048 n=2",
+        "wall_us": 508.9,
+        "device_us": 501.5
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048 n=4",
+        "wall_us": 359.9,
+        "device_us": 353.1
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048 n=8",
+        "wall_us": 507.4,
+        "device_us": 500.6
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense prompt T=64",
+        "wall_us": 859.0,
+        "device_us": 848.8
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "dense prompt T=128",
+        "wall_us": 1303.0,
+        "device_us": 1295.3
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=1",
+        "wall_us": 198.6,
+        "device_us": 191.7
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed down T=1",
+        "wall_us": 153.2,
+        "device_us": 143.7
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=4",
+        "wall_us": 742.9,
+        "device_us": 735.9
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed down T=4",
+        "wall_us": 493.5,
+        "device_us": 482.2
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=8",
+        "wall_us": 1470.4,
+        "device_us": 1462.2
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed down T=8",
+        "wall_us": 955.5,
+        "device_us": 944.3
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=32",
+        "wall_us": 3824.4,
+        "device_us": 3815.3
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed down T=32",
+        "wall_us": 2414.3,
+        "device_us": 2402.7
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=64",
+        "wall_us": 5442.9,
+        "device_us": 5433.9
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed down T=64",
+        "wall_us": 3357.0,
+        "device_us": 3343.6
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=128",
+        "wall_us": 10451.9,
+        "device_us": 10442.6
+      },
+      {
+        "file": "run0-type20.log",
+        "type": 20,
+        "case": "routed down T=128",
+        "wall_us": 5225.7,
+        "device_us": 5212.7
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "floor silu_mul 2048",
+        "wall_us": 13.2,
+        "device_us": 7.6
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "floor add 2048",
+        "wall_us": 11.0,
+        "device_us": 5.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2048 T=64",
+        "wall_us": 725.6,
+        "device_us": 718.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2080 T=64",
+        "wall_us": 523.3,
+        "device_us": 517.2
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2048 T=512",
+        "wall_us": 6006.5,
+        "device_us": 5999.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2080 T=512",
+        "wall_us": 2293.6,
+        "device_us": 2286.1
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "rms_norm T=1",
+        "wall_us": 18.6,
+        "device_us": 11.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 T=1",
+        "wall_us": 24.9,
+        "device_us": 15.5
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "route T=1",
+        "wall_us": 25.3,
+        "device_us": 18.7
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "silu_mul T=1",
+        "wall_us": 13.3,
+        "device_us": 7.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "rms_norm T=32",
+        "wall_us": 20.4,
+        "device_us": 13.3
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 T=32",
+        "wall_us": 104.5,
+        "device_us": 94.1
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 rows T=32",
+        "wall_us": 155.1,
+        "device_us": 139.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "route T=32",
+        "wall_us": 23.5,
+        "device_us": 17.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "silu_mul T=32",
+        "wall_us": 21.9,
+        "device_us": 15.6
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "rms_norm T=128",
+        "wall_us": 31.1,
+        "device_us": 24.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 T=128",
+        "wall_us": 151.5,
+        "device_us": 142.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 rows T=128",
+        "wall_us": 430.7,
+        "device_us": 401.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "route T=128",
+        "wall_us": 15.8,
+        "device_us": 9.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "silu_mul T=128",
+        "wall_us": 26.5,
+        "device_us": 19.1
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "rms_norm T=512",
+        "wall_us": 42.1,
+        "device_us": 34.9
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 T=512",
+        "wall_us": 309.2,
+        "device_us": 301.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "router f32 rows T=512",
+        "wall_us": 1164.0,
+        "device_us": 1102.5
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "route T=512",
+        "wall_us": 15.4,
+        "device_us": 10.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048",
+        "wall_us": 376.7,
+        "device_us": 368.9
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 3072x8192",
+        "wall_us": 250.0,
+        "device_us": 242.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense down 2048x6144",
+        "wall_us": 107.9,
+        "device_us": 101.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 8192x8192",
+        "wall_us": 461.9,
+        "device_us": 453.9
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 24576x8192",
+        "wall_us": 1308.3,
+        "device_us": 1300.3
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 8192x24576",
+        "wall_us": 1337.0,
+        "device_us": 1329.2
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 2304x2048",
+        "wall_us": 47.6,
+        "device_us": 41.1
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048 n=2",
+        "wall_us": 509.8,
+        "device_us": 501.1
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048 n=4",
+        "wall_us": 372.6,
+        "device_us": 365.0
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048 n=8",
+        "wall_us": 523.4,
+        "device_us": 515.7
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense prompt T=64",
+        "wall_us": 866.4,
+        "device_us": 856.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "dense prompt T=128",
+        "wall_us": 1332.7,
+        "device_us": 1325.2
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=1",
+        "wall_us": 204.5,
+        "device_us": 196.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed down T=1",
+        "wall_us": 166.2,
+        "device_us": 155.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=4",
+        "wall_us": 765.8,
+        "device_us": 758.2
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed down T=4",
+        "wall_us": 505.3,
+        "device_us": 495.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=8",
+        "wall_us": 1516.9,
+        "device_us": 1508.2
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed down T=8",
+        "wall_us": 981.4,
+        "device_us": 971.2
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=32",
+        "wall_us": 3943.9,
+        "device_us": 3936.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed down T=32",
+        "wall_us": 2461.9,
+        "device_us": 2451.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=64",
+        "wall_us": 5571.5,
+        "device_us": 5562.4
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed down T=64",
+        "wall_us": 3451.6,
+        "device_us": 3438.8
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=128",
+        "wall_us": 10515.0,
+        "device_us": 10506.3
+      },
+      {
+        "file": "run1-type23.log",
+        "type": 23,
+        "case": "routed down T=128",
+        "wall_us": 5499.1,
+        "device_us": 5485.8
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "floor silu_mul 2048",
+        "wall_us": 14.5,
+        "device_us": 7.4
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "floor add 2048",
+        "wall_us": 11.3,
+        "device_us": 5.2
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2048 T=64",
+        "wall_us": 733.4,
+        "device_us": 726.5
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2080 T=64",
+        "wall_us": 525.7,
+        "device_us": 519.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2048 T=512",
+        "wall_us": 6010.8,
+        "device_us": 6004.0
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "f32 tile 4096x2080 T=512",
+        "wall_us": 2299.2,
+        "device_us": 2291.5
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "rms_norm T=1",
+        "wall_us": 17.7,
+        "device_us": 11.7
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 T=1",
+        "wall_us": 23.8,
+        "device_us": 15.1
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "route T=1",
+        "wall_us": 25.4,
+        "device_us": 19.1
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "silu_mul T=1",
+        "wall_us": 12.4,
+        "device_us": 6.8
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "rms_norm T=32",
+        "wall_us": 19.6,
+        "device_us": 13.3
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 T=32",
+        "wall_us": 103.0,
+        "device_us": 94.0
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 rows T=32",
+        "wall_us": 154.9,
+        "device_us": 139.8
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "route T=32",
+        "wall_us": 22.4,
+        "device_us": 16.8
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "silu_mul T=32",
+        "wall_us": 21.0,
+        "device_us": 15.5
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "rms_norm T=128",
+        "wall_us": 31.6,
+        "device_us": 25.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 T=128",
+        "wall_us": 152.8,
+        "device_us": 144.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 rows T=128",
+        "wall_us": 421.7,
+        "device_us": 394.1
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "route T=128",
+        "wall_us": 15.2,
+        "device_us": 8.8
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "silu_mul T=128",
+        "wall_us": 25.9,
+        "device_us": 19.2
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "rms_norm T=512",
+        "wall_us": 42.3,
+        "device_us": 35.0
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 T=512",
+        "wall_us": 308.5,
+        "device_us": 300.9
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "router f32 rows T=512",
+        "wall_us": 1167.6,
+        "device_us": 1108.2
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "route T=512",
+        "wall_us": 14.7,
+        "device_us": 10.4
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048",
+        "wall_us": 377.2,
+        "device_us": 369.5
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 3072x8192",
+        "wall_us": 266.9,
+        "device_us": 258.9
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense down 2048x6144",
+        "wall_us": 109.0,
+        "device_us": 101.5
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 8192x8192",
+        "wall_us": 461.9,
+        "device_us": 454.4
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 24576x8192",
+        "wall_us": 1308.4,
+        "device_us": 1301.7
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 8192x24576",
+        "wall_us": 1338.1,
+        "device_us": 1331.1
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 2304x2048",
+        "wall_us": 47.6,
+        "device_us": 41.2
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048 n=2",
+        "wall_us": 513.0,
+        "device_us": 504.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048 n=4",
+        "wall_us": 375.1,
+        "device_us": 367.7
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense 12288x2048 n=8",
+        "wall_us": 522.6,
+        "device_us": 515.1
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense prompt T=64",
+        "wall_us": 873.2,
+        "device_us": 862.8
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "dense prompt T=128",
+        "wall_us": 1331.2,
+        "device_us": 1324.0
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=1",
+        "wall_us": 204.4,
+        "device_us": 196.7
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed down T=1",
+        "wall_us": 170.1,
+        "device_us": 158.9
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=4",
+        "wall_us": 764.9,
+        "device_us": 757.0
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed down T=4",
+        "wall_us": 505.3,
+        "device_us": 495.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=8",
+        "wall_us": 1517.2,
+        "device_us": 1509.3
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed down T=8",
+        "wall_us": 982.5,
+        "device_us": 972.2
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=32",
+        "wall_us": 3944.8,
+        "device_us": 3938.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed down T=32",
+        "wall_us": 2466.3,
+        "device_us": 2456.1
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=64",
+        "wall_us": 5571.4,
+        "device_us": 5562.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed down T=64",
+        "wall_us": 3453.2,
+        "device_us": 3439.6
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed gate+up T=128",
+        "wall_us": 10514.9,
+        "device_us": 10506.0
+      },
+      {
+        "file": "run2-type23.log",
+        "type": 23,
+        "case": "routed down T=128",
+        "wall_us": 5532.6,
+        "device_us": 5519.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "floor silu_mul 2048",
+        "wall_us": 13.8,
+        "device_us": 7.5
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "floor add 2048",
+        "wall_us": 12.2,
+        "device_us": 5.3
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2048 T=64",
+        "wall_us": 731.0,
+        "device_us": 725.5
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2080 T=64",
+        "wall_us": 521.5,
+        "device_us": 516.6
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2048 T=512",
+        "wall_us": 6006.5,
+        "device_us": 5999.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "f32 tile 4096x2080 T=512",
+        "wall_us": 2300.1,
+        "device_us": 2292.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "rms_norm T=1",
+        "wall_us": 17.2,
+        "device_us": 11.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 T=1",
+        "wall_us": 24.2,
+        "device_us": 16.2
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "route T=1",
+        "wall_us": 24.9,
+        "device_us": 18.5
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "silu_mul T=1",
+        "wall_us": 12.4,
+        "device_us": 6.9
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "rms_norm T=32",
+        "wall_us": 21.5,
+        "device_us": 13.7
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 T=32",
+        "wall_us": 106.6,
+        "device_us": 98.0
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 rows T=32",
+        "wall_us": 161.2,
+        "device_us": 146.0
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "route T=32",
+        "wall_us": 22.4,
+        "device_us": 16.9
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "silu_mul T=32",
+        "wall_us": 21.6,
+        "device_us": 16.2
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "rms_norm T=128",
+        "wall_us": 31.4,
+        "device_us": 26.0
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 T=128",
+        "wall_us": 167.3,
+        "device_us": 159.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 rows T=128",
+        "wall_us": 414.5,
+        "device_us": 387.7
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "route T=128",
+        "wall_us": 14.9,
+        "device_us": 8.9
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "silu_mul T=128",
+        "wall_us": 26.1,
+        "device_us": 19.2
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "rms_norm T=512",
+        "wall_us": 42.2,
+        "device_us": 35.1
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 T=512",
+        "wall_us": 309.9,
+        "device_us": 302.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "router f32 rows T=512",
+        "wall_us": 1173.4,
+        "device_us": 1113.9
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "route T=512",
+        "wall_us": 15.3,
+        "device_us": 10.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048",
+        "wall_us": 365.9,
+        "device_us": 359.2
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 3072x8192",
+        "wall_us": 236.8,
+        "device_us": 230.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense down 2048x6144",
+        "wall_us": 105.7,
+        "device_us": 99.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 8192x8192",
+        "wall_us": 452.4,
+        "device_us": 444.7
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 24576x8192",
+        "wall_us": 1281.0,
+        "device_us": 1273.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 8192x24576",
+        "wall_us": 1307.6,
+        "device_us": 1300.9
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 2304x2048",
+        "wall_us": 46.8,
+        "device_us": 40.7
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048 n=2",
+        "wall_us": 509.1,
+        "device_us": 501.5
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048 n=4",
+        "wall_us": 368.8,
+        "device_us": 361.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense 12288x2048 n=8",
+        "wall_us": 504.7,
+        "device_us": 497.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense prompt T=64",
+        "wall_us": 855.3,
+        "device_us": 846.5
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "dense prompt T=128",
+        "wall_us": 1305.7,
+        "device_us": 1298.5
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=1",
+        "wall_us": 199.2,
+        "device_us": 191.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed down T=1",
+        "wall_us": 164.9,
+        "device_us": 153.7
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=4",
+        "wall_us": 745.7,
+        "device_us": 737.6
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed down T=4",
+        "wall_us": 492.8,
+        "device_us": 483.2
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=8",
+        "wall_us": 1474.5,
+        "device_us": 1468.2
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed down T=8",
+        "wall_us": 954.9,
+        "device_us": 946.0
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=32",
+        "wall_us": 3827.5,
+        "device_us": 3819.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed down T=32",
+        "wall_us": 2417.5,
+        "device_us": 2406.1
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=64",
+        "wall_us": 5449.2,
+        "device_us": 5439.8
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed down T=64",
+        "wall_us": 3358.8,
+        "device_us": 3345.0
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed gate+up T=128",
+        "wall_us": 10492.7,
+        "device_us": 10483.4
+      },
+      {
+        "file": "run3-type20.log",
+        "type": 20,
+        "case": "routed down T=128",
+        "wall_us": 5249.5,
+        "device_us": 5237.8
+      }
+    ],
+    "activity": "17 samples retained. Production startup llmx used about one CPU core; disk peaks under2MB/s per reported device. No builds overlapped; benchmark uses separate GPU8. Monitor includes all process ticks and disk device rows; no samples excluded.",
+    "artifacts": {
+      "activity.jsonl": "e46e126b3beff024117e50a844f35058164005fa382067d24b12609b1a34e380",
+      "result.json": "bda069952126cab41137e367e3217434b6e7b85cf3285eef8392912798058242",
+      "run0-type20.log": "aba1c872171afd2edc8e76bcbd35c03494d5e9b0b4a25c0f9897a9640ffcc19a",
+      "run1-type23.log": "2a4e61c19639d27c9c4b08602997230df4293842da17838f8edad3cc5106935e",
+      "run2-type23.log": "4683c470171a5372f65ac90f604fda2f29d1e22d24d08247c6c53ec3f48b7bbe",
+      "run3-type20.log": "6239f176f58db2a430eeee9054f1ed1617c411f5b628f9b3ff25d1f3a8609284"
+    }
+  },
+  "fixture_preparation": {
+    "scope": "Source preparation only; ordinary3XS fixtures, F32first. No newHFgoldens/modelcomparisons or calibrationbudget edits.",
+    "files": {
+      "tests/block_fixture.py": "657efd70ea745fabe0b22e5beda119e3e4900c59e2dd8c0fbb36e00e8a550f94",
+      "tests/iq4_xs.py": "a360ef8e312d6b9c1d91ca084ff50a4663a716e17db03a2cd61c15b5f99108e2",
+      "tools/gen_baseline.py": "db6a377f9ea76916e43712f08ef4c10643753e802e731a7e9a0da6751d7b0113",
+      "tests/reference_generator.py": "fdf32e884421d56f8555e18568706d981196f2c505c4670464055369f071c13d",
+      "tests/run_tests.py": "9f6ef4a7226abe426a2e388c6db9173bab24dbed4ef77d3cf2314b619c513bab"
+    },
+    "logs": {
+      "build-iq4-xs\\fixture-before.log": "8b9016024da2e255a3b3a0e0dda142706a53a11aec669a470b25c50c3fed4b08",
+      "build-iq4-xs\\fixture-focused.log": "d8e2f5b5e63874ce6db96ccc39406b721edf61367c5ea68143c7c8472ff8f4c6",
+      "build-iq4-xs\\fixture-preservation.log": "20b8848888ca1b8524cf2ca83fdf77cf70eda81718db07451bca921c13be58a8",
+      "build-iq4-xs\\generator-selection.log": "0e830257dcd6ccfae16c882ba4196aec782f9de2a4e0708a743608e92fd0c8ea",
+      "build-iq4-xs\\raw-fixture-recheck.log": "ef6db26cb9574e9b09499c35a50247543ff1ba9151e05d6a0b6f274d5f56a913"
+    },
+    "local_packages_inspected_without_importing_torch": {
+      "torch": "2.11.0+cu130",
+      "transformers": "5.4.0",
+      "numpy": "2.4.3"
+    },
+    "pinned_generation_required": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6"
+    },
+    "generation_command": "python -B tools/gen_baseline.py iq4-xs --output-dir OUT",
+    "initial_consumer_command": "python tests/run_tests.py --exe EXE --only iq4-xs --dtype f32 --require-tools --require-device-types IQ4_XS",
+    "split": "Explicitlyskipped; larger whole256inputblocksrequired forgroupedfixturelayouts",
+    "narrow_paths": "ExistingcommonHFowner failsclosed onmissingiq4-xsfamilybudget; actualF32usesunchanged2e-5logit/1e-5NLLbounds"
+  },
+  "documentation": {
+    "review": "Existing CPUcheckpoint inventory carried for unchanged pages/history; quant/backend/fixture current claims reviewed and AGENTS/ASSETS/CI/USAGE/Vulkanowner/STATUS updated.",
+    "final_docs_log_sha256": "acadcab348f931d7b0947e9a0d019363b8669e41e3813a391bb9832dade16999",
+    "final_docs_passed": true,
+    "dead_code_passed": true
+  }
+}

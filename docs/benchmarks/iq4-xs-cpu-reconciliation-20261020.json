@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-20",
+  "scope": "Independent IQ4_XS CPU/format reconciliation only; root Vulkan implementation ongoing separately in same worktree. No HF policy budget, model, device or performance qualification claimed.",
+  "base_commit": "8bf47070dae4d51c134e04f5f253ee3a640d3aa8",
+  "historical_cpu_commit": "d4030093342108de6dfe41406ce9d1802e69b4eb",
+  "historical_preserved_head": "1c75ae0db4bfb82342e7e4aee97eca0159fab355",
+  "reconciliation": "Ported only necessary CPU/format tests/decoder; XS uses current shared dot_float accumulation and compile-time IQ4 loader, no historical duplicated row-dot or policy budgets. Existing spec pure/NumPy decoder unchanged.",
+  "source_sha256": {
+    "src/quant/types.hpp": "2d5ed47f3f8d12cdb73c3ff9de391efcffbc50a92f5a82e6048abd6aa011de07",
+    "src/quant/quant.hpp": "70d1a25c2892f8d081231b2664586c21f9a0ef12b434c70e635d0ccb4616def6",
+    "src/backends/cpu/cpu_backend.hpp": "49c43bcec1545b5ca4e95ff6dc3838e1fdd4581153de0abdef2f937c96681bfa",
+    "tests/iq4_nl.cpp": "0c50c14020169455aeb20f64eb2dd6d8585b3fcec3416f0936381394b2df81c2",
+    "tests/backend_errors.cpp": "20567324dd9b89bbe491b43dc798e3e1674bf104efe5762c8cfd52b490809c7e",
+    "tests/raw_blocks.py": "91f0cb2901b29d950f9840b6bdbddc730c4dbbafae639b8d064c9bf49f0d4c24",
+    "tests/roundtrip.py": "0e56aceeba6bc4f6b72a733aa425c8632da7a18340dd56b6dbbba93f1e61c406",
+    "tests/spec_decode.py": "0ab13a333f98dd2ec2283f82efe77143a524b8095d140de1b30747dfe6522b7c"
+  },
+  "build": {
+    "cmake": "cmake -S . -B build-iq4-xs -DLLMX_HAS_BACKEND_VULKAN=OFF",
+    "command": "cmake --build build-iq4-xs --config Release --parallel 2 --target llmx llmx-iq4-nl-test llmx-backend-errors-test llmx-backend-group-test llmx-fused-dot-overflow-test llmx-q8-dots-test",
+    "fresh_directory": true,
+    "compiler": "MSVC19.50.35728.0 / VisualStudio18 2026 / SDK10.0.26100.0",
+    "version": "llmx 0.1.0+g8bf47070dae4.dirty numerics b90e39bfc59a3e98",
+    "cli_sha256": "1f24c16113af73ba26a2cb16ad6ef0bc3a77daaf03d0f1f2e7e3dce96e8af09f",
+    "generated_config_sha256": "456ddbf41ab388da0794bb6920a8f9a28a0b44ab4326d01f7523ff38ebb9dea5",
+    "concurrent_scope": "Root modifies Vulkan/CMake shader variants separately; this frozen CPU-only build checks unchanged CPU/header inputs listed here, not the completed combined Vulkan tree."
+  },
+  "regression_before": {
+    "exit": 1,
+    "message": "IQ4_XS read-only registry entry differs from the format",
+    "test_only": true,
+    "log": "build-iq4-xs-red\\independent-before.log",
+    "log_sha256": "512391b7d532fb20b7962c3961a3d53ade5b3907cc6cd4460949d27f0a40c1c2",
+    "binary_sha256": "f1eadfb5f8ec3f19ec9bcf65d4dcc770a7e3e43297ff23739c9af0766222b2d6"
+  },
+  "native": {
+    "passed": 5,
+    "failed": 0,
+    "seconds": 5.53,
+    "components": [
+      "backend-group",
+      "fused-dot-overflow",
+      "q8-dots",
+      "backend-errors",
+      "iq4-nl"
+    ],
+    "xs_exact_decoded_values": 16416768,
+    "nl_exact_decoded_values": 32505856,
+    "range_dots": 378176,
+    "exact_widened_f32_product_embedding_values": 4028160,
+    "row_class_pairs": 34450,
+    "coverage": "Dense, grouped, routed, additive, output-head and host/device-ID embeddings; 1/3threads; F32/F16/BF16/int8 policies with wider F32 int8 witness and BF16 rounded-input witness; unaligned payloads and guards."
+  },
+  "python": {
+    "command": "python tests/run_tests.py --exe build-iq4-xs/Release/llmx.exe --only raw-blocks,roundtrip --require-tools",
+    "components": {
+      "raw-blocks": "PASS",
+      "roundtrip": "PASS"
+    },
+    "numpy": "2.4.3",
+    "xs_raw_values": 16384,
+    "xs_raw_blocks": 64,
+    "skip": "POSIX child-only file-size-limit injection unavailable on Windows; longpath check passed."
+  },
+  "logs": {
+    "build-iq4-xs-red\\configure.log": {
+      "sha256": "a98ffa357589435eda5be6171f2a387d558aabeccfedbc22bb3596625d8a58b7",
+      "bytes": 1952
+    },
+    "build-iq4-xs-red\\build.log": {
+      "sha256": "97176ce645b25d5d8ab297caa576f3736450eded7b4fad28afb9a378918f9e27",
+      "bytes": 706
+    },
+    "build-iq4-xs-red\\independent-before.log": {
+      "sha256": "512391b7d532fb20b7962c3961a3d53ade5b3907cc6cd4460949d27f0a40c1c2",
+      "bytes": 840
+    },
+    "build-iq4-xs-red\\configure-green.log": {
+      "sha256": "0e13347395a0e7032e35580175a43d7f702a3efeffc87492ddd675d6206852d6",
+      "bytes": 1944
+    },
+    "build-iq4-xs\\build.log": {
+      "sha256": "1c6fc930db2285fb260283c2b4ea14fc726103a299ca60dc00b521a29f54365c",
+      "bytes": 11342
+    },
+    "build-iq4-xs\\native-focused.log": {
+      "sha256": "dd0bdae67bc5df540dbc1059eeaa7aabc8e8681f399643d62691723f58dcd32e",
+      "bytes": 1352
+    },
+    "build-iq4-xs\\Testing\\Temporary\\LastTest.log": {
+      "sha256": "99af88ca5ea98eebad144b90c1c9cb71c8d9bb1cc8d399a06c3ab302a6b99e53",
+      "bytes": 4843
+    },
+    "build-iq4-xs\\format-focused.log": {
+      "sha256": "78625784abde753960c05cd67e1d66d8fc24e33982b29bea9cc0f8ef61e661bd",
+      "bytes": 6728
+    }
+  },
+  "left": [
+    "Root Vulkan implementation and native/device witnesses",
+    "Independent current-policy HF qualification; historical BF16 failure and unapproved budgets remain unresolved",
+    "Released-file and long-context correctness/quality, existing-path identity, matched speed and landing gates"
+  ],
+  "no_rig_or_gpu": true,
+  "runtime_knobs_added": false,
+  "bounds_changed": false,
+  "source_checks": {
+    "dead-code": "PASS:5listedfindings,18plantedfaults",
+    "docs": "PASS:0findings,21plantedfaults",
+    "scope": "Current working tree including root Vulkan edits present at check time; later Vulkan edits require their own relevant checks.",
+    "log": "build-iq4-xs\\source-docs.log",
+    "sha256": "5d8ecff433a90698836ac3ae2ad8a2cdd226095491eff1867df686d53267d220",
+    "final_docs": {
+      "passed": true,
+      "log": "build-iq4-xs\\docs-final.log",
+      "sha256": "2b958a7e6e49de58e3444dc403a74e6882a17b973a01d4f22e1f38e58298af38",
+      "reason": "Final directly affected AGENTS registry/test inventory and architecture inventory corrections."
+    }
+  },
+  "markdown_review": "Reviewed current live IQ4_XS claims across README,AGENTS,docs and per-source pages; updated directly affected inventory/CPU/format/test coverage, preserved dated historical records. Vulkan remains in progress, broader qualification remains pending."
+}

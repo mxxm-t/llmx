@@ -6,7 +6,7 @@ on x86 CPU with AVX2/FMA/F16C or on a Vulkan device, including read-only MXFP4 w
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
-IQ4_XS read-only CPU and Vulkan implementation reuse the quant registry and existing product families. Independent operators, ordinary tiny models and released-file checks pass; STATUS records the remaining split qualification, landing checks and decode performance work.
+IQ4_XS read-only CPU and Vulkan support reuses the quant registry and existing product families. Local operator, tiny, released-file, selected split and 16K qualification is complete; STATUS records the exact approved split-MoE F32 exception and matched timing evidence.
 
 ## Layer diagram
 

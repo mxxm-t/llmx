@@ -4101,7 +4101,7 @@ paired statistics and all 12 loaded-model fingerprint comparisons.
 
 ## IQ4_XS CPU reconciliation (2026-10-20)
 
-IQ4_XS has read-only CPU decoding and Vulkan kernels in development. Independent native and raw-format checks cover six-bit subscales, lookup codes, finite binary16 scales and signed zero. Operator checks and the tiny F32 model evidence below have their own scope; released-file quality/correctness, raw/chat 16K and final landing qualification remain pending. Whole-block split fixtures and independently frozen narrower-policy budgets were added in the reference checkpoint below; candidate qualification remains in progress. The failed historical BF16 qualification and its unapproved budgets are not imported.
+IQ4_XS has read-only CPU decoding and Vulkan kernels. Independent native and raw-format checks cover six-bit subscales, lookup codes, finite binary16 scales and signed zero. Local released-file, raw/chat 16K and selected split qualification are complete; see the dated records below for exact scope and retained failures. The failed historical BF16 qualification and its unapproved budgets are not imported.
 
 `tests/data/baseline_iq4_xs.json` holds freshly generated dense untied, dense tied and MoE references from `python tools/gen_baseline.py iq4-xs --output-dir DIR`, using torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6, one CPU thread, float32 eager attention and independently spec-decoded raw weights. Its SHA-256 is `2758bf587712ace40f5c672087e930a0ec44feb7eaa31b58ad12488c8dd9f6be`.
 

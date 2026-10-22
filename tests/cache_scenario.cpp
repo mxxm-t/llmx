@@ -494,7 +494,7 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
     chat.history = prompt_of(5, 400, v);
     std::vector<Expectation> table;
     std::vector<size_t> cut_turns, restart_turns;
-    size_t released = 0, job_lost = 0, consumed_lost = 0, not_to_host = 0, host_lost = 0, lost_before_written = 0, written = 0, read = 0, tasks = 0;
+    size_t released = 0, job_lost = 0, consumed_lost = 0, not_to_host = 0, host_lost = 0, lost_before_written = 0, written = 0, read = 0, tasks = 0, write_waits_past = 0;
     uint32_t other_seed = 90;
     const auto tally = [&] {
         const Stats s = sched->stats();
@@ -506,6 +506,7 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
         lost_before_written += s.lost_before_written;
         written += s.moves[(size_t)server::Move::write_whole];
         read += s.moves[(size_t)server::Move::read_done];
+        write_waits_past += s.room_wait_timeouts;
     };
     try {
         within_a_minute([&] { return sched->stats().disk_ready; }, "production: the disk tier made");
@@ -618,6 +619,8 @@ void production(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const s
         table.push_back({"a restart over kept files of this build costs the next turn a read, not a recompute", "P4", true, read && restarted.reused >= restarted.expected});
         table.push_back({"every turn computes only the rows its history did not hold", "P1", true, !short_turns});
         table.push_back({"every row a turn falls short by is a loss the server reported with its history", "P8", true, !unexplained});
+        // On this runner's disk a donor's files are whole in milliseconds, so a turn that waits for them never waits out kWaitBound.
+        table.push_back({"a turn that waits for a donor's write to disk has it before the wait's bound", "P2", true, !write_waits_past});
     } catch (...) {
         sched->stop();
         runner.join();

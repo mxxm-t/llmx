@@ -325,12 +325,14 @@ struct StageShare {
 
 // How generated rows are served while prompts are read: with the prompts' passes alone (off), by a fixed share of each stage's time (StageShare), or by the automatic rule (ServiceClock, PromptFloor).
 struct Pacing {
-    enum class Mode { off, fixed, automatic };
+    enum class Mode { off, fixed, automatic, interleaved };
     Mode mode = Mode::off;
     double share = 0;   // the fixed share
     bool refused = false;   // off because the operator said so (--no-pacing), not because the placement feeds no stage in pieces; background work is then given no time beside waiting work
     static Pacing fixed(double share) { return share > 0 ? Pacing{Mode::fixed, share} : Pacing{}; }
     static Pacing automatic() { return {Mode::automatic, 0}; }
+    // On a pipelined split, where no stage is fed in pieces: while replies and prompts both wait, generated rows go in passes of their own and a prompt's slices, cut to a stage's time, in passes between them.
+    static Pacing interleaved() { return {Mode::interleaved, 0}; }
 };
 
 // The gap the automatic rule aims at between two services of generated rows at a stage while a prompt is read: ten tokens a second a reply, faster than a reader reads, so a stream reads as continuous on any hardware.

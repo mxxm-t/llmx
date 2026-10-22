@@ -456,7 +456,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         device = os.environ.get("LLMX_DEVICE", "cpu")
         whole = device != "cpu" and "," not in device and not any(f in ("--cpu-moe", "--n-cpu-moe", "--no-pacing") for f in flags)
         assert pacing["mode"] == ("automatic" if whole else "off") and pacing["target_gap_ms"] == 100, pacing
-        assert set(pacing["since_start"]) == {"gaps", "gaps_above_target", "deferred_by_floor", "longest_piece_ms"}, pacing
+        assert set(pacing["since_start"]) == {"interleaved_replies", "interleaved_slices", "gaps", "gaps_above_target", "deferred_by_floor", "longest_piece_ms"}, pacing
         info = health["server"]
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]

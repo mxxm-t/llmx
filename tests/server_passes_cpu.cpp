@@ -1690,6 +1690,79 @@ void boundary_fork_held(const gguf::GGUFModel& weights, uint32_t vocab) {
     ++checks;
 }
 
+// The interleaved rule (server::Pacing::interleaved) on layer splits of two and three devices, none a CPU, at P = S and S + 1, every reply its reply alone.
+// Requests in turn form no interleaved pass, beside a reply each prompt slice gets a pass of its own, and once a prompt beside a reply is sampled its request decodes in the normal round.
+void interleaved(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 16 * kBlock;
+    Submitters seen;
+    const Make one = on(weights, [] { return cpus(1); });
+    const std::vector<Req> beside{{prompt_of(51, 4, vocab), 24}, {prompt_of(52, 96, vocab), 3}, {prompt_of(53, 80, vocab), 2, {}, 0.8f, 5}};
+    const std::vector<Req> pair{{prompt_of(54, 4, vocab), 60}, {prompt_of(55, 96, vocab), 24}};
+    const std::vector<Reply> own = alone(one, tok, pool, beside), own_pair = alone(one, tok, pool, pair);
+    std::vector<std::vector<Req>> in_turn;
+    for (const Req& r : beside) in_turn.push_back({r});
+    for (const size_t stages : {size_t(2), size_t(3)})
+        for (const size_t passes : {stages, stages + 1}) {
+            const std::string where = "the interleaved rule on " + std::to_string(stages) + " devices at P = " + std::to_string(passes);
+            const Make split = on(weights, [&seen, stages] {
+                std::vector<backend::BackendPtr> v;
+                for (size_t i = 0; i < stages; ++i) v.push_back(std::make_shared<Slow>(&seen, 2));
+                return v;
+            });
+            {
+                auto model = split(pool, kUbatch);
+                server::Scheduler::Stats s;
+                const std::vector<Reply> got = serve(*model, tok, kSeqs, in_turn, &s, passes, 0, nullptr, 0, false, server::Pacing::interleaved());
+                for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], where + ", requests in turn, request " + std::to_string(i));
+                require(s.interleaved && s.interleaved_replies == 0 && s.interleaved_slices == 0 && s.interleaved_mixed == 0, where + ": requests in turn formed passes apart from each other");
+            }
+            {
+                auto model = split(pool, kUbatch);
+                server::Scheduler::Stats s;
+                const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &s, passes, 0, nullptr, 0, false, server::Pacing::interleaved());
+                for (size_t i = 0; i < beside.size(); ++i) same(own[i], got[i], where + ", a reply beside two prompts, request " + std::to_string(i));
+                require(s.interleaved_replies > 0 && s.interleaved_slices > 0,
+                        where + ": " + std::to_string(s.interleaved_replies) + " passes of generated rows and " + std::to_string(s.interleaved_slices) + " prompt slices formed apart beside a reply");
+                require(s.interleaved_mixed == 0, where + ": " + std::to_string(s.interleaved_mixed) + " passes in an overlap held a reply's rows beside a prompt's or two prompts' slices");
+                ledger(s, *model, where);
+            }
+            auto model = split(pool, kUbatch);
+            server::Scheduler::Stats s;
+            std::vector<std::vector<size_t>> retired;   // each retired pass's requests, by their place in `pair`
+            size_t last = 0;                            // the pass that sampled the prompt's first token
+            const auto observe = [&](const server::Scheduler::Retired& t) {
+                std::vector<size_t> in;
+                for (size_t e = 0; e < t.requests.size(); ++e) {
+                    const size_t i = t.requests[e]->prompt_tokens() == pair[1].prompt.size();
+                    in.push_back(i);
+                    if (i && t.want[e] && t.from[e] + t.rows[e] == t.requests[e]->prompt_tokens()) last = retired.size();
+                }
+                retired.push_back(in);
+            };
+            const std::vector<Reply> got = serve(*model, tok, kSeqs, {pair}, &s, passes, 0, nullptr, 0, false, server::Pacing::interleaved(), observe);
+            for (size_t i = 0; i < pair.size(); ++i) same(own_pair[i], got[i], where + ", a reply beside a prompt, request " + std::to_string(i));
+            // The first request's last pass ends the window where both decode.
+            size_t ends = retired.size();
+            for (size_t i = 0; i < pair.size(); ++i) {
+                size_t at = 0;
+                for (size_t p = 0; p < retired.size(); ++p)
+                    if (std::count(retired[p].begin(), retired[p].end(), i)) at = p;
+                ends = std::min(ends, at);
+            }
+            require(last > 0 && ends > last + passes, where + ": the prompt was not sampled a lap before a request ended");
+            require(s.interleaved_replies + s.interleaved_slices <= last + passes,
+                    where + ": " + std::to_string(s.interleaved_replies + s.interleaved_slices) + " passes formed under it, past the " + std::to_string(last + 1) +
+                        " retired when the prompt was sampled and the " + std::to_string(passes - 1) + " in flight then");
+            bool next = false;
+            for (size_t p = last + 1; p <= last + passes; ++p) next = next || std::count(retired[p].begin(), retired[p].end(), size_t(1));
+            require(next, where + ": the prompt's request was in none of the " + std::to_string(passes) + " passes after its first token");
+            for (size_t p = last + 1; p < ends; ++p)
+                require(retired[p].size() == 1, where + ": pass " + std::to_string(p) + " after the prompt was sampled held " + std::to_string(retired[p].size()) + " of the two decoders");
+            ledger(s, *model, where + ", a reply beside a prompt");
+        }
+}
+
 int main(int argc, char** argv) {
     try {
         // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a verify's draft rows, in each logits ring.
@@ -1718,6 +1791,7 @@ int main(int argc, char** argv) {
         pieces_fixed_cost(served(kSplit), (uint32_t)kSplit.vocab);
         pieces_staircase(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
+        interleaved(served(kSplit), (uint32_t)kSplit.vocab);
         fitted_reservation(served(kSplit));
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.

@@ -1322,7 +1322,7 @@ void automatic_by_hand() {
             "a request was read as a prompt's or a reply's wrongly");
     // Generated rows ride a prompt's pass that takes no longer than the target, and go apart before one is measured.
     require(!server::rides_within_gap(0) && server::rides_within_gap(G) && !server::rides_within_gap(G + 0.5), "the ride did not follow the target gap");
-    require(server::Pacing::fixed(0).mode == server::Pacing::Mode::off && server::Pacing::fixed(0.5).mode == server::Pacing::Mode::fixed && server::Pacing::automatic().mode == server::Pacing::Mode::automatic && server::Pacing{}.mode == server::Pacing::Mode::off,
+    require(server::Pacing::fixed(0).mode == server::Pacing::Mode::off && server::Pacing::fixed(0.5).mode == server::Pacing::Mode::fixed && server::Pacing::automatic().mode == server::Pacing::Mode::automatic && server::Pacing::interleaved().mode == server::Pacing::Mode::interleaved && server::Pacing{}.mode == server::Pacing::Mode::off,
             "a pacing mode was read wrongly");
 }
 

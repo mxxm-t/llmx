@@ -1211,7 +1211,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
-    server::resolve_pacing(c, loaded->unpaced);
+    server::resolve_pacing(c, loaded->unpaced, loaded->pipelined_split);
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;

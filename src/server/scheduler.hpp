@@ -242,6 +242,7 @@ private:
     bool boundary_kept_ = false;   // its pass in flight keeps that state, which goes to host memory once the pass retires
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
     size_t read_alone_ = 0;        // prompt rows it read while it was alone, which prompt_slice brings back to a whole ubatch once company comes; 0 after that
+    backend::Ticket slice_ticket_ = 0;   // under the interleaved rule, its last slice's submission at the first stage, before whose retirement no next slice is formed
     bool finished_ = false;        // it has left the active set for good
     uint64_t parked_ = 0;          // the donor it left as it finished
     // The disk entry whose read it waits for before admission, which requests behind it that fit may pass (docs/DISK-TIER.md, Restore).
@@ -302,7 +303,7 @@ public:
     Scheduler(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs, size_t max_queue, size_t passes = 0, bool timed = false,
               size_t host_bytes = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = true, const DiskOptions& disk = {}, Pacing pacing = {},
               size_t ctx_size = 0)
-        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic),
+        : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic), interleave_(pacing.mode == Pacing::Mode::interleaved),
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms), background_paced_(!pacing.refused),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced), pools_(pools_of(model)),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)) {
@@ -317,6 +318,7 @@ public:
         // A pass apart at each stage, with logits rows of their own, since they retire past the prompt passes.
         if (share_ < 0 || share_ >= 1) throw std::runtime_error("server: the share of generating requests is at least 0 and below 1");
         if (auto_ && !(model_.paces() && model_.stage_count() == 1)) throw std::logic_error("server: automatic pacing needs one stage fed in pieces");
+        if (interleave_ && !(model_.pipelined() && model_.stage_count() > 1)) throw std::logic_error("server: interleaved pacing needs a pipelined split");
         const size_t a = (share_ > 0 || auto_) && model_.paces() ? model_.stage_count() : 0;
         apart_rows_ = logit_rows(a, logits_a_pass(max_seqs_, proposer_ != nullptr));
         for (;; --p) {
@@ -341,6 +343,8 @@ public:
         for (size_t s = 0; s < recorders_.size(); ++s) {
             // Under the automatic rule a pass that is neither fed in pieces nor apart is recorded as without pacing, so only the stages that had a thread then take one.
             plain_[s] = (p > 1 && model_.stage_waits(s)) || (a && !auto_) || (!model_.stage_on_host(s) && model_.stage_reads(s));
+            // Under the interleaved rule every device stage has one, which times a prompt's slices there (Recorder::Timing).
+            plain_[s] = plain_[s] || (interleave_ && !model_.stage_on_host(s));
             // And where passes go apart every stage has one, the first among them, which is then fed in pieces.
             if (plain_[s] || a) {
                 recorders_[s] = std::make_unique<Recorder>(*pace_[s]);
@@ -509,6 +513,9 @@ public:
         std::vector<SliceRecord> slices{};        // per stage, its last pass fed in pieces
         double share = 0;                         // the fixed share, 0 for none
         bool automatic = false;                   // generated rows are served by the automatic rule, whose clock the next four read
+        bool interleaved = false;                 // or by the interleaved rule on a pipelined split
+        uint64_t interleaved_replies = 0, interleaved_slices = 0;   // since start, its passes of generated rows and of a prompt's slice formed while replies and prompts both waited
+        uint64_t interleaved_mixed = 0;           // and passes formed then that held both kinds or two prompts, which the rule never forms, for the tests
         uint64_t overlaps = 0;                    // the times replies and prompts began to wait together, for the tests
         bool overlap = false, service_wanted = false, service_granted = false;   // now: replies and prompts both wait, the round wants a service, and a stage stands parked on a grant
         double owed_ms = 0, charged_ms = 0;       // what the generated rows owe the floor now, and their time charged to it since start
@@ -545,6 +552,10 @@ public:
         s.rode = rode_;
         s.share = share_;
         s.automatic = auto_;
+        s.interleaved = interleave_;
+        s.interleaved_replies = interleaved_replies_;
+        s.interleaved_slices = interleaved_slices_;
+        s.interleaved_mixed = interleaved_mixed_;
         if (auto_) {
             std::lock_guard<std::mutex> rl(recorders_[0]->m);
             const ServiceClock& c = recorders_[0]->clock;
@@ -692,14 +703,15 @@ public:
                 try {
                     // A pass is formed when its first stage can be recorded, so it takes the requests ready then and not those of a stage's time before.
                     // Generated rows ride the passes that read prompts, as without a share, or go in passes apart, which the stages take between a prompt pass's pieces (rides).
-                    if (auto_) demand(active);
-                    // A fixed share's ride ends after a run of passes to measure its price again (RideRun); the automatic rule has no price and rides by the prompt pass's own time.
-                    // Under the automatic rule a prompt cut to its pieces' time goes apart (cut_now), as a fixed share's ride ends after a run of passes.
-                    const bool ride = normal_ == slots_.size() || (auto_ ? !overlap_ || (riding(active) && !cut_now(active)) : ride_run_.allow(riding(active)));
+                    if (auto_ || interleave_) demand(active);
+                    // A fixed share's ride ends after a run of passes to measure its price again (RideRun); the automatic rule rides by the prompt pass's own time unless the prompt is cut (cut_now).
+                    // Under the interleaved rule generated rows ride only outside an overlap; in one they go in passes of their own, formed first.
+                    const bool ride = interleave_ ? !overlap_.load() : normal_ == slots_.size() || (auto_ ? !overlap_ || (riding(active) && !cut_now(active)) : ride_run_.allow(riding(active)));
                     // In an overlap the prompt's pass goes to its stage first, so the service of generated rows is admitted between its pieces (serve_generated).
                     const bool admit = auto_ && overlap_ && !ride;
                     if (auto_ && !admit) want_service(false);
                     for (size_t k = free_apart(); !admit && !ride && k < slots_.size() && !first_stage_held(true) && form(k, active, host, Rows::generated); k = free_apart()) {}
+                    for (size_t k = free_slot(); interleave_ && !ride && k < slots_.size() && !first_stage_held(false) && form(k, active, host, Rows::generated); k = free_slot()) {}
                     for (size_t k = free_slot(); k < slots_.size() && !first_stage_held(false) && form(k, active, host, ride ? Rows::all : Rows::prompt); k = free_slot()) {}
                     if (admit) serve_generated(active, host);
                     const auto left = std::find_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });
@@ -823,6 +835,7 @@ private:
         size_t base = 0, want = 0, decoders = 0;
         size_t generated = 0;        // its rows where every one is a generated token's, which the pass cost is measured on, else 0
         bool paced = false;          // its stages are fed in pieces (infer::Pace): a pass with prompt rows beside other requests, where passes go apart
+        bool timed = false;          // under the interleaved rule, a prompt's slice beside replies, whose stage time each stage's thread measures for the next slice (Recorder::Timing)
         uint64_t job = 0;            // its hand-over to a recorder, which the recorder's result names
         Clock::time_point begun;
         double job_left = 0;     // the background time left when the pass was formed with job rows (BackgroundGrant::left_ms)
@@ -854,7 +867,8 @@ private:
         size_t cut = ubatch_;
         for (auto& pace : pace_) {
             std::lock_guard<std::mutex> lk(pace->m);
-            const bool continues = pace->piece_of == r.admission_ && pace->piece_end == r.seq_.length();
+            // Under the interleaved rule a slice is timed after the next is formed, so any earlier slice of the same prompt continues it.
+            const bool continues = pace->piece_of == r.admission_ && (interleave_ ? pace->piece_end <= r.seq_.length() : pace->piece_end == r.seq_.length());
             cut = std::min(cut, continues ? pace->search.next(ubatch_) : std::min(kPieceStep, ubatch_));
         }
         return cut;
@@ -898,6 +912,8 @@ private:
         }
         if ((reply && prompt) == overlap_) return;
         overlap_ = reply && prompt;
+        // A first stage on the host has no thread, and under the interleaved rule its clock serves nothing.
+        if (!recorders_[0]) return;
         Recorder& rec = *recorders_[0];
         std::lock_guard<std::mutex> lk(rec.m);
         if (rec.clock.demand(overlap_, now_ms())) rec.demand_ended = true;
@@ -1060,12 +1076,15 @@ private:
         const bool alone = active.size() == 1 && !active[0]->job_ && !company;
         // Under the automatic rule, beside generated rows, each stage's search over its passes fed in pieces cuts the next slice of the prompt it measured (PieceSearch).
         // A slice that does not continue that pass, another prompt or another depth, starts at one step and the search starts again from it.
-        const bool cutting = auto_ && overlap_.load();
+        const bool cutting = (auto_ || interleave_) && overlap_.load();
+        // Under the interleaved rule in an overlap a pass holds one prompt's slice, formed only once that prompt's last slice has left the first stage, so a pass of generated rows formed meanwhile goes before it there.
+        const bool one_slice = interleave_ && cutting && rows == Rows::prompt;
         f.prompt_of = 0;
         f.prompt_from = 0;
         f.prompt_end = 0;
         for (auto& r : active) {
             if (r->job_ || decoding(*r) || !budget) continue;
+            if (one_slice && (f.prompt_of || (r->slice_ticket_ && !model_.stage_backend(0).done(r->slice_ticket_)))) continue;
             const size_t waiting_rows = history_tokens(*r) - std::min(history_tokens(*r), r->seq_.length());
             const PromptSlice s = prompt_slice(waiting_rows, model_.stage_count(), ubatch_, alone, r->read_alone_);
             const size_t most = std::min(s.most, cutting ? piece_cut(*r) : ubatch_);
@@ -1130,6 +1149,14 @@ private:
         }
         // Under the automatic rule only a prompt's pass that generated rows do not ride is fed in pieces: a ridden pass has nothing to take between them.
         f.paced = normal_ < slots_.size() && !f.apart && (auto_ ? overlap_ && rows == Rows::prompt : requests(active) > 1);
+        f.timed = one_slice && f.prompt_of != 0;
+        if (interleave_ && overlap_.load()) {
+            size_t prompts = 0;
+            for (size_t e = 0; e < f.members.size(); ++e) prompts += !decoding(*f.members[e]) && !f.members[e]->job_;
+            interleaved_replies_ += rows == Rows::generated;
+            interleaved_slices_ += f.timed;
+            interleaved_mixed_ += (f.decoders && prompts) || prompts > 1;
+        }
         f.live = true;
         f.formed = ++formed_;
         f.ran = 0;
@@ -1153,7 +1180,7 @@ private:
             std::lock_guard<std::mutex> lk(pace_[s]->m);
             pace_[s]->clock.began(now_ms());
         }
-        if (Recorder* r = slots_[k].paced || (threaded && (model_.stage_reads(s) || recorded_apart(model_.stage_grouped(s), flights_live()))) ? recorders_[s].get() : nullptr) {
+        if (Recorder* r = slots_[k].paced || (slots_[k].timed && recorders_[s]) || (threaded && (model_.stage_reads(s) || recorded_apart(model_.stage_grouped(s), flights_live()))) ? recorders_[s].get() : nullptr) {
             // A stage records one pass of a kind at a time: a pass that finds its recorder taken waits for a later round, which gives the stage its oldest waiting pass.
             if (recording(s, slots_[k].apart)) return;
             acted_ = true;
@@ -1172,6 +1199,9 @@ private:
                 post.slot = k;
                 post.job = slots_[k].job = ++jobs_posted_;
                 post.paced = slots_[k].paced;
+                post.timed = slots_[k].timed;
+                post.prompt_of = slots_[k].prompt_of;
+                post.prompt_end = slots_[k].prompt_end;
                 // A pass of generated rows alone gives no prompt piece's time (Slot::generated).
                 post.rows = 0;
                 for (size_t n : slots_[k].rows) post.rows += slots_[k].generated ? 0 : n;
@@ -1556,7 +1586,16 @@ private:
     // A stage's thread: it records the pass the round hands it (advance) and decides nothing, and the round takes what it did (collect); a failure is the scheduler's thread's to undo.
     // Beside its pass it holds one pass apart, recorded between the first's pieces once its rows have arrived and the generated rows are due (StageShare), or alone.
     struct Recorder {
-        explicit Recorder(StagePace& pace) : m(pace.m), held(pace.held), background(pace.background), clock(pace.clock), floor(pace.floor), apart_ms(pace.apart_ms) {}
+        explicit Recorder(StagePace& pace) : m(pace.m), held(pace.held), background(pace.background), clock(pace.clock), floor(pace.floor), apart_ms(pace.apart_ms), stage(pace) {}
+        // A slice timed on this stage: from when the stage's work before it has retired to when its own has, so its stage time as a pass behind it waits for it, which the stage's search takes as the slice's piece (PieceSearch).
+        struct Timing {
+            backend::Ticket before = 0, own = 0;
+            size_t rows = 0;
+            uint64_t prompt_of = 0;
+            size_t prompt_end = 0;
+            bool started = false;
+            Clock::time_point from;
+        };
         struct Post {
             bool posted = false;
             size_t slot = 0;
@@ -1565,6 +1604,9 @@ private:
             bool deferred = false;   // a pass apart that was due and waited for the floor (ServiceClock::deferred)
             bool serves = false;     // it carries generated rows, so its recording's start is a service's (ServiceClock::began)
             size_t rows = 0;         // the pass's rows, where any is a prompt's
+            bool timed = false;      // a prompt's slice under the interleaved rule, timed on this stage (Timing), of the prompt and to the history's end named here
+            uint64_t prompt_of = 0;
+            size_t prompt_end = 0;
         };
         struct End {
             size_t slot = 0;
@@ -1603,6 +1645,9 @@ private:
         StageShare share;        // the recorder thread's
         std::atomic<double> price_ms{0};   // its share.price(), for the round's choice of riding
         Clock::time_point piece;
+        StagePace& stage;               // its search, under m
+        std::deque<Timing> timing;      // the thread's, slices recorded and not yet retired on the stage
+        backend::Ticket last = 0;       // the thread's, the stage's submission of the last pass it recorded
         ~Recorder() {
             {
                 std::lock_guard<std::mutex> lk(m);
@@ -1613,10 +1658,44 @@ private:
         }
     };
 
+    // The timed slices whose work has retired on stage s, each given to the stage's search as its slice's piece; under r.m, and true where one was.
+    bool settle_timing(Recorder& r, size_t s) {
+        if (r.timing.empty()) return false;
+        backend::Backend& b = model_.stage_backend(s);
+        bool settled = false;
+        while (!r.timing.empty()) {
+            Recorder::Timing& t = r.timing.front();
+            if (!t.started && (!t.before || b.done(t.before))) {
+                t.started = true;
+                t.from = Clock::now();
+            }
+            if (!t.started || !b.done(t.own)) break;
+            const double ms = std::chrono::duration<double, std::milli>(Clock::now() - t.from).count();
+            StagePace& p = r.stage;
+            if (p.piece_of != t.prompt_of) p.search = PieceSearch{};
+            p.search.add(t.rows, ms, p.apart_ms);
+            p.piece_of = t.prompt_of;
+            p.piece_end = t.prompt_end;
+            r.timing.pop_front();
+            settled = true;
+        }
+        return settled;
+    }
+
     void record(Recorder& r, size_t s) {
         std::unique_lock<std::mutex> lk(r.m);
         for (;;) {
-            r.cv.wait(lk, [&] { return r.quit || r.pass.posted || r.apart.posted; });
+            // Slices timed on this stage are settled as they retire, looked at every millisecond while any is out, and the round is woken for the next slice.
+            for (;;) {
+                if (settle_timing(r, s)) {
+                    lk.unlock();
+                    wake();
+                    lk.lock();
+                }
+                if (r.quit || r.pass.posted || r.apart.posted) break;
+                if (r.timing.empty()) r.cv.wait(lk);
+                else r.cv.wait_for(lk, std::chrono::milliseconds(1));
+            }
             if (r.quit) return;
             // A pass with prompt rows first: the pass apart is taken between its pieces.
             Recorder::Post& post = r.pass.posted ? r.pass : r.apart;
@@ -1663,8 +1742,11 @@ private:
                     piece_done(-1, "tail");
                     end.slice.rows = end.rows;
                 } else {
+                    const backend::Ticket before = r.last;
                     model_.record_pass_stage(ctx_, taken.slot, s);
+                    if (taken.timed) r.timing.push_back({before, model_.stage_ticket(ctx_, taken.slot), taken.rows, taken.prompt_of, taken.prompt_end, false, {}});
                 }
+                r.last = model_.stage_ticket(ctx_, taken.slot);
             } catch (const std::exception& e) {
                 end.failed = true;
                 end.error = e.what();
@@ -1862,6 +1944,10 @@ private:
                 slots_[e.slot].recording = false;
                 if (!e.failed) {
                     model_.commit_pass_stage(ctx_, e.slot);
+                    // A timed slice's submission at the first stage, before whose retirement its prompt's next slice is not formed.
+                    if (s == 0 && slots_[e.slot].timed)
+                        for (const auto& m : slots_[e.slot].members)
+                            if (m->admission_ == slots_[e.slot].prompt_of) m->slice_ticket_ = model_.stage_ticket(ctx_, e.slot);
                     ++slots_[e.slot].ran;
                     if (e.rows) {
                         std::lock_guard<std::mutex> lk(pace_[s]->m);
@@ -2322,6 +2408,8 @@ private:
     const size_t host_cap_;               // the host tier's bytes at most
     const double share_;                  // of each device's time, what generating requests keep while prompts are read; 0 for none
     const bool auto_;                     // generated rows are served by the automatic rule (Pacing)
+    const bool interleave_;               // or, on a pipelined split, by the interleaved rule (Pacing::interleaved)
+    uint64_t interleaved_replies_ = 0, interleaved_slices_ = 0, interleaved_mixed_ = 0;   // the scheduler thread's: Stats::interleaved_*
     const Clock::duration wait_bound_;    // the bound of a wait for a restore or a save while nothing better is measured: kWaitBound, or DiskOptions::wait in tests
     const std::optional<std::chrono::milliseconds> read_wait_;   // DiskOptions::read_wait
     const std::optional<double> recompute_row_ms_;   // DiskOptions::recompute_row_ms

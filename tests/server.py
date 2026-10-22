@@ -1428,6 +1428,63 @@ def check_message_ends(model):
     return plain[0], refused[0], [r for r, _ in long[2]], long[3]
 
 
+# Each message ended by the end token, a tool's result as any other.
+AGENT_TEMPLATE = ("{% for m in messages %}{{ m.role }}:{{ m.content * 3 }}<|endoftext|>{% endfor %}"
+                  "{% if add_generation_prompt %}|assistant:\n{% endif %}")
+
+
+def check_agent_turn_cut(model):
+    """An agent's newest turn larger than what a request may hold, under --context-overflow shift (docs/SERVER.md, A prompt larger than the context), on the synthetic reasoning model and a pool of 128 tokens.
+    The whole-turn cut finds nothing, so the oldest whole tool exchanges of that turn go after the earlier turns, the system message and the newest user message staying: an assistant message with its calls, a parallel pair among them, and every result after it go together, the kept prompt fits and is the prompt of the kept messages sent alone, and a turn that grows by an exchange within a step keeps its cut.
+    A turn whose system and user messages alone do not fit, and one whose newest exchange alone does not, are refused, each saying which."""
+    f32.write_model(model, reasoning_tensors(), AGENT_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG, control=(f32.VOCAB - 1,))
+    reply = REASONING_REPLY.decode()
+    system = {"role": "system", "content": "s"}
+
+    def exchange(i, parallel=False):
+        ids = ["c%d" % i] + (["d%d" % i] if parallel else [])
+        calls = [{"id": c, "type": "function", "function": {"name": "f", "arguments": "{}"}} for c in ids]
+        return [{"role": "assistant", "content": "c", "tool_calls": calls}] + [{"role": "tool", "tool_call_id": c, "content": "rrrr"} for c in ids]
+
+    def agent(exchanges, user="abcd", last=None):
+        messages = [system, {"role": "user", "content": "ab"}, {"role": "assistant", "content": "o"}, {"role": "user", "content": user}]
+        for i in range(exchanges):
+            messages += exchange(i, parallel=i == 3)
+        if last:
+            messages[-1]["content"] = last
+        return messages
+
+    srv = Server(model, "--kv-tokens", "128", "--context-overflow", "shift")
+    froms = []
+    try:
+        for exchanges in range(5, 10):
+            messages = agent(exchanges)
+            status, got = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and got["text"] == reply, (exchanges, status, got)
+            context = got["context"]
+            dropped = context["dropped_messages"]
+            # The earlier turn goes whole, then the newest turn's oldest exchanges: the kept messages are the system message, the newest user message and the messages from an assistant message on.
+            begin = 4 + dropped - 2
+            kept = [system, messages[3]] + messages[begin:]
+            assert dropped > 2 and messages[begin]["role"] == "assistant" and context["at_marker"] is True, (exchanges, dropped)
+            calls = {c["id"] for m in kept for c in m.get("tool_calls", [])}
+            assert all(m["tool_call_id"] in calls for m in kept if m["role"] == "tool"), (exchanges, kept)
+            assert got["prompt_tokens"] + 16 <= 128 and context["tokens"] == got["prompt_tokens"] + got["tokens"], (exchanges, got)
+            status, own = srv.post("/v1/chat", {"messages": kept, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and own["text"] == got["text"] and own["prompt_tokens"] == got["prompt_tokens"] and "dropped_messages" not in own["context"], (exchanges, own)
+            status, compat = srv.post("/v1/chat/completions", {"messages": messages, "max_tokens": 16, "temperature": 0})
+            assert status == 200 and compat["context"] == context, (exchanges, compat)
+            froms.append(begin)
+        # A turn that grows by an exchange keeps its cut while the growth stays within a step, so the kept prefix is read once.
+        assert froms == sorted(froms) and len(set(froms)) < len(froms), froms
+        for messages, why in ((agent(6, user="a" * 40), "newest user message alone"), (agent(6, last="r" * 40), "newest tool exchange alone")):
+            status, err = srv.post("/v1/chat", {"messages": messages, "max_tokens": 16})
+            assert status == 413 and why in err["error"], (why, status, err)
+    finally:
+        srv.close()
+    return froms
+
+
 def check_no_turns_whole_block(model):
     """On a model whose 512-token context and 128-token pool hold one whole block, a tier of 1 MiB holds no copy of it (a copy is whole 64 MiB slabs), so the line says turns are off and names both sizes; one of 64 MiB holds it and says nothing."""
     def lines(size):
@@ -2368,6 +2425,9 @@ def run(require=False):
         print("server: a request limit past the model's context refused at start with both numbers and the pool's flag  [ok]")
         cuts = check_context_overflow(os.path.join(directory, "overflow.gguf"))
         check_no_turns_whole_block(os.path.join(directory, "overflow.gguf"))
+        froms = check_agent_turn_cut(os.path.join(directory, "overflow.gguf"))
+        print("server: with --context-overflow shift, an agent turn past the pool cut at its exchanges, kept from messages %s as it grows, its calls and results together and its reply that of the kept messages, "
+              "and refused where its system and user messages or its newest exchange alone do not fit  [ok]" % froms)
         print("server: a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by %s messages, "
               "each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows  [ok]" % cuts)
         plain, runs, renders, count = check_message_ends(os.path.join(directory, "overflow.gguf"))

@@ -1914,13 +1914,14 @@ inline bool Cache::flush_one(std::vector<uint64_t>& tried, bool beyond) {
             const size_t n = copy_length(d);
             if (!n || d.superseded || d.back != back || std::find(tried.begin(), tried.end(), d.id) != tried.end() || (beyond && !beyond_host(n))) continue;
             // Beyond the host tier, the copy off the devices goes a piece at a time: background work under the budget (BackgroundGrant), but whole pieces while a request waits for this donor's room (enter).
+            // A donor the budget gives nothing waits and the next is asked, so the donor a request waits for is never left behind it.
             size_t most = std::numeric_limits<size_t>::max();
             double left = BackgroundGrant::kUnbounded;
             const bool foreground = beyond && awaited_ == d.id;
             if (beyond && !foreground) {
                 left = write_left_;
                 const size_t bt = model_.kv_block_tokens(), blocks = BackgroundGrant::units(left, (n + bt - 1) / bt, copy_block_ms_);
-                if (!blocks) return false;
+                if (!blocks) continue;
                 most = blocks * bt;
             }
             const Clock::time_point start = Clock::now();

@@ -939,13 +939,25 @@ private:
             std::vector<char> starts;
             for (const chat::Message& m : messages) starts.push_back(m.role == "user");
             const size_t lead = messages[0].role == "system" ? 1 : 0, k = first_kept(ends, starts, lead, n, room, step);
+            // Where no whole turn serves, the newest turn's oldest tool exchanges go, each an assistant message with the results after it (cut_inside).
+            TurnCut inside{k, k};
+            if (k == messages.size()) {
+                std::vector<char> exchanges;
+                for (const chat::Message& m : messages) exchanges.push_back(m.role == "assistant");
+                inside = cut_inside(ends, starts, exchanges, lead, n, room, step);
+                if (inside.refused == TurnCut::Refused::head) refuse(std::string(lead ? "its system message and " : "its ") + "newest user message alone do not fit, so no cut helps");
+                if (inside.refused == TurnCut::Refused::exchange) refuse("its newest user message and newest tool exchange alone do not fit, and a message is not cut inside");
+            }
             f.renders = ends.renders() + 1;
-            if (k == messages.size()) refuse("its newest turns alone do not fit, so no cut helps");
             for (auto& member : body.obj)
-                if (member.first == "messages") member.second.arr.erase(member.second.arr.begin() + (std::ptrdiff_t)lead, member.second.arr.begin() + (std::ptrdiff_t)k);
+                if (member.first == "messages") {
+                    auto& arr = member.second.arr;
+                    arr.erase(arr.begin() + (std::ptrdiff_t)inside.user + (inside.from > inside.user ? 1 : 0), arr.begin() + (std::ptrdiff_t)inside.from);
+                    arr.erase(arr.begin() + (std::ptrdiff_t)lead, arr.begin() + (std::ptrdiff_t)inside.user);
+                }
             prompt = prompt_of(body, route);
             ids = encode(prompt);
-            f.messages = k - lead;
+            f.messages = (inside.user - lead) + (inside.from - inside.user - (inside.from > inside.user ? 1 : 0));
             f.at_marker = true;
         } else {
             const RowCut c = cut_rows(cut_points(ids.data(), n, [this](uint32_t id) { return tok_.is_eos(id); }), n, room, step);

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## An agent's turn past the context is cut at its tool exchanges (2026-10-22, branch fix/agent-turn-cut on main 2cc7b7453, XDEV's REVIEW of 2026-10-20 10:53, lands by fast-forward as two commits)
+
+- **Why:** on production an agent run's request of 657835 tokens, past the 262144 limit, was refused under `--context-overflow shift` with "its newest turns alone do not fit, so no cut helps". `Api::fit` marked only user messages as turn starts and `first_kept` keeps a whole turn, so the newest turn, a user message and every tool call and result after it, was one unit with nothing left to cut.
+- **The change:** where `first_kept` finds no whole turn, `cut_inside` (`context_cut.hpp`) drops the earlier turns and the newest turn's oldest exchanges, each an assistant message with every result after it, so parallel calls and their results stay together and no result is orphaned. The system message and the newest user message stay, and `first_kept` over that view picks the exchange in the same half-limit steps, so successive calls of one agent cut at the same exchange. The kept messages are rendered and tokenized again before acceptance, and the drop is reported as cuts are. A request is refused only where the system and newest user messages alone, or the newest exchange beside them, do not fit; no message is cut inside (the owner's decision, open).
+- **Tests:** the first commit, failing on main (245 tokens refused on a 128-token pool): `server`'s agent turn of five to nine exchanges, one a parallel pair, cut with its calls and results together, its reply the kept messages', the cut held in pairs as the turn grows (kept from messages 13, 13, 17, 17 and 21), and the two refusals. With the change `context-cut` adds the rule's fixed cases and 20000 random turns against the walk (80195 checks); the ordinary conversation cases are unchanged.
+- **Left:** the hosted run, F2DEV's review.
+
 ## A stage's first chunk submitted after 8 dispatches on an idle card (2026-10-20, branch feat/flash-decode on main 0df5dba34, measured against 7184ff13f, item H2 of the Flash decode design, F2DEV's DECISIONs of 07:17 and 08:34, lands by fast-forward as one commit)
 
 - **Why:** a command buffer was submitted after 64 dispatches, so a stage that starts on a card with nothing running waited idle while the host recorded the first 64: on Qwen3.8-Flash-Next Q8_0 at `--dtype int8` over six MI50s in a layer split, 155 to 162 us a stage at main 7184ff13f, six stages a token (per-submission GPU timestamps of a local probe build).

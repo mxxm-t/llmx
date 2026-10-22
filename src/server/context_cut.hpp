@@ -125,4 +125,40 @@ inline size_t first_kept(MessageEnds& end, const std::vector<char>& starts, size
     return fits;
 }
 
+// A cut inside a newest turn that alone does not fit: the messages kept are the `lead` leading ones, the turn's user message `user`, and those from `from` on.
+// `refused` says why nothing fits: the leading messages and the user message alone, or the newest exchange beside them.
+struct TurnCut {
+    size_t user = 0, from = 0;
+    enum class Refused { none, head, exchange } refused = Refused::none;
+};
+
+// The cut inside the newest turn, the one after the last of `starts`, where first_kept finds none (F2DEV and XDEV, 2026-10-20): the earlier turns go, the leading messages and the user message stay, and whole exchanges go oldest first.
+// An exchange starts at each of `exchanges` (an assistant message), so its calls and every result after it stay together; first_kept picks it over the turn alone, in the same steps, so a turn that grows within a step keeps its cut.
+inline TurnCut cut_inside(MessageEnds& end, const std::vector<char>& starts, const std::vector<char>& exchanges, size_t lead, size_t n, size_t fit, size_t step) {
+    const size_t count = starts.size();
+    TurnCut c;
+    c.from = count;
+    c.refused = TurnCut::Refused::head;
+    size_t user = count;
+    for (size_t k = count; k-- > lead;)
+        if (starts[k]) { user = k; break; }
+    if (user == count) return c;
+    c.user = user;
+    // The turn alone: the leading messages, then the turn from its user message, the rows of the earlier turns taken out.
+    const size_t head = lead ? end(lead - 1) : 0, gap = user > lead ? end(user - 1) - head : 0, inner = lead + (count - user);
+    const auto at = [&](size_t i) { return i < lead ? i : user + (i - lead); };
+    MessageEnds turn(inner, n - gap, {}, [&](size_t k) -> std::optional<size_t> {
+        const size_t m = at(k - 1);
+        return m < lead ? end(m) : end(m) - gap;
+    });
+    const size_t own = end(user) - gap, tail = n - end(count - 1);
+    if (own + tail > fit) return c;
+    std::vector<char> units(inner, 0);
+    for (size_t i = lead + 1; i < inner; ++i) units[i] = exchanges[at(i)];
+    const size_t k = first_kept(turn, units, lead + 1, n - gap, fit, step);
+    c.refused = k == inner ? TurnCut::Refused::exchange : TurnCut::Refused::none;
+    c.from = k == inner ? count : at(k);
+    return c;
+}
+
 } // namespace server

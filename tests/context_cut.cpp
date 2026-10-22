@@ -29,7 +29,7 @@ size_t walked(const std::vector<size_t>& ends, const std::vector<char>& starts, 
     for (size_t j = 1; step && head + j * step < n; ++j) {
         size_t k = lead + 1;
         while (k < ends.size() && !(starts[k] && ends[k - 1] >= head + j * step)) ++k;
-        if (k == ends.size()) break;
+        if (k >= ends.size()) break;
         if (head + (n - ends[k - 1]) <= fit) return k;
     }
     for (size_t k = lead + 1; k < ends.size(); ++k)
@@ -184,6 +184,69 @@ int main() {
             const auto late = [&](size_t k) -> std::optional<size_t> { if (k == 2) return std::nullopt; return k == 1 ? 40 : k * 20; };
             server::MessageEnds known(4, 200, {12, 30, 60}, late);
             require(known(0) == 40 && known(1) == 40, "a refused part was placed before a known earlier end");
+        }
+        // A newest turn that alone does not fit (cut_inside): system 10 rows, an earlier turn to 40, the newest user message to 60, then exchanges ending at 90, at 140 (a parallel pair's two results) and at 170, and 5 rows after.
+        {
+            using Refused = server::TurnCut::Refused;
+            const std::vector<size_t> rows{10, 30, 40, 60, 70, 90, 100, 120, 140, 150, 170};
+            const std::vector<char> users{0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0}, assistants{0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0};
+            const auto inside = [&](size_t fit) {
+                server::MessageEnds ends(rows);
+                return server::cut_inside(ends, users, assistants, 1, 175, fit, 50);
+            };
+            const server::TurnCut last = inside(100);
+            require(last.refused == Refused::none && last.user == 3 && last.from == 9, "the newest turn at 100 rows kept from " + std::to_string(last.from) + ", not its last exchange");
+            // At 120 the parallel pair's exchange fits too, but the step past the user message lands on the last, as a turn that grows within a step keeps it.
+            require(inside(120).from == 9, "the cut inside a turn left its steps");
+            require(inside(30).refused == Refused::head && inside(40).refused == Refused::exchange, "a turn whose head or newest exchange does not fit was not refused for it");
+            // A tool result never starts what is kept, and the earlier turns all go.
+            for (size_t fit = 35; fit < 200; ++fit) {
+                const server::TurnCut k = inside(fit);
+                require(k.refused != Refused::none || (k.user == 3 && assistants[k.from]), "the cut at " + std::to_string(fit) + " rows kept from a message that is not an assistant's");
+            }
+        }
+        // Random conversations: cut_inside keeps from the walk's message over the newest turn alone, with the earlier turns' rows taken out.
+        {
+            std::mt19937 rng(11);
+            size_t cuts = 0;
+            for (int trial = 0; trial < 20000; ++trial) {
+                const size_t count = 2 + rng() % 40, lead = rng() % 2;
+                std::vector<size_t> row_at;
+                std::vector<char> users(count), assistants(count);
+                for (size_t m = 0, row = 0; m < count; ++m) {
+                    row += 1 + rng() % 40;
+                    row_at.push_back(row);
+                    if (m >= lead) users[m] = rng() % 6 == 0, assistants[m] = !users[m] && rng() % 2;
+                }
+                const size_t n = row_at.back() + rng() % 10, fit = rng() % (n + 20), step = rng() % 4 ? 1 + rng() % (n / 2 + 1) : 0;
+                size_t asked = 0;
+                server::MessageEnds lazy(count, n, {}, [&](size_t k) -> std::optional<size_t> { ++asked; return row_at[k - 1]; });
+                const server::TurnCut got = server::cut_inside(lazy, users, assistants, lead, n, fit, step);
+                size_t user = count;
+                for (size_t k = count; k-- > lead;)
+                    if (users[k]) { user = k; break; }
+                server::TurnCut want;
+                want.from = count;
+                want.refused = server::TurnCut::Refused::head;
+                if (user < count) {
+                    const size_t head = lead ? row_at[lead - 1] : 0, gap = user > lead ? row_at[user - 1] - head : 0;
+                    std::vector<size_t> turn;
+                    std::vector<char> units;
+                    for (size_t m = 0; m < count; ++m)
+                        if (m < lead || m >= user) turn.push_back(m < lead ? row_at[m] : row_at[m] - gap), units.push_back(m > user && assistants[m]);
+                    want.user = user;
+                    if (row_at[user] - gap + (n - row_at.back()) <= fit) {
+                        const size_t w = walked(turn, units, lead + 1, n - gap, fit, step);
+                        want.refused = w == turn.size() ? server::TurnCut::Refused::exchange : server::TurnCut::Refused::none;
+                        want.from = w == turn.size() ? count : user + (w - lead);
+                    }
+                }
+                cuts += want.refused == server::TurnCut::Refused::none;
+                require(got.refused == want.refused && got.from == want.from && (user == count || got.user == want.user),
+                        "trial " + std::to_string(trial) + ": cut_inside keeps from message " + std::to_string(got.from) + " where the walk keeps from " + std::to_string(want.from));
+                require(asked == lazy.renders() && asked <= 2 * ask_bound(count), "trial " + std::to_string(trial) + ": cut_inside asked for " + std::to_string(asked) + " ends of " + std::to_string(count) + " messages");
+            }
+            require(cuts > 1000, "the random turns gave " + std::to_string(cuts) + " cuts inside a turn");
         }
         std::cout << "context-cut: " << checks << " checks passed\n";
         return 0;

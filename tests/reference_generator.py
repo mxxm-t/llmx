@@ -164,6 +164,23 @@ class ReferenceGenerator(unittest.TestCase):
                     self.assertEqual(module.weight_hash(weights), golden["weights_sha256"])
                     self.assertEqual(module.packed_hash(packed), golden["packed_sha256"])
 
+    def test_iq3_s_generator_and_fixture_layout(self):
+        import iq3_s
+        import common
+
+        with patch.object(generator, "gen_block_family") as generate:
+            generator.main(["iq3-s"])
+        generate.assert_called_once_with("iq3-s", "IQ3_S", iq3_s.fixture, generator.OUT_DIR)
+        self.assertEqual(common.hf_bounds("f32", [["f32"]]), {"logit": 2e-5, "nll": 1e-5})
+        config, _, packed = iq3_s.fixture(True, False)
+        self.assertEqual(config["embedding_length"], 256)
+        for _, shape, type_id, payload in packed:
+            self.assertEqual(type_id, 21)
+            self.assertEqual(shape[0] % 256, 0)
+            self.assertEqual(len(payload), math.prod(shape) // 256 * 110)
+        with self.assertRaises(SystemExit):
+            generator.parse_args(["iq3-s", "--threads", "2"])
+
     def test_iq4_xs_fixture_block_layout(self):
         import iq4_xs
         import spec_decode as sd

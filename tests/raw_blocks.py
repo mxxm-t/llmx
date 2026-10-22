@@ -151,6 +151,67 @@ def check_q5_1(rng):
     print("raw-blocks: Q5_1 %d values, every code at every position, scale/min edges and isolated high bits  [ok]" % len(expected))
 
 
+def iq3_s_block(d, indices, scales, signs):
+    """Pack logical fields independently of either decoder; signs holds 256 bools."""
+    assert len(indices) == 64 and len(scales) == 8 and len(signs) == 256
+    assert all(0 <= c < 512 for c in indices) and all(0 <= c < 16 for c in scales)
+    high = sum((index // 256) << g for g, index in enumerate(indices))
+    sign_word = sum(int(sign) << i for i, sign in enumerate(signs))
+    scale_word = sum(scale << (4 * g) for g, scale in enumerate(scales))
+    return (struct.pack("<H", d) + bytes(c % 256 for c in indices)
+            + high.to_bytes(8, "little") + sign_word.to_bytes(32, "little") + scale_word.to_bytes(4, "little"))
+
+
+def iq3_s_cases():
+    # Every index in every vector position, carrying every one of the four lanes.
+    for shift in range(512):
+        yield (0x3C00, [(shift + g) % 512 for g in range(64)],
+               [(shift + g) % 16 for g in range(8)], [(i + shift) % 3 == 0 for i in range(256)])
+    for d in HALVES:
+        yield d, [(37 * g) % 512 for g in range(64)], [0, 1, 2, 4, 8, 13, 14, 15], [i % 2 != 0 for i in range(256)]
+    # Isolate every high-index bit, sign bit and scale nibble/bit position.
+    for g in range(64):
+        yield 0x3C00, [256 if j == g else 0 for j in range(64)], [0] * 8, [False] * 256
+    for bit in range(256):
+        yield 0x3C00, [0] * 64, [0] * 8, [i == bit for i in range(256)]
+    for g in range(8):
+        for scale in range(16):
+            yield 0x3C00, [0] * 64, [scale if j == g else 0 for j in range(8)], [False] * 256
+
+
+def check_iq3_s():
+    assert len(sd.IQ3_S_GRID) == 2048
+    assert hashlib.sha256(sd.IQ3_S_GRID).hexdigest() == "bd1af4945a1717c65610b0284e4628b9a1ba3b306fae3a06f6e5f597356e349f"
+    assert set(sd.IQ3_S_GRID) == {1, 3, 5, 7, 9, 11, 13, 15}
+    payload, expected = bytearray(), []
+    for d, indices, scales, signs in iq3_s_cases():
+        payload += iq3_s_block(d, indices, scales, signs)
+        for i in range(256):
+            code = sd.IQ3_S_GRID[4 * indices[i // 4] + i % 4]
+            scale = 1 + 2 * scales[i // 32]
+            sign = -1 if signs[i] else 1
+            expected.append(cell(lambda h: h(d) * scale * code * sign))
+    assert_values("IQ3_S", expected, sd.decode(sd.IQ3_S, payload, len(expected)))
+    assert_numpy_matches("IQ3_S", sd.IQ3_S, payload, len(expected))
+    # Fixed raw bytes: d=0.5, index 1 has LE magnitudes (3,1,1,1),
+    # sign bit 1 alone negated, low scale nibble 2 gives odd multiplier 5.
+    hand = bytearray(110)
+    hand[:3] = bytes.fromhex("003801")
+    hand[74], hand[106] = 2, 2
+    assert sd.decode(sd.IQ3_S, hand, 256)[:8] == [7.5, -2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5]
+    # High bit at group 0 selects index 256, a different dictionary vector.
+    hand[66] = 1
+    assert sd.decode(sd.IQ3_S, hand, 256)[:4] == [2.5 * x * (-1 if j == 1 else 1)
+                                                          for j, x in enumerate(sd.IQ3_S_GRID[1028:1032])]
+    try:
+        sd.payload_bytes(sd.IQ3_S, 255)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("IQ3_S accepted a partial block")
+    print("raw-blocks: IQ3_S %d exact values over all dictionary lanes, isolated fields and half scale edges [ok]" % len(expected))
+
+
 def iq4_xs_block(d, scales, cs):
     high = sum((s >> 4) << 2 * b for b, s in enumerate(scales))
     low = bytes(scales[2 * i] & 15 | (scales[2 * i + 1] & 15) << 4 for i in range(4))
@@ -347,7 +408,7 @@ def check_roundtrip_blocks():
 def random_blocks(rng, type_id, count):
     """`count` random blocks of `type_id`, with every f16 scale and min finite."""
     _, _, size = sd.TYPES[type_id]
-    halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.Q4_K: (0, 2),
+    halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.IQ3_S: (0,), sd.Q4_K: (0, 2),
               sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,)}.get(type_id, ())
     out = bytearray()
     for _ in range(count):
@@ -518,6 +579,7 @@ def run(require=False):
     check_q5_0(random.Random(20261020))
     check_q5_1(rng)
     check_iq4(rng)
+    check_iq3_s()
     check_mxfp4(rng)
     check_q3_k(rng)
     check_q2_k(rng)

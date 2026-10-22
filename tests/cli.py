@@ -86,23 +86,23 @@ def check_known_storage(directory):
     config = dict(f32.CONFIG, embedding_length=256, block_count=1)
     weights = f32.tensors(False, config=config)
     for used in (True, False):
-        name = "token_embd.weight" if used else "unused.iq3"
+        name = "token_embd.weight" if used else "unused.iq2"
         shape = [256, f32.VOCAB] if used else [256]
-        # One IQ3_S block is 256 values in 110 bytes; this fixture uses the format's layout, independently of the runtime table.
-        raw = bytes(110 * (f32.VOCAB if used else 1))
+        # One IQ2_S block is 256 values in 82 bytes; this fixture uses the format's layout, independently of the runtime table.
+        raw = bytes(82 * (f32.VOCAB if used else 1))
         path = os.path.join(directory, "known-storage-%s.gguf" % used)
         model = f32.write_model(path, [w for w in weights if w[0] != name], config=config,
-                                quantized=[(name, shape, 21, raw)])
+                                quantized=[(name, shape, 22, raw)])
         p = common.run_process(["info", model], text=True)
-        line = "  IQ3_S %s shape=[%s] elements=%d bytes=%d" % (name, ", ".join(map(str, shape)), math.prod(shape), len(raw))
+        line = "  IQ2_S %s shape=[%s] elements=%d bytes=%d" % (name, ", ".join(map(str, shape)), math.prod(shape), len(raw))
         assert p.returncode == 0 and line in p.stdout.splitlines(), (p.returncode, p.stdout, p.stderr)
         p = common.run_process(["tokenize", model, "hello"], text=True)
         assert p.returncode == 0 and p.stdout == "104, 101, 108, 108, 111\n", (p.returncode, p.stdout, p.stderr)
         p = common.run_process(["detokenize", model, "104,101,108,108,111"], text=True)
         assert p.returncode == 0 and p.stdout == "hello\n", (p.returncode, p.stdout, p.stderr)
         p = common.run_process(["generate", model, "a", "-n", "1", "--device", "cpu", "--threads", "1"], text=True)
-        refusal = ("embedding needs tensor %s of type IQ3_S (21), which the backend of device 0 does not support" % name if used else
-                   "unused tensor %s of type IQ3_S (21) is not supported by any model backend" % name)
+        refusal = ("embedding needs tensor %s of type IQ2_S (22), which the backend of device 0 does not support" % name if used else
+                   "unused tensor %s of type IQ2_S (22) is not supported by any model backend" % name)
         assert p.returncode == 1 and not p.stdout and ("error: inference: " + refusal) in p.stderr, (p.returncode, p.stdout, p.stderr)
         outputs = [os.path.join(directory, "unsupported." + ext) for ext in ("json", "bin")]
         for output in outputs:

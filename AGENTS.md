@@ -151,6 +151,10 @@ On Windows with `LongPathsEnabled` set, the round-trip component also reads a GG
 
 ## Tests
 
+`iq3-s` checks the read-only IQ3_S decoder against independently pinned dictionary bytes and a double-precision scale oracle, including all finite binary16 scales, field positions, signed zeros, unaligned blocks and guards. Backend products cover F32/F16/BF16/int8 requests through dense, grouped, head, additive and routed calls, including three experts and two picks. F16/int8 rows on lookup-dot profiles and eligible integer prompt tiles use the existing block-int16 activation twin; other profiles keep F32, and BF16 rounds inputs. The independent product oracle separates accumulation over reconstructed inputs from original-input reconstruction error, with small residuals beside cancelling peaks and finite-half/unsafe-scale controls. Mixed decode/prompt RowRuns and sliced calls must keep their bytes and paths, dense/routed extents within one row class must agree, crossover edges must witness their actual arithmetic, and a tail-heavy prompt shape must witness the tall integer tile where the profile selects it. `iq3-s-vulkan` runs these controls on a Vulkan device and reports dispatched kernels; it skips with exit 77 when no device is available. These controls do not replace model-level HF, long-context or performance qualification.
+
+The Python `iq3-s` component uses the shared raw-block fixture and HF consumer owners for dense tied/untied and MoE models, with ordinary and split layouts. Its committed references come from `tools/gen_baseline.py iq3-s` in the pinned CPU HF environment. It checks 150 full-logit cases and 12 NLL comparisons with F32 caches; bounds follow actual matrix paths through the existing shared owner. F32 remains strict; narrowed paths use the prospectively calibrated IQ3 family in `dtype_budget.json`, including the F16 budget for an int8 request executed as block-int16 (`docs/PRECISION.md`).
+
 `weight-rows` checks the bounded row reader that serves a model's lookup tables (`TensorView::row_source`): original packed Q8_0 bytes, duplicate and reordered requests, capacity and extent refusals, unaligned file spans, read windows smaller than a row and concurrent readers with separate scratch.
 Direct reads cover one-granule windows and the end of the file where the file system takes them, and on POSIX a source truncated after opening.
 
@@ -1180,7 +1184,7 @@ matters: **each layer depends only on the layers below it** -
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from, threads that run a job over its indices |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
-| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_0/Q5_1/Q2_K/Q3_K/Q4_K/Q5_K/Q6_K/IQ4_NL/IQ4_XS/MXFP4 kernels |
+| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_0/Q5_1/Q2_K/Q3_K/Q4_K/Q5_K/Q6_K/IQ3_S/IQ4_NL/IQ4_XS/MXFP4 kernels |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |

@@ -33,12 +33,13 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | Q8_0 | Supported | Supported | Yes |
 | Q2_K, Q3_K | Supported | Supported | No |
 | Q4_K, Q5_K, Q6_K | Supported | Supported | No |
+| IQ3_S | Supported | Supported | No |
 | IQ4_NL, IQ4_XS | Supported | Supported | No |
 | MXFP4 | Supported | Supported on devices with required float preservation and double arithmetic | No |
 
 `llmx quantize` writes Q4_0 and Q8_0; the other formats have no quantize writer here. Each model tensor must be supported by its assigned backend. Devices do not fall back to the CPU automatically.
 
-GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. Q8_1 and Q8_K are auxiliary formats, and IQ3_S is metadata-only. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
+GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. Q8_1 and Q8_K are auxiliary formats. IQ3_S has read-only CPU/Vulkan inference support. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
 
 Activation `--dtype` is independent of weight storage and KV-cache type. `auto` selects a backend policy; requested F16, BF16 or int8 paths may use a wider implementation or input rounding depending on the device. See [precision and dtype reporting](docs/USAGE.md#precision). F16 is the KV-cache default; F32 is also available.
 

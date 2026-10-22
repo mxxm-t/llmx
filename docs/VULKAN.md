@@ -170,21 +170,25 @@ where a quantized matmul reads them.
 The decode row kernels and integer-dot prefill tile read signed 16-bit integers in blocks of 32 (`xquant.glsl`, below).
 Their reference inputs use the same rounding; independent HF gates measure the resulting model error.
 
-- **Dequantization** is one GLSL include (`qdecode.glsl`) with a per-value
-  decoder for each block type but Q8_0, which `embed` uses.
+- **Dequantization** is split between GLSL includes: `qdecode.glsl` has the
+  generic per-value decoders except Q8_0, which `embed` uses, and IQ3_S,
+  whose decoder is in `iq3_s.glsl` and whose matrix cache is in
+  `iq3_s_cache.glsl`.
   The float tile takes its Q4_0 and Q4_1 decoders and the K-quant sub-scale reader, and decodes Q8_0 and the K-quant runs itself; the row kernels decode words in place. Types are
   keyed by the storage IDs in `quant/types.hpp`; `quant::Registry` names
   implemented C++ decoders, and the shader include supplies device decoders.
   Recognized storage metadata alone does not enable a Vulkan kernel.
   Q4_0 has a second decoder for `embed`, `q4_0_exact`, which computes the CPU's `(nibble - 8) * d` and sets a zero's sign as bits: `embed` matches the CPU bit for bit under every finite scale, and a driver need not keep a zero's sign.
-  Every other type's `embed` decode takes a zero's sign from the driver's arithmetic, which the drivers tested keep today; of backend-vulkan's exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it.
+  Other existing types' `embed` decodes take a zero's sign from the driver's arithmetic, which the tested drivers keep today; of the existing backend-vulkan exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it. IQ3_S carries an explicit sign bit, including for zero; its focused test checks that behavior.
   A model holding a type without a kernel is refused before any weight is adopted, naming the tensor and its type (`Backend::supports_type`).
   A direct matmul, routed product or embed of such a type is refused before it records a dispatch, naming the type by its numeric id.
-  Today: F32, F16, BF16, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL and IQ4_XS, plus MXFP4 on devices with its required properties. The [README support matrix](../README.md#quantization-types) separates inference support from quantize writers and metadata recognition. Other known storage layouts, including auxiliary Q8_1/Q8_K and IQ3_S, remain unavailable for Vulkan inference and are refused during placement.
+  Today: F32, F16, BF16, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ3_S, IQ4_NL and IQ4_XS, plus MXFP4 on devices with its required properties. The [README support matrix](../README.md#quantization-types) separates inference support from quantize writers and metadata recognition. Other known storage layouts, including auxiliary Q8_1/Q8_K, remain unavailable for Vulkan inference and are refused during placement.
 
   IQ4_NL and IQ4_XS use signed lookup rows on lookup-dot profiles and tiles on integer-tile profiles over the block-int16 activation twin, with wider F32 elsewhere. Radeon VII retains its faster F32 tiles. MI50 model timings include both lookup formats, but there is no isolated tile benchmark; remaining speed work is recorded in STATUS. Neither lookup format has a native 8-bit activation path; an int8 request uses its wider block-int16 or F32 path. Explicit F32 keeps original inputs and BF16 uses its input-rounding tile.
 
   Q2_K and Q3_K use block-int16 rows and eligible prompt tiles for F16/int8 requests on integer-dot profiles, with two separately scaled 16-value sums and Q2 minimum corrections; other profiles retain F32. Their row and tile code packing and range repair share one shader helper. Explicit F32 retains original inputs and BF16 uses its rounded-input tile. Their operator and release qualification is complete; landing and evidence are recorded in STATUS.
+
+  IQ3_S has read-only Vulkan inference support. Its descriptor retains F32 rows/tiles and a BF16 tile, with block-int16 rows and eligible integer tiles under the existing device profiles. The recorded scope and evidence are in [STATUS](STATUS.md).
 - **matmul, decode** (`nbatch` small): each row takes a cluster of lanes, the subgroup's width or fewer for a short row and at most `k45_row_lanes` in the Q4_K/Q5_K integer-dot families, each lane accumulating a stride of blocks and the cluster meeting in an xor-shuffle reduction at the end. Rows
   are the outer loop and the batch the inner, as on the CPU, so a weight
   block is read once per chunk of a build's columns, eight, or on the MI50

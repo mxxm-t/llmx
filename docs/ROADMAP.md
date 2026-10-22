@@ -24,21 +24,21 @@ takes on each layer and backend is listed once, in `docs/src/quant-types.md`. St
 - `Q5_K` done (read-only). Qwen3-0.6B-Q5_K_M is 168 Q5_K / 29 Q6_K / 113 F32,
   so dense Qwen3 `Q4_K_M` and `Q5_K_M` mixtures can be read. Other mixtures
   may require additional type qualification; the hosted Qwen3-0.6B Q2_K file
-  also contains Q3_K tensors. Both read-only implementations are present;
-  qualification of the mixed release is tracked in STATUS.
+  also contains Q3_K tensors. Q2_K/Q3_K qualification for that mixed file
+  is complete; other mixtures still require qualification of their full type
+  set (see STATUS for the published release evidence).
 - A fused Q4_K row dot landed for decode: no dequantized value is materialised,
   because d*q - m factorises the dot into d*sum(q*x) - m*sum(x). 2.16 -> ~2.6
   tok/s. Fused Q5_K and Q6_K decode dots followed the same way; prefill is a
   different question since the batched path already reuses the dequantized row.
 - `MXFP4` is read-only on the CPU and on Vulkan devices with its required float preservation and double arithmetic.
 - `IQ4_NL` support is published for CPU and Vulkan through the existing decoder and matrix owners, with raw-format/native, tiny and 0.6B file-exact HF checks. Its released-file and 16K checks are recorded in STATUS. Original-weight quality approval and hosted download-gate inclusion remain pending; measured speed deficits remain open, with Vulkan recovery in the first quant stage and ROCm tuning in the second. Vulkan uses block-int16 signed-lookup rows on lookup-dot profiles and integer tiles where preferred, with wider float products as fallback. `IQ4_XS` read-only CPU and Vulkan support has completed local integration and qualification, including the approved exact-fixture split-F32 allowance; it is published read-only. The separate F16 packed-dot work does not implement it.
-- `Q5_0`, `Q5_1`, `Q2_K` and `Q3_K` support is published read-only on CPU and Vulkan. Q2_K/Q3_K packed-prefill, specialized decode, numerical policy, released-file, depth, split, performance and landing qualification is complete; evidence is recorded in STATUS. The next remaining IQ-format priority is `IQ3_S`; this order is a priority, not a release schedule. The earlier September deferral is historical.
+- `Q5_0`, `Q5_1`, `Q2_K` and `Q3_K` support is published read-only on CPU and Vulkan. Q2_K/Q3_K packed-prefill, specialized decode, numerical policy, released-file, depth, split, performance and landing qualification is complete; evidence is recorded in STATUS. The earlier September deferral is historical.
+- `IQ3_S` read-only CPU/Vulkan inference is supported. The recorded scope and evidence are in [STATUS](STATUS.md). Comparison and tuning against mx ROCm remain in the second quant stage.
 - `F16` and `BF16` read-only weight support is published on CPU and Vulkan; the current storage, twin and released-file evidence is recorded in STATUS. Activation dtype support is separate from these weight formats.
   Every type multiplies the per-backend kernel work (see #4b), and each type must meet the six conditions listed there.
   The 16-bit weight kernels widen to F32 exactly on the CPU and Vulkan, since gfx906 has no BF16 arithmetic. The products retain the corresponding F32-weight path's arithmetic and device float controls.
-- The other lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not ordered yet: they need about 33 KB of codebooks, and every file that uses them mixes 8 or 9 types.
-  `IQ3_S` is the first candidate among the remaining IQ formats, following the clarified order above.
-  `Q5_0` focused operator, tiny, converted-file and released mixed-sidecar output-identity checks are in STATUS; they do not establish broad original-weight quality, all-expert execution or performance.
+- The other lattice-codebook types (`IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ3_XXS`) are not ordered yet. Share codebook and product logic where the formats justify it, while keeping distinct packed layouts explicit. Inventory and qualify every tensor type in each selected released file before claiming support for that file.
 - K-quants are what most GGUF on the Hub actually uses; see #9b
 - Storage metadata is owned by `quant/types.hpp`: 35 active GGML layouts, with unknown and removed IDs refused. `TensorInfo::data_size()` uses its checked `row_bytes`; the decoder registry reads the same metadata. `gguf-validation` holds the Vulkan shaders' `q.glsl` declarations to it.
   This resolves the proposed `core/storage.hpp` owner in the existing quant layer. It does not implement new decoders, backend dispatch tables or the quantization plan's kernel-class work; those remain separate steps.

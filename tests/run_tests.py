@@ -26,6 +26,7 @@ import q3_k
 import q5_1
 import iq4_nl
 import iq4_xs
+import iq3_s
 import qwen35
 import split
 import tensor_split
@@ -124,6 +125,7 @@ def main():
                   ("q5-1", q5_1.run),
                   ("iq4-nl", iq4_nl.run),
                   ("iq4-xs", iq4_xs.run),
+                  ("iq3-s", iq3_s.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("tensor-split", lambda: tensor_split.run(require=args.require_tools)),

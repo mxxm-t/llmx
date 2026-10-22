@@ -321,8 +321,8 @@ size_t check_matrix_witness(backend::Backend& vk) {
     require(vk.dtype_path(backend::Dtype::f32) == "f32", "device F32 catalog claims a narrower path");
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
     const std::string half_paths = integer
-        ? "block-int16 (quantized rows and eligible tiles; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)"
-        : "block-int16 (quantized rows except Q2_K/Q3_K; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+        ? "block-int16 (quantized rows and eligible tiles; IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+        : "block-int16 (quantized rows except Q2_K/Q3_K; IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
     require(vk.dtype_path(backend::Dtype::f16) == half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");

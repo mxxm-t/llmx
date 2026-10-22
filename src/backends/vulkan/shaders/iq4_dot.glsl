@@ -5,20 +5,19 @@ const uint IQ4_TYPE = TYPE_IQ4_XS;
 #else
 const uint IQ4_TYPE = TYPE_IQ4_NL;
 #endif
-// Recompute block-aligned ranges from exact lookup weights and the reader's reconstructed int16 inputs.
-float iq4_float_twin(uint row, uint col, uint nin, uint begin, uint end) {
-    precise float sum = 0.0;
-    for (uint b = begin; b < end; ++b) {
-        float dw;
-        uint codes = iq4_group(IQ4_TYPE, row, nin, b, dw);
-        for (uint j = 0u; j < IQ4_NL_BLOCK; ++j)
-            sum = fma(iq4_at(codes, j, dw), iq4_input(col, b, j), sum);
+uint lookup_group(uint row, uint nin, uint b, out float dw) {
+    return iq4_group(IQ4_TYPE, row, nin, b, dw);
+}
+float lookup_at(uint group, uint j, float dw) { return iq4_at(group, j, dw); }
+uint lookup_word(uint group, uint word) {
+    uint packed = 0u;
+    for (uint k = 0u; k < 4u; ++k) {
+        uint pos = word * 4u + k;
+        uint byte = QBYTE(group + (pos & 15u));
+        uint code = pos < 16u ? byte & 15u : byte >> 4u;
+        packed |= (uint(iq4_nl_value(code)) & 255u) << (8u * k);
     }
-    return sum;
+    return packed;
 }
-// A zero operand is exact; otherwise a subnormal, zero or overflowing combined scale needs recomputation.
-bool iq4_unsafe_scale(float weight, float activation, float scale) {
-    uint exponent = (floatBitsToUint(scale) >> 23u) & 255u;
-    return weight != 0.0 && activation != 0.0 && (exponent == 0u || exponent == 255u);
-}
+#include "lookup_dot.glsl"
 #endif

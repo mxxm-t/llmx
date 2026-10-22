@@ -1,4 +1,7 @@
 #version 450
+#if defined(LLMX_IQ4) || defined(LLMX_IQ3_S)
+#define LLMX_LOOKUP
+#endif
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
 #define LLMX_K23
 #endif
@@ -62,19 +65,29 @@ uint pi = 0u;   // this workgroup's projection, uniform across it
 layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #define QBYTE(i) ((wm[pi].w[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #endif
-#if defined(LLMX_IQ4) || defined(LLMX_Q50) || defined(LLMX_K23)
+#if defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #endif
-#if defined(LLMX_Q8MX) || defined(LLMX_IQ4) || defined(LLMX_Q50) || defined(LLMX_K23)
+#if defined(LLMX_Q8MX) || defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #include "qdecode.glsl"
 #endif
-#ifdef LLMX_IQ4
-float iq4_input(uint col, uint b, uint j) {
+#ifdef LLMX_IQ3_S
+layout(set = 0, binding = 5) readonly buffer GRID { uint grid[]; };
+#define IQ3_GRID_SOURCE(i) grid[i]
+#include "iq3_s_cache.glsl"
+#include "iq3_s.glsl"
+#endif
+#ifdef LLMX_LOOKUP
+float lookup_input(uint col, uint b, uint j) {
     uint word = xq[col * p.nin / 2u + b * 16u + (j / 4u) * 2u + (j & 1u)];
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
 }
+#ifdef LLMX_IQ3_S
+#include "iq3_dot.glsl"
+#else
 #include "iq4_dot.glsl"
+#endif
 #endif
 #ifdef LLMX_K23
 #define K23_WORD(i) ws[pi].w32[i]
@@ -194,6 +207,9 @@ void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, XVEC xv[STEP], 
 }
 
 void main() {
+#ifdef LLMX_IQ3_S
+    iq3_s_init();
+#endif
     uint tid = gl_LocalInvocationID.x;
     uint wg = gl_WorkGroupID.x;
     if (p.nproj > 1u && wg >= p.start1) pi = 1u;
@@ -236,7 +252,7 @@ void main() {
 #ifdef LLMX_Q8MX
     uint wide = 0u;
 #endif
-#if defined(LLMX_IQ4) || defined(LLMX_K23)
+#if defined(LLMX_LOOKUP) || defined(LLMX_K23)
     uint repair[MROWS];
     for (uint i = 0u; i < MROWS; ++i) repair[i] = 0u;
 #endif
@@ -333,21 +349,17 @@ void main() {
             store_scales(wrow, wseg, oks, vec4(d * s0, d * s1, 0.0, 0.0));
             store_x(k0, kend, xin, xcol, xseg, xv, xf);
         }
-#elif defined(LLMX_IQ4)
+#elif defined(LLMX_LOOKUP)
         {
             // One scaled group of 32 lookup codes; stage the signed bytes the Q8_0 dot loop reads.
             for (uint s = 0u; s < STEP; ++s) {
                 uint kb = k0 + s;
                 bool ok = row < nout && kb < kend;
                 float scale;
-                uint codes = iq4_group(IQ4_TYPE, ok ? wr : 0u, p.nin, ok ? kb : 0u, scale);
+                uint codes = lookup_group(ok ? wr : 0u, p.nin, ok ? kb : 0u, scale);
                 for (uint m = 0u; m < WW; ++m) {
-                    uint packed = 0u, word = wseg * WW + m;
-                    for (uint j = 0u; j < 4u; ++j) {
-                        uint pos = word * 4u + j, byte = QBYTE(codes + (pos & 15u));
-                        uint code = pos < 16u ? byte & 15u : byte >> 4u;
-                        packed |= (uint(iq4_nl_value(code)) & 255u) << (8u * j);
-                    }
+                    uint word = wseg * WW + m;
+                    uint packed = lookup_word(codes, word);
                     wq[s * 8u + word][wrow] = WIDEN(ok ? packed : 0u);
                 }
                 if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = ok ? scale : 0.0;
@@ -549,13 +561,13 @@ void main() {
 #ifdef LLMX_Q8MX
             if (wide_weight(d)) wide |= 1u << (4u + i);
 #endif
-#ifdef LLMX_IQ4
-            // Each exact integer block sum is at most 32 * 127 * 32767 = 133165088.
+#ifdef LLMX_LOOKUP
+            // Lookup magnitudes are at most 127, bounding each integer block sum by 32 * 127 * 32767 = 133165088.
             float d0 = d * c0, d1 = d * c1, d2 = d * c2, d3 = d * c3;
-            if (iq4_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
-            if (iq4_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
-            if (iq4_unsafe_scale(d, c2, d2)) repair[i] |= 4u;
-            if (iq4_unsafe_scale(d, c3, d3)) repair[i] |= 8u;
+            if (lookup_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
+            if (lookup_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
+            if (lookup_unsafe_scale(d, c2, d2)) repair[i] |= 4u;
+            if (lookup_unsafe_scale(d, c3, d3)) repair[i] |= 8u;
             precise float p0 = d0 * float(t[i][0]), p1 = d1 * float(t[i][1]);
             precise float p2 = d2 * float(t[i][2]), p3 = d3 * float(t[i][3]);
 #else
@@ -659,9 +671,9 @@ void main() {
                 if (((repair[i] >> j) & 1u) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]))
                     acc[i][j] = k23_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);
 #endif
-#ifdef LLMX_IQ4
+#ifdef LLMX_LOOKUP
                 if (((repair[i] >> j) & 1u) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]))
-                    acc[i][j] = iq4_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);
+                    acc[i][j] = lookup_float_twin(expert * nout + row, p.per != 0u ? col / p.per : col, p.nin, kbeg, kend);
 #endif
                 if (p.accum != 0u) ys[pi].y[yo + col * nout + row] += acc[i][j];
                 else ys[pi].y[yo + col * nout + row] = acc[i][j];

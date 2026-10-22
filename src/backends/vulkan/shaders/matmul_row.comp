@@ -18,8 +18,11 @@
 #if defined(LLMX_I8) && !(defined(LLMX_DOT) && (defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)))
 #error "the 8-bit twin is read by the Q4 and K-quant families through the integer dot"
 #endif
-#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_K23))
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_K23))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
+#endif
+#if defined(LLMX_IQ4) || (defined(LLMX_IQ3_S) && defined(LLMX_DOT))
+#define LLMX_LOOKUP_DOT
 #endif
 #include "q.glsl"
 // The fifth-bit plane is a compile-time weight loader choice. Existing Q4
@@ -101,8 +104,18 @@ vec4 weight4(uint i) {
 #define WEIGHT4(i) uintBitsToFloat(w128s[pi].w128[i])
 #define WEIGHT1(i) wfs[pi].wf[i]
 #endif
-#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_Q50) || defined(LLMX_K23)
+#if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_LOOKUP_DOT) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_IQ3_S
+// Float rows use the spare twin view; int16 rows use the spare F32 weight view.
+#ifdef LLMX_DOT
+#define IQ3_GRID_SOURCE(i) floatBitsToUint(wfs[0].wf[i])
+#else
+#define IQ3_GRID_SOURCE(i) xq2[(i) >> 1u][(i) & 1u]
+#endif
+#include "iq3_s_cache.glsl"
+#include "iq3_s.glsl"
+#endif
 #include "qdecode.glsl"
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
 shared uint mxfp4_pairs[256];
@@ -120,15 +133,19 @@ uint xa_col(uint c) { return c * p.nin / 2u; }
 vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
 // The scale entries of blocks 2j and 2j + 1 in one load.
 vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
-#ifdef LLMX_IQ4
+#ifdef LLMX_LOOKUP_DOT
 #include "dot16.glsl"
-float iq4_input(uint col, uint b, uint j) {
+float lookup_input(uint col, uint b, uint j) {
     uvec2 pair = xq2[col * p.nin / 4u + b * 8u + j / 4u];
     uint word = (j & 1u) == 0u ? pair.x : pair.y;
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xq_block(col, b).x;
 }
+#ifdef LLMX_IQ3_S
+#include "iq3_dot.glsl"
+#else
 #include "iq4_dot.glsl"
+#endif
 #endif
 #ifdef LLMX_K23
 #define K23_WORD(i) w32s[pi].w32[i]
@@ -455,6 +472,10 @@ void affine_nibble_dots(uint word, uint high, uint at, XWT lo, XWT hi, inout QDO
 #endif
 
 void main() {
+#ifdef LLMX_IQ3_S
+    // Every invocation reaches the cache barrier, including inactive rows and empty routed groups.
+    iq3_s_init();
+#endif
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
     {
         uint i = gl_LocalInvocationIndex;
@@ -467,7 +488,9 @@ void main() {
     if (p.nproj > 1u && wg >= p.start1) pi = 1u;
     if (p.nproj > 2u && wg >= p.start2) pi = 2u;
     uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
+#ifndef LLMX_IQ3_S
     uint type = pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2);
+#endif
     uint wide = pi == 0u ? p.wide0 : (pi == 1u ? p.wide1 : p.wide2);
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));
 
@@ -701,7 +724,7 @@ void main() {
 #else
     float acc[MAX_COLS];
 #endif
-#if defined(LLMX_IQ4) || defined(LLMX_K23)
+#if defined(LLMX_LOOKUP_DOT) || defined(LLMX_K23)
     uint repair[MAX_COLS];
     for (uint c = 0u; c < MAX_COLS; ++c) repair[c] = 0u;
 #endif
@@ -723,6 +746,9 @@ void main() {
 #elif defined(LLMX_Q3)
             uint o = (wrow * (p.nin / 256u) + b) * Q3_K_BYTES;
             float weight = q3_k_at(o, local);
+#elif defined(LLMX_IQ3_S)
+            uint o = (wrow * (p.nin / IQ3_S_BLOCK) + j / IQ3_S_BLOCK) * IQ3_S_BYTES;
+            float weight = iq3_s_at(o, j % IQ3_S_BLOCK, half_at(QBYTE(o), QBYTE(o + 1u)));
 #else
             float weight = quantized_at(type, wrow, p.nin, j);
 #endif
@@ -772,29 +798,20 @@ void main() {
             }
         }
 #endif
-#ifdef LLMX_IQ4
-        uint nblocks = p.nin / IQ4_NL_BLOCK;
+#ifdef LLMX_LOOKUP_DOT
+        uint nblocks = p.nin / 32u;
         for (uint b = l; b < nblocks; b += p.cluster) {
             float dw;
-            uint codes = iq4_group(IQ4_TYPE, wrow, p.nin, b, dw);
+            uint codes = lookup_group(wrow, p.nin, b, dw);
             uvec2 weights[8];
-            for (uint j = 0u; j < 8u; ++j) {
-                uint packed = 0u;
-                for (uint k = 0u; k < 4u; ++k) {
-                    uint pos = j * 4u + k;
-                    uint byte = QBYTE(codes + (pos & 15u));
-                    uint code = pos < 16u ? byte & 15u : byte >> 4u;
-                    packed |= (uint(iq4_nl_value(code)) & 255u) << (8u * k);
-                }
-                weights[j] = weight16(packed);
-            }
+            for (uint j = 0u; j < 8u; ++j) weights[j] = weight16(lookup_word(codes, j));
             for (uint c = 0u; c < ncols; ++c) {
                 uint col = XCOL(c), a2 = xa_col(col) / 2u + b * 8u;
-                // 32 * 127 * 32767 = 133165088, so every partial fits int32.
+                // IQ3_S: 32 * 15 * 32767 < 2^24; IQ4: 32 * 127 * 32767 fits int32.
                 int sum = 0;
                 for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], xq2[a2 + j], sum);
                 float dx = xq_block(col, b).x, scale = dw * dx;
-                if (iq4_unsafe_scale(dw, dx, scale)) repair[c] = 1u;
+                if (lookup_unsafe_scale(dw, dx, scale)) repair[c] = 1u;
                 acc[c] = fma(scale, float(sum), acc[c]);
             }
         }
@@ -882,7 +899,7 @@ void main() {
             }
         }
 #endif
-#if !defined(LLMX_K23) && !defined(LLMX_IQ4) && !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
+#if !defined(LLMX_K23) && !defined(LLMX_LOOKUP_DOT) && !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !(defined(LLMX_K4) || defined(LLMX_K5))
 #if !defined(LLMX_WEIGHT_F16) && !defined(LLMX_WEIGHT_BF16)
         if (type == TYPE_Q8_0) {
             uint nblocks = p.nin / Q8_0_BLOCK;
@@ -1101,10 +1118,10 @@ void main() {
 #else
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
 #endif
-#ifdef LLMX_IQ4
+#ifdef LLMX_LOOKUP_DOT
         uint unsafe = repair[c];
         for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
-        if (l == 0u && row < nout && (unsafe != 0u || isnan(s) || isinf(s))) s = iq4_float_twin(wrow, XCOL(c), p.nin, 0u, p.nin / IQ4_NL_BLOCK);
+        if (l == 0u && row < nout && (unsafe != 0u || isnan(s) || isinf(s))) s = lookup_float_twin(wrow, XCOL(c), p.nin, 0u, p.nin / 32u);
 #endif
 #ifdef LLMX_K23
         uint unsafe = repair[c];

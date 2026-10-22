@@ -1,0 +1,134 @@
+{
+  "date": "2026-10-22",
+  "candidate_revision": "cf408d0ef1577d02466ada90df03ec0d33ec589a",
+  "scope": "Integrated IQ3_S checkpoint evidence; does not claim merge or complete landing gates.",
+  "windows_runtime": {
+    "path": "build-iq3-integrated/Release/llmx.exe",
+    "sha256": "7ab4c202125a41f63f63f850a084b795035abe3dfbd602a9a7e7e954ff86dd24",
+    "version": "llmx 0.1.0+unknown numerics db63f4ba243aad41"
+  },
+  "windows_python_suite": {
+    "terminal_id": 12457,
+    "exit_code": 1,
+    "log": "build-iq3-integrated/cpu-suite.log",
+    "log_sha256": "cd57fa8f7c1a5947932bf546061e24b2fc5d42204e617e307101578fa59f6b23",
+    "components_total": 36,
+    "passed": 34,
+    "failed": [
+      "cli",
+      "roundtrip"
+    ],
+    "failure_disposition": {
+      "cli": "The old CLI fixture treated known IQ3_S metadata ID 21 as unsupported. The fixture was corrected to use IQ2_S ID 22; this was a test expectation change, not a runtime change. Focused CLI rerun passed.",
+      "roundtrip": "The initial Windows run hit filesystem access denied (error 5) while dequantizing q8_0 under the restricted runner. Focused rerun outside that sandbox passed; no runtime fix was made."
+    },
+    "focused_rerun": {
+      "log": "build-iq3-integrated/cli-roundtrip-rerun.log",
+      "sha256": "b2cdefa52a5ae7f83b0cab07359dd5db4a6a80f2251d09da467a9aa2bf0d257d",
+      "components": {
+        "cli": "PASS",
+        "roundtrip": "PASS"
+      },
+      "scope": "Focused rerun after the test-fixture correction, outside the restricted filesystem; not a completed post-fix full suite."
+    },
+    "original_roundtrip_failure_log": {
+      "path": "build-iq3-integrated/roundtrip-rerun.log",
+      "sha256": "1997a525cb6f88d01d7e702423cc20c983cb714718b6c7ea4ddee07814cb73a9"
+    }
+  },
+  "windows_ctest": {
+    "initial": {
+      "log": "build-iq3-integrated/ctest.log",
+      "sha256": "69fe3f2d1f00bdc87456a875a3d5893fb4bd47b444e210fd6c00c6c8841617cc",
+      "passed": 72,
+      "total": 73,
+      "failed": [
+        "backend-errors"
+      ],
+      "disposition": "Stale supported-type test expectation omitted IQ3_S ID 21."
+    },
+    "focused_fix": {
+      "rebuild_log": "build-iq3-integrated/backend-errors-rebuild.log",
+      "rebuild_sha256": "1645261ea07d881009856a2089fbba94ee3f80caeb087d4bf61a51337de7889e",
+      "rerun_log": "build-iq3-integrated/backend-errors-rerun.log",
+      "rerun_sha256": "0aa88aa2d40e333072917b192da6097c1e7913091c6fe9a845d2530d385e6036",
+      "passed": 1,
+      "total": 1
+    }
+  },
+  "mi50_vulkan_identity": {
+    "terminal_id": 58225,
+    "complete": true,
+    "device": "vulkan:0",
+    "case_count": 14,
+    "execution_passed": true,
+    "exit_code": 0,
+    "main_revision": "6db4d22bd07566aef059cc638bcfbc7c9372f6f3",
+    "candidate_revision": "cf408d0ef1577d02466ada90df03ec0d33ec589a",
+    "main_binary_sha256": "49d47567ebf598937b320a49eebdee8bfccef3445de1f922b3d042667c3cd83f",
+    "candidate_binary_sha256": "1d1f9cb38388e6a8fc3c1d08d9c9c0eb73a150ffc0388a4b87df488f5dfc5505",
+    "result_artifact": "build-quant-resume-20261020/iq3-s/integrated-identity-vulkan-result.json",
+    "result_sha256": "29f90a8210af72e1025807016b822a28c81e469b4845cd86c6335cd56441953a",
+    "execution_artifact": "build-quant-resume-20261020/iq3-s/integrated-identity-vulkan-execution.json",
+    "execution_sha256": "3ef278d2fd1211b0f81447f01eea87e525177c38c61267d78425f3f10894f9fb",
+    "scope": "Existing-format identity controls only; not IQ3_S quant-path qualification."
+  },
+  "active_or_incomplete_checks": [
+    {
+      "check": "CPU identity",
+      "terminal_id": 33637,
+      "status": "in progress at checkpoint"
+    },
+    {
+      "check": "Linux CPU v4 native",
+      "terminal_id": 90552,
+      "status": "in progress at checkpoint"
+    },
+    {
+      "check": "Linux hub-transport",
+      "status": "harness failure: /tmp is noexec when launching fakecurl; other tests continued; affected check remains to rerun with executable scratch filesystem"
+    },
+    {
+      "check": "Windows full suite after focused corrections",
+      "status": "in progress at checkpoint; live real-Q4_K PPL child observed; no result claimed"
+    }
+  ],
+  "markdown_inventory": {
+    "tracked_pages": 119,
+    "changed_pages": 7,
+    "unchanged_pages": 112,
+    "changed": [
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "sha256_lf_normalized": "ddab9a0d47e88c6f617e85cab97c9f0d3762c8d6529e7fd0f3e4a89070ed0b68"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "sha256_lf_normalized": "63bc646be7f767e7650460a8940d4919a626970a088c1f03a605e3929926a1a6"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "sha256_lf_normalized": "0c6609ceaa624ba4b4051b105325e89cf399b99b1bbb3cc41a0ae53429a0161f"
+      },
+      {
+        "path": "docs/STATUS.md",
+        "sha256_lf_normalized": "56a1258d94a45828a3a90120e010a1391eaa4c4eb91e573845219f34cc7b7a35"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "sha256_lf_normalized": "e03a396d0da31fa3a91b2caa14b7222b951f28decda43cf7f0cc76cb4c611b84"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "sha256_lf_normalized": "0e87c386c4b6dfcb0476fbacd6f2bd003059485e8beafccf2401e84234b874dd"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "sha256_lf_normalized": "1c811565183ba22d02e681483a7a453300fb7a5368ee006c2161cbf371397fb4"
+      }
+    ],
+    "comparison": "Working tree and HEAD content compared after CRLF-to-LF normalization.",
+    "carry_note": "Byte-identical in normalized content pages carry forward the prior review; the changed Markdown pages are listed. The test-only fixture correction changes no additional Markdown."
+  },
+  "log_hashes_are_sha256": true
+}

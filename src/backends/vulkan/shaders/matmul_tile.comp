@@ -38,6 +38,12 @@ layout(set = 0, binding = 4) readonly buffer W32 { uint w32[]; };
 // A routed call is never split.
 layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_IQ3_S
+// IQ3_S uses no F32 weight view, so binding 2 holds its dictionary words.
+#define IQ3_GRID_SOURCE(i) floatBitsToUint(wf[i])
+#include "iq3_s_cache.glsl"
+#include "iq3_s.glsl"
+#endif
 #include "qdecode.glsl"
 
 float matrix_input(float value) {
@@ -93,6 +99,13 @@ int lo8(uint w) { return (int(w << 24u)) >> 24; }
 int hi8(uint w) { return (int(w << 16u)) >> 24; }
 
 void main() {
+#ifdef LLMX_IQ3_S
+    // Cache before the empty-group return; all invocations participate once, before any stage.
+    iq3_s_init();
+    const uint type = TYPE_IQ3_S;
+#else
+    uint type = p.type;
+#endif
     uint tid = gl_LocalInvocationID.x;
     uint row_base = gl_WorkGroupID.x * TILE_ROWS;
     uint part = gl_WorkGroupID.y / p.ctiles;
@@ -176,7 +189,7 @@ void main() {
         }
 #else
         if (row < p.nout) {
-            if (p.type == TYPE_Q8_0) {
+            if (type == TYPE_Q8_0) {
                 uint o = (wr * nblocks + k0 / Q8_0_BLOCK) * 17u;
                 float scale = unpackHalf2x16(uint(w16[o])).x;
                 for (uint i = 0u; i < WVALS / 2u; ++i) {
@@ -184,36 +197,55 @@ void main() {
                     ws[wseg * WVALS + 2u * i][wrow] = scale * float(lo8(word));
                     ws[wseg * WVALS + 2u * i + 1u][wrow] = scale * float(hi8(word));
                 }
-            } else if (p.type == TYPE_Q4_0) {
+            } else if (type == TYPE_Q4_0) {
                 uint o = (wr * nblocks + k0 / Q4_0_BLOCK) * Q4_0_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = q4_0_at(o, k, d);
                 }
-            } else if (p.type == TYPE_Q5_0) {
+            } else if (type == TYPE_Q5_0) {
                 uint o = (wr * nblocks + k0 / 32u) * Q5_0_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = q5_0_at(o, wseg * WVALS + i, d);
-            } else if (p.type == TYPE_IQ4_NL || p.type == TYPE_IQ4_XS) {
+#ifdef LLMX_IQ3_S
+            } else if (type == TYPE_IQ3_S) {
+                uint o = (wr * (p.nin / IQ3_S_BLOCK) + k0 / IQ3_S_BLOCK) * IQ3_S_BYTES;
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+                // Each loader's run stays in this stage's group of 32; two-value runs take only their own half of a dictionary vector.
+                uint j0 = k0 % IQ3_S_BLOCK + wseg * WVALS;
+                float scaled = iq3_s_scale(o, j0 / 32u, d);
+                uint high = QBYTE(o + 66u + j0 / 32u), sign = floatBitsToUint(d) & 0x80000000u;
+                for (uint i = 0u; i < WVALS; i += 4u) {
+                    uint j = j0 + i;
+                    uint vector = iq3_s_vector(o, j / 4u, high);
+                    uint signs = QBYTE(o + 74u + j / 8u);
+                    for (uint lane = 0u; lane < min(4u, WVALS - i); ++lane) {
+                        uint position = j + lane;
+                        ws[wseg * WVALS + i + lane][wrow] = iq3_s_component(vector, position & 3u,
+                            (signs >> (position & 7u)) & 1u, scaled, sign);
+                    }
+                }
+#endif
+            } else if (type == TYPE_IQ4_NL || type == TYPE_IQ4_XS) {
                 float d;
-                uint codes = iq4_group(p.type, wr, p.nin, k0 / 32u, d);
+                uint codes = iq4_group(type, wr, p.nin, k0 / 32u, d);
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
                     ws[k][wrow] = iq4_at(codes, k, d);
                 }
-            } else if (p.type == TYPE_Q4_1 || p.type == TYPE_Q5_1) {
-                uint o = (wr * nblocks + k0 / 32u) * block_bytes(p.type);
+            } else if (type == TYPE_Q4_1 || type == TYPE_Q5_1) {
+                uint o = (wr * nblocks + k0 / 32u) * block_bytes(type);
                 float d = half_at(QBYTE(o), QBYTE(o + 1u)), m = half_at(QBYTE(o + 2u), QBYTE(o + 3u));
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = wseg * WVALS + i;
-                    ws[k][wrow] = p.type == TYPE_Q5_1 ? q5_1_at(o, k, d, m) : q4_1_at(o, k, d, m);
+                    ws[k][wrow] = type == TYPE_Q5_1 ? q5_1_at(o, k, d, m) : q4_1_at(o, k, d, m);
                 }
-            } else if (p.type == TYPE_Q2_K || p.type == TYPE_Q3_K) {
-                uint o = (wr * (p.nin / 256u) + k0 / 256u) * block_bytes(p.type);
+            } else if (type == TYPE_Q2_K || type == TYPE_Q3_K) {
+                uint o = (wr * (p.nin / 256u) + k0 / 256u) * block_bytes(type);
                 uint first = k0 % 256u + wseg * WVALS;
                 // Each aligned run of 4, 8 or 16 values stays within one scale group.
-                if (p.type == TYPE_Q2_K) {
+                if (type == TYPE_Q2_K) {
                     Q2KScale scale = q2_k_scale(o, first);
                     for (uint i = 0u; i < WVALS; ++i)
                         ws[wseg * WVALS + i][wrow] = q2_k_at(o, first + i, scale);
@@ -222,13 +254,13 @@ void main() {
                     for (uint i = 0u; i < WVALS; ++i)
                         ws[wseg * WVALS + i][wrow] = q3_k_at(o, first + i, scale);
                 }
-            } else if (is_kquant(p.type)) {
+            } else if (is_kquant(type)) {
                 // 256-value blocks: this 32-wide step is a slice of one and a thread's run lies inside one group of 32, so the sub-scale, sub-min, nibble half and start byte are read once per run rather than per value.
-                uint o = (wr * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(p.type);
+                uint o = (wr * (p.nin / Q6_K_BLOCK) + k0 / Q6_K_BLOCK) * block_bytes(type);
                 uint k_in = k0 - (k0 / Q6_K_BLOCK) * Q6_K_BLOCK;
                 uint j0 = k_in + wseg * WVALS;   // the run's first value in the block
                 uint l0 = j0 & 31u;              // and its position within the group
-                if (p.type == TYPE_Q6_K) {
+                if (type == TYPE_Q6_K) {
                     float d = half_at(QBYTE(o + 208u), QBYTE(o + 209u));
                     uint n = j0 / 128u, which = (j0 - n * 128u) / 32u;
                     uint lbase = o + n * 64u + l0 + ((which & 1u) != 0u ? 32u : 0u);
@@ -248,7 +280,7 @@ void main() {
                     float ds = d * float(sc), dm = dmin * float(mn);
                     uint c = j0 / 64u;
                     bool low = ((j0 >> 5u) & 1u) == 0u;   // the group's nibble half
-                    if (p.type == TYPE_Q4_K) {
+                    if (type == TYPE_Q4_K) {
                         uint base = (o + 16u + c * 32u + l0) / 4u;
                         for (uint g = 0u; g < WVALS / 4u; ++g) {
                             uint word = w32[base + g];

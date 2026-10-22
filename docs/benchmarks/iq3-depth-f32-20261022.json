@@ -1,0 +1,171 @@
+{
+  "kind": "iq3-s-depth-f32",
+  "scope": "Frozen pre-rebase packed2 runtime only; raw and chat 16K fixed-history comparisons against the exact released IQ3_S file and same-file F32 HF reference. Results do not transfer to the integrated runtime.",
+  "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+  "pre_rebase_checkpoint": "1111fd186",
+  "published_base_at_rebase": "6db4d22bd",
+  "depth_positions": {
+    "first": 16383,
+    "last": 16894,
+    "rows_per_variant": 512
+  },
+  "rule": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "tie_margin": 0.1,
+    "replayed_helper_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "recorded_helper_sha256": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "helper_function_ast_sha256": "66c9c712db4f3df977c9fecf9ab598eee746bd91388c9213e831797897866f8f",
+    "helper_function_ast_matches_tracked_source": true,
+    "working_tree_file_sha256_raw_crlf": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "working_tree_file_sha256_lf_normalized": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "crlf_normalization_matches_recorded_source": true,
+    "source_line_endings": "The working-tree helper is CRLF; LF normalization matches the recorded Git source SHA256."
+  },
+  "replay": {
+    "rows_replayed": 2048,
+    "verdicts_match_artifacts": true,
+    "all_executions_passed": true,
+    "misses": 0
+  },
+  "results": [
+    {
+      "role": "selected-f32",
+      "artifact_dir": "packed2-depth-comparison-selected-f32-20261022",
+      "execution": {
+        "passed": true,
+        "exit": 0,
+        "container_removed": true,
+        "reference_execution_sha256": "0fab1a0ea027115369a0756bf7e820dd067e7d7bcc0c358d1ede07f940ebd1b8",
+        "capture_execution_sha256": "f8ea614338cefa0e0e7c1b4e066e3343f6fd207438506d043a8c3924f12bd3dd",
+        "container_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "execution_json_sha256": "264f9edcc3451bf90c961d1807ce5899e4b2728bb1a18fc6d8a949f777534dea"
+      },
+      "comparison_json_sha256": "5ce176cb9de000b43d573dd7e00a63b40481a046301f2eeb7491251530194f14",
+      "runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-source-20261022",
+      "probe_sha256": "63a8830abf31656e18dfb42ab671c72dd74536b11bc084f2f9c1f6230b248c65",
+      "reference_report_sha256": "2197a9f5100cc5de0197ec26401fa05b1aafc59410fb71d049d2259f4f2d18e6",
+      "capture_report_sha256": "c265b9eb9d4a594e9cea4f5fd4cd36ff3968a1ead6577931b6299337c7efadb0",
+      "rule_source_sha256_recorded": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": [
+            16383,
+            16894
+          ],
+          "rows": 512,
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": [
+            16383,
+            16894
+          ],
+          "rows": 512,
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        }
+      ],
+      "hf_tie_rows": []
+    },
+    {
+      "role": "default-f32-reference",
+      "artifact_dir": "packed2-depth-comparison-default-f32-reference-20261022",
+      "execution": {
+        "passed": true,
+        "exit": 0,
+        "container_removed": true,
+        "reference_execution_sha256": "0fab1a0ea027115369a0756bf7e820dd067e7d7bcc0c358d1ede07f940ebd1b8",
+        "capture_execution_sha256": "c807b11edc0be61619d748d8870556ecb4393bb98fdb0f94e4d6939423d0d91f",
+        "container_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "execution_json_sha256": "0a7f8099fd542e74a3481093de62f73db916143124921bd91ef45e2a53d68629"
+      },
+      "comparison_json_sha256": "5c76ff547d3dbca66e9073facb7dba15f28ea5cbc9eb5149af62e88dd227147f",
+      "runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-source-20261022",
+      "probe_sha256": "23754cc423f966882cd6d1bb07765d2fb6294062a4b51a5d81f2007795ea1ab5",
+      "reference_report_sha256": "2197a9f5100cc5de0197ec26401fa05b1aafc59410fb71d049d2259f4f2d18e6",
+      "capture_report_sha256": "27c2f99cc8b035150a13b1268ee735e7b11b225f2dde424f27c987160f9d1337",
+      "rule_source_sha256_recorded": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": [
+            16383,
+            16894
+          ],
+          "rows": 512,
+          "verdicts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": [
+            16383,
+            16894
+          ],
+          "rows": 512,
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ],
+      "hf_tie_rows": [
+        {
+          "variant": "raw",
+          "position": 16869,
+          "actual_top1": 304,
+          "hf_top2_ids": [
+            2337,
+            304
+          ],
+          "hf_top2_gap": 0.00145721435546875
+        }
+      ]
+    }
+  ]
+}

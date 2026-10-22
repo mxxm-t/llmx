@@ -319,8 +319,9 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ4_NL / IQ4_XS / MXFP4** tensors (see
+llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ3_S / IQ4_NL / IQ4_XS / MXFP4** tensors (see
 `docs/src/quant-quant.md`). The [README support matrix](../README.md#quantization-types) separates CPU and Vulkan inference from quantize writers. GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
+IQ3_S has read-only CPU/Vulkan inference support; the recorded scope and evidence are in [STATUS](STATUS.md).
 Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
 support for their tensor encodings does not add new architectures. Dense F32
 embeddings, matrices and norms are supported, including tied output weights.

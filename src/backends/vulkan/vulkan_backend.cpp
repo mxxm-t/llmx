@@ -7,6 +7,7 @@
 #include "quant/quant.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <atomic>
@@ -335,6 +336,30 @@ const uint32_t kSpvMatmulTileBf16[] = {
 };
 const uint32_t kSpvMatmulTileBf16Preserve[] = {
 #include "vulkan/matmul_tile_bf16_preserve.inc"
+};
+const uint32_t kSpvMatmulTileIq3SDot[] = {
+#include "vulkan/matmul_tile_iq3_s_dot.inc"
+};
+const uint32_t kSpvMatmulRowIq3SDot[] = {
+#include "vulkan/matmul_row_iq3_s_dot.inc"
+};
+const uint32_t kSpvMatmulRowIq3S[] = {
+#include "vulkan/matmul_row_iq3_s.inc"
+};
+const uint32_t kSpvMatmulRowIq3SPreserve[] = {
+#include "vulkan/matmul_row_iq3_s_preserve.inc"
+};
+const uint32_t kSpvMatmulTileIq3S[] = {
+#include "vulkan/matmul_tile_iq3_s.inc"
+};
+const uint32_t kSpvMatmulTileIq3SPreserve[] = {
+#include "vulkan/matmul_tile_iq3_s_preserve.inc"
+};
+const uint32_t kSpvMatmulTileIq3SBf16[] = {
+#include "vulkan/matmul_tile_iq3_s_bf16.inc"
+};
+const uint32_t kSpvMatmulTileIq3SBf16Preserve[] = {
+#include "vulkan/matmul_tile_iq3_s_bf16_preserve.inc"
 };
 const uint32_t kSpvMatmulRowFloatX[] = {
 #include "vulkan/matmul_row_float_x.inc"
@@ -810,6 +835,11 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_ATTENTION_VEC_D256_K16_G4, "attention_vec_d256_k16_g4", kSpvAttentionVecD256K16G4, sizeof(kSpvAttentionVecD256K16G4), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_V16_G4, "attention_vec_d256_v16_g4", kSpvAttentionVecD256V16G4, sizeof(kSpvAttentionVecD256V16G4), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_KV16_G4, "attention_vec_d256_kv16_g4", kSpvAttentionVecD256KV16G4, sizeof(kSpvAttentionVecD256KV16G4), 7, nullptr) \
+    X(K_MATMUL_ROW_IQ3_S, "matmul_row_iq3_s", kSpvMatmulRowIq3S, sizeof(kSpvMatmulRowIq3S), 12, kMatmulRowCounts, kSpvMatmulRowIq3SPreserve, sizeof(kSpvMatmulRowIq3SPreserve)) \
+    X(K_MATMUL_TILE_IQ3_S, "matmul_tile_iq3_s", kSpvMatmulTileIq3S, sizeof(kSpvMatmulTileIq3S), 6, nullptr, kSpvMatmulTileIq3SPreserve, sizeof(kSpvMatmulTileIq3SPreserve)) \
+    X(K_MATMUL_TILE_IQ3_S_TALL, "matmul_tile_iq3_s_tall", kSpvMatmulTileIq3S, sizeof(kSpvMatmulTileIq3S), 6, nullptr, kSpvMatmulTileIq3SPreserve, sizeof(kSpvMatmulTileIq3SPreserve)) \
+    X(K_MATMUL_TILE_IQ3_S_BF16, "matmul_tile_iq3_s_bf16", kSpvMatmulTileIq3SBf16, sizeof(kSpvMatmulTileIq3SBf16), 6, nullptr, kSpvMatmulTileIq3SBf16Preserve, sizeof(kSpvMatmulTileIq3SBf16Preserve)) \
+    X(K_MATMUL_TILE_IQ3_S_BF16_TALL, "matmul_tile_iq3_s_bf16_tall", kSpvMatmulTileIq3SBf16, sizeof(kSpvMatmulTileIq3SBf16), 6, nullptr, kSpvMatmulTileIq3SBf16Preserve, sizeof(kSpvMatmulTileIq3SBf16Preserve)) \
     X(K_MATMUL_ROW_FLOAT_X, "matmul_row_float_x", kSpvMatmulRowFloatX, sizeof(kSpvMatmulRowFloatX), 12, kMatmulRowCounts, kSpvMatmulRowFloatXPreserve, sizeof(kSpvMatmulRowFloatXPreserve)) \
     X(K_MATMUL_ROW_FLOAT_X_Q2, "matmul_row_float_x_q2", kSpvMatmulRowFloatXQ2, sizeof(kSpvMatmulRowFloatXQ2), 12, kMatmulRowCounts, kSpvMatmulRowFloatXQ2Preserve, sizeof(kSpvMatmulRowFloatXQ2Preserve)) \
     X(K_MATMUL_ROW_FLOAT_X_Q3, "matmul_row_float_x_q3", kSpvMatmulRowFloatXQ3, sizeof(kSpvMatmulRowFloatXQ3), 12, kMatmulRowCounts, kSpvMatmulRowFloatXQ3Preserve, sizeof(kSpvMatmulRowFloatXQ3Preserve)) \
@@ -853,6 +883,9 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_MATMUL_TILE_WBF16_BF16_TALL, "matmul_tile_wbf16_bf16_tall", kSpvMatmulTileWbf16Bf16, sizeof(kSpvMatmulTileWbf16Bf16), 6, nullptr, kSpvMatmulTileWbf16Bf16Preserve, sizeof(kSpvMatmulTileWbf16Bf16Preserve)) \
     X(K_EMBED_IDS_WF16, "embed_ids_wf16", kSpvEmbedIdsWf16, sizeof(kSpvEmbedIdsWf16), 4, nullptr) \
     X(K_EMBED_IDS_WBF16, "embed_ids_wbf16", kSpvEmbedIdsWbf16, sizeof(kSpvEmbedIdsWbf16), 4, nullptr) \
+    X(K_MATMUL_TILE_IQ3_S_DOT, "matmul_tile_iq3_s_dot", kSpvMatmulTileIq3SDot, sizeof(kSpvMatmulTileIq3SDot), 6, kMatmulTileIq3Counts) \
+    X(K_MATMUL_TILE_IQ3_S_DOT_TALL, "matmul_tile_iq3_s_dot_tall", kSpvMatmulTileIq3SDot, sizeof(kSpvMatmulTileIq3SDot), 6, kMatmulTileIq3Counts) \
+    X(K_MATMUL_ROW_IQ3_S_DOT, "matmul_row_iq3_s_dot", kSpvMatmulRowIq3SDot, sizeof(kSpvMatmulRowIq3SDot), 12, kMatmulRowCounts) \
     X(K_MATMUL_ROW_IQ4_DOT, "matmul_row_iq4_dot", kSpvMatmulRowIq4Dot, sizeof(kSpvMatmulRowIq4Dot), 12, kMatmulRowCounts) \
     X(K_MATMUL_TILE_IQ4, "matmul_tile_iq4", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts) \
     X(K_MATMUL_TILE_IQ4_TALL, "matmul_tile_iq4_tall", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts) \
@@ -919,6 +952,9 @@ const WeightKernels* weight_kernels(uint32_t type) {
         {quant::GGML_TYPE_Q6_K, RowLayout::k_blocks, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_K, K_MATMUL_ROW_K_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_Q6, K_MATMUL_TILE_Q6, K_MATMUL_ROW_K_I8, K_MATMUL_TILE_Q6I8, K_MATMUL_TILE_Q6I8, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from},
+        {quant::GGML_TYPE_IQ3_S, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_IQ3_S, K_MATMUL_ROW_IQ3_S_DOT, K_MATMUL_ROW_IQ3_S,
+         K_MATMUL_TILE_IQ3_S, K_MATMUL_TILE_IQ3_S_TALL, K_MATMUL_TILE_IQ3_S_BF16, K_MATMUL_TILE_IQ3_S_BF16_TALL,
+         K_MATMUL_TILE_IQ3_S_DOT, K_MATMUL_TILE_IQ3_S_DOT_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::lookup_integer_dot, &DeviceProfile::moe_tile_from_q4},
         {quant::GGML_TYPE_IQ4_NL, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_FLOAT_X, K_MATMUL_ROW_IQ4_DOT, K_MATMUL_ROW_FLOAT_X,
          K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
          K_MATMUL_TILE_IQ4, K_MATMUL_TILE_IQ4_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::lookup_integer_dot, &DeviceProfile::moe_tile_from_q4},
@@ -948,6 +984,7 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW_FLOAT_X_Q2: case K_MATMUL_ROW_FLOAT_X_Q3:
     case K_MATMUL_ROW_Q2_DOT: case K_MATMUL_ROW_Q3_DOT:
     case K_MATMUL_ROW_IQ4_DOT: case K_MATMUL_ROW_IQ4_XS_DOT:
+    case K_MATMUL_ROW_IQ3_S: case K_MATMUL_ROW_IQ3_S_DOT:
     case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_Q5_DOT: case K_MATMUL_ROW_Q50_DOT:
@@ -971,6 +1008,8 @@ inline bool is_tile_kernel(KernelId id) {
     case K_MATMUL_TILE_IQ4: case K_MATMUL_TILE_IQ4_TALL: case K_MATMUL_TILE_IQ4_XS: case K_MATMUL_TILE_IQ4_XS_TALL:
     case K_MATMUL_TILE_Q2: case K_MATMUL_TILE_Q3: case K_MATMUL_TILE_Q6: case K_MATMUL_TILE_Q8: case K_MATMUL_TILE_Q8_TALL:
     case K_MATMUL_TILE_QI8: case K_MATMUL_TILE_QI8_TALL: case K_MATMUL_TILE_Q6I8: case K_MATMUL_TILE_Q8I8: case K_MATMUL_TILE_Q8I8_TALL:
+    case K_MATMUL_TILE_IQ3_S_DOT: case K_MATMUL_TILE_IQ3_S_DOT_TALL:
+    case K_MATMUL_TILE_IQ3_S: case K_MATMUL_TILE_IQ3_S_TALL: case K_MATMUL_TILE_IQ3_S_BF16: case K_MATMUL_TILE_IQ3_S_BF16_TALL:
     case K_MATMUL_TILE_BF16: case K_MATMUL_TILE_BF16_TALL:
         return true;
     default: return false;
@@ -1103,6 +1142,7 @@ struct KernelSource {
 const uint32_t kMatmulRowCounts[12] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1};
 // The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
 const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
+const uint32_t kMatmulTileIq3Counts[6] = {3, 3, 1, 1, 1, 1};
 const uint32_t kMatmulTileQ8mxCounts[6] = {3, 3, 1, 1, 1, 3};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
 
@@ -1793,11 +1833,11 @@ public:
     bool emulates_dtype(Dtype dtype) const override { return dtype == Dtype::bf16 && dev_->preserve_float32; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
-        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/IQ4_NL/IQ4_XS), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, IQ4_NL/IQ4_XS fallback rows, other products, routers)";
+        if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)";
         if (dtype == Dtype::f16)
             return dev_->profile.prefer_integer_dot
-                ? "block-int16 (quantized rows and eligible tiles; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ4_NL/IQ4_XS fallback, other products, routers)"
-                : "block-int16 (quantized rows except Q2_K/Q3_K; IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+                ? "block-int16 (quantized rows and eligible tiles; IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+                : "block-int16 (quantized rows except Q2_K/Q3_K; IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
         return "f32";
     }
     const std::string& name() const { return dev_->caps.device; }
@@ -2809,8 +2849,8 @@ public:
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
         const uint32_t pc[2] = {u32(nin), type};
-        // The table is bound twice, as floats for F32 rows and as bytes for block formats.
-        dispatch(weight_kernels(type)->embed, {bind(dst), bind(table), bind(table), args(ids, count * sizeof(uint32_t))},
+        // IQ3_S uses the otherwise unused F32 table view for its dictionary. Other types bind both weight views.
+        dispatch(weight_kernels(type)->embed, {bind(dst), iq3_grid(type, bind(table)), bind(table), args(ids, count * sizeof(uint32_t))},
                  pc, sizeof(pc), u32(count));
     }
 
@@ -2821,7 +2861,7 @@ public:
         if (floats_from(ids) < count || floats_from(dst) < size_mul(count, nin))
             throw std::runtime_error("vulkan: embed_ids operand outside its allocation");
         const uint32_t pc[3] = {u32(nin), type, u32(nrows)};
-        dispatch(weight_kernels(type)->embed_ids, {bind(dst), bind(table), bind(table), bind(ids)}, pc, sizeof(pc), u32(count));
+        dispatch(weight_kernels(type)->embed_ids, {bind(dst), iq3_grid(type, bind(table)), bind(table), bind(ids)}, pc, sizeof(pc), u32(count));
     }
 
     // A row past one slice is reduced by a workgroup a slice into partials, then a workgroup a row over them (shaders/argmax_rows.comp); a shorter row, or work recorded without barriers, takes one workgroup a row.
@@ -2987,6 +3027,7 @@ public:
                 const bool tall = height == kTileRowsTall;
                 const VkDescriptorBufferInfo wf = padded_f32(pr->data, pr->type, pr->rows, nin);
                 const size_t wstride = wf.buffer == bind(pr->data).buffer ? nin : nin + kF32Pad;
+                const VkDescriptorBufferInfo words = iq3_grid(pr->type, wf);
                 uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(nbatch), pr->type, accumulate && parts == 1 ? 1u : 0u, 0, 0,
                                          u32(kper * 32), u32(gy), u32(wstride)};
                 const KernelId kernel = float_tile_kernel(tall, dtype, pr->type);
@@ -3007,7 +3048,7 @@ public:
                         const Slice y{pr->out.buffer, pr->out.offset + first * pr->rows};
                         pc[2] = u32(taken);
                         pc[8] = u32(tiles);
-                        dispatch(kernel, {pb, bind(pr->data), wf, bind(x), bind(pr->data), bind(x)},
+                        dispatch(kernel, {pb, bind(pr->data), words, bind(x), bind(pr->data), bind(x)},
                                  pc, sizeof(pc), groups(pr->rows, height), u32(tiles * parts), small);
                         const size_t n = taken * pr->rows;
                         const uint32_t start = u32(groups(n, 256));
@@ -3015,7 +3056,7 @@ public:
                         dispatch(pr->type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, sizeof(rc), start);
                     }
                 } else {
-                    dispatch(kernel, {bind(pr->out), bind(pr->data), wf, bind(X), bind(pr->data), bind(X)},
+                    dispatch(kernel, {bind(pr->out), bind(pr->data), words, bind(X), bind(pr->data), bind(X)},
                              pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small);
                 }
                 record_matrix_path(dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
@@ -3056,8 +3097,7 @@ public:
                                            bind(*original(t.p[0])), bind(*original(t.p[1])), bind(*original(t.p[2]))},
                                  pc, sizeof(pc), u32(t.gx), u32(gy * parts), small);
                     else
-                        dispatch(t.kernel, {pb, pb, pb, bind(a.data), bind(b.data), bind(c.data), xt, xt, xt}, pc, sizeof(pc), u32(t.gx),
-                                 u32(gy * parts), small);
+                        dispatch_qtile(t, {pb, pb, pb}, xt, xt, pc, u32(gy * parts));
                     const size_t n0 = nbatch * a.rows, n1 = group.size() > 1 ? nbatch * b.rows : 0,
                                  n2 = group.size() > 2 ? nbatch * c.rows : 0;
                     const size_t start1 = groups(n0, 256), start2 = start1 + groups(n1, 256);
@@ -3071,8 +3111,7 @@ public:
                                        bind(*original(t.p[0])), bind(*original(t.p[1])), bind(*original(t.p[2]))},
                              pc, sizeof(pc), u32(t.gx), u32(gy), small);
                 } else {
-                    dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, xt},
-                             pc, sizeof(pc), u32(t.gx), (uint32_t)gy, small);
+                    dispatch_qtile(t, {bind(a.out), bind(b.out), bind(c.out)}, xt, xt, pc, u32(gy));
                 }
                 record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
                 for (const Projection* pr : group)
@@ -3234,6 +3273,9 @@ public:
         const Projection& b = live.size() > 1 ? *live[1] : a;
         const Projection& c = live.size() > 2 ? *live[2] : a;
         const uint32_t t = plan.type, w = plan.wide;
+        // The IQ3_S float row aliases the first twin view; its int16 row aliases the unused F32 weight view.
+        const VkDescriptorBufferInfo dictionary = plan.kernel == K_MATMUL_ROW_IQ3_S ? iq3_grid(t, xqi) : xqi;
+        const bool lookup_dot = plan.kernel == K_MATMUL_ROW_IQ3_S_DOT;
         // matmul_row.comp counts its rows by cluster, the Q8_0 decode kernel reads neither.
         const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, dev_->caps.subgroup_size / plan.cluster,
                                  (uint32_t)live.size(),
@@ -3244,10 +3286,12 @@ public:
                  {bind(a.out), bind(b.out), bind(c.out),
                   bind(a.data), bind(b.data), bind(c.data),
                   bind(a.data), bind(b.data), bind(c.data),
-                  bind(a.data), bind(b.data), bind(c.data),
+                  lookup_dot ? iq3_grid(t, bind(a.data)) : bind(a.data),
+                  lookup_dot ? iq3_grid(t, bind(b.data)) : bind(b.data),
+                  lookup_dot ? iq3_grid(t, bind(c.data)) : bind(c.data),
                   bind(X),
                   bind(a.data), bind(b.data), bind(c.data),
-                  xqi, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
+                  dictionary, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
                  pc, sizeof(pc), total, u32(entries), variant);
         record_matrix_path(weight_kernels(a.type)->layout == RowLayout::values || plan.kernel == weight_kernels(a.type)->float_row ? MatrixPath::f32
                            : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
@@ -3374,8 +3418,7 @@ public:
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
             const uint32_t pc[16] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
                                      t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols), xpad};
-            dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, tab},
-                     pc, sizeof(pc), u32(t.gx), u32(max_tiles), t.height == kTileRowsSmall ? 1 : 0);
+            dispatch_qtile(t, {bind(a.out), bind(b.out), bind(c.out)}, xt, tab, pc, u32(max_tiles));
             record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
         } else {
             for (const Projection* pr : live) {
@@ -3383,7 +3426,7 @@ public:
                                                       pr->rows, max_tiles, nin);
                 const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles), u32(nin)};
                 dispatch(float_tile_kernel(height == kTileRowsTall, dtype, type),
-                         {bind(pr->out), bind(pr->data), bind(pr->data), bind(X), bind(pr->data), tab},
+                         {bind(pr->out), bind(pr->data), iq3_grid(type, bind(pr->data)), bind(X), bind(pr->data), tab},
                          pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
                 record_matrix_path(dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
             }
@@ -3469,6 +3512,20 @@ public:
             t.gx += groups(ps[i]->rows, t.height);
         }
         return t;
+    }
+
+    // Ordinary and routed integer tiles share bindings; IQ3_S adds its immutable dictionary.
+    void dispatch_qtile(const QTile& tile, std::array<VkDescriptorBufferInfo, 3> output,
+                        VkDescriptorBufferInfo activation, VkDescriptorBufferInfo grouping,
+                        const uint32_t (&pc)[16], uint32_t groups_y) {
+        const Projection &a = *tile.p[0], &b = *tile.p[1], &c = *tile.p[2];
+        const int variant = tile.height == kTileRowsSmall ? 1 : 0;
+        if (a.type == quant::GGML_TYPE_IQ3_S)
+            dispatch(tile.kernel, {output[0], output[1], output[2], bind(a.data), bind(b.data), bind(c.data), activation, activation, grouping,
+                                   iq3_grid(a.type, activation)}, pc, sizeof(pc), u32(tile.gx), groups_y, variant);
+        else
+            dispatch(tile.kernel, {output[0], output[1], output[2], bind(a.data), bind(b.data), bind(c.data), activation, activation, grouping},
+                     pc, sizeof(pc), u32(tile.gx), groups_y, variant);
     }
 
     // One bounded stream-ordered scratch holds this call's exact float-scale copies.
@@ -3933,6 +3990,13 @@ private:
     }
     VkDescriptorBufferInfo bind(Slice s) { return bind(CSlice(s)); }
 
+    // One immutable dictionary per backend; only IQ3_S aliases a storage view unused by its weight format.
+    VkDescriptorBufferInfo iq3_grid(uint32_t type, VkDescriptorBufferInfo otherwise) {
+        if (type != quant::GGML_TYPE_IQ3_S) return otherwise;
+        if (!iq3_grid_) iq3_grid_ = adopt(quant::IQ3_S_GRID, sizeof(quant::IQ3_S_GRID));
+        return bind(CSlice{iq3_grid_.get(), 0});
+    }
+
     // Small per-call host inputs (ids, positions, row lists) go through a host-visible arena per ring slot, bumped per call and reset when the slot retires; a call larger than the arena gets its own buffer, kept the same way.
     VkDescriptorBufferInfo args(const void* data, size_t bytes) {
         open();
@@ -4018,7 +4082,7 @@ private:
             // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
             const bool tile = is_tile_kernel(id);
             const bool tall_tile = id == K_MATMUL_TILE_Q5_TALL || id == K_MATMUL_TILE_Q50_TALL || id == K_MATMUL_TILE_Q5I8_TALL || id == K_MATMUL_TILE_Q50I8_TALL || id == K_MATMUL_TILE_IQ4_TALL || id == K_MATMUL_TILE_IQ4_XS_TALL || id == K_MATMUL_TILE_WF16_TALL || id == K_MATMUL_TILE_WF16_BF16_TALL ||
-                                   id == K_MATMUL_TILE_WBF16_TALL || id == K_MATMUL_TILE_WBF16_BF16_TALL || id == K_MATMUL_TILE_Q8MX_TALL || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_BF16_TALL || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_BF16_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL ||
+                                   id == K_MATMUL_TILE_WBF16_TALL || id == K_MATMUL_TILE_WBF16_BF16_TALL || id == K_MATMUL_TILE_Q8MX_TALL || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_BF16_TALL || id == K_MATMUL_TILE_IQ3_S_DOT_TALL || id == K_MATMUL_TILE_IQ3_S_TALL || id == K_MATMUL_TILE_IQ3_S_BF16_TALL || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_BF16_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL ||
                                    id == K_MATMUL_TILE_QI8_TALL || id == K_MATMUL_TILE_Q8I8_TALL;
             const uint32_t spec_value = tile ? (tall_tile ? kTileRowsTall : variant == 1 ? kTileRowsSmall : kTileRowsShort)
                                              : build_cols(id, variant);
@@ -4219,6 +4283,7 @@ private:
     std::unique_ptr<VulkanBuffer> staging_;
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     size_t next_half_ = 0;                    // the half of staging the next upload fills first
+    BufferPtr iq3_grid_;                    // immutable format data, released after the backend drains
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     std::shared_ptr<VulkanBuffer> index_pool_;
     std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed

@@ -5,18 +5,19 @@ backend can execute. This is the lowest header of the quant layer.
 
 - Type ids, the numbers GGUF files and the backends' kernels name the types
   by: `GGML_TYPE_F32=0`, `F16=1`, `GGML_TYPE_Q4_0=2`, `Q4_1=3`, `Q5_0=6`, `Q5_1=7`, `Q8_0=8`, `Q8_1=9` (auxiliary metadata), `Q2_K=10`, `Q3_K=11`, `Q4_K=12`,
-  `Q5_K=13`, `Q6_K=14`, `Q8_K=15` (auxiliary metadata), `IQ4_NL=20`, `IQ3_S=21` (metadata only), `IQ4_XS=23`, `BF16=30`, `MXFP4=39`.
+  `Q5_K=13`, `Q6_K=14`, `Q8_K=15` (auxiliary metadata), `IQ4_NL=20`, `IQ3_S=21`, `IQ4_XS=23`, `BF16=30`, `MXFP4=39`.
 - The block constants of each implemented quantized type, values per block and bytes per block
   (`*_BLOCK`, `*_TYPESIZE`): 32/18 (Q4_0), 32/20 (Q4_1), 32/22 (Q5_0), 32/24 (Q5_1), 32/34 (Q8_0),
-  256/84 (Q2_K), 256/110 (Q3_K), 256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/18 (IQ4_NL), 256/136 (IQ4_XS), 32/17 (MXFP4).
+  256/84 (Q2_K), 256/110 (Q3_K), 256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/18 (IQ4_NL), 256/110 (IQ3_S), 256/136 (IQ4_XS), 32/17 (MXFP4).
 - `StorageType` holds a name, values per block and bytes per block.
   `storage_type(id)` returns that metadata for 35 active GGML layouts through
   ID 42, including F16, BF16, the K-quants, IQ and ternary formats, integer
   types, F64, NVFP4, Q1_0 and Q2_0. It returns null for an unknown ID or a
   removed layout: 4, 5, 31-33 and 36-38. A name and byte layout do not imply
   a decoder or backend support.
-  Q8_1 and Q8_K are auxiliary layouts; IQ3_S is also recognized in metadata.
-  None has a decoder in the current registry. The [README support matrix](../../README.md#quantization-types) lists current model-weight inference and writer support.
+  Q8_1 and Q8_K are auxiliary layouts with no decoder; IQ3_S has a read-only decoder and CPU/Vulkan inference support. The [README support
+  matrix](../../README.md#quantization-types) lists current model-weight
+  inference and writer support.
   BF16 is the one-value, two-byte storage layout.
   F16 and BF16 have read-only decoders in `quant::Registry`; Vulkan uses compile-time weight loaders for embeddings and matrix products.
 - `row_bytes(type, nin, rows = 1)` sizes rows from this metadata. It refuses

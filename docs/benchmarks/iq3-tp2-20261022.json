@@ -1,0 +1,165 @@
+{
+  "scope": "Focused TP2 saved-output replay; 12 full-vocabulary and 6 NLL comparisons per dtype, no new inference",
+  "passed": true,
+  "results": {
+    "f32": {
+      "logits": 12,
+      "nll": 6,
+      "max_logit": 1.38164138796526e-06,
+      "max_nll": 1.4338331055796516e-07,
+      "logit_bounds": [
+        2e-05
+      ],
+      "nll_bounds": [
+        1e-05
+      ]
+    },
+    "f16": {
+      "logits": 12,
+      "nll": 6,
+      "max_logit": 7.012819480894938e-05,
+      "max_nll": 6.668208665239206e-06,
+      "logit_bounds": [
+        0.0021246373653411865
+      ],
+      "nll_bounds": [
+        0.00024331486205220187
+      ]
+    },
+    "bf16": {
+      "logits": 12,
+      "nll": 6,
+      "max_logit": 0.007877223236083974,
+      "max_nll": 0.001318382208665092,
+      "logit_bounds": [
+        0.017629235982894897
+      ],
+      "nll_bounds": [
+        0.002757510226736315
+      ]
+    },
+    "int8": {
+      "logits": 12,
+      "nll": 6,
+      "max_logit": 7.012819480894938e-05,
+      "max_nll": 6.668208665239206e-06,
+      "logit_bounds": [
+        0.0021246373653411865
+      ],
+      "nll_bounds": [
+        0.00024331486205220187
+      ]
+    }
+  },
+  "execution": {
+    "start": 1792697865.7837937,
+    "guard": [
+      {
+        "node": "/dev/dri/renderD128",
+        "pci": "0000:c3:00.0",
+        "busy": 0,
+        "vram": 10919936
+      },
+      {
+        "node": "/dev/dri/renderD129",
+        "pci": "0000:c6:00.0",
+        "busy": 0,
+        "vram": 10919936
+      }
+    ],
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-iq3-s-packed2-tp2-focused-20261022",
+      "--label",
+      "llmx.iq3-s=llmx-xdev-iq3-s-packed2-tp2-focused-20261022",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "8-11",
+      "--cpus",
+      "4",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD128",
+      "--device",
+      "/dev/dri/renderD129",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-build-20261022:/b:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-source-20261022:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/check-tp2-focused-20261022.py:/check.py:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-tp2-focused-20261022:/out",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "python3",
+      "-u",
+      "/check.py",
+      "tp2"
+    ],
+    "binaries": {
+      "llmx": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+      "llmx-model-logits": "c5006572edfb5ca174260a4bd33a5d310c809941a798b941298f71ed0d731a9e",
+      "llmx-iq3-s-test": "79ed306732e1446769b5e350ebd5a85aa206c7b0e6270704edcd5a3d9a4119f5",
+      "llmx-iq4-nl-vulkan-test": "bc0d08b499660baefd4c8254197a558c2ef2839033c3d520caafcc14cd043531",
+      "libllmx-vulkan.a": "33ff86a3def7033127f06579b271672c9585a1517ffc1e4864deb85b2e0987c6"
+    },
+    "script_sha256": "fa58d48edb31cfb4ef9499e06fce231303c063ed27b775f1aae658cd660af95f",
+    "passed": true,
+    "exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-22T19:37:45.882792462Z",
+      "FinishedAt": "2026-10-22T19:45:07.201608417Z"
+    },
+    "removed": true,
+    "after": {
+      "llmx": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+      "llmx-model-logits": "c5006572edfb5ca174260a4bd33a5d310c809941a798b941298f71ed0d731a9e",
+      "llmx-iq3-s-test": "79ed306732e1446769b5e350ebd5a85aa206c7b0e6270704edcd5a3d9a4119f5",
+      "llmx-iq4-nl-vulkan-test": "bc0d08b499660baefd4c8254197a558c2ef2839033c3d520caafcc14cd043531",
+      "libllmx-vulkan.a": "33ff86a3def7033127f06579b271672c9585a1517ffc1e4864deb85b2e0987c6"
+    },
+    "end": 1792698307.4847383
+  },
+  "evidence": {
+    "check.log": "7538d75671e3edcfe61518f2c29c42314a20776242ca63084d75eba1ec6d29a7",
+    "checks.json": "cac4215bbc8bd700a9009e2efec5de6b2d928cfe77437b816a62e8b951be2ed2",
+    "execution.json": "3e656137d3731a10bb655a28c0d1a70e94501c05c6a186e026857d63ac89ce7b",
+    "bf16\\cases.jsonl": "72eeb599a8ff672028085c532c43895cd6d5f3f5c7c173531efa4bd625af8c64",
+    "bf16\\checks.json": "27d8fec2369d3e62052e9437803e0ac9b02ba4f440a039ee9b58b98cde6f4183",
+    "f16\\cases.jsonl": "148b6b661ecff4eaae4e44c8fd3775f2b47f9dbf1a88357f6e79e4ac161f0bf3",
+    "f16\\checks.json": "c61eb5f9f2d5b35830da7b67ee066c9b73550e8715af9387314b0397387d04f3",
+    "f32\\cases.jsonl": "71eca36869ada2ee2953be81079d521de3a8efd6d77683ab23e99c6e5a7f413d",
+    "f32\\checks.json": "8163894c8194a847df7f23c3102cac5cbffba5c0dfc441d32a7d85d781596a68",
+    "int8\\cases.jsonl": "4c72530697d0812745ffa2330da9b7136be0c5767b96684ac3333abeb0994a9e",
+    "int8\\checks.json": "c8ed2264511889d6654160aa5531c86db1baf0c52a4e360d0edf0ae353c7af29"
+  },
+  "golden_sha256": "d6c40f39d1fe9f26825188bb77e4d3060bff02c705d2ee0292f11e0bb427d270",
+  "f16_int8_stdout_identity_calls": 18
+}

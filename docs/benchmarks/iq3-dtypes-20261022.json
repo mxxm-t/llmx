@@ -1,0 +1,194 @@
+{
+  "scope": "Ordinary tiny IQ3 remaining dtypes; independent replay of retained outputs, no new inference",
+  "passed": true,
+  "results": {
+    "f32": {
+      "logits": 150,
+      "nll": 12,
+      "max_logit": 8.826484680368729e-07,
+      "max_nll": 4.51492034869716e-08,
+      "logit_bounds": [
+        2e-05
+      ],
+      "nll_bounds": [
+        1e-05
+      ]
+    },
+    "bf16": {
+      "logits": 150,
+      "nll": 12,
+      "max_logit": 0.003677232892036437,
+      "max_nll": 0.0003170466153665785,
+      "logit_bounds": [
+        0.017629235982894897
+      ],
+      "nll_bounds": [
+        0.002757510226736315
+      ]
+    },
+    "int8": {
+      "logits": 150,
+      "nll": 12,
+      "max_logit": 4.5227727890007063e-05,
+      "max_nll": 7.87938173907321e-06,
+      "logit_bounds": [
+        0.0021246373653411865
+      ],
+      "nll_bounds": [
+        0.00024331486205220187
+      ]
+    }
+  },
+  "f16_int8_stdout_identity_calls": 163,
+  "execution": {
+    "start": 1792697581.4619212,
+    "guard": [
+      {
+        "node": "/dev/dri/renderD130",
+        "pci": "0000:c9:00.0",
+        "busy": 0,
+        "vram": 10932224
+      }
+    ],
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-iq3-s-packed2-dtypes-single-20261022",
+      "--label",
+      "llmx.iq3-s=llmx-xdev-iq3-s-packed2-dtypes-single-20261022",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "4-7",
+      "--cpus",
+      "4",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD130",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-build-20261022:/b:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-source-20261022:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/check-dtypes-20261022.py:/check.py:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/packed2-dtypes-single-20261022:/out",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "python3",
+      "-u",
+      "/check.py",
+      "single"
+    ],
+    "binaries": {
+      "llmx": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+      "llmx-model-logits": "c5006572edfb5ca174260a4bd33a5d310c809941a798b941298f71ed0d731a9e",
+      "llmx-iq3-s-test": "79ed306732e1446769b5e350ebd5a85aa206c7b0e6270704edcd5a3d9a4119f5",
+      "llmx-iq4-nl-vulkan-test": "bc0d08b499660baefd4c8254197a558c2ef2839033c3d520caafcc14cd043531",
+      "libllmx-vulkan.a": "33ff86a3def7033127f06579b271672c9585a1517ffc1e4864deb85b2e0987c6"
+    },
+    "script_sha256": "e74858a48970d3fa8290fbe795448905f94a9c245a988057d1332618df3ea607",
+    "passed": true,
+    "exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-22T19:33:01.562604874Z",
+      "FinishedAt": "2026-10-22T19:34:08.689184595Z"
+    },
+    "removed": true,
+    "after": {
+      "llmx": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+      "llmx-model-logits": "c5006572edfb5ca174260a4bd33a5d310c809941a798b941298f71ed0d731a9e",
+      "llmx-iq3-s-test": "79ed306732e1446769b5e350ebd5a85aa206c7b0e6270704edcd5a3d9a4119f5",
+      "llmx-iq4-nl-vulkan-test": "bc0d08b499660baefd4c8254197a558c2ef2839033c3d520caafcc14cd043531",
+      "libllmx-vulkan.a": "33ff86a3def7033127f06579b271672c9585a1517ffc1e4864deb85b2e0987c6"
+    },
+    "end": 1792697648.9816308
+  },
+  "checks": {
+    "mode": "single",
+    "passed": true,
+    "cases": [
+      {
+        "start": 1792697581.7756705,
+        "passed": true,
+        "dtype": "f32",
+        "exe_sha256": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+        "scored_full_logits": 150,
+        "nll": 12,
+        "capability_probe": 1,
+        "calls": 163,
+        "paths": [
+          "f32"
+        ],
+        "end": 1792697603.8200986
+      },
+      {
+        "start": 1792697603.8211606,
+        "passed": true,
+        "dtype": "bf16",
+        "exe_sha256": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+        "scored_full_logits": 150,
+        "nll": 12,
+        "capability_probe": 1,
+        "calls": 163,
+        "paths": [
+          "bf16",
+          "f32"
+        ],
+        "end": 1792697626.2654846
+      },
+      {
+        "start": 1792697626.266784,
+        "passed": true,
+        "dtype": "int8",
+        "exe_sha256": "a83c4c9b5e8bab9396ddb33aa653cde147f9dd8e64616bcdc71142f2123533fb",
+        "scored_full_logits": 150,
+        "nll": 12,
+        "capability_probe": 1,
+        "calls": 163,
+        "paths": [
+          "block-int16",
+          "f32"
+        ],
+        "end": 1792697648.6623797
+      }
+    ],
+    "start": 1792697581.7755024,
+    "end": 1792697648.663031
+  },
+  "artifacts": {
+    "check.log": "5b72c00f8c7accdea15269751f0519dcd66f68dca31a6836e0faed4769c88422",
+    "checks.json": "119d0c99f309dcb1f982df664af33c4cc45be32af250395718a638e91ff55f06",
+    "execution.json": "4602098954fc986d05e5b5e7f08b81d285bd74b8185d7d7b5fafe53402b9823f",
+    "bf16\\cases.jsonl": "b6b53580c5114688990ea0bd3e3e9ae7199b058539b284870c1677ac0f8b42a9",
+    "bf16\\checks.json": "bc2cab0d6a0f7878e7ee4ff06c7ae6755fb82ac891098568a7b1a69df5032d97",
+    "f32\\cases.jsonl": "474d33be2082aa3231c6b6917565c02ea6ec719d73884f0f6129857207a8a005",
+    "f32\\checks.json": "6c435927fc7909cb15d4471d4ca5467ec6b9bcb316a1aaf48d22712b1ea14d66",
+    "int8\\cases.jsonl": "a4561f2ff4f4215366c85099bbe1ac01f7a876b8898f4159752a48d25a6e8939",
+    "int8\\checks.json": "e4b09522855d37abb6e51bdd96a12b4476abd512d67ce6f410b386f544074a4a"
+  }
+}

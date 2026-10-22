@@ -1,0 +1,323 @@
+{
+  "kind": "iq3-s-integrated-depth",
+  "scope": "Integrated candidate cf408d0ef on the exact released IQ3_S Qwen3-0.6B file; raw and chat fixed-history 16K comparisons use the unchanged same-file HF reference and tests/common.py:hf_depth_top1 rule. This closes integrated-runtime depth for the recorded F16 and F32 paths only; it does not close full integration, hosted CI or landing.",
+  "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+  "candidate": {
+    "commit": "cf408d0ef1577d02466ada90df03ec0d33ec589a",
+    "runtime_checkpoint": "cf408d0ef archived integrated candidate",
+    "version": "llmx 0.1.0+unknown numerics db63f4ba243aad41",
+    "numerics_sha256": "db63f4ba243aad41154e83cb55df21b87dfa328b717aeb53daa8d833e1df9a9e",
+    "build_passed": true,
+    "all_build_steps_exit_zero": true,
+    "build_execution_json_sha256": "cfa7b36390f47231f693c9fcbb4cfcd13f10eb3854eb19dae45ddb169652f30b",
+    "payload_json_sha256": "65daa21acdd1b18c26b7a1ed467880421737f2b83e425871378d87fa12fe50de",
+    "source_archive_sha256": "e1342ddfb54458c2367dc14596682adb8849bf002c1cb52c8e53a511cbabd504",
+    "source_manifest_sha256": "639f2becc79d6621ae1f2bca1ec7cfb8532b2fcbb611c1321ec40245056972bf",
+    "runtime_hashes": {
+      "llmx": "73105ebbe106df277f447341d4b5685b8f6b4682679e3ae9de993f7b4b9b9dbb",
+      "llmx-model-logits": "32c4b65ef093736b25a4469e0b0cacdc5a2922174704f260c0875378b1e55475",
+      "libllmx-vulkan.a": "1d1f9cb38388e6a8fc3c1d08d9c9c0eb73a150ffc0388a4b87df488f5dfc5505",
+      "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "generated/llmx-build-info.hpp": "e81da42b916123aa53d91c8eeb15b73c966d5120fc2512d48d830c6c7805e462"
+    }
+  },
+  "rule": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "top_two_tie_margin": 0.1,
+    "working_tree_file_sha256_raw_crlf": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "working_tree_file_sha256_lf_normalized": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "recorded_source_sha256": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "crlf_normalization_matches_recorded_source": true,
+    "helper_function_ast_sha256": "66c9c712db4f3df977c9fecf9ab598eee746bd91388c9213e831797897866f8f",
+    "helper_function_ast_matches_recorded_source": true,
+    "source_line_endings": "Working-tree common.py is CRLF; normalizing to LF matches the recorded Git source SHA256."
+  },
+  "depth_positions": {
+    "first": 16383,
+    "last": 16894,
+    "rows_per_variant": 512
+  },
+  "replay": {
+    "rows_replayed": 3072,
+    "verdicts_match_artifacts": true,
+    "all_comparator_executions_passed": true,
+    "misses": 0
+  },
+  "comparator_correction": {
+    "v2_supersedes_initial_precomparison_hash_assertion_failures": true,
+    "v2_changed_only_candidate_llmx_and_vulkan_library_hash_assertions": true,
+    "reference_rule_and_captures_unchanged": true,
+    "tie_margin_unchanged": 0.1,
+    "first_failure_reason": "The original comparator stopped before numerical comparison because its two frozen runtime hashes did not match the integrated candidate. The initial failure records remain on the rig; v2 changes only those two expected-hash assertions.",
+    "v1_comparator_sha256": "d67a64037aaec472444954f5eb53c7726011cae72183cf4d8c1498389fc69f14",
+    "v2_comparator_sha256": "153e94bd14750c1afefcc9708a721e407b9e5eb36027f30566dfcfebb37f2e2e",
+    "v2_bundle_pins_sha256": "788a2ad1e2d8f3ad8a11bfa0d15bdd1dc7c125e5890f0ec877c5512b54235642"
+  },
+  "captures": {
+    "integrated-depth-default-20261022": {
+      "capture_complete": true,
+      "runtime_checkpoint": "cf408d0ef archived integrated candidate; llmx 0.1.0+unknown numerics db63f4ba243aad41",
+      "runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/integrated-candidate-source-20261022",
+      "probe_sha256": "a68c9d125e8140b406d114a6213c055e623e9038543f5a7b62302162d57c5ed1",
+      "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+      "capture_report_sha256": "67feca4611a27bdebe379f70ed979d3e1772e6b232bb126985bb1c70c5b96955",
+      "runtime_hashes_before": {
+        "/b/llmx": "73105ebbe106df277f447341d4b5685b8f6b4682679e3ae9de993f7b4b9b9dbb",
+        "/b/libllmx-vulkan.a": "1d1f9cb38388e6a8fc3c1d08d9c9c0eb73a150ffc0388a4b87df488f5dfc5505",
+        "/b/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "/source/tests/common.py": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5"
+      }
+    },
+    "integrated-depth-f32-20261022": {
+      "capture_complete": true,
+      "runtime_checkpoint": "cf408d0ef archived integrated candidate; llmx 0.1.0+unknown numerics db63f4ba243aad41",
+      "runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/integrated-candidate-source-20261022",
+      "probe_sha256": "5647df681d9e789940cc6e858153eee185825c2461c4f1357b5ae15541a4f62d",
+      "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+      "capture_report_sha256": "0c44587a47714105062857f410b8f79406550d1164488545b5489e9d04b0badf",
+      "runtime_hashes_before": {
+        "/b/llmx": "73105ebbe106df277f447341d4b5685b8f6b4682679e3ae9de993f7b4b9b9dbb",
+        "/b/libllmx-vulkan.a": "1d1f9cb38388e6a8fc3c1d08d9c9c0eb73a150ffc0388a4b87df488f5dfc5505",
+        "/b/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "/source/tests/common.py": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5"
+      }
+    }
+  },
+  "results": [
+    {
+      "role": "selected-f16",
+      "comparator_dir": "integrated-depth-comparison-selected-f16-v2-20261022",
+      "capture_dir": "integrated-depth-default-20261022",
+      "execution": {
+        "passed": true,
+        "exit": 0,
+        "removed": true,
+        "reference_execution_sha256": "bbf3493e22af7e4ce8803098be965ec26e0b75b25ad9f94f84b8c682a92fae04",
+        "capture_execution_sha256": "6de5d9dbb991fe3c23c96d9667dcaec710d1fc6ac31a97025d47961b5daa2a3f",
+        "execution_json_sha256": "c90bedb821fbe3c5de485f969371a3964b5f4a48e124474bbcb4daf7ebfecfeb"
+      },
+      "comparison_json_sha256": "253f7b5aaf1f3cdeb8c971ac4e68198a1f16437f6b7c6ed26403f5f7ec9ecdc0",
+      "reference_report_sha256": "752ed56542feb0864920514080c020795c88b41bfbf2ca514305af5ace042b85",
+      "capture_report_sha256": "67feca4611a27bdebe379f70ed979d3e1772e6b232bb126985bb1c70c5b96955",
+      "capture_execution_report_sha256": "67feca4611a27bdebe379f70ed979d3e1772e6b232bb126985bb1c70c5b96955",
+      "probe_sha256": "a68c9d125e8140b406d114a6213c055e623e9038543f5a7b62302162d57c5ed1",
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": [
+            16383,
+            16894,
+            512
+          ],
+          "verdicts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": [
+            16383,
+            16894,
+            512
+          ],
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ],
+      "ties": [
+        {
+          "variant": "raw",
+          "position": 16869,
+          "actual_top1": 304,
+          "hf_top2_ids": [
+            2337,
+            304
+          ],
+          "hf_top2_gap": 0.0012226104736328125
+        }
+      ]
+    },
+    {
+      "role": "selected-f32",
+      "comparator_dir": "integrated-depth-comparison-selected-f32-v2-20261022",
+      "capture_dir": "integrated-depth-f32-20261022",
+      "execution": {
+        "passed": true,
+        "exit": 0,
+        "removed": true,
+        "reference_execution_sha256": "0fab1a0ea027115369a0756bf7e820dd067e7d7bcc0c358d1ede07f940ebd1b8",
+        "capture_execution_sha256": "b2edc363a42c6106e57936a75087fdd23b732979c94c01994776b72daedfd09d",
+        "execution_json_sha256": "39a842e2a31b66d9d1d16b0aeabc65e2bb00be14c1b849f637b84b61c94ccf32"
+      },
+      "comparison_json_sha256": "8704c67c5c7ef10149bbf0879698a65608886db65d5641fe4efdb96ee3b56927",
+      "reference_report_sha256": "2197a9f5100cc5de0197ec26401fa05b1aafc59410fb71d049d2259f4f2d18e6",
+      "capture_report_sha256": "0c44587a47714105062857f410b8f79406550d1164488545b5489e9d04b0badf",
+      "capture_execution_report_sha256": "0c44587a47714105062857f410b8f79406550d1164488545b5489e9d04b0badf",
+      "probe_sha256": "5647df681d9e789940cc6e858153eee185825c2461c4f1357b5ae15541a4f62d",
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": [
+            16383,
+            16894,
+            512
+          ],
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": [
+            16383,
+            16894,
+            512
+          ],
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        }
+      ],
+      "ties": []
+    },
+    {
+      "role": "default-f32-reference",
+      "comparator_dir": "integrated-depth-comparison-default-f32-reference-v2-20261022",
+      "capture_dir": "integrated-depth-default-20261022",
+      "execution": {
+        "passed": true,
+        "exit": 0,
+        "removed": true,
+        "reference_execution_sha256": "0fab1a0ea027115369a0756bf7e820dd067e7d7bcc0c358d1ede07f940ebd1b8",
+        "capture_execution_sha256": "6de5d9dbb991fe3c23c96d9667dcaec710d1fc6ac31a97025d47961b5daa2a3f",
+        "execution_json_sha256": "22bb1e7ce3a4ac979d612da7503ea46556c615f28918efe2eb23d74b4706e02b"
+      },
+      "comparison_json_sha256": "94275c8a881d06a1a083fc419750d573c635e636221d13fca87175863b39f806",
+      "reference_report_sha256": "2197a9f5100cc5de0197ec26401fa05b1aafc59410fb71d049d2259f4f2d18e6",
+      "capture_report_sha256": "67feca4611a27bdebe379f70ed979d3e1772e6b232bb126985bb1c70c5b96955",
+      "capture_execution_report_sha256": "67feca4611a27bdebe379f70ed979d3e1772e6b232bb126985bb1c70c5b96955",
+      "probe_sha256": "a68c9d125e8140b406d114a6213c055e623e9038543f5a7b62302162d57c5ed1",
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": [
+            16383,
+            16894,
+            512
+          ],
+          "verdicts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": [
+            16383,
+            16894,
+            512
+          ],
+          "verdicts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ],
+      "ties": [
+        {
+          "variant": "raw",
+          "position": 16869,
+          "actual_top1": 304,
+          "hf_top2_ids": [
+            2337,
+            304
+          ],
+          "hf_top2_gap": 0.00145721435546875
+        }
+      ]
+    }
+  ],
+  "accepted_ties": [
+    {
+      "role": "selected-f16",
+      "variant": "raw",
+      "position": 16869,
+      "actual_top1": 304,
+      "hf_top2_ids": [
+        2337,
+        304
+      ],
+      "hf_top2_gap": 0.0012226104736328125
+    },
+    {
+      "role": "default-f32-reference",
+      "variant": "raw",
+      "position": 16869,
+      "actual_top1": 304,
+      "hf_top2_ids": [
+        2337,
+        304
+      ],
+      "hf_top2_gap": 0.00145721435546875
+    }
+  ]
+}

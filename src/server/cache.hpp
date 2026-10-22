@@ -534,7 +534,7 @@ public:
         return any;
     }
     // The ids given since the last round, each to its request's job: a new job, a job's ids grown as the reply is written or made whole, or a job that has read ids the reply's next turn no longer begins with started again; none drops the job.
-    // Then, while no request waits and a seat is free, the oldest waiting job is admitted as a request is, through enter, so it forks the history that shares most with it and takes room as a first admission does.
+    // Then, while no request waits and a seat is free, the waiting jobs oldest first are admitted as a request is, through enter, so each forks the history that shares most with it and takes room as a first admission does.
     void follow_up(std::vector<std::shared_ptr<Request>>& active, const Lines& lines) {
         std::vector<Follow> given;
         {
@@ -607,16 +607,24 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         follows_.insert(follows_.begin(), std::make_move_iterator(later.begin()), std::make_move_iterator(later.end()));
         const bool stalled = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
-        while (!stalled && lines.queue.empty() && lines.paused.empty() && active.size() < max_seqs_ && !jobs_.empty()) {
-            const std::shared_ptr<Request> j = jobs_.front();
+        // The waiting jobs in order: one reading its history from disk, or refused room while requests run, is passed over, so a younger one that needs neither starts (F2DEV's audit, 2026-10-22).
+        for (size_t i = 0; !stalled && lines.queue.empty() && lines.paused.empty() && active.size() < max_seqs_ && i < jobs_.size();) {
+            const std::shared_ptr<Request> j = jobs_[i];
             // A job whose history is being read from disk starts once the read has ended or its bound passed (reading).
-            if (reading(lines, *j)) break;
+            if (reading(lines, *j)) {
+                ++i;
+                continue;
+            }
             if (!enter(j, active)) {
                 // With no request running, nothing will make room it does not find now.
-                if (!requests(active)) jobs_.pop_front();
-                break;
+                if (!requests(active)) {
+                    jobs_.erase(jobs_.begin() + (std::ptrdiff_t)i);
+                    break;
+                }
+                ++i;
+                continue;
             }
-            jobs_.pop_front();
+            jobs_.erase(jobs_.begin() + (std::ptrdiff_t)i);
         }
     }
     // The jobs running and waiting, and the ids they have yet to read, for the server's figures.

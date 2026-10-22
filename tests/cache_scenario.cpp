@@ -1306,6 +1306,98 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     same(alone[1], rc, "cache-scenario" + on_what + ": the next turn");
 }
 
+// The waiting jobs are walked in order (Cache::follow_up, F2DEV's audit of 2026-10-22): an older job reading its history from disk, or refused room beside a running request, holds back no younger job that needs neither.
+void jobs_passed_over(const gguf::GGUFModel& weights, const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
+    {
+        // After a restart over kept files the first conversation's turn is sent again and its job given ids whose last rows only the files hold, its read held; the second's job, of ids no file holds beyond memory, completes meanwhile.
+        const std::string what = "cache-scenario, waiting jobs passed over: an older job reading from disk";
+        DiskRoot disk("scenario-pass-read");
+        server::DiskOptions options = disk.options(uint64_t(1) << 30);
+        options.keep = true;
+        options.read_wait = std::chrono::seconds(60);
+        struct Hold {
+            std::mutex m;
+            std::condition_variable cv;
+            bool held = false;
+        };
+        auto hold = std::make_shared<Hold>();
+        options.fault = [hold](const char* step) {
+            std::unique_lock<std::mutex> lk(hold->m);
+            if (std::string(step) == "read") hold->cv.wait(lk, [&] { return !hold->held; });
+            return false;
+        };
+        const auto held = [&](bool on) {
+            {
+                std::lock_guard<std::mutex> lk(hold->m);
+                hold->held = on;
+            }
+            hold->cv.notify_all();
+        };
+        const Req one{prompt_of(24, 600, v), (int)kReply}, two{prompt_of(34, 600, v), (int)kReply};
+        std::vector<uint32_t> ids_one;
+        {
+            Run before(make(2 * kPool, 64), tok, 4, (size_t)1 << 30, options);
+            const Handle h = before.sched->submit(one.prompt, params_of(one));
+            ids_one = joined(joined(one.prompt, ids_of(drain(*h))), prompt_of(25, 200, v));
+            before.sched->follow(h, ids_one, true);
+            within_a_minute([&] { return before.sched->stats().reprefills == 1; }, what + ": the job before the stop done");
+        }
+        Run after(make(2 * kPool, 64), tok, 4, (size_t)1 << 30, options);
+        within_a_minute([&] { return after.sched->stats().disk_ready; }, what + ": the kept files adopted");
+        const Handle q1 = after.sched->submit(one.prompt, params_of(one));
+        drain(*q1);
+        const Handle q2 = after.sched->submit(two.prompt, params_of(two));
+        const std::vector<uint32_t> ids_two = joined(joined(two.prompt, ids_of(drain(*q2))), prompt_of(35, 200, v));
+        const size_t reads = after.count(server::Move::read_started);
+        held(true);
+        try {
+            after.sched->follow(q1, ids_one, true);
+            within_a_minute([&] { return after.count(server::Move::read_started) > reads; }, what + ": the older job's read started");
+            after.sched->follow(q2, ids_two, true);
+            within(std::chrono::seconds(20), [&] { return after.sched->stats().reprefills == 1; }, what + ": the younger job done while the older one's read is held", "within 20 seconds");
+        } catch (...) {
+            held(false);
+            throw;
+        }
+        held(false);
+        within_a_minute([&] { return after.sched->stats().reprefills == 2; }, what + ": the older job done once its read is let go");
+        std::cout << what << ": the younger job completed while the older one read from disk\n";
+    }
+    {
+        // A request reserving 7 of 16 blocks runs slowly beside donors of two blocks and one, so the older job, needing 8 blocks more, is refused room.
+        // The younger, needing one more, completes while the request runs.
+        const std::string what = "cache-scenario, waiting jobs passed over: an older job refused room beside a running request";
+        const auto slow = hooked(1);
+        auto slowed = std::make_shared<std::atomic<bool>>(false);
+        slow[0]->hook = [slowed] {
+            for (const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(25); slowed->load() && std::chrono::steady_clock::now() < until;) {}
+        };
+        const Make on_slow = on(weights, [slow] { return std::vector<backend::BackendPtr>{slow[0]}; });
+        Run run(on_slow(kPool, 64), tok, 4, 0);
+        const Req c1{prompt_of(26, 300, v), 20}, c2{prompt_of(36, 200, v), 20}, r{prompt_of(46, 100, v), 700};
+        const Handle h1 = run.sched->submit(c1.prompt, params_of(c1));
+        const std::vector<uint32_t> ids_one = joined(joined(c1.prompt, ids_of(drain(*h1))), prompt_of(27, 900, v));
+        const Handle h2 = run.sched->submit(c2.prompt, params_of(c2));
+        const std::vector<uint32_t> ids_two = joined(joined(c2.prompt, ids_of(drain(*h2))), prompt_of(37, 30, v));
+        slowed->store(true);
+        Handle hr;
+        try {
+            hr = run.sched->submit(r.prompt, params_of(r));
+            within_a_minute([&] { return run.sched->stats().active == 1; }, what + ": the request running");
+            run.sched->follow(h1, ids_one, true);
+            run.sched->follow(h2, ids_two, true);
+            within(std::chrono::seconds(10), [&] { return run.sched->stats().reprefills == 1; }, what + ": the younger job done while the request runs", "within 10 seconds");
+            require(run.sched->stats().active >= 1 && hr->finish().empty(), what + ": the request ended before the younger job was done");
+        } catch (...) {
+            slowed->store(false);
+            throw;
+        }
+        slowed->store(false);
+        drain(*hr);
+        std::cout << what << ": the younger job completed while the request ran\n";
+    }
+}
+
 } // namespace
 
 // `legs` runs the scripted conversation and its cases, `production` the production-shaped script; with no argument, both.
@@ -1330,6 +1422,7 @@ int main(int argc, char** argv) {
             first_write_wait(weights, tok, (uint32_t)kCpu.vocab);
             pool_past_context(one, tok, (uint32_t)kCpu.vocab);
             for (const bool leave : {false, true}) restart(one, tok, (uint32_t)kCpu.vocab, leave);
+            jobs_passed_over(weights, one, tok, (uint32_t)kCpu.vocab);
             for (const bool written : {false, true}) beyond_the_host_tier(one, tok, (uint32_t)kCpu.vocab, written);
             for (const Users mode : {Users::room, Users::cycle, Users::returning}) many_users(one, tok, (uint32_t)kCpu.vocab, mode);
             for (const LastBlock mode : {LastBlock::held, LastBlock::costly, LastBlock::ended, LastBlock::whole}) last_block(weights, tok, (uint32_t)kCpu.vocab, mode);

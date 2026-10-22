@@ -775,7 +775,7 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Limits | `--max-seqs N` | `16` | At least 1; active requests, including prompt and generation work |
 | Limits | `--max-queue N` | `64` | At least 1; waiting requests before a new request gets 503; paused requests are not counted |
 | Limits | `--passes N` | one per stage for a layer split, otherwise `1` | At least 1; values above 1 require a multi-device layer split |
-| Scheduling | `--no-pacing` | off | Turns off serving generating requests between prompt pieces; conflicts with `--generating-share` above 0 |
+| Scheduling | `--no-pacing` | off | Turns off serving generating requests between prompt pieces or slices; conflicts with `--generating-share` above 0 |
 | Scheduling | `--generating-share X` | `0` | From 0 to 0.9; above 0 replaces automatic pacing and is refused where pacing cannot run or with `--no-pacing` |
 | Prefix reuse | `--state-checkpoints N` | fitted, up to `--max-seqs` | At least 0; saved recurrent states for follow-up turns; 0 disables them |
 | Context | `--context-overflow HOW` | `refuse` | `refuse` returns 413; `shift` drops oldest turns when a prompt does not fit |
@@ -802,7 +802,8 @@ Without it a prompt goes first: the request gets its next token when the prompt 
 On one device or one tensor group, with the whole model on it, pacing is on by default: a prompt is fed to the device a piece at a time, a layer's attention or its feed-forward block and on a group the work up to a sum, and the generating requests' rows go in passes of their own that run between the pieces.
 The automatic rule aims at serving them about every 100 ms, ten tokens a second a reply, as far as the device's steps allow, and keeps prompts moving when many replies make each service slow; it has no setting, and `pacing` in `/v1/health` says how often the 100 ms were missed.
 It acts only while a reply and a prompt overlap; a prompt alone or replies alone run as without pacing.
-On the CPU, with experts on the CPU beside a device, and on a layer split nothing is fed in pieces, so pacing is off there, and the server's start line `server: pacing: ...` says which mode runs and why.
+On a layer split whose every device runs its layers whole the interleaved rule is on by default instead: while a reply and a prompt overlap the reply's rows go in passes of their own and the prompt is read in slices cut to about a stage's target time, each slice in a pass of its own, so on every stage the prompt's slices and the reply's steps take turns.
+On the CPU and with experts on the CPU beside a device nothing is fed in pieces or sliced so, and pacing is off there; the server's start line `server: pacing: ...` says which mode runs and why.
 `--no-pacing` turns it off, which also gives back the small second arena it reserves on each device.
 `--generating-share` is 0 up to 0.9; above 0 it replaces the automatic rule by a fixed share, and is refused where pacing cannot run and with `--no-pacing`.
 While a prompt is read the scheduler then aims the generating requests at that share of the device's time, by an account of bounded credit and charge and not as a guarantee over every stretch: a pass of theirs is due once the pieces since their last one have earned it, so two of their passes are about (1 - X) / X of one pass apart, and the prompt takes about 1 / (1 - X) of the time it takes alone.
@@ -1032,7 +1033,8 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |
 | `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |
 | `passes.sampling_threads` | threads | fixed | Threads that sample beside the scheduler's | |
-| `pacing.mode`, `.target_gap_ms` | text, milliseconds | fixed | `automatic`, `fixed` or `off`, and the gap the automatic rule aims at between two services of the generating requests | |
+| `pacing.mode`, `.target_gap_ms` | text, milliseconds | fixed | `automatic`, `interleaved`, `fixed` or `off`, and the gap the automatic rule aims at between two services of the generating requests | |
+| `pacing.since_start.interleaved_replies`, `.interleaved_slices` | passes | since start | Under the interleaved rule: the passes of generated rows and the passes of a prompt's slice formed while replies and prompts overlapped | both 0 while prompts and replies overlap: the replies still ride the prompts' passes |
 | `pacing.since_start.gaps`, `.gaps_above_target` | gaps | since start | Under the automatic rule: the gaps between two such services while replies and prompts overlapped, and those longer than the target | most gaps above the target: the device's steps or the replies' own batches are longer than the target, see `longest_piece_ms` and `deferred_by_floor` |
 | `pacing.since_start.deferred_by_floor`, `.longest_piece_ms` | passes, milliseconds | since start | The batches of generated rows that were due and waited so that prompts kept moving, and the longest piece of a prompt's batch | |
 | `pacing.stages[].last_slice.rows`, `.pieces`, `.pieces_ms`, `.longest_ms`, `.longest_layer`, `.longest_part` | rows, pieces, milliseconds, a layer, text | the last such batch | Per stage, its last prompt batch fed in pieces: its rows, its pieces (two a layer and the `tail` after the last, whose device time falls in the next batch's first piece), their time, and its longest piece's time, layer and part (`mixer`, the first with the embed, `ffn` or `tail`, layer -1) | |

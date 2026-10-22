@@ -296,10 +296,11 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
 }
 
 // Runs `waves` through one scheduler over `model` with `passes` in flight (the scheduler's own number when 0) and `host` bytes of host memory for evicted donors.
-// With a `proposer` it drafts up to `draft_max` a verify, `priced` by measured pass cost or by decode columns; a wave is fully queued before any pass retires, and the replies come in submission order with the counters in `stats`.
+// With a `proposer` it drafts up to `draft_max` a verify, `priced` by measured pass cost or by decode columns; a wave is fully queued before any pass retires, which `observe` sees.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
-                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, server::Pacing pacing = {}) {
+                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, server::Pacing pacing = {},
+                         const std::function<void(const server::Scheduler::Retired&)>& observe = {}) {
     server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {}, pacing);
     std::mutex submitting;
     uint64_t prompt_rows = 0;
@@ -309,6 +310,7 @@ inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, 
         for (size_t e = 0; e < t.requests.size(); ++e)
             for (size_t row = 0; row < t.rows[e]; ++row)
                 prompt_rows += t.from[e] + row < t.requests[e]->prompt_tokens();
+        if (observe) observe(t);
     };
     std::thread runner([&] { sched.run(); });
     std::vector<Reply> replies;

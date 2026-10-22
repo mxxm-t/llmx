@@ -1,5 +1,72 @@
 # llmx - Development Status
 
+## Replies beside a prompt on a pipelined split (2026-10-23, branch feat/split-pacing on main eaa08d839, the interleaved rule, F2DEV's reviews of 2026-10-22 07:41 and 16:18 and the coordinator's approval, lands by fast-forward as one commit)
+
+- **Why:** on production's placement (Qwen3.8-Flash-Next UD-Q4_K_XL, two stages of two MI50s, int8, lookup and MTP drafting) a reply beside an 8017-token prompt at 100k tokens of history got 0.33 to 1.03 tok/s against 58 alone. It rode the prompt's pass, which then wanted logits and held both requests through both stages one after the other, so a token came every 2 x 1.48 s; `--passes 3` changed nothing (devlog FINDING 2026-10-22 07:35).
+- **The change:** `Pacing::interleaved`, the default where the placement is a pipelined split (`PlacedModel::pipelined_split`, beside `unpaced`).
+  While replies and prompts both wait, generated rows go in passes of their own formed first, and each prompt slice goes in a pass of its own that wants no logits, cut by each device stage's `PieceSearch` with the whole slice's stage time as its piece and timed by the stage's recorder.
+  A prompt's next slice is formed only once its last has retired at the first stage (`Request::slice_ticket_`), so a reply's pass formed meanwhile goes before it there.
+  Outside an overlap every pass is formed as without pacing. `/v1/health` counts the passes of generated rows and the slices formed in an overlap.
+- **Tests:** `server-passes` (the mode); `server-passes-cpu` on splits of two and three slow CPU devices at P = S and S + 1:
+  - requests in turn form no interleaved pass;
+  - a reply beside two prompts gets passes of its own, and no pass mixes a reply's rows with a prompt's slice or holds two prompts' slices;
+  - a reply beside one prompt: once the prompt is sampled the rule forms no more passes, its request is in one of the next P passes, and each pass then holds one of the two decoders;
+  - every reply is its reply alone.
+- **Measured, the 100k cell:** GPUs 4 to 9; the 8017-token tail at 100195 tokens of depth beside a 600-token reply; tok/s; the prompt kept is its rate beside the reply over its rate alone in the same run.
+
+  | Placement | Reply beside, main | Reply beside, rule | Longest gap, main | Longest gap, rule | Prompt kept, main | Prompt kept, rule |
+  |---|---|---|---|---|---|---|
+  | 2x2, P = 2 | 0.72, 0.81 | 3.67, 3.82 | 4180, 3545 ms | 876, 818 ms | 0.91, 0.93 | 0.61 to 0.66 |
+  | 2x2, P = 3 | - | 3.75 | - | 818 ms | - | 0.64 |
+  | 3x2, P = 3 | 1.12 | 5.24, 6.05, 6.57 | 2860 ms | 578 to 931 ms | 1.08 | 0.68 to 0.82 |
+  | 3x2, P = 4 | - | 6.35 | - | 499 ms | - | 0.74 |
+  | layer over 4, P = 4 | - | 7.12 | - | 516 ms | - | 0.53 |
+
+  The trade favours replies, the owner's standing choice for pacing: the prompt beside a reply keeps about two thirds of its rate, against about all of it before, for 4 to 6 times the reply's rate.
+  Runs on this shared machine vary by up to 25 percent in phases that run the same code in both arms.
+- **The handover (20255-token prompt beside a reply, then both decoding, 2x2):** prompt 305.9 tok/s; the reply 3.33 tok/s during it (longest gap 553 ms) and 30.66 after; the new reply 31.48 tok/s; two passes in flight 96 percent of the time after.
+- **Probe (c), the `slice_ticket_` gate, kept:** without it, on the 20k handover, the prompt read at 295.1 against 261.0 tok/s and the reply got 3.40 against 4.25 tok/s, with the same longest gap and the same busy shares. Either way the stages did not overlap more, since the next slice still waits for the last stage.
+- **Option (a), no drafts beside a prompt, dropped:**
+  - As a switch: at 100k the reply fell to 2.46 (2x2) and 2.72 (3x2) tok/s against 3.67 and 6.57, and the prompt was level (121.6 against 125.3, 134.6 against 134.8 tok/s).
+  - Through the pass price (the verifies' retracts priced, and overlap passes priced apart), against the head in the same session:
+    - 100k: 2.84 and 2.75 tok/s against 3.82 and 6.05;
+    - the 20k handover: 2.09 against 3.33 tok/s, and a prompt of 245.6 against 305.9;
+    - decode-only at 2 and 4 replies: 53.8 and 80.6 against 67.2 and 122.1 tok/s, since the retracts were priced there too.
+  - The patch is kept outside the tree.
+- **Stage alternation, a limit on main:** a lone prompt at depth runs one stage at a time on main too.
+  - Share of the tail window with that many stages busy, main: 2x2 one 0.89 and two 0.03; 3x2 one 0.84 and two or more 0.11.
+  - The rule's 2x2 and 3x2 runs: two stages 0.18. A layer split over four single cards: two stages 0.28.
+  - Why: a sequence is in one pass at a time, and a pass ends when its last stage is recorded, which waits for the stage before it. A tensor group's stage records with every sum waited for, so its recording lasts as long as its compute.
+  - Inside a grouped stage's slice the card waits at sums 0.00 to 0.03 of the window and between slices 0.40 to 0.65 (the H4b figure). The repair is a sequence in consecutive passes at consecutive stages (MULTI-DEVICE phase 4), not cheaper sums.
+- **Decode-only (1, 2 and 4 replies of 256 tokens):**
+  - 2x2: 60.0, 39.8 + 34.0, 4 x 31.6 tok/s; two passes in flight 92 percent of the time.
+  - 3x2: 54.0, 36.7 + 31.1, 4 x 25.2.
+  - layer over 4: 50.8, 39.2 + 32.1, 4 x 32.3.
+  - A stage's time at two replies on 2x2: compute 0.67 to 0.73, sum gaps 0.15 to 0.17, gaps between passes 0.11 to 0.16.
+- **Against the reference's ROCm server (same cards, file and workload):** its FEATURES.md environment and `GGML_CUDA_CUBLAS_COMPUTE_TYPE=f32`, without which its hipBLAS GEMM of the file's 24 BF16 tensors fails on gfx906 (`CUBLAS_STATUS_INTERNAL_ERROR` at a 13-token prompt). It logged pipeline parallelism enabled. MTP was off, since it gave 13.4 tok/s alone against 29.8 without. Prompt cache was off (`-cram 0`); its slot checkpoints kept the 100k prefix.
+
+  | Cell | llmx (the rule) | Reference |
+  |---|---|---|
+  | 2x2 reply beside the 100k tail | 3.82 tok/s, gap 818 ms | 0.49 tok/s, gap 12.4 s |
+  | 2x2 tail beside / alone | 123.4 / 201.8 tok/s | 302.4 / 301.3 tok/s |
+  | 3x2 reply beside the 100k tail | 6.05 tok/s, gap 931 ms | 0.32 tok/s, gap 13.7 s |
+  | 3x2 tail beside / alone | 126.5 / 154.3 tok/s | 280.6 / 277.0 tok/s |
+  | layer over 4, reply beside the 100k tail | 7.12 tok/s, gap 516 ms | 0.53 tok/s, gap 9.7 s |
+  | layer over 4, tail beside / alone | 104.2 / 197.4 tok/s | 326.2 / 404.9 tok/s |
+  | 2x2 decode, 1 / 2 / 4 replies, total | 57.5 / 67.2 / 122.1 tok/s | 25.9 / 38.9 / 58.1 tok/s |
+  | 3x2 decode, 1 / 2 / 4 replies, total | 52.0 / 61.6 / 96.7 tok/s | 26.1 / 40.6 / 55.9 tok/s |
+  | layer over 4 decode, 1 / 2 / 4 replies, total | 48.9 / 63.4 / 124.2 tok/s | 23.4 / 37.0 / 47.5 tok/s (a first run crashed at 2 replies) |
+  | 2x2 handover: prompt, reply during | 305.9 tok/s, 3.33 tok/s | 247.6 tok/s, 0.09 tok/s |
+  | 3x2 handover: prompt, reply during | 330.5 tok/s, 3.31 tok/s | 286.6 tok/s, 0.13 tok/s |
+  | layer over 4 handover: prompt, reply during | 139.1 tok/s, 4.13 tok/s | 208.3 tok/s, 0.08 tok/s |
+
+  - llmx leads on every reply figure, 8 to 52 times, on decode totals 1.7 to 2.6 times, and on the 20k handover's prompt on the staged splits; on the layer split the reference reads it 1.5 times faster.
+  - The reference reads a prompt at 100k depth 1.5 to 2 times faster alone and 2.2 to 3.1 times faster beside a reply: 301 against 202 tok/s alone on 2x2. Its stages overlap (all four cards busy half of a layer-split tail).
+  - That gap is the stage alternation above, the recovery work named there.
+  - The reference's layer split crashed with an illegal memory access at two concurrent replies in one of two runs.
+- **Gates:** CTest and the CPU suite at this head (results in the landing note), docs and dead-code; hosted run.
+- **Follow-ups:** (b) the verifies' retract and the drafter chain without a whole-model quiet, a DESIGN for F2DEV first; the stage alternation's repair, phase 4 of MULTI-DEVICE; H4a for decode at two or more replies.
+
 ## Published quant documentation (2026-10-24, lands by fast-forward)
 
 The asset catalog and quant/backend source pages now consistently describe the
@@ -53,7 +120,6 @@ or performance runs are not repeated for these wording corrections.
 
 - **CPU and MI50 result:** the focused `check_paused_prefill` passes on the qualified Windows CLI-help build in 52.260 seconds, and on both main `888ae1310` and dashboard `225b9d9d6` MI50 Vulkan binaries. Main published 258 short tokens at the witness; while short was at 329, the 464-token long request was paused after 217 prefill tokens. Candidate published 257 at the witness; while short was at 322, long paused after 220/464. Each MI50 run recorded one pressure pause. All runs passed the existing resumed-text, choice and logprob assertions. Exact pins and result hashes are in [the diagnostic record](benchmarks/dashboard-paused-prefill-sync-20261023.json).
 - **Retained attempts and scope:** the initial gate and its paired replay recorded zero pauses on both binaries. The v2 isolated bundle exited before either arm because it omitted `tools/server_mix_check.py`; this was a setup failure, not a test result. V3 ran both arms but its one-token witness also produced zero pauses. V4 uses a 256-token published-output witness, ignores EOS on the short stream and tokenizes both prompts before opening it. The pool size, growth policy and output comparisons are unchanged. The final pause-count assertion is retained and the test additionally requires the long request to be paused during partial prefill. Docs and dead-code checks pass on this test worktree with zero docs findings and 21 planted faults, and five listed dead-code findings and 18 planted faults. The dashboard landing is recorded above.
-
 
 ## CLI help formatting (2026-10-23, branch fix/cli-help-format-20261023)
 
@@ -168,7 +234,6 @@ The IQ3_XXS feature lands as one commit by fast-forward from main `272e3bde63b03
 
 - **Depth checkpoint Markdown review:** all 124 tracked Markdown pages are checked against `1b252a201`; the active status update is the only changed page, with 123 unchanged pages carrying forward the preceding review. [Review inventory](benchmarks/iq3-xxs-depth-markdown-review-20261023.json).
 
-
 ## IQ2_S read-only support (2026-10-23; lands by fast-forward)
 
 - **Goal complete:** IQ2_S read-only CPU/Vulkan inference is qualified through the existing quant and backend owners under the Vulkan-first gates and recorded workload-tradeoff assessment. Base is published main `167c6f834`; this checkpoint is ready for fast-forward.
@@ -231,6 +296,7 @@ The IQ3_XXS feature lands as one commit by fast-forward from main `272e3bde63b03
 - **Layout control at main 0df5dba34, six MI50s (GPUs 4 to 9), six interleaved pairs:** main 28.85, 28.48, 29.31, 28.49, 28.61 and 29.37 tok/s against 28.93, 29.50, 30.21, 29.86, 29.89 and 30.15, means 28.85 and 29.76, every pair higher, 1.06 ms a token less; PP512 means 636.6 and 636.6.
 - **Hosted run:** 39742462460 green on all seven jobs at aac6773e4, whose code this head carries unchanged.
 - **Lands** by fast-forward as this one commit.
+
 ## README and quant support documentation (2026-10-21)
 
 - **Done:** reviewed the whole README for accuracy, section order and wording against public main `7cd7ea75fecfee6981e1a9d62efa247345afb494`. The support table uses consistent labels and family order, separates CPU/Vulkan inference from quantize writers, and identifies metadata-only layouts. Build and run instructions appear before the detailed backend and serving sections.
@@ -547,7 +613,6 @@ This section preserves the state and pending items at the preparation checkpoint
 
 - **Current integration:** Q5_0 and the NLL summary-precision fix landed on main before this tree. The NLL integration from `3c3a190e2` changes five tracked paths: `docs/STATUS.md`, `docs/USAGE.md`, its evidence JSON, `src/cli/main.cpp` and `tests/perplexity.py`. The shader source, built Vulkan library and test fixtures are unchanged; the source/test delta is limited to CLI NLL-summary formatting and its regression test. Linux native checks, device-suite and policy evidence are from 3c3a190e2; final CLI rebuilds against exact main 2b9e84eaa and candidate 5b545e772 passed CPU and MI50 perplexity. No XS support or reference-bound change is added.
 
-
 ## CLI mean NLL output precision (2026-10-21)
 
 - **Goal:** preserve computed mean NLL accuracy when the CLI serializes a summary above ten, without changing inference math or acceptance bounds.
@@ -730,7 +795,6 @@ This is the historical record of the standalone pacing fix on main `34f3ba11f`; 
   The specific Q4 tile slowdown is recovered. The full record also retains short route, norm and routed-row differences beyond six percent; route and norm have main-identical normalized payloads and variable samples, while the Q4 row module differs in branch layout from main but is unchanged by this tile fix. These observations do not waive a regression or establish its cause. All 214 activity samples are retained; none crosses the declared flags, with process attribution and sample gaps recorded as limitations. No owned build or HF job overlapped this timing.
 - **Left:** complete-model timing and the remaining landing checks. Fixed Q5 depth captures are complete as recorded above. The recovery screen is not the full-model or mx gate.
 - **Gotchas:** no model/loader/CLI or format change, duplicated tile algorithm, precision/bound change, new knobs or broad gate. The retained timing failure and shader identity contract are the regression evidence. Hardware register/occupancy attribution is not yet proved. Radeon covers float tiles; the separate MI50 checks exercise the new integer variants.
-
 
 ## Q5_1 real-file HF checkpoint (2026-10-20)
 
@@ -1092,7 +1156,6 @@ Specification: [queue ownership transfers](https://docs.vulkan.org/spec/latest/c
 - **Follow-up (F2DEV, 10:16):** one shared eligibility predicate for `host_room` and `release_written`, `drop_oldest_bound` and `drop_oldest_host`, which today restate who may be released.
 - **Left:** the gate (host logic and its hosted run; the 27B leg of the plan's gate, the waiting reply's time to first token beside the older's tokens a second, turns, pauses and recompute with the host's free memory below one copy, by the gate runner), F2DEV's review.
 
-
 ## The device pool apart from the request limit (2026-10-17, branch feat/kv-pool, item 1 of docs/CACHE-PLAN.md section 8, in progress)
 
 - **Goal:** serve's pool sized apart from a request's limit (docs/CACHE-PLAN.md section 7), so production's long chat and a client's task both stay on the cards.
@@ -1103,7 +1166,6 @@ Specification: [queue ownership transfers](https://docs.vulkan.org/spec/latest/c
   XDEV's recheck of 06:49: the kinds are disjoint, a row a loss explains being evicted and never also a failed restore (witness: [0, 128) lost and a read reaching its bound at 256 give 128 evicted, 128 failed, 128 unexplained), and a wait's rows are those of the read that started, which is the shorter whole path where a state read alone found no host room; no test reaches a state on disk higher than its blocks (the `alone` branch of `Scheduler::prefetch`), so that endpoint is held by construction, not by a witness. XDEV asked again (08:22) for one where a fixture reaches it; the attempt (a 300-token conversation on disk, its 700-token next turn's boundary at 384 written and its history kept off disk by the disk tier's cap) needs a cap between the files of a state and of a history segment, which the test cannot read before the scheduler is made: the model's host sizes are whole 64 MiB slabs, and the disk tier writes a history as the segments past what it holds.
 - **Hosted run 39105265337 at d050984e0:** the Windows job's `cache-scenario-production` met the same timeout, the cut turn's 384 rows classified as failed restore and so P1 broken. The scenario's test-only read bound (`DiskOptions::read_wait`, `Scheduler::read_until`) went to test/stabilize-main with main's other flaky tests, and this branch keeps its own leg's use of it (the pool past the context) and the strict P1 and P5; a read reaching its bound is P2's case, `server-resume`'s read past its bound, which here also requires the wait counted and the rows kept on the request and, at XDEV's request (08:22), takes its bound from the test's read wait (100 ms) rather than the measured prompt rate, and the classifier's witnesses map those rows to failed restore.
 - **Gotchas:** the automatic default follows free device memory at start, so a production start passes the measured `--kv-tokens`; the flags' landing refuses a `--ctx-size` above the context, retiring the no-code line; a dense model has no embedded drafter in the tree, so its automatic budget reserves nothing beside the fit and the drafter's two-number case is the hybrid's.
-
 
 ## The cache scenario's write waits bounded only against a hang (2026-10-18, branch test/first-write-hang, tests only, lands by fast-forward as one commit)
 
@@ -1116,7 +1178,6 @@ Specification: [queue ownership transfers](https://docs.vulkan.org/spec/latest/c
 - **The change:** one helper, `Model::drain_recorded`, which both call on a failure: a device they submitted on waits on that ticket, one they recorded on without submitting submits and waits, synced alone should that fail, and a device they never touched is left alone.
 - **Tests:** `arch-qwen35`'s failed fork with a state, the first commit, failing on main 30baef845 ("synced a device it never copied to"): three devices, the mixers on two and the feed-forward parts on the third, each mixer device failing its submission in turn; the copies retire, the third is not synced, the slot comes back and the fork then succeeds. The failed restore's case now holds the copies retired, not the syncs, the first device submitting once either way.
 - **Left:** the gate (model code: CTest, the suite on the CPU and a device, Qwen3-0.6B identity against main, the hosted run), a review.
-
 
 ## The write waits' cap by recomputing made the test's (2026-10-18, branch test/stable-write-wait, tests and a test-only option, lands by fast-forward as one commit)
 
@@ -1131,14 +1192,12 @@ Specification: [queue ownership transfers](https://docs.vulkan.org/spec/latest/c
 - **Checked locally:** the focused fixture suite passes 7/7; `dead-code` passes (5 known findings, 18 planted faults) and `docs` passes (0 findings, 21 planted faults). The Markdown review inventoried 110 tracked pages against `3cfb0ed70`; only `docs/CI.md` and this entry changed, both reviewed against the helper and workflow, with no stale claims found. The previous hosted run validates the existing feature only, not these local additions.
 - **Landing checks:** hosted run [39131729156](https://github.com/mxxm-t/llmx/actions/runs/39131729156) passed all seven jobs at `6a483f68ff9a57ea13a54eab2386db849633b33d`, including the focused fixtures and the helper invocations in the CPU, UBSan and Vulkan jobs. This final update changes only this STATUS record; source, tests, workflow and build inputs are identical to that tested revision. Docs and dead-code checks pass on the landing tree. The branch lands as one commit by fast-forward from `3cfb0ed70`; the temporary CI branch is removed after remote verification. The separate dashboard run's macOS failure is not waived by this result.
 
-
 ## The host pool gives idle memory back in runs said once, and takes none ahead in between (2026-10-18, branch fix/host-give-back-line, lands by fast-forward as two commits)
 
 - **Why:** after production's restart at 11:16 on 2026-10-17 the server said "N MiB of idle host memory given back, the host being short of memory" every second (64 to 832 MiB a time): the host's free memory fell below the pool's reserve while it adopted 1302 kept entries through the file cache, and between two looks the idle growth took slabs again (it was armed again at the first look that gave nothing back), which the next look gave back.
 - **The change:** after idle slabs go back the pool takes none ahead until the host has gone `kHostQuiet` (30 s) without a give-back, and a run of give-backs is said once as it starts and once with its total and length as it ends (`host_pressure`).
 - **Tests:** `server-resume`'s host pool under pressure: after one slab went back the host has room again at once, and no slab may be taken ahead within three seconds; on main three were. The first commit adds the check, failing on main.
 - **Checked:** see the REVIEW-REQUEST; the gate is CTest and the server component.
-
 
 ## Main's tests made deterministic and the hosted limits raised (2026-10-18, branch test/stabilize-main, tests, a test-only option and the workflow, lands by fast-forward as one commit)
 
@@ -1187,7 +1246,6 @@ Specification: [queue ownership transfers](https://docs.vulkan.org/spec/latest/c
 - **Production:** Deployed the exact tested `f0d8266e6` binary on 2026-10-17 at 22:47 UTC after main reached `f055717f6`; the temporary CI branch was removed. Health reports tensor width 2, one stage and both Vulkan devices; the existing dashboard collector receives topology and `requests.live` every two seconds, and a real four-token completion passed. The original container and disk cache are retained for rollback; the new fingerprint starts with a cold cache. An initial helper mount-syntax failure restored the old service before the corrected retry succeeded. No runtime code or gate changed. Exact identities and readiness are in the linked landing evidence.
 - **Review:** Carried forward the prior 110-page Markdown audit against main `25a542856`; from landing head `f0d8266e6`, only `STATUS.md` changed among Markdown pages and this block was reread against the release evidence. The five other previously changed pages remain unchanged. The corrected synthetic topology payload and old-server fallback passed Chromium checks at desktop 1440x1200 and mobile 390x1000 without horizontal overflow. After this documentation-only update, docs checks passed (0 findings/21 planted); dead-code checks passed with the same five listed findings/18 planted. Runtime, tests, fixtures and build inputs are unchanged from the hosted 7/7 revision.
 - **Gotchas:** Topology reports backend-vector placement and expert-stream eligibility, not physical GPU identity or current streaming execution. The four identity arms use only bounded saved outputs and are not an independent full-model/HF qualification. The one-block timing sample has material host activity and must not be read as proof of speedup, slowdown, or zero overhead.
-
 
 ## Validation follows the changed behavior (2026-10-17, lands by fast-forward)
 
@@ -2541,7 +2599,6 @@ The status table and the active blocks above give the present state; a record's 
 - **Done:** `timeout-minutes` 40 for that job in `.github/workflows/ci.yml`, with the figures in docs/CI.md. No test or check changes. What grew the job is the scheduler tests' wall time, which no one has cut; that is left.
 - **Gates:** the suite's `docs` and `dead-code` components on the tree that lands; the hosted run of this commit shows the job under its new limit.
 
-
 ## The fit counts a verify's draft rows (2026-10-12, branch fix/drafted-logits-rows, lands by fast-forward)
 
 - **Found in review of the pacing change, on the main before it:** a server with a drafter reserves 64 draft rows a pass beside a ubatch and a row a request (`Scheduler::kDraftRows`), in its activation arena and in each logits ring, and `open_model` asked the fit for neither: the arena for a ubatch and the requests' rows, the logits for a row a request. So the fitted KV budget left the head's device short by 64 rows of logits a ring, 64 times the vocabulary times 4 bytes, and each device by 64 arena rows. No failure was observed from it; it is an accounting defect found by reading.
@@ -3243,7 +3300,6 @@ Qwen3-8B Q8_0, three MI50s, llmx `--dtype int8` and default precision (host tier
 
 Closed loads, output tok/s (lower and higher round), with the first-token and inter-token tails:
 
-
 | 128-token prompts, output tok/s (lower and higher round) | 1 | 2 | 4 | 8 | 16 | 32 | 48 | 64 |
 |---|---|---|---|---|---|---|---|---|
 | llmx `--dtype int8` | 68.3-68.6 | 133.6-134.1 | 227.0-229.0 | 391.9-392.5 | 593.7-617.4 | 789.1-809.0 | 934.7-934.9 | 855.3-865.9 |
@@ -3741,7 +3797,6 @@ mix  reference          | 14.6 / 30.2 / 45.6 / 53.8 / 54.5 | 1.83 / 6.38 / 14.75
 - **Reviewed** by the coordinator.
 - **Lesson:** this was seen once in a load run the day before and only noted; a failure seen once is posted as a finding the same hour.
 
-
 ## A kept entry's identity follows the numerics, not the revision (2026-10-07, branch feat/numerics-identity, lands by fast-forward)
 
 - **Goal (the user, 2026-10-06):** an update should keep the conversations on disk unless it changes what their bits depend on. The identity carried the build's version string, so every update of production started with an empty disk tier, four times in one day.
@@ -3759,7 +3814,6 @@ mix  reference          | 14.6 / 30.2 / 45.6 / 53.8 / 54.5 | 1.83 / 6.38 / 14.75
 - **Not covered, and said in DISK-TIER:** the C library on Windows and macOS is unrecorded; a file argued out of the list wrongly would let an entry be read against other bits, which the review of each line and the include rule bound, and no test proves.
 - **The idle rewrite's cost (asked with this branch):** USAGE now gives it measured, 5.2 GB a turn at 76k tokens, 260 GB a day at fifty such turns. Writing only what a turn added is not a small change: an entry is one file, written once, laid out layer by layer, and the index, room, age, superseding and adoption all take an entry as a whole. A proposal is in the devlog; nothing is built.
 - **Reviewed** by F2DEV: every out and allow line held against the code. Taken from the review before landing, since a later addition to the identity empties every cache once more: a Vulkan device's line carries its pipeline cache id, which changes with every build of the driver (held by reading, a rebuilt driver not being something the test machines can fake); the flags carry the interprocedural-optimization setting; the layout names the tensor width; an entry file's bytes and the entries' descriptions are held to digests at `DiskStore::kVersion`; `disk-store` holds that the build's facts carry the configuration; a kept directory from before this branch says why it gave nothing.
-
 
 ## Where an edit's first token goes (2026-10-06, measured at main `737b5fa4`, docs only)
 
@@ -3831,7 +3885,6 @@ mix  reference          | 14.6 / 30.2 / 45.6 / 53.8 / 54.5 | 1.83 / 6.38 / 14.75
   | this branch | 128 | 15.6 | no | 76096 | 0.96 |
 
 - **Reviewed** by F2DEV.
-
 
 ## Prompt rows beside decoders: what `--ubatch` trades when serving (2026-10-06, measured, docs only, lands by fast-forward)
 
@@ -3966,7 +4019,6 @@ mix  reference          | 14.6 / 30.2 / 45.6 / 53.8 / 54.5 | 1.83 / 6.38 / 14.75
 - **A client that does return `reasoning_content`**, under a template that keeps it, now reuses the conversation to its previous prompt's last whole block and reads that reply again, as every client did before; one re-read serves one of the two renders, and the standard request carries no reasoning.
 - **Reviewed** by F2DEV.
 - **Left:** a request whose last user message starts in its prompt's last whole block keeps no message boundary of its own, so after a restart its conversation is forked a message earlier; its own branch follows.
-
 
 ## The known findings cleaned up (2026-10-06, branch cleanup/known-findings, lands by fast-forward)
 
@@ -4899,7 +4951,6 @@ Published at 530b10bf after all seven jobs in hosted run 37019138272 passed. The
 - **Gotchas:** metadata recognition does not claim a decoder, a writer or backend support. F16/BF16 weight execution remains a separate feature with the quantization plan's exact widened-F32 identity requirement. This branch does not mark all of step 0 complete: its older dispatch-table and kernel-class requirements must be reconciled with the already landed precision, load-time refusal and exact-resume owners. No arithmetic or shader expression changes are intended here.
 - **Integration refresh:** rebased onto the independently gated split-hold main `58a696ce`. Code merged automatically; this status file retained both new entries. The source/test/build patch is unchanged. Fresh builds at `ae20c5d6` pass 38/38 Windows native tests and 42/42 Linux/MI50 native tests; all 99 shaders match the prior candidate. The final amendment changes only this record and its evidence. Exact-head hosted CI remains required before fast-forward; the completed numerical and timing campaigns above retain their original source identities, as the conflict-free code rebase rule permits.
 
-
 ## Split decode at one card's speed (2026-10-02, branch perf/split-hold, lands by fast-forward)
 
 - **Cause:** on a split each card waits while the other runs its stage. llmx waited on the host, so a waiting card read as idle and both stayed at 930 MHz through a split decode, against 1606 to 1725 MHz on one card; the reference waits on the device, which reads as busy, and its card held 1725 MHz. Both at the automatic performance level, nothing set (`rocm-smi` read only).
@@ -4921,7 +4972,6 @@ Published at 530b10bf after all seven jobs in hosted run 37019138272 passed. The
   - Rebased onto main `46f60b64` without a conflict, so the builds, CTest, `docs`, `dead-code` and the hosted run ran again at the head.
   - The other developer's review found three lifecycle defects, each checked against the code and fixed: the test's last copy freed its buffers before it retired, a hold setup failing part way left its resources and a retry overwrote them, and a model enabled holds for good before its construction could still fail. The fixes reran CTest on an MI50 and the Radeon VII, the split timing and the hosted run. The watchdog's release is held by the clocks above, not by a test, since every submission also releases a hold.
 
-
 ## Activation dtype across CPU and Vulkan (2026-10-02, pre-publication checkpoint)
 
 `--dtype auto|f16|bf16|f32` resolves once during placement and reaches every model command, the server and each execution stage. Current CPU and Vulkan backends prefer qualified F16 under auto; explicit F32 remains available, and BF16 emulation or a wider fallback is reported. Weight storage, KV storage and the retained F32 state operations are separate. Vulkan MXFP4 support lands with the completed policy.
@@ -4929,7 +4979,6 @@ Published at 530b10bf after all seven jobs in hosted run 37019138272 passed. The
 - **Landing:** one dtype commit follows the separately committed CPU fit regression and repair; the stack lands by fast-forward after the hosted workflow at its exact head passes and main is verified unchanged. Linux CPU has all 25 components covered, with raw-blocks and integrated server recovery passing beside the earlier unaffected numerical evidence. The final 32-call timing is complete, retaining all four matched blocks and activity observations; prior six-thread results remain separately scoped.
 - **CI repair:** hosted run [36984465433](https://github.com/mxxm-t/llmx/actions/runs/36984465433) built the Vulkan backend and passed its native and CPU suite steps, then rejected `Backend::take_matrix_paths` as reachable only from tests. The unused getter is removed; direct backend tests read the same evidence through the existing stage-swap operation in `tests/matrix_precision.hpp`. Model reporting, dispatched kernels and numerical bounds are unchanged. Focused native and linked reachability checks cover this cleanup; the amended landing head still requires its own hosted pass. No finding is allowlisted.
 - **Gotchas:** the earlier server failure reproduced on main under the same 8 GiB limit and led to the CPU fit repair below; a larger cap alone would not establish that repair. Final timing uses matched builds and the same 512-token prompt and 128-token decode workloads. The llmx benchmark disables automatic KV fitting, so the reserve cannot shrink its cache; its three arms have identical capacity. The reference uses a smaller reserved context, which must be distinguished from the matched executed histories. Header and host/server changes can move hot code, so previous numerical or timing results do not replace the final integrated timing. Native F16 preference is applied, not still withheld; this does not claim native BF16 hardware arithmetic or literal half arithmetic on every F16 path.
-
 
 The [final CPU report](benchmarks/dtype-cpu-final-20261002.md) and [data](benchmarks/dtype-cpu-final-20261002.json) compare main, candidate, a reporter-site layout control and mx in one environment. Rates are median tokens/s; changes are medians of within-block percentages, not ratios of the median rates.
 

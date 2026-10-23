@@ -305,6 +305,18 @@ void convincing_rule() {
     require(p[Source::proposer].resting() && !p[Source::lookup].resting(), "the proposer's misses rested lookup, or not the proposer");
     require(infer::spec::lookup_first(p, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 3, "a resting proposer stopped lookup");
 
+    // Lookup's acceptance is kept by the match's length at the draft's start (F2DEV, 2026-10-23): eleven misses of an eight-token match rest that bucket alone, so a match of 32 tokens still drafts.
+    std::vector<uint32_t> long_run(32);
+    for (size_t i = 0; i < long_run.size(); ++i) long_run[i] = 100 + (uint32_t)i;
+    infer::spec::Record keyed;
+    keyed.drafted = Source::lookup;
+    for (int i = 0; i < 11; ++i) keyed.verified(0, 3);
+    require(infer::spec::lookup_first(keyed, 3, 100, 100, 3, history({long_run, {20, 21, 22}, long_run}), out) == 3 && keyed.drafted == Source::lookup &&
+                out == std::vector<uint32_t>({20, 21, 22}),
+            "a short match's misses rested the drafts of a match of 32 tokens");
+    require(infer::spec::lookup_first(keyed, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 0 && keyed.drafted == Source::proposer,
+            "a resting eight-token match drafted");
+
     // What a round pays to look: the walk of a history that holds no convincing run, and the copy of that history the scheduler makes to look in, printed and held to nothing.
     for (size_t tokens : {size_t(32768), size_t(262144)}) {
         std::mt19937 rng(20261012u);

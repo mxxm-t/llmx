@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## Published quant documentation (2026-10-24, lands by fast-forward)
+
+The asset catalog and quant/backend source pages now consistently describe the
+published IQ2_XXS, IQ2_XS and IQ3_XXS CPU/Vulkan inference support. ASSETS also
+lists the two missing IQ2 decoders. No quantize writer or additional architecture
+support is implied. Runtime, tests, fixtures and precision limits are unchanged.
+
+The Markdown review covers all 129 tracked pages against main `58d505f3e` and
+the separate CI maintenance change: four support pages and this record change,
+and the other pages retain their reviewed source correspondence. The corrected
+claims agree with README, the registered decoders and completed qualification in
+STATUS. Docs and dead-code are the applicable landing checks; unrelated numerical
+or performance runs are not repeated for these wording corrections.
+
 ## CPU CI whole-job headroom (2026-10-24, CI maintenance, lands by fast-forward)
 
 - **Goal:** let the complete ordinary Ubuntu CPU, macOS and UBSan jobs finish as the build and test workload grows, preserving every check and individual timeout.

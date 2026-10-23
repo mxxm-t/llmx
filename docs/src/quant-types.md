@@ -53,6 +53,6 @@ does not need another sizing or format implementation.
 IQ2_S has read-only CPU/Vulkan inference support. Its exact qualification scope
 and evidence are recorded in [STATUS](../STATUS.md); it has no quantize writer.
 
-IQ2_XXS and IQ2_XS add read-only CPU decoders and storage metadata, with separate Vulkan shader paths. Overall model-weight support remains in development pending the release and integration gates in [README](../../README.md#quantization-types) and [STATUS](../STATUS.md).
+IQ2_XXS and IQ2_XS have published read-only CPU/Vulkan inference support, with separate storage metadata and packed shader layouts. The [README support matrix](../../README.md#quantization-types) and [STATUS](../STATUS.md) record supported model-weight execution and completed qualification.
 
-IQ3_XXS has a read-only CPU decoder in the registry. Its existing storage metadata is unchanged; remaining qualification is tracked in [STATUS](../STATUS.md).
+IQ3_XXS has published read-only CPU/Vulkan inference support. Its storage metadata is unchanged; completed qualification and remaining follow-ups are recorded in [STATUS](../STATUS.md).

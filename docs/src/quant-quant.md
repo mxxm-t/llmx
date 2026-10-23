@@ -58,9 +58,11 @@ IQ2_S decoding is implemented in `iq2_s.hpp`
 ([format owner](quant-iq2-s.md)); its registry entry is read-only.
 CPU/Vulkan read-only inference and the pinned released-file qualification are recorded in [STATUS](../STATUS.md); no quantize writer is added.
 
-IQ3_XXS adds the read-only `dequantize_row_iq3_xxs` entry from `iq3_xxs.hpp`
-([format owner](quant-iq3-xxs.md)). It reuses CPU registry products without a
-new specialized path; Vulkan and model qualification remain separate.
+IQ3_XXS has published read-only CPU/Vulkan inference support. Its CPU decoder
+is the read-only `dequantize_row_iq3_xxs` entry from `iq3_xxs.hpp`
+([format owner](quant-iq3-xxs.md)); it reuses CPU registry products without a
+new specialized path. Completed qualification and remaining follow-ups are
+recorded in [STATUS](../STATUS.md).
 
 
-IQ2_XXS and IQ2_XS are read-only registry decoders in `iq2_xxs.hpp` and `iq2_xs.hpp` ([IQ2_XXS](quant-iq2-xxs.md), [IQ2_XS](quant-iq2-xs.md)). Both use the shared even-parity sign expansion in `iq_signs.hpp`; the CPU registry path widens their decoded weights for existing products. No quantizer or specialized CPU dot is added. Backend and model qualification is recorded in [STATUS](../STATUS.md).
+IQ2_XXS and IQ2_XS are read-only registry decoders in `iq2_xxs.hpp` and `iq2_xs.hpp` ([IQ2_XXS](quant-iq2-xxs.md), [IQ2_XS](quant-iq2-xs.md)). Both use the shared even-parity sign expansion in `iq_signs.hpp`; the CPU registry path widens their decoded weights for existing products. No quantizer or specialized CPU dot is added. Published CPU/Vulkan inference support and completed qualification are recorded in [STATUS](../STATUS.md).

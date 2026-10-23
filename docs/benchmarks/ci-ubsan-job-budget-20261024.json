@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-24",
+  "scope": "UBSan whole-job budget only; ordinary Ubuntu remains 45 minutes, Windows and macOS 60, TSan 40. No runtime, checks or individual test limits change.",
+  "patch_base": "237355eec59ca98cd62bd82a2405f2d4044802b2",
+  "old_job_minutes": 40,
+  "new_job_minutes": 60,
+  "prior_completed": {
+    "run": 40007693183,
+    "head": "66c1e87dd8a1c9f997f67f94651aa734e9620e35",
+    "job": 120599714037,
+    "wall_seconds": 2109,
+    "conclusion": "success",
+    "steps": {
+      "Build": {
+        "seconds": 771,
+        "conclusion": "success"
+      },
+      "Backend tests": {
+        "seconds": 983,
+        "conclusion": "success"
+      },
+      "Test": {
+        "seconds": 341,
+        "conclusion": "success"
+      }
+    },
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40007693183/job/120599714037"
+  },
+  "cancelled": {
+    "run": 40024496810,
+    "head": "ab2b7560441ae25c465929dbff4851d9b3f159a3",
+    "job": 120657137518,
+    "wall_seconds": 2419,
+    "conclusion": "cancelled",
+    "steps": {
+      "Build": {
+        "seconds": 961,
+        "conclusion": "success"
+      },
+      "Backend tests": {
+        "seconds": 1019,
+        "conclusion": "success"
+      },
+      "Test": {
+        "seconds": 423,
+        "conclusion": "cancelled"
+      }
+    },
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40024496810/job/120657137518"
+  },
+  "annotation": "The job has exceeded the maximum execution time of 40m0s",
+  "interpretation": "The current job explicitly exhausted its 40-minute whole-job maximum after its build and native tests passed. No individual timeout or sanitizer finding is established; unfinished Python results remain unknown. The previous successful 35-minute run and current exhaustion justify 60 minutes of whole-job headroom.",
+  "source_evidence": {
+    "current_api_json_sha256": "ddbb5d190acfd8824c7b947d940fd698f8b8d77dc30a7d502065433d5a765f57",
+    "prior_api_json_sha256": "24b3865cebfcdc2104171f7585b1689ee4c1936deef10180eca4335c8a330fcd"
+  },
+  "qualification": "Applied locally. Docs and dead-code checks pass. Keep both attempts. The amended CI maintenance and IQ1 stack still require hosted qualification before landing."
+}

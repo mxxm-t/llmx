@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-24",
+  "scope": "macOS whole-job scheduling headroom only",
+  "prepared_against": "c08450e5a32e6da6a66b8c084ef30c209612f1a0",
+  "workflow_delta": {
+    "job": "CPU (macos-15-intel)",
+    "old_minutes": 60,
+    "new_minutes": 90,
+    "other_jobs_unchanged": true,
+    "per_test_timeouts_checks_retries_unchanged": true
+  },
+  "cancelled_run": {
+    "id": 40024496810,
+    "head_sha": "ab2b7560441ae25c465929dbff4851d9b3f159a3",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40024496810"
+  },
+  "cancelled_job": {
+    "id": 120657137828,
+    "name": "CPU (macos-15-intel)",
+    "conclusion": "cancelled",
+    "started_at": "2026-10-23T21:08:03Z",
+    "completed_at": "2026-10-23T22:08:09Z",
+    "duration_seconds": 3606,
+    "stages": [
+      {
+        "name": "Build",
+        "conclusion": "success",
+        "started_at": "2026-10-23T21:09:00Z",
+        "completed_at": "2026-10-23T21:21:49Z",
+        "duration_seconds": 769
+      },
+      {
+        "name": "Backend tests",
+        "conclusion": "success",
+        "started_at": "2026-10-23T21:21:49Z",
+        "completed_at": "2026-10-23T21:44:37Z",
+        "duration_seconds": 1368
+      },
+      {
+        "name": "Test",
+        "conclusion": "cancelled",
+        "started_at": "2026-10-23T21:44:45Z",
+        "completed_at": "2026-10-23T22:08:06Z",
+        "duration_seconds": 1401
+      }
+    ]
+  },
+  "annotations": [
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/mxxm-t/llmx/blob/ab2b7560441ae25c465929dbff4851d9b3f159a3/.github",
+      "start_line": 1,
+      "start_column": null,
+      "end_line": 1,
+      "end_column": null,
+      "annotation_level": "failure",
+      "title": "",
+      "message": "The job has exceeded the maximum execution time of 1h0m0s",
+      "raw_details": ""
+    },
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/mxxm-t/llmx/blob/ab2b7560441ae25c465929dbff4851d9b3f159a3/.github",
+      "start_line": 266,
+      "start_column": null,
+      "end_line": 266,
+      "end_column": null,
+      "annotation_level": "failure",
+      "title": "",
+      "message": "The operation was canceled.",
+      "raw_details": ""
+    },
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/mxxm-t/llmx/blob/ab2b7560441ae25c465929dbff4851d9b3f159a3/.github",
+      "start_line": 11,
+      "start_column": null,
+      "end_line": 11,
+      "end_column": null,
+      "annotation_level": "notice",
+      "title": "CTest times",
+      "message": "server-resume 182.0 s, server-resume-cache 154.4 s, server-resume-device 0.0 s, cache-scenario 144.9 s, cache-scenario-production 33.3 s, arch-qwen35-fit 61.1 s",
+      "raw_details": ""
+    }
+  ],
+  "prior_successful_run": 40007693183,
+  "prior_successful_job": {
+    "id": 120599714432,
+    "name": "CPU (macos-15-intel)",
+    "conclusion": "success",
+    "started_at": "2026-10-23T18:58:34Z",
+    "completed_at": "2026-10-23T19:56:44Z",
+    "duration_seconds": 3490,
+    "stages": [
+      {
+        "name": "Build",
+        "conclusion": "success",
+        "started_at": "2026-10-23T18:59:27Z",
+        "completed_at": "2026-10-23T19:11:54Z",
+        "duration_seconds": 747
+      },
+      {
+        "name": "Backend tests",
+        "conclusion": "success",
+        "started_at": "2026-10-23T19:11:54Z",
+        "completed_at": "2026-10-23T19:33:12Z",
+        "duration_seconds": 1278
+      },
+      {
+        "name": "Test",
+        "conclusion": "success",
+        "started_at": "2026-10-23T19:35:10Z",
+        "completed_at": "2026-10-23T19:56:40Z",
+        "duration_seconds": 1290
+      }
+    ]
+  },
+  "raw_receipts": {
+    "github-receipt.json": "f1fb4f16ed6df224e70ceaebf405e02d8f612410c620af88140aea011161e5dd",
+    "previous-job.json": "b9dbe1412e4c551362abffac5b948cb266d4eac17a1d2144f1241d495503ee15"
+  },
+  "limits": [
+    "The cancelled Python suite is incomplete; remaining results are unknown.",
+    "No observed assertion failure is established by the timeout annotation.",
+    "No final-stack hosted completion or runtime/numerical qualification is claimed.",
+    "Earlier job budgets remain historical evidence."
+  ]
+}

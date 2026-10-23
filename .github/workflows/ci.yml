@@ -19,7 +19,7 @@ jobs:
   cpu:
     name: CPU (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 60 || matrix.os == 'windows-2022' && 60 || 30 }}
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 90 || matrix.os == 'windows-2022' && 60 || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +84,7 @@ jobs:
   sanitizer:
     name: CPU (Linux UBSan)
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

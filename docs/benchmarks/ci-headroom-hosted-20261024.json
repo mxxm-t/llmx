@@ -1,0 +1,68 @@
+{
+  "observed_at": "2026-10-23T23:20:07.295419+00:00",
+  "observation_sha256": "c09040aa4f6a345c771986fed4b3cdb07108823a6196140a42985c4592c445f3",
+  "run_id": 40032647038,
+  "url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038",
+  "head_sha": "f5bc503e1401035bb4073dc42eaa615809240c4d",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 120684405357,
+      "name": "HF reference (CPU)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:35Z",
+      "completed_at": "2026-10-23T22:57:09Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405357"
+    },
+    {
+      "id": 120684405592,
+      "name": "CPU (ubuntu-24.04)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:35Z",
+      "completed_at": "2026-10-23T22:48:24Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405592"
+    },
+    {
+      "id": 120684405647,
+      "name": "CPU (windows-2022)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:35Z",
+      "completed_at": "2026-10-23T23:06:43Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405647"
+    },
+    {
+      "id": 120684405652,
+      "name": "Vulkan backend (build, Linux)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:35Z",
+      "completed_at": "2026-10-23T22:50:42Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405652"
+    },
+    {
+      "id": 120684405654,
+      "name": "CPU (Linux TSan)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:35Z",
+      "completed_at": "2026-10-23T22:41:22Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405654"
+    },
+    {
+      "id": 120684405683,
+      "name": "CPU (Linux UBSan)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:35Z",
+      "completed_at": "2026-10-23T22:57:43Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405683"
+    },
+    {
+      "id": 120684405694,
+      "name": "CPU (macos-15-intel)",
+      "conclusion": "success",
+      "started_at": "2026-10-23T22:17:36Z",
+      "completed_at": "2026-10-23T23:15:48Z",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40032647038/job/120684405694"
+    }
+  ],
+  "workflow_sha256": "56ce7bcd04c1b28496eb5b61a0aeb2c22f81e68dbff990c6f8b89a395d703cdc",
+  "scope": "The exact workflow passed on the IQ1 qualification stack. This separate maintenance landing carries only the job budgets and documentation, with runtime, tests, fixtures and per-test timeouts identical to public main58d505f3e. IQ1 numerical qualification remains separate."
+}

@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-24",
+  "scope": "Ordinary Ubuntu CPU whole-job budget. Test and runtime behavior are unchanged.",
+  "recommendation": {
+    "old_job_minutes": 30,
+    "new_job_minutes": 45,
+    "windows_macos_minutes_unchanged": 60,
+    "ubsan_tsan_minutes_unchanged": 40,
+    "checks_and_individual_timeouts_unchanged": true
+  },
+  "previous_completed": {
+    "run": 40007693183,
+    "head": "66c1e87dd8a1c9f997f67f94651aa734e9620e35",
+    "job": 120599714634,
+    "conclusion": "success",
+    "wall_seconds": 1606,
+    "steps": {
+      "Build": {
+        "seconds": 422,
+        "conclusion": "success"
+      },
+      "Backend tests": {
+        "seconds": 837,
+        "conclusion": "success"
+      },
+      "Test": {
+        "seconds": 317,
+        "conclusion": "success"
+      },
+      "Plain build and test": {
+        "seconds": 0,
+        "conclusion": "skipped"
+      }
+    },
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40007693183/job/120599714634"
+  },
+  "cancelled": {
+    "run": 40024496810,
+    "head": "ab2b7560441ae25c465929dbff4851d9b3f159a3",
+    "job": 120657137840,
+    "conclusion": "cancelled",
+    "wall_seconds": 1816,
+    "steps": {
+      "Build": {
+        "seconds": 593,
+        "conclusion": "success"
+      },
+      "Backend tests": {
+        "seconds": 839,
+        "conclusion": "success"
+      },
+      "Test": {
+        "seconds": 359,
+        "conclusion": "cancelled"
+      },
+      "Plain build and test": {
+        "seconds": 0,
+        "conclusion": "skipped"
+      }
+    },
+    "annotation": "The job has exceeded the maximum execution time of 30m0s",
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40024496810/job/120657137840"
+  },
+  "reason": "The prior complete run took 26m46s. The current build and native tests passed in 9m53s and 13m59s. Python tests were cancelled after 5m59s at the 30-minute whole-job limit. A 45-minute limit adds 15 minutes of headroom. The cancelled suite's full completion time remains unknown. All tests and individual timeouts are unchanged.",
+  "source_evidence": {
+    "previous_api_json_sha256": "24b3865cebfcdc2104171f7585b1689ee4c1936deef10180eca4335c8a330fcd",
+    "cancelled_api_json_sha256": "2481dd88b9a9eb3cb927252218aa8a1d12864530ca2a9c6e5ba74280e4068471"
+  },
+  "status": "Applied locally. A future hosted run must establish completion.",
+  "patch_base": "58d505f3e698685669753b20ce1710795ec6fc44",
+  "integration_plan": "Keep a separate CI maintenance commit based on published main 58d505f3e. Qualify it with IQ1 in the final hosted run when the numerical work is ready. Existing jobs remain undisturbed."
+}

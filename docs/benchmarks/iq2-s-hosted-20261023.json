@@ -1,0 +1,112 @@
+{
+  "scope": "Hosted qualification of exact CI head; seven completed successful jobs. Hardware/device/performance qualification remains separately evidenced.",
+  "run_id": 39905548360,
+  "url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360",
+  "status": "completed",
+  "conclusion": "success",
+  "head_sha": "237be58fba07299f106e8c7d3579a9b422eb1bd9",
+  "observed_at_unix": 1792738110.3196402,
+  "jobs": [
+    {
+      "id": 120256550318,
+      "name": "HF reference (CPU)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550318"
+    },
+    {
+      "id": 120256550396,
+      "name": "CPU (windows-2022)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550396"
+    },
+    {
+      "id": 120256550409,
+      "name": "CPU (macos-15-intel)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550409"
+    },
+    {
+      "id": 120256550469,
+      "name": "CPU (Linux TSan)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550469"
+    },
+    {
+      "id": 120256550474,
+      "name": "Vulkan backend (build, Linux)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550474"
+    },
+    {
+      "id": 120256550501,
+      "name": "CPU (Linux UBSan)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550501"
+    },
+    {
+      "id": 120256550620,
+      "name": "CPU (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/39905548360/job/120256550620"
+    }
+  ],
+  "source_record": {
+    "path": "build-quant-resume-20261020/iq2-ci-prep-20261023/ci-status-1792738111122275600.json",
+    "sha256": "a5d0875f088a056e03ccbf7c2778191a7c3b23257c0bb856834959619e239ff7"
+  },
+  "private_checkpoint": {
+    "head": "c1dd09497b225b0daaa41784f57aab57edbccd00",
+    "delta_from_ci": [
+      {
+        "status": "M",
+        "path": "docs/CI.md",
+        "ci_blob": "680f11e56580fb34175beddf236bb3ff31c99288",
+        "private_blob": "f0e545136da2409c8b73605d2106da476b0ed787"
+      },
+      {
+        "status": "M",
+        "path": "docs/STATUS.md",
+        "ci_blob": "90ccbb98b699a65fcc842bf8ae4512182a29a82a",
+        "private_blob": "72b0f86c69206efd9eca8b64243bc2f3e016b97a"
+      },
+      {
+        "status": "A",
+        "path": "docs/benchmarks/iq2-s-tp2-20261023.json",
+        "ci_blob": null,
+        "private_blob": "1bb8c3cd98a1bf0ff7bf150814e864fc1c38ba9c"
+      }
+    ],
+    "only_docs_evidence": true,
+    "runtime_test_build_workflow_delta": false,
+    "verification_command": [
+      "git",
+      "diff",
+      "--name-status",
+      "237be58fba07299f106e8c7d3579a9b422eb1bd9",
+      "c1dd09497b225b0daaa41784f57aab57edbccd00"
+    ]
+  },
+  "retained_failures": [
+    {
+      "run_id": 39884334719,
+      "head": "109cbdbbb",
+      "result": "Six jobs passed; Linux UBSan exposed shared empty-tensor conversion defect. Original result retained; not relabeled."
+    },
+    {
+      "scope": "Separate rig UBSan probe transfer",
+      "result": "Refused before execution; no rig pass claimed."
+    }
+  ],
+  "limits": [
+    "Hosted Vulkan job is build/CPU correctness coverage, not a hardware GPU result.",
+    "At this hosted checkpoint BF16 timing assessment and final landing were open. The later assessment closes the BF16 finding in docs/benchmarks/iq2-s-bf16-layout-20261023.json; current support/landing status is in docs/STATUS.md.",
+    "This record does not replace any original failed run or claim publication."
+  ]
+}

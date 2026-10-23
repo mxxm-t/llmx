@@ -15,9 +15,9 @@ signs. The decoded value is exactly representable in F32 for finite half scales.
 
 The dictionary is fixed format data, not a generated quantizer or an inference
 algorithm copied from another runtime. IQ2_S differs from the IQ2_XXS and
-IQ2_XS layouts and tables; those remain unsupported. Qualification and the
-released-file plan are in [STATUS](../STATUS.md). CPU decoder implementation
-does not establish Vulkan or released-model support.
+IQ2_XS layouts and tables; those remain unsupported. CPU/Vulkan read-only inference and the
+pinned released-file qualification are recorded in [STATUS](../STATUS.md).
+Storage decoding alone does not qualify another file or architecture.
 
 Format data source: `ggml/src/ggml-common.h` at
 `750127a5173ac6c29c2c159a10404bf184c421ab`, SHA-256

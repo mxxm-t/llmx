@@ -50,5 +50,5 @@ oracle and CPU products to exactly widened F32 weights. `backend-vulkan` holds d
 previously unknown layout also needs storage metadata here; a known layout
 does not need another sizing or format implementation.
 
-IQ2_S has a read-only CPU decoder in development. Vulkan and released-model
-qualification remain pending in [STATUS](../STATUS.md).
+IQ2_S has read-only CPU/Vulkan inference support. Its exact qualification scope
+and evidence are recorded in [STATUS](../STATUS.md); it has no quantize writer.

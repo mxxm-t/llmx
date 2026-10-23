@@ -56,4 +56,4 @@ IQ4_XS has read-only CPU and Vulkan support. `iq4_xs_scale` reads each signed si
 
 IQ2_S decoding is implemented in `iq2_s.hpp`
 ([format owner](quant-iq2-s.md)); its registry entry is read-only.
-Vulkan and released-model qualification remain in development.
+CPU/Vulkan read-only inference and the pinned released-file qualification are recorded in [STATUS](../STATUS.md); no quantize writer is added.

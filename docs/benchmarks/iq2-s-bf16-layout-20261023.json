@@ -1,0 +1,2152 @@
+{
+  "passed": true,
+  "scope": "Three-arm unprofiled BF16 layout diagnostic: A main-equivalent, B retained-v4 candidate, C appended-function main layout control; 15 calls total.",
+  "launch": {
+    "passed": true,
+    "removed": true,
+    "exit": 0,
+    "oom_killed": false,
+    "bound_plan_sha256": "0f4118bc3df3896beacba1e85748c3d5c2823ebc01665b765ec99c4c34bb5f74",
+    "container": "llmx-iq2-bf16-layout-timing-v1-20261023"
+  },
+  "end_binary_hashes_match_plan": true,
+  "pins": {
+    "model": {
+      "qwen3-bf16": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/half-bf16-file-reference/Qwen3-0.6B-BF16.gguf",
+        "bytes": 1198182848,
+        "sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e"
+      }
+    },
+    "executables": {
+      "base": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/integrated-candidate-build-20261022/llmx",
+        "sha256": "73105ebbe106df277f447341d4b5685b8f6b4682679e3ae9de993f7b4b9b9dbb",
+        "version": "llmx 0.1.0+unknown numerics db63f4ba243aad41"
+      },
+      "candidate": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/build/llmx",
+        "sha256": "d7829cf93ec1ef5aba972b5b8c26f0043ef89be484df1b8ebbadc401782074ee",
+        "version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4"
+      },
+      "control": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/bf16-main-layout-control-build-v1/llmx",
+        "sha256": "10e56f2d068707ed836c73256c809a56d182c7576233cf6805a54068e44d72ca",
+        "version": "llmx 0.1.0+unknown numerics db63f4ba243aad41"
+      }
+    },
+    "source_arms": {
+      "base": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/integrated-candidate-source-20261022",
+        "build": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021/integrated-candidate-build-20261022",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/bf16-layout-timing-v1/timing-source-pins.json",
+        "revision": "167c6f8348a173fefff856a4c6f09e2ec6a58f09",
+        "physical_revision": "cf408d0ef1577d02466ada90df03ec0d33ec589a",
+        "library_sha256": "1d1f9cb38388e6a8fc3c1d08d9c9c0eb73a150ffc0388a4b87df488f5dfc5505"
+      },
+      "candidate": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/source",
+        "build": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/build",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/bf16-layout-timing-v1/timing-source-pins.json",
+        "revision": "frozen-direct-grid-v4",
+        "physical_revision": "frozen-direct-grid-v4",
+        "library_sha256": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193"
+      }
+    },
+    "threads": 4,
+    "ubatch": 512,
+    "cache_type_k": "f32",
+    "cache_type_v": "f32",
+    "dtype": "auto",
+    "load_mode": "auto",
+    "gpu_pci": "0000:c9:00.0"
+  },
+  "source_verification": {
+    "base": {
+      "revision": "167c6f8348a173fefff856a4c6f09e2ec6a58f09",
+      "files": 2180,
+      "manifest_sha256": "f3f1431ae76dd1c80fd0ca2cb8d5ea0241e3d159ffffadb3d26775033a376aae"
+    },
+    "candidate": {
+      "revision": "frozen-direct-grid-v4",
+      "files": 380,
+      "manifest_sha256": "f3f1431ae76dd1c80fd0ca2cb8d5ea0241e3d159ffffadb3d26775033a376aae"
+    }
+  },
+  "gpu_before": {
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130",
+    "values": {
+      "gpu_busy_percent": "0",
+      "mem_info_vram_used": "10932224",
+      "power_dpm_force_performance_level": "auto"
+    }
+  },
+  "gpu_after": {
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130",
+    "values": {
+      "gpu_busy_percent": "0",
+      "mem_info_vram_used": "10932224",
+      "power_dpm_force_performance_level": "auto"
+    }
+  },
+  "warmups": [
+    {
+      "model": "qwen3-bf16",
+      "exe": "base",
+      "direction": "warmup",
+      "warmup": true,
+      "block": "warmup",
+      "rates": {
+        "pp512": 1523.11,
+        "tg128": 312.68
+      },
+      "start": 1792738567.7637486,
+      "end": 1792738570.8372326,
+      "stdout": "00-base-qwen3-bf16.stdout",
+      "stderr": "00-base-qwen3-bf16.stderr",
+      "usage": "00-base-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 0,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 19,
+        "disappeared": 18,
+        "missed": 2,
+        "null_delta_observations": 19
+      },
+      "device_busy_percent_range": [
+        0,
+        88
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "candidate",
+      "direction": "warmup",
+      "warmup": true,
+      "block": "warmup",
+      "rates": {
+        "pp512": 1531.0,
+        "tg128": 323.89
+      },
+      "start": 1792738570.8383038,
+      "end": 1792738573.3592,
+      "stdout": "01-candidate-qwen3-bf16.stdout",
+      "stderr": "01-candidate-qwen3-bf16.stderr",
+      "usage": "01-candidate-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 1,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 29,
+        "disappeared": 23,
+        "missed": 3,
+        "null_delta_observations": 29
+      },
+      "device_busy_percent_range": [
+        0,
+        100
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "control",
+      "direction": "warmup",
+      "warmup": true,
+      "block": "warmup",
+      "rates": {
+        "pp512": 1523.87,
+        "tg128": 325.62
+      },
+      "start": 1792738573.3603427,
+      "end": 1792738575.8801453,
+      "stdout": "02-control-qwen3-bf16.stdout",
+      "stderr": "02-control-qwen3-bf16.stderr",
+      "usage": "02-control-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 2,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 52,
+        "disappeared": 23,
+        "missed": 3,
+        "null_delta_observations": 52
+      },
+      "device_busy_percent_range": [
+        0,
+        93
+      ],
+      "device_busy_samples": 3
+    }
+  ],
+  "blocks": [
+    {
+      "order": "ABC",
+      "sample_indices": {
+        "A": 3,
+        "B": 4,
+        "C": 5
+      },
+      "rates": {
+        "A": {
+          "pp512": 1527.69,
+          "tg128": 324.84
+        },
+        "B": {
+          "pp512": 1520.8,
+          "tg128": 326.55
+        },
+        "C": {
+          "pp512": 1530.73,
+          "tg128": 326.29
+        }
+      },
+      "paired_rate_change_percent": {
+        "B_vs_A": {
+          "pp512": -0.4510077306259852,
+          "tg128": 0.5264130033247216
+        },
+        "C_vs_A": {
+          "pp512": 0.19899325124861367,
+          "tg128": 0.4463735993104345
+        },
+        "B_vs_C": {
+          "pp512": -0.648710092570215,
+          "tg128": 0.0796837169389164
+        }
+      }
+    },
+    {
+      "order": "CBA",
+      "sample_indices": {
+        "A": 8,
+        "B": 7,
+        "C": 6
+      },
+      "rates": {
+        "A": {
+          "pp512": 1532.64,
+          "tg128": 326.2
+        },
+        "B": {
+          "pp512": 1524.87,
+          "tg128": 323.58
+        },
+        "C": {
+          "pp512": 1530.26,
+          "tg128": 326.45
+        }
+      },
+      "paired_rate_change_percent": {
+        "B_vs_A": {
+          "pp512": -0.5069683683056825,
+          "tg128": -0.803188228080931
+        },
+        "C_vs_A": {
+          "pp512": -0.1552876083098509,
+          "tg128": 0.07664009809933425
+        },
+        "B_vs_C": {
+          "pp512": -0.3522277260073481,
+          "tg128": -0.8791545412773827
+        }
+      }
+    },
+    {
+      "order": "BCA",
+      "sample_indices": {
+        "A": 11,
+        "B": 9,
+        "C": 10
+      },
+      "rates": {
+        "A": {
+          "pp512": 1526.64,
+          "tg128": 324.63
+        },
+        "B": {
+          "pp512": 1532.58,
+          "tg128": 322.97
+        },
+        "C": {
+          "pp512": 1524.33,
+          "tg128": 325.65
+        }
+      },
+      "paired_rate_change_percent": {
+        "B_vs_A": {
+          "pp512": 0.3890897657600867,
+          "tg128": -0.5113513846532913
+        },
+        "C_vs_A": {
+          "pp512": -0.1513126866844905,
+          "tg128": 0.3142038628592525
+        },
+        "B_vs_C": {
+          "pp512": 0.5412213890692907,
+          "tg128": -0.8229694457239201
+        }
+      }
+    },
+    {
+      "order": "ACB",
+      "sample_indices": {
+        "A": 12,
+        "B": 14,
+        "C": 13
+      },
+      "rates": {
+        "A": {
+          "pp512": 1532.09,
+          "tg128": 299.23
+        },
+        "B": {
+          "pp512": 1532.44,
+          "tg128": 321.81
+        },
+        "C": {
+          "pp512": 1518.01,
+          "tg128": 319.95
+        }
+      },
+      "paired_rate_change_percent": {
+        "B_vs_A": {
+          "pp512": 0.022844610956274103,
+          "tg128": 7.546034822711611
+        },
+        "C_vs_A": {
+          "pp512": -0.9190060636124486,
+          "tg128": 6.924439394445736
+        },
+        "B_vs_C": {
+          "pp512": 0.9505866232765392,
+          "tg128": 0.5813408345054061
+        }
+      }
+    }
+  ],
+  "arms": {
+    "A": {
+      "exe": "base",
+      "rates": {
+        "pp512": {
+          "mean": 1529.765,
+          "min": 1526.64,
+          "max": 1532.64,
+          "samples": [
+            1527.69,
+            1532.64,
+            1526.64,
+            1532.09
+          ]
+        },
+        "tg128": {
+          "mean": 318.725,
+          "min": 299.23,
+          "max": 326.2,
+          "samples": [
+            324.84,
+            326.2,
+            324.63,
+            299.23
+          ]
+        }
+      }
+    },
+    "B": {
+      "exe": "candidate",
+      "rates": {
+        "pp512": {
+          "mean": 1527.6725,
+          "min": 1520.8,
+          "max": 1532.58,
+          "samples": [
+            1520.8,
+            1524.87,
+            1532.58,
+            1532.44
+          ]
+        },
+        "tg128": {
+          "mean": 323.7275,
+          "min": 321.81,
+          "max": 326.55,
+          "samples": [
+            326.55,
+            323.58,
+            322.97,
+            321.81
+          ]
+        }
+      }
+    },
+    "C": {
+      "exe": "control",
+      "rates": {
+        "pp512": {
+          "mean": 1525.8325,
+          "min": 1518.01,
+          "max": 1530.73,
+          "samples": [
+            1530.73,
+            1530.26,
+            1524.33,
+            1518.01
+          ]
+        },
+        "tg128": {
+          "mean": 324.585,
+          "min": 319.95,
+          "max": 326.45,
+          "samples": [
+            326.29,
+            326.45,
+            325.65,
+            319.95
+          ]
+        }
+      }
+    }
+  },
+  "paired_summary": {
+    "B_vs_A": {
+      "pp512": {
+        "mean_percent": -0.13651043055382672,
+        "min_percent": -0.5069683683056825,
+        "max_percent": 0.3890897657600867,
+        "samples_percent": [
+          -0.4510077306259852,
+          -0.5069683683056825,
+          0.3890897657600867,
+          0.022844610956274103
+        ]
+      },
+      "tg128": {
+        "mean_percent": 1.6894770533255277,
+        "min_percent": -0.803188228080931,
+        "max_percent": 7.546034822711611,
+        "samples_percent": [
+          0.5264130033247216,
+          -0.803188228080931,
+          -0.5113513846532913,
+          7.546034822711611
+        ]
+      }
+    },
+    "C_vs_A": {
+      "pp512": {
+        "mean_percent": -0.2566532768395441,
+        "min_percent": -0.9190060636124486,
+        "max_percent": 0.19899325124861367,
+        "samples_percent": [
+          0.19899325124861367,
+          -0.1552876083098509,
+          -0.1513126866844905,
+          -0.9190060636124486
+        ]
+      },
+      "tg128": {
+        "mean_percent": 1.9404142386786893,
+        "min_percent": 0.07664009809933425,
+        "max_percent": 6.924439394445736,
+        "samples_percent": [
+          0.4463735993104345,
+          0.07664009809933425,
+          0.3142038628592525,
+          6.924439394445736
+        ]
+      }
+    },
+    "B_vs_C": {
+      "pp512": {
+        "mean_percent": 0.12271754844206673,
+        "min_percent": -0.648710092570215,
+        "max_percent": 0.9505866232765392,
+        "samples_percent": [
+          -0.648710092570215,
+          -0.3522277260073481,
+          0.5412213890692907,
+          0.9505866232765392
+        ]
+      },
+      "tg128": {
+        "mean_percent": -0.26027485888924506,
+        "min_percent": -0.8791545412773827,
+        "max_percent": 0.5813408345054061,
+        "samples_percent": [
+          0.0796837169389164,
+          -0.8791545412773827,
+          -0.8229694457239201,
+          0.5813408345054061
+        ]
+      }
+    }
+  },
+  "prior_90_call_context_not_pooled": {
+    "arms": {
+      "base": {
+        "pp512": {
+          "mean": 1524.12,
+          "min": 1520.85,
+          "max": 1527.39
+        },
+        "tg128": {
+          "mean": 324.72,
+          "min": 323.45,
+          "max": 325.99
+        }
+      },
+      "candidate": {
+        "pp512": {
+          "mean": 1501.94,
+          "min": 1500.7,
+          "max": 1503.18
+        },
+        "tg128": {
+          "mean": 325.895,
+          "min": 325.75,
+          "max": 326.04
+        }
+      }
+    },
+    "pairs": [
+      {
+        "direction": "forward",
+        "indices": [
+          56,
+          57
+        ],
+        "order": [
+          "base",
+          "candidate"
+        ],
+        "candidate_vs_main_rate_percent": {
+          "pp512": -1.1618502810928022,
+          "tg128": -0.07362189024203714
+        }
+      },
+      {
+        "direction": "reverse",
+        "indices": [
+          58,
+          59
+        ],
+        "order": [
+          "candidate",
+          "base"
+        ],
+        "candidate_vs_main_rate_percent": {
+          "pp512": -1.7474253465061373,
+          "tg128": 0.8007420003091736
+        }
+      }
+    ],
+    "candidate_vs_main_mean_rate_percent": {
+      "pp512": -1.4552659895546216,
+      "tg128": 0.3618502094111742
+    }
+  },
+  "all_measured_sample_changes": [
+    {
+      "block": "ABC",
+      "pair": "B_vs_A",
+      "pp512_percent": -0.4510077306259852,
+      "tg128_percent": 0.5264130033247216
+    },
+    {
+      "block": "ABC",
+      "pair": "C_vs_A",
+      "pp512_percent": 0.19899325124861367,
+      "tg128_percent": 0.4463735993104345
+    },
+    {
+      "block": "ABC",
+      "pair": "B_vs_C",
+      "pp512_percent": -0.648710092570215,
+      "tg128_percent": 0.0796837169389164
+    },
+    {
+      "block": "CBA",
+      "pair": "B_vs_A",
+      "pp512_percent": -0.5069683683056825,
+      "tg128_percent": -0.803188228080931
+    },
+    {
+      "block": "CBA",
+      "pair": "C_vs_A",
+      "pp512_percent": -0.1552876083098509,
+      "tg128_percent": 0.07664009809933425
+    },
+    {
+      "block": "CBA",
+      "pair": "B_vs_C",
+      "pp512_percent": -0.3522277260073481,
+      "tg128_percent": -0.8791545412773827
+    },
+    {
+      "block": "BCA",
+      "pair": "B_vs_A",
+      "pp512_percent": 0.3890897657600867,
+      "tg128_percent": -0.5113513846532913
+    },
+    {
+      "block": "BCA",
+      "pair": "C_vs_A",
+      "pp512_percent": -0.1513126866844905,
+      "tg128_percent": 0.3142038628592525
+    },
+    {
+      "block": "BCA",
+      "pair": "B_vs_C",
+      "pp512_percent": 0.5412213890692907,
+      "tg128_percent": -0.8229694457239201
+    },
+    {
+      "block": "ACB",
+      "pair": "B_vs_A",
+      "pp512_percent": 0.022844610956274103,
+      "tg128_percent": 7.546034822711611
+    },
+    {
+      "block": "ACB",
+      "pair": "C_vs_A",
+      "pp512_percent": -0.9190060636124486,
+      "tg128_percent": 6.924439394445736
+    },
+    {
+      "block": "ACB",
+      "pair": "B_vs_C",
+      "pp512_percent": 0.9505866232765392,
+      "tg128_percent": 0.5813408345054061
+    }
+  ],
+  "calls": [
+    {
+      "model": "qwen3-bf16",
+      "exe": "base",
+      "direction": "warmup",
+      "warmup": true,
+      "block": "warmup",
+      "rates": {
+        "pp512": 1523.11,
+        "tg128": 312.68
+      },
+      "start": 1792738567.7637486,
+      "end": 1792738570.8372326,
+      "stdout": "00-base-qwen3-bf16.stdout",
+      "stderr": "00-base-qwen3-bf16.stderr",
+      "usage": "00-base-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 0,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 19,
+        "disappeared": 18,
+        "missed": 2,
+        "null_delta_observations": 19
+      },
+      "device_busy_percent_range": [
+        0,
+        88
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "candidate",
+      "direction": "warmup",
+      "warmup": true,
+      "block": "warmup",
+      "rates": {
+        "pp512": 1531.0,
+        "tg128": 323.89
+      },
+      "start": 1792738570.8383038,
+      "end": 1792738573.3592,
+      "stdout": "01-candidate-qwen3-bf16.stdout",
+      "stderr": "01-candidate-qwen3-bf16.stderr",
+      "usage": "01-candidate-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 1,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 29,
+        "disappeared": 23,
+        "missed": 3,
+        "null_delta_observations": 29
+      },
+      "device_busy_percent_range": [
+        0,
+        100
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "control",
+      "direction": "warmup",
+      "warmup": true,
+      "block": "warmup",
+      "rates": {
+        "pp512": 1523.87,
+        "tg128": 325.62
+      },
+      "start": 1792738573.3603427,
+      "end": 1792738575.8801453,
+      "stdout": "02-control-qwen3-bf16.stdout",
+      "stderr": "02-control-qwen3-bf16.stderr",
+      "usage": "02-control-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 2,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 52,
+        "disappeared": 23,
+        "missed": 3,
+        "null_delta_observations": 52
+      },
+      "device_busy_percent_range": [
+        0,
+        93
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "base",
+      "direction": "ABC",
+      "warmup": false,
+      "block": "ABC",
+      "rates": {
+        "pp512": 1527.69,
+        "tg128": 324.84
+      },
+      "start": 1792738575.8815782,
+      "end": 1792738578.5522406,
+      "stdout": "03-base-qwen3-bf16.stdout",
+      "stderr": "03-base-qwen3-bf16.stderr",
+      "usage": "03-base-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 3,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 13,
+        "disappeared": 4,
+        "missed": 1,
+        "null_delta_observations": 13
+      },
+      "device_busy_percent_range": [
+        18,
+        100
+      ],
+      "device_busy_samples": 2
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "candidate",
+      "direction": "ABC",
+      "warmup": false,
+      "block": "ABC",
+      "rates": {
+        "pp512": 1520.8,
+        "tg128": 326.55
+      },
+      "start": 1792738578.5532014,
+      "end": 1792738580.9237592,
+      "stdout": "04-candidate-qwen3-bf16.stdout",
+      "stderr": "04-candidate-qwen3-bf16.stderr",
+      "usage": "04-candidate-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 4,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 50,
+        "disappeared": 22,
+        "missed": 4,
+        "null_delta_observations": 50
+      },
+      "device_busy_percent_range": [
+        0,
+        91
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "control",
+      "direction": "ABC",
+      "warmup": false,
+      "block": "ABC",
+      "rates": {
+        "pp512": 1530.73,
+        "tg128": 326.29
+      },
+      "start": 1792738580.925057,
+      "end": 1792738583.397233,
+      "stdout": "05-control-qwen3-bf16.stdout",
+      "stderr": "05-control-qwen3-bf16.stderr",
+      "usage": "05-control-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 5,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 8,
+        "disappeared": 13,
+        "missed": 4,
+        "null_delta_observations": 8
+      },
+      "device_busy_percent_range": [
+        98,
+        100
+      ],
+      "device_busy_samples": 2
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "control",
+      "direction": "CBA",
+      "warmup": false,
+      "block": "CBA",
+      "rates": {
+        "pp512": 1530.26,
+        "tg128": 326.45
+      },
+      "start": 1792738583.3985126,
+      "end": 1792738585.8683004,
+      "stdout": "06-control-qwen3-bf16.stdout",
+      "stderr": "06-control-qwen3-bf16.stderr",
+      "usage": "06-control-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 6,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 10,
+        "disappeared": 8,
+        "missed": 1,
+        "null_delta_observations": 10
+      },
+      "device_busy_percent_range": [
+        0,
+        94
+      ],
+      "device_busy_samples": 2
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "candidate",
+      "direction": "CBA",
+      "warmup": false,
+      "block": "CBA",
+      "rates": {
+        "pp512": 1524.87,
+        "tg128": 323.58
+      },
+      "start": 1792738585.8695848,
+      "end": 1792738588.4904637,
+      "stdout": "07-candidate-qwen3-bf16.stdout",
+      "stderr": "07-candidate-qwen3-bf16.stderr",
+      "usage": "07-candidate-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 7,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 17,
+        "disappeared": 21,
+        "missed": 3,
+        "null_delta_observations": 17
+      },
+      "device_busy_percent_range": [
+        0,
+        100
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "base",
+      "direction": "CBA",
+      "warmup": false,
+      "block": "CBA",
+      "rates": {
+        "pp512": 1532.64,
+        "tg128": 326.2
+      },
+      "start": 1792738588.4929225,
+      "end": 1792738590.9649446,
+      "stdout": "08-base-qwen3-bf16.stdout",
+      "stderr": "08-base-qwen3-bf16.stderr",
+      "usage": "08-base-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 8,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 17,
+        "disappeared": 14,
+        "missed": 3,
+        "null_delta_observations": 17
+      },
+      "device_busy_percent_range": [
+        0,
+        93
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "candidate",
+      "direction": "BCA",
+      "warmup": false,
+      "block": "BCA",
+      "rates": {
+        "pp512": 1532.58,
+        "tg128": 322.97
+      },
+      "start": 1792738590.966345,
+      "end": 1792738593.4881496,
+      "stdout": "09-candidate-qwen3-bf16.stdout",
+      "stderr": "09-candidate-qwen3-bf16.stderr",
+      "usage": "09-candidate-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 9,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 15,
+        "disappeared": 12,
+        "missed": 1,
+        "null_delta_observations": 15
+      },
+      "device_busy_percent_range": [
+        34,
+        100
+      ],
+      "device_busy_samples": 2
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "control",
+      "direction": "BCA",
+      "warmup": false,
+      "block": "BCA",
+      "rates": {
+        "pp512": 1524.33,
+        "tg128": 325.65
+      },
+      "start": 1792738593.490233,
+      "end": 1792738595.859801,
+      "stdout": "10-control-qwen3-bf16.stdout",
+      "stderr": "10-control-qwen3-bf16.stderr",
+      "usage": "10-control-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 10,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 17,
+        "disappeared": 12,
+        "missed": 0,
+        "null_delta_observations": 17
+      },
+      "device_busy_percent_range": [
+        0,
+        91
+      ],
+      "device_busy_samples": 2
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "base",
+      "direction": "BCA",
+      "warmup": false,
+      "block": "BCA",
+      "rates": {
+        "pp512": 1526.64,
+        "tg128": 324.63
+      },
+      "start": 1792738595.8617313,
+      "end": 1792738598.4838517,
+      "stdout": "11-base-qwen3-bf16.stdout",
+      "stderr": "11-base-qwen3-bf16.stderr",
+      "usage": "11-base-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 11,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 22,
+        "disappeared": 14,
+        "missed": 2,
+        "null_delta_observations": 22
+      },
+      "device_busy_percent_range": [
+        0,
+        100
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "base",
+      "direction": "ACB",
+      "warmup": false,
+      "block": "ACB",
+      "rates": {
+        "pp512": 1532.09,
+        "tg128": 299.23
+      },
+      "start": 1792738598.4861658,
+      "end": 1792738601.0066807,
+      "stdout": "12-base-qwen3-bf16.stdout",
+      "stderr": "12-base-qwen3-bf16.stderr",
+      "usage": "12-base-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 12,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 18,
+        "disappeared": 17,
+        "missed": 1,
+        "null_delta_observations": 18
+      },
+      "device_busy_percent_range": [
+        0,
+        91
+      ],
+      "device_busy_samples": 3
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "control",
+      "direction": "ACB",
+      "warmup": false,
+      "block": "ACB",
+      "rates": {
+        "pp512": 1518.01,
+        "tg128": 319.95
+      },
+      "start": 1792738601.0086567,
+      "end": 1792738603.5818257,
+      "stdout": "13-control-qwen3-bf16.stdout",
+      "stderr": "13-control-qwen3-bf16.stderr",
+      "usage": "13-control-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 13,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 9,
+        "disappeared": 11,
+        "missed": 2,
+        "null_delta_observations": 9
+      },
+      "device_busy_percent_range": [
+        1,
+        100
+      ],
+      "device_busy_samples": 2
+    },
+    {
+      "model": "qwen3-bf16",
+      "exe": "candidate",
+      "direction": "ACB",
+      "warmup": false,
+      "block": "ACB",
+      "rates": {
+        "pp512": 1532.44,
+        "tg128": 321.81
+      },
+      "start": 1792738603.5842383,
+      "end": 1792738606.1560724,
+      "stdout": "14-candidate-qwen3-bf16.stdout",
+      "stderr": "14-candidate-qwen3-bf16.stderr",
+      "usage": "14-candidate-qwen3-bf16.usage.json",
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "index": 14,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0.2649843692779541,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 15,
+        "disappeared": 17,
+        "missed": 5,
+        "null_delta_observations": 15
+      },
+      "device_busy_percent_range": [
+        0,
+        100
+      ],
+      "device_busy_samples": 3
+    }
+  ],
+  "activity_thresholds": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "activity": {
+    "samples": 41,
+    "intervals": 40,
+    "flag_interval_counts": {
+      "unrelated_cpu": 40,
+      "disk": 37
+    },
+    "flagged_intervals": [
+      {
+        "start": 1792738565.866797,
+        "end": 1792738566.84054,
+        "flags": [
+          "unrelated_cpu"
+        ],
+        "idle_percent": 86.625,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 193.4919667097805,
+          "monitor": 4.986906358499497
+        },
+        "disk_bytes_per_second": 93961.29484430412
+      },
+      {
+        "start": 1792738566.84054,
+        "end": 1792738567.842218,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 87.0499052432091,
+        "iowait_percent": 2.021478205938092,
+        "process_cpu_percent": {
+          "unrelated": 155.9181850576243,
+          "monitor": 3.9979021809647244
+        },
+        "disk_bytes_per_second": 2111825749.7673686
+      },
+      {
+        "start": 1792738567.842218,
+        "end": 1792738568.889431,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 72.83563362609787,
+        "iowait_percent": 1.191969887076537,
+        "process_cpu_percent": {
+          "unrelated": 295.8971177644366,
+          "monitor": 8.906602206956288
+        },
+        "disk_bytes_per_second": 1805957068.967227
+      },
+      {
+        "start": 1792738568.889431,
+        "end": 1792738569.85877,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 76.48546144121366,
+        "iowait_percent": 1.2642225031605563,
+        "process_cpu_percent": {
+          "unrelated": 243.83222270911725,
+          "monitor": 4.9965619407606,
+          "benchmark": 36.97455836162844
+        },
+        "disk_bytes_per_second": 1450431867.612644
+      },
+      {
+        "start": 1792738569.85877,
+        "end": 1792738570.855168,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 79.39124920735574,
+        "iowait_percent": 1.5218769816106532,
+        "process_cpu_percent": {
+          "unrelated": 256.79316130908444,
+          "monitor": 4.995975900954953
+        },
+        "disk_bytes_per_second": 1861762617.665623
+      },
+      {
+        "start": 1792738570.855168,
+        "end": 1792738571.857838,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 77.82691092861656,
+        "iowait_percent": 1.5161086544535691,
+        "process_cpu_percent": {
+          "unrelated": 195.87222610142294,
+          "monitor": 4.996740461770991
+        },
+        "disk_bytes_per_second": 1128224022.3441956
+      },
+      {
+        "start": 1792738571.857838,
+        "end": 1792738572.858344,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 78.52604828462516,
+        "iowait_percent": 2.8589580686149936,
+        "process_cpu_percent": {
+          "unrelated": 248.8239508189083,
+          "monitor": 4.996464875881692,
+          "benchmark": 14.989394627645074
+        },
+        "disk_bytes_per_second": 3046873892.362096
+      },
+      {
+        "start": 1792738572.858344,
+        "end": 1792738573.872793,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 80.85912823752369,
+        "iowait_percent": 0.2526847757422615,
+        "process_cpu_percent": {
+          "unrelated": 221.77040443804813,
+          "monitor": 5.993794714541843
+        },
+        "disk_bytes_per_second": 1278586186.9640403
+      },
+      {
+        "start": 1792738573.872793,
+        "end": 1792738574.856965,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 76.69411019632679,
+        "iowait_percent": 2.4065864471184293,
+        "process_cpu_percent": {
+          "unrelated": 198.85326496587973,
+          "monitor": 4.99631319009748,
+          "benchmark": 80.94027367957916
+        },
+        "disk_bytes_per_second": 1913480319.2300682
+      },
+      {
+        "start": 1792738574.856965,
+        "end": 1792738575.865804,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 79.8606713109563,
+        "iowait_percent": 2.4699176694110196,
+        "process_cpu_percent": {
+          "unrelated": 253.85569801344357,
+          "monitor": 5.9965912916561495
+        },
+        "disk_bytes_per_second": 2565807793.654778
+      },
+      {
+        "start": 1792738575.865804,
+        "end": 1792738576.867623,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 74.8898678414097,
+        "iowait_percent": 0.3146633102580239,
+        "process_cpu_percent": {
+          "unrelated": 254.78945753328918,
+          "monitor": 4.995871716339004
+        },
+        "disk_bytes_per_second": 1453411469.4131472
+      },
+      {
+        "start": 1792738576.867623,
+        "end": 1792738577.865295,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 81.94444444444444,
+        "iowait_percent": 1.5151515151515151,
+        "process_cpu_percent": {
+          "unrelated": 208.82814112943296,
+          "monitor": 5.995066252519607,
+          "benchmark": 23.980265010078426
+        },
+        "disk_bytes_per_second": 1667968499.3565872
+      },
+      {
+        "start": 1792738577.865295,
+        "end": 1792738578.860236,
+        "flags": [
+          "unrelated_cpu"
+        ],
+        "idle_percent": 82.8732747804266,
+        "iowait_percent": 0.12547051442910917,
+        "process_cpu_percent": {
+          "unrelated": 212.86331132381343,
+          "monitor": 3.997433076503539
+        },
+        "disk_bytes_per_second": 1698749.1601909439
+      },
+      {
+        "start": 1792738578.860236,
+        "end": 1792738579.865649,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 80.22741629816804,
+        "iowait_percent": 0.2526847757422615,
+        "process_cpu_percent": {
+          "unrelated": 191.8938134429369,
+          "monitor": 5.996681670091778,
+          "benchmark": 79.9557556012237
+        },
+        "disk_bytes_per_second": 1259204133.5115368
+      },
+      {
+        "start": 1792738579.865649,
+        "end": 1792738580.881749,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 82.07070707070707,
+        "iowait_percent": 2.525252525252525,
+        "process_cpu_percent": {
+          "unrelated": 216.8711587921528,
+          "monitor": 5.99643757028994
+        },
+        "disk_bytes_per_second": 1746676363.2584524
+      },
+      {
+        "start": 1792738580.881749,
+        "end": 1792738581.872661,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 69.83418367346938,
+        "iowait_percent": 2.6785714285714284,
+        "process_cpu_percent": {
+          "unrelated": 277.6323664403663,
+          "monitor": 5.992065462741721
+        },
+        "disk_bytes_per_second": 2905848151.446289
+      },
+      {
+        "start": 1792738581.872661,
+        "end": 1792738582.870594,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 83.28075709779179,
+        "iowait_percent": 1.0725552050473186,
+        "process_cpu_percent": {
+          "unrelated": 212.8455813867139,
+          "monitor": 5.995650179907432,
+          "benchmark": 13.989850419784007
+        },
+        "disk_bytes_per_second": 1068493804.0423731
+      },
+      {
+        "start": 1792738582.870594,
+        "end": 1792738583.866994,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 78.49462365591398,
+        "iowait_percent": 2.90955091714105,
+        "process_cpu_percent": {
+          "unrelated": 193.84514719341084,
+          "monitor": 4.996008948283784
+        },
+        "disk_bytes_per_second": 2356483735.699619
+      },
+      {
+        "start": 1792738583.866994,
+        "end": 1792738584.869509,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 80.13871374527112,
+        "iowait_percent": 0.31525851197982346,
+        "process_cpu_percent": {
+          "unrelated": 221.87167807854203,
+          "monitor": 4.9971098666338305,
+          "benchmark": 74.95664799950745
+        },
+        "disk_bytes_per_second": 1279538492.8616474
+      },
+      {
+        "start": 1792738584.869509,
+        "end": 1792738585.879309,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 83.16455696202532,
+        "iowait_percent": 2.7848101265822787,
+        "process_cpu_percent": {
+          "unrelated": 181.87594350692032,
+          "monitor": 5.995910225502869
+        },
+        "disk_bytes_per_second": 2254821423.7952275
+      },
+      {
+        "start": 1792738585.879309,
+        "end": 1792738586.874914,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 70.6253948199621,
+        "iowait_percent": 0.3158559696778269,
+        "process_cpu_percent": {
+          "unrelated": 304.8035379691329,
+          "monitor": 4.996779310969391
+        },
+        "disk_bytes_per_second": 2012169674.026117
+      },
+      {
+        "start": 1792738586.874914,
+        "end": 1792738587.868042,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 86.1198738170347,
+        "iowait_percent": 1.5772870662460567,
+        "process_cpu_percent": {
+          "unrelated": 161.85208142742258,
+          "monitor": 5.994521534348987,
+          "benchmark": 14.986303835872468
+        },
+        "disk_bytes_per_second": 1490789869.1281333
+      },
+      {
+        "start": 1792738587.868042,
+        "end": 1792738588.875146,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 78.12301838934687,
+        "iowait_percent": 1.648700063411541,
+        "process_cpu_percent": {
+          "unrelated": 251.8668206367626,
+          "monitor": 4.9973575523167195
+        },
+        "disk_bytes_per_second": 2464668983.4819317
+      },
+      {
+        "start": 1792738588.875146,
+        "end": 1792738589.870887,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 79.78589420654912,
+        "iowait_percent": 1.1964735516372795,
+        "process_cpu_percent": {
+          "unrelated": 187.86448096737604,
+          "monitor": 5.995674924490722,
+          "benchmark": 90.93440302144262
+        },
+        "disk_bytes_per_second": 962373680.4324397
+      },
+      {
+        "start": 1792738589.870887,
+        "end": 1792738590.879953,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 76.23888182973316,
+        "iowait_percent": 2.3506988564167726,
+        "process_cpu_percent": {
+          "unrelated": 272.8241312711774,
+          "monitor": 4.996778961010576,
+          "benchmark": 22.98518322064865
+        },
+        "disk_bytes_per_second": 2838144354.675561
+      },
+      {
+        "start": 1792738590.879953,
+        "end": 1792738591.874427,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 75.97730138713746,
+        "iowait_percent": 0.25220680958385877,
+        "process_cpu_percent": {
+          "unrelated": 225.80757378490165,
+          "monitor": 5.994891339422168
+        },
+        "disk_bytes_per_second": 1157280681.2752557
+      },
+      {
+        "start": 1792738591.874427,
+        "end": 1792738592.873259,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 82.11125158027814,
+        "iowait_percent": 1.9595448798988622,
+        "process_cpu_percent": {
+          "unrelated": 214.80706652581316,
+          "monitor": 4.995513175018911,
+          "benchmark": 13.987436890052953
+        },
+        "disk_bytes_per_second": 2046861983.958945
+      },
+      {
+        "start": 1792738592.873259,
+        "end": 1792738593.871812,
+        "flags": [
+          "unrelated_cpu"
+        ],
+        "idle_percent": 80.71608040201005,
+        "iowait_percent": 0.25125628140703515,
+        "process_cpu_percent": {
+          "unrelated": 213.85588381254286,
+          "monitor": 4.996632799358478
+        },
+        "disk_bytes_per_second": 102331.03973086164
+      },
+      {
+        "start": 1792738593.871812,
+        "end": 1792738594.878958,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 80.8030112923463,
+        "iowait_percent": 0.0,
+        "process_cpu_percent": {
+          "unrelated": 202.9005282152534,
+          "monitor": 4.9975499560407215,
+          "benchmark": 80.96030928785969
+        },
+        "disk_bytes_per_second": 107569664.07779938
+      },
+      {
+        "start": 1792738594.878958,
+        "end": 1792738595.876287,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 84.2239185750636,
+        "iowait_percent": 2.7353689567430024,
+        "process_cpu_percent": {
+          "unrelated": 160.85526709617702,
+          "monitor": 3.996404151457815
+        },
+        "disk_bytes_per_second": 2923199933.485504
+      },
+      {
+        "start": 1792738595.876287,
+        "end": 1792738596.880424,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 72.70424319189361,
+        "iowait_percent": 0.1266624445851805,
+        "process_cpu_percent": {
+          "unrelated": 285.81326303170266,
+          "monitor": 5.996082441224532
+        },
+        "disk_bytes_per_second": 1749168087.6878161
+      },
+      {
+        "start": 1792738596.880424,
+        "end": 1792738597.877121,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 84.19395465994963,
+        "iowait_percent": 1.3224181360201512,
+        "process_cpu_percent": {
+          "unrelated": 200.77538093740816,
+          "monitor": 5.993294953355466,
+          "benchmark": 13.984354891162754
+        },
+        "disk_bytes_per_second": 1392008375.5010164
+      },
+      {
+        "start": 1792738597.877121,
+        "end": 1792738598.884782,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 75.74603174603175,
+        "iowait_percent": 2.3492063492063493,
+        "process_cpu_percent": {
+          "unrelated": 271.8150124956098,
+          "monitor": 5.99591939328551
+        },
+        "disk_bytes_per_second": 3054733090.716214
+      },
+      {
+        "start": 1792738598.884782,
+        "end": 1792738599.883368,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 78.55345911949685,
+        "iowait_percent": 0.18867924528301888,
+        "process_cpu_percent": {
+          "unrelated": 226.80600374362012,
+          "monitor": 4.99572695470529,
+          "benchmark": 99.9145390941058
+        },
+        "disk_bytes_per_second": 1066570855.2417066
+      },
+      {
+        "start": 1792738599.883368,
+        "end": 1792738600.887442,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 77.34177215189874,
+        "iowait_percent": 2.848101265822785,
+        "process_cpu_percent": {
+          "unrelated": 228.75163383186313,
+          "monitor": 4.994577157900941,
+          "benchmark": 28.96854751582546
+        },
+        "disk_bytes_per_second": 2599076047.6149817
+      },
+      {
+        "start": 1792738600.887442,
+        "end": 1792738601.911947,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 74.68354430379746,
+        "iowait_percent": 0.31645569620253167,
+        "process_cpu_percent": {
+          "unrelated": 268.7499545149647,
+          "monitor": 8.991634165928183
+        },
+        "disk_bytes_per_second": 1649796098.472668
+      },
+      {
+        "start": 1792738601.911947,
+        "end": 1792738602.881904,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 82.24889450410613,
+        "iowait_percent": 1.2634238787113077,
+        "process_cpu_percent": {
+          "unrelated": 207.79746335030134,
+          "monitor": 3.996105064428872,
+          "benchmark": 16.983446523822707
+        },
+        "disk_bytes_per_second": 1482777226.2823749
+      },
+      {
+        "start": 1792738602.881904,
+        "end": 1792738603.882778,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 73.74443738080102,
+        "iowait_percent": 2.542911633820725,
+        "process_cpu_percent": {
+          "unrelated": 277.8213600227414,
+          "monitor": 5.996144460922478
+        },
+        "disk_bytes_per_second": 2619247911.64739
+      },
+      {
+        "start": 1792738603.882778,
+        "end": 1792738604.885498,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 70.8043065231159,
+        "iowait_percent": 0.8866371120962635,
+        "process_cpu_percent": {
+          "unrelated": 311.815903251225,
+          "monitor": 5.996459677908173,
+          "benchmark": 111.93391398761923
+        },
+        "disk_bytes_per_second": 2452809520.228851
+      },
+      {
+        "start": 1792738604.885498,
+        "end": 1792738605.891088,
+        "flags": [
+          "unrelated_cpu",
+          "disk"
+        ],
+        "idle_percent": 83.80592312539382,
+        "iowait_percent": 0.8821676118462508,
+        "process_cpu_percent": {
+          "unrelated": 211.8388315431443,
+          "monitor": 4.996198857149627,
+          "benchmark": 20.984035200028433
+        },
+        "disk_bytes_per_second": 1410363529.614404
+      }
+    ]
+  },
+  "coverage": {
+    "calls": 15,
+    "warmups": 3,
+    "measured": 12,
+    "all_processes_returncode_zero": true,
+    "uncovered_call_seconds": 0.2649843692779541,
+    "missing_gpu_counter_calls": [],
+    "flagged_calls": [
+      {
+        "index": 0,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 1,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 2,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 3,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 4,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 5,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 6,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 7,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 8,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 9,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 10,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 11,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 12,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 13,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      },
+      {
+        "index": 14,
+        "flags": [
+          "disk",
+          "unrelated_cpu"
+        ]
+      }
+    ],
+    "activity_monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "interpretation_limits": [
+    "PP and TG are independent empty-history benchmark phases; not server/request latency or decode after the prompt.",
+    "All measured samples and warmups are retained. Activity flags are descriptive, not grounds to discard or replace samples.",
+    "The single layout perturbation measures sensitivity to this same-translation-unit host layout change in this run; it is not a rigorous bound, a general noise band, or proof of cause.",
+    "Static audit found named BF16 compute/dispatch paths identical, but constructor setup differs and view_table padding may affect request work; dynamic reachability is not proven.",
+    "Whole-disk activity is not process-attributed; monitor gaps, short-lived processes, and unavailable GPU counters remain coverage limits."
+  ],
+  "artifact_sha256": {
+    "execution-plan.json": "0f4118bc3df3896beacba1e85748c3d5c2823ebc01665b765ec99c4c34bb5f74",
+    "launch-result.json": "18168dc9b25a4a1a9dee6a48383c5b4a8dde687338e0e1aec762ab6a970662e0",
+    "timing-runner.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "timing-v1/00-base-qwen3-bf16.stderr": "32bd852f060abe3de5605b8cfec94c91914c6f6b6bdfdff268c2d9888f6f6d5c",
+    "timing-v1/00-base-qwen3-bf16.stdout": "90d3d3d31db1fc54befb9fda369861377066c0d9e8ce7064065267acae033b07",
+    "timing-v1/00-base-qwen3-bf16.usage.json": "0047f385ea3009fd984cc4f65e89dfd3c1bab377f9b2117f51350531ec2ddd20",
+    "timing-v1/01-candidate-qwen3-bf16.stderr": "5a627d928bceb231fc22b339e66ce428efa39aa9e4fa34bb13f19d5747915b73",
+    "timing-v1/01-candidate-qwen3-bf16.stdout": "b3c2c4934cdc3c98d605afb6e245f3e8019caa3c7521d0e985b61be08333a8a3",
+    "timing-v1/01-candidate-qwen3-bf16.usage.json": "d0ea458634a3f658fdd9af4c47df6b694b304a865923508e826833a87c6776c3",
+    "timing-v1/02-control-qwen3-bf16.stderr": "5f771dd85b1fc81f634154f398a99dcb48a459c8c81dfd8a91fa1f4b7fa218a9",
+    "timing-v1/02-control-qwen3-bf16.stdout": "7a064d48e5ba37821b81282fd1afe5f107ab738283fea01bdc8653a22dc0d22c",
+    "timing-v1/02-control-qwen3-bf16.usage.json": "9af553fa5b1121dd5d339478bb0eb68af708a39ef38c1eb97d1a0ba5c8711fa0",
+    "timing-v1/03-base-qwen3-bf16.stderr": "e608fae23ba99fbcfa49f40a2b165f53967bdcf9bc49653a7d0ccde58c5a043f",
+    "timing-v1/03-base-qwen3-bf16.stdout": "ed7b39b21d5f54114fe6cc03e02fd0a6b0dbbeee720494e4a9493f1741cd66ba",
+    "timing-v1/03-base-qwen3-bf16.usage.json": "73f3ba98df78499a9a4421d783468edc7884b7fbf8a60253ba46e713f928e191",
+    "timing-v1/04-candidate-qwen3-bf16.stderr": "7ca8bd3dd4c38977a6087ded97e2115ec8e140dda280ef80ce44c07c035e89ac",
+    "timing-v1/04-candidate-qwen3-bf16.stdout": "562cda97027c998ef4e4ccf213ccc14f383355403afa89e6dee5203e474269b1",
+    "timing-v1/04-candidate-qwen3-bf16.usage.json": "cfc8729b9f96351630f7d1bb9efe37ab9a73bae91cbc0c7989c801840652466a",
+    "timing-v1/05-control-qwen3-bf16.stderr": "b9845446aed9a9e999a5afbb20965eb2b74e5ef8d8657a8c646ae76f22a393c5",
+    "timing-v1/05-control-qwen3-bf16.stdout": "d4d830e905991651bf86e434bfd8eadf5ed497ee93cac3aa66b3e70edaf92043",
+    "timing-v1/05-control-qwen3-bf16.usage.json": "3f53536015d8c66dada37651d37560a6ad670092c777c1a3197ad1b3d68c96fe",
+    "timing-v1/06-control-qwen3-bf16.stderr": "52e55148adb99260d6883455c56635240d7143ce24ec17576c5fee6987b6a950",
+    "timing-v1/06-control-qwen3-bf16.stdout": "1d2bf431b909fac2d32f7a17bcbc6e682843225b59899acce4a41fd3fae5db2e",
+    "timing-v1/06-control-qwen3-bf16.usage.json": "ba96a1c3db6de92115699defe7fc029ae12a95643ba98fd50fd832cf55c0a607",
+    "timing-v1/07-candidate-qwen3-bf16.stderr": "c192a755b978bebedfe655438233560d50947f5094a2e059c5872c831130748c",
+    "timing-v1/07-candidate-qwen3-bf16.stdout": "0e393c1c45dd4604a8f0a482fcd9fb5fcbb87898446dfac21254be629d6ccd53",
+    "timing-v1/07-candidate-qwen3-bf16.usage.json": "72a38edfe073abc9c54cbc10e54525b08e6e7de5c0bb93c9642942171cd8b78d",
+    "timing-v1/08-base-qwen3-bf16.stderr": "fe809f61dd781b56685986e0a1b406632315abd9702bb72bae7087aaf17eaf5a",
+    "timing-v1/08-base-qwen3-bf16.stdout": "92062034e833e67e85132fe34c387c760239df414082e8e49a0c726d0bcb6e5d",
+    "timing-v1/08-base-qwen3-bf16.usage.json": "24c5334b23f1a6655fc66e74df084169b7ed67b4ee03e9f06752f651d14e9d6b",
+    "timing-v1/09-candidate-qwen3-bf16.stderr": "ec2889524aed605c8c1da72e91734a302f8dfac673b7aa47089c5767c4c9bae7",
+    "timing-v1/09-candidate-qwen3-bf16.stdout": "2b1c5d3cf4505a63b8e957ea38bc9aaf290486e80c34fba550de313209ed2855",
+    "timing-v1/09-candidate-qwen3-bf16.usage.json": "53195dafc063c6d3afe63e4eb6cef5bcd7e5fa0d8e0b7e25968b85a2e0afef95",
+    "timing-v1/10-control-qwen3-bf16.stderr": "030cd90f6945721a5b31d5ed4b1f5c537b35b22e88ef85953b8db0fab071bf5d",
+    "timing-v1/10-control-qwen3-bf16.stdout": "73e6156277de6f0b09730d9628f674d29eea999a0232061ea4ffaeada52ca0e3",
+    "timing-v1/10-control-qwen3-bf16.usage.json": "c45a50d202965dcacf8a9870896661955f1af2b2e87028ed7ed8195ab7845269",
+    "timing-v1/11-base-qwen3-bf16.stderr": "d1c0d88d60148c1acab180ed43ff68e3b6b237dd164853f88d22e8c8b8e1bcfc",
+    "timing-v1/11-base-qwen3-bf16.stdout": "ae0ed63bd4344334794d763a0681ddd488a9279066088d2229cab1eb53ec044f",
+    "timing-v1/11-base-qwen3-bf16.usage.json": "f70360acd884ec4cfaf1c277fcdfa60f9f449b84dbcedb80e69f512914f27446",
+    "timing-v1/12-base-qwen3-bf16.stderr": "acb32e5127bfd579b578438ac383c62a51de0de40b11055dddc1fb372aacfbd2",
+    "timing-v1/12-base-qwen3-bf16.stdout": "df219d1a12e63f93111b816bdd416a3a3c6b1e33ae03b3e389b30bf2b2900b56",
+    "timing-v1/12-base-qwen3-bf16.usage.json": "c536bb24085fcec467357f9f6e76fd59f6f9572ef9e5f3ef0d58543b434c3e6d",
+    "timing-v1/13-control-qwen3-bf16.stderr": "ab810841c6268b4770f685e33c6f869637e245bfffea2a9de78c985e9d0dd599",
+    "timing-v1/13-control-qwen3-bf16.stdout": "976b1c050c4880b1d2ed39cfdc1c594b5d06a4833bffd919e10f5618e22824a1",
+    "timing-v1/13-control-qwen3-bf16.usage.json": "28876d843af0359a8f4650ed9fcc71e824636185a656e8f15cdc47310e01e3ce",
+    "timing-v1/14-candidate-qwen3-bf16.stderr": "4fdabc3c09e8508f1654cba6bc64568883f42f622909e5691a407b45a6839eb3",
+    "timing-v1/14-candidate-qwen3-bf16.stdout": "4d5788a168c8dbda116320edfe2a83e744aded8a751d0af9da995488b93e3e27",
+    "timing-v1/14-candidate-qwen3-bf16.usage.json": "1d65b4421d28ed31e0ef4193db7029339e0ff97625868cc5eea995865a1d65b8",
+    "timing-v1/activity.jsonl": "08655311e830d9d3ce299dba0f22c62cc09e9d1021219818a7e46ad3751f093a",
+    "timing-v1/build-flags.json": "1f3a032c0af6875257179f100b8075c9962186eae1dbc2031f09ae25747e2641",
+    "timing-v1/complete.json": "d47c2904da38be4c58eb817ebd55552dee6d79d5032c717b2577c498a62cd8c4",
+    "timing-v1/concurrent-owned-containers.json": "505847c62c86039acef984effa885b6b0cdec90ba9cfadc45071a5d0043d945f",
+    "timing-v1/end-verification.json": "0c3aa724f326abb5718c2358db8c9eda169c86464ac93e4d069ef4db4f3d2a4f",
+    "timing-v1/gpu-after.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "timing-v1/gpu-before.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "timing-v1/monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "timing-v1/monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "timing-v1/monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "timing-v1/plan.json": "c0380b48e96ae627cf4c138ae67e1a324119614e38449d0cc52db593e53f732f",
+    "timing-v1/preflight.json": "2ac494a5ccc0852b9ffa52b8d3f824cb07c3d8013cf623a0667032be32d966a9",
+    "timing-v1/progress.json": "08cf74322dd665feb85eed5740544e74aac5fb45c1d4af2f6aa3c1be980d1fe8",
+    "timing-v1/qwen3-bf16-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "timing-v1/qwen3-bf16-info.stdout": "2d77fcd6fe740237fd53b17b4518b8f9d1ab77fb3b269c538d3f99648e05b3e3",
+    "timing-v1/source-verification.json": "7f240f9e7934259260d88ee028b7424e7b8e44eb7b682692887befb2a6d8abb6",
+    "timing-v1/vulkan-summary.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "timing-v1/vulkan-summary.txt": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb"
+  },
+  "provenance": {
+    "audit": {
+      "path": "build-quant-resume-20261020/iq2-landing-prep-20261023/results-bf16-layout-timing-v1/audit-summary.json",
+      "sha256": "e734fc309fc2e23f13c06cb50b787becef3a458d1fc0ede6569649402c124a95",
+      "markdown_sha256": "831e185302864232c4fbcb8686fcdb7d3ca8df1feadb51d94f9bd0a125006b81",
+      "artifact_count_verified": 66,
+      "artifact_paths": "Normalized only path separators to POSIX; original full report hash retained."
+    },
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/bf16-layout-timing-v1",
+    "control_disassembly": {
+      "path": "build-quant-resume-20261020/iq2-landing-prep-20261023/bf16-layout-control-bundle/disassembly-audit.json",
+      "sha256": "299e21be1ab5dfcc87134e48373fc02bf840a99645a50d6f0edabe330966c374",
+      "strict_named_bf16_matches": 19,
+      "limits": "Constructor setup differs; view_table padding differs. Named-path equality is not whole-program/dynamic reachability proof."
+    },
+    "original_90_call": {
+      "path": "docs/benchmarks/iq2-s-existing-timing-20261023.json",
+      "sha256": "2d77561c827c0ca3d0a9620145aaeec366b29f673c950e3645bb0b23d3d197ec",
+      "bf16_pp_mean_rate_change_percent": -1.4552659895546216,
+      "bf16_tg_mean_rate_change_percent": 0.3618502094111742,
+      "pooled": false
+    },
+    "profiled_extra_passes": {
+      "path": "build-quant-resume-20261020/iq2-landing-prep-20261023/results-bf16-profile-v1/profile-diagnostic-v1/audit-summary.json",
+      "sha256": "3990d9662d7b761163a28bc616614921f0266d7826bcf9e2232b457c535e6bc9",
+      "pp_device_time_change_percent": 0.013424800977324125,
+      "scope": "Separate extra profile passes; not the exact CLI timing intervals; not pooled."
+    }
+  },
+  "landing_assessment": {
+    "decision": "Close existing BF16 merge finding: no repeatable material runtime slowdown demonstrated; no further performance rerun.",
+    "basis": "Original -1.455% PP retained. Separate profile PP device time +0.013% with matching compiler code statistics. Final unprofiled paired PP candidate/main -0.137% versus main-control/main -0.257%, with candidate paired signs mixed.",
+    "limits": "One perturbation measures sensitivity in this run, not an exclusive causal explanation or universal noise band. Every call overlaps CPU and disk flags. Slow baseline TG299.23 retained; no TG speedup claim. No numerical allowance changed."
+  }
+}

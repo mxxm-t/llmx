@@ -194,6 +194,40 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(config["context_length"], 16)
         self.assertEqual(next(shape[1] for name, _, shape, _ in weights if name == "token_embd.weight"), 257)
 
+    def test_iq2_s_generator_and_fixture_layout(self):
+        import iq2_s
+        import spec_decode as sd
+        with patch.object(generator, "gen_block_family") as generate:
+            generator.main(["iq2-s"])
+        generate.assert_called_once_with("iq2-s", "IQ2_S", iq2_s.fixture, generator.OUT_DIR)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            generator.parse_args(["iq2-s", "--threads", "2"])
+        with patch.object(iq2_s, "block_fixture", return_value="fixture") as build:
+            self.assertEqual(iq2_s.fixture(False, True, 7, 32, split=True), "fixture")
+        build.assert_called_once_with(False, True, sd.IQ2_S, iq2_s.raw_block, 7, 32, True)
+        config, weights, packed = iq2_s.fixture(True, False)
+        self.assertEqual((config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]), (256, 768, 128))
+        decoded = {name: values for name, _, _, values in weights}
+        self.assertTrue(packed)
+        for name, shape, kind, payload in packed:
+            self.assertEqual(kind, sd.IQ2_S)
+            self.assertEqual(len(payload), math.prod(shape) // 256 * 82)
+            self.assertEqual(decoded[name], sd.decode(sd.IQ2_S, payload, math.prod(shape)))
+        self.assertNotIn("output.weight", decoded)
+
+    def test_iq2_s_keeps_format_and_hf_scopes(self):
+        import iq2_s
+        import common
+        for result in (True, common.SKIPPED):
+            with patch.object(iq2_s, "check_format") as convert, patch.object(iq2_s, "run_family", return_value=result) as compare:
+                self.assertEqual(iq2_s.run(), result)
+                convert.assert_called_once_with()
+                compare.assert_called_once_with("iq2-s", "IQ2_S", iq2_s.fixture, family="iq2-s")
+        with patch.object(iq2_s, "check_format"), patch.object(common, "f32_cache_skip", return_value=False), \
+                patch("builtins.open", side_effect=FileNotFoundError("missing IQ2_S golden")):
+            with self.assertRaisesRegex(FileNotFoundError, "missing IQ2_S golden"):
+                iq2_s.run()
+
     def test_iq4_xs_uses_shared_generator_and_f32_bounds(self):
         import iq4_xs
         import common
@@ -320,7 +354,7 @@ class ReferenceGenerator(unittest.TestCase):
 
         def make_model(*_, **kwargs):
             embedding = np.zeros((2, 32), dtype=np.float32).view(Parameter)
-            tied = kwargs.get("tie_word_embeddings", True)
+            tied = kwargs.get("tie_word_embeddings", checkpoint_tied)
             head = embedding if tied else embedding.copy()
             parameters = [("model.embed_tokens.weight", embedding)]
             if not tied:
@@ -340,8 +374,9 @@ class ReferenceGenerator(unittest.TestCase):
         transformers = SimpleNamespace(AutoTokenizer=SimpleNamespace(from_pretrained=MagicMock()),
                                        AutoModelForCausalLM=SimpleNamespace(from_pretrained=loader))
         with tempfile.TemporaryDirectory(prefix="llmx_reference_head_topology_") as directory:
-            for explicit, head_value in ((True, 2.0), (True, 1.0), (False, 1.0)):
-                with self.subTest(explicit=explicit, head_value=head_value):
+            for explicit, head_value, checkpoint_tied in ((True, 2.0, True), (True, 1.0, True),
+                                                         (False, 1.0, True), (False, 1.0, False), (True, 2.0, False)):
+                with self.subTest(explicit=explicit, head_value=head_value, checkpoint_tied=checkpoint_tied):
                     path = Path(directory) / "unregistered.gguf"
                     tensors = [("token_embd.weight", [32, 2], sd.F32, struct.pack("<64f", *([1.0] * 64)))]
                     if explicit:
@@ -357,8 +392,7 @@ class ReferenceGenerator(unittest.TestCase):
                     self.assertTrue(np.all(model.embedding == 1.0))
                     self.assertTrue(np.all(model.head == head_value))
                     expected = dict(revision=args.revision, torch_dtype=torch.float32, attn_implementation="eager")
-                    if explicit:
-                        expected["tie_word_embeddings"] = False
+                    expected["tie_word_embeddings"] = not explicit
                     loader.assert_called_once_with(args.repo, **expected)
                     self.assertEqual(args.weights["tensors"], len(tensors))
 
@@ -387,10 +421,11 @@ class ReferenceGenerator(unittest.TestCase):
 
     def test_file_exact_run_fails_when_the_device_checks_nothing(self):
         import baseline
+        import spec_decode
         with tempfile.TemporaryDirectory(prefix="llmx_file_exact_run_") as directory:
             model = os.path.join(directory, "model.gguf")
-            Path(model).write_bytes(b"GGUF")
-            weights = {"file": "model.gguf", "sha256": hashlib.sha256(b"GGUF").hexdigest()}
+            spec_decode.write_gguf(model, {"general.architecture": (8, "qwen3")}, [])
+            weights = {"file": "model.gguf", "sha256": hashlib.sha256(Path(model).read_bytes()).hexdigest()}
             for name in ("baseline_logits.json", "baseline_perplexity.json"):
                 Path(directory, name).write_text(json.dumps({"weights": weights}), encoding="utf-8")
             # A check returns None when the device has no kernel for the model, which fails a file-exact run.
@@ -1393,10 +1428,11 @@ class DtypeCalibration(unittest.TestCase):
     def test_family_covers_shapes_variants_and_seeds(self):
         import q5_1
         import iq4_xs
+        import iq2_s
         fixture = ({"context_length": 16}, [], [])
         expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
                     for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
-        for family, module in (("q5-1", q5_1), ("iq4-xs", iq4_xs)):
+        for family, module in (("q5-1", q5_1), ("iq4-xs", iq4_xs), ("iq2-s", iq2_s)):
             with self.subTest(family=family), patch.object(module, "fixture", return_value=fixture) as source, \
                     patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
                 identities = [(identity["fixture"], identity["split"], identity["seed"])

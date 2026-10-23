@@ -5,10 +5,10 @@ backend can execute. This is the lowest header of the quant layer.
 
 - Type ids, the numbers GGUF files and the backends' kernels name the types
   by: `GGML_TYPE_F32=0`, `F16=1`, `GGML_TYPE_Q4_0=2`, `Q4_1=3`, `Q5_0=6`, `Q5_1=7`, `Q8_0=8`, `Q8_1=9` (auxiliary metadata), `Q2_K=10`, `Q3_K=11`, `Q4_K=12`,
-  `Q5_K=13`, `Q6_K=14`, `Q8_K=15` (auxiliary metadata), `IQ4_NL=20`, `IQ3_S=21`, `IQ4_XS=23`, `BF16=30`, `MXFP4=39`.
+  `Q5_K=13`, `Q6_K=14`, `Q8_K=15` (auxiliary metadata), `IQ4_NL=20`, `IQ3_S=21`, `IQ2_S=22`, `IQ4_XS=23`, `BF16=30`, `MXFP4=39`.
 - The block constants of each implemented quantized type, values per block and bytes per block
   (`*_BLOCK`, `*_TYPESIZE`): 32/18 (Q4_0), 32/20 (Q4_1), 32/22 (Q5_0), 32/24 (Q5_1), 32/34 (Q8_0),
-  256/84 (Q2_K), 256/110 (Q3_K), 256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/18 (IQ4_NL), 256/110 (IQ3_S), 256/136 (IQ4_XS), 32/17 (MXFP4).
+  256/84 (Q2_K), 256/110 (Q3_K), 256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 32/18 (IQ4_NL), 256/110 (IQ3_S), 256/82 (IQ2_S), 256/136 (IQ4_XS), 32/17 (MXFP4).
 - `StorageType` holds a name, values per block and bytes per block.
   `storage_type(id)` returns that metadata for 35 active GGML layouts through
   ID 42, including F16, BF16, the K-quants, IQ and ternary formats, integer
@@ -49,3 +49,6 @@ format decoder; `half-weights` holds finite F16/BF16 decoding to a mathematical
 oracle and CPU products to exactly widened F32 weights. `backend-vulkan` holds device kernels to the CPU's. A
 previously unknown layout also needs storage metadata here; a known layout
 does not need another sizing or format implementation.
+
+IQ2_S has a read-only CPU decoder in development. Vulkan and released-model
+qualification remain pending in [STATUS](../STATUS.md).

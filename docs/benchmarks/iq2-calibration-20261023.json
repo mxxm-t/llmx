@@ -1,0 +1,993 @@
+{
+  "phase": "Prospective independent IQ2_S HF family calibration frozen before narrowed candidate model comparisons.",
+  "scope": "Adds iq2-s only; existing families and generic budgets are unchanged. F32 remains strict.",
+  "execution": {
+    "start": 1792708368.4462302,
+    "passed": true,
+    "removed": true,
+    "source_pins_sha256": "b9bdc042ddac67dceeb4055134cd8539a3d7968615e2a9cca2e0dae0ef381d92",
+    "launch_sha256": "6d01f858eef728d265c639f5dffa1fa892c7b339cdf7763fa3f3240b75b5458f",
+    "payload_sha256": "9170ec25a2327af72209365dc018981dc13452c9d56fea0ce621e2b62cd77e6c",
+    "container": "llmx-iq2-s-hf-reference-v1-20261023",
+    "mem_available": 31556726784,
+    "disk_before": {
+      "total": 3625606709248,
+      "used": 3428295114752,
+      "free": 197311594496
+    },
+    "image": {
+      "Id": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "RepoDigests": [
+        "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de"
+      ],
+      "Created": "2026-07-14T02:11:29.203658501Z"
+    },
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-iq2-s-hf-reference-v1-20261023",
+      "--label",
+      "llmx.iq2-s-hf-reference=v1-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "0-3",
+      "--cpus",
+      "4",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/hf-reference-v1/source:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/hf-reference-v1:/bundle:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/hf-reference-v1/out:/out",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "/bundle/payload.py"
+    ],
+    "container_id": "022524c38fc40e84c2e6fddef89ac1f1e783f42fb43834b417a4b087a75e1d0a",
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-22T22:32:48.618769485Z",
+      "FinishedAt": "2026-10-22T22:45:06.982145002Z"
+    },
+    "exit": 0,
+    "payload": {
+      "start": 1792708368.8726096,
+      "calls": [
+        {
+          "name": "goldens",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/gen_baseline.py",
+            "iq2-s",
+            "--output-dir",
+            "/out/goldens"
+          ],
+          "start": 1792708371.9643588,
+          "exit": 0,
+          "end": 1792708496.067592,
+          "log_sha256": "2029744e92c801fda4486e110b1356f7842e2c9d4b675c8baf32f4e19b6f4001"
+        },
+        {
+          "name": "calibration",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/calibrate_dtype.py",
+            "--family",
+            "iq2-s",
+            "--output",
+            "/out/calibration/iq2-s-budget-proposal.json"
+          ],
+          "start": 1792708496.0681558,
+          "exit": 0,
+          "end": 1792709106.5779529,
+          "log_sha256": "b384679ed1136d58fad8ac733dd9c285e6e70639328a6490208812540d0e6bd2"
+        }
+      ],
+      "passed": true,
+      "environment": {
+        "versions": {
+          "torch": "2.5.1+cpu",
+          "transformers": "4.55.2",
+          "numpy": "2.2.6"
+        },
+        "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+        "executable": "/hf/venv/bin/python",
+        "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+        "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+        "torch_threads": 1,
+        "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+        "affinity": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "no_gpu_devices": true,
+        "cgroup": {
+          "cpu.max": "400000 100000\n",
+          "cpuset.cpus.effective": "0-3\n",
+          "memory.max": "8589934592\n",
+          "memory.swap.max": "0\n"
+        }
+      },
+      "goldens": {
+        "baseline_iq2_s.json": {
+          "sha256": "8c25ef685fde6ff921f3105f5a7e6208466f544b7e9c39b8e66d3c268d45c3d0",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "808698526d1ec9625c29f631c8cfb0c73f99af68ac33c7fd87f7306a36479cdf",
+              "packed_sha256": "24fb0194ef8fd90ee14850ca6e06999baa35a6f0379dfdca2c25d6caf2d7ac42",
+              "min_routing_gap": null
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "2eecc8db84440fb19686a59b8a7d0db54b189ebf292e34755a4274c3f1840254",
+              "packed_sha256": "b09951090d82e5064e8c99632fd8b0fc45a44a2359463e5c37fced7d479e7804",
+              "min_routing_gap": null
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "9349a901463405d0cc9b26602fa90c20d295b335d31f6b25b18878246880353c",
+              "packed_sha256": "aed6956af17e243ad619254d9386c0bc4a4b89e76bb08b30038b38e483bc0317",
+              "min_routing_gap": 0.0002464988687577666
+            }
+          ]
+        },
+        "baseline_iq2_s_split.json": {
+          "sha256": "1c1bf944cd8f40bbee1064dff13962c781246a11978de025b5f1a316707b1617",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "2c6e96879028d8d03d09c2145e940b2dab08f376911171865852ceed0429af3b",
+              "packed_sha256": "89abbe00d1900168591eb0d5b69a9b752dccc29f519d28415661650a03fa99c9",
+              "min_routing_gap": null
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "17735193658a3e920253f33c980c5e39f3fcb16e55d420d51aea1d00aa8f4685",
+              "packed_sha256": "cd5e0931154874b675f60a32bc094a73e77dacb3c24506a7cb3097688309c93f",
+              "min_routing_gap": null
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 4,
+                "expert_feed_forward_length": 1024
+              },
+              "weights_sha256": "2fae49e5aaf6d288f0d3e1864e895a8dece8a55df4a3a42a91c5fb09c6a813e9",
+              "packed_sha256": "8e99cc12a9c9acca53ade1b01080f51333f51399d85ff60b254030c331a066ed",
+              "min_routing_gap": null
+            }
+          ]
+        }
+      },
+      "calibration": {
+        "sha256": "ac3f74756cb1d732fc335f1c5f5771ca2e52da1fc6b9e40f29f4f252139db471",
+        "dtypes": {
+          "f16": {
+            "max_logit_error": 0.0003623068332672119,
+            "max_nll_error": 5.1030794576689686e-05,
+            "logit_budget": 0.0007246136665344238,
+            "nll_budget": 0.00010206158915337937,
+            "accepted": 30,
+            "refused": []
+          },
+          "bf16": {
+            "max_logit_error": 0.002490457147359848,
+            "max_nll_error": 0.00046904786880119786,
+            "logit_budget": 0.004980914294719696,
+            "nll_budget": 0.0009380957376023957,
+            "accepted": 30,
+            "refused": []
+          },
+          "int8": {
+            "max_logit_error": 0.00935356318950653,
+            "max_nll_error": 0.0009101570823224492,
+            "logit_budget": 0.01870712637901306,
+            "nll_budget": 0.0018203141646448984,
+            "accepted": 28,
+            "refused": [
+              {
+                "fixture": "moe",
+                "split": false,
+                "seed": 0,
+                "config": {
+                  "block_count": 2,
+                  "embedding_length": 256,
+                  "feed_forward_length": 768,
+                  "attention.head_count": 2,
+                  "attention.head_count_kv": 1,
+                  "attention.key_length": 128,
+                  "context_length": 16,
+                  "expert_count": 4,
+                  "expert_used_count": 2,
+                  "expert_feed_forward_length": 768
+                },
+                "weights_sha256": "b492f90761b648e9d065274dc006a97f28a29733cb0225ec56f18eb282c625a5",
+                "packed_sha256": "120cfe491784ca80af50935dfcc847d83c71c097c54bc55ab5fdc9bb8b930da2",
+                "logit_error": 0.003444807603955269,
+                "nll_error": 0.00027989988038079616,
+                "routing": {
+                  "stable": false,
+                  "calls": 18,
+                  "first_change": {
+                    "call": 13,
+                    "original": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          2,
+                          3
+                        ]
+                      ]
+                    },
+                    "rounded": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          2,
+                          3
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "status": "refused"
+              },
+              {
+                "fixture": "moe",
+                "split": false,
+                "seed": 1,
+                "config": {
+                  "block_count": 2,
+                  "embedding_length": 256,
+                  "feed_forward_length": 768,
+                  "attention.head_count": 2,
+                  "attention.head_count_kv": 1,
+                  "attention.key_length": 128,
+                  "context_length": 16,
+                  "expert_count": 4,
+                  "expert_used_count": 2,
+                  "expert_feed_forward_length": 768
+                },
+                "weights_sha256": "763cae32288de6b8f4b71e2bbef85b23199262f5ae85d2e1f5e1dba7de28a331",
+                "packed_sha256": "b763040059012901f9e0365cb7caf077c180b61bddd92a1af2aa48d69f19e994",
+                "logit_error": 0.0035872161388397217,
+                "nll_error": 0.00016859058769380653,
+                "routing": {
+                  "stable": false,
+                  "calls": 18,
+                  "first_change": {
+                    "call": 9,
+                    "original": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          0,
+                          1
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          2,
+                          3
+                        ]
+                      ]
+                    },
+                    "rounded": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          0,
+                          1
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          2,
+                          3
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "status": "refused"
+              }
+            ]
+          }
+        }
+      },
+      "end": 1792709106.5921082,
+      "cgroup_memory_peak": "3179778048\n"
+    },
+    "final_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-22T22:32:48.618769485Z",
+      "FinishedAt": "2026-10-22T22:45:06.982145002Z"
+    },
+    "end": 1792709110.7383478,
+    "outputs": {
+      "out/calibration/iq2-s-budget-proposal.json": "ac3f74756cb1d732fc335f1c5f5771ca2e52da1fc6b9e40f29f4f252139db471",
+      "out/calibration.log": "b384679ed1136d58fad8ac733dd9c285e6e70639328a6490208812540d0e6bd2",
+      "out/goldens/baseline_iq2_s.json": "8c25ef685fde6ff921f3105f5a7e6208466f544b7e9c39b8e66d3c268d45c3d0",
+      "out/goldens/baseline_iq2_s_split.json": "1c1bf944cd8f40bbee1064dff13962c781246a11978de025b5f1a316707b1617",
+      "out/goldens.log": "2029744e92c801fda4486e110b1356f7842e2c9d4b675c8baf32f4e19b6f4001",
+      "out/result.json": "ba638b0b9034d73f59ea9c119a9df4825f3a9026697642b3f240a10d01603470"
+    },
+    "disk_after": {
+      "total": 3625605660672,
+      "used": 3428295114752,
+      "free": 197310545920
+    }
+  },
+  "result": {
+    "start": 1792708368.8726096,
+    "calls": [
+      {
+        "name": "goldens",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/gen_baseline.py",
+          "iq2-s",
+          "--output-dir",
+          "/out/goldens"
+        ],
+        "start": 1792708371.9643588,
+        "exit": 0,
+        "end": 1792708496.067592,
+        "log_sha256": "2029744e92c801fda4486e110b1356f7842e2c9d4b675c8baf32f4e19b6f4001"
+      },
+      {
+        "name": "calibration",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/calibrate_dtype.py",
+          "--family",
+          "iq2-s",
+          "--output",
+          "/out/calibration/iq2-s-budget-proposal.json"
+        ],
+        "start": 1792708496.0681558,
+        "exit": 0,
+        "end": 1792709106.5779529,
+        "log_sha256": "b384679ed1136d58fad8ac733dd9c285e6e70639328a6490208812540d0e6bd2"
+      }
+    ],
+    "passed": true,
+    "environment": {
+      "versions": {
+        "torch": "2.5.1+cpu",
+        "transformers": "4.55.2",
+        "numpy": "2.2.6"
+      },
+      "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+      "executable": "/hf/venv/bin/python",
+      "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+      "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+      "torch_threads": 1,
+      "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+      "affinity": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "no_gpu_devices": true,
+      "cgroup": {
+        "cpu.max": "400000 100000\n",
+        "cpuset.cpus.effective": "0-3\n",
+        "memory.max": "8589934592\n",
+        "memory.swap.max": "0\n"
+      }
+    },
+    "goldens": {
+      "baseline_iq2_s.json": {
+        "sha256": "8c25ef685fde6ff921f3105f5a7e6208466f544b7e9c39b8e66d3c268d45c3d0",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "808698526d1ec9625c29f631c8cfb0c73f99af68ac33c7fd87f7306a36479cdf",
+            "packed_sha256": "24fb0194ef8fd90ee14850ca6e06999baa35a6f0379dfdca2c25d6caf2d7ac42",
+            "min_routing_gap": null
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "2eecc8db84440fb19686a59b8a7d0db54b189ebf292e34755a4274c3f1840254",
+            "packed_sha256": "b09951090d82e5064e8c99632fd8b0fc45a44a2359463e5c37fced7d479e7804",
+            "min_routing_gap": null
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 2,
+              "expert_feed_forward_length": 768
+            },
+            "weights_sha256": "9349a901463405d0cc9b26602fa90c20d295b335d31f6b25b18878246880353c",
+            "packed_sha256": "aed6956af17e243ad619254d9386c0bc4a4b89e76bb08b30038b38e483bc0317",
+            "min_routing_gap": 0.0002464988687577666
+          }
+        ]
+      },
+      "baseline_iq2_s_split.json": {
+        "sha256": "1c1bf944cd8f40bbee1064dff13962c781246a11978de025b5f1a316707b1617",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "2c6e96879028d8d03d09c2145e940b2dab08f376911171865852ceed0429af3b",
+            "packed_sha256": "89abbe00d1900168591eb0d5b69a9b752dccc29f519d28415661650a03fa99c9",
+            "min_routing_gap": null
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "17735193658a3e920253f33c980c5e39f3fcb16e55d420d51aea1d00aa8f4685",
+            "packed_sha256": "cd5e0931154874b675f60a32bc094a73e77dacb3c24506a7cb3097688309c93f",
+            "min_routing_gap": null
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 4,
+              "expert_feed_forward_length": 1024
+            },
+            "weights_sha256": "2fae49e5aaf6d288f0d3e1864e895a8dece8a55df4a3a42a91c5fb09c6a813e9",
+            "packed_sha256": "8e99cc12a9c9acca53ade1b01080f51333f51399d85ff60b254030c331a066ed",
+            "min_routing_gap": null
+          }
+        ]
+      }
+    },
+    "calibration": {
+      "sha256": "ac3f74756cb1d732fc335f1c5f5771ca2e52da1fc6b9e40f29f4f252139db471",
+      "dtypes": {
+        "f16": {
+          "max_logit_error": 0.0003623068332672119,
+          "max_nll_error": 5.1030794576689686e-05,
+          "logit_budget": 0.0007246136665344238,
+          "nll_budget": 0.00010206158915337937,
+          "accepted": 30,
+          "refused": []
+        },
+        "bf16": {
+          "max_logit_error": 0.002490457147359848,
+          "max_nll_error": 0.00046904786880119786,
+          "logit_budget": 0.004980914294719696,
+          "nll_budget": 0.0009380957376023957,
+          "accepted": 30,
+          "refused": []
+        },
+        "int8": {
+          "max_logit_error": 0.00935356318950653,
+          "max_nll_error": 0.0009101570823224492,
+          "logit_budget": 0.01870712637901306,
+          "nll_budget": 0.0018203141646448984,
+          "accepted": 28,
+          "refused": [
+            {
+              "fixture": "moe",
+              "split": false,
+              "seed": 0,
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "b492f90761b648e9d065274dc006a97f28a29733cb0225ec56f18eb282c625a5",
+              "packed_sha256": "120cfe491784ca80af50935dfcc847d83c71c097c54bc55ab5fdc9bb8b930da2",
+              "logit_error": 0.003444807603955269,
+              "nll_error": 0.00027989988038079616,
+              "routing": {
+                "stable": false,
+                "calls": 18,
+                "first_change": {
+                  "call": 13,
+                  "original": {
+                    "router": "model.layers.1.mlp.gate",
+                    "experts": [
+                      [
+                        2,
+                        3
+                      ],
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        2,
+                        3
+                      ]
+                    ]
+                  },
+                  "rounded": {
+                    "router": "model.layers.1.mlp.gate",
+                    "experts": [
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        2,
+                        3
+                      ]
+                    ]
+                  }
+                }
+              },
+              "status": "refused"
+            },
+            {
+              "fixture": "moe",
+              "split": false,
+              "seed": 1,
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "763cae32288de6b8f4b71e2bbef85b23199262f5ae85d2e1f5e1dba7de28a331",
+              "packed_sha256": "b763040059012901f9e0365cb7caf077c180b61bddd92a1af2aa48d69f19e994",
+              "logit_error": 0.0035872161388397217,
+              "nll_error": 0.00016859058769380653,
+              "routing": {
+                "stable": false,
+                "calls": 18,
+                "first_change": {
+                  "call": 9,
+                  "original": {
+                    "router": "model.layers.1.mlp.gate",
+                    "experts": [
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        3
+                      ],
+                      [
+                        0,
+                        3
+                      ],
+                      [
+                        0,
+                        1
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        3
+                      ],
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        2,
+                        3
+                      ]
+                    ]
+                  },
+                  "rounded": {
+                    "router": "model.layers.1.mlp.gate",
+                    "experts": [
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        3
+                      ],
+                      [
+                        0,
+                        3
+                      ],
+                      [
+                        0,
+                        1
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        2
+                      ],
+                      [
+                        0,
+                        3
+                      ],
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        2,
+                        3
+                      ]
+                    ]
+                  }
+                }
+              },
+              "status": "refused"
+            }
+          ]
+        }
+      }
+    },
+    "end": 1792709106.5921082,
+    "cgroup_memory_peak": "3179778048\n"
+  },
+  "summary": {
+    "f16": {
+      "accepted": 30,
+      "refused": [],
+      "logit_budget": 0.0007246136665344238,
+      "nll_budget": 0.00010206158915337937
+    },
+    "bf16": {
+      "accepted": 30,
+      "refused": [],
+      "logit_budget": 0.004980914294719696,
+      "nll_budget": 0.0009380957376023957
+    },
+    "int8": {
+      "accepted": 28,
+      "refused": [
+        {
+          "fixture": "moe",
+          "split": false,
+          "seed": 0
+        },
+        {
+          "fixture": "moe",
+          "split": false,
+          "seed": 1
+        }
+      ],
+      "logit_budget": 0.01870712637901306,
+      "nll_budget": 0.0018203141646448984
+    }
+  },
+  "proposal_sha256": "ac3f74756cb1d732fc335f1c5f5771ca2e52da1fc6b9e40f29f4f252139db471",
+  "previous_budget_sha256": "18483b8fe93f8c63ed2fc4680b95a4d857a5c89b6202cb166b801da8f22e5434",
+  "original_seed_stable": true,
+  "all_rows_retained": true,
+  "installed_budget_sha256": "48a28c9232b984fb61d75510ad33209f3d935d39974e86700c573f072841cafc"
+}

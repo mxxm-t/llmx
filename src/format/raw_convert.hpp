@@ -176,8 +176,9 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
     std::vector<uint8_t> out;
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
-        const uint8_t* raw = m.tensor_data(i);
         const size_t n = (size_t)t.n_elements();
+        if (!n) continue;
+        const uint8_t* raw = m.tensor_data(i);
         std::vector<float> f(n);
         if (t.type == quant::GGML_TYPE_F32) {
             std::memcpy(f.data(), raw, n * 4);
@@ -191,7 +192,9 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
 
     OutputFile json(out_json, std::ios::out), bin(out_bin);
     json.write([&](std::ostream& os) { os << js.str(); });
-    bin.write([&](std::ostream& os) { os.write((const char*)out.data(), (std::streamsize)out.size()); });
+    bin.write([&](std::ostream& os) {
+        if (!out.empty()) os.write((const char*)out.data(), (std::streamsize)out.size());
+    });
     // Both files are complete before either replaces its destination. Separate renames are not a pair transaction.
     json.publish();
     // An initially absent name can alias the first file on a case-insensitive filesystem.

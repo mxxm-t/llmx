@@ -1,0 +1,4111 @@
+{
+  "execution_passed": true,
+  "removed": true,
+  "state": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 3966705,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-23T00:32:11.262418189Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "pins_unchanged": true,
+  "thresholds": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "calls": [
+    {
+      "index": 0,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": null,
+      "arm": "v4",
+      "warmup": true,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715533.638544,
+      "end": 1792715536.5594785,
+      "rates": {
+        "pp128": 4669.1,
+        "tg256": 259.39
+      },
+      "pp_phase_seconds": 0.027414276841361288,
+      "tg_phase_seconds": 0.9869308762866726,
+      "pp_plus_tg_phase_seconds": 1.0143451531280339,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.9209344387054443,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 2,
+        "disappeared": 1,
+        "missed": 3,
+        "null_process_delta_observations": 2
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "0-v4.stdout": "7bb7c3828c647e15aca7661f78eaa82554f00b90793b35d14922af069a87ea76",
+        "0-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 1,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "128",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715536.5598743,
+      "end": 1792715540.6336927,
+      "rates": {
+        "pp128": 2772.29,
+        "tg256": 274.77
+      },
+      "pp_phase_seconds": 0.04617121585404124,
+      "tg_phase_seconds": 0.9316883211413183,
+      "pp_plus_tg_phase_seconds": 0.9778595369953595,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 4.0738184452056885,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 4,
+        "appeared": 11,
+        "disappeared": 11,
+        "missed": 0,
+        "null_process_delta_observations": 11
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 4,
+      "log_sha256": {
+        "1-mx.stdout": "0bad818ac1589e51a7d52eab47ed375787d157efc4106e7ad0a89591284a73aa",
+        "1-mx.stderr": "e162181762fbae02584c3c0c5cb5bcab96d048d73ad5eb2e413e9bc96c13c039"
+      }
+    },
+    {
+      "index": 2,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 0,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715540.6342285,
+      "end": 1792715543.2031488,
+      "rates": {
+        "pp128": 4661.95,
+        "tg256": 259.2
+      },
+      "pp_phase_seconds": 0.027456321925374574,
+      "tg_phase_seconds": 0.9876543209876544,
+      "pp_plus_tg_phase_seconds": 1.015110642913029,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.568920373916626,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 14,
+        "disappeared": 16,
+        "missed": 3,
+        "null_process_delta_observations": 14
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        97
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "2-v4.stdout": "bb326d5ac0ca50260eae69b924b60357b7175c0f2f2bb7049eb18670ada6b5e1",
+        "2-v4.stderr": "ccfce10e73e73357d56f0cbebeed2401bc51bf43d58a886b0e46f5c7878b4e5c"
+      }
+    },
+    {
+      "index": 3,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "128",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715543.2035809,
+      "end": 1792715545.7739542,
+      "rates": {
+        "pp128": 2771.15,
+        "tg256": 275.01
+      },
+      "pp_phase_seconds": 0.04619020984067986,
+      "tg_phase_seconds": 0.9308752409003309,
+      "pp_plus_tg_phase_seconds": 0.9770654507410108,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.570373296737671,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 3,
+        "disappeared": 2,
+        "missed": 0,
+        "null_process_delta_observations": 3
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        97
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "3-mx.stdout": "e97db81084b31bae90f7a9add8a9fd2f039d40ab095494204f896fba483c282e",
+        "3-mx.stderr": "af36395d9d4bccf0d19b0e3cd46319d2a658abecdfb1687f0a95184825db1aba"
+      }
+    },
+    {
+      "index": 4,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "128",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715545.774384,
+      "end": 1792715548.3446648,
+      "rates": {
+        "pp128": 2788.04,
+        "tg256": 274.72
+      },
+      "pp_phase_seconds": 0.045910388660134,
+      "tg_phase_seconds": 0.93185789167152,
+      "pp_plus_tg_phase_seconds": 0.977768280331654,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.5702807903289795,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 15,
+        "disappeared": 13,
+        "missed": 0,
+        "null_process_delta_observations": 15
+      },
+      "measured_device_busy_percent_range": [
+        95,
+        97
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "4-mx.stdout": "f5a0f4e3cd660ec8387aa75cbc6f34c91363007e626428e9a46f7718e8488800",
+        "4-mx.stderr": "fc235b797d07f78815464f5cbd4331999911135ec7f8c79e4887c0fe1a2d38a7"
+      }
+    },
+    {
+      "index": 5,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 1,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715548.3451574,
+      "end": 1792715550.9142177,
+      "rates": {
+        "pp128": 4660.31,
+        "tg256": 259.29
+      },
+      "pp_phase_seconds": 0.027465984022522105,
+      "tg_phase_seconds": 0.9873115044930386,
+      "pp_plus_tg_phase_seconds": 1.0147774885155607,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.5690603256225586,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 3,
+        "disappeared": 3,
+        "missed": 0,
+        "null_process_delta_observations": 3
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "5-v4.stdout": "28896859da6bda274774fd301e067f631e79c33127a9e22ce9110bb24953c304",
+        "5-v4.stderr": "ccfce10e73e73357d56f0cbebeed2401bc51bf43d58a886b0e46f5c7878b4e5c"
+      }
+    },
+    {
+      "index": 6,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 2,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715550.9149096,
+      "end": 1792715553.4840136,
+      "rates": {
+        "pp128": 4665.97,
+        "tg256": 258.1
+      },
+      "pp_phase_seconds": 0.027432666733819548,
+      "tg_phase_seconds": 0.9918636187524215,
+      "pp_plus_tg_phase_seconds": 1.019296285486241,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.569103956222534,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 15,
+        "disappeared": 19,
+        "missed": 2,
+        "null_process_delta_observations": 15
+      },
+      "measured_device_busy_percent_range": [
+        96,
+        96
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "6-v4.stdout": "241639a5e8fe9cc0a59cee444ce06ae3e53f527b044b7d7bc65d6aaf59eca009",
+        "6-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 7,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "128",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715553.4844186,
+      "end": 1792715556.0551922,
+      "rates": {
+        "pp128": 2720.4,
+        "tg256": 274.67
+      },
+      "pp_phase_seconds": 0.04705190413174533,
+      "tg_phase_seconds": 0.9320275239378162,
+      "pp_plus_tg_phase_seconds": 0.9790794280695615,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.5707736015319824,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 21,
+        "disappeared": 6,
+        "missed": 0,
+        "null_process_delta_observations": 21
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        96
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "7-mx.stdout": "4d9a2744c58686b25422d94ecb48904949bc1c6d94790d8e9281e53681a5e01d",
+        "7-mx.stderr": "b87e48a0c7e766b4986e03bc73576ee64009bc4e989fd0d2e43f12d092124975"
+      }
+    },
+    {
+      "index": 8,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "128",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715556.0556386,
+      "end": 1792715558.626475,
+      "rates": {
+        "pp128": 2782.03,
+        "tg256": 276.73
+      },
+      "pp_phase_seconds": 0.04600956855245989,
+      "tg_phase_seconds": 0.9250894373577132,
+      "pp_plus_tg_phase_seconds": 0.9710990059101731,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.5708365440368652,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 13,
+        "disappeared": 11,
+        "missed": 0,
+        "null_process_delta_observations": 13
+      },
+      "measured_device_busy_percent_range": [
+        90,
+        97
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "8-mx.stdout": "178196ab16b625d8301cad95ca883df121d03b0dbb38ebd673825526af8065b5",
+        "8-mx.stderr": "4df71af32cf76b2438bfbfedd0ae801501531cbcc29fc0e6b3bc82df0aab45c7"
+      }
+    },
+    {
+      "index": 9,
+      "cell": "P128/G256",
+      "p": 128,
+      "g": 256,
+      "block": 3,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715558.6269531,
+      "end": 1792715561.196257,
+      "rates": {
+        "pp128": 4664.81,
+        "tg256": 259.39
+      },
+      "pp_phase_seconds": 0.027439488425037673,
+      "tg_phase_seconds": 0.9869308762866726,
+      "pp_plus_tg_phase_seconds": 1.0143703647117104,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 2.5693039894104004,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 3,
+        "appeared": 3,
+        "disappeared": 3,
+        "missed": 0,
+        "null_process_delta_observations": 3
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "9-v4.stdout": "05ea9ce97fb937526404a34a14aef05de22ea32ac5365d4d32020f0d19dc16d3",
+        "9-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 10,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715561.196697,
+      "end": 1792715563.0156796,
+      "rates": {
+        "pp512": 3777.74,
+        "tg128": 274.86
+      },
+      "pp_phase_seconds": 0.1355307670723766,
+      "tg_phase_seconds": 0.46569162482718474,
+      "pp_plus_tg_phase_seconds": 0.6012223918995614,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.8189826011657715,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 12,
+        "disappeared": 11,
+        "missed": 0,
+        "null_process_delta_observations": 12
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        97
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "10-mx.stdout": "f9988ad91cc4010bf9d3a297a1650b97e0cb0cceadcff3df3aeae38e1adbd6fd",
+        "10-mx.stderr": "7cf06b2cc1e3fb3c25c98d1e456ba0e1b3cc4014b6959573fb5b26d0f1083fc6"
+      }
+    },
+    {
+      "index": 11,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": null,
+      "arm": "v4",
+      "warmup": true,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715563.01626,
+      "end": 1792715564.7341304,
+      "rates": {
+        "pp512": 6323.58,
+        "tg128": 265.07
+      },
+      "pp_phase_seconds": 0.0809667941261121,
+      "tg_phase_seconds": 0.48289131172897726,
+      "pp_plus_tg_phase_seconds": 0.5638581058550893,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.7178704738616943,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 1,
+        "appeared": 5,
+        "disappeared": 6,
+        "missed": 0,
+        "null_process_delta_observations": 5
+      },
+      "measured_device_busy_percent_range": [
+        96,
+        96
+      ],
+      "measured_device_busy_sample_count": 1,
+      "log_sha256": {
+        "11-v4.stdout": "295e589dfdc4481d3bc9e9b20c0692fa3dc71345c24b4a92f72997787fce3658",
+        "11-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 12,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715564.7346833,
+      "end": 1792715566.554012,
+      "rates": {
+        "pp512": 3774.2,
+        "tg128": 275.35
+      },
+      "pp_phase_seconds": 0.13565788776429444,
+      "tg_phase_seconds": 0.46486290176139455,
+      "pp_plus_tg_phase_seconds": 0.600520789525689,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.819328784942627,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 2,
+        "disappeared": 2,
+        "missed": 1,
+        "null_process_delta_observations": 2
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "12-mx.stdout": "a1b750156c7ee218072d61eac35bea2d4164088b68f2b9d59d8f39b3c8672d8b",
+        "12-mx.stderr": "ec3d5b8acb9c2d81032db89606aad3567b84901476afaf2ca7096bd8ba3c735b"
+      }
+    },
+    {
+      "index": 13,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 0,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715566.5544717,
+      "end": 1792715568.2219746,
+      "rates": {
+        "pp512": 6324.96,
+        "tg128": 264.89
+      },
+      "pp_phase_seconds": 0.08094912853203814,
+      "tg_phase_seconds": 0.48321944958284574,
+      "pp_plus_tg_phase_seconds": 0.5641685781148839,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.6675028800964355,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 7,
+        "disappeared": 8,
+        "missed": 0,
+        "null_process_delta_observations": 7
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        96
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "13-v4.stdout": "32b04f3d4bd33e918f72414f3be782536520025baa5cf5c75850e7c3ee2ce1c4",
+        "13-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 14,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 1,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715568.222406,
+      "end": 1792715569.8898594,
+      "rates": {
+        "pp512": 6329.2,
+        "tg128": 265.05
+      },
+      "pp_phase_seconds": 0.08089489982936232,
+      "tg_phase_seconds": 0.48292774948122996,
+      "pp_plus_tg_phase_seconds": 0.5638226493105922,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.6674535274505615,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 7,
+        "disappeared": 7,
+        "missed": 5,
+        "null_process_delta_observations": 7
+      },
+      "measured_device_busy_percent_range": [
+        96,
+        100
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "14-v4.stdout": "509f651d50ee0f08343eee66576e24b65abca5f8fa958dffb536b223bb054477",
+        "14-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 15,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715569.8902936,
+      "end": 1792715571.7089992,
+      "rates": {
+        "pp512": 3775.15,
+        "tg128": 277.15
+      },
+      "pp_phase_seconds": 0.1356237500496669,
+      "tg_phase_seconds": 0.46184376691322393,
+      "pp_plus_tg_phase_seconds": 0.5974675169628908,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.8187055587768555,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 1,
+        "appeared": 3,
+        "disappeared": 3,
+        "missed": 0,
+        "null_process_delta_observations": 3
+      },
+      "measured_device_busy_percent_range": [
+        98,
+        98
+      ],
+      "measured_device_busy_sample_count": 1,
+      "log_sha256": {
+        "15-mx.stdout": "0e99c3c632c2ddd17d128f1729383eef0f4b5985c92d42524d6fe7d6b061aa49",
+        "15-mx.stderr": "ceefb9235632989685ccb8d49ec49c29556a4189355e3d83c9d85cccd4c7db04"
+      }
+    },
+    {
+      "index": 16,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715571.709497,
+      "end": 1792715573.5284462,
+      "rates": {
+        "pp512": 3771.2,
+        "tg128": 276.91
+      },
+      "pp_phase_seconds": 0.1357658039881205,
+      "tg_phase_seconds": 0.4622440504134917,
+      "pp_plus_tg_phase_seconds": 0.5980098544016121,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.8189492225646973,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 11,
+        "disappeared": 12,
+        "missed": 1,
+        "null_process_delta_observations": 11
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        95
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "16-mx.stdout": "94999d8ab2216e2a89281a8b69aec42a500154c5ed14c17f4c3cb87802a8c12b",
+        "16-mx.stderr": "1b638373899b2f1632ba5b02215968d6a2854b2312e1fde12d466067419843b0"
+      }
+    },
+    {
+      "index": 17,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 2,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715573.5289557,
+      "end": 1792715575.196672,
+      "rates": {
+        "pp512": 6322.55,
+        "tg128": 265.05
+      },
+      "pp_phase_seconds": 0.08097998434176083,
+      "tg_phase_seconds": 0.48292774948122996,
+      "pp_plus_tg_phase_seconds": 0.5639077338229908,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.6677162647247314,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 6,
+        "disappeared": 6,
+        "missed": 0,
+        "null_process_delta_observations": 6
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        96
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "17-v4.stdout": "5f1c0b81a9f74a9562cf68a654a4bf2a7e3974b21d70db9402d9fe04d3f7c401",
+        "17-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 18,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 3,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715575.1971543,
+      "end": 1792715576.8650947,
+      "rates": {
+        "pp512": 6329.98,
+        "tg128": 264.98
+      },
+      "pp_phase_seconds": 0.08088493170594536,
+      "tg_phase_seconds": 0.4830553249301834,
+      "pp_plus_tg_phase_seconds": 0.5639402566361288,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.667940378189087,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 2,
+        "appeared": 2,
+        "disappeared": 2,
+        "missed": 0,
+        "null_process_delta_observations": 2
+      },
+      "measured_device_busy_percent_range": [
+        37,
+        97
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "18-v4.stdout": "d4838ec72baef007cf529aa7c33c8767c3eb3d91a1938f133e5f64f52582133f",
+        "18-v4.stderr": "985c0cb928d0178c088c529ca0655669faeb2a007e642a14e15c172833a80e2f"
+      }
+    },
+    {
+      "index": 19,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715576.8657033,
+      "end": 1792715578.6849856,
+      "rates": {
+        "pp512": 3776.56,
+        "tg128": 275.47
+      },
+      "pp_phase_seconds": 0.1355731141567988,
+      "tg_phase_seconds": 0.4646603985914981,
+      "pp_plus_tg_phase_seconds": 0.600233512748297,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 1.8192822933197021,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 1,
+        "appeared": 8,
+        "disappeared": 6,
+        "missed": 0,
+        "null_process_delta_observations": 8
+      },
+      "measured_device_busy_percent_range": [
+        95,
+        95
+      ],
+      "measured_device_busy_sample_count": 1,
+      "log_sha256": {
+        "19-mx.stdout": "5ca6563ea80f4cb9475c096af8d17d2180c320268de7c36c9f629a2763aaf7ec",
+        "19-mx.stderr": "afaba4f7555a649a7d2bc5cd2ab31559866db001e7db08b85c770e1ed96a9daa"
+      }
+    },
+    {
+      "index": 20,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": null,
+      "arm": "v4",
+      "warmup": true,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715578.6855056,
+      "end": 1792715583.308905,
+      "rates": {
+        "pp4096": 3877.59,
+        "tg256": 258.85
+      },
+      "pp_phase_seconds": 1.0563262232469137,
+      "tg_phase_seconds": 0.9889897624106625,
+      "pp_plus_tg_phase_seconds": 2.0453159856575764,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 4.623399257659912,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 5,
+        "appeared": 130,
+        "disappeared": 16,
+        "missed": 3,
+        "null_process_delta_observations": 130
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "20-v4.stdout": "8089a5b19d1cec35c5991790e0053e263723178c3bf47869afc4c2fefff77c9c",
+        "20-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 21,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "4096",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715583.309363,
+      "end": 1792715589.386906,
+      "rates": {
+        "pp4096": 2324.23,
+        "tg256": 275.15
+      },
+      "pp_phase_seconds": 1.762304074897923,
+      "tg_phase_seconds": 0.9304015991277486,
+      "pp_plus_tg_phase_seconds": 2.692705674025672,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 6.077543020248413,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 6,
+        "appeared": 29,
+        "disappeared": 24,
+        "missed": 0,
+        "null_process_delta_observations": 29
+      },
+      "measured_device_busy_percent_range": [
+        54,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "21-mx.stdout": "b0b869cf839a11a86c90686fafe26b6de2daa9347ffa7068d7c732132cb67776",
+        "21-mx.stderr": "09c521845d577af00c5b60ac02da59c4f49b366c5e40903c3cd67ec97232c224"
+      }
+    },
+    {
+      "index": 22,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 0,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715589.3874307,
+      "end": 1792715594.0111797,
+      "rates": {
+        "pp4096": 3841.42,
+        "tg256": 260.13
+      },
+      "pp_phase_seconds": 1.066272368030572,
+      "tg_phase_seconds": 0.9841233229539077,
+      "pp_plus_tg_phase_seconds": 2.0503956909844794,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 4.623749017715454,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 5,
+        "appeared": 12,
+        "disappeared": 18,
+        "missed": 1,
+        "null_process_delta_observations": 12
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "22-v4.stdout": "a373cd23885b61c954d9b48f50e57dab929f5de52d7b1982ee918d9780eb143f",
+        "22-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 23,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "4096",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715594.0116694,
+      "end": 1792715600.0399966,
+      "rates": {
+        "pp4096": 2324.04,
+        "tg256": 274.29
+      },
+      "pp_phase_seconds": 1.7624481506342404,
+      "tg_phase_seconds": 0.9333187502278609,
+      "pp_plus_tg_phase_seconds": 2.6957669008621012,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 6.028327226638794,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 6,
+        "appeared": 11,
+        "disappeared": 11,
+        "missed": 0,
+        "null_process_delta_observations": 11
+      },
+      "measured_device_busy_percent_range": [
+        94,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "23-mx.stdout": "7bc5ab5531d19c6b73e025ba2e31bf91f001ff8fbd4c0d306e4da7b51eb6f3d0",
+        "23-mx.stderr": "df5ed07b61d106fd59170b2510ba4e45aac114953c2817efddd7a989521bd51f"
+      }
+    },
+    {
+      "index": 24,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "4096",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715600.0405192,
+      "end": 1792715606.067105,
+      "rates": {
+        "pp4096": 2314.77,
+        "tg256": 275.26
+      },
+      "pp_phase_seconds": 1.769506257641148,
+      "tg_phase_seconds": 0.9300297900167115,
+      "pp_plus_tg_phase_seconds": 2.6995360476578596,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 6.026585817337036,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 6,
+        "appeared": 17,
+        "disappeared": 17,
+        "missed": 2,
+        "null_process_delta_observations": 17
+      },
+      "measured_device_busy_percent_range": [
+        90,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "24-mx.stdout": "d388c4ded76616c45b955fd557a7f0e51ee9d0a14ab12b71911d26950e6e76b9",
+        "24-mx.stderr": "a05200c3d81fb484fef69dbc9e7b5759d781f692ef803912f75acf21a2ef7f10"
+      }
+    },
+    {
+      "index": 25,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 1,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715606.0676885,
+      "end": 1792715610.740472,
+      "rates": {
+        "pp4096": 3842.71,
+        "tg256": 260.71
+      },
+      "pp_phase_seconds": 1.0659144197714634,
+      "tg_phase_seconds": 0.9819339495991716,
+      "pp_plus_tg_phase_seconds": 2.047848369370635,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 4.672783613204956,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 4,
+        "appeared": 11,
+        "disappeared": 13,
+        "missed": 2,
+        "null_process_delta_observations": 11
+      },
+      "measured_device_busy_percent_range": [
+        87,
+        100
+      ],
+      "measured_device_busy_sample_count": 4,
+      "log_sha256": {
+        "25-v4.stdout": "103447789940722e0ba81a0c346e589c2b8233e146beeacbcbc90bff466b17ae",
+        "25-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 26,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 2,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715610.740985,
+      "end": 1792715615.364484,
+      "rates": {
+        "pp4096": 3847.56,
+        "tg256": 260.9
+      },
+      "pp_phase_seconds": 1.0645707929181092,
+      "tg_phase_seconds": 0.9812188577999235,
+      "pp_plus_tg_phase_seconds": 2.0457896507180324,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 4.623499155044556,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 5,
+        "appeared": 24,
+        "disappeared": 24,
+        "missed": 3,
+        "null_process_delta_observations": 24
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "26-v4.stdout": "03e9b0702653e15116073c2cfe15189c07cab384b4e19f13573550fe1d456d70",
+        "26-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+      }
+    },
+    {
+      "index": 27,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "4096",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715615.3650296,
+      "end": 1792715621.3424008,
+      "rates": {
+        "pp4096": 2345.17,
+        "tg256": 276.32
+      },
+      "pp_phase_seconds": 1.7465684790441631,
+      "tg_phase_seconds": 0.9264620729588883,
+      "pp_plus_tg_phase_seconds": 2.6730305520030515,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 5.9773712158203125,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 6,
+        "appeared": 13,
+        "disappeared": 17,
+        "missed": 0,
+        "null_process_delta_observations": 13
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "27-mx.stdout": "6d1fd3314f181b2fcef6f1c7ee52182d36a8ca1c98775e4dd7add2114bf845bd",
+        "27-mx.stderr": "9989f0ca4a840bb15113c019b1f53e25859de60fc1e97d81d8ec5e1a075e88fb"
+      }
+    },
+    {
+      "index": 28,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "4096",
+        "256",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792715621.3430088,
+      "end": 1792715627.3211956,
+      "rates": {
+        "pp4096": 2345.5,
+        "tg256": 274.86
+      },
+      "pp_phase_seconds": 1.746322745683223,
+      "tg_phase_seconds": 0.9313832496543695,
+      "pp_plus_tg_phase_seconds": 2.6777059953375923,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 5.978186845779419,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 6,
+        "appeared": 18,
+        "disappeared": 18,
+        "missed": 0,
+        "null_process_delta_observations": 18
+      },
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "28-mx.stdout": "125e212d9bf8e94cc230eb51c732f49e0a9e64521ad419fbe2d72ad29181cb88",
+        "28-mx.stderr": "713f1c77ab577ca48a40c5b017ee73b4eb9676d56b6afeac1b527eb5f604a956"
+      }
+    },
+    {
+      "index": 29,
+      "cell": "P4096/G256",
+      "p": 4096,
+      "g": 256,
+      "block": 3,
+      "arm": "v4",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792715627.3217654,
+      "end": 1792715631.9955819,
+      "rates": {
+        "pp4096": 3742.23,
+        "tg256": 260.75
+      },
+      "pp_phase_seconds": 1.0945345422381842,
+      "tg_phase_seconds": 0.9817833173537871,
+      "pp_plus_tg_phase_seconds": 2.0763178595919713,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency.",
+      "flags": [],
+      "monitored_seconds": 4.673816442489624,
+      "uncovered_seconds": 0,
+      "process_coverage": {
+        "samples": 5,
+        "appeared": 14,
+        "disappeared": 11,
+        "missed": 0,
+        "null_process_delta_observations": 14
+      },
+      "measured_device_busy_percent_range": [
+        11,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "29-v4.stdout": "0361f711c14fa6e015549d1f81d123b50ca9226561e70a12c4594bf17e70946c",
+        "29-v4.stderr": "ccfce10e73e73357d56f0cbebeed2401bc51bf43d58a886b0e46f5c7878b4e5c"
+      }
+    }
+  ],
+  "cells": {
+    "P128/G256": {
+      "arms": {
+        "v4": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.027448615276688473,
+            "min": 0.027432666733819548,
+            "max": 0.027465984022522105
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9884400801299468,
+            "min": 0.9869308762866726,
+            "max": 0.9918636187524215
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.0158886954066353,
+            "min": 1.0143703647117104,
+            "max": 1.019296285486241
+          },
+          "pp128": {
+            "mean": 4663.26,
+            "min": 4660.31,
+            "max": 4665.97
+          },
+          "tg256": {
+            "mean": 258.995,
+            "min": 258.1,
+            "max": 259.39
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.046290517796254774,
+            "min": 0.045910388660134,
+            "max": 0.04705190413174533
+          },
+          "tg_phase_seconds": {
+            "mean": 0.929962523466845,
+            "min": 0.9250894373577132,
+            "max": 0.9320275239378162
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.9762530412630999,
+            "min": 0.9710990059101731,
+            "max": 0.9790794280695615
+          },
+          "pp128": {
+            "mean": 2765.405,
+            "min": 2720.4,
+            "max": 2788.04
+          },
+          "tg256": {
+            "mean": 275.2825,
+            "min": 274.67,
+            "max": 276.73
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            2,
+            3
+          ],
+          "order": [
+            "v4",
+            "mx"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp128": 68.23160059902926,
+            "tg256": -5.748881858841493
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.018733887915305288,
+            "tg_phase_seconds": 0.056779080087323464,
+            "pp_plus_tg_phase_seconds": 0.03804519217201818
+          },
+          "v4_vs_mx_phase_sum_time_percent": 3.893822275996417
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            4,
+            5
+          ],
+          "order": [
+            "mx",
+            "v4"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp128": 67.15362763805399,
+            "tg256": -5.616627839254518
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.018444404637611895,
+            "tg_phase_seconds": 0.055453612821518616,
+            "pp_plus_tg_phase_seconds": 0.03700920818390674
+          },
+          "v4_vs_mx_phase_sum_time_percent": 3.785069420676379
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            6,
+            7
+          ],
+          "order": [
+            "v4",
+            "mx"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp128": 71.51779150124982,
+            "tg256": -6.032693777988129
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.01961923739792578,
+            "tg_phase_seconds": 0.05983609481460528,
+            "pp_plus_tg_phase_seconds": 0.040216857416679574
+          },
+          "v4_vs_mx_phase_sum_time_percent": 4.107619490685721
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            8,
+            9
+          ],
+          "order": [
+            "mx",
+            "v4"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp128": 67.67648084312535,
+            "tg256": -6.26603548585265
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.018570080127422218,
+            "tg_phase_seconds": 0.061841438928959436,
+            "pp_plus_tg_phase_seconds": 0.04327135880153732
+          },
+          "v4_vs_mx_phase_sum_time_percent": 4.455916290531126
+        }
+      ]
+    },
+    "P512/G128": {
+      "arms": {
+        "v4": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.08092723610227667,
+            "min": 0.08088493170594536,
+            "max": 0.08097998434176083
+          },
+          "tg_phase_seconds": {
+            "mean": 0.48303256836887226,
+            "min": 0.48292774948122996,
+            "max": 0.48321944958284574
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.5639598044711489,
+            "min": 0.5638226493105922,
+            "max": 0.5641685781148839
+          },
+          "pp512": {
+            "mean": 6326.6725,
+            "min": 6322.55,
+            "max": 6329.98
+          },
+          "tg128": {
+            "mean": 264.9925,
+            "min": 264.89,
+            "max": 265.05
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.13565513898972015,
+            "min": 0.1355731141567988,
+            "max": 0.1357658039881205
+          },
+          "tg_phase_seconds": {
+            "mean": 0.46340277941990204,
+            "min": 0.46184376691322393,
+            "max": 0.46486290176139455
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.5990579184096222,
+            "min": 0.5974675169628908,
+            "max": 0.600520789525689
+          },
+          "pp512": {
+            "mean": 3774.2775,
+            "min": 3771.2,
+            "max": 3776.56
+          },
+          "tg128": {
+            "mean": 276.22,
+            "min": 275.35,
+            "max": 277.15
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            12,
+            13
+          ],
+          "order": [
+            "mx",
+            "v4"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp512": 67.58412378782259,
+            "tg128": -3.798801525331408
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.05470875923225629,
+            "tg_phase_seconds": 0.018356547821451186,
+            "pp_plus_tg_phase_seconds": -0.036352211410805135
+          },
+          "v4_vs_mx_phase_sum_time_percent": -6.053447614947238
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            14,
+            15
+          ],
+          "order": [
+            "v4",
+            "mx"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp512": 67.65426539342808,
+            "tg128": -4.365866859101553
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.054728850220304576,
+            "tg_phase_seconds": 0.021083982568006032,
+            "pp_plus_tg_phase_seconds": -0.03364486765229857
+          },
+          "v4_vs_mx_phase_sum_time_percent": -5.631246335085405
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            16,
+            17
+          ],
+          "order": [
+            "mx",
+            "v4"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp512": 67.6535320322444,
+            "tg128": -4.282980029612515
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.05478581964635966,
+            "tg_phase_seconds": 0.02068369906773826,
+            "pp_plus_tg_phase_seconds": -0.03410212057862139
+          },
+          "v4_vs_mx_phase_sum_time_percent": -5.702601776143812
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            18,
+            19
+          ],
+          "order": [
+            "v4",
+            "mx"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp512": 67.61232444340881,
+            "tg128": -3.8080371728318907
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.054688182450853426,
+            "tg_phase_seconds": 0.01839492633868528,
+            "pp_plus_tg_phase_seconds": -0.03629325611216816
+          },
+          "v4_vs_mx_phase_sum_time_percent": -6.0465227851060455
+        }
+      ]
+    },
+    "P4096/G256": {
+      "arms": {
+        "v4": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.072823030739582,
+            "min": 1.0645707929181092,
+            "max": 1.0945345422381842
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9822648619266975,
+            "min": 0.9812188577999235,
+            "max": 0.9841233229539077
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.0550878926662794,
+            "min": 2.0457896507180324,
+            "max": 2.0763178595919713
+          },
+          "pp4096": {
+            "mean": 3818.48,
+            "min": 3742.23,
+            "max": 3847.56
+          },
+          "tg256": {
+            "mean": 260.6225,
+            "min": 260.13,
+            "max": 260.9
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.7562114082506937,
+            "min": 1.746322745683223,
+            "max": 1.769506257641148
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9302984657144575,
+            "min": 0.9264620729588883,
+            "max": 0.9333187502278609
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.686509873965151,
+            "min": 2.6730305520030515,
+            "max": 2.6995360476578596
+          },
+          "pp4096": {
+            "mean": 2332.37,
+            "min": 2314.77,
+            "max": 2345.5
+          },
+          "tg256": {
+            "mean": 275.1825,
+            "min": 274.29,
+            "max": 276.32
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            22,
+            23
+          ],
+          "order": [
+            "v4",
+            "mx"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp4096": 65.29061461936972,
+            "tg256": -5.162419337197866
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6961757826036685,
+            "tg_phase_seconds": 0.05080457272604677,
+            "pp_plus_tg_phase_seconds": -0.6453712098776219
+          },
+          "v4_vs_mx_phase_sum_time_percent": -23.940171150229396
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            24,
+            25
+          ],
+          "order": [
+            "mx",
+            "v4"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp4096": 66.00828592041543,
+            "tg256": -5.2859115018528025
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.7035918378696846,
+            "tg_phase_seconds": 0.051904159582460085,
+            "pp_plus_tg_phase_seconds": -0.6516876782872245
+          },
+          "v4_vs_mx_phase_sum_time_percent": -24.140728880158292
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            26,
+            27
+          ],
+          "order": [
+            "v4",
+            "mx"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp4096": 64.06315960037013,
+            "tg256": -5.580486392588313
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6819976861260539,
+            "tg_phase_seconds": 0.05475678484103519,
+            "pp_plus_tg_phase_seconds": -0.6272409012850191
+          },
+          "v4_vs_mx_phase_sum_time_percent": -23.465534309549597
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            28,
+            29
+          ],
+          "order": [
+            "mx",
+            "v4"
+          ],
+          "v4_vs_mx_rate_percent": {
+            "pp4096": 59.54934981880196,
+            "tg256": -5.133522520555922
+          },
+          "v4_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6517882034450388,
+            "tg_phase_seconds": 0.05040006769941763,
+            "pp_plus_tg_phase_seconds": -0.601388135745621
+          },
+          "v4_vs_mx_phase_sum_time_percent": -22.45908015266631
+        }
+      ]
+    }
+  },
+  "inputs": {
+    "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+    "build": {
+      "llmx": "d7829cf93ec1ef5aba972b5b8c26f0043ef89be484df1b8ebbadc401782074ee",
+      "llmx-model-logits": "268879ea9f051d221da9c18ee4e94211d107f2de0422013795d13f503afed3f7",
+      "llmx-iq2-s-test": "dd2cd8012d63b7580d3262dd518081ac7c3db60f35f919270748f709c4ad719e",
+      "llmx-iq3-s-test": "ef93ad360e0d2bbb4fbd1edbbfca1e3079b586131f65d40713ae471ad576db8d",
+      "libllmx-vulkan.a": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193",
+      "generated/llmx-build-info.hpp": "ec6e4591c4c64ab8d983571c3d7a86e0996587cf9b8d8681b9a3a973ef00119e",
+      "CMakeCache.txt": "2e5d404df525314adab25154bf758a0e1566291493997fabb25c5d019a72fad8",
+      "compile_commands.json": "549ccaacc08e5577d5118ba07aed033579bc0113f1e812621fa288ae15b83eda"
+    },
+    "reference": {
+      "status": "pass",
+      "pid": 1416455,
+      "head": "eefc4e7321c869496146697d63362f073941aed6",
+      "commands": [
+        {
+          "name": "headers-configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "-S",
+            "/work/mxfp4-vulkan-reference-20260929/headers-source",
+            "-B",
+            "/work/mxfp4-vulkan-reference-20260929/headers-build",
+            "-DCMAKE_INSTALL_PREFIX=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+            "-DSPIRV_HEADERS_ENABLE_TESTS=OFF",
+            "-DSPIRV_HEADERS_ENABLE_INSTALL=ON"
+          ],
+          "started": "2026-09-29T04:17:46.879511+00:00",
+          "pid": 1416505,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:46.979758+00:00"
+        },
+        {
+          "name": "headers-install",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "--install",
+            "/work/mxfp4-vulkan-reference-20260929/headers-build"
+          ],
+          "started": "2026-09-29T04:17:46.979991+00:00",
+          "pid": 1416542,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.063506+00:00"
+        },
+        {
+          "name": "container-head",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "git",
+            "-C",
+            "/work/mxfp4-vulkan-reference-20260929/source",
+            "rev-parse",
+            "HEAD"
+          ],
+          "started": "2026-09-29T04:17:47.063878+00:00",
+          "pid": 1416574,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.130871+00:00"
+        },
+        {
+          "name": "compiler",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "g++",
+            "--version"
+          ],
+          "started": "2026-09-29T04:17:47.152181+00:00",
+          "pid": 1416618,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.214839+00:00"
+        },
+        {
+          "name": "shader-compiler",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "glslc",
+            "--version"
+          ],
+          "started": "2026-09-29T04:17:47.215168+00:00",
+          "pid": 1416650,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.283701+00:00"
+        },
+        {
+          "name": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "-S",
+            "/work/mxfp4-vulkan-reference-20260929/source",
+            "-B",
+            "/work/mxfp4-vulkan-reference-20260929/build-r2",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_SHARED_LIBS=ON",
+            "-DGGML_BACKEND_DL=OFF",
+            "-DGGML_NATIVE=OFF",
+            "-DGGML_AVX=ON",
+            "-DGGML_AVX2=ON",
+            "-DGGML_FMA=ON",
+            "-DGGML_F16C=ON",
+            "-DGGML_AVX512=OFF",
+            "-DGGML_AVX512_VBMI=OFF",
+            "-DGGML_AVX512_VNNI=OFF",
+            "-DGGML_AVX512_BF16=OFF",
+            "-DGGML_AVX_VNNI=OFF",
+            "-DGGML_BLAS=OFF",
+            "-DGGML_CUDA=OFF",
+            "-DGGML_HIP=OFF",
+            "-DGGML_SYCL=OFF",
+            "-DGGML_VULKAN=ON",
+            "-DLLAMA_BUILD_COMMON=ON",
+            "-DLLAMA_BUILD_TESTS=OFF",
+            "-DLLAMA_BUILD_TOOLS=ON",
+            "-DLLAMA_BUILD_EXAMPLES=OFF",
+            "-DLLAMA_BUILD_SERVER=OFF",
+            "-DLLAMA_BUILD_APP=OFF",
+            "-DLLAMA_OPENSSL=OFF",
+            "-DLLAMA_LLGUIDANCE=OFF",
+            "-DCMAKE_PREFIX_PATH=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+            "-DCMAKE_CXX_FLAGS=-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+          ],
+          "started": "2026-09-29T04:17:47.284028+00:00",
+          "pid": 1416683,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:48.893479+00:00"
+        },
+        {
+          "name": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "--build",
+            "/work/mxfp4-vulkan-reference-20260929/build-r2",
+            "--target",
+            "llama",
+            "llama-bench",
+            "--parallel",
+            "6"
+          ],
+          "started": "2026-09-29T04:17:48.893963+00:00",
+          "pid": 1416760,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:56.745642+00:00"
+        },
+        {
+          "name": "wrapper",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "g++",
+            "-std=c++17",
+            "-O3",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/mxfp4-vulkan-reference-20260929/source/include",
+            "-I/work/mxfp4-vulkan-reference-20260929/source/ggml/include",
+            "/work/mxfp4-vulkan-reference-20260929/wrapper.cpp",
+            "-L/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+            "-Wl,-rpath,/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-o",
+            "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan"
+          ],
+          "started": "2026-09-29T04:22:56.746513+00:00",
+          "pid": 1426442,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:57.521871+00:00"
+        },
+        {
+          "name": "device-enumeration",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+            "--list-devices"
+          ],
+          "started": "2026-09-29T04:22:57.522339+00:00",
+          "pid": 1426489,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:57.633993+00:00"
+        }
+      ],
+      "container": {
+        "name": "llmx-p2-x-mxfp4-gpu3-20260928",
+        "id": "58b7e3ab39ce19a714feba8bdbd661dea12418f4565ecb7eba5b6297339b5a74",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "devices": [
+          {
+            "PathOnHost": "/dev/dri/renderD133",
+            "PathInContainer": "/dev/dri/renderD133",
+            "CgroupPermissions": "rwm"
+          }
+        ]
+      },
+      "scope": "Clean pinned Vulkan reference library, stock benchmark and same-workload API adapter; no model or timing",
+      "sdk_headers": {
+        "revision": "09913f088a1197aba4aefd300a876b2ebbaa3391",
+        "tag": "vulkan-sdk-1.4.309.0",
+        "scope": "Private header-only prefix; container package DNS failure retained in sdk/record.json"
+      },
+      "compiler": "g++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "shader_compiler": "shaderc 2025.2-1\nspirv-tools 2025.1~rc1-1\nglslang 15.1.0+1.4.309.0-1\n\nTarget: SPIR-V 1.0\n",
+      "cmake_options": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_SHARED_LIBS": "ON",
+        "GGML_BACKEND_DL": "OFF",
+        "GGML_NATIVE": "OFF",
+        "GGML_AVX": "ON",
+        "GGML_AVX2": "ON",
+        "GGML_FMA": "ON",
+        "GGML_F16C": "ON",
+        "GGML_AVX512": "OFF",
+        "GGML_AVX512_VBMI": "OFF",
+        "GGML_AVX512_VNNI": "OFF",
+        "GGML_AVX512_BF16": "OFF",
+        "GGML_AVX_VNNI": "OFF",
+        "GGML_BLAS": "OFF",
+        "GGML_CUDA": "OFF",
+        "GGML_HIP": "OFF",
+        "GGML_SYCL": "OFF",
+        "GGML_VULKAN": "ON",
+        "LLAMA_BUILD_COMMON": "ON",
+        "LLAMA_BUILD_TESTS": "OFF",
+        "LLAMA_BUILD_TOOLS": "ON",
+        "LLAMA_BUILD_EXAMPLES": "OFF",
+        "LLAMA_BUILD_SERVER": "OFF",
+        "LLAMA_BUILD_APP": "OFF",
+        "LLAMA_OPENSSL": "OFF",
+        "LLAMA_LLGUIDANCE": "OFF",
+        "CMAKE_PREFIX_PATH": "/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+        "CMAKE_CXX_FLAGS": "-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+      },
+      "artifacts": {
+        "build-r2/CMakeCache.txt": "03fdb77626548756e9465da2a7105bc903523c426436779dc29e2c2f936e66b7",
+        "build-r2/bin/libllama-bench-impl.so": "d43e9e36136c3e4d4d0f125428156c6498d667956b4b5e61771662de0f5c3288",
+        "build-r2/bin/libggml-vulkan.so.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/bin/libllama-common.so.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libllama.so": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libggml-base.so.0.22.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml.so.0.22.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/llama-bench": "d1e9fbc78d7150e37b7381be5e76a8e1cb05d7e20d4aead45bb735356daa39a1",
+        "build-r2/bin/libggml-cpu.so": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libllama-common.so.0.3.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libggml-cpu.so.0.22.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libggml-base.so.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml-base.so": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml-cpu.so.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libggml-vulkan.so": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/bin/libllama.so.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libllama-common.so": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libllama.so.0.3.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libggml.so": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/libggml.so.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/libggml-vulkan.so.0.22.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-build/CMakeCache.txt": "a4fec47793fc377747f6c90372bf073c9bc19c165b3ecc509f3a9b7d4ff63047"
+      },
+      "wrapper_sha256": "6765e943a7e3963f6b1a6044adfae026e9d41a22f408535be0560520d8ee8f5c",
+      "exe_sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+      "completed": "2026-09-29T04:22:57.863432+00:00"
+    },
+    "source_manifest_sha256": "794a5b260e34113acbb79a62b4a32e9b218cb98bda792afe82f012322b1d4844",
+    "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4",
+    "guard": {
+      "pci": "0000:c6:00.0",
+      "busy": 0,
+      "vram": 10919936,
+      "power": "auto",
+      "dormant_mapping": {
+        "id": "b2b1eb6de5f8ab6aebe7cd6403d4a66d3822cb0b5db1caaf4f8c972b4b392e24",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "processes": [
+          [
+            "2841791",
+            "docker-init",
+            "/sbin/docker-init -- sleep infinity"
+          ],
+          [
+            "2841805",
+            "sleep",
+            "sleep infinity"
+          ]
+        ]
+      }
+    }
+  },
+  "limitations": [
+    "PP and TG both reset before execution. P/PP + G/TG sums separate empty-history microbench phases; it is NOT decode after that prompt or request/server latency. Load/startup are excluded.",
+    "mx n_ctx=max(512,P,G); llmx reach=max(P,G). Allocated KV layouts need not match. Identical token-stream seeds: PP12345 and TG777. F32 K/V; llmx auto F16 arithmetic; ubatch512; threads4.",
+    "Four matched blocks per cell; no measured layout noise band, both-phase floor verdict, or automatic acceptance/rejection.",
+    "All warmups and samples retained. Activity flags describe overlapping monitor intervals, not proven causation. Whole-disk counters are not process-attributed. Short-lived processes may escape sampling; unavailable counters are unknown, not zero."
+  ],
+  "evidence": {
+    "execution.json": "fc17a02ec6aee1c35d7f1cb63b3959e09461a362d87b9f530fc1aba25ef0a4bb",
+    "activity.jsonl": "2d81fdf54f6221222826ca9ddb53b1190d8ca30cfc26ed2dbedb0cf0335524c5"
+  },
+  "activity": {
+    "sample_count": 103,
+    "interval_count": 102,
+    "flag_interval_counts": {},
+    "raw_monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "planned_call_count": 30,
+  "status_counts": {
+    "passed": 30
+  },
+  "date": "2026-10-23",
+  "execution": {
+    "start": 1792715530.8423777,
+    "guard": {
+      "pci": "0000:c6:00.0",
+      "busy": 0,
+      "vram": 10919936,
+      "power": "auto",
+      "dormant_mapping": {
+        "id": "b2b1eb6de5f8ab6aebe7cd6403d4a66d3822cb0b5db1caaf4f8c972b4b392e24",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "processes": [
+          [
+            "2841791",
+            "docker-init",
+            "/sbin/docker-init -- sleep infinity"
+          ],
+          [
+            "2841805",
+            "sleep",
+            "sleep infinity"
+          ]
+        ]
+      }
+    },
+    "active_devices": {
+      "/llmx-ldev-ctxcut": {
+        "nodes": [],
+        "cpuset": "14,15"
+      },
+      "/llmx-serve": {
+        "nodes": [
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133"
+        ],
+        "cpuset": ""
+      },
+      "/llmx-health-dashboard": {
+        "nodes": [],
+        "cpuset": ""
+      },
+      "/llmx-xdev-flash-ppl-native-20261016": {
+        "nodes": [
+          "/dev/dri/renderD128",
+          "/dev/dri/renderD129",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/dev/dri/renderD134",
+          "/dev/dri/renderD135",
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137"
+        ],
+        "cpuset": "2,3"
+      },
+      "/llmx-xdev-flash-20261015": {
+        "nodes": [
+          "/dev/dri/renderD136"
+        ],
+        "cpuset": "0-1"
+      },
+      "/open-webui": {
+        "nodes": [],
+        "cpuset": ""
+      },
+      "/cdev-abc-run2": {
+        "nodes": [
+          "/dev/kfd",
+          "/dev/dri"
+        ],
+        "cpuset": ""
+      },
+      "/portainer": {
+        "nodes": [],
+        "cpuset": ""
+      }
+    },
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--runtime",
+      "runc",
+      "--name",
+      "llmx-xdev-iq2-workload-matrix-v4-20261023",
+      "--label",
+      "llmx.iq2-screen=llmx-xdev-iq2-workload-matrix-v4-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "8-11",
+      "--cpus",
+      "4",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD129",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+      "-e",
+      "LD_LIBRARY_PATH=/ref/build-r2/bin",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/build:/b:ro",
+      "-v",
+      "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929:/ref:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/models/Qwen_Qwen3-0.6B-IQ2_M.gguf:/model.gguf:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "build": {
+      "llmx": "d7829cf93ec1ef5aba972b5b8c26f0043ef89be484df1b8ebbadc401782074ee",
+      "llmx-model-logits": "268879ea9f051d221da9c18ee4e94211d107f2de0422013795d13f503afed3f7",
+      "llmx-iq2-s-test": "dd2cd8012d63b7580d3262dd518081ac7c3db60f35f919270748f709c4ad719e",
+      "llmx-iq3-s-test": "ef93ad360e0d2bbb4fbd1edbbfca1e3079b586131f65d40713ae471ad576db8d",
+      "libllmx-vulkan.a": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193",
+      "generated/llmx-build-info.hpp": "ec6e4591c4c64ab8d983571c3d7a86e0996587cf9b8d8681b9a3a973ef00119e",
+      "CMakeCache.txt": "2e5d404df525314adab25154bf758a0e1566291493997fabb25c5d019a72fad8",
+      "compile_commands.json": "549ccaacc08e5577d5118ba07aed033579bc0113f1e812621fa288ae15b83eda"
+    },
+    "reference": {
+      "status": "pass",
+      "pid": 1416455,
+      "head": "eefc4e7321c869496146697d63362f073941aed6",
+      "commands": [
+        {
+          "name": "headers-configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "-S",
+            "/work/mxfp4-vulkan-reference-20260929/headers-source",
+            "-B",
+            "/work/mxfp4-vulkan-reference-20260929/headers-build",
+            "-DCMAKE_INSTALL_PREFIX=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+            "-DSPIRV_HEADERS_ENABLE_TESTS=OFF",
+            "-DSPIRV_HEADERS_ENABLE_INSTALL=ON"
+          ],
+          "started": "2026-09-29T04:17:46.879511+00:00",
+          "pid": 1416505,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:46.979758+00:00"
+        },
+        {
+          "name": "headers-install",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "--install",
+            "/work/mxfp4-vulkan-reference-20260929/headers-build"
+          ],
+          "started": "2026-09-29T04:17:46.979991+00:00",
+          "pid": 1416542,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.063506+00:00"
+        },
+        {
+          "name": "container-head",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "git",
+            "-C",
+            "/work/mxfp4-vulkan-reference-20260929/source",
+            "rev-parse",
+            "HEAD"
+          ],
+          "started": "2026-09-29T04:17:47.063878+00:00",
+          "pid": 1416574,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.130871+00:00"
+        },
+        {
+          "name": "compiler",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "g++",
+            "--version"
+          ],
+          "started": "2026-09-29T04:17:47.152181+00:00",
+          "pid": 1416618,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.214839+00:00"
+        },
+        {
+          "name": "shader-compiler",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "glslc",
+            "--version"
+          ],
+          "started": "2026-09-29T04:17:47.215168+00:00",
+          "pid": 1416650,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.283701+00:00"
+        },
+        {
+          "name": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "-S",
+            "/work/mxfp4-vulkan-reference-20260929/source",
+            "-B",
+            "/work/mxfp4-vulkan-reference-20260929/build-r2",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_SHARED_LIBS=ON",
+            "-DGGML_BACKEND_DL=OFF",
+            "-DGGML_NATIVE=OFF",
+            "-DGGML_AVX=ON",
+            "-DGGML_AVX2=ON",
+            "-DGGML_FMA=ON",
+            "-DGGML_F16C=ON",
+            "-DGGML_AVX512=OFF",
+            "-DGGML_AVX512_VBMI=OFF",
+            "-DGGML_AVX512_VNNI=OFF",
+            "-DGGML_AVX512_BF16=OFF",
+            "-DGGML_AVX_VNNI=OFF",
+            "-DGGML_BLAS=OFF",
+            "-DGGML_CUDA=OFF",
+            "-DGGML_HIP=OFF",
+            "-DGGML_SYCL=OFF",
+            "-DGGML_VULKAN=ON",
+            "-DLLAMA_BUILD_COMMON=ON",
+            "-DLLAMA_BUILD_TESTS=OFF",
+            "-DLLAMA_BUILD_TOOLS=ON",
+            "-DLLAMA_BUILD_EXAMPLES=OFF",
+            "-DLLAMA_BUILD_SERVER=OFF",
+            "-DLLAMA_BUILD_APP=OFF",
+            "-DLLAMA_OPENSSL=OFF",
+            "-DLLAMA_LLGUIDANCE=OFF",
+            "-DCMAKE_PREFIX_PATH=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+            "-DCMAKE_CXX_FLAGS=-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+          ],
+          "started": "2026-09-29T04:17:47.284028+00:00",
+          "pid": 1416683,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:48.893479+00:00"
+        },
+        {
+          "name": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "--build",
+            "/work/mxfp4-vulkan-reference-20260929/build-r2",
+            "--target",
+            "llama",
+            "llama-bench",
+            "--parallel",
+            "6"
+          ],
+          "started": "2026-09-29T04:17:48.893963+00:00",
+          "pid": 1416760,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:56.745642+00:00"
+        },
+        {
+          "name": "wrapper",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "g++",
+            "-std=c++17",
+            "-O3",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/mxfp4-vulkan-reference-20260929/source/include",
+            "-I/work/mxfp4-vulkan-reference-20260929/source/ggml/include",
+            "/work/mxfp4-vulkan-reference-20260929/wrapper.cpp",
+            "-L/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+            "-Wl,-rpath,/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-o",
+            "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan"
+          ],
+          "started": "2026-09-29T04:22:56.746513+00:00",
+          "pid": 1426442,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:57.521871+00:00"
+        },
+        {
+          "name": "device-enumeration",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+            "--list-devices"
+          ],
+          "started": "2026-09-29T04:22:57.522339+00:00",
+          "pid": 1426489,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:57.633993+00:00"
+        }
+      ],
+      "container": {
+        "name": "llmx-p2-x-mxfp4-gpu3-20260928",
+        "id": "58b7e3ab39ce19a714feba8bdbd661dea12418f4565ecb7eba5b6297339b5a74",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "devices": [
+          {
+            "PathOnHost": "/dev/dri/renderD133",
+            "PathInContainer": "/dev/dri/renderD133",
+            "CgroupPermissions": "rwm"
+          }
+        ]
+      },
+      "scope": "Clean pinned Vulkan reference library, stock benchmark and same-workload API adapter; no model or timing",
+      "sdk_headers": {
+        "revision": "09913f088a1197aba4aefd300a876b2ebbaa3391",
+        "tag": "vulkan-sdk-1.4.309.0",
+        "scope": "Private header-only prefix; container package DNS failure retained in sdk/record.json"
+      },
+      "compiler": "g++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "shader_compiler": "shaderc 2025.2-1\nspirv-tools 2025.1~rc1-1\nglslang 15.1.0+1.4.309.0-1\n\nTarget: SPIR-V 1.0\n",
+      "cmake_options": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_SHARED_LIBS": "ON",
+        "GGML_BACKEND_DL": "OFF",
+        "GGML_NATIVE": "OFF",
+        "GGML_AVX": "ON",
+        "GGML_AVX2": "ON",
+        "GGML_FMA": "ON",
+        "GGML_F16C": "ON",
+        "GGML_AVX512": "OFF",
+        "GGML_AVX512_VBMI": "OFF",
+        "GGML_AVX512_VNNI": "OFF",
+        "GGML_AVX512_BF16": "OFF",
+        "GGML_AVX_VNNI": "OFF",
+        "GGML_BLAS": "OFF",
+        "GGML_CUDA": "OFF",
+        "GGML_HIP": "OFF",
+        "GGML_SYCL": "OFF",
+        "GGML_VULKAN": "ON",
+        "LLAMA_BUILD_COMMON": "ON",
+        "LLAMA_BUILD_TESTS": "OFF",
+        "LLAMA_BUILD_TOOLS": "ON",
+        "LLAMA_BUILD_EXAMPLES": "OFF",
+        "LLAMA_BUILD_SERVER": "OFF",
+        "LLAMA_BUILD_APP": "OFF",
+        "LLAMA_OPENSSL": "OFF",
+        "LLAMA_LLGUIDANCE": "OFF",
+        "CMAKE_PREFIX_PATH": "/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+        "CMAKE_CXX_FLAGS": "-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+      },
+      "artifacts": {
+        "build-r2/CMakeCache.txt": "03fdb77626548756e9465da2a7105bc903523c426436779dc29e2c2f936e66b7",
+        "build-r2/bin/libllama-bench-impl.so": "d43e9e36136c3e4d4d0f125428156c6498d667956b4b5e61771662de0f5c3288",
+        "build-r2/bin/libggml-vulkan.so.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/bin/libllama-common.so.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libllama.so": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libggml-base.so.0.22.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml.so.0.22.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/llama-bench": "d1e9fbc78d7150e37b7381be5e76a8e1cb05d7e20d4aead45bb735356daa39a1",
+        "build-r2/bin/libggml-cpu.so": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libllama-common.so.0.3.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libggml-cpu.so.0.22.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libggml-base.so.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml-base.so": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml-cpu.so.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libggml-vulkan.so": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/bin/libllama.so.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libllama-common.so": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libllama.so.0.3.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libggml.so": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/libggml.so.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/libggml-vulkan.so.0.22.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-build/CMakeCache.txt": "a4fec47793fc377747f6c90372bf073c9bc19c165b3ecc509f3a9b7d4ff63047"
+      },
+      "wrapper_sha256": "6765e943a7e3963f6b1a6044adfae026e9d41a22f408535be0560520d8ee8f5c",
+      "exe_sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+      "completed": "2026-09-29T04:22:57.863432+00:00"
+    },
+    "source_manifest_sha256": "794a5b260e34113acbb79a62b4a32e9b218cb98bda792afe82f012322b1d4844",
+    "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+    "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "scope": "Frozen v4 versus pinned mx workload boundary matrix; same file, F32 KV, auto F16 llmx arithmetic, ubatch512, threads4. No competing owned workload. All warmups and planned samples retained; no automatic tradeoff verdict.",
+    "thresholds": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "calls": [
+      {
+        "index": 0,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": null,
+        "arm": "v4",
+        "warmup": true,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715533.638544,
+        "end": 1792715536.5594785,
+        "rates": {
+          "pp128": 4669.1,
+          "tg256": 259.39
+        },
+        "pp_phase_seconds": 0.027414276841361288,
+        "tg_phase_seconds": 0.9869308762866726,
+        "pp_plus_tg_phase_seconds": 1.0143451531280339,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 1,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": null,
+        "arm": "mx",
+        "warmup": true,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "128",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715536.5598743,
+        "end": 1792715540.6336927,
+        "rates": {
+          "pp128": 2772.29,
+          "tg256": 274.77
+        },
+        "pp_phase_seconds": 0.04617121585404124,
+        "tg_phase_seconds": 0.9316883211413183,
+        "pp_plus_tg_phase_seconds": 0.9778595369953595,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 2,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 0,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715540.6342285,
+        "end": 1792715543.2031488,
+        "rates": {
+          "pp128": 4661.95,
+          "tg256": 259.2
+        },
+        "pp_phase_seconds": 0.027456321925374574,
+        "tg_phase_seconds": 0.9876543209876544,
+        "pp_plus_tg_phase_seconds": 1.015110642913029,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 3,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 0,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "128",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715543.2035809,
+        "end": 1792715545.7739542,
+        "rates": {
+          "pp128": 2771.15,
+          "tg256": 275.01
+        },
+        "pp_phase_seconds": 0.04619020984067986,
+        "tg_phase_seconds": 0.9308752409003309,
+        "pp_plus_tg_phase_seconds": 0.9770654507410108,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 4,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 1,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "128",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715545.774384,
+        "end": 1792715548.3446648,
+        "rates": {
+          "pp128": 2788.04,
+          "tg256": 274.72
+        },
+        "pp_phase_seconds": 0.045910388660134,
+        "tg_phase_seconds": 0.93185789167152,
+        "pp_plus_tg_phase_seconds": 0.977768280331654,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 5,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 1,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715548.3451574,
+        "end": 1792715550.9142177,
+        "rates": {
+          "pp128": 4660.31,
+          "tg256": 259.29
+        },
+        "pp_phase_seconds": 0.027465984022522105,
+        "tg_phase_seconds": 0.9873115044930386,
+        "pp_plus_tg_phase_seconds": 1.0147774885155607,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 6,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 2,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715550.9149096,
+        "end": 1792715553.4840136,
+        "rates": {
+          "pp128": 4665.97,
+          "tg256": 258.1
+        },
+        "pp_phase_seconds": 0.027432666733819548,
+        "tg_phase_seconds": 0.9918636187524215,
+        "pp_plus_tg_phase_seconds": 1.019296285486241,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 7,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 2,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "128",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715553.4844186,
+        "end": 1792715556.0551922,
+        "rates": {
+          "pp128": 2720.4,
+          "tg256": 274.67
+        },
+        "pp_phase_seconds": 0.04705190413174533,
+        "tg_phase_seconds": 0.9320275239378162,
+        "pp_plus_tg_phase_seconds": 0.9790794280695615,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 8,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 3,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "128",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715556.0556386,
+        "end": 1792715558.626475,
+        "rates": {
+          "pp128": 2782.03,
+          "tg256": 276.73
+        },
+        "pp_phase_seconds": 0.04600956855245989,
+        "tg_phase_seconds": 0.9250894373577132,
+        "pp_plus_tg_phase_seconds": 0.9710990059101731,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 9,
+        "cell": "P128/G256",
+        "p": 128,
+        "g": 256,
+        "block": 3,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715558.6269531,
+        "end": 1792715561.196257,
+        "rates": {
+          "pp128": 4664.81,
+          "tg256": 259.39
+        },
+        "pp_phase_seconds": 0.027439488425037673,
+        "tg_phase_seconds": 0.9869308762866726,
+        "pp_plus_tg_phase_seconds": 1.0143703647117104,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 10,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": null,
+        "arm": "mx",
+        "warmup": true,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715561.196697,
+        "end": 1792715563.0156796,
+        "rates": {
+          "pp512": 3777.74,
+          "tg128": 274.86
+        },
+        "pp_phase_seconds": 0.1355307670723766,
+        "tg_phase_seconds": 0.46569162482718474,
+        "pp_plus_tg_phase_seconds": 0.6012223918995614,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 11,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": null,
+        "arm": "v4",
+        "warmup": true,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715563.01626,
+        "end": 1792715564.7341304,
+        "rates": {
+          "pp512": 6323.58,
+          "tg128": 265.07
+        },
+        "pp_phase_seconds": 0.0809667941261121,
+        "tg_phase_seconds": 0.48289131172897726,
+        "pp_plus_tg_phase_seconds": 0.5638581058550893,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 12,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 0,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715564.7346833,
+        "end": 1792715566.554012,
+        "rates": {
+          "pp512": 3774.2,
+          "tg128": 275.35
+        },
+        "pp_phase_seconds": 0.13565788776429444,
+        "tg_phase_seconds": 0.46486290176139455,
+        "pp_plus_tg_phase_seconds": 0.600520789525689,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 13,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 0,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715566.5544717,
+        "end": 1792715568.2219746,
+        "rates": {
+          "pp512": 6324.96,
+          "tg128": 264.89
+        },
+        "pp_phase_seconds": 0.08094912853203814,
+        "tg_phase_seconds": 0.48321944958284574,
+        "pp_plus_tg_phase_seconds": 0.5641685781148839,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 14,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 1,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715568.222406,
+        "end": 1792715569.8898594,
+        "rates": {
+          "pp512": 6329.2,
+          "tg128": 265.05
+        },
+        "pp_phase_seconds": 0.08089489982936232,
+        "tg_phase_seconds": 0.48292774948122996,
+        "pp_plus_tg_phase_seconds": 0.5638226493105922,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 15,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 1,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715569.8902936,
+        "end": 1792715571.7089992,
+        "rates": {
+          "pp512": 3775.15,
+          "tg128": 277.15
+        },
+        "pp_phase_seconds": 0.1356237500496669,
+        "tg_phase_seconds": 0.46184376691322393,
+        "pp_plus_tg_phase_seconds": 0.5974675169628908,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 16,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 2,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715571.709497,
+        "end": 1792715573.5284462,
+        "rates": {
+          "pp512": 3771.2,
+          "tg128": 276.91
+        },
+        "pp_phase_seconds": 0.1357658039881205,
+        "tg_phase_seconds": 0.4622440504134917,
+        "pp_plus_tg_phase_seconds": 0.5980098544016121,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 17,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 2,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715573.5289557,
+        "end": 1792715575.196672,
+        "rates": {
+          "pp512": 6322.55,
+          "tg128": 265.05
+        },
+        "pp_phase_seconds": 0.08097998434176083,
+        "tg_phase_seconds": 0.48292774948122996,
+        "pp_plus_tg_phase_seconds": 0.5639077338229908,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 18,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 3,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715575.1971543,
+        "end": 1792715576.8650947,
+        "rates": {
+          "pp512": 6329.98,
+          "tg128": 264.98
+        },
+        "pp_phase_seconds": 0.08088493170594536,
+        "tg_phase_seconds": 0.4830553249301834,
+        "pp_plus_tg_phase_seconds": 0.5639402566361288,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 19,
+        "cell": "P512/G128",
+        "p": 512,
+        "g": 128,
+        "block": 3,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715576.8657033,
+        "end": 1792715578.6849856,
+        "rates": {
+          "pp512": 3776.56,
+          "tg128": 275.47
+        },
+        "pp_phase_seconds": 0.1355731141567988,
+        "tg_phase_seconds": 0.4646603985914981,
+        "pp_plus_tg_phase_seconds": 0.600233512748297,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 20,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": null,
+        "arm": "v4",
+        "warmup": true,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715578.6855056,
+        "end": 1792715583.308905,
+        "rates": {
+          "pp4096": 3877.59,
+          "tg256": 258.85
+        },
+        "pp_phase_seconds": 1.0563262232469137,
+        "tg_phase_seconds": 0.9889897624106625,
+        "pp_plus_tg_phase_seconds": 2.0453159856575764,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 21,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": null,
+        "arm": "mx",
+        "warmup": true,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "4096",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715583.309363,
+        "end": 1792715589.386906,
+        "rates": {
+          "pp4096": 2324.23,
+          "tg256": 275.15
+        },
+        "pp_phase_seconds": 1.762304074897923,
+        "tg_phase_seconds": 0.9304015991277486,
+        "pp_plus_tg_phase_seconds": 2.692705674025672,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 22,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 0,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715589.3874307,
+        "end": 1792715594.0111797,
+        "rates": {
+          "pp4096": 3841.42,
+          "tg256": 260.13
+        },
+        "pp_phase_seconds": 1.066272368030572,
+        "tg_phase_seconds": 0.9841233229539077,
+        "pp_plus_tg_phase_seconds": 2.0503956909844794,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 23,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 0,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "4096",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715594.0116694,
+        "end": 1792715600.0399966,
+        "rates": {
+          "pp4096": 2324.04,
+          "tg256": 274.29
+        },
+        "pp_phase_seconds": 1.7624481506342404,
+        "tg_phase_seconds": 0.9333187502278609,
+        "pp_plus_tg_phase_seconds": 2.6957669008621012,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 24,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 1,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "4096",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715600.0405192,
+        "end": 1792715606.067105,
+        "rates": {
+          "pp4096": 2314.77,
+          "tg256": 275.26
+        },
+        "pp_phase_seconds": 1.769506257641148,
+        "tg_phase_seconds": 0.9300297900167115,
+        "pp_plus_tg_phase_seconds": 2.6995360476578596,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 25,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 1,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715606.0676885,
+        "end": 1792715610.740472,
+        "rates": {
+          "pp4096": 3842.71,
+          "tg256": 260.71
+        },
+        "pp_phase_seconds": 1.0659144197714634,
+        "tg_phase_seconds": 0.9819339495991716,
+        "pp_plus_tg_phase_seconds": 2.047848369370635,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 26,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 2,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715610.740985,
+        "end": 1792715615.364484,
+        "rates": {
+          "pp4096": 3847.56,
+          "tg256": 260.9
+        },
+        "pp_phase_seconds": 1.0645707929181092,
+        "tg_phase_seconds": 0.9812188577999235,
+        "pp_plus_tg_phase_seconds": 2.0457896507180324,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 27,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 2,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "4096",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715615.3650296,
+        "end": 1792715621.3424008,
+        "rates": {
+          "pp4096": 2345.17,
+          "tg256": 276.32
+        },
+        "pp_phase_seconds": 1.7465684790441631,
+        "tg_phase_seconds": 0.9264620729588883,
+        "pp_plus_tg_phase_seconds": 2.6730305520030515,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 28,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 3,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "4096",
+          "256",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792715621.3430088,
+        "end": 1792715627.3211956,
+        "rates": {
+          "pp4096": 2345.5,
+          "tg256": 274.86
+        },
+        "pp_phase_seconds": 1.746322745683223,
+        "tg_phase_seconds": 0.9313832496543695,
+        "pp_plus_tg_phase_seconds": 2.6777059953375923,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      },
+      {
+        "index": 29,
+        "cell": "P4096/G256",
+        "p": 4096,
+        "g": 256,
+        "block": 3,
+        "arm": "v4",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792715627.3217654,
+        "end": 1792715631.9955819,
+        "rates": {
+          "pp4096": 3742.23,
+          "tg256": 260.75
+        },
+        "pp_phase_seconds": 1.0945345422381842,
+        "tg_phase_seconds": 0.9817833173537871,
+        "pp_plus_tg_phase_seconds": 2.0763178595919713,
+        "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+      }
+    ],
+    "passed": true,
+    "removed": true,
+    "version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4",
+    "monitor_exit": 0,
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 3966705,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T00:32:11.262418189Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792715634.977285,
+    "pins_unchanged": true,
+    "artifacts": {
+      "15-mx.stdout": "0e99c3c632c2ddd17d128f1729383eef0f4b5985c92d42524d6fe7d6b061aa49",
+      "0-v4.stdout": "7bb7c3828c647e15aca7661f78eaa82554f00b90793b35d14922af069a87ea76",
+      "24-mx.stderr": "a05200c3d81fb484fef69dbc9e7b5759d781f692ef803912f75acf21a2ef7f10",
+      "29-v4.stderr": "ccfce10e73e73357d56f0cbebeed2401bc51bf43d58a886b0e46f5c7878b4e5c",
+      "27-mx.stderr": "9989f0ca4a840bb15113c019b1f53e25859de60fc1e97d81d8ec5e1a075e88fb",
+      "18-v4.stdout": "d4838ec72baef007cf529aa7c33c8767c3eb3d91a1938f133e5f64f52582133f",
+      "2-v4.stdout": "bb326d5ac0ca50260eae69b924b60357b7175c0f2f2bb7049eb18670ada6b5e1",
+      "16-mx.stdout": "94999d8ab2216e2a89281a8b69aec42a500154c5ed14c17f4c3cb87802a8c12b",
+      "21-mx.stderr": "09c521845d577af00c5b60ac02da59c4f49b366c5e40903c3cd67ec97232c224",
+      "5-v4.stdout": "28896859da6bda274774fd301e067f631e79c33127a9e22ce9110bb24953c304",
+      "10-mx.stdout": "f9988ad91cc4010bf9d3a297a1650b97e0cb0cceadcff3df3aeae38e1adbd6fd",
+      "23-mx.stderr": "df5ed07b61d106fd59170b2510ba4e45aac114953c2817efddd7a989521bd51f",
+      "12-mx.stdout": "a1b750156c7ee218072d61eac35bea2d4164088b68f2b9d59d8f39b3c8672d8b",
+      "8-mx.stdout": "178196ab16b625d8301cad95ca883df121d03b0dbb38ebd673825526af8065b5",
+      "6-v4.stdout": "241639a5e8fe9cc0a59cee444ce06ae3e53f527b044b7d7bc65d6aaf59eca009",
+      "22-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "7-mx.stdout": "4d9a2744c58686b25422d94ecb48904949bc1c6d94790d8e9281e53681a5e01d",
+      "9-v4.stdout": "05ea9ce97fb937526404a34a14aef05de22ea32ac5365d4d32020f0d19dc16d3",
+      "13-v4.stdout": "32b04f3d4bd33e918f72414f3be782536520025baa5cf5c75850e7c3ee2ce1c4",
+      "4-mx.stdout": "f5a0f4e3cd660ec8387aa75cbc6f34c91363007e626428e9a46f7718e8488800",
+      "20-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "activity.jsonl": "2d81fdf54f6221222826ca9ddb53b1190d8ca30cfc26ed2dbedb0cf0335524c5",
+      "11-v4.stdout": "295e589dfdc4481d3bc9e9b20c0692fa3dc71345c24b4a92f72997787fce3658",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "26-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "28-mx.stderr": "713f1c77ab577ca48a40c5b017ee73b4eb9676d56b6afeac1b527eb5f604a956",
+      "17-v4.stdout": "5f1c0b81a9f74a9562cf68a654a4bf2a7e3974b21d70db9402d9fe04d3f7c401",
+      "3-mx.stdout": "e97db81084b31bae90f7a9add8a9fd2f039d40ab095494204f896fba483c282e",
+      "19-mx.stdout": "5ca6563ea80f4cb9475c096af8d17d2180c320268de7c36c9f629a2763aaf7ec",
+      "14-v4.stdout": "509f651d50ee0f08343eee66576e24b65abca5f8fa958dffb536b223bb054477",
+      "25-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "device.stdout": "443cfdb67eab1b4b8d2ae5c688b348a612ce4f1479c448ce7343860be5eb382d",
+      "1-mx.stdout": "0bad818ac1589e51a7d52eab47ed375787d157efc4106e7ad0a89591284a73aa",
+      "5-v4.stderr": "ccfce10e73e73357d56f0cbebeed2401bc51bf43d58a886b0e46f5c7878b4e5c",
+      "21-mx.stdout": "b0b869cf839a11a86c90686fafe26b6de2daa9347ffa7068d7c732132cb67776",
+      "10-mx.stderr": "7cf06b2cc1e3fb3c25c98d1e456ba0e1b3cc4014b6959573fb5b26d0f1083fc6",
+      "23-mx.stdout": "7bc5ab5531d19c6b73e025ba2e31bf91f001ff8fbd4c0d306e4da7b51eb6f3d0",
+      "6-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "8-mx.stderr": "4df71af32cf76b2438bfbfedd0ae801501531cbcc29fc0e6b3bc82df0aab45c7",
+      "12-mx.stderr": "ec3d5b8acb9c2d81032db89606aad3567b84901476afaf2ca7096bd8ba3c735b",
+      "15-mx.stderr": "ceefb9235632989685ccb8d49ec49c29556a4189355e3d83c9d85cccd4c7db04",
+      "24-mx.stdout": "d388c4ded76616c45b955fd557a7f0e51ee9d0a14ab12b71911d26950e6e76b9",
+      "0-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "27-mx.stdout": "6d1fd3314f181b2fcef6f1c7ee52182d36a8ca1c98775e4dd7add2114bf845bd",
+      "29-v4.stdout": "0361f711c14fa6e015549d1f81d123b50ca9226561e70a12c4594bf17e70946c",
+      "16-mx.stderr": "1b638373899b2f1632ba5b02215968d6a2854b2312e1fde12d466067419843b0",
+      "2-v4.stderr": "ccfce10e73e73357d56f0cbebeed2401bc51bf43d58a886b0e46f5c7878b4e5c",
+      "18-v4.stderr": "985c0cb928d0178c088c529ca0655669faeb2a007e642a14e15c172833a80e2f",
+      "28-mx.stdout": "125e212d9bf8e94cc230eb51c732f49e0a9e64521ad419fbe2d72ad29181cb88",
+      "26-v4.stdout": "03e9b0702653e15116073c2cfe15189c07cab384b4e19f13573550fe1d456d70",
+      "version.stdout": "8ec3c0755fa7a9e1f930962deaebf1439af186b19258d6e894953cb8473b190f",
+      "19-mx.stderr": "afaba4f7555a649a7d2bc5cd2ab31559866db001e7db08b85c770e1ed96a9daa",
+      "3-mx.stderr": "af36395d9d4bccf0d19b0e3cd46319d2a658abecdfb1687f0a95184825db1aba",
+      "17-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "14-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "1-mx.stderr": "e162181762fbae02584c3c0c5cb5bcab96d048d73ad5eb2e413e9bc96c13c039",
+      "device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+      "25-v4.stdout": "103447789940722e0ba81a0c346e589c2b8233e146beeacbcbc90bff466b17ae",
+      "22-v4.stdout": "a373cd23885b61c954d9b48f50e57dab929f5de52d7b1982ee918d9780eb143f",
+      "13-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "9-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a",
+      "7-mx.stderr": "b87e48a0c7e766b4986e03bc73576ee64009bc4e989fd0d2e43f12d092124975",
+      "20-v4.stdout": "8089a5b19d1cec35c5991790e0053e263723178c3bf47869afc4c2fefff77c9c",
+      "4-mx.stderr": "fc235b797d07f78815464f5cbd4331999911135ec7f8c79e4887c0fe1a2d38a7",
+      "11-v4.stderr": "d2ef32b445833adb25e268e763a99565f099ce153bf2535634221615e8b8de5a"
+    }
+  },
+  "rig_path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/workload-matrix-v4",
+  "source_runtime": "Retained direct-grid-v4; v9/v10 experiments not adopted.",
+  "assessment": {
+    "decision": "Retain v4 for remaining landing qualification under the existing whole-workload performance-tradeoff rule; no universal or both-phase mx floor pass is claimed.",
+    "basis": "Across all three measured cells, PP gains 63.72 to 68.63 percent and TG loses 4.06 to 5.92 percent. The large prefill gain is worthwhile for prompt-heavy use; decode-heavy use has a real cost, retained as a follow-up.",
+    "counterexample": "P128/G256 sums of independent phase times are 4.06 percent longer. P512/G128 is 5.86 percent shorter and P4096/G256 is 23.50 percent shorter. All paired signs agree; these are not server/request latencies.",
+    "remaining": "Focused split qualification, unchanged-format identity/timing, integration and hosted checks remain. No correctness limit or required check is waived."
+  },
+  "benchmark_semantics": {
+    "history": "Both adapters reset independently before PP and TG; TG is not run after the named prompt. Phase sums are synthetic, not request latency.",
+    "tokens": "Both use LCG 1664525/1013904223 with PP seed12345 and TG seed777, IDs modulo min(1000,vocab).",
+    "context": "mx allocates max(512,P,G), llmx reach=max(P,G); both use F32KV, but allocated KV layouts may differ.",
+    "adapter": "Pinned mx Vulkan wrapper.cpp inspected directly alongside llmx src/cli/main.cpp:cmd_bench_model."
+  },
+  "audit": {
+    "raw_artifacts": "Root independently verified every execution-pinned artifact hash; helper independently compared all30 printed rate pairs with records.",
+    "original_summary_failure": "Windows default CP1257 could not read UTF-8 stderr; local summarizer corrected to UTF-8 without inference rerun or removed samples."
+  }
+}

@@ -1,0 +1,779 @@
+{
+  "start": 1792716313.4950428,
+  "passed": true,
+  "scope": "Required generic backend ISA check on Radeon; specialized IQ2 operator/HF evidence remains separate. No performance claim.",
+  "command": [
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq2-s-20261023\\build-iq2-vulkan\\Release\\llmx-backend-vulkan-test.exe",
+    "--isa",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq2-radeon-backend-isa-v2-20261023\\isa"
+  ],
+  "timeout_seconds": 900,
+  "before": {
+    "CMakeLists.txt": "291010e3aecbe0933fd080d9dffbd715437784e1740970f66eaaf91f82ca7407",
+    "cmake/build-info.cmake": "550fa5f3b038d37e85cf22addc5a72bf62edf342ba4834cde06fee57294a19e3",
+    "cmake/llmx-config.hpp.in": "714de3de01f7c8294e08c83fbab3721b3d5e04ee5e18c4b54efee31e445eeedb",
+    "cmake/numerics-fingerprint.ps1": "fffbaba5bc631636a8fe30a32e3d56b775a2dbc3648e8e83a815b97ef9fb147c",
+    "cmake/numerics-sources.txt": "ffc7861e2064bd6ac6707654771f8a7738b0673dbc09b2621e1788659f279b1d",
+    "cmake/tests.cmake": "6ec6d5a0444e39795ecb5455a7d97f6cced1f08efc294cf75f8a433ee0f2c0b6",
+    "cmake/windows.manifest": "8a52498255bd0435c5d4036ffb4ba6f83834be45b4cf6e18bfef2705cb9db7e4",
+    "src/backends/backend.hpp": "0545a25e72a719e0d478dce9ac3ad1b6f7ace7851224a8b0f337e3a8beb45d37",
+    "src/backends/cpu/cpu_backend.hpp": "49c43bcec1545b5ca4e95ff6dc3838e1fdd4581153de0abdef2f937c96681bfa",
+    "src/backends/cpu/prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+    "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+    "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+    "src/backends/devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+    "src/backends/kv_storage.hpp": "a6ccbaa4bd25e6aeec72c73d88f0de718555e21f4f7618432e5f011e7129205f",
+    "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+    "src/backends/vulkan/shaders/argmax_rows.comp": "47fb244ee8c073f10ea14f72418a9c5f3e3be81446e2268f2b843e6aae49525e",
+    "src/backends/vulkan/shaders/attention.comp": "9857edf78d7a9075109d7830db4ac0c7eefd6af7b2408105bfb2e70dfdf4fd6a",
+    "src/backends/vulkan/shaders/attention_merge.comp": "293dbea703c38fc4f0eda9cd9c7808e1076b3f66b1a675134acee741e5ea8ac4",
+    "src/backends/vulkan/shaders/attention_tile.comp": "f2615202f163d111ba7199fe8dba16ec7385b6799f06ec7f9665e04fefd112e6",
+    "src/backends/vulkan/shaders/attention_vec.comp": "bd09e79cee7870dc06ed7766dfbb000c5d7745af3d3e87480a4522a9bb10ee53",
+    "src/backends/vulkan/shaders/causal_conv_silu.comp": "51b69700e841cf7683002d452d2fea638d71747bd0ecc3babeb20b57a0ea0033",
+    "src/backends/vulkan/shaders/copy_mxfp4.comp": "5d6221c47353792268523d8d0618b8ab54ea14235ff61889badaf1fa692f39ef",
+    "src/backends/vulkan/shaders/delta_rule.comp": "9c394c87e066749224705b20902f20a54541ab41930bd8de3183a06bd67805b3",
+    "src/backends/vulkan/shaders/dilated_conv_silu_add.comp": "dc2aa5272207a300801baec4e5dffbb19ca31c9be46e73d74daf32dd45577fe8",
+    "src/backends/vulkan/shaders/dot16.glsl": "c2e602a9b5ab88d7f647cb115e73c7f16edb8aaf0268f22cb829dfdabc482c4a",
+    "src/backends/vulkan/shaders/embed.comp": "60879c149ec541aa91841bb6dd93f09dae328d1024263cf1ae68a1992670e243",
+    "src/backends/vulkan/shaders/f16.glsl": "d79911a5b8cf132d2400fcd8c54eda4d4ccbf1dd8c9daa37fd877dd56d6f5c0c",
+    "src/backends/vulkan/shaders/float_controls.glsl": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+    "src/backends/vulkan/shaders/gated_rms_norm.comp": "000a100c6129e8b7d491ca7585ef06f69ac535585a0f78411c910636052b06b0",
+    "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+    "src/backends/vulkan/shaders/group_rms_norm.comp": "ce6794fc7ac36a96fc61f2d25ed9fff25ae6b3083fa88f6fdcefae4924391527",
+    "src/backends/vulkan/shaders/inject_streams.comp": "826e3fd7477e3f1c5c64e0fcb9fa9cbdf8c22d0ec17f9dd00ab9f2a80349e74f",
+    "src/backends/vulkan/shaders/iq2_dot.glsl": "601698f1f332bec107e5c27a9c084e270a3207df9dfbe25a84b7d7713c8aecc4",
+    "src/backends/vulkan/shaders/iq2_s.glsl": "0f9673028a06a1d82f9ecc8e7f8d430d06165d725efabcb685def5cca5d5b904",
+    "src/backends/vulkan/shaders/iq3_dot.glsl": "2c0c3a7ef24e4a4d56c17fe1415a717dfcf550b6e1f52cf4f4af74b5ff563741",
+    "src/backends/vulkan/shaders/iq3_s.glsl": "9f7a9566399e0323f750932e01ea5fb10389f788a78166f91765e696561df712",
+    "src/backends/vulkan/shaders/iq4_dot.glsl": "47d18489445e4110f62c3d96578ce9eef07bdb2dc831644b5f845cfb23bf8e4b",
+    "src/backends/vulkan/shaders/k23_dot.glsl": "cf0077945895f39c71b75a2f2e717e0b7c51f1cf3273910aee7836eb78d33f74",
+    "src/backends/vulkan/shaders/kv_index_pool.comp": "04ac320bc2efafe22cfdc1c6830a0fb71f799a394749f49435d0743a74b1e8d3",
+    "src/backends/vulkan/shaders/kv_index_scores.comp": "746e2d52d60465ed5f252c783edae203d929aa63d8b6b6bd143bb08917e95335",
+    "src/backends/vulkan/shaders/kv_index_select.comp": "439336dd43fb9cb0c3ac2af79857021f38e3fa48cbbb21ae2ec3cd8b6cf7f84b",
+    "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+    "src/backends/vulkan/shaders/lookup_cache.glsl": "8faf6aba8a026df2dc180292a80f7bbfe3a60beb7783a7153350ee9a419646ef",
+    "src/backends/vulkan/shaders/lookup_dot.glsl": "269b5f3f3e788cb2394e7e64159186903a77a052c213b92ee55be44f1352ca97",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "cc4d037cda7e984873d0286c04efa57f477758c3f5da3326b5340ccb56d8d033",
+    "src/backends/vulkan/shaders/matmul_row.comp": "46f1ef20feddc997f5faed7bf63aac5d973e6005cf8cb915488907080509824a",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "9a9d9e005cf929d278e91ed3cf8fefa71290c3c51c9d981b85bf44a5591be6d5",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "051901770f941e206ffc12f535d1ae4af9f34505ef5e4e90a955a0a5202d01ef",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "2fb7f991673acd466f2541051a1519d52394f3ee00e2415d400be1302938ef26",
+    "src/backends/vulkan/shaders/mix_streams.comp": "979a0a0d363524cc5287ed04342702caa9f40e54ca4ac5eb4c28eef5e9af4848",
+    "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+    "src/backends/vulkan/shaders/moe_group.comp": "9426ae02b002cb8d5214470b16e53bf3916b7bc313314b9bf9aa0d6f109a88be",
+    "src/backends/vulkan/shaders/moe_route.comp": "f38e46361719035207a851bfc2d05cee89d6d41f5797041d140c79354bf35ad7",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "f54feb6fdbdce4c754427d468b6dd3f32d6811eec09fee5034a0b00ee01a8ea8",
+    "src/backends/vulkan/shaders/norm_rope_partial.comp": "d3633e79bd4ea9fc83c5ed488bc1abaefb06422a7c130a43edd6b1a38330b29b",
+    "src/backends/vulkan/shaders/q.glsl": "89b8676e7c811a96bcc9f01d77afb451b0eb2175025b2235f93d755340bb2bbc",
+    "src/backends/vulkan/shaders/qdecode.glsl": "8a46b5678648b96dd3af0c5a02895db902cce683ac812336f4eb0845740dd276",
+    "src/backends/vulkan/shaders/quantize_x.comp": "2b1dddcd091c173a93c53efa8ee4fdda83e372255a879354c49721c88a2553f9",
+    "src/backends/vulkan/shaders/quantize_xw.comp": "9e97ab1aa13872414d350b98ca11c20aef199042fabdb1e5d86681bda05432df",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "9f511beceb9bf54961812aff7f2222a5feff50820b3e631ce31e6ec4479dcb55",
+    "src/backends/vulkan/shaders/sigmoid_mul.comp": "78d59039a4dfcfb0b5699915ec50d1fabfdd336f54c510daa2555794ec70531c",
+    "src/backends/vulkan/shaders/signed_sqrt_gate.comp": "a80bf1c98f7243e487d6a92ca15760c1688980e468f3a803312e2778991dedff",
+    "src/backends/vulkan/shaders/silu_mul.comp": "e0aae0fade7ac1c1c1ce4870e78cb0e6a7127c9e40d2929df023dfa85cb1bd6e",
+    "src/backends/vulkan/shaders/silu_scaled.comp": "a67fb31a488eaa6e1595e75275e16b7b4f72a83c88da70baafbc0e87b8399bd8",
+    "src/backends/vulkan/shaders/views.glsl": "4c9e5d73457962993f166ad7d08c6031b399b7ad09a3d665ff11a2d5edce8479",
+    "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+    "src/backends/vulkan/vulkan_backend.cpp": "c179f0f2672c01aff8fcd533816047a10d65709071038ed0016b96e803b2a2ac",
+    "src/backends/vulkan/vulkan_backend.hpp": "78bcc6e84906cf1477ccc0be2bd1bea52c98031dc0687f2ab63b97240b10ee34",
+    "src/cli/main.cpp": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b",
+    "src/config.hpp": "35ddfbc82366e80b69cd7c003791fb988bcd82523bac6652303e3e28fc2a33e7",
+    "src/core/bf16.hpp": "43cf134cdb167547e47cd0f821505247965e6b07b9d2fdc2b67e08c8835d9174",
+    "src/core/cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+    "src/core/cpus.hpp": "6c4fd98658e9928b5852d8783dfa70597b7b2805c8ef5f978bb47b5fb3ebbbd5",
+    "src/core/crc32c.hpp": "306b0c5b9fa180c108aa12afb2714caf09dd4e1ddcccf0922af8bf39c65e2a15",
+    "src/core/fp16.hpp": "3cbe60800d9ec5acd3214e503225b508dd0dfda13871740665ab014cdaa52539",
+    "src/core/host_memory.hpp": "12442033770c6c320d1a0df52d8616a3a4924bdfeed6c289eba1e21cda6bf73a",
+    "src/core/job_threads.hpp": "0a803d8b0e6d83f6c630c800046aa4384e7c463e2e83c166af28c22742307f06",
+    "src/core/json.hpp": "dd4c77e427e5747447e332dec87b2af735f3718635de9fa3ab65a931d2cb3ea6",
+    "src/core/list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+    "src/core/sha.hpp": "1577285ffd2f995ba5a087dc6c91cb8431415fdce4e7a6febf11cd2e0df7ef72",
+    "src/core/utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+    "src/format/file_digest.hpp": "04808bb33cd5cc6e29abaa1108e163d751bd499af487aa6ade407afbad72143a",
+    "src/format/file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+    "src/format/file_writer.hpp": "5815af0b5202748dee737d04d2a86407f7c4b4a7b939d009994fb01d6f898c41",
+    "src/format/format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+    "src/format/gguf.hpp": "ddc503d932f6f2e978ea2308337c987bc3a4c137e477da0a18628d7431723e9a",
+    "src/format/mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+    "src/format/output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+    "src/format/raw_convert.hpp": "a9bdd462fe5c66e6ff72a308cf09c330fb3359bd6fd8302f979a0ea07bd56483",
+    "src/hub/manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+    "src/hub/pull.hpp": "f37b814b27669d8d73862ecf5eac74a304ce5d0a895534cb220d4ea929deba56",
+    "src/hub/transport.hpp": "a8331ccd19af945f0a823b1987e64cb1bff75b4f5fcdc900eda8ddbb7596ada7",
+    "src/inference/chat.hpp": "093bbd91cc3e244ac20ff08b855cccedd4afb400111330be558c2f3dfd3dbb8a",
+    "src/inference/generate.hpp": "08d0d7a9a0d296195ddfc91ab0ed9bad4b67f4c1ae477612d49683f4ed3b7398",
+    "src/inference/load.hpp": "bca78e588fae926728e57fe47f42225b7a6ac7dfa67572474ebb422b912bade5",
+    "src/inference/logprobs.hpp": "7ce38bda7aec94e3bcfd4a1ec06eeb88289062690e88a39b24f5973219da03b7",
+    "src/inference/pair.hpp": "b24bbd74c366c3ae702fb06af5d037003553236b8f86fb73f4b31e06544590e3",
+    "src/inference/perplexity.hpp": "95768b8e2a536ed5b846d9fa63a6b1a3ec145ab15be2f2c9867c0b85533efa96",
+    "src/inference/read_ring.hpp": "5a34df8e0f37f1bcc790fc1d1c00200cbec721d4625965620c54ae216dcd9147",
+    "src/inference/sampler.hpp": "4a99d620a949fbeb24dda2d4a285dbd83370450b1e5c7b0bf304e9d03e31db23",
+    "src/inference/spec.hpp": "57a8cce7828f7d9bc9a6e8080878f553e41d466319165884cc83dc4ab3b6b4c2",
+    "src/model/arch/blocks.hpp": "8a4925166dce168953b8a3fc659d18e69f87d3ac371ea44b854a85a83f8f9a76",
+    "src/model/arch/metadata.hpp": "51a9f7319684c8f8c5d5c4f2a0bb17ff4b8d075caa76ad345ca4a779eb9b588e",
+    "src/model/arch/qwen3.hpp": "da63c0711d628afb1ba346dbb4ac71e621cdb95d9bf083bb085338b60955dd43",
+    "src/model/arch/qwen35.hpp": "c7b53e281a6e6c742112d848dc3d1e09edb3c8451eec40c324ee152e7f695473",
+    "src/model/arch/qwen4exp.hpp": "65b0d57c038929cd29b66c92c3b36d5a60785e7e5885f8f1e43b9d1ea1351ff3",
+    "src/model/arch/registry.hpp": "bce6957855f0beb5f5a14d962ac3b547c36213888392dd3984b65262c10da6d6",
+    "src/model/architecture.hpp": "959366348c6b959d1d68175375014907eea0ad23280c3c19e4b9a72b8540381c",
+    "src/model/history.hpp": "3ee73ae1ed27e7ee6688eeef84b2a8a80b0af9621acfe6253869ce1e2bba9c43",
+    "src/model/kv_cache.hpp": "02930aeda059494a33a681f30479b48111ffd49daeb81cd13d3ec7c1327c3a25",
+    "src/model/layer_split.hpp": "8cd35c0696acda23a190c0dc4848695f541c97fa1e2962813826c1bafbc438cb",
+    "src/model/passes.hpp": "a5739ac768a8f32665c51edc42f3f5e1beb73ccf96dee83f86d6c357132541f3",
+    "src/model/place.hpp": "631cf809eb896ec28d852837793a29a3791ac3301fd1dfbcf6527fec8da3ca25",
+    "src/model/runtime.hpp": "eb8e5db84ac925d77344f80bcb28112ebbf390d1b1a6bc29420e9e95edb3d35c",
+    "src/model/shard.hpp": "17fde7ab2275fbe7c5fcf76231e2455f0deb62a3054f2aa83f217cede11a5a71",
+    "src/model/weight_rows.hpp": "2fbd19d71f241821fe9a7c27c9b3638e81b17dd3c2b938f979597d432f5544d1",
+    "src/model/weights.hpp": "7f5f641cba448526eb588b08db9fb755418360fe49ca98869255d4b01bf17cb1",
+    "src/quant/iq2_s.hpp": "5426aecc80fbee375980967d60c3325aff4f6b05493ddae4c90b7d59b1dc2059",
+    "src/quant/iq2_s_grid.inc": "4f254e3ff0d6f49b5c14528d65f3da819decab6b38f1307458077326e76257d0",
+    "src/quant/iq3_s.hpp": "27ef5cf35208b27370407c0e7cf3cfdd9b28ef7ebbfaa40849849f74a4d0c35c",
+    "src/quant/iq3_s_grid.inc": "844309e8b6e6eeb447bee8cd5ecb9caa08c527f675c1fc9a45ddb888e213c310",
+    "src/quant/k_quants.hpp": "b6e6097e61ec19f12895c00f4c471728b2a79cdd57595af48f9d87e37d41e45b",
+    "src/quant/mxfp4.hpp": "28120ca0b5307eb56f360a1d0c5beceef8c9a43296568ba2f345af95086c4d96",
+    "src/quant/quant.hpp": "42a122750b645be37dce1653eb98fb0ad1181e7ccb0d77f65fcccd05216d8f97",
+    "src/quant/types.hpp": "dd7c157b06b969a2d62f773f0e82d0de8a1561233956f273430b4117dbb29d6c",
+    "src/server/api.hpp": "e46f1a05e42cdc0a6d1deea46d171e3698f5f3bd3130fd49c04bd9e7624f1086",
+    "src/server/cache.hpp": "8466c115ee97c54f70e68b1ce4c3827f9a12ecafaed1814333d4066c85ef60f5",
+    "src/server/context_cut.hpp": "9ec1cf31e23a10e81c6c39fe66dc1e61c3f5ba4a5e02440a8eb59789e238086c",
+    "src/server/disk_index.hpp": "972ca858669086103a5bb45ce1a2c59b9b103f51190ca1552602d6ee8d2c6feb",
+    "src/server/disk_store.hpp": "870878254326132d760be83854f42bb01bec52b8e83097a50b98e446c1349d75",
+    "src/server/disk_tier.hpp": "6e61d8f3d31c4a30faf3a21f1de332ff03ac1de7269e95dae51e969d2e166da4",
+    "src/server/http.hpp": "e4eead42ea76e8e7ce365d24c6ee1f717a5b700a05ae7deb1f7a6aa86888d932",
+    "src/server/policy.hpp": "f6c8ecb818d0ca0c4665af780427e3b2c120e892a13065a964978adca66629fc",
+    "src/server/scheduler.hpp": "2a7948926082c106ac85cf60465a0336f0cd917ea0f8a22b51a74268332c40b7",
+    "src/tokenizer/tokenizer.hpp": "9dde67500c722f1a7490cb3a5d3cb0bb7b56bbe424dee3e5411710a3533c6614",
+    "tests/backend_vulkan.cpp": "f3b65b8c7ff45ed9526e531ab14dee3074caa242c50b19c40350f5b17ddca2c8",
+    "executable": "135f5ba1272ea2429271190e40943250b6985c864970554c39b049e6701fe20e",
+    "generated/config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "target-project": "46887f17783f2dc610cd5030b9059d78a97fcc2886042eb837c3c3fc19a31e9a",
+    "build-log": "e59835d45c3255227066a3b4418bb26607bab1ec1f95087e4d70ea353ad9e329"
+  },
+  "exit_code": 0,
+  "after": {
+    "CMakeLists.txt": "291010e3aecbe0933fd080d9dffbd715437784e1740970f66eaaf91f82ca7407",
+    "cmake/build-info.cmake": "550fa5f3b038d37e85cf22addc5a72bf62edf342ba4834cde06fee57294a19e3",
+    "cmake/llmx-config.hpp.in": "714de3de01f7c8294e08c83fbab3721b3d5e04ee5e18c4b54efee31e445eeedb",
+    "cmake/numerics-fingerprint.ps1": "fffbaba5bc631636a8fe30a32e3d56b775a2dbc3648e8e83a815b97ef9fb147c",
+    "cmake/numerics-sources.txt": "ffc7861e2064bd6ac6707654771f8a7738b0673dbc09b2621e1788659f279b1d",
+    "cmake/tests.cmake": "6ec6d5a0444e39795ecb5455a7d97f6cced1f08efc294cf75f8a433ee0f2c0b6",
+    "cmake/windows.manifest": "8a52498255bd0435c5d4036ffb4ba6f83834be45b4cf6e18bfef2705cb9db7e4",
+    "src/backends/backend.hpp": "0545a25e72a719e0d478dce9ac3ad1b6f7ace7851224a8b0f337e3a8beb45d37",
+    "src/backends/cpu/cpu_backend.hpp": "49c43bcec1545b5ca4e95ff6dc3838e1fdd4581153de0abdef2f937c96681bfa",
+    "src/backends/cpu/prefill_placement.hpp": "fdadbcea2cb84f37f473eb2d23d01bcd68a18015fa402c5dd0d0f68c723d4f21",
+    "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+    "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+    "src/backends/devices.hpp": "6271718c0adcae333d54d25521d87e8b13fc96014a7c7fb8e8d54713fe74b2f2",
+    "src/backends/kv_storage.hpp": "a6ccbaa4bd25e6aeec72c73d88f0de718555e21f4f7618432e5f011e7129205f",
+    "src/backends/vulkan/shaders/add.comp": "91864be8fd1929f0f9b6155b5d4d6316555e6d873b3a2c15fbf5064ec0ee959d",
+    "src/backends/vulkan/shaders/argmax_rows.comp": "47fb244ee8c073f10ea14f72418a9c5f3e3be81446e2268f2b843e6aae49525e",
+    "src/backends/vulkan/shaders/attention.comp": "9857edf78d7a9075109d7830db4ac0c7eefd6af7b2408105bfb2e70dfdf4fd6a",
+    "src/backends/vulkan/shaders/attention_merge.comp": "293dbea703c38fc4f0eda9cd9c7808e1076b3f66b1a675134acee741e5ea8ac4",
+    "src/backends/vulkan/shaders/attention_tile.comp": "f2615202f163d111ba7199fe8dba16ec7385b6799f06ec7f9665e04fefd112e6",
+    "src/backends/vulkan/shaders/attention_vec.comp": "bd09e79cee7870dc06ed7766dfbb000c5d7745af3d3e87480a4522a9bb10ee53",
+    "src/backends/vulkan/shaders/causal_conv_silu.comp": "51b69700e841cf7683002d452d2fea638d71747bd0ecc3babeb20b57a0ea0033",
+    "src/backends/vulkan/shaders/copy_mxfp4.comp": "5d6221c47353792268523d8d0618b8ab54ea14235ff61889badaf1fa692f39ef",
+    "src/backends/vulkan/shaders/delta_rule.comp": "9c394c87e066749224705b20902f20a54541ab41930bd8de3183a06bd67805b3",
+    "src/backends/vulkan/shaders/dilated_conv_silu_add.comp": "dc2aa5272207a300801baec4e5dffbb19ca31c9be46e73d74daf32dd45577fe8",
+    "src/backends/vulkan/shaders/dot16.glsl": "c2e602a9b5ab88d7f647cb115e73c7f16edb8aaf0268f22cb829dfdabc482c4a",
+    "src/backends/vulkan/shaders/embed.comp": "60879c149ec541aa91841bb6dd93f09dae328d1024263cf1ae68a1992670e243",
+    "src/backends/vulkan/shaders/f16.glsl": "d79911a5b8cf132d2400fcd8c54eda4d4ccbf1dd8c9daa37fd877dd56d6f5c0c",
+    "src/backends/vulkan/shaders/float_controls.glsl": "a609b532573fe07835c156a43802b8503d9c84fd2ed5b1f298018779e683c1dc",
+    "src/backends/vulkan/shaders/gated_rms_norm.comp": "000a100c6129e8b7d491ca7585ef06f69ac535585a0f78411c910636052b06b0",
+    "src/backends/vulkan/shaders/gather_rows.comp": "823643191b59a08e3e24ffb6c6920720cc199192e42b6bc3c149e62950de3c89",
+    "src/backends/vulkan/shaders/group_rms_norm.comp": "ce6794fc7ac36a96fc61f2d25ed9fff25ae6b3083fa88f6fdcefae4924391527",
+    "src/backends/vulkan/shaders/inject_streams.comp": "826e3fd7477e3f1c5c64e0fcb9fa9cbdf8c22d0ec17f9dd00ab9f2a80349e74f",
+    "src/backends/vulkan/shaders/iq2_dot.glsl": "601698f1f332bec107e5c27a9c084e270a3207df9dfbe25a84b7d7713c8aecc4",
+    "src/backends/vulkan/shaders/iq2_s.glsl": "0f9673028a06a1d82f9ecc8e7f8d430d06165d725efabcb685def5cca5d5b904",
+    "src/backends/vulkan/shaders/iq3_dot.glsl": "2c0c3a7ef24e4a4d56c17fe1415a717dfcf550b6e1f52cf4f4af74b5ff563741",
+    "src/backends/vulkan/shaders/iq3_s.glsl": "9f7a9566399e0323f750932e01ea5fb10389f788a78166f91765e696561df712",
+    "src/backends/vulkan/shaders/iq4_dot.glsl": "47d18489445e4110f62c3d96578ce9eef07bdb2dc831644b5f845cfb23bf8e4b",
+    "src/backends/vulkan/shaders/k23_dot.glsl": "cf0077945895f39c71b75a2f2e717e0b7c51f1cf3273910aee7836eb78d33f74",
+    "src/backends/vulkan/shaders/kv_index_pool.comp": "04ac320bc2efafe22cfdc1c6830a0fb71f799a394749f49435d0743a74b1e8d3",
+    "src/backends/vulkan/shaders/kv_index_scores.comp": "746e2d52d60465ed5f252c783edae203d929aa63d8b6b6bd143bb08917e95335",
+    "src/backends/vulkan/shaders/kv_index_select.comp": "439336dd43fb9cb0c3ac2af79857021f38e3fa48cbbb21ae2ec3cd8b6cf7f84b",
+    "src/backends/vulkan/shaders/kv_write.comp": "98273b3b8b24c0a44728ccd43d120f1e835b0edfc8d561ac22fe828f69760002",
+    "src/backends/vulkan/shaders/lookup_cache.glsl": "8faf6aba8a026df2dc180292a80f7bbfe3a60beb7783a7153350ee9a419646ef",
+    "src/backends/vulkan/shaders/lookup_dot.glsl": "269b5f3f3e788cb2394e7e64159186903a77a052c213b92ee55be44f1352ca97",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "cc4d037cda7e984873d0286c04efa57f477758c3f5da3326b5340ccb56d8d033",
+    "src/backends/vulkan/shaders/matmul_row.comp": "46f1ef20feddc997f5faed7bf63aac5d973e6005cf8cb915488907080509824a",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "9a9d9e005cf929d278e91ed3cf8fefa71290c3c51c9d981b85bf44a5591be6d5",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "051901770f941e206ffc12f535d1ae4af9f34505ef5e4e90a955a0a5202d01ef",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "2fb7f991673acd466f2541051a1519d52394f3ee00e2415d400be1302938ef26",
+    "src/backends/vulkan/shaders/mix_streams.comp": "979a0a0d363524cc5287ed04342702caa9f40e54ca4ac5eb4c28eef5e9af4848",
+    "src/backends/vulkan/shaders/moe_combine.comp": "223f4ea4820ac56bb5d1288ace5ec2a0c69bec38a01bf6fc53b5edc157f94398",
+    "src/backends/vulkan/shaders/moe_group.comp": "9426ae02b002cb8d5214470b16e53bf3916b7bc313314b9bf9aa0d6f109a88be",
+    "src/backends/vulkan/shaders/moe_route.comp": "f38e46361719035207a851bfc2d05cee89d6d41f5797041d140c79354bf35ad7",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "f54feb6fdbdce4c754427d468b6dd3f32d6811eec09fee5034a0b00ee01a8ea8",
+    "src/backends/vulkan/shaders/norm_rope_partial.comp": "d3633e79bd4ea9fc83c5ed488bc1abaefb06422a7c130a43edd6b1a38330b29b",
+    "src/backends/vulkan/shaders/q.glsl": "89b8676e7c811a96bcc9f01d77afb451b0eb2175025b2235f93d755340bb2bbc",
+    "src/backends/vulkan/shaders/qdecode.glsl": "8a46b5678648b96dd3af0c5a02895db902cce683ac812336f4eb0845740dd276",
+    "src/backends/vulkan/shaders/quantize_x.comp": "2b1dddcd091c173a93c53efa8ee4fdda83e372255a879354c49721c88a2553f9",
+    "src/backends/vulkan/shaders/quantize_xw.comp": "9e97ab1aa13872414d350b98ca11c20aef199042fabdb1e5d86681bda05432df",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "9f511beceb9bf54961812aff7f2222a5feff50820b3e631ce31e6ec4479dcb55",
+    "src/backends/vulkan/shaders/sigmoid_mul.comp": "78d59039a4dfcfb0b5699915ec50d1fabfdd336f54c510daa2555794ec70531c",
+    "src/backends/vulkan/shaders/signed_sqrt_gate.comp": "a80bf1c98f7243e487d6a92ca15760c1688980e468f3a803312e2778991dedff",
+    "src/backends/vulkan/shaders/silu_mul.comp": "e0aae0fade7ac1c1c1ce4870e78cb0e6a7127c9e40d2929df023dfa85cb1bd6e",
+    "src/backends/vulkan/shaders/silu_scaled.comp": "a67fb31a488eaa6e1595e75275e16b7b4f72a83c88da70baafbc0e87b8399bd8",
+    "src/backends/vulkan/shaders/views.glsl": "4c9e5d73457962993f166ad7d08c6031b399b7ad09a3d665ff11a2d5edce8479",
+    "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+    "src/backends/vulkan/vulkan_backend.cpp": "c179f0f2672c01aff8fcd533816047a10d65709071038ed0016b96e803b2a2ac",
+    "src/backends/vulkan/vulkan_backend.hpp": "78bcc6e84906cf1477ccc0be2bd1bea52c98031dc0687f2ab63b97240b10ee34",
+    "src/cli/main.cpp": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b",
+    "src/config.hpp": "35ddfbc82366e80b69cd7c003791fb988bcd82523bac6652303e3e28fc2a33e7",
+    "src/core/bf16.hpp": "43cf134cdb167547e47cd0f821505247965e6b07b9d2fdc2b67e08c8835d9174",
+    "src/core/cgroup.hpp": "386a32fb048e4c47930fd74cf8a5bee999ccb11ee21813137e3b6a576434cc5b",
+    "src/core/cpus.hpp": "6c4fd98658e9928b5852d8783dfa70597b7b2805c8ef5f978bb47b5fb3ebbbd5",
+    "src/core/crc32c.hpp": "306b0c5b9fa180c108aa12afb2714caf09dd4e1ddcccf0922af8bf39c65e2a15",
+    "src/core/fp16.hpp": "3cbe60800d9ec5acd3214e503225b508dd0dfda13871740665ab014cdaa52539",
+    "src/core/host_memory.hpp": "12442033770c6c320d1a0df52d8616a3a4924bdfeed6c289eba1e21cda6bf73a",
+    "src/core/job_threads.hpp": "0a803d8b0e6d83f6c630c800046aa4384e7c463e2e83c166af28c22742307f06",
+    "src/core/json.hpp": "dd4c77e427e5747447e332dec87b2af735f3718635de9fa3ab65a931d2cb3ea6",
+    "src/core/list.hpp": "385d03a145039d04bf98d6202866483f7666df55a9a10ff239c6a8709b79c94c",
+    "src/core/sha.hpp": "1577285ffd2f995ba5a087dc6c91cb8431415fdce4e7a6febf11cd2e0df7ef72",
+    "src/core/utf8.hpp": "af5469ac9946e89c9cf16fc1c95a60a4c3a81945417801141fed94305ab4fafc",
+    "src/format/file_digest.hpp": "04808bb33cd5cc6e29abaa1108e163d751bd499af487aa6ade407afbad72143a",
+    "src/format/file_reader.hpp": "e0f3a831b4c4e2e0c2cb6c3f9921efd5421790c157718a4af515b4685656b4a3",
+    "src/format/file_writer.hpp": "5815af0b5202748dee737d04d2a86407f7c4b4a7b939d009994fb01d6f898c41",
+    "src/format/format.hpp": "3550b93078aa475af9d5af88bd7537175d697fdb9ccff3deff51f7d595fd7e2d",
+    "src/format/gguf.hpp": "ddc503d932f6f2e978ea2308337c987bc3a4c137e477da0a18628d7431723e9a",
+    "src/format/mapped_file.hpp": "856e9f276bb663ed0b12e053d90a592997d3d337dda5650bda054c492b7f0488",
+    "src/format/output_file.hpp": "cf3ac408e90704c6daea6cbccab76521bc43657b2a4b48c1901bc5b776b0a478",
+    "src/format/raw_convert.hpp": "a9bdd462fe5c66e6ff72a308cf09c330fb3359bd6fd8302f979a0ea07bd56483",
+    "src/hub/manifest.hpp": "a3754cd8295c069efe649ef1c91155eed2c7846edadb8e17b5440b48af9eae3b",
+    "src/hub/pull.hpp": "f37b814b27669d8d73862ecf5eac74a304ce5d0a895534cb220d4ea929deba56",
+    "src/hub/transport.hpp": "a8331ccd19af945f0a823b1987e64cb1bff75b4f5fcdc900eda8ddbb7596ada7",
+    "src/inference/chat.hpp": "093bbd91cc3e244ac20ff08b855cccedd4afb400111330be558c2f3dfd3dbb8a",
+    "src/inference/generate.hpp": "08d0d7a9a0d296195ddfc91ab0ed9bad4b67f4c1ae477612d49683f4ed3b7398",
+    "src/inference/load.hpp": "bca78e588fae926728e57fe47f42225b7a6ac7dfa67572474ebb422b912bade5",
+    "src/inference/logprobs.hpp": "7ce38bda7aec94e3bcfd4a1ec06eeb88289062690e88a39b24f5973219da03b7",
+    "src/inference/pair.hpp": "b24bbd74c366c3ae702fb06af5d037003553236b8f86fb73f4b31e06544590e3",
+    "src/inference/perplexity.hpp": "95768b8e2a536ed5b846d9fa63a6b1a3ec145ab15be2f2c9867c0b85533efa96",
+    "src/inference/read_ring.hpp": "5a34df8e0f37f1bcc790fc1d1c00200cbec721d4625965620c54ae216dcd9147",
+    "src/inference/sampler.hpp": "4a99d620a949fbeb24dda2d4a285dbd83370450b1e5c7b0bf304e9d03e31db23",
+    "src/inference/spec.hpp": "57a8cce7828f7d9bc9a6e8080878f553e41d466319165884cc83dc4ab3b6b4c2",
+    "src/model/arch/blocks.hpp": "8a4925166dce168953b8a3fc659d18e69f87d3ac371ea44b854a85a83f8f9a76",
+    "src/model/arch/metadata.hpp": "51a9f7319684c8f8c5d5c4f2a0bb17ff4b8d075caa76ad345ca4a779eb9b588e",
+    "src/model/arch/qwen3.hpp": "da63c0711d628afb1ba346dbb4ac71e621cdb95d9bf083bb085338b60955dd43",
+    "src/model/arch/qwen35.hpp": "c7b53e281a6e6c742112d848dc3d1e09edb3c8451eec40c324ee152e7f695473",
+    "src/model/arch/qwen4exp.hpp": "65b0d57c038929cd29b66c92c3b36d5a60785e7e5885f8f1e43b9d1ea1351ff3",
+    "src/model/arch/registry.hpp": "bce6957855f0beb5f5a14d962ac3b547c36213888392dd3984b65262c10da6d6",
+    "src/model/architecture.hpp": "959366348c6b959d1d68175375014907eea0ad23280c3c19e4b9a72b8540381c",
+    "src/model/history.hpp": "3ee73ae1ed27e7ee6688eeef84b2a8a80b0af9621acfe6253869ce1e2bba9c43",
+    "src/model/kv_cache.hpp": "02930aeda059494a33a681f30479b48111ffd49daeb81cd13d3ec7c1327c3a25",
+    "src/model/layer_split.hpp": "8cd35c0696acda23a190c0dc4848695f541c97fa1e2962813826c1bafbc438cb",
+    "src/model/passes.hpp": "a5739ac768a8f32665c51edc42f3f5e1beb73ccf96dee83f86d6c357132541f3",
+    "src/model/place.hpp": "631cf809eb896ec28d852837793a29a3791ac3301fd1dfbcf6527fec8da3ca25",
+    "src/model/runtime.hpp": "eb8e5db84ac925d77344f80bcb28112ebbf390d1b1a6bc29420e9e95edb3d35c",
+    "src/model/shard.hpp": "17fde7ab2275fbe7c5fcf76231e2455f0deb62a3054f2aa83f217cede11a5a71",
+    "src/model/weight_rows.hpp": "2fbd19d71f241821fe9a7c27c9b3638e81b17dd3c2b938f979597d432f5544d1",
+    "src/model/weights.hpp": "7f5f641cba448526eb588b08db9fb755418360fe49ca98869255d4b01bf17cb1",
+    "src/quant/iq2_s.hpp": "5426aecc80fbee375980967d60c3325aff4f6b05493ddae4c90b7d59b1dc2059",
+    "src/quant/iq2_s_grid.inc": "4f254e3ff0d6f49b5c14528d65f3da819decab6b38f1307458077326e76257d0",
+    "src/quant/iq3_s.hpp": "27ef5cf35208b27370407c0e7cf3cfdd9b28ef7ebbfaa40849849f74a4d0c35c",
+    "src/quant/iq3_s_grid.inc": "844309e8b6e6eeb447bee8cd5ecb9caa08c527f675c1fc9a45ddb888e213c310",
+    "src/quant/k_quants.hpp": "b6e6097e61ec19f12895c00f4c471728b2a79cdd57595af48f9d87e37d41e45b",
+    "src/quant/mxfp4.hpp": "28120ca0b5307eb56f360a1d0c5beceef8c9a43296568ba2f345af95086c4d96",
+    "src/quant/quant.hpp": "42a122750b645be37dce1653eb98fb0ad1181e7ccb0d77f65fcccd05216d8f97",
+    "src/quant/types.hpp": "dd7c157b06b969a2d62f773f0e82d0de8a1561233956f273430b4117dbb29d6c",
+    "src/server/api.hpp": "e46f1a05e42cdc0a6d1deea46d171e3698f5f3bd3130fd49c04bd9e7624f1086",
+    "src/server/cache.hpp": "8466c115ee97c54f70e68b1ce4c3827f9a12ecafaed1814333d4066c85ef60f5",
+    "src/server/context_cut.hpp": "9ec1cf31e23a10e81c6c39fe66dc1e61c3f5ba4a5e02440a8eb59789e238086c",
+    "src/server/disk_index.hpp": "972ca858669086103a5bb45ce1a2c59b9b103f51190ca1552602d6ee8d2c6feb",
+    "src/server/disk_store.hpp": "870878254326132d760be83854f42bb01bec52b8e83097a50b98e446c1349d75",
+    "src/server/disk_tier.hpp": "6e61d8f3d31c4a30faf3a21f1de332ff03ac1de7269e95dae51e969d2e166da4",
+    "src/server/http.hpp": "e4eead42ea76e8e7ce365d24c6ee1f717a5b700a05ae7deb1f7a6aa86888d932",
+    "src/server/policy.hpp": "f6c8ecb818d0ca0c4665af780427e3b2c120e892a13065a964978adca66629fc",
+    "src/server/scheduler.hpp": "2a7948926082c106ac85cf60465a0336f0cd917ea0f8a22b51a74268332c40b7",
+    "src/tokenizer/tokenizer.hpp": "9dde67500c722f1a7490cb3a5d3cb0bb7b56bbe424dee3e5411710a3533c6614",
+    "tests/backend_vulkan.cpp": "f3b65b8c7ff45ed9526e531ab14dee3074caa242c50b19c40350f5b17ddca2c8",
+    "executable": "135f5ba1272ea2429271190e40943250b6985c864970554c39b049e6701fe20e",
+    "generated/config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "target-project": "46887f17783f2dc610cd5030b9059d78a97fcc2886042eb837c3c3fc19a31e9a",
+    "build-log": "e59835d45c3255227066a3b4418bb26607bab1ec1f95087e4d70ea353ad9e329"
+  },
+  "isa_files": {
+    "add.txt": {
+      "bytes": 5117,
+      "sha256": "573f4001ce69e90674ac244a415ed48b62dc6aafd41bf208dba651a0c92e67b1"
+    },
+    "argmax_rows.txt": {
+      "bytes": 51624,
+      "sha256": "bd1870884c2d1aa509e558a1573d0a7742bf5f937bae9871883c816b1138ac65"
+    },
+    "attention.txt": {
+      "bytes": 115422,
+      "sha256": "e7d8b958e3215e8b014834e157395ea1ef5526f032069251fc9e2070596f168f"
+    },
+    "attention_g4.txt": {
+      "bytes": 356186,
+      "sha256": "e27a5bc0e561de1124aab394609b72c9b6991c7ca11afd35744b070857bda975"
+    },
+    "attention_k16.txt": {
+      "bytes": 116463,
+      "sha256": "dc073ec87dcb7a65e3499244bdaae979a016c6d1da8c0260d09c9b7d8ea69fc8"
+    },
+    "attention_k16_g4.txt": {
+      "bytes": 357254,
+      "sha256": "bc4a35cb645ddda22c1bddfca57642e6474256e40d51fd9e13bf6c02008e0512"
+    },
+    "attention_kv16.txt": {
+      "bytes": 116593,
+      "sha256": "621f6f9ee4de432df01d6c1a60325dd2579a07a4a585df59e3fb120c68afc5e2"
+    },
+    "attention_kv16_g4.txt": {
+      "bytes": 357135,
+      "sha256": "70e24c930de949d3298b4753d3a254b9197e14b23390e65e3fe2ff0d7a6ad0d1"
+    },
+    "attention_merge.txt": {
+      "bytes": 86480,
+      "sha256": "0b52e4adbab771313a9b485d37544452b2e1b0b008422aa456604836054c7620"
+    },
+    "attention_tile.txt": {
+      "bytes": 434338,
+      "sha256": "4ba89db0ecd6633c353577098bd9096e1ace762a6bea3febe2a8f4f512053d7e"
+    },
+    "attention_tile_d256.txt": {
+      "bytes": 733167,
+      "sha256": "81c58fbbca6c263ce2a768bddb42c09e6584f9b11c2967eed0e31827dd3c66dc"
+    },
+    "attention_tile_d256_kv16.txt": {
+      "bytes": 734030,
+      "sha256": "922d722b6b85e037b76a135c3b93942de14bbce93f3e8c60ee031bd9cc6a2a25"
+    },
+    "attention_tile_k16.txt": {
+      "bytes": 434770,
+      "sha256": "ef3a6d70d203dcc91e27e5ba1e0661e1f77a33033625a5f3e1018015a08f5817"
+    },
+    "attention_tile_kv16.txt": {
+      "bytes": 435203,
+      "sha256": "eb5cb76258a198c90abea1beacd09aba7754bd6d3b35fc9cecc3a3cd4f8ee1d8"
+    },
+    "attention_tile_v16.txt": {
+      "bytes": 434770,
+      "sha256": "eb349bff07ec7f28b2e70edd5918c6822be53e2cbc4cda344d1945a4598ea785"
+    },
+    "attention_v16.txt": {
+      "bytes": 116297,
+      "sha256": "e6dcf5160f77d6ee3f0358d86b41dff6831f18edf091e76c4f806f0138187d9f"
+    },
+    "attention_v16_g4.txt": {
+      "bytes": 356839,
+      "sha256": "8e22f0b28f3adca580e53adc1636ee7693ea8a1c0131b61e63fb4c87144f6109"
+    },
+    "attention_vec.txt": {
+      "bytes": 132289,
+      "sha256": "3bf19a82ab08619611153bab180cd1a8b124334f6e3c2219f68bc3a4a39dd705"
+    },
+    "attention_vec_d256.txt": {
+      "bytes": 117867,
+      "sha256": "6eea28ce1789e89598508790273e7940ac4ad610b6d353e637a2c3971aeb256b"
+    },
+    "attention_vec_d256_g4.txt": {
+      "bytes": 422666,
+      "sha256": "f111f47aed355e8f84e6e11c49cd4ab7da224eb68e8b25f56215e2db88f44538"
+    },
+    "attention_vec_d256_k16.txt": {
+      "bytes": 118146,
+      "sha256": "ba04841f2f41a7cb8fe201bfc5f20f702b6a7fd6803c6057506e4d319aba2787"
+    },
+    "attention_vec_d256_k16_g4.txt": {
+      "bytes": 421776,
+      "sha256": "5af14ab41ed11aa272bb6b74814f5665e4be01bccfc3ac410997757290a8540b"
+    },
+    "attention_vec_d256_kv16.txt": {
+      "bytes": 117845,
+      "sha256": "8337cf556e731bd8edf1b608b573c43df3ef1ca39fdbfc3b13d45cf48f525372"
+    },
+    "attention_vec_d256_kv16_g4.txt": {
+      "bytes": 420517,
+      "sha256": "21147997c8e9e080296867d1d87a710cbfe8f5021825385653a501963d8d79f2"
+    },
+    "attention_vec_d256_v16.txt": {
+      "bytes": 117993,
+      "sha256": "bd42a774444f6f65ecb09af28abf8e4fe53279cb737bfeef0d6e442985d60750"
+    },
+    "attention_vec_d256_v16_g4.txt": {
+      "bytes": 419857,
+      "sha256": "0f48df0a4f6757fe963d859b52dfd40a0f7ba282a1ceba2f873a72b620a1b1b0"
+    },
+    "attention_vec_g4.txt": {
+      "bytes": 478070,
+      "sha256": "8dbca19d17c7ce55b09441f10648259a0fd754e2ac54c566e4cec879bc1a5ad8"
+    },
+    "attention_vec_k16.txt": {
+      "bytes": 132567,
+      "sha256": "ac19f11b26c700bd5ba90b12ed01851b670d157ec50113b46cbe986bd4ae186e"
+    },
+    "attention_vec_k16_g4.txt": {
+      "bytes": 477263,
+      "sha256": "1dc27e656ed2af3238814de3b0e4b50eba861f9f4264f7ac254662de03c22931"
+    },
+    "attention_vec_kv16.txt": {
+      "bytes": 132267,
+      "sha256": "542491905170eb6f8dbb314d56e5976c7f845625f94305e9cb651b35875b0717"
+    },
+    "attention_vec_kv16_g4.txt": {
+      "bytes": 476004,
+      "sha256": "80975df3e4869af68028b26a2c31c595858ca28936c5bd1c6d1804dc00fc2bc8"
+    },
+    "attention_vec_v16.txt": {
+      "bytes": 132414,
+      "sha256": "f83fa6d69b5cb5c9ba24d5c9c3ffd606e1403b53a59268556d3f5b36ffd3ad7b"
+    },
+    "attention_vec_v16_g4.txt": {
+      "bytes": 475344,
+      "sha256": "441e5af08cd12a945a40a66e945abe43f96c3a796fbfc8c86832a9d5efc71c3f"
+    },
+    "causal_conv_silu.txt": {
+      "bytes": 27019,
+      "sha256": "4aa00df11a3bdbe9d7efaad86a98c765dcfa9815dfd24742c4963ddc414124e3"
+    },
+    "delta_rule.txt": {
+      "bytes": 111628,
+      "sha256": "12ed2fdb764492090042777a6bcbf57bf5157dd755da7945233c0af5f628f995"
+    },
+    "delta_rule_short.txt": {
+      "bytes": 111627,
+      "sha256": "e786020e0792d4f737ced1406509ad5d5c65d638dd65cc6ced7d6dfcc2bc089d"
+    },
+    "embed.txt": {
+      "bytes": 71531,
+      "sha256": "a168b513cf8c13900b99c9954c1dec18d545c2184aa6f9a172a152f71e067628"
+    },
+    "embed_ids.txt": {
+      "bytes": 73376,
+      "sha256": "1acf8e745d5fec24a629cf537e6fdd1b42316dd8631abf6f9fdeba36114caea7"
+    },
+    "embed_ids_mxfp4.txt": {
+      "bytes": 10946,
+      "sha256": "97f5c8f744d3e4f3a2633ae74889caaede647ffa11081ace6836812efd754d1f"
+    },
+    "embed_ids_wbf16.txt": {
+      "bytes": 7183,
+      "sha256": "1762f2e722c36afb323992228b6d25ac481ce5100578ead0682b7a3642833120"
+    },
+    "embed_ids_wf16.txt": {
+      "bytes": 10306,
+      "sha256": "9ad4150c26cff800fa445b32580e210e6a668176926ea1787a6fffaf2104f749"
+    },
+    "embed_mxfp4.txt": {
+      "bytes": 8869,
+      "sha256": "dba3602d90396840cf6d1840e27d841ae6bedac7f66df543b85ab77a538e3caf"
+    },
+    "embed_wbf16.txt": {
+      "bytes": 6265,
+      "sha256": "7f1572ddbf34882a1540c455d85c34bec036a82eab55b9d97fbc61948268173b"
+    },
+    "embed_wf16.txt": {
+      "bytes": 8894,
+      "sha256": "6d736c0edc402e1e1ef475be6eb86b63d7b0973899297a31a3ee81eba064a599"
+    },
+    "gated_rms_norm.txt": {
+      "bytes": 161485,
+      "sha256": "c99e51c64e0028ad197735b161a60eb37ae5233060ccad30ea649acc637c4555"
+    },
+    "gather_rows.txt": {
+      "bytes": 8392,
+      "sha256": "fca2f52ce2bf80ae11aa477bd1f6d15e74b60ea2c8d27e4f5b33feb1b681ee4e"
+    },
+    "kv_write.txt": {
+      "bytes": 18553,
+      "sha256": "1a9ea03087962ad5f63ab39e67bab90c3c12ba2e088e5af3829ec5d0a6aa94c4"
+    },
+    "kv_write_k16.txt": {
+      "bytes": 24256,
+      "sha256": "68c68ab552707fcfbbe9ef386485401f410767e52078b7f765d37bd4b40ec78c"
+    },
+    "kv_write_kv16.txt": {
+      "bytes": 29710,
+      "sha256": "27d1f61e5a10f844d3c5b4f1aea6e4c547d2beaae9ea9b9be517ce82646c5be0"
+    },
+    "kv_write_v16.txt": {
+      "bytes": 24173,
+      "sha256": "2eb1cdd2e301fd5b418313f9da1086106e403ed3d085746d82dec86426021e4d"
+    },
+    "matmul_reduce.txt": {
+      "bytes": 10635,
+      "sha256": "95021f4ce80f69920e616e0e673875c930101715bb5c6e4c5638a898e36c383b"
+    },
+    "matmul_reduce_mxfp4.txt": {
+      "bytes": 11140,
+      "sha256": "ef3321b634835f8963922f81d4d85059274881a1b3f6b00fddea5562f2385cd1"
+    },
+    "matmul_row.txt": {
+      "bytes": 59366,
+      "sha256": "1f1378f18b716e803cbd9663349071e86ced0f30d6b5ff0891484a06552d8439"
+    },
+    "matmul_row_1col.txt": {
+      "bytes": 48356,
+      "sha256": "93ebbdf285dc2e2b9d25977b64dfe4f16b9c57ab324135dbaf83a9de2a00a370"
+    },
+    "matmul_row_f32.txt": {
+      "bytes": 58111,
+      "sha256": "962b67d31cc3cdf00609ea6c0178f190c24749fdb61296dc928ceb65bfafa029"
+    },
+    "matmul_row_f32_1col.txt": {
+      "bytes": 46603,
+      "sha256": "b93e44618e4bf5f4f9df8fd98a2e28421e60bf8ef51efbd4bda3a69f90183f7b"
+    },
+    "matmul_row_f32_grouped.txt": {
+      "bytes": 67614,
+      "sha256": "d9a160f6005f4f46f5186940b7abfe703e579640d99c60dc9f773697b90b8e4c"
+    },
+    "matmul_row_float_x.txt": {
+      "bytes": 93098,
+      "sha256": "93ebeb1c7129da3e20539d9bfdd78f360c39db34d55075679b0d441594d029fe"
+    },
+    "matmul_row_float_x_1col.txt": {
+      "bytes": 89277,
+      "sha256": "df123a4dce56c66f09ff9ba6a254af7ea699236680785c8645db33d4d6528a22"
+    },
+    "matmul_row_float_x_grouped.txt": {
+      "bytes": 93857,
+      "sha256": "5820a48832d048bef8cd022e84b830ff9f1379f193bd5212fc967d1ab2702ed9"
+    },
+    "matmul_row_k.txt": {
+      "bytes": 54369,
+      "sha256": "e562e7771946ecb75e4f1c2a850bb73487d2812d5d917438651262ccef445a53"
+    },
+    "matmul_row_k4.txt": {
+      "bytes": 44953,
+      "sha256": "3491feaa235bc75061c8d0db715138b5e8c152803cccfc9008163c9acbbbc7a3"
+    },
+    "matmul_row_k4_1col.txt": {
+      "bytes": 40619,
+      "sha256": "3f285940b37da7ddc187c9547ab3a1ceeb46062d524a40e31d20678d94363f65"
+    },
+    "matmul_row_k4_grouped.txt": {
+      "bytes": 45626,
+      "sha256": "140a21399c8d8dde8afc16f8136e35ec28d02d576ba7d092378576092f6476e7"
+    },
+    "matmul_row_k5.txt": {
+      "bytes": 54374,
+      "sha256": "9844f7518fb29380ff42832cea32a1e6f769041f2f8b5c527980345e98aa5b48"
+    },
+    "matmul_row_k5_1col.txt": {
+      "bytes": 50040,
+      "sha256": "7f8e198ae4c93c8637ecc5e36d27938c3cde5d50e022284e222745d7cf68080e"
+    },
+    "matmul_row_k5_grouped.txt": {
+      "bytes": 54383,
+      "sha256": "b2b896969918a10b404ab8106aa59b5e7409ffb20b0bafc2d77898f3167fdd9e"
+    },
+    "matmul_row_k_1col.txt": {
+      "bytes": 50543,
+      "sha256": "fffbf7ea08e5157db2f8e7b9223dbbe150f2e34625a8cab0d9421a6e81baae48"
+    },
+    "matmul_row_k_grouped.txt": {
+      "bytes": 54876,
+      "sha256": "c54f0c95d4d552ee177c07ede34055f3d3841f19fae0dda81c75377db55e60bd"
+    },
+    "matmul_row_mxfp4_dot.txt": {
+      "bytes": 103174,
+      "sha256": "b2c22fee50fa2a8760d6d96d64c0781817fcfe0180d759a32686359d4a6a0f81"
+    },
+    "matmul_row_mxfp4_dot_1col.txt": {
+      "bytes": 97093,
+      "sha256": "4613d47ab6a971d4246354d0652a4df817b2ce187c6feb63c35f37635ecface9"
+    },
+    "matmul_row_mxfp4_float_x.txt": {
+      "bytes": 194426,
+      "sha256": "dc1f6066cfd1e15049140fd9b47526507a5badc1b294a62359bd796ff3ed3584"
+    },
+    "matmul_row_mxfp4_float_x_1col.txt": {
+      "bytes": 186162,
+      "sha256": "b5a7c83d90290e8a1ec44e8c979f33c0dbfad8abea409100b8eb9ea2b47b1b3c"
+    },
+    "matmul_row_q4.txt": {
+      "bytes": 99899,
+      "sha256": "31716b5df95c96b97a959c1251c036f54fb5f9e9f95431a723568e5a51a9976a"
+    },
+    "matmul_row_q4_1col.txt": {
+      "bytes": 92917,
+      "sha256": "7c38a790bff998437b69370596d50684d13cb83e731b07d9979516fd914cd789"
+    },
+    "matmul_row_q4_grouped.txt": {
+      "bytes": 107282,
+      "sha256": "6e5860126a4656eaa5ec03bcb82ae33a4b4d4cc91d95ae507fd587169cc71c2a"
+    },
+    "matmul_row_q5.txt": {
+      "bytes": 105503,
+      "sha256": "12e4de78c486c5dfcc09d7e94488f07755018a6e43e767cdb4e9c3ff103de9d2"
+    },
+    "matmul_row_q50.txt": {
+      "bytes": 106765,
+      "sha256": "9688adc8381825982f15c221f9c70e0e06fe9292cb2a48c7976c0a642b946257"
+    },
+    "matmul_row_q50_1col.txt": {
+      "bytes": 99124,
+      "sha256": "f3c5d2340178cadf04188211dff2295def00e5df93062362d8a5d69934a7d1d2"
+    },
+    "matmul_row_q50_grouped.txt": {
+      "bytes": 114149,
+      "sha256": "b2d0118e593474fc328d3c6a7becf5bff76e9ed05378e7f4208a68a0adec1420"
+    },
+    "matmul_row_q5_1col.txt": {
+      "bytes": 98521,
+      "sha256": "1ad04590d71b180f58f01fa84ecdd44e7e997f6a42e911db187e7fa10b4cb90c"
+    },
+    "matmul_row_q5_grouped.txt": {
+      "bytes": 112886,
+      "sha256": "1958cde2990687fa556e6ee05e5f92bd10588b793515cd5e53fef50e3fe22413"
+    },
+    "matmul_row_q8w.txt": {
+      "bytes": 40816,
+      "sha256": "d658066111b3838ab791cef406f33cb5d6ea53be8c47950462f4fde36cc132b6"
+    },
+    "matmul_row_q8w_grouped.txt": {
+      "bytes": 40825,
+      "sha256": "b08c959f7a133d5a9ac528882ca3cc7a93cecb68e4e5f42137190926e79da59c"
+    },
+    "matmul_row_wbf16.txt": {
+      "bytes": 40772,
+      "sha256": "6722a24af4b626e6fe20af565cbacfd3b48ceeef47bf9fbbbaa265828ad03a76"
+    },
+    "matmul_row_wbf16_1col.txt": {
+      "bytes": 31646,
+      "sha256": "47800d744ac86bd5de3c06eb57ece884cc0631f4a3748ee1da3c31856d1f8137"
+    },
+    "matmul_row_wbf16_grouped.txt": {
+      "bytes": 46957,
+      "sha256": "f204c7fb1af55a655e6ae8a893741e3d66db29743c2140ca5b76c23c0cc95cb9"
+    },
+    "matmul_row_wf16.txt": {
+      "bytes": 96535,
+      "sha256": "b16c99165106e3ad51c3168d918714b45ec4193d4e20fdc327df8878e8c2fcd0"
+    },
+    "matmul_row_wf16_1col.txt": {
+      "bytes": 86080,
+      "sha256": "81fa58a961e415007868a4eefe118471b87e24949480906635be60d3e76738a5"
+    },
+    "matmul_row_wf16_grouped.txt": {
+      "bytes": 102056,
+      "sha256": "7248933d4119a81c6d778a7d9ce1551dd699bcf178ea82d6298d3496e14f0dc7"
+    },
+    "matmul_tile.txt": {
+      "bytes": 363567,
+      "sha256": "6049d6d47a08724b6680c6020991d4743ab9afb3a3544340574f5c1472434d22"
+    },
+    "matmul_tile_bf16_small.txt": {
+      "bytes": 227521,
+      "sha256": "72cbfcf2f4eb3128b07f8f47dc36b7cdd7aca63996fe37e6f2929ad5a97071c3"
+    },
+    "matmul_tile_bf16_tall.txt": {
+      "bytes": 562968,
+      "sha256": "452d9cc5aa5ba239a458d5373c5db3290f5fe35869f443413465ddc0d16252db"
+    },
+    "matmul_tile_mxfp4_bf16_small.txt": {
+      "bytes": 247134,
+      "sha256": "909620f75362b137dcaab29b3c029d929c5fe5b32f8a0577a8130124298d7ddb"
+    },
+    "matmul_tile_mxfp4_small.txt": {
+      "bytes": 231445,
+      "sha256": "2fec396ce910d89b30bab71b91224cdb7b0e25eace69224b02ab765ce915cfe8"
+    },
+    "matmul_tile_small.txt": {
+      "bytes": 221113,
+      "sha256": "5318cb6dac22deb6f4e3f7bbceb44aca8627fece7ac950f8b27e94a214c60d45"
+    },
+    "matmul_tile_tall.txt": {
+      "bytes": 556560,
+      "sha256": "79d22f73007be1789a812d7312d92d854d2b91ba3e45c24f7aa523af75cf5ea2"
+    },
+    "matmul_tile_wbf16_bf16_small.txt": {
+      "bytes": 100776,
+      "sha256": "c9adae584948fba45ea6b3b5b733c18e64a8925956c2bd95e1c7dafa69f74681"
+    },
+    "matmul_tile_wbf16_small.txt": {
+      "bytes": 94367,
+      "sha256": "ca626047e92b72a45e2b538a545061b9532e01f9ac876115b6a3ee8f769eb3a7"
+    },
+    "matmul_tile_wf16_bf16_small.txt": {
+      "bytes": 111624,
+      "sha256": "cf16873a9279f3e6b5ed072cf93d01a7fbd20dc74e0be749b81e382fa73e1d95"
+    },
+    "matmul_tile_wf16_small.txt": {
+      "bytes": 105216,
+      "sha256": "de9ebf45c7dff1b417369f894dade2a13aa557acbf9f8355449459a0b4e0e140"
+    },
+    "moe_combine.txt": {
+      "bytes": 23684,
+      "sha256": "adba60c19a53fe27945bbd0e687d17383caa203a576440e3d3103c5ae13f0aae"
+    },
+    "moe_group.txt": {
+      "bytes": 60259,
+      "sha256": "c13aa3a75e198fc3a28d950ad9b202af5c7dff7486f5a043f5dbee9d2975c670"
+    },
+    "moe_route.txt": {
+      "bytes": 32335,
+      "sha256": "ace503ef5e5d39c598c6e1e6ed4683e3df89b9d3ca67fd53ee53cf37cb5ce12e"
+    },
+    "norm_rope_kv.txt": {
+      "bytes": 34595,
+      "sha256": "b9b6228033d8bf3bda36fe11af2c9352ac5443cb2ce0cbe8efe6e3a547fbd2a1"
+    },
+    "norm_rope_kv_k16.txt": {
+      "bytes": 45315,
+      "sha256": "250682e6dc52aa9378e5d1faa025883e08f9f773a7fda46e0996535bf88c15ba"
+    },
+    "norm_rope_kv_kv16.txt": {
+      "bytes": 50674,
+      "sha256": "13850d56bfb0cd217341435dc3558ad4f6daf7f2950446f36655117263ae4ec3"
+    },
+    "norm_rope_kv_v16.txt": {
+      "bytes": 39956,
+      "sha256": "0f150fbd63409589624600e520c5a1108b8ef53ece9b3921128a9ff03766781a"
+    },
+    "norm_rope_partial.txt": {
+      "bytes": 23153,
+      "sha256": "b874a7feea1dec53c7c7c82be0389555095838fab6463ccd769032e174a0c39c"
+    },
+    "quantize_x.txt": {
+      "bytes": 63622,
+      "sha256": "1b8efbd7bafc2d9e10c4ff5672d5dc112d0159369fb6ccab104f59aa99dcb5a5"
+    },
+    "rms_norm_rows.txt": {
+      "bytes": 176826,
+      "sha256": "67e849f05c4f17495e03ed0b2a9303792814bb989f21f082974bb4aa4a13d722"
+    },
+    "sigmoid_mul.txt": {
+      "bytes": 165928,
+      "sha256": "c38baee5d428fc62bc6986d668f244bc0d632c356ffb23b625a2a17f70fb9c2c"
+    },
+    "silu_mul.txt": {
+      "bytes": 143083,
+      "sha256": "c82835d9eed74e93d5a61f083c78d4f7db9cab51a87a3e241c29863b13ca620a"
+    }
+  },
+  "limitations": [
+    "backend-vulkan: no second device for the collective (vulkan: no device at index 1 of 1)",
+    "Radeon reports int8 not run here; this is not MI50 packed-dot coverage.",
+    "No dedicated IQ2 representation is exported by this generic test; existing IQ2-specific operator and HF checks retain that responsibility.",
+    "The embedded timings are diagnostic only, not a matched performance comparison."
+  ],
+  "result_lines": [
+    "backend-vulkan: identity vulkan 4098:26287 AMD Radeon VII; AMD proprietary driver 26.5.2 (AMD proprietary shader compiler) 8388887 3708bcabde6c5dfebffc12b77baf8df2",
+    "backend-vulkan: 509 expected weight dispatches and type refusals",
+    "backend-vulkan: 935426 finite half-weight values and exact F32-control products",
+    "backend-vulkan: 111888 shared matrix precision values passed",
+    "backend-vulkan: 82944 exact Q5_1 embedding values passed",
+    "backend-vulkan: 18432 exact Q5_0 embedding values passed",
+    "backend-vulkan: 96 matrix-path witnesses match arithmetic",
+    "backend-vulkan: 113 kernel representations written to C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq2-radeon-backend-isa-v2-20261023\\isa",
+    "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 23 the same, 0 those and whole columns, 0 pairs of two-row builds whole columns apart, 0 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 11 grouped builds the same as their wide build"
+  ],
+  "end": 1792716354.040789,
+  "log_sha256": "253180df4327aa05d03cdf0dd13354184d8f4142b825619eaed2ce0cf3bdc6a1",
+  "raw_execution_sha256": "21012da459d5c606b3005c21621953f5f0c994a90c8a3e4b40805d146f60a9c7",
+  "source_carry_audit": {
+    "path": "build-quant-resume-20261020\\iq2-v4-runtime-carry-audit-20261023.json",
+    "sha256": "40b62dfd5200b86d06b82fa32bb89fad895bc1cd5515e1028d02637e0d8178ba"
+  },
+  "original_prelaunch_failure": {
+    "path": "build-quant-resume-20261020\\iq2-radeon-backend-isa-20261023\\execution.json",
+    "sha256": "d16d07f019eccbd1f3edebe8f38683fd1d27ca3ac29ce4963d9867da07cdcdd3",
+    "reason": "Harness decoded UTF-16 PowerShell build log as UTF-8. No test launched. Corrected BOM-aware reader only."
+  }
+}

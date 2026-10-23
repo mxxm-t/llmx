@@ -1,0 +1,807 @@
+{
+  "date": "2026-10-23",
+  "status": "three-depth-comparisons-passed",
+  "scope": "Released IQ2_M exact-file raw/chat 16K forced-context ranking on one MI50: selected-F16, default-vs-F32 companion, explicit-F32 all passed. This is not full feature qualification, greedy generation or performance evidence.",
+  "model": {
+    "repo": "bartowski/Qwen_Qwen3-0.6B-GGUF",
+    "revision": "60b85c0e3d8fe0f6474f406922a26d12aca4550d",
+    "file": "Qwen_Qwen3-0.6B-IQ2_M.gguf",
+    "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/models/Qwen_Qwen3-0.6B-IQ2_M.gguf",
+    "bytes": 331761056,
+    "sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+    "inventory": {
+      "F32": 113,
+      "IQ2_S": 137,
+      "IQ3_S": 60,
+      "Q5_K": 1
+    }
+  },
+  "runtime": {
+    "source": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/source",
+    "source_archive_sha256": "63d128a2708261dbf28296dfd164d27fe6493cef6c0c82d6decb610fbfa9d8db",
+    "source_manifest": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/source-pins.json",
+      "sha256": "794a5b260e34113acbb79a62b4a32e9b218cb98bda792afe82f012322b1d4844",
+      "bytes": 40395
+    },
+    "build": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/build",
+    "version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4",
+    "files": {
+      "/b/llmx": "d7829cf93ec1ef5aba972b5b8c26f0043ef89be484df1b8ebbadc401782074ee",
+      "/b/libllmx-vulkan.a": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193",
+      "/b/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "/source/tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+    },
+    "before_after_identical": true,
+    "generated_build_info_sha256": "ec6e4591c4c64ab8d983571c3d7a86e0996587cf9b8d8681b9a3a973ef00119e"
+  },
+  "policy": {
+    "command": [
+      "python3",
+      "-B",
+      "/bundle/capture.py",
+      "iq2-s",
+      "default"
+    ],
+    "activation": "Unchanged default probe selects automatic/default F16 policy; actual witness f16 with block-int16 matrix products. This is not an explicit --dtype f16 CLI call.",
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "threads": 4,
+    "kv_tokens": 17024,
+    "exact_prompt_token_ids": 16384,
+    "forced_context_positions_per_variant": 512,
+    "probe_timeout_seconds_per_variant": 240,
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_set": "12-15",
+    "cpu_quota": 4,
+    "memory_bytes": 8589934592,
+    "memory_swap_bytes": 8589934592,
+    "full_container_commands": "Pinned per-stage execution.json artifacts below."
+  },
+  "probes": {
+    "default_sha256": "febd0ea83d4795afc6a7851a5661d7838856b44980f7f442c7929811f267d937",
+    "sources": {
+      "quant-depth-default-probe.cpp": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+      "quant-depth-f32-probe.cpp": "03fef5042d157053b1bc0817be52d74a0a8cb306d58d893dba0810f4720cd99b"
+    },
+    "build_commands": [
+      [
+        "/usr/bin/c++",
+        "-I/b/generated",
+        "-I/source/src",
+        "-O3",
+        "-DNDEBUG",
+        "-std=c++17",
+        "-mavx2",
+        "-mfma",
+        "-mf16c",
+        "-Wall",
+        "-Wextra",
+        "-Werror=unused-function",
+        "-Werror=unused-variable",
+        "-Werror=unused-but-set-variable",
+        "/bundle/quant-depth-default-probe.cpp",
+        "/b/libllmx-vulkan.a",
+        "-ldl",
+        "-o",
+        "/out/default-probe"
+      ],
+      [
+        "/usr/bin/c++",
+        "-I/b/generated",
+        "-I/source/src",
+        "-O3",
+        "-DNDEBUG",
+        "-std=c++17",
+        "-mavx2",
+        "-mfma",
+        "-mf16c",
+        "-Wall",
+        "-Wextra",
+        "-Werror=unused-function",
+        "-Werror=unused-variable",
+        "-Werror=unused-but-set-variable",
+        "/bundle/quant-depth-f32-probe.cpp",
+        "/b/libllmx-vulkan.a",
+        "-ldl",
+        "-o",
+        "/out/f32-probe"
+      ]
+    ],
+    "build_report": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-build/probe-build.json",
+      "sha256": "0805d1be1015c6f0f65bea095d8faa7f67d201f6a966fa553942d781fd949d3d",
+      "bytes": 1404
+    },
+    "f32_sha256": "564739c8664948162003b72826d75df0d462f36fde4942123f36458501adcb7f"
+  },
+  "reference": {
+    "dtype": "f16",
+    "cache": "F32 HF DynamicCache",
+    "chunk": 512,
+    "repo": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "producer_sha256": "784d5bef3850fe4787668aa6f0f71de46c30f96d1114843b40a667ff8cc79082",
+    "producer_source_hashes": {
+      "tools/gen_baseline.py": "c47be1595913dc6ebf55d423b1eb7e5bc513f60ea72e1dc6f03488175845faaa",
+      "tools/calibrate_dtype.py": "473dac06eca6f449f5b938a7b6115c37a46e5182a415f8a0f32b8baf19651f92",
+      "tests/spec_decode.py": "de95875f5b329547125a78d012c1640a6624c502c1a51c2473413602a75078e9"
+    },
+    "image": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "source": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/source",
+    "source_manifest_sha256": "5555cbd47137cc03ecc774db4993f8cbd2fff8a94027007f90dc1f54786b1fe6",
+    "source_archive_sha256": "9b7f54182b736d251feb5bce555d0ffa54599e018e29277e938c4a0fb5fa8d2d",
+    "topology_note": "Independent reference source repairs explicit GGUF head topology. Runtime source/library stay v4; common.py rule bytes are identical.",
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "passed": true,
+    "removed": true,
+    "oom_killed": false,
+    "start": 1792711350.1493654,
+    "end": 1792712518.4108748,
+    "before_after_identical": true,
+    "report": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f16/reference/report.json",
+      "sha256": "4874be3046bf7bd86156c578db230ea944927ce22dcda6322f96c8cbfae704a4",
+      "bytes": 9618
+    },
+    "execution": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f16/execution.json",
+      "sha256": "447c48009ef12c79f751c15b5c2ade91085abcf8c237170a0de63eee35a5ad8d",
+      "bytes": 8837
+    }
+  },
+  "rule": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "top_two_tie_margin": 0.1,
+    "rule": "Exact HF top1, or actual token is HF second with top-two gap <=0.1; any other result is a miss. No waivers or changed bounds."
+  },
+  "cells": [
+    {
+      "variant": "raw",
+      "positions": 512,
+      "position_range": [
+        16383,
+        16894
+      ],
+      "counts": {
+        "exact": 511,
+        "accepted-tie": 1,
+        "miss": 0
+      },
+      "accepted_ties": [
+        {
+          "position": 16416,
+          "actual_top1": 17727,
+          "hf_top2_ids": [
+            323,
+            17727
+          ],
+          "hf_top2_logits": [
+            15.270989418029785,
+            15.270934104919434
+          ],
+          "hf_gap": 5.53131103515625e-05,
+          "verdict": "accepted-tie"
+        }
+      ],
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "capture_command": [
+        "/probes/default-probe",
+        "/model.gguf",
+        "/fixtures/depth-raw.json",
+        "0"
+      ],
+      "capture_exit": 0,
+      "fixture_sha256": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+      "stdout": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default/iq2-s-raw.stdout",
+        "sha256": "944fc99397d601491e66771c953479e338e0971bb16254c7a4962d34d60dd313",
+        "bytes": 437361
+      },
+      "stderr": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default/iq2-s-raw.stderr",
+        "sha256": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+        "bytes": 129
+      },
+      "reference_json": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f16/reference/raw.json",
+        "sha256": "7478b2bc7dd27ada3ae741526403c6f8bc612f7252f53f828154ff29e2f6cc0c",
+        "bytes": 664570
+      },
+      "reference_npy": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f16/reference/raw.npy",
+        "sha256": "0e04e3bb300bdd0b199e528291247e66e586a79d292dbfb6606a5e06e3e7929a",
+        "bytes": 311165056
+      }
+    },
+    {
+      "variant": "chat",
+      "positions": 512,
+      "position_range": [
+        16383,
+        16894
+      ],
+      "counts": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      },
+      "accepted_ties": [
+        {
+          "position": 16636,
+          "actual_top1": 279,
+          "hf_top2_ids": [
+            862,
+            279
+          ],
+          "hf_top2_logits": [
+            17.567123413085938,
+            17.5528564453125
+          ],
+          "hf_gap": 0.0142669677734375,
+          "verdict": "accepted-tie"
+        },
+        {
+          "position": 16640,
+          "actual_top1": 3855,
+          "hf_top2_ids": [
+            8145,
+            3855
+          ],
+          "hf_top2_logits": [
+            17.131959915161133,
+            17.131710052490234
+          ],
+          "hf_gap": 0.0002498626708984375,
+          "verdict": "accepted-tie"
+        }
+      ],
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "capture_command": [
+        "/probes/default-probe",
+        "/model.gguf",
+        "/fixtures/depth-chat.json",
+        "0"
+      ],
+      "capture_exit": 0,
+      "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+      "stdout": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default/iq2-s-chat.stdout",
+        "sha256": "6423a7a1f9b1d74fe5335a396424a1444a3932d77b0491e6ddcc1a0f9222d762",
+        "bytes": 438419
+      },
+      "stderr": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default/iq2-s-chat.stderr",
+        "sha256": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+        "bytes": 129
+      },
+      "reference_json": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f16/reference/chat.json",
+        "sha256": "13a03e0a70f2ddccee61686da8e08f676482d826b4d39a15a6ea3605bc0f7103",
+        "bytes": 665119
+      },
+      "reference_npy": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f16/reference/chat.npy",
+        "sha256": "ab3ca659db5d148d2c00c937a5e1b9b67bec8d7fa8d9a5005de1ce727804bf45",
+        "bytes": 311165056
+      }
+    }
+  ],
+  "executions": {
+    "build": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "start": 1792712976.8091478,
+      "end": 1792713019.0938053,
+      "guard": null,
+      "execution": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-build/execution.json",
+        "sha256": "d396522f8a8e93997190b3d7b5edb3934c8c50c42cd6438cf4903d5fc147a317",
+        "bytes": 2949
+      },
+      "command_inside_container": [
+        "python3",
+        "-B",
+        "-u",
+        "/bundle/build-probes.py"
+      ]
+    },
+    "default": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "start": 1792713105.6034772,
+      "end": 1792713136.6345448,
+      "guard": {
+        "node": "/dev/dri/renderD128",
+        "pci": "0000:c3:00.0",
+        "busy": 0,
+        "vram": 10919936,
+        "power": "auto",
+        "dormant_mapping": {
+          "id": "b2b1eb6de5f8ab6aebe7cd6403d4a66d3822cb0b5db1caaf4f8c972b4b392e24",
+          "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "processes": "PID                 COMMAND             COMMAND\n2841791             docker-init         /sbin/docker-init -- sleep infinity\n2841805             sleep               sleep infinity"
+        }
+      },
+      "execution": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default/execution.json",
+        "sha256": "6a7be6ed268061b70da4e94c4a531bd8108ecbd70a4b7e2a6a1f9e17ef4f8977",
+        "bytes": 4127
+      },
+      "command_inside_container": [
+        "python3",
+        "-B",
+        "-u",
+        "/bundle/capture.py",
+        "iq2-s",
+        "default"
+      ]
+    },
+    "selected-f16": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "start": 1792713221.6553168,
+      "end": 1792713223.007196,
+      "guard": null,
+      "execution": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-selected-f16/execution.json",
+        "sha256": "a5530c8b7c93125260c528a3743eca26e856a730ffc0b77fa15f3ba365642ed8",
+        "bytes": 3432
+      },
+      "command_inside_container": [
+        "python3",
+        "-B",
+        "-u",
+        "/bundle/compare-default-depth.py",
+        "--source",
+        "/reference-source",
+        "--reference",
+        "/reference",
+        "--captures",
+        "/captures",
+        "--kind",
+        "iq2-s",
+        "--role",
+        "selected-f16",
+        "--variant",
+        "both",
+        "--output",
+        "/out/comparison.json"
+      ]
+    },
+    "f32": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-23T00:03:36.183150959Z",
+        "FinishedAt": "2026-10-23T00:04:24.299310956Z"
+      },
+      "execution": {
+        "path": "build-quant-resume-20261020/iq2-depth-v4/depth-v4-f32-resident-execution.json",
+        "sha256": "d75d8b6eee6a47888ba44135a21c6e6ddc107594e67b219d9ab5c4dc5e4430d0",
+        "bytes": 3170
+      },
+      "container": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/container-after.json",
+        "sha256": "2a362496cda33424650a3004d2023dff4710483db047ebf2b5613aae0f3ab557",
+        "bytes": 10654
+      },
+      "guard": {
+        "node": "/dev/dri/renderD128",
+        "busy_percent": 0,
+        "vram_bytes": 10919936,
+        "clock": "auto",
+        "fuser_clients": false,
+        "host_memory_available_bytes": 31339823104,
+        "disk_free_bytes": 195715661824,
+        "dormant_mapping": {
+          "id": "b2b1eb6de5f8ab6aebe7cd6403d4a66d3822cb0b5db1caaf4f8c972b4b392e24",
+          "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "argv": [
+            "sleep",
+            "infinity"
+          ],
+          "live_processes": [
+            {
+              "pid": 2841791,
+              "comm": "docker-init",
+              "args": "/sbin/docker-init -- sleep infinity"
+            },
+            {
+              "pid": 2841805,
+              "comm": "sleep",
+              "args": "sleep infinity"
+            }
+          ]
+        },
+        "evidence": "Fresh read-only sysfs, fuser and Docker inspections before this capture; dormant container untouched."
+      }
+    },
+    "default-f32": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-23T00:06:09.716913761Z",
+        "FinishedAt": "2026-10-23T00:06:10.477392346Z"
+      },
+      "execution": {
+        "path": "build-quant-resume-20261020/iq2-depth-v4/depth-v4-default-f32-resident-execution.json",
+        "sha256": "c9031fcfa570c707cc66215e62648a88ea24cbcbbce5cd7a9cc46811698b7dd4",
+        "bytes": 2111
+      },
+      "container": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default-f32/container-after.json",
+        "sha256": "c1bf311d523e78cac9c1c5741153efe435b212d50a45f0e772611e213f2db631",
+        "bytes": 10079
+      }
+    },
+    "selected-f32": {
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-23T00:06:23.206163923Z",
+        "FinishedAt": "2026-10-23T00:06:23.947464467Z"
+      },
+      "execution": {
+        "path": "build-quant-resume-20261020/iq2-depth-v4/depth-v4-selected-f32-resident-execution.json",
+        "sha256": "0140ec4c3d9abd3dafe5fe31663f9433d816abd902fbd59ad2cbd8ef661efd15",
+        "bytes": 2102
+      },
+      "container": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-selected-f32/container-after.json",
+        "sha256": "9dbe3c610ba9a73a2decbf1726a541a63f24d9861a5e1f179becd6e1937d05ec",
+        "bytes": 10057
+      }
+    }
+  },
+  "retained": {
+    "comparison": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-selected-f16/comparison.json",
+      "sha256": "1ac3d7ed63a672a3930a1fa35f05db7ac7c12f5786adc6fe48d09bfddc745baa",
+      "bytes": 336558
+    },
+    "capture": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default/report.json",
+      "sha256": "4b4dae3d4735c31b7844a1b89ec731ff2b4be48f4e7cc3b3795e089c999b4d19",
+      "bytes": 2698
+    },
+    "bundle_manifest": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4/bundle-pins.json",
+      "sha256": "74c0c3aad82357c00137f71090e15502b1bde56690d618018ea56ba2f209bb46",
+      "bytes": 736
+    }
+  },
+  "pending": [],
+  "reference_f32": {
+    "dtype": "f32",
+    "cache": "F32 HF DynamicCache",
+    "chunk": 512,
+    "source_hashes": {
+      "tools/gen_baseline.py": "c47be1595913dc6ebf55d423b1eb7e5bc513f60ea72e1dc6f03488175845faaa",
+      "tools/calibrate_dtype.py": "473dac06eca6f449f5b938a7b6115c37a46e5182a415f8a0f32b8baf19651f92",
+      "tests/spec_decode.py": "de95875f5b329547125a78d012c1640a6624c502c1a51c2473413602a75078e9"
+    },
+    "producer_sha256": "784d5bef3850fe4787668aa6f0f71de46c30f96d1114843b40a667ff8cc79082",
+    "same_exact_weights_and_environment_as_selected_f16": true,
+    "passed": true,
+    "removed": true,
+    "oom_killed": false,
+    "start": 1792712518.8932903,
+    "end": 1792713650.9360833,
+    "before_after_identical": true,
+    "report": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f32/reference/report.json",
+      "sha256": "b9f74af24d249c57784fc10cac2bd75dace6d8d3e74fc9f9ca41262b6a5d925f",
+      "bytes": 2142
+    },
+    "execution": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f32/execution.json",
+      "sha256": "27a69d231b51093e04b7e9029b1bd34dcd88b0f785d3bcda9a6815e343146b50",
+      "bytes": 8836
+    },
+    "cells": [
+      {
+        "variant": "raw",
+        "json": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f32/reference/raw.json",
+          "sha256": "a2c470356e4047188eacc6df2e90b9268cd7d8163d781deae39186b345a3196e",
+          "bytes": 664371
+        },
+        "npy": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f32/reference/raw.npy",
+          "sha256": "0df21a094c4ba073082ae91b855108a626d6ad2880f2ca18956cd7a987618375",
+          "bytes": 311165056
+        }
+      },
+      {
+        "variant": "chat",
+        "json": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f32/reference/chat.json",
+          "sha256": "d2670975240df3177b3b6244344311e3bbfe5efa67db79b7640a5877d0a6342f",
+          "bytes": 664910
+        },
+        "npy": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v3/released-reference-20261022T232158Z-3778116/depth-f32/reference/chat.npy",
+          "sha256": "9d9015ac109559d8548ce07f5534042e152ce6523512f0e37b744e3500a2c2c4",
+          "bytes": 311165056
+        }
+      }
+    ]
+  },
+  "capture_f32": {
+    "command": [
+      "python3",
+      "-B",
+      "-u",
+      "/bundle/capture.py",
+      "iq2-s",
+      "f32"
+    ],
+    "policy": "Explicit F32 matrix inputs/F32 accumulation and F32 KV on both sides, selected by unchanged F32 probe.",
+    "cache_k": "f32",
+    "cache_v": "f32",
+    "probe_sha256": "564739c8664948162003b72826d75df0d462f36fde4942123f36458501adcb7f",
+    "report": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/report.json",
+      "sha256": "a8cb432363ce828e5737e01054aaebe25449e13714ee6c064d972e841a691b72",
+      "bytes": 2674
+    },
+    "before_after_source_files_identical": 380,
+    "runtime_config_probe_before_after_identical": true,
+    "hash_artifacts": {
+      "source-before.sha256": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/source-before.sha256",
+        "sha256": "55e3f573f8af9eb3d481c21ef5919e321cde72983df70d340f228e382f471b22",
+        "bytes": 62855
+      },
+      "source-after.sha256": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/source-after.sha256",
+        "sha256": "55e3f573f8af9eb3d481c21ef5919e321cde72983df70d340f228e382f471b22",
+        "bytes": 62855
+      },
+      "runtime-before.sha256": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/runtime-before.sha256",
+        "sha256": "fa22280e6639ec1e51f526c6aec8e41826e5bdf64a8f52ad626c846f5f63e866",
+        "bytes": 898
+      },
+      "runtime-after.sha256": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/runtime-after.sha256",
+        "sha256": "fa22280e6639ec1e51f526c6aec8e41826e5bdf64a8f52ad626c846f5f63e866",
+        "bytes": 898
+      }
+    },
+    "cells": [
+      {
+        "variant": "raw",
+        "command": [
+          "/probes/f32-probe",
+          "/model.gguf",
+          "/fixtures/depth-raw.json",
+          "0"
+        ],
+        "positions": 512,
+        "matrix_paths": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "exit": 0,
+        "fixture_sha256": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+        "stdout": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/iq2-s-raw.stdout",
+          "sha256": "39e935e3245a5c7149a1b08550dac2d6ebb3ebd0073227ba1230e4ea9ea3ad4d",
+          "bytes": 437445
+        },
+        "stderr": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/iq2-s-raw.stderr",
+          "sha256": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+          "bytes": 120
+        }
+      },
+      {
+        "variant": "chat",
+        "command": [
+          "/probes/f32-probe",
+          "/model.gguf",
+          "/fixtures/depth-chat.json",
+          "0"
+        ],
+        "positions": 512,
+        "matrix_paths": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "exit": 0,
+        "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+        "stdout": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/iq2-s-chat.stdout",
+          "sha256": "637ae58b54e5593df7d78da9a952f37bb80d93f215e4b1b095a81a8b4261592b",
+          "bytes": 438280
+        },
+        "stderr": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-f32/iq2-s-chat.stderr",
+          "sha256": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+          "bytes": 120
+        }
+      }
+    ]
+  },
+  "comparisons_f32": {
+    "default-f32": {
+      "role": "default-f32-reference",
+      "no_misses": true,
+      "comparison": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-default-f32/comparison.json",
+        "sha256": "d7d52fd525c2f27c5b4dc9816eca18795826945750ef7aaff928414f0d56b450",
+        "bytes": 336660
+      },
+      "cells": [
+        {
+          "variant": "raw",
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "accepted_ties": []
+        },
+        {
+          "variant": "chat",
+          "counts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "accepted_ties": [
+            {
+              "position": 16636,
+              "actual_top1": 279,
+              "hf_top2_ids": [
+                862,
+                279
+              ],
+              "hf_top2_logits": [
+                17.56233787536621,
+                17.550235748291016
+              ],
+              "hf_gap": 0.012102127075195312,
+              "verdict": "accepted-tie"
+            }
+          ]
+        }
+      ]
+    },
+    "selected-f32": {
+      "role": "selected-f32",
+      "no_misses": true,
+      "comparison": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/depth-v4-selected-f32/comparison.json",
+        "sha256": "6c0d99fff67f5106c4717cd656939d43d99f61ef075304506b21a14fecc9c161",
+        "bytes": 336563
+      },
+      "cells": [
+        {
+          "variant": "raw",
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "accepted_ties": []
+        },
+        {
+          "variant": "chat",
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "accepted_ties": []
+        }
+      ]
+    }
+  },
+  "original_reference_refusal": {
+    "reason": "Original tied-checkpoint topology refused unequal explicit GGUF head before scoring; corrected source used above.",
+    "summary": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/released-reference-v1/released-reference-20261022T231337Z-3757704/summary.json",
+      "sha256": "925468b3f8ccda13b7d51fa943db6810351c8166beb8d81f85249dad461c18c7",
+      "bytes": 2315
+    }
+  }
+}

@@ -171,9 +171,9 @@ The decode row kernels and integer-dot prefill tile read signed 16-bit integers 
 Their reference inputs use the same rounding; independent HF gates measure the resulting model error.
 
 - **Dequantization** is split between GLSL includes: `qdecode.glsl` has the
-  generic per-value decoders except Q8_0, which `embed` uses, and IQ3_S,
-  whose decoder is in `iq3_s.glsl` and whose matrix cache is in
-  `iq3_s_cache.glsl`.
+  generic per-value decoders except Q8_0, which `embed` uses, and IQ2_S/IQ3_S,
+  whose decoders are in `iq2_s.glsl` and `iq3_s.glsl` and whose matrix cache is in
+  `lookup_cache.glsl`.
   The float tile takes its Q4_0 and Q4_1 decoders and the K-quant sub-scale reader, and decodes Q8_0 and the K-quant runs itself; the row kernels decode words in place. Types are
   keyed by the storage IDs in `quant/types.hpp`; `quant::Registry` names
   implemented C++ decoders, and the shader include supplies device decoders.

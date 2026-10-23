@@ -163,7 +163,7 @@ def run_perplexity():
     return True if ran else common.SKIPPED
 
 
-def check_model_ppl(doc, path, model, spec, name="baseline-ppl"):
+def check_model_ppl(doc, path, model, spec, name="baseline-ppl", model_context=MODEL_CONTEXT):
     """`llmx perplexity` on `model` over the text in the file `path` against every case of the perplexity golden `doc`, batched and per token, at the bounds in `spec`.
     The first case out of bounds raises AssertionError; None when the configured device has no kernel for the model."""
     rc, out = cli(["tokenize", model, doc["text"]])
@@ -176,7 +176,7 @@ def check_model_ppl(doc, path, model, spec, name="baseline-ppl"):
             return None
         assert rc == 0, "perplexity failed (exit %d): %s" % (rc, out)
         try:
-            result = common.check_ppl(out, case, doc["n_tokens"], MODEL_CONTEXT, spec)
+            result = common.check_ppl(out, case, doc["n_tokens"], model_context, spec)
         except ValueError as error:
             raise AssertionError("%s context %d %s: %s: %s"
                                  % (spec["file"], case["context_size"], mode, error, out)) from error
@@ -203,12 +203,18 @@ def run_file_exact(directory, model):
         assert "weights" in doc, "%s holds goldens that are not file-exact" % directory
         assert doc["weights"]["sha256"] == sha256, ("the goldens in %s were made from %s with SHA-256 %s, not from %s"
                                                     % (directory, doc["weights"]["file"], doc["weights"]["sha256"], model))
+    import spec_decode
+    file = spec_decode.GGUF(model)
+    architecture = file.value("general.architecture")
+    # Qwen3's reader defaults an omitted trained context to 4096; pinned baseline files use MODEL_CONTEXT.
+    model_context = file.value(str(architecture) + ".context_length", 4096 if architecture in ("qwen3", "qwen3moe") else None)
+    assert type(model_context) is int and model_context > 0, "file-exact GGUF needs a positive integer context_length"
     spec = dict(FILE_EXACT_BOUNDS, file=os.path.basename(model))
     logits, ppl = docs
     checked = check_model_logits(logits, model, spec, "file-exact-logits")
     if checked:
         with tempfile.TemporaryDirectory(prefix="llmx_ppl_") as temporary:
-            checked = check_model_ppl(ppl, ppl_excerpt(ppl, temporary), model, spec, "file-exact-ppl")
+            checked = check_model_ppl(ppl, ppl_excerpt(ppl, temporary), model, spec, "file-exact-ppl", model_context)
     if checked is None:
         print("file-exact[%s]: FAIL - %s has no kernel for this model's matrices, which fails a file-exact run"
               % (spec["file"], os.environ["LLMX_DEVICE"]))

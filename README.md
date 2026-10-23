@@ -33,6 +33,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | Q8_0 | Supported | Supported | Yes |
 | Q2_K, Q3_K | Supported | Supported | No |
 | Q4_K, Q5_K, Q6_K | Supported | Supported | No |
+| IQ2_S | In development | In development | No |
 | IQ3_S | Supported | Supported | No |
 | IQ4_NL, IQ4_XS | Supported | Supported | No |
 | MXFP4 | Supported | Supported on devices with required float preservation and double arithmetic | No |

@@ -20,9 +20,11 @@ themselves are the quant layer's, reached through `quant::Registry`.
   Every tensor's decoder support is checked before mapping the payload or
   allocating decoded buffers; a known layout without a decoder is refused
   by tensor name, with existing destinations preserved.
+  Empty tensors keep their names and shapes but contribute no payload; their
+  null decoded storage is never passed to a decoder or byte copy.
 
 Both writers use checked staging and publication ([output_file](format-output_file.md)). Raw output paths must name different files. Both outputs finish before either is published; JSON is renamed first. A later binary publication failure names that path and may leave the complete JSON replacement published.
 
 Every path is UTF-8 and every file is opened through `std::filesystem::u8path`, so a path outside the Windows code page opens too.
 
-`tests/roundtrip.py` quantizes and decodes both types, under an ASCII and a non-ASCII directory with the same bytes, and checks refusals.
+`tests/roundtrip.py` quantizes and decodes both types, under an ASCII and a non-ASCII directory with the same bytes, and checks refusals. It also checks empty F32 and Q8_0 tensors alone and before, between and after populated tensors, preserving metadata and exact decoded bytes.

@@ -1,5 +1,5 @@
 #version 450
-#if defined(LLMX_IQ4) || defined(LLMX_IQ3_S)
+#if defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S)
 #define LLMX_LOOKUP
 #endif
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
@@ -71,11 +71,22 @@ layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #if defined(LLMX_Q8MX) || defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #include "qdecode.glsl"
 #endif
-#ifdef LLMX_IQ3_S
+#if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S)
 layout(set = 0, binding = 5) readonly buffer GRID { uint grid[]; };
-#define IQ3_GRID_SOURCE(i) grid[i]
-#include "iq3_s_cache.glsl"
+#define LOOKUP_GRID_SOURCE(i) grid[i]
+#ifdef LLMX_IQ2_S
+#define LOOKUP_GRID_SIZE 2048u
+#else
+#define LOOKUP_GRID_SIZE 512u
+#endif
+#include "lookup_cache.glsl"
+#ifdef LLMX_IQ2_S
+#define IQ2_GRID_WORD(i) lookup_words[i]
+#include "iq2_s.glsl"
+#else
+#define IQ3_GRID_WORD(i) lookup_words[i]
 #include "iq3_s.glsl"
+#endif
 #endif
 #ifdef LLMX_LOOKUP
 float lookup_input(uint col, uint b, uint j) {
@@ -83,7 +94,9 @@ float lookup_input(uint col, uint b, uint j) {
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
 }
-#ifdef LLMX_IQ3_S
+#ifdef LLMX_IQ2_S
+#include "iq2_dot.glsl"
+#elif defined(LLMX_IQ3_S)
 #include "iq3_dot.glsl"
 #else
 #include "iq4_dot.glsl"
@@ -207,8 +220,8 @@ void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, XVEC xv[STEP], 
 }
 
 void main() {
-#ifdef LLMX_IQ3_S
-    iq3_s_init();
+#if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S)
+    lookup_init();
 #endif
     uint tid = gl_LocalInvocationID.x;
     uint wg = gl_WorkGroupID.x;
@@ -351,7 +364,7 @@ void main() {
         }
 #elif defined(LLMX_LOOKUP)
         {
-            // One scaled group of 32 lookup codes; stage the signed bytes the Q8_0 dot loop reads.
+            // One scaled group of 32 lookup values, staged as signed 16-bit pairs for the shared dot loop.
             for (uint s = 0u; s < STEP; ++s) {
                 uint kb = k0 + s;
                 bool ok = row < nout && kb < kend;
@@ -359,8 +372,8 @@ void main() {
                 uint codes = lookup_group(ok ? wr : 0u, p.nin, ok ? kb : 0u, scale);
                 for (uint m = 0u; m < WW; ++m) {
                     uint word = wseg * WW + m;
-                    uint packed = lookup_word(codes, word);
-                    wq[s * 8u + word][wrow] = WIDEN(ok ? packed : 0u);
+                    uvec2 packed = lookup_pairs(codes, word);
+                    wq[s * 8u + word][wrow] = ok ? packed : uvec2(0u);
                 }
                 if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = ok ? scale : 0.0;
             }

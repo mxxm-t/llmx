@@ -1,0 +1,1291 @@
+{
+  "device_result": {
+    "start": 1792718416.8486125,
+    "calls": [
+      {
+        "name": "generic-isa",
+        "command": [
+          "/b/llmx-backend-vulkan-test",
+          "--isa",
+          "/out/isa"
+        ],
+        "start": 1792718417.1142082,
+        "status": "passed",
+        "exit": 0,
+        "end": 1792718451.4948933,
+        "log_sha256": "05f51d420fd703efd429a8f00e2188be0e4d32d1f5e2781dac278aeaed062b13"
+      },
+      {
+        "name": "native",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "/b",
+          "--output-on-failure",
+          "--parallel",
+          "1",
+          "--timeout",
+          "300",
+          "-R",
+          "^(q2-k-vulkan|q3-k-vulkan|server-resume-device|mxfp4-vulkan|iq4-nl-vulkan|vulkan-buffer|vulkan-lifetime|vulkan-quantization|iq3-s-vulkan|iq2-s-vulkan)$"
+        ],
+        "start": 1792718451.4954069,
+        "status": "passed",
+        "exit": 0,
+        "end": 1792718492.4433985,
+        "log_sha256": "a0c55107797cccc0b6351171958311ec59cb7f05822feae41151b9e35a576ddb"
+      },
+      {
+        "name": "python-suite",
+        "command": [
+          "python3",
+          "-B",
+          "-u",
+          "-X",
+          "utf8",
+          "/w/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0",
+          "--no-perf-floor",
+          "--require-tools",
+          "--require-baseline"
+        ],
+        "start": 1792718492.4439766,
+        "status": "failed",
+        "exit": 1,
+        "end": 1792719469.104673,
+        "log_sha256": "f68e68d7147aa9cdadddcdb62dc4a8f4c5bc4dc66d0e08c2ac5c1a78bfcb6a4b"
+      }
+    ],
+    "passed": false,
+    "scope": "Frozen v4 native/runtime + four reviewed Python fixes; frozen v4 docs retained and checked, no silent documentation overlay.",
+    "numpy_version": "2.4.3",
+    "python_version": "3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0]",
+    "version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4",
+    "fixture_cache_complete": true,
+    "native_names": [
+      "q2-k-vulkan",
+      "q3-k-vulkan",
+      "server-resume-device",
+      "mxfp4-vulkan",
+      "iq4-nl-vulkan",
+      "vulkan-buffer",
+      "vulkan-lifetime",
+      "vulkan-quantization",
+      "iq3-s-vulkan",
+      "iq2-s-vulkan"
+    ],
+    "native_skip_lines": [],
+    "component_results": {
+      "dead-code": "FAIL",
+      "docs": "FAIL",
+      "arch-boundary": "PASS",
+      "version": "PASS",
+      "cli": "PASS",
+      "reference-generator": "FAIL",
+      "reference-consumer": "PASS",
+      "device-reference": "PASS",
+      "roundtrip": "PASS",
+      "raw-blocks": "PASS",
+      "perf": "PASS",
+      "tokenizer": "PASS",
+      "perplexity": "PASS",
+      "f32": "PASS",
+      "half-weights": "PASS",
+      "moe": "PASS",
+      "int8": "PASS",
+      "mxfp4": "PASS",
+      "q5-0": "PASS",
+      "q2-k": "PASS",
+      "q3-k": "PASS",
+      "q5-1": "PASS",
+      "iq4-nl": "PASS",
+      "iq4-xs": "PASS",
+      "iq3-s": "PASS",
+      "iq2-s": "PASS",
+      "qwen35": "PASS",
+      "split": "PASS",
+      "tensor-split": "PASS",
+      "decode-probe": "PASS",
+      "drafters": "PASS",
+      "shards": "PASS",
+      "server": "PASS",
+      "server-load": "PASS",
+      "chat": "PASS",
+      "threads": "PASS",
+      "baseline": "PASS"
+    },
+    "components_complete": true,
+    "required_signal_witnesses": {
+      "synthetic_sigterm": true,
+      "real_q8_sigterm": true
+    },
+    "isa_artifacts": {},
+    "isa_representation_files": 0,
+    "skipped_components": [],
+    "end": 1792719469.1096606,
+    "cgroup_memory_peak": "821227520"
+  },
+  "device_execution_sha256": "31dbd340664ff13a8b7e74962cd1115ef309fde88e968eb5e999e26c6f8c77ec",
+  "device_audit_sha256": "b72f9c053711822700197b2eee19e4dd8c50cd231ef98f412f30016b3c093a99",
+  "packaging_correction": "Original scope/provenance text said frozen docs were retained, but the archive omitted docs and workflows. Original aggregate FAIL is retained. Complete-tree docs/dead-code pass separately; no numerical component or limit was skipped.",
+  "isa_recovery": {
+    "result": {
+      "start": 1792732109.2438223,
+      "passed": true,
+      "command": [
+        "/b/llmx-backend-vulkan-test",
+        "--isa",
+        "/out/isa"
+      ],
+      "exit": 0,
+      "reported_export_counts": [
+        212
+      ],
+      "files": {
+        "matmul_row_q50_dot_1col.txt": {
+          "bytes": 161612,
+          "sha256": "a3d6ffe297c5c0bc58b8c674e9a8168d4cd760f3f2d8c332a7c8f219c8315af2"
+        },
+        "attention_vec_d256_x8.txt": {
+          "bytes": 433529,
+          "sha256": "2bc94b82d1495a647d4dd97a73a00a1a86ede04a88da1c0640605dca1d0b842d"
+        },
+        "attention_tile_d256.txt": {
+          "bytes": 466649,
+          "sha256": "ba86352636be55e64cfd50b8eb55412cdacf0e5e2a71e913f8970717ea22f66a"
+        },
+        "kv_write_kv16.txt": {
+          "bytes": 56489,
+          "sha256": "74e4b926ca351dfb8d667a6c522d13de72d3bacca992abe6345bba1474cd5305"
+        },
+        "matmul_tile_small.txt": {
+          "bytes": 652395,
+          "sha256": "8291b1e50412fa433555aaf04da10e4520a796a61b380521f49ca68459be0c18"
+        },
+        "matmul_vec_q8_i8_16col.txt": {
+          "bytes": 714785,
+          "sha256": "1ab2a3b4d08afaaaa60335df573d3fa44885a49fecf6d85f1389bde7eefa9576"
+        },
+        "matmul_tile.txt": {
+          "bytes": 940519,
+          "sha256": "a37e51ed0eee93ae43e1c9d4b6d5bb99a92ab05191e41f2b43f4e01ffd6c5fec"
+        },
+        "matmul_row_q50_i8_2col.txt": {
+          "bytes": 280737,
+          "sha256": "1a29002458ed21db9af65b5f696b0dad6fa02ffaaa9d9898feb8e549548f5b5d"
+        },
+        "matmul_row_k5_i8_grouped.txt": {
+          "bytes": 104788,
+          "sha256": "efd4da7b4a4cd57d448aa0c8b2c5d45237c71c30168d30b462d7d5b5896bccdd"
+        },
+        "matmul_row_k_dot_2col.txt": {
+          "bytes": 184979,
+          "sha256": "0af8ce774e975cccd02925febc3f7730064048fc1f4b1a038bad0e50368c8632"
+        },
+        "kv_write_k16.txt": {
+          "bytes": 41458,
+          "sha256": "5b3e69734ad5eb3afd21f271987552b7368a682e6e95e6d96b2249bcd8d09e9a"
+        },
+        "moe_route.txt": {
+          "bytes": 85208,
+          "sha256": "5bbd73b2c82f6b1de6b35a24796a6f38d16ab66c52a2872a10355babc391cd9a"
+        },
+        "attention_kv16.txt": {
+          "bytes": 279390,
+          "sha256": "4f335bc68a843e589c9fbdd2733361c558acd9f60d204eafd9ff3b238e400e3e"
+        },
+        "delta_rule_short.txt": {
+          "bytes": 407798,
+          "sha256": "be391853021a2d16443ed5895b9b50ddbbfae05be3086952d39123c31859f8fa"
+        },
+        "matmul_row_mxfp4_float_x_1col.txt": {
+          "bytes": 446338,
+          "sha256": "8a74a1a316a2a28e28e721119e0f32c697cd4d81564b663ad4c79c2b83462282"
+        },
+        "matmul_tile_wbf16_small.txt": {
+          "bytes": 273718,
+          "sha256": "44fc95dd7fe6125d078c8da1841b855941c9b12268251c2821676d8e75ec4815"
+        },
+        "matmul_row_f32_grouped.txt": {
+          "bytes": 356599,
+          "sha256": "538696255332b17a73cfca2a237ef0d2548e784cfe5579f760db5e49d214319e"
+        },
+        "attention_tile_x8.txt": {
+          "bytes": 664934,
+          "sha256": "e4ff6486219c558eb8b5a89b25ca9ce96f4f5f63d7a059ed2a22361705b30623"
+        },
+        "attention_vec_x8.txt": {
+          "bytes": 464908,
+          "sha256": "bdd72a379edd53bd562b894adace4f2acfc52d69e70d39d0d7929997e58522da"
+        },
+        "matmul_row_q5_i8_1col.txt": {
+          "bytes": 121317,
+          "sha256": "00322ba6f8a8928c1958f6d41ce5b44252b9cb73e16b6e982a4b72b72202d898"
+        },
+        "matmul_vec_q8_1col.txt": {
+          "bytes": 101071,
+          "sha256": "f8f2886742f49b1feb7bf24bc39005a8f39af9e56da13b0986cad54bfec1638f"
+        },
+        "attention_v16_x8.txt": {
+          "bytes": 439853,
+          "sha256": "645513040f4a4c6cf21294d59c43708e8e5cde6ec54b438640fc01c51a84ae60"
+        },
+        "attention_vec_k16_g4_x8.txt": {
+          "bytes": 1884216,
+          "sha256": "c399b574f946a0085c5fe8f1cd1a75efd4c4d236946451fc2511c5787505df99"
+        },
+        "copy_mxfp4.txt": {
+          "bytes": 26522,
+          "sha256": "594c1d059c5c2c0ff9c4dd3cabfaf5eecc2b1bb14c2b32bee68f5b7bdfff5302"
+        },
+        "matmul_tile_q50_small.txt": {
+          "bytes": 318727,
+          "sha256": "15c7c9bef85b9a4f2df362445bfc4d63f65e64672fd0513a0a33ff76058ea9f0"
+        },
+        "matmul_row_q4_i8_grouped.txt": {
+          "bytes": 374540,
+          "sha256": "186ca40060bd837dd594785b1e07ae42a1a41c6f7e044b3c16f9905dbaa64979"
+        },
+        "matmul_row_k5_i8_4col.txt": {
+          "bytes": 153794,
+          "sha256": "0a3595b8cc7bfbfc0894c6e6508139653e1c8c7bb08e2da7af94c1664934ae08"
+        },
+        "matmul_vec_q8_16col.txt": {
+          "bytes": 940418,
+          "sha256": "2c50d1e5fa339c62e222318cb04751584fbdf16ab9738748d5dfe651ad65f9e8"
+        },
+        "matmul_tile_q8_tall.txt": {
+          "bytes": 798372,
+          "sha256": "392ac3d016444c844bc5780151cb76780c9ef5c7a90c6820458c8199ef4e8764"
+        },
+        "attention_tile_k16.txt": {
+          "bytes": 459563,
+          "sha256": "b30e2517421e0bd290c21d71ee0634761cb6248f8ab2bdc95d20038fafea72cd"
+        },
+        "matmul_row_mxfp4_float_x.txt": {
+          "bytes": 502055,
+          "sha256": "9e340895f7d9f5a8293704e326f68be69318cefe2cbc82f6f0955f610edeed5f"
+        },
+        "attention_tile_d256_x8.txt": {
+          "bytes": 673371,
+          "sha256": "4cfbd260872814d792787ee2352a552844f8d899ca1c2e57a329d7ba3b08a672"
+        },
+        "matmul_tile_bf16_tall.txt": {
+          "bytes": 1658205,
+          "sha256": "c378d1ea5c9b820fd68b6f2660a1d9e7d65410bed67ce27cc97ae31cc170989e"
+        },
+        "embed_ids.txt": {
+          "bytes": 236120,
+          "sha256": "21d82955ad8a0fdd1831d33eacc9cae5924e816812dd4c4400b75df64bd691e7"
+        },
+        "attention_k16_g4_x8.txt": {
+          "bytes": 1610394,
+          "sha256": "2fd6ea1ab966f31a93009ab27009d31115e2b3f20a6f3470a97a1bc4395b2246"
+        },
+        "attention_vec_k16_x8.txt": {
+          "bytes": 466461,
+          "sha256": "8840dd970aafa9501b4a069c88957b478d9b8094d918ca00bf82cbecdaf06d5b"
+        },
+        "matmul_row_k_i8_8col.txt": {
+          "bytes": 260893,
+          "sha256": "cd050858293eb89a3b563101f81e897cc0c6b111ad14502377de56d020292d8f"
+        },
+        "matmul_row_k4_i8_8col.txt": {
+          "bytes": 180391,
+          "sha256": "8985a9a708356e565588ca902e2834d2af029c56592b73a2fd491d399888e5fd"
+        },
+        "matmul_row_wf16_grouped.txt": {
+          "bytes": 451115,
+          "sha256": "f78fe1580feceafacd4958aaa4847c7acd8efebd9cbb8a03f67fc47a71cc8a67"
+        },
+        "silu_mul.txt": {
+          "bytes": 375609,
+          "sha256": "912c1d62fae864efe156cdfcb936be7aa4e8bc61484e6fca589b74c7f2bf066d"
+        },
+        "matmul_row_k5_i8_16col.txt": {
+          "bytes": 303127,
+          "sha256": "80dd454fd408bb49fa47cc6b907826a0875eff1e94b54778c2d705f622f33240"
+        },
+        "matmul_row_k5_dot_4col.txt": {
+          "bytes": 184869,
+          "sha256": "1589b27277e632c63f991c941486a96563948928ca6f8c0535fadf166b1bb188"
+        },
+        "matmul_tile_qi8_small.txt": {
+          "bytes": 296205,
+          "sha256": "df2b1ff4b21fd322eea124d42ef44e5ea9f8b9359195c52f42ae61ec2225905c"
+        },
+        "attention_v16.txt": {
+          "bytes": 278755,
+          "sha256": "7685d0e5a0661a0415aed3e5acd55b517943e8ceb9b054e11f138987fee0f3f3"
+        },
+        "attention_vec_kv16_g4_x8.txt": {
+          "bytes": 1885642,
+          "sha256": "03e6d41a69868152b661f87e46b38facda6103fd7c7080ddf2f8582a63a9eca8"
+        },
+        "moe_combine.txt": {
+          "bytes": 49345,
+          "sha256": "f39ea85375dabf73c39e21dcdf8d56925fc7f11af506fc117583b95f075b3187"
+        },
+        "matmul_row_q4_dot_1col.txt": {
+          "bytes": 123042,
+          "sha256": "55e80a80f7451232d0b468d75e6ab1070e11b97e0076514d4a1863d393487daf"
+        },
+        "quantize_xw.txt": {
+          "bytes": 196980,
+          "sha256": "91d61eacc75e1764bac30b6847e361bbdba002870410e7bfe47a7c837a047eb3"
+        },
+        "matmul_row_q50_dot_grouped.txt": {
+          "bytes": 239136,
+          "sha256": "851ec85f46116b66ad4d7bd6e9e9e17909ba89a6ac113239c53d0418c44e7770"
+        },
+        "matmul_row_k4_dot_16col.txt": {
+          "bytes": 389853,
+          "sha256": "ad409a319e25f565f6c441f2dfcc2195db2cd34a88654f5a5dc0984c051c6b44"
+        },
+        "sigmoid_mul_x8.txt": {
+          "bytes": 770688,
+          "sha256": "4800efdb7761f7b19f5e2a012442a02254b405b4e4018fb87c30b25e1c65cb2e"
+        },
+        "matmul_row_q5_dot_1col.txt": {
+          "bytes": 139984,
+          "sha256": "1749cc2fe521be690ab7fef9d8134be5ca5d273fd62feff76d794ba213fd729b"
+        },
+        "matmul_row_q4_i8_2col.txt": {
+          "bytes": 176442,
+          "sha256": "ca5fd5a18b2efa5c188474ed05f4abe67db51e5eade5ddf2721cc8a4664d638f"
+        },
+        "matmul_row_k4_dot_4col.txt": {
+          "bytes": 161214,
+          "sha256": "4eddc3ee58299caa1b82d1d762ead3635c9c55a067881a652a16fc86053c33ef"
+        },
+        "matmul_row_k4_i8_16col.txt": {
+          "bytes": 283088,
+          "sha256": "8e8644602f5256676aa299f351eeedcfdb1ecb92fc0b0cfdab7b240d06f77c69"
+        },
+        "norm_rope_kv_k16.txt": {
+          "bytes": 108194,
+          "sha256": "f4acd25121cf325bfd302aeabe4d043e9a19df813f1ab3e5f59efa4b5dc4f446"
+        },
+        "gated_rms_norm.txt": {
+          "bytes": 434294,
+          "sha256": "1287235235f05819dab713374a5f0509d1ef4bd7e423cd505d6e456de060b9b2"
+        },
+        "matmul_row_f32_1col.txt": {
+          "bytes": 116009,
+          "sha256": "482eb149e2c5ef2116ab4eb72c9594d14944a996c1976177279f1ca25e84cc32"
+        },
+        "matmul_row_q50_dot_8col.txt": {
+          "bytes": 599351,
+          "sha256": "79922fb63740a97383192d253fcf9a303948e761cc50e66a13bcc3b528e3ba86"
+        },
+        "matmul_vec_q8_i8_1col.txt": {
+          "bytes": 80512,
+          "sha256": "4cfa1deb94be34f3a6a899ce7ccc66093dc3ccab15f5485e2d6b03c182391921"
+        },
+        "attention_vec_kv16.txt": {
+          "bytes": 306338,
+          "sha256": "373b801c7d164101caef6f3f0813d184eca552470b66271ad8c6bd057797da1c"
+        },
+        "matmul_row_k5_i8_2col.txt": {
+          "bytes": 130733,
+          "sha256": "8d9793aa1fa3b57bff7e9c4912f6bce1dc26e0ca9a027d1296c2f66172c17e0b"
+        },
+        "gather_rows.txt": {
+          "bytes": 10007,
+          "sha256": "c0f6291b261e386303ebf81afb55675b3f0195e2c5583be535acaa3eaa5d3cc6"
+        },
+        "attention_kv16_g4_x8.txt": {
+          "bytes": 1610655,
+          "sha256": "df4dde7e98358ea504652cac8e3d6e56b6e8aa476cccbf6d410cd4245507c743"
+        },
+        "matmul_row_k_dot_grouped.txt": {
+          "bytes": 129649,
+          "sha256": "17c524ac638f7f9c798ee5b7a7d6658a5da8b59937c07b6bd0c8d0109f3908f9"
+        },
+        "matmul_vec_q8.txt": {
+          "bytes": 427886,
+          "sha256": "3b0b48c74c31f16c84547a64cb02f0fe2bd664fbec241e09135bac38d5d8c1d5"
+        },
+        "matmul_tile_wf16_small.txt": {
+          "bytes": 308253,
+          "sha256": "2f9624785d05a4cd0a6759a975ea4f1bc5591499793364c4f619629e2a1a2534"
+        },
+        "matmul_row_wf16.txt": {
+          "bytes": 378810,
+          "sha256": "250885b7843d8148bb222784371425c91ae231e4b2cfa28b5f232a79305d9269"
+        },
+        "matmul_row_q4_i8_4col.txt": {
+          "bytes": 236768,
+          "sha256": "c634d692004243d1599f85f0906c26f3b84c6fc3c99bed3b31d67fddefbb6d0a"
+        },
+        "matmul_row_wbf16_grouped.txt": {
+          "bytes": 272189,
+          "sha256": "eda135571139ec01305f2827174f3947f33e452fc14e27c4abe356a645b19312"
+        },
+        "attention_vec_d256_k16_g4_x8.txt": {
+          "bytes": 1755460,
+          "sha256": "f442fab3faad125427321604037809e9208b84798d76e130298f2a4514fb4753"
+        },
+        "matmul_row_k4_dot_2col.txt": {
+          "bytes": 125961,
+          "sha256": "cdf0ad103b9859046a517f29101af2245a75f9acb352178a2adca561bd9bb48e"
+        },
+        "attention_tile_kv16_x8.txt": {
+          "bytes": 666695,
+          "sha256": "13b85508bea07c6198e52bdca071bdba6eaecec2d8a4e57852bc3b7f8abe0608"
+        },
+        "matmul_row_q5_i8_8col.txt": {
+          "bytes": 398649,
+          "sha256": "f881b24fc888b07c48de62964e10cc777425d300de59c2fca422dd79c183d822"
+        },
+        "matmul_row_k5_dot_2col.txt": {
+          "bytes": 149218,
+          "sha256": "412b9188ad11f049230194e1634ccae177e8e2de1743bc19fef875c7d424e133"
+        },
+        "matmul_row_mxfp4_dot.txt": {
+          "bytes": 414863,
+          "sha256": "93d51914d63ce8d66979063cbabc8829523fe95b332262a2144eb921156f16ef"
+        },
+        "matmul_tile_q50i8_small.txt": {
+          "bytes": 273586,
+          "sha256": "613ae5a8b38d8f938d81a727b1a6e27294a2afd9753fac0e43a412a917eb9416"
+        },
+        "matmul_vec_q8_i8_grouped.txt": {
+          "bytes": 703086,
+          "sha256": "fab5a9580255482b6740bbfb54d222f1d9bc03c654b1bac8823ea6053954e706"
+        },
+        "embed_ids_wf16.txt": {
+          "bytes": 21323,
+          "sha256": "a990409f9c1fbd4cf5689567fef86add2bf35cad769ddd0a554a3ec908c1e051"
+        },
+        "attention_tile_kv16.txt": {
+          "bytes": 459937,
+          "sha256": "0207b0463bd619c930d06ed999cf371f4e37f90068e4f037c65119511399c907"
+        },
+        "embed_ids_wbf16.txt": {
+          "bytes": 13230,
+          "sha256": "1eb67b290d47122ed3152e4137abeca885e73d7f39f53cd58a1bba933d14ca95"
+        },
+        "matmul_row_q50_i8_4col.txt": {
+          "bytes": 339041,
+          "sha256": "e10787fa1cf8130889f61356424ca3f2c80be1aa8cfc6dc0dbd7fa01d76c5861"
+        },
+        "matmul_row_k_i8_16col.txt": {
+          "bytes": 382603,
+          "sha256": "abfba28a83d213eaac3aa377e14fc12e2afce3aade180dbd5d8fd978318f1da0"
+        },
+        "matmul_row_k_dot_4col.txt": {
+          "bytes": 223173,
+          "sha256": "47770e89c66713f55561ca289b2b566f979eddbfc94efc88dae80c0e770adc9e"
+        },
+        "attention_v16_g4.txt": {
+          "bytes": 945799,
+          "sha256": "4f4288805f2c3cb74b2b6567c1467eee838f6767b2eb2bad4af0f1451427f2e7"
+        },
+        "matmul_row_k_i8_1col.txt": {
+          "bytes": 101079,
+          "sha256": "3da3345c699961232d9cbb8b525ab550cd4f4c0f6808bc39e1de79793fab9e72"
+        },
+        "matmul_row_k4_i8_1col.txt": {
+          "bytes": 66777,
+          "sha256": "949d4aefbd92c0cd594a12fc27812b99624d702a2331fb2f4b98ab2518cb85cc"
+        },
+        "kv_write.txt": {
+          "bytes": 25947,
+          "sha256": "3d6f5003584438f34cddda94345611c022b5dc34f548dcef13f2eb755c0160ac"
+        },
+        "matmul_row_q5_dot_16col.txt": {
+          "bytes": 974414,
+          "sha256": "517b7ca3f548f6aced69d2559d13fe9eb20542adacb4b962e84c080559ba3b1d"
+        },
+        "matmul_tile_q.txt": {
+          "bytes": 531639,
+          "sha256": "9723fcd06019e6f06f46b5909d72523b0ec345985f99eb5c2f177cdd7f96c163"
+        },
+        "matmul_tile_q6i8_small.txt": {
+          "bytes": 256201,
+          "sha256": "cbf8ee65c5386d0b5f2e90451a64e14b9b6cd954e94b0f5e1d80c6e4371a9c12"
+        },
+        "attention_vec_g4_x8.txt": {
+          "bytes": 1880065,
+          "sha256": "21a16846fa716b8d866941d284592536d23ed4feec34b73f1b2d7c0cf6434bca"
+        },
+        "attention_g4_x8.txt": {
+          "bytes": 1607940,
+          "sha256": "a35e9ac479dd8cbb2d8e4cc5113a25cc10c105d223d0d07e1539b121b21b138f"
+        },
+        "matmul_vec_q8_grouped.txt": {
+          "bytes": 815098,
+          "sha256": "2e03881d5ceca3c34ab6e922ffee0681d503b33e34f94189ba95e63c15d8a96a"
+        },
+        "matmul_row_q4_dot_8col.txt": {
+          "bytes": 535379,
+          "sha256": "7f8768fbffd663721c666a446093582fe6b658388582d039f685133ea82cfaf9"
+        },
+        "matmul_tile_mxfp4_small.txt": {
+          "bytes": 276541,
+          "sha256": "850444a1983712932dcd13881c352ba809e14e63c6104963e3ac2f9651338c6d"
+        },
+        "attention_vec_d256_v16_x8.txt": {
+          "bytes": 435013,
+          "sha256": "e8ea7406857cdbff70483e8dc0c63ee0843298a40060f1bd45774a0c02964470"
+        },
+        "matmul_row_wbf16.txt": {
+          "bytes": 203854,
+          "sha256": "909283b59b578117c01f988b12e47bee1d05ae4109f64a7737e448a5273bc1b2"
+        },
+        "attention_tile_d256_kv16.txt": {
+          "bytes": 468306,
+          "sha256": "a9be540306243c1909dfdc4bbb85b12bf471d9d4aa520fdbd7ad165bb8740a82"
+        },
+        "matmul_tile_wf16_bf16_small.txt": {
+          "bytes": 324459,
+          "sha256": "da0246a109a34d1a3b304529aa1911977c7cb3a1366e12100758c031acb95f9f"
+        },
+        "rms_norm_rows.txt": {
+          "bytes": 458703,
+          "sha256": "25a1a4b3fdafac0075a3fea4f2c4f4fbeeb1cac8b3f9c34e555068c206b6a9df"
+        },
+        "embed_mxfp4.txt": {
+          "bytes": 14810,
+          "sha256": "3b9c7860cf156cdb6032cc29bd269a02c9a37b980c7bdfa1322aa0bb752ecab6"
+        },
+        "matmul_tile_q_tall.txt": {
+          "bytes": 950023,
+          "sha256": "94949a2dadf80bfefe911d052ffb8c72f6fb20102476f7ff0a00ffc53dfd00dc"
+        },
+        "attention_vec_kv16_x8.txt": {
+          "bytes": 467208,
+          "sha256": "7d76628ffa8a8fef2d6a2ef18803d9b2cfb1a013832c8249273ee8e2a5796ee1"
+        },
+        "matmul_row_q5_dot_8col.txt": {
+          "bytes": 568768,
+          "sha256": "9271ef313dccfcf315cbe9bcc29f2f8d75bb2e243264d2319a66bacb90e8d2f3"
+        },
+        "matmul_vec_q8_i8_32col.txt": {
+          "bytes": 764378,
+          "sha256": "b6bcdd7398742db9ad479245f2b694f974ef64b2dda5f7be6eaa97160fe098fd"
+        },
+        "gated_rms_norm_x8.txt": {
+          "bytes": 794358,
+          "sha256": "3ec97e7ed2a6ce27adcbf70ea06ef0e68079372eef2e7f2c17bf55a9910c8b0c"
+        },
+        "attention_vec_d256_k16_x8.txt": {
+          "bytes": 434941,
+          "sha256": "78358edae3fb5e53cd3080ed2c551f77426bf5284e7693ec53664f418c5fc510"
+        },
+        "silu_mul_x8.txt": {
+          "bytes": 737416,
+          "sha256": "8a30237f9c2626992826f7f03b7940065894ee13a82c2a3a76f808dcf1eec3d2"
+        },
+        "matmul_row_q4_i8_8col.txt": {
+          "bytes": 361057,
+          "sha256": "d7566d6ff58731ff7d79da2a5af0fc6a5881c99471bb2ebdae3f64d94b3a245a"
+        },
+        "matmul_row_float_x.txt": {
+          "bytes": 267241,
+          "sha256": "a5a65a0945add79af36a0f9df7977abf3560cc36585eee588bc05fb0123deab1"
+        },
+        "matmul_row_k5_dot_grouped.txt": {
+          "bytes": 111721,
+          "sha256": "02d7989c7cb09d2e74be5cd8b65a521f4f704838682cdbe5e9a1978e7f97e044"
+        },
+        "matmul_vec_q8_i8.txt": {
+          "bytes": 319821,
+          "sha256": "77e6f7e0a11850cec3d632a610dbacab204f11c6baf6dc5d09b07f1c34a2f782"
+        },
+        "attention_k16.txt": {
+          "bytes": 278899,
+          "sha256": "1f0fa47749efa7ab6ba931225bcd0a3be7b00ba7c08f20b9a2b0ce640a623927"
+        },
+        "matmul_tile_q6.txt": {
+          "bytes": 499569,
+          "sha256": "67d0f0935d8976bcf0307ff7f75666bc7bf708027da98fd0e67b8e7260096001"
+        },
+        "matmul_tile_wbf16_bf16_small.txt": {
+          "bytes": 289949,
+          "sha256": "2e3eb0e30a1a45f3d264437ebd9668bf49cad36f7511e590878f5980c8abc8fd"
+        },
+        "matmul_vec_q8_4col.txt": {
+          "bytes": 228788,
+          "sha256": "374df20ca9ba62fc54b0f276df72bb20427c877f14107f74ca4da2e047f79e8e"
+        },
+        "matmul_tile_q_small.txt": {
+          "bytes": 345423,
+          "sha256": "edb1f80fd88b82f127e7973d0112b62a17b25b97c7431a45cbc7298e63c27b18"
+        },
+        "matmul_row_q5_i8_4col.txt": {
+          "bytes": 273803,
+          "sha256": "45e1304eb48b7c8261959d0b89da6d9153d11eac81abc4d1842bc543d502e9bb"
+        },
+        "norm_rope_kv_v16.txt": {
+          "bytes": 91732,
+          "sha256": "ae9d0fc137f6ed1a229ae1099cdb886b0827732595f66882a28f1e6352afef2a"
+        },
+        "matmul_tile_q8.txt": {
+          "bytes": 437842,
+          "sha256": "85e06b5a457158d8b0801a1a67957aaa2e840be47b6f8e02c1b36fd0b5508459"
+        },
+        "quantize_x_x8.txt": {
+          "bytes": 304721,
+          "sha256": "4628a522b4f14f1777d7250c79494d35cc5ec56ff587f0a7cd1f1b90cd0fb0e2"
+        },
+        "matmul_row_float_x_1col.txt": {
+          "bytes": 239092,
+          "sha256": "3144407fc384f41ccf6eb1079c57f30a30d8dceac586782794021dd039eb30eb"
+        },
+        "matmul_row_float_x_grouped.txt": {
+          "bytes": 292283,
+          "sha256": "e9dfb82ae15d04ce39143f945496753d8757d1de005fb7d9966e8c32451212eb"
+        },
+        "attention_k16_g4.txt": {
+          "bytes": 946159,
+          "sha256": "41dc93909ffa4759ec177d51a8aac2628bdbdf0f3c87787f326481d7fe78fffe"
+        },
+        "attention_tile_v16.txt": {
+          "bytes": 459491,
+          "sha256": "0329fc11ab95a3c0ba238e7e2442b72c7b4c7eea9296f67d73cae392d891e7d9"
+        },
+        "matmul_reduce.txt": {
+          "bytes": 14457,
+          "sha256": "aa3192fdd32fc7f1f861cf086d0b51e3f274236a664a90807f72a0455d9455b5"
+        },
+        "matmul_row_k_i8_2col.txt": {
+          "bytes": 169216,
+          "sha256": "08a1ff4b3f62478eab90b39980e4f780e6323f1bad14367125fb521325a17d7a"
+        },
+        "matmul_row_k4_i8_2col.txt": {
+          "bytes": 107198,
+          "sha256": "a1ce6aca652a499bd30ddd77289ca78ec26dd993190bf47047703762a64b58f0"
+        },
+        "quantize_x.txt": {
+          "bytes": 153997,
+          "sha256": "55173e63f25bb2af34986706093d26dbf9323181578f3acecb5541770f6bec8a"
+        },
+        "matmul_row_q50_i8_16col.txt": {
+          "bytes": 694218,
+          "sha256": "6819339f94fe7f6a83e38545a50178b1682ed5ca177f08d42ce9ed52b6ac2921"
+        },
+        "matmul_row_q50_dot_4col.txt": {
+          "bytes": 404600,
+          "sha256": "71d38a4093e934bc695b7e556fdff3f05de6e1923f15d46c827c66e92431f9ca"
+        },
+        "matmul_tile_q8_small.txt": {
+          "bytes": 264467,
+          "sha256": "7c017260a6318ad9259885391bf53d370d72b5ef0f4119892e03d4aaf94b831a"
+        },
+        "embed_wf16.txt": {
+          "bytes": 16198,
+          "sha256": "b5f6cd747fc1b51251b22a7d324284f16f194e3bce19072d3a73d7645e220635"
+        },
+        "embed.txt": {
+          "bytes": 226203,
+          "sha256": "49e510f779b12fb9d23c8d425a87383f67e36d19bcac46ab24c5ea8c90685b08"
+        },
+        "matmul_row_q4_dot_16col.txt": {
+          "bytes": 940938,
+          "sha256": "dbdb49db4eb5fb889eac26e91bc7c1c3874b7afb59b842f6b50b48270ab441b7"
+        },
+        "matmul_tile_q5i8_small.txt": {
+          "bytes": 260481,
+          "sha256": "89ff3d9693448b03a9edb09dd3502832d858b83045a7a102e4318a0d5cd48c26"
+        },
+        "norm_rope_partial.txt": {
+          "bytes": 50205,
+          "sha256": "4e3bd4be863c3a14f6b42152812bea15b91a59f53c0cb8b93143e36fcb3eb783"
+        },
+        "attention_vec_d256_v16_g4_x8.txt": {
+          "bytes": 1753588,
+          "sha256": "f101f358476cae992b2bf7108579d6c7977a9ceb87dfd32c06b8b5feb109c579"
+        },
+        "matmul_row_q4_i8_16col.txt": {
+          "bytes": 612956,
+          "sha256": "de38389fa7097c2b7bf92c4e36207ba19d3620c0cc340903bcbfb40bd8c6ec50"
+        },
+        "matmul_row_q4_dot_4col.txt": {
+          "bytes": 332411,
+          "sha256": "282c91c2a551d7068488885c15d1fd24d1bc5a0c056410175f6399d8fb64f454"
+        },
+        "matmul_row_mxfp4_dot_1col.txt": {
+          "bytes": 302441,
+          "sha256": "1da98a9d06b0a576f95524d92037f36a77cf25273578334bf79812d73d0d646c"
+        },
+        "matmul_vec_q8_32col.txt": {
+          "bytes": 992882,
+          "sha256": "ddf9cbcae5925b1ffec8f342ef8fd800633fda7e99e3e3f07d74ab368c7d0b2a"
+        },
+        "matmul_row_k5_dot_1col.txt": {
+          "bytes": 85433,
+          "sha256": "3a080d270e347d5427d3d55a910abe3f2680e81ae6ef6fd180b38be13066b27b"
+        },
+        "matmul_tile_bf16_small.txt": {
+          "bytes": 668854,
+          "sha256": "e1c96e33fb179a90e424159485bbe50cdc65ebb0483ed61fab4926712b98a981"
+        },
+        "attention_kv16_x8.txt": {
+          "bytes": 440449,
+          "sha256": "360be7de963bed57000ef58d28156e6fb56b3ba30d424804531e4a1afcae046f"
+        },
+        "matmul_row_k4_dot_1col.txt": {
+          "bytes": 73349,
+          "sha256": "8748b5536f7ff3f6f401059f495674f4320dce5b6aa28624b3cd3ace357d875c"
+        },
+        "matmul_row_k4_dot_grouped.txt": {
+          "bytes": 99173,
+          "sha256": "eb83895cdbed60efa4acfd70294885c50aa841ccabe3ba7988a4c0c6c64c01ba"
+        },
+        "matmul_row_k_i8_grouped.txt": {
+          "bytes": 123954,
+          "sha256": "7d42fff4da50d9167c6ea77c3b50708038b7ca63380c57daa31b03e9d1f5a2fa"
+        },
+        "matmul_row_q5_dot_4col.txt": {
+          "bytes": 365647,
+          "sha256": "da6589b5e1e75e10f1489ce4ab3733f82870367e3de93f050aeb858e273b8b0d"
+        },
+        "matmul_row_q5_i8_16col.txt": {
+          "bytes": 649608,
+          "sha256": "5e19280ed246f840663b9a483ed39aca003e1e26ca73e539951c8fc4c6ec2a4a"
+        },
+        "embed_wbf16.txt": {
+          "bytes": 8461,
+          "sha256": "fabe213097fdf1756fac11cc822318756a4e5b768caae7b58e3841793ddce0eb"
+        },
+        "matmul_row_wbf16_1col.txt": {
+          "bytes": 64428,
+          "sha256": "ee254bff4a96bda7d5918210e94c6e680849c5ff74ac8931107c3bc55382bb02"
+        },
+        "attention_vec_d256_kv16_g4_x8.txt": {
+          "bytes": 1756016,
+          "sha256": "3520bc8f22fa25fb97cd097795765a071573d8d568fb1f70c49eed4f94140995"
+        },
+        "matmul_tile_q8i8_small.txt": {
+          "bytes": 286483,
+          "sha256": "5af99a450357f0e881fa294066da24dbfbfd7971c831f0d9d1432caf3b7f8e0a"
+        },
+        "matmul_row_k5_i8_1col.txt": {
+          "bytes": 78637,
+          "sha256": "a3afdb46c66102d8c58688956f7e71cac337ac29984b6a028204011786fc2da1"
+        },
+        "attention_g4.txt": {
+          "bytes": 943723,
+          "sha256": "1e81dbb72cb37ba4e5cfb4c69fc9c2debf701310ddde1aa67916d8bfa4a64e73"
+        },
+        "matmul_row_k_dot_8col.txt": {
+          "bytes": 306904,
+          "sha256": "ff0935599c58232ed4d91977a68044a21ff65b95b8192d967eb8d09dc4a603ae"
+        },
+        "matmul_row_q50_i8_8col.txt": {
+          "bytes": 455891,
+          "sha256": "c7f96cc0e7a70bd5c60042ebb4db366b75d00565761446d6f7fead33f35986a8"
+        },
+        "embed_ids_mxfp4.txt": {
+          "bytes": 19787,
+          "sha256": "17bbfa294621d06fba9370c730166d509e81bcb52575868407be98d57f69a590"
+        },
+        "matmul_vec_q8_i8_2col.txt": {
+          "bytes": 89363,
+          "sha256": "134794075cf4014e96b4f93e77c93090f90f48783117888fc47170a78bd131b8"
+        },
+        "kv_write_v16.txt": {
+          "bytes": 41530,
+          "sha256": "b867b78820da702f87891e30148cdf7adab36b9c5abeff6a057fa055596095bf"
+        },
+        "delta_rule.txt": {
+          "bytes": 313211,
+          "sha256": "8115cd22f44d9fd8c2f38703f35a117907898466de40b402496fd210b21d4e49"
+        },
+        "attention_vec.txt": {
+          "bytes": 304038,
+          "sha256": "e2480e29f1769336b31310124efe10038e660efe6b2d8d368b3e2d5cd39d4fff"
+        },
+        "matmul_row_q50_dot_16col.txt": {
+          "bytes": 986886,
+          "sha256": "b550719c60adb7a0fedaa6a1d6786c796fcf2c7ca07b8f899195cec287eb1292"
+        },
+        "attention_merge_x8.txt": {
+          "bytes": 391195,
+          "sha256": "0a9c32b6e2e0886e7ab758ad325ba744c0701422038f0bc8321cf3e450cd9963"
+        },
+        "matmul_row_q4_i8_1col.txt": {
+          "bytes": 102738,
+          "sha256": "86ca0670664254fe88b859d182880fcabe9f8dd5488df85710d78761845ebd8e"
+        },
+        "matmul_row_q5_dot_2col.txt": {
+          "bytes": 266506,
+          "sha256": "7944abdb7abeb2e1cadc16ff89befbb2ec61fc2e712e114c5d661fda81296644"
+        },
+        "matmul_row_k5_dot_16col.txt": {
+          "bytes": 414652,
+          "sha256": "b78bfc29faa5f38193bb064003cc20d91cae528b38226bc483aefb69fe40ebd7"
+        },
+        "matmul_row_q5_dot_grouped.txt": {
+          "bytes": 406227,
+          "sha256": "6d29d3c066ddbeff138dbad44939440f915aa4e59aed1c8404dbf8015392bfe1"
+        },
+        "matmul_row_q4_dot_2col.txt": {
+          "bytes": 233053,
+          "sha256": "56b0ad1b0858f4fd129d077e8afaa3d9018b7f046f9e8a0842da3d278a2b2520"
+        },
+        "attention_x8.txt": {
+          "bytes": 437846,
+          "sha256": "5aacb18d97aa00447af051fe423ba5aafa0ff2bf4d3de86e3ad18eaef063f0ed"
+        },
+        "norm_rope_kv.txt": {
+          "bytes": 75784,
+          "sha256": "1c00bcfcb1040e337164a259a175f1b78d83b5268a3dc2aa2e606e36f38a7856"
+        },
+        "matmul_tile_tall.txt": {
+          "bytes": 1641771,
+          "sha256": "cdecd3462e635f921968f433d46a14e0b57d8d626c312b7d4bc92315e5c91423"
+        },
+        "attention.txt": {
+          "bytes": 276243,
+          "sha256": "37e632895946c1698413dd6a19f0f14b2f041dd63cf0c8a0d6d6ec05d5f4b805"
+        },
+        "matmul_vec_q8_i8_4col.txt": {
+          "bytes": 169120,
+          "sha256": "d3062e420ebae38088aa50e06aa5ba71af9a5f7aca17e0445bacdc861ca39c49"
+        },
+        "attention_kv16_g4.txt": {
+          "bytes": 946406,
+          "sha256": "0cb9f1d51c3504e6867e131d56c181d59e50386adce6ba6aa86df6fd917211ea"
+        },
+        "matmul_reduce_mxfp4.txt": {
+          "bytes": 14992,
+          "sha256": "1f902c75d995ba6e44131914d2fd359b3cf59c95bcaaa19731b46b7369fbfd8d"
+        },
+        "matmul_row_f32.txt": {
+          "bytes": 271014,
+          "sha256": "07317a265c8bd23ef09ea5d8fc39ace887dd54414603c267378d1ae9621590d7"
+        },
+        "matmul_tile_mxfp4_bf16_small.txt": {
+          "bytes": 291571,
+          "sha256": "8f1354828ddedb712f6f0c96d62f052a269bdb0743eb06a8657f43e6a223e5ab"
+        },
+        "attention_vec_v16_x8.txt": {
+          "bytes": 466461,
+          "sha256": "d2405b8c6f29b751c64403dcc5d27ec32a48a02f2a957c4847d9c6e1470695a6"
+        },
+        "attention_merge.txt": {
+          "bytes": 237467,
+          "sha256": "63f0cd53279f2ac840214392f17574cc2ef9566065bf4f716b4e404b0caee333"
+        },
+        "attention_v16_g4_x8.txt": {
+          "bytes": 1610034,
+          "sha256": "7c6aeec57639a813ffddb69f812407dc6dec44ad6358972f175634e8272f7cc6"
+        },
+        "rms_norm_rows_x8.txt": {
+          "bytes": 818936,
+          "sha256": "e8253cd13f0c36038594bef0d4deb92eeaf61857f65efb5ddb41b628e1c575f5"
+        },
+        "matmul_vec_q8_2col.txt": {
+          "bytes": 113175,
+          "sha256": "e47ebcc789b364de0ffe3cf901642f22c2a7653a2705796261d3f7a685378277"
+        },
+        "matmul_row_q5_i8_2col.txt": {
+          "bytes": 213610,
+          "sha256": "80f864a8f3e02dea021279a5c14909ef0c472860ce10d9894f0b1cee75526c5b"
+        },
+        "attention_vec_d256_g4_x8.txt": {
+          "bytes": 1751396,
+          "sha256": "7d10684000cd716e110a66ff28becc898b3fce95c50a6bee3e29524531f4cd1b"
+        },
+        "matmul_row_k5_dot_8col.txt": {
+          "bytes": 261156,
+          "sha256": "d4a1be46de7669b33ef9ccce073027cbce1aafc10cceb728ebdbd10c391e9de6"
+        },
+        "matmul_row_q4_dot_grouped.txt": {
+          "bytes": 482783,
+          "sha256": "c9ab794e9cfad5add83c3ddd435ec913fbd10c4e81dc0c43381f3c5d6070669f"
+        },
+        "attention_k16_x8.txt": {
+          "bytes": 440429,
+          "sha256": "63f3eca19cdbfd1fec2501fb2ed2f03bd610d8a1ddf109e48090ed6c94f63d89"
+        },
+        "attention_vec_v16_g4_x8.txt": {
+          "bytes": 1883280,
+          "sha256": "4b1ab53f729264a4fcea7762080644172e5531a7268d1eb7ccdac4882f4d1a93"
+        },
+        "norm_rope_kv_kv16.txt": {
+          "bytes": 124141,
+          "sha256": "d0c5e0b23f81d7908581c30d0f688c14b08f064fb8414c910bae04ff19207afd"
+        },
+        "add.txt": {
+          "bytes": 5151,
+          "sha256": "04b19d5041bafc6648e8118c539603066f8c0e0ffc811417ecc43853a56c948f"
+        },
+        "matmul_row_k4_i8_grouped.txt": {
+          "bytes": 160955,
+          "sha256": "a58ba424a8470c1a4f15e4c3b6c65f62032c508ac6880e1bb3b257868c8943f5"
+        },
+        "attention_vec_d256_kv16_x8.txt": {
+          "bytes": 435760,
+          "sha256": "8beff40f2a96d04312e54a38fa66bbd7a475079b185030c4e65ec9a20975f369"
+        },
+        "argmax_rows.txt": {
+          "bytes": 139437,
+          "sha256": "d1a931821f11d9474a383eb131db61d814e3d3a250c3e11ca05c0baf2f236792"
+        },
+        "matmul_tile_q6_small.txt": {
+          "bytes": 301840,
+          "sha256": "16cb30d8e2eeab386fdb777a0f741c85432d29da22cb2cc63647419086e49fd8"
+        },
+        "matmul_row_k4_dot_8col.txt": {
+          "bytes": 237538,
+          "sha256": "ef49203fa87a010b309392f5e50a55550d1de27c244eb03e01ea1c7493d63695"
+        },
+        "matmul_row_k5_i8_8col.txt": {
+          "bytes": 204282,
+          "sha256": "393f8b6ab9fb2cad9949cf32259c85fdf9e0c09874000ac90bf03dae1b2684e6"
+        },
+        "matmul_row_k_dot_1col.txt": {
+          "bytes": 106399,
+          "sha256": "9b0daa90ebd3ea641b03beaac20adaf93d78087e67d9cc6c96747adc3e3935b3"
+        },
+        "matmul_row_q50_i8_1col.txt": {
+          "bytes": 155829,
+          "sha256": "9d299960587252118dfdafa570e48ea3f54c40c9fe0e7e92780b76e4b66b7378"
+        },
+        "moe_group.txt": {
+          "bytes": 137089,
+          "sha256": "60be56272881f662a5a478098d1cf2ec697290b14ba4580882fa1aaf478ed56c"
+        },
+        "matmul_row_k_dot_16col.txt": {
+          "bytes": 472218,
+          "sha256": "45efbab7e60628676b74338033b8415f5e57a670ed08311aed573dd413f5127e"
+        },
+        "matmul_tile_q5_small.txt": {
+          "bytes": 305301,
+          "sha256": "e9db7094e355de184b6504b2e4b6409fc693e7a6eeb22876366bf41e92882c65"
+        },
+        "matmul_tile_q8mx_small.txt": {
+          "bytes": 279315,
+          "sha256": "21464e4edb7caea5e5ffddd01f392866fa61df418775f596a9a8e8357c2a4083"
+        },
+        "matmul_row_wf16_1col.txt": {
+          "bytes": 238212,
+          "sha256": "6c5b3bb296e9765fc340694b4389976dd7a8bc3fda5e6aee1063c713c272d611"
+        },
+        "causal_conv_silu.txt": {
+          "bytes": 60309,
+          "sha256": "d45679a73ca5b9c939c736b948801a5caaa627fa2ffe344289a0f07285fafd97"
+        },
+        "matmul_row_k4_i8_4col.txt": {
+          "bytes": 130447,
+          "sha256": "462959f922de819aee7406ef1c785f754ccf1d47917e21bacf330ad8276e9180"
+        },
+        "matmul_row_k_i8_4col.txt": {
+          "bytes": 198404,
+          "sha256": "2d7d1c62bce2e71ead9e3a7af3ba75dfba5ce5c244a2ee97700792bc991d5479"
+        },
+        "matmul_row_q50_dot_2col.txt": {
+          "bytes": 309691,
+          "sha256": "8e2b6e5a81b8c9d763a2b685283f3929cbee4e63b7c8de7de0da51d8f3393255"
+        },
+        "attention_tile.txt": {
+          "bytes": 458176,
+          "sha256": "b8e7cc6c1948d2a2cdb151cfcdc78e17823dce99fe85196216423609fbae97b0"
+        },
+        "quantize_xw_x8.txt": {
+          "bytes": 394712,
+          "sha256": "73ff67b4dbec4d6cea6e8fcc9943d9653c13c764ff6c745fa3de29aa92d60e4f"
+        }
+      },
+      "end": 1792732144.1222405,
+      "log_sha256": "facc4cb077b2864008fdbf9a2ff2e5aea9ce2acd206a7db4868946107188c41e"
+    },
+    "execution_sha256": "3460faa87eb9a2613c387093ed1252f8ecf76e870ebc0169a10e9814f0713bb4",
+    "original_unchanged": true,
+    "scope": "Same exact generic executable, output directory created; own controls repeat to instantiate kernels, no other native or suite repeat."
+  },
+  "tp2_diagnostic": {
+    "result": {
+      "start": 1792731978.4771473,
+      "passed": true,
+      "scope": "Only three TP2 F32 full-logit children: identical dense command twice, then MoE. Not the full component or timing qualification.",
+      "end": 1792732050.5705938,
+      "calls": [
+        {
+          "index": 0,
+          "command": [
+            "/b/llmx",
+            "logits",
+            "/out/dense-untied.gguf",
+            "a",
+            "--top",
+            "260",
+            "--threads",
+            "1",
+            "--ubatch",
+            "1",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--tensor-width",
+            "2",
+            "--dtype",
+            "f32",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792732034.9854105,
+          "status": "checked",
+          "pid": 20,
+          "end": 1792732040.2834482,
+          "exit": 0,
+          "seconds": 5.298038482666016,
+          "stdout_sha256": "0187df425fd35e9e4969ba74bde585a224af622f5caa405241a868ddbac4683f",
+          "stderr_sha256": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+          "passed": true,
+          "max_logit_error": 6.2250518798046e-07,
+          "bounds": {
+            "logit": 2e-05,
+            "nll": 1e-05
+          }
+        },
+        {
+          "index": 1,
+          "command": [
+            "/b/llmx",
+            "logits",
+            "/out/dense-untied.gguf",
+            "a",
+            "--top",
+            "260",
+            "--threads",
+            "1",
+            "--ubatch",
+            "1",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--tensor-width",
+            "2",
+            "--dtype",
+            "f32",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792732040.284083,
+          "status": "checked",
+          "pid": 38,
+          "end": 1792732045.4103045,
+          "exit": 0,
+          "seconds": 5.126222133636475,
+          "stdout_sha256": "0187df425fd35e9e4969ba74bde585a224af622f5caa405241a868ddbac4683f",
+          "stderr_sha256": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+          "passed": true,
+          "max_logit_error": 6.2250518798046e-07,
+          "bounds": {
+            "logit": 2e-05,
+            "nll": 1e-05
+          }
+        },
+        {
+          "index": 2,
+          "command": [
+            "/b/llmx",
+            "logits",
+            "/out/moe.gguf",
+            "a",
+            "--top",
+            "260",
+            "--threads",
+            "1",
+            "--ubatch",
+            "1",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--tensor-width",
+            "2",
+            "--dtype",
+            "f32",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32"
+          ],
+          "start": 1792732045.4107964,
+          "status": "checked",
+          "pid": 50,
+          "end": 1792732050.5700421,
+          "exit": 0,
+          "seconds": 5.15924596786499,
+          "stdout_sha256": "05d582eb0b5415630b5d5b20e99245b36a36ba0e343daf76ee39c1f119ff071f",
+          "stderr_sha256": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+          "passed": true,
+          "max_logit_error": 7.141971588159324e-07,
+          "bounds": {
+            "logit": 2e-05,
+            "nll": 1e-05
+          }
+        }
+      ],
+      "artifacts": {
+        "2.stderr": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+        "0.stderr": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+        "execution.json": "0f988ea1c0b8750fe0a4472a31d26afecbd1c237e1c41d4f89d745c98754b0fb",
+        "1.stdout": "0187df425fd35e9e4969ba74bde585a224af622f5caa405241a868ddbac4683f",
+        "progress.jsonl": "4e9292045460fef62ed6fda4a1ef27bdf96a1caaf87b07e4ebb08cc9a70ec137",
+        "diagnostic.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "0.stdout": "0187df425fd35e9e4969ba74bde585a224af622f5caa405241a868ddbac4683f",
+        "dense-untied.gguf": "43bfa01d6102f84d611ca5ca96c6ca67feb6a942dc38fdffb8796a641c52f340",
+        "2.stdout": "05d582eb0b5415630b5d5b20e99245b36a36ba0e343daf76ee39c1f119ff071f",
+        "moe.gguf": "1e2ca4a2f748853e61e03b3245dd41369d03bef0cf19fc182e59f997184cfcf1",
+        "diagnostic.stdout": "4e9292045460fef62ed6fda4a1ef27bdf96a1caaf87b07e4ebb08cc9a70ec137",
+        "1.stderr": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798"
+      }
+    },
+    "execution_sha256": "d0fc3d98e181a2c6b4e2efb88db017b9d8ddec4b7b76e5d286be3359ad5486a1",
+    "scope": "Three F32 full-vocabulary cases only; selected four-policy qualification remains. Dense twice and MoE errors below unchanged 2e-5. Each CLI about 5.1-5.3 seconds; timeout diagnosis is not a full split pass."
+  },
+  "bf16_static": {
+    "comparison": {
+      "scope": "Exact measured Linux main-equivalent/candidate build modules copied read-only; raw/runtime/config origins retained. Only local SPIRV ID compaction, no optimization/build/GPU execution.",
+      "origins_sha256": "fc25936db1fdd8450a9942c4d0b5bd31d145ff6ff480ab594216f4c066406a73",
+      "tool": "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-opt.exe",
+      "tool_sha256": "d5ae37abd1a642c0cdd38e242fd43e6b20e3ab421d18fd68e9474f2d88888ab5",
+      "rows": [
+        {
+          "module": "matmul_tile_wbf16",
+          "bytes": {
+            "base": 8248,
+            "candidate": 8248
+          },
+          "raw_spirv_sha256": {
+            "base": "c6d7dcf682608137a07a321cc78abba8c9fec36653bc39d561f218c17d1ddff7",
+            "candidate": "265b680bb9885cfd5150cbe4c37fcd09b10bff29820580f8f2738c0ff6b57096"
+          },
+          "compact_id_sha256": {
+            "base": "d4a642b0448c7ebad6ba917e79a7af34ddf36daa4582cbfa179c9ac42aa4f07b",
+            "candidate": "d4a642b0448c7ebad6ba917e79a7af34ddf36daa4582cbfa179c9ac42aa4f07b"
+          },
+          "raw_same": false,
+          "same_after_id_compaction": true
+        },
+        {
+          "module": "matmul_tile_wbf16_preserve",
+          "bytes": {
+            "base": 8620,
+            "candidate": 8620
+          },
+          "raw_spirv_sha256": {
+            "base": "d9120542bdf558ca8f16d7cf429a89339e3d5aa53cb2b872237a34b49337d3e1",
+            "candidate": "2062c8edd285a1133197a5a0a6e405686e5d69753024cc3c194645411b90bf10"
+          },
+          "compact_id_sha256": {
+            "base": "9661343a7610206c7c393992c961a4bff95f805f0964d057493af45a54e8c5de",
+            "candidate": "9661343a7610206c7c393992c961a4bff95f805f0964d057493af45a54e8c5de"
+          },
+          "raw_same": false,
+          "same_after_id_compaction": true
+        },
+        {
+          "module": "embed_wbf16",
+          "bytes": {
+            "base": 1816,
+            "candidate": 1816
+          },
+          "raw_spirv_sha256": {
+            "base": "bd8014aeeecf5ecbb00969a8f3d8a439d6cf19cb7dc58cc3080259decf7ec227",
+            "candidate": "0d02310e981f832b53012ea7527be30a0b3605df4a316edbeade7cd911f62a6b"
+          },
+          "compact_id_sha256": {
+            "base": "549542c471a464929e38c3a9e23593452afd5be8f83f9bd3749a0d91bc3ae04a",
+            "candidate": "549542c471a464929e38c3a9e23593452afd5be8f83f9bd3749a0d91bc3ae04a"
+          },
+          "raw_same": false,
+          "same_after_id_compaction": true
+        },
+        {
+          "module": "embed_ids_wbf16",
+          "bytes": {
+            "base": 2224,
+            "candidate": 2224
+          },
+          "raw_spirv_sha256": {
+            "base": "960132f65ed000e2c9c66bea0054f60a2a054788f8d1fec8dfe993d438e6a7e8",
+            "candidate": "06fafa588cc6993f1afb2e45aa90a7e30736862609219a847e2f092ef67e4cae"
+          },
+          "compact_id_sha256": {
+            "base": "9cb0bd3fa0001e78ed17af6b4227290723c42993b19cda2cf9850e4f270183b6",
+            "candidate": "9cb0bd3fa0001e78ed17af6b4227290723c42993b19cda2cf9850e4f270183b6"
+          },
+          "raw_same": false,
+          "same_after_id_compaction": true
+        },
+        {
+          "module": "matmul_row_wbf16",
+          "bytes": {
+            "base": 12192,
+            "candidate": 12192
+          },
+          "raw_spirv_sha256": {
+            "base": "f3b875bf5a67d810595f5b77273b089715d2585d9c6d925a4b33e0eae68aeafb",
+            "candidate": "b1fb4ab5e4a7e2b35cfb6d950aa21ec22dbf44bab633c1adb1947894653c73fc"
+          },
+          "compact_id_sha256": {
+            "base": "8c2911085dc9f0d53d0ae6826563b03dafc412df49c58c5f50343e8fd167a1a9",
+            "candidate": "8c2911085dc9f0d53d0ae6826563b03dafc412df49c58c5f50343e8fd167a1a9"
+          },
+          "raw_same": false,
+          "same_after_id_compaction": true
+        },
+        {
+          "module": "matmul_reduce",
+          "bytes": {
+            "base": 3140,
+            "candidate": 3140
+          },
+          "raw_spirv_sha256": {
+            "base": "6b97de911594b757ff34b17b548271abbdfba8af826d08407d5ef91bd6ac2fc6",
+            "candidate": "6b97de911594b757ff34b17b548271abbdfba8af826d08407d5ef91bd6ac2fc6"
+          },
+          "compact_id_sha256": {
+            "base": "329fcb9d4ea81af711f348a2369fc8ee403f1bebce402ded42984a109ac7d21e",
+            "candidate": "329fcb9d4ea81af711f348a2369fc8ee403f1bebce402ded42984a109ac7d21e"
+          },
+          "raw_same": true,
+          "same_after_id_compaction": true
+        }
+      ],
+      "baseline_isa_search": {
+        "local_roots": [
+          "build-quant-resume-20261020/iq3-s",
+          "worktrees/iq3-s-20261021"
+        ],
+        "rig_root": "/zpool1/llmx-xdev-quant-20261020/iq3-s-20261021",
+        "rig_search": "find maxdepth5 regular files *wbf16*.txt (metadata only)",
+        "matching_files_found": 0,
+        "limits": "No matching BF16 weight generic ISA found in these owned retained landing locations. Older IQ3 lookup probes contain float-activation BF16 variants, not BF16-weight tiles; not interchangeable."
+      },
+      "next_discriminator": "Inspect candidate ISA recovery exports first; require exact BF16-weight module name and tile-height/small/tall specialization. No matching old baseline ISA was found. If needed root can authorize only same-specialization baseline representation capture; no full-model/profile/inference launch authorized here."
+    },
+    "sha256": "1b7a72935be1c3974965d1b1001927ef8d78dc2231638085fef16b46f73facb5",
+    "limit": "Measured Linux modules match after ID compaction only; this does not prove driver ISA or wall-clock performance identity."
+  },
+  "ubsan": {
+    "hosted_run": 39884334719,
+    "failed_job": 120188871014,
+    "log_sha256": "ddf031fc17d0accd6550b62b42167fe71ec2fc5ac159623f089224aba6bc4d23",
+    "defect": "Zero-element tensor conversion passes null vector storage to memcpy; no inference-kernel failure.",
+    "test_first": "70c2eb06324f",
+    "fix": "Skip empty tensor payload operations and skip empty final stream write; retain metadata and prior unsupported-type validation.",
+    "focused_windows": {
+      "roundtrip": "PASS outside sandbox after retained sandbox failure",
+      "raw_blocks": "PASS",
+      "original_log_sha256": "f3df20912ddca9435f1252703e47d6841fa6af2573821a898069accf9751fd7b",
+      "recovered_log_sha256": "5523bf03a8f9c28cd89cbef6995fd2293a3cbbea2dfaa13a43dfda1c47e15779",
+      "build_log_sha256": "c65cd12e7872ca636240d4f9e2563f2a8276ecfccc7839c3445ca6cfbd7efbe0",
+      "cli_sha256": "d3782bb2a4c70873bec260145c6f99e6727bb09f7b679dafeb753264d2f2934d",
+      "version": "llmx 0.1.0+g70c2eb06324f.dirty numerics c4ca60f364d406f9"
+    },
+    "sanitizer_recovery": "Pending actual CLI hosted UBSan check. Rig probe transfer rejected before execution; no reroute. No sanitizer pass claimed."
+  },
+  "carry_scope": "Current code delta since frozen numerical/device runs is empty-tensor CLI conversion only; model/backend algorithms, shaders and numerical limits unchanged. Test fixture and cold conversion changes still need their focused and hosted checks. No completed merge claim."
+}

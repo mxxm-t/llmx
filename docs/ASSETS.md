@@ -319,7 +319,7 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ3_S / IQ4_NL / IQ4_XS / MXFP4** tensors (see
+llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ2_S / IQ3_S / IQ4_NL / IQ4_XS / MXFP4** tensors (see
 `docs/src/quant-quant.md`). The [README support matrix](../README.md#quantization-types) separates CPU and Vulkan inference from quantize writers. GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
 IQ3_S has read-only CPU/Vulkan inference support; the recorded scope and evidence are in [STATUS](STATUS.md).
 Dense Qwen3 Q4_K_M and Q5_K_M mixtures are supported;
@@ -487,8 +487,9 @@ The file is local and not hosted; regenerate it and compare the digest.
 
 `python tools/gen_baseline.py file-exact --weights-gguf FILE --output-dir DIR` loads the pinned `Qwen/Qwen3-0.6B` reference, replaces every parameter with the file's own tensors as the numpy spec decoder reads them, and writes logit and PPL goldens in the format of `tests/data`, labelled with the file's name, SHA-256, repository and tensor types.
 It runs on the CPU in float32 with eager attention.
-A file may repeat a tied output head explicitly. The generator accepts it only when the HF output parameter is the embedding itself, both file tensors have the same decoded shape and binary32 bits (including zero signs), and every required file parameter is present. The redundant tensor is counted and marked `tied_output_verified` in the reference metadata; a mismatched head is refused.
+For Qwen3 file-exact references, the GGUF owns output topology: an explicit `output.weight` creates an independent HF head, and its absence ties the head to the embedding, regardless of the original checkpoint configuration. Every resulting parameter must be replaced by an independently decoded file tensor. The shared weight loader also accepts a redundant head on an already tied model only after verifying decoded shape and binary32 bits, including zero signs; it marks that case `tied_output_verified` and refuses a mismatch.
 `python -X utf8 tests/baseline.py --file-exact DIR --model FILE` then holds llmx on that file to the Q8_0 fixture's bounds, since the format's loss is on both sides.
+The file-exact consumer checks the reported trained context against the GGUF metadata, including Qwen3's 4096 default when that key is absent. It refuses an invalid metadata value or a differing reported context; the registered baseline fixture keeps its own 40960 expectation. This changes no numerical bound.
 These goldens were generated on Windows with torch 2.5.1+cpu and transformers 4.55.2 and are not committed; each type's branch commits the ones it is gated on.
 A pinned qwen35 file takes its own checkpoint instead, with the converter's changes undone (The qwen35 real-model references, below).
 

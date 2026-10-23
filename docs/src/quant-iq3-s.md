@@ -17,7 +17,7 @@ both zero signs. Byte loads accept unaligned blocks.
 lives once in `iq3_s_grid.inc`. Vulkan uploads the same array into one
 immutable backend-owned buffer. `iq3_s.glsl` implements the same field
 decoding through a caller-supplied word accessor; the specialized row and
-tile builds use `iq3_s_cache.glsl` to stage the 512 words in workgroup
+tile builds use `lookup_cache.glsl` to stage the 512 words in workgroup
 shared memory, while embedding reads them directly from the buffer. Byte
 lane zero is the least significant byte; shifts select the lane. The
 dictionary is distinct from IQ3_XXS and the IQ4 formats.

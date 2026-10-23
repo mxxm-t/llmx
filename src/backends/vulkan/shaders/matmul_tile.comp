@@ -40,9 +40,17 @@ layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #define QBYTE(i) ((w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
 #ifdef LLMX_IQ3_S
 // IQ3_S uses no F32 weight view, so binding 2 holds its dictionary words.
-#define IQ3_GRID_SOURCE(i) floatBitsToUint(wf[i])
-#include "iq3_s_cache.glsl"
+#define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
+#define LOOKUP_GRID_SIZE 512u
+#include "lookup_cache.glsl"
+#define IQ3_GRID_WORD(i) lookup_words[i]
 #include "iq3_s.glsl"
+#elif defined(LLMX_IQ2_S)
+#define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
+#define LOOKUP_GRID_SIZE 2048u
+#include "lookup_cache.glsl"
+#define IQ2_GRID_WORD(i) lookup_words[i]
+#include "iq2_s.glsl"
 #endif
 #include "qdecode.glsl"
 
@@ -101,8 +109,11 @@ int hi8(uint w) { return (int(w << 16u)) >> 24; }
 void main() {
 #ifdef LLMX_IQ3_S
     // Cache before the empty-group return; all invocations participate once, before any stage.
-    iq3_s_init();
+    lookup_init();
     const uint type = TYPE_IQ3_S;
+#elif defined(LLMX_IQ2_S)
+    lookup_init();
+    const uint type = TYPE_IQ2_S;
 #else
     uint type = p.type;
 #endif
@@ -208,6 +219,22 @@ void main() {
                 uint o = (wr * nblocks + k0 / 32u) * Q5_0_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = q5_0_at(o, wseg * WVALS + i, d);
+#ifdef LLMX_IQ2_S
+            } else if (type == TYPE_IQ2_S) {
+                uint o = (wr * (p.nin / IQ2_S_BLOCK) + k0 / IQ2_S_BLOCK) * IQ2_S_BYTES;
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+                uint first = k0 % IQ2_S_BLOCK + wseg * WVALS;
+                for (uint i = 0u; i < WVALS; i += 4u) {
+                    uint j = first + i;
+                    uint word = iq2_s_vector_word(o, j), signs = QBYTE(o + 34u + j / 8u);
+                    float scaled = iq2_s_scale(o, j / 16u, d);
+                    for (uint lane = 0u; lane < min(4u, WVALS - i); ++lane) {
+                        uint position = j + lane;
+                        ws[wseg * WVALS + i + lane][wrow] = iq2_s_component(word, position & 3u,
+                            (signs >> (position & 7u)) & 1u, scaled);
+                    }
+                }
+#endif
 #ifdef LLMX_IQ3_S
             } else if (type == TYPE_IQ3_S) {
                 uint o = (wr * (p.nin / IQ3_S_BLOCK) + k0 / IQ3_S_BLOCK) * IQ3_S_BYTES;

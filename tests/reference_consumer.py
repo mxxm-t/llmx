@@ -134,12 +134,12 @@ def simulated_llmx(docs, tokens, context, refuse=None):
 
 
 class ReferenceConsumer(unittest.TestCase):
-    def test_file_exact_ppl_uses_gguf_context(self):
+    def _file_exact_context(self, metadata, printed_context):
         import spec_decode as sd
         with tempfile.TemporaryDirectory(prefix="llmx_file_exact_context_") as directory:
             root = Path(directory)
             model = root / "unregistered.gguf"
-            sd.write_gguf(model, {"general.architecture": (8, "qwen3"), "qwen3.context_length": (4, 32768)}, [])
+            sd.write_gguf(model, metadata, [])
             digest = consumer.file_sha256(model)
             docs = {}
             for filename, original in (("baseline_logits.json", baseline.GOLDEN_LOGITS),
@@ -157,7 +157,7 @@ class ReferenceConsumer(unittest.TestCase):
                 chunks = int(args[args.index("--chunks") + 1]) if "--chunks" in args else 0
                 case = next(case for case in common.ppl_cases(ppl)
                             if (case["context_size"], case["max_chunks"]) == (context, chunks))
-                return 0, ppl_text(case, tokens=ppl["n_tokens"], context=32768)
+                return 0, ppl_text(case, tokens=ppl["n_tokens"], context=printed_context)
             with patch.object(baseline, "cli", side_effect=answer) as invoked, \
                     patch.object(baseline, "check_model_logits", return_value=True) as logits, \
                     contextlib.redirect_stdout(io.StringIO()):
@@ -165,6 +165,24 @@ class ReferenceConsumer(unittest.TestCase):
             self.assertEqual(invoked.call_count, 1 + len(common.ppl_cases(ppl)) * len(common.PPL_MODES))
             self.assertEqual(logits.call_args.args[2], dict(baseline.FILE_EXACT_BOUNDS, file=model.name))
             self.assertEqual(baseline.MODEL_CONTEXT, 40960)
+
+    def test_file_exact_ppl_uses_gguf_context(self):
+        for architecture in ("qwen3", "qwen3moe"):
+            for context in (None, 32768):
+                with self.subTest(architecture=architecture, context=context):
+                    metadata = {"general.architecture": (8, architecture)}
+                    if context is not None:
+                        metadata[architecture + ".context_length"] = (4, context)
+                    self._file_exact_context(metadata, context or 4096)
+
+    def test_file_exact_ppl_refuses_wrong_or_invalid_context(self):
+        for kind, value in ((4, 0), (5, -1), (7, True), (6, 32768.0), (8, "32768")):
+            with self.subTest(value=value), self.assertRaisesRegex(AssertionError, "positive integer context_length"):
+                self._file_exact_context({"general.architecture": (8, "qwen3"), "qwen3.context_length": (kind, value)}, 32768)
+        with self.assertRaisesRegex(AssertionError, "positive integer context_length"):
+            self._file_exact_context({"general.architecture": (8, "qwen35")}, 262144)
+        with self.assertRaisesRegex(AssertionError, "context size 32769, expected 32768"):
+            self._file_exact_context({"general.architecture": (8, "qwen3"), "qwen3.context_length": (4, 32768)}, 32769)
 
 
     def setUp(self):

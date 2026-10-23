@@ -1,0 +1,115 @@
+{
+  "date": "2026-10-23",
+  "scope": "Focused IQ2_S format-only CLI conversion and frozen-oracle CPU source review; no HF/model execution qualification.",
+  "command": "python -B tests/run_tests.py --exe build-iq2-cpu/Release/llmx.exe --only iq2-s",
+  "exe_sha256": "6d3cea3d46b95d970b0616a36970d6f115f8e33a9e77ac4b476acbe19d8ab087",
+  "focused_result": "PASS",
+  "exit": 0,
+  "oracle_was_frozen_before_runtime_review": true,
+  "runtime_edits": false,
+  "format_grid_sha256": "e1aa1473412b0552c2174c30ef22ab4073f6a181b85a17056e8249bd2932fd88",
+  "artifacts": {
+    "worktrees\\iq2-s-20261023\\tests\\iq2_s.py": "6b2f42c43c9b0947360d72d345652ac90b11fc3adb678cd27861e9faa161f2a5",
+    "worktrees\\iq2-s-20261023\\tests\\spec_decode.py": "de95875f5b329547125a78d012c1640a6624c502c1a51c2473413602a75078e9",
+    "worktrees\\iq2-s-20261023\\tests\\raw_blocks.py": "0b7f22235293a27e54066e52101f2635423d77f25ed97e888ce81ef0b5352c34",
+    "worktrees\\iq2-s-20261023\\src\\quant\\iq2_s.hpp": "5426aecc80fbee375980967d60c3325aff4f6b05493ddae4c90b7d59b1dc2059",
+    "worktrees\\iq2-s-20261023\\src\\quant\\iq2_s_grid.inc": "4f254e3ff0d6f49b5c14528d65f3da819decab6b38f1307458077326e76257d0",
+    "build-quant-resume-20261020\\iq2-s-format-cpu-20261023.log": "db5c7904445b134c9952093bd5726b39fcb798a9d4f10d7c370244a20a261f36",
+    "build-quant-resume-20261020\\iq2-s-format-cpu-20261023-sandbox-failure.log": "a8af1adf0876a6c066370779585549ebaf7266bbe59d7986503d840016ef4be6",
+    "build-quant-resume-20261020\\iq2-s-format-cpu-20261023-workspace-temp.log": "f088d50b3a4f754844df553dc84d5cb3e05061e26f730e9511b059badbad9603"
+  },
+  "retained_failures": "Two sandbox attempts refused output path resolution with Windows filesystem error5; focused unsandboxed retry passed with identical executable/test source and workspace-local TEMP/TMP. No test/runtime changes between attempts.",
+  "review": {
+    "issues": [],
+    "layout": "82-byte stride; low indices2..33, signs34..65, two-bit high indices66..73, low-first16-value scales74..81 match independent oracle.",
+    "scale": "d*(1+2*s)*0.125 before unsigned grid magnitude then sign; correct signed-zero ordering.",
+    "range": "Index0..1023 and eight lanes stay within dictionary; final block byte81. Maximum finite half*31*43/8 remains finite and at most22 significand bits, exact in F32; zero nblocks takes no input access.",
+    "alignment": "Byte reads construct LE half and packed fields; no unaligned typed source loads.",
+    "owner": "Single quant/iq2_s.hpp reader and registry registration; shared CPU fallback reaches it. No duplicated IQ2 decoder arithmetic observed in reviewed owners.",
+    "limits": "Source review and format-only conversion do not qualify matmul kernels, narrowed paths, HF, real models, server or performance."
+  },
+  "base": "167c6f8348a173fefff856a4c6f09e2ec6a58f09",
+  "binary_version": "llmx 0.1.0+g167c6f8348a1.dirty numerics 1cdfa42983449c3b",
+  "native_backend_errors": {
+    "result": "PASS",
+    "tests": 1,
+    "command": "ctest --test-dir build-iq2-cpu -C Release -R ^backend-errors$ --output-on-failure",
+    "scope": "Existing registry/interface/range tests; no new native IQ2 product claim."
+  },
+  "build_and_cli_logs": {
+    "build-iq2-configure.log": "b0a034efd520d2b8397388257fc52ca636c29f6c5a4ff75b4e1ce157d358987f",
+    "build-iq2-compile.log": "e6b1b6d9fea2f11efcef1c0db01b686e702708a36c9a12a758026146cc3254da",
+    "build-iq2-focused.log": "6d731637c470bd0d15e5714db606ae92db1aa55c34e3f2aa7550574ed83135a7",
+    "build-iq2-cli-recovery.log": "271824eb5025894c1333df20d0944ed04b0d8a535061114b5271d2e8d203460f"
+  },
+  "cli_recovery": "Original sandbox run failed output path canonicalization with filesystem error 5; unchanged elevated CLI-only rerun passed. Docs and dead-code passed in the original focused run.",
+  "docs_review": {
+    "review_date": "2026-10-23",
+    "worktree": "worktrees/iq2-s-20261023",
+    "branch": "feat/iq2-s-20261023",
+    "base_commit": "167c6f8348a173fefff856a4c6f09e2ec6a58f09",
+    "head_commit": "167c6f8348a173fefff856a4c6f09e2ec6a58f09",
+    "scope": "Read-only Markdown inventory and IQ2_S support-claim review. No tests, builds, edits, GPU work, push, or hosted checks.",
+    "markdown_inventory": {
+      "base_total": 120,
+      "current_total_including_untracked": 122,
+      "modified_existing": 10,
+      "added": [
+        "docs/src/quant-iq2-s.md",
+        "docs/src/quant-iq2-s-grid.md"
+      ],
+      "removed": [],
+      "unchanged_existing": 110,
+      "unchanged_review_note": "Inventory compared to base; unchanged pages are carried forward from prior review and were not read line by line in this audit."
+    },
+    "modified_markdown": [
+      "AGENTS.md",
+      "README.md",
+      "docs/ARCHITECTURE.md",
+      "docs/ASSETS.md",
+      "docs/CI.md",
+      "docs/ROADMAP.md",
+      "docs/STATUS.md",
+      "docs/USAGE.md",
+      "docs/src/quant-quant.md",
+      "docs/src/quant-types.md"
+    ],
+    "findings": [
+      {
+        "severity": "correction-needed",
+        "file": "docs/ROADMAP.md",
+        "location": "section 4a, bullet near line 42",
+        "issue": "The new bullet says IQ2_S is the next format in development, but a later unchanged bullet still includes IQ2_S among lattice-codebook types that are not ordered yet.",
+        "recommendation": "Remove IQ2_S from the unordered list or rewrite that list to exclude the format now in development."
+      },
+      {
+        "severity": "correction-needed",
+        "file": "docs/STATUS.md",
+        "location": "IQ2_S read-only support block",
+        "issue": "The plan still says to implement one IQ2_S decoder and independent format/spec fixtures, and Left still says to implement the format path. The current uncommitted source already adds the CPU decoder and dictionary, registry entry, independent spec decoders/raw-block fixtures, and a CLI format-conversion component.",
+        "recommendation": "Move implementation and fixture creation into Done, then state verification status separately after the root's current focused checks. Keep CPU inference products, Vulkan, released-file integrity/execution, HF, performance, and landing qualification explicitly pending."
+      }
+    ],
+    "support_claim_review": {
+      "readme": "README.md labels IQ2_S CPU inference In development and Vulkan inference Planned; it does not claim supported inference.",
+      "assets_usage": "The decoder/type lists include IQ2_S; adjacent usage text distinguishes decoder presence from CPU/Vulkan inference qualification.",
+      "source_owners": "Both new docs/src pages use titles matching src/quant/iq2_s.hpp and src/quant/iq2_s_grid.inc. Existing quant-quant and quant-types pages document registry/type metadata and defer Vulkan/released-model qualification.",
+      "ci": "docs/CI.md adds IQ2_S to raw-blocks spec-decoder coverage; test source includes independent pure-Python and NumPy checks."
+    },
+    "checks_run": [],
+    "worktree_modified_by_review": false,
+    "root_resolution": "Removed stale unordered-IQ list and recorded actual completed format/conversion scope, with numerical/model/Vulkan gates still open."
+  },
+  "current_source_sha256": {
+    "src/quant/iq2_s.hpp": "5426aecc80fbee375980967d60c3325aff4f6b05493ddae4c90b7d59b1dc2059",
+    "src/quant/iq2_s_grid.inc": "d4117f4f81e3d8f8eede1e496cb2da154c31bb1fc376ebbf1022d582622e464a",
+    "src/quant/quant.hpp": "3fe94db2f1265e57d035a672c9f711c6f74cac70cb16d8f855619c7452ba797d",
+    "src/quant/types.hpp": "5f60aaae9b571e4a013ddd81fe0b036e5828fc92d4c6003f65c5c2c847e877cf",
+    "tests/spec_decode.py": "de95875f5b329547125a78d012c1640a6624c502c1a51c2473413602a75078e9",
+    "tests/raw_blocks.py": "be436ac896b417a9864883445c4bb5fc76f88f784b5b72d9d980f024fc3b0acc",
+    "tests/iq2_s.py": "6b2f42c43c9b0947360d72d345652ac90b11fc3adb678cd27861e9faa161f2a5",
+    "tests/cli.py": "fdf34494c3681993cd5e24c60da044b3a4f276c3acd28ec6775780cf50be991b",
+    "tests/backend_errors.cpp": "2bd24c7e03547ebb99666648cca996129d42c32dfedc77c5195e73bdcb701414",
+    "tests/run_tests.py": "f979318076c036c350846a924e7c502069413dd18abe22abfff754bf791ef586"
+  }
+}

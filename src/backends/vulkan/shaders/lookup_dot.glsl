@@ -1,6 +1,6 @@
 #ifndef LLMX_LOOKUP_DOT_GLSL
 #define LLMX_LOOKUP_DOT_GLSL
-// Both lookup formats repair from exact weights and the same reconstructed int16 inputs.
+// Lookup formats repair from exact weights and the same reconstructed int16 inputs.
 float lookup_float_twin(uint row, uint col, uint nin, uint begin, uint end) {
     precise float sum = 0.0;
     for (uint b = begin; b < end; ++b) {

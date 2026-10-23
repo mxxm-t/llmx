@@ -1,0 +1,1414 @@
+{
+  "execution_passed": true,
+  "removed": true,
+  "means": {
+    "before": {
+      "pp512": 6325.8099999999995,
+      "tg128": 264.475
+    },
+    "llmx": {
+      "pp512": 6316.795,
+      "tg128": 262.595
+    },
+    "mx": {
+      "pp512": 3782.38,
+      "tg128": 275.645
+    }
+  },
+  "relative_percent": {
+    "pp512": 67.0058270189669,
+    "tg128": -4.734350341925286
+  },
+  "calls": [
+    {
+      "index": 0,
+      "arm": "before",
+      "warmup": true,
+      "command": [
+        "/before/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792714198.5332468,
+      "end": 1792714200.5520089,
+      "rates": {
+        "pp512": 6332.84,
+        "tg128": 265.34
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 1,
+      "arm": "llmx",
+      "warmup": true,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792714200.5523129,
+      "end": 1792714202.3202658,
+      "rates": {
+        "pp512": 6315.3,
+        "tg128": 263.55
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 2,
+      "arm": "mx",
+      "warmup": true,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792714202.3208492,
+      "end": 1792714205.5425572,
+      "rates": {
+        "pp512": 3778.97,
+        "tg128": 276.14
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 3,
+      "arm": "before",
+      "warmup": false,
+      "command": [
+        "/before/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792714205.542916,
+      "end": 1792714207.2098763,
+      "rates": {
+        "pp512": 6323.82,
+        "tg128": 264.98
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 4,
+      "arm": "llmx",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792714207.210222,
+      "end": 1792714208.8770888,
+      "rates": {
+        "pp512": 6314.58,
+        "tg128": 263.29
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 5,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792714208.877448,
+      "end": 1792714210.6957269,
+      "rates": {
+        "pp512": 3780.75,
+        "tg128": 275.69
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 6,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792714210.6961458,
+      "end": 1792714212.5153093,
+      "rates": {
+        "pp512": 3784.01,
+        "tg128": 275.6
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 7,
+      "arm": "llmx",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792714212.515668,
+      "end": 1792714214.1832387,
+      "rates": {
+        "pp512": 6319.01,
+        "tg128": 261.9
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    },
+    {
+      "index": 8,
+      "arm": "before",
+      "warmup": false,
+      "command": [
+        "/before/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792714214.1836476,
+      "end": 1792714215.8510823,
+      "rates": {
+        "pp512": 6327.8,
+        "tg128": 263.97
+      },
+      "flags": [],
+      "uncovered_seconds": 0
+    }
+  ],
+  "intervals": [
+    {
+      "start": 1792714196.636884,
+      "end": 1792714197.611976,
+      "duration": 1.0026570670306683,
+      "idle_percent": 98.31565814098565,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 15.957599588245468,
+        "monitor": 4.986749871326708
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714197.611976,
+      "end": 1792714198.614766,
+      "duration": 1.0005807739216834,
+      "idle_percent": 98.56160100062539,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 16.990132574075034,
+        "monitor": 3.9976782527235373
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714198.614766,
+      "end": 1792714199.61353,
+      "duration": 1.000462630065158,
+      "idle_percent": 92.03262233375156,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 25.98797718042368,
+        "monitor": 3.9981503354497994,
+        "benchmark": 79.96300670899599
+      },
+      "disk_bytes_per_second": 5031656.204562231,
+      "flags": []
+    },
+    {
+      "start": 1792714199.61353,
+      "end": 1792714200.615784,
+      "duration": 1.0005336930043995,
+      "idle_percent": 95.67126725219573,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 26.98559797514113,
+        "monitor": 4.997332958359468
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714200.615784,
+      "end": 1792714201.61688,
+      "duration": 1.0007512490265071,
+      "idle_percent": 93.98872886662492,
+      "iowait_percent": 0.31308703819661865,
+      "process_cpu_percent": {
+        "unrelated": 16.987238353723722,
+        "monitor": 4.996246574624624
+      },
+      "disk_bytes_per_second": 961837.4205741355,
+      "flags": []
+    },
+    {
+      "start": 1792714201.61688,
+      "end": 1792714202.616486,
+      "duration": 1.000502530951053,
+      "idle_percent": 95.0345694531741,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 11.993972657513519,
+        "monitor": 3.9979908858378392
+      },
+      "disk_bytes_per_second": 4093.9426670979474,
+      "flags": []
+    },
+    {
+      "start": 1792714202.616486,
+      "end": 1792714203.615804,
+      "duration": 1.0004091990413144,
+      "idle_percent": 92.3076923076923,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 19.99181936668102,
+        "monitor": 4.997954841670256,
+        "benchmark": 99.95909683340511
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714203.615804,
+      "end": 1792714204.616964,
+      "duration": 1.000428678933531,
+      "idle_percent": 91.23904881101377,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 17.99228708556038,
+        "monitor": 3.9982860190134173,
+        "benchmark": 89.96143542780189
+      },
+      "disk_bytes_per_second": 2501583.623800011,
+      "flags": []
+    },
+    {
+      "start": 1792714204.616964,
+      "end": 1792714205.624928,
+      "duration": 1.0004732110537589,
+      "idle_percent": 93.25346784363178,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 19.99054025538054,
+        "monitor": 4.997635063845135
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714205.624928,
+      "end": 1792714206.617894,
+      "duration": 1.0007818599697202,
+      "idle_percent": 94.48275862068965,
+      "iowait_percent": 0.31347962382445144,
+      "process_cpu_percent": {
+        "unrelated": 15.987500013723368,
+        "monitor": 4.996093754288553
+      },
+      "disk_bytes_per_second": 1285139.2011031392,
+      "flags": []
+    },
+    {
+      "start": 1792714206.617894,
+      "end": 1792714207.626842,
+      "duration": 1.0005365030374378,
+      "idle_percent": 94.22835633626097,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 20.988739477518322,
+        "monitor": 4.997318923218648
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714207.626842,
+      "end": 1792714208.618244,
+      "duration": 1.0005389229627326,
+      "idle_percent": 96.5560425798372,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 13.992459142463028,
+        "monitor": 4.997306836593939,
+        "benchmark": 21.98815008101333
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714208.618244,
+      "end": 1792714209.620545,
+      "duration": 1.0004382489714772,
+      "idle_percent": 91.38364779874213,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 35.984229948235786,
+        "monitor": 3.9982477720261986
+      },
+      "disk_bytes_per_second": 2874132.414425489,
+      "flags": []
+    },
+    {
+      "start": 1792714209.620545,
+      "end": 1792714210.619578,
+      "duration": 1.0004877110477537,
+      "idle_percent": 95.60853199498118,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 17.991225480570495,
+        "monitor": 4.997562633491805,
+        "benchmark": 53.9736764417115
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714210.619578,
+      "end": 1792714211.621792,
+      "duration": 1.0004380400059745,
+      "idle_percent": 92.58328095537398,
+      "iowait_percent": 0.502828409805154,
+      "process_cpu_percent": {
+        "unrelated": 24.98905379472646,
+        "monitor": 3.998248607156234
+      },
+      "disk_bytes_per_second": 3729822.188666193,
+      "flags": []
+    },
+    {
+      "start": 1792714211.621792,
+      "end": 1792714212.624114,
+      "duration": 1.0004778900183737,
+      "idle_percent": 93.9070351758794,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 23.9885361180338,
+        "monitor": 4.99761169125704
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714212.624114,
+      "end": 1792714213.623657,
+      "duration": 1.0005348320119083,
+      "idle_percent": 95.42319749216301,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 9.994654538804683,
+        "monitor": 3.997861815521873,
+        "benchmark": 49.973272694023414
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714213.623657,
+      "end": 1792714214.624283,
+      "duration": 1.0004742719465867,
+      "idle_percent": 92.71356783919597,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 22.989096916255257,
+        "monitor": 5.99715571728398
+      },
+      "disk_bytes_per_second": 2407306.282163528,
+      "flags": []
+    },
+    {
+      "start": 1792714214.624283,
+      "end": 1792714215.624841,
+      "duration": 1.0005018810043111,
+      "idle_percent": 96.61442006269593,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 18.990469044323696,
+        "monitor": 3.997993483015515,
+        "benchmark": 24.98745926884697
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714215.624841,
+      "end": 1792714216.625768,
+      "duration": 1.0005943339783698,
+      "idle_percent": 95.53739786297926,
+      "iowait_percent": 0.3142677561282212,
+      "process_cpu_percent": {
+        "unrelated": 20.987526399938588,
+        "monitor": 4.997030095223472
+      },
+      "disk_bytes_per_second": 900584.7518815551,
+      "flags": []
+    },
+    {
+      "start": 1792714216.625768,
+      "end": 1792714217.623914,
+      "duration": 1.0005480430554599,
+      "idle_percent": 98.9375,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 11.993427085574586,
+        "monitor": 3.997809028524862
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714217.623914,
+      "end": 1792714218.626604,
+      "duration": 1.0003904679324478,
+      "idle_percent": 93.36255479023168,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 17.99297432051848,
+        "monitor": 4.998048422366245
+      },
+      "disk_bytes_per_second": 0.0,
+      "flags": []
+    },
+    {
+      "start": 1792714218.626604,
+      "end": 1792714219.638177,
+      "duration": 1.0005709840916097,
+      "idle_percent": 95.2948557089084,
+      "iowait_percent": 0.0,
+      "process_cpu_percent": {
+        "unrelated": 26.98459222711975,
+        "monitor": 4.997146708725878
+      },
+      "disk_bytes_per_second": 2210577.795245649,
+      "flags": []
+    },
+    {
+      "start": 1792714219.638177,
+      "end": 1792714220.633267,
+      "duration": 1.0009032939560711,
+      "idle_percent": 98.4375,
+      "iowait_percent": 0.25,
+      "process_cpu_percent": {
+        "unrelated": 16.984657861208035,
+        "monitor": 5.9945851274851885
+      },
+      "disk_bytes_per_second": 998522.0410752929,
+      "flags": []
+    }
+  ],
+  "limits": [
+    "Development screen only, not numerical or merge qualification.",
+    "Two samples per arm; no measured layout noise band.",
+    "Whole-disk counters are not process-attributed reads; short-lived processes can escape sampling."
+  ],
+  "evidence": {
+    "execution.json": "96f2a96cf1772e9d90bb22faf78240aa931ad472209e50b7e36c05ae4d116a1c",
+    "activity.jsonl": "6f4d6f41e5f175570b2f4f8c7e38b8478574f97676a58ac7936f5becf1d4584c",
+    "profile.stdout": "62e5834009f7b23e23968d5e80163df7cfe1d71bb225de6d1c1d7b965225e5da",
+    "profile.stderr": "985c0cb928d0178c088c529ca0655669faeb2a007e642a14e15c172833a80e2f"
+  },
+  "profile_raw": "bench: pp512   5956.62 +- 0.00 tok/s  (1 runs)\nbench: tg1    214.06 +- 0.00 tok/s  (1 runs)\nprofile pp: 81.8163 ms of device time over 368 dispatches sampled\nprofile:   matmul_tile_iq2_s_dot 51.4507 ms (62.8856%)\nprofile:   matmul_tile_iq3_s_dot 16.0045 ms (19.5615%)\nprofile:   attention_tile 8.49744 ms (10.386%)\nprofile:   norm_rope_kv 2.48768 ms (3.04057%)\nprofile:   matmul_reduce 1.31648 ms (1.60907%)\nprofile:   silu_mul 0.97248 ms (1.18861%)\nprofile:   rms_norm_rows 0.85072 ms (1.03979%)\nprofile:   matmul_row_k5_dot_1col head 0.21264 ms (0.259899%)\nprofile:   embed 0.01776 ms (0.0217072%)\nprofile:   gather_rows 0.00592 ms (0.00723572%)\nprofile tg: 4.12976 ms of device time over 284 dispatches sampled\nprofile:   matmul_row_iq2_s_dot_1col 1.936 ms (46.8792%)\nprofile:   matmul_row_iq3_s_dot_1col 0.81264 ms (19.6777%)\nprofile:   rms_norm_rows 0.4472 ms (10.8287%)\nprofile:   norm_rope_kv 0.27008 ms (6.53985%)\nprofile:   attention_vec 0.26992 ms (6.53597%)\nprofile:   matmul_row_k5_dot_1col head 0.21408 ms (5.18384%)\nprofile:   silu_mul 0.16288 ms (3.94405%)\nprofile:   embed 0.01104 ms (0.267328%)\nprofile:   gather_rows 0.00592 ms (0.14335%)\nprofile: kernel silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0\nprofile: kernel gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0\nprofile: kernel rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0\nprofile: kernel embed: Driver pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0\nprofile: kernel norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0\nprofile: kernel attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0\nprofile: kernel matmul_row_k5_dot_1col: Driver pipeline hash=530752024807218540 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2060 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=832627571 Instructions=395 Copies=42 Branches=19 Latency=10775 Inverse Throughput=4851 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=24 Pre-Sched VGPRs=38 VALU=229 SALU=100 VMEM=11 SMEM=15 VOPD=0\nprofile: kernel quantize_xw: Driver pipeline hash=3142915150117616365 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4436 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=2808918740 Instructions=784 Copies=121 Branches=56 Latency=2331 Inverse Throughput=1109 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=527 SALU=185 VMEM=3 SMEM=2 VOPD=0\nprofile: kernel matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0\nprofile: kernel attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0\nprofile: kernel matmul_tile_iq2_s_dot: Driver pipeline hash=2916343505810004305 SGPRs=80 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=22828 LDS size=26112 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=2581657998 Instructions=4069 Copies=201 Branches=66 Latency=701736 Inverse Throughput=510356 VMEM Clause=68 SMEM Clause=16 Pre-Sched SGPRs=54 Pre-Sched VGPRs=62 VALU=2966 SALU=513 VMEM=162 SMEM=23 VOPD=0\nprofile: kernel matmul_tile_iq3_s_dot: Driver pipeline hash=2115857353933944180 SGPRs=80 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=15676 LDS size=19968 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=533459772 Instructions=2701 Copies=265 Branches=66 Latency=401296 Inverse Throughput=267524 VMEM Clause=15 SMEM Clause=16 Pre-Sched SGPRs=55 Pre-Sched VGPRs=62 VALU=1837 SALU=529 VMEM=46 SMEM=23 VOPD=0\nprofile: kernel matmul_row_iq2_s_dot_1col: Driver pipeline hash=15143653737526734457 SGPRs=80 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14256 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2012188189 Instructions=2655 Copies=92 Branches=23 Latency=69326 Inverse Throughput=48583 VMEM Clause=103 SMEM Clause=18 Pre-Sched SGPRs=44 Pre-Sched VGPRs=32 VALU=2052 SALU=157 VMEM=205 SMEM=22 VOPD=0\nprofile: kernel matmul_row_iq3_s_dot_1col: Driver pipeline hash=11843509582760635747 SGPRs=80 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6628 LDS size=2048 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2697740207 Instructions=1179 Copies=108 Branches=26 Latency=73704 Inverse Throughput=51475 VMEM Clause=14 SMEM Clause=18 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=817 SALU=186 VMEM=41 SMEM=21 VOPD=0\n",
+  "date": "2026-10-23",
+  "decision": "Not adopted: no useful speed gain demonstrated; retained v4 shader restored.",
+  "rig_path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/scale-after-dot-v8/screen-parallel-v1",
+  "execution": {
+    "start": 1792714193.4547698,
+    "guard": {
+      "pci": "0000:c6:00.0",
+      "busy": 0,
+      "vram": 10919936,
+      "power": "auto",
+      "dormant_mapping": {
+        "id": "b2b1eb6de5f8ab6aebe7cd6403d4a66d3822cb0b5db1caaf4f8c972b4b392e24",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "processes": [
+          [
+            "2841791",
+            "docker-init",
+            "/sbin/docker-init -- sleep infinity"
+          ],
+          [
+            "2841805",
+            "sleep",
+            "sleep infinity"
+          ]
+        ]
+      }
+    },
+    "active_devices": {
+      "/llmx-ldev-ctxcut": {
+        "nodes": [],
+        "cpuset": "14,15"
+      },
+      "/llmx-serve": {
+        "nodes": [
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133"
+        ],
+        "cpuset": ""
+      },
+      "/llmx-health-dashboard": {
+        "nodes": [],
+        "cpuset": ""
+      },
+      "/llmx-xdev-flash-ppl-native-20261016": {
+        "nodes": [
+          "/dev/dri/renderD128",
+          "/dev/dri/renderD129",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/dev/dri/renderD134",
+          "/dev/dri/renderD135",
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137"
+        ],
+        "cpuset": "2,3"
+      },
+      "/llmx-xdev-flash-20261015": {
+        "nodes": [
+          "/dev/dri/renderD136"
+        ],
+        "cpuset": "0-1"
+      },
+      "/open-webui": {
+        "nodes": [],
+        "cpuset": ""
+      },
+      "/cdev-abc-run2": {
+        "nodes": [
+          "/dev/kfd",
+          "/dev/dri"
+        ],
+        "cpuset": ""
+      },
+      "/portainer": {
+        "nodes": [],
+        "cpuset": ""
+      }
+    },
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--runtime",
+      "runc",
+      "--name",
+      "llmx-xdev-iq2-scale-after-dot-v8-20261023",
+      "--label",
+      "llmx.iq2-screen=llmx-xdev-iq2-scale-after-dot-v8-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "8-11",
+      "--cpus",
+      "4",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD129",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+      "-e",
+      "LD_LIBRARY_PATH=/ref/build-r2/bin",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/build:/before:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/scale-after-dot-v8/build:/b:ro",
+      "-v",
+      "/opt/claude-work/llmx-p2-x-mxfp4-cpu/mxfp4-vulkan-reference-20260929:/ref:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/models/Qwen_Qwen3-0.6B-IQ2_M.gguf:/model.gguf:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "build": {
+      "llmx": "76391e8fb81eb502dcc7d085a2d92526468c8078b297a91c19ccb4cd51ed92ed",
+      "llmx-model-logits": "d1a4d470fb13e7db677227c046c6839dfb1200e2fae92cc45e7611f6cab10592",
+      "llmx-iq2-s-test": "2adc2126a1412b9644f864166fe1ec28934906f0dd6a82887d30a604cd115864",
+      "llmx-iq3-s-test": "4446b422889b01c03bda53d50d8ebac33400ccc5f3a1dd296158f314b1d838f9",
+      "libllmx-vulkan.a": "70075a8a7bd664afc7532546279decbaf4c950c35724e6dd3981c619d2763a9c",
+      "generated/llmx-build-info.hpp": "cc37f595d0af498dd69fd4829dd2595ad2d4f213dcc123b74fa7f49c3b0a1cd5",
+      "CMakeCache.txt": "47ec30d2315c3ff37a4285f000ea37340460135efc6ff6aafc09b0e4a79be807",
+      "compile_commands.json": "549ccaacc08e5577d5118ba07aed033579bc0113f1e812621fa288ae15b83eda"
+    },
+    "reference": {
+      "status": "pass",
+      "pid": 1416455,
+      "head": "eefc4e7321c869496146697d63362f073941aed6",
+      "commands": [
+        {
+          "name": "headers-configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "-S",
+            "/work/mxfp4-vulkan-reference-20260929/headers-source",
+            "-B",
+            "/work/mxfp4-vulkan-reference-20260929/headers-build",
+            "-DCMAKE_INSTALL_PREFIX=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+            "-DSPIRV_HEADERS_ENABLE_TESTS=OFF",
+            "-DSPIRV_HEADERS_ENABLE_INSTALL=ON"
+          ],
+          "started": "2026-09-29T04:17:46.879511+00:00",
+          "pid": 1416505,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:46.979758+00:00"
+        },
+        {
+          "name": "headers-install",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "--install",
+            "/work/mxfp4-vulkan-reference-20260929/headers-build"
+          ],
+          "started": "2026-09-29T04:17:46.979991+00:00",
+          "pid": 1416542,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.063506+00:00"
+        },
+        {
+          "name": "container-head",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "git",
+            "-C",
+            "/work/mxfp4-vulkan-reference-20260929/source",
+            "rev-parse",
+            "HEAD"
+          ],
+          "started": "2026-09-29T04:17:47.063878+00:00",
+          "pid": 1416574,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.130871+00:00"
+        },
+        {
+          "name": "compiler",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "g++",
+            "--version"
+          ],
+          "started": "2026-09-29T04:17:47.152181+00:00",
+          "pid": 1416618,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.214839+00:00"
+        },
+        {
+          "name": "shader-compiler",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "glslc",
+            "--version"
+          ],
+          "started": "2026-09-29T04:17:47.215168+00:00",
+          "pid": 1416650,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:47.283701+00:00"
+        },
+        {
+          "name": "configure",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "-S",
+            "/work/mxfp4-vulkan-reference-20260929/source",
+            "-B",
+            "/work/mxfp4-vulkan-reference-20260929/build-r2",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBUILD_SHARED_LIBS=ON",
+            "-DGGML_BACKEND_DL=OFF",
+            "-DGGML_NATIVE=OFF",
+            "-DGGML_AVX=ON",
+            "-DGGML_AVX2=ON",
+            "-DGGML_FMA=ON",
+            "-DGGML_F16C=ON",
+            "-DGGML_AVX512=OFF",
+            "-DGGML_AVX512_VBMI=OFF",
+            "-DGGML_AVX512_VNNI=OFF",
+            "-DGGML_AVX512_BF16=OFF",
+            "-DGGML_AVX_VNNI=OFF",
+            "-DGGML_BLAS=OFF",
+            "-DGGML_CUDA=OFF",
+            "-DGGML_HIP=OFF",
+            "-DGGML_SYCL=OFF",
+            "-DGGML_VULKAN=ON",
+            "-DLLAMA_BUILD_COMMON=ON",
+            "-DLLAMA_BUILD_TESTS=OFF",
+            "-DLLAMA_BUILD_TOOLS=ON",
+            "-DLLAMA_BUILD_EXAMPLES=OFF",
+            "-DLLAMA_BUILD_SERVER=OFF",
+            "-DLLAMA_BUILD_APP=OFF",
+            "-DLLAMA_OPENSSL=OFF",
+            "-DLLAMA_LLGUIDANCE=OFF",
+            "-DCMAKE_PREFIX_PATH=/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+            "-DCMAKE_CXX_FLAGS=-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+          ],
+          "started": "2026-09-29T04:17:47.284028+00:00",
+          "pid": 1416683,
+          "exit": 0,
+          "completed": "2026-09-29T04:17:48.893479+00:00"
+        },
+        {
+          "name": "build",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "cmake",
+            "--build",
+            "/work/mxfp4-vulkan-reference-20260929/build-r2",
+            "--target",
+            "llama",
+            "llama-bench",
+            "--parallel",
+            "6"
+          ],
+          "started": "2026-09-29T04:17:48.893963+00:00",
+          "pid": 1416760,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:56.745642+00:00"
+        },
+        {
+          "name": "wrapper",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "g++",
+            "-std=c++17",
+            "-O3",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-pthread",
+            "-I/work/mxfp4-vulkan-reference-20260929/source/include",
+            "-I/work/mxfp4-vulkan-reference-20260929/source/ggml/include",
+            "/work/mxfp4-vulkan-reference-20260929/wrapper.cpp",
+            "-L/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+            "-Wl,-rpath,/work/mxfp4-vulkan-reference-20260929/build-r2/bin",
+            "-lllama",
+            "-lggml",
+            "-lggml-base",
+            "-o",
+            "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan"
+          ],
+          "started": "2026-09-29T04:22:56.746513+00:00",
+          "pid": 1426442,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:57.521871+00:00"
+        },
+        {
+          "name": "device-enumeration",
+          "argv": [
+            "docker",
+            "exec",
+            "llmx-p2-x-mxfp4-gpu3-20260928",
+            "/work/mxfp4-vulkan-reference-20260929/mx-cli-bench-vulkan",
+            "--list-devices"
+          ],
+          "started": "2026-09-29T04:22:57.522339+00:00",
+          "pid": 1426489,
+          "exit": 0,
+          "completed": "2026-09-29T04:22:57.633993+00:00"
+        }
+      ],
+      "container": {
+        "name": "llmx-p2-x-mxfp4-gpu3-20260928",
+        "id": "58b7e3ab39ce19a714feba8bdbd661dea12418f4565ecb7eba5b6297339b5a74",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "devices": [
+          {
+            "PathOnHost": "/dev/dri/renderD133",
+            "PathInContainer": "/dev/dri/renderD133",
+            "CgroupPermissions": "rwm"
+          }
+        ]
+      },
+      "scope": "Clean pinned Vulkan reference library, stock benchmark and same-workload API adapter; no model or timing",
+      "sdk_headers": {
+        "revision": "09913f088a1197aba4aefd300a876b2ebbaa3391",
+        "tag": "vulkan-sdk-1.4.309.0",
+        "scope": "Private header-only prefix; container package DNS failure retained in sdk/record.json"
+      },
+      "compiler": "g++ (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "shader_compiler": "shaderc 2025.2-1\nspirv-tools 2025.1~rc1-1\nglslang 15.1.0+1.4.309.0-1\n\nTarget: SPIR-V 1.0\n",
+      "cmake_options": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_SHARED_LIBS": "ON",
+        "GGML_BACKEND_DL": "OFF",
+        "GGML_NATIVE": "OFF",
+        "GGML_AVX": "ON",
+        "GGML_AVX2": "ON",
+        "GGML_FMA": "ON",
+        "GGML_F16C": "ON",
+        "GGML_AVX512": "OFF",
+        "GGML_AVX512_VBMI": "OFF",
+        "GGML_AVX512_VNNI": "OFF",
+        "GGML_AVX512_BF16": "OFF",
+        "GGML_AVX_VNNI": "OFF",
+        "GGML_BLAS": "OFF",
+        "GGML_CUDA": "OFF",
+        "GGML_HIP": "OFF",
+        "GGML_SYCL": "OFF",
+        "GGML_VULKAN": "ON",
+        "LLAMA_BUILD_COMMON": "ON",
+        "LLAMA_BUILD_TESTS": "OFF",
+        "LLAMA_BUILD_TOOLS": "ON",
+        "LLAMA_BUILD_EXAMPLES": "OFF",
+        "LLAMA_BUILD_SERVER": "OFF",
+        "LLAMA_BUILD_APP": "OFF",
+        "LLAMA_OPENSSL": "OFF",
+        "LLAMA_LLGUIDANCE": "OFF",
+        "CMAKE_PREFIX_PATH": "/work/mxfp4-vulkan-reference-20260929/headers-prefix",
+        "CMAKE_CXX_FLAGS": "-I/work/mxfp4-vulkan-reference-20260929/headers-prefix/include"
+      },
+      "artifacts": {
+        "build-r2/CMakeCache.txt": "03fdb77626548756e9465da2a7105bc903523c426436779dc29e2c2f936e66b7",
+        "build-r2/bin/libllama-bench-impl.so": "d43e9e36136c3e4d4d0f125428156c6498d667956b4b5e61771662de0f5c3288",
+        "build-r2/bin/libggml-vulkan.so.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/bin/libllama-common.so.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libllama.so": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libggml-base.so.0.22.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml.so.0.22.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/llama-bench": "d1e9fbc78d7150e37b7381be5e76a8e1cb05d7e20d4aead45bb735356daa39a1",
+        "build-r2/bin/libggml-cpu.so": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libllama-common.so.0.3.0": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libggml-cpu.so.0.22.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libggml-base.so.0": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml-base.so": "1d67e1adc25cd29bdc27adc9f0f59f5aa1818f05a4fff4a8946cc3a85152a8a2",
+        "build-r2/bin/libggml-cpu.so.0": "f126c752a5bfb79cca90b79d81ef643d6d1b40c76672c870d58c46075c0cfe5f",
+        "build-r2/bin/libggml-vulkan.so": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/bin/libllama.so.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libllama-common.so": "15ce89f2f4ca62b9e0dd5714cef25dc1f53bc322702190797b238dbddb1c1dfa",
+        "build-r2/bin/libllama.so.0.3.0": "bb0161cc7e5724c8f298beaf8dc3071ee6908b5bb6ebc4ea84e08bd4a81fa7ea",
+        "build-r2/bin/libggml.so": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/libggml.so.0": "c2eb52b6c54e2aa103575b6901683695ff56c52e8b655c139b50f617bda1e4b9",
+        "build-r2/bin/libggml-vulkan.so.0.22.0": "418a02645e299ff7e5067928daa387fbb0ed77af1937a6894a692035c81a1f00",
+        "build-r2/ggml/src/ggml-vulkan/vulkan-shaders-gen-prefix/src/vulkan-shaders-gen-build/CMakeCache.txt": "a4fec47793fc377747f6c90372bf073c9bc19c165b3ecc509f3a9b7d4ff63047"
+      },
+      "wrapper_sha256": "6765e943a7e3963f6b1a6044adfae026e9d41a22f408535be0560520d8ee8f5c",
+      "exe_sha256": "1d7c5f51d767f78cdea7e24d248c003a5237c7f45895f102bdaaaa74c303f35c",
+      "completed": "2026-09-29T04:22:57.863432+00:00"
+    },
+    "before": {
+      "llmx": "d7829cf93ec1ef5aba972b5b8c26f0043ef89be484df1b8ebbadc401782074ee",
+      "llmx-model-logits": "268879ea9f051d221da9c18ee4e94211d107f2de0422013795d13f503afed3f7",
+      "llmx-iq2-s-test": "dd2cd8012d63b7580d3262dd518081ac7c3db60f35f919270748f709c4ad719e",
+      "llmx-iq3-s-test": "ef93ad360e0d2bbb4fbd1edbbfca1e3079b586131f65d40713ae471ad576db8d",
+      "libllmx-vulkan.a": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193",
+      "generated/llmx-build-info.hpp": "ec6e4591c4c64ab8d983571c3d7a86e0996587cf9b8d8681b9a3a973ef00119e",
+      "CMakeCache.txt": "2e5d404df525314adab25154bf758a0e1566291493997fabb25c5d019a72fad8",
+      "compile_commands.json": "549ccaacc08e5577d5118ba07aed033579bc0113f1e812621fa288ae15b83eda"
+    },
+    "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+    "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "scope": "IQ2_S scale-after-dot P512/G128 development screen versus direct-v4 and pinned mx Vulkan, same spare MI50/CPU8-11. Authorized parallel functional checks on disjoint CPUs/devices; all activity retained, not an idle-machine or merge claim.",
+    "thresholds": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "calls": [
+      {
+        "index": 0,
+        "arm": "before",
+        "warmup": true,
+        "command": [
+          "/before/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792714198.5332468,
+        "end": 1792714200.5520089,
+        "rates": {
+          "pp512": 6332.84,
+          "tg128": 265.34
+        }
+      },
+      {
+        "index": 1,
+        "arm": "llmx",
+        "warmup": true,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792714200.5523129,
+        "end": 1792714202.3202658,
+        "rates": {
+          "pp512": 6315.3,
+          "tg128": 263.55
+        }
+      },
+      {
+        "index": 2,
+        "arm": "mx",
+        "warmup": true,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792714202.3208492,
+        "end": 1792714205.5425572,
+        "rates": {
+          "pp512": 3778.97,
+          "tg128": 276.14
+        }
+      },
+      {
+        "index": 3,
+        "arm": "before",
+        "warmup": false,
+        "command": [
+          "/before/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792714205.542916,
+        "end": 1792714207.2098763,
+        "rates": {
+          "pp512": 6323.82,
+          "tg128": 264.98
+        }
+      },
+      {
+        "index": 4,
+        "arm": "llmx",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792714207.210222,
+        "end": 1792714208.8770888,
+        "rates": {
+          "pp512": 6314.58,
+          "tg128": 263.29
+        }
+      },
+      {
+        "index": 5,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792714208.877448,
+        "end": 1792714210.6957269,
+        "rates": {
+          "pp512": 3780.75,
+          "tg128": 275.69
+        }
+      },
+      {
+        "index": 6,
+        "arm": "mx",
+        "warmup": false,
+        "command": [
+          "/ref/mx-cli-bench-vulkan",
+          "/model.gguf",
+          "4",
+          "512",
+          "128",
+          "1"
+        ],
+        "status": "passed",
+        "start": 1792714210.6961458,
+        "end": 1792714212.5153093,
+        "rates": {
+          "pp512": 3784.01,
+          "tg128": 275.6
+        }
+      },
+      {
+        "index": 7,
+        "arm": "llmx",
+        "warmup": false,
+        "command": [
+          "/b/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792714212.515668,
+        "end": 1792714214.1832387,
+        "rates": {
+          "pp512": 6319.01,
+          "tg128": 261.9
+        }
+      },
+      {
+        "index": 8,
+        "arm": "before",
+        "warmup": false,
+        "command": [
+          "/before/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--p",
+          "512",
+          "--n",
+          "128",
+          "--r",
+          "1",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--dtype",
+          "auto",
+          "--load-mode",
+          "auto"
+        ],
+        "status": "passed",
+        "start": 1792714214.1836476,
+        "end": 1792714215.8510823,
+        "rates": {
+          "pp512": 6327.8,
+          "tg128": 263.97
+        }
+      }
+    ],
+    "passed": true,
+    "removed": true,
+    "version": "llmx 0.1.0+unknown numerics d6591dee35ea0a4d",
+    "before_version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4",
+    "native_iq2": "IQ2_S: 266496 exact embedding values, 4298131 product/control values (F32/BF16, profile-selected block-int16, input reconstruction, paths/guards), 701 integer calls [ok]\nIQ2_S dispatch: embed\nIQ2_S dispatch: quantize_x\nIQ2_S dispatch: quantize_xw\nIQ2_S dispatch: matmul_reduce\nIQ2_S dispatch: moe_combine\nIQ2_S dispatch: moe_group\nIQ2_S dispatch: matmul_row_iq2_s\nIQ2_S dispatch: matmul_row_iq2_s_1col\nIQ2_S dispatch: matmul_row_iq2_s_grouped\nIQ2_S dispatch: matmul_tile_iq2_s_small\nIQ2_S dispatch: matmul_tile_iq2_s_bf16_small\nIQ2_S dispatch: embed_ids\nIQ2_S dispatch: matmul_tile_iq2_s_dot_small\nIQ2_S dispatch: matmul_tile_iq2_s_dot_tall\nIQ2_S dispatch: matmul_row_iq2_s_dot\nIQ2_S dispatch: matmul_row_iq2_s_dot_1col\nIQ2_S dispatch: matmul_row_iq2_s_dot_grouped\nIQ2_S dispatch: quantize_x head\nIQ2_S dispatch: quantize_xw head\nIQ2_S dispatch: matmul_reduce head\nIQ2_S dispatch: matmul_row_iq2_s head\nIQ2_S dispatch: matmul_row_iq2_s_1col head\nIQ2_S dispatch: matmul_tile_iq2_s_small head\nIQ2_S dispatch: matmul_tile_iq2_s_bf16_small head\nIQ2_S dispatch: matmul_tile_iq2_s_dot_small head\nIQ2_S dispatch: matmul_row_iq2_s_dot head\nIQ2_S dispatch: matmul_row_iq2_s_dot_1col head\n\n",
+    "native_iq3_control": "IQ3_S backend: 134912 exact embedding values, 4344871 product/control values over F32/F16/BF16/int8 requests (F32/BF16 one-hot exact, reconstructed-input gamma(2n), original-input rounding, path witnesses) [ok]\nIQ3_S dispatch: embed\nIQ3_S dispatch: matmul_tile_small\nIQ3_S dispatch: quantize_x\nIQ3_S dispatch: quantize_xw\nIQ3_S dispatch: matmul_reduce\nIQ3_S dispatch: moe_combine\nIQ3_S dispatch: moe_group\nIQ3_S dispatch: matmul_row_f32\nIQ3_S dispatch: matmul_row_f32_1col\nIQ3_S dispatch: matmul_row_f32_grouped\nIQ3_S dispatch: matmul_row_iq3_s\nIQ3_S dispatch: matmul_row_iq3_s_1col\nIQ3_S dispatch: matmul_row_iq3_s_grouped\nIQ3_S dispatch: matmul_tile_iq3_s_small\nIQ3_S dispatch: matmul_tile_iq3_s_bf16_small\nIQ3_S dispatch: embed_ids\nIQ3_S dispatch: matmul_tile_iq3_s_dot_small\nIQ3_S dispatch: matmul_tile_iq3_s_dot_tall\nIQ3_S dispatch: matmul_row_iq3_s_dot\nIQ3_S dispatch: matmul_row_iq3_s_dot_1col\nIQ3_S dispatch: matmul_row_iq3_s_dot_grouped\nIQ3_S dispatch: matmul_tile_small head\nIQ3_S dispatch: quantize_x head\nIQ3_S dispatch: quantize_xw head\nIQ3_S dispatch: matmul_reduce head\nIQ3_S dispatch: matmul_row_f32 head\nIQ3_S dispatch: matmul_row_iq3_s head\nIQ3_S dispatch: matmul_tile_iq3_s_small head\nIQ3_S dispatch: matmul_tile_iq3_s_bf16_small head\nIQ3_S dispatch: matmul_tile_iq3_s_dot_small head\nIQ3_S dispatch: matmul_row_iq3_s_dot head\n\n",
+    "profile": "bench: pp512   5956.62 +- 0.00 tok/s  (1 runs)\nbench: tg1    214.06 +- 0.00 tok/s  (1 runs)\nprofile pp: 81.8163 ms of device time over 368 dispatches sampled\nprofile:   matmul_tile_iq2_s_dot 51.4507 ms (62.8856%)\nprofile:   matmul_tile_iq3_s_dot 16.0045 ms (19.5615%)\nprofile:   attention_tile 8.49744 ms (10.386%)\nprofile:   norm_rope_kv 2.48768 ms (3.04057%)\nprofile:   matmul_reduce 1.31648 ms (1.60907%)\nprofile:   silu_mul 0.97248 ms (1.18861%)\nprofile:   rms_norm_rows 0.85072 ms (1.03979%)\nprofile:   matmul_row_k5_dot_1col head 0.21264 ms (0.259899%)\nprofile:   embed 0.01776 ms (0.0217072%)\nprofile:   gather_rows 0.00592 ms (0.00723572%)\nprofile tg: 4.12976 ms of device time over 284 dispatches sampled\nprofile:   matmul_row_iq2_s_dot_1col 1.936 ms (46.8792%)\nprofile:   matmul_row_iq3_s_dot_1col 0.81264 ms (19.6777%)\nprofile:   rms_norm_rows 0.4472 ms (10.8287%)\nprofile:   norm_rope_kv 0.27008 ms (6.53985%)\nprofile:   attention_vec 0.26992 ms (6.53597%)\nprofile:   matmul_row_k5_dot_1col head 0.21408 ms (5.18384%)\nprofile:   silu_mul 0.16288 ms (3.94405%)\nprofile:   embed 0.01104 ms (0.267328%)\nprofile:   gather_rows 0.00592 ms (0.14335%)\nprofile: kernel silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0\nprofile: kernel gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0\nprofile: kernel rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0\nprofile: kernel embed: Driver pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0\nprofile: kernel norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0\nprofile: kernel attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0\nprofile: kernel matmul_row_k5_dot_1col: Driver pipeline hash=530752024807218540 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2060 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=832627571 Instructions=395 Copies=42 Branches=19 Latency=10775 Inverse Throughput=4851 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=24 Pre-Sched VGPRs=38 VALU=229 SALU=100 VMEM=11 SMEM=15 VOPD=0\nprofile: kernel quantize_xw: Driver pipeline hash=3142915150117616365 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4436 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=2808918740 Instructions=784 Copies=121 Branches=56 Latency=2331 Inverse Throughput=1109 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=527 SALU=185 VMEM=3 SMEM=2 VOPD=0\nprofile: kernel matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0\nprofile: kernel attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0\nprofile: kernel matmul_tile_iq2_s_dot: Driver pipeline hash=2916343505810004305 SGPRs=80 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=22828 LDS size=26112 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=2581657998 Instructions=4069 Copies=201 Branches=66 Latency=701736 Inverse Throughput=510356 VMEM Clause=68 SMEM Clause=16 Pre-Sched SGPRs=54 Pre-Sched VGPRs=62 VALU=2966 SALU=513 VMEM=162 SMEM=23 VOPD=0\nprofile: kernel matmul_tile_iq3_s_dot: Driver pipeline hash=2115857353933944180 SGPRs=80 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=15676 LDS size=19968 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=533459772 Instructions=2701 Copies=265 Branches=66 Latency=401296 Inverse Throughput=267524 VMEM Clause=15 SMEM Clause=16 Pre-Sched SGPRs=55 Pre-Sched VGPRs=62 VALU=1837 SALU=529 VMEM=46 SMEM=23 VOPD=0\nprofile: kernel matmul_row_iq2_s_dot_1col: Driver pipeline hash=15143653737526734457 SGPRs=80 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=14256 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2012188189 Instructions=2655 Copies=92 Branches=23 Latency=69326 Inverse Throughput=48583 VMEM Clause=103 SMEM Clause=18 Pre-Sched SGPRs=44 Pre-Sched VGPRs=32 VALU=2052 SALU=157 VMEM=205 SMEM=22 VOPD=0\nprofile: kernel matmul_row_iq3_s_dot_1col: Driver pipeline hash=11843509582760635747 SGPRs=80 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6628 LDS size=2048 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2697740207 Instructions=1179 Copies=108 Branches=26 Latency=73704 Inverse Throughput=51475 VMEM Clause=14 SMEM Clause=18 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=817 SALU=186 VMEM=41 SMEM=21 VOPD=0\n\ndtype: auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)\nload: auto, 0.30 GiB read from 1 file buffered; construct 0.08 s, read 0.05 s, upload 0.02 s (0.30 GiB copied from the reads), waiting for reads 0.03 s\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"block-int16\"]]}\n",
+    "monitor_exit": 0,
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 3918081,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T00:09:53.815980376Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792714221.8392417,
+    "pins_unchanged": true
+  },
+  "experiment_patch_sha256": "102ad01545727714edd1b8b2625e607126a97de81a9ecf1ec82ec36b20a707e2",
+  "native_checks": {
+    "iq2": "IQ2_S: 266496 exact embedding values, 4298131 product/control values (F32/BF16, profile-selected block-int16, input reconstruction, paths/guards), 701 integer calls [ok]\nIQ2_S dispatch: embed\nIQ2_S dispatch: quantize_x\nIQ2_S dispatch: quantize_xw\nIQ2_S dispatch: matmul_reduce\nIQ2_S dispatch: moe_combine\nIQ2_S dispatch: moe_group\nIQ2_S dispatch: matmul_row_iq2_s\nIQ2_S dispatch: matmul_row_iq2_s_1col\nIQ2_S dispatch: matmul_row_iq2_s_grouped\nIQ2_S dispatch: matmul_tile_iq2_s_small\nIQ2_S dispatch: matmul_tile_iq2_s_bf16_small\nIQ2_S dispatch: embed_ids\nIQ2_S dispatch: matmul_tile_iq2_s_dot_small\nIQ2_S dispatch: matmul_tile_iq2_s_dot_tall\nIQ2_S dispatch: matmul_row_iq2_s_dot\nIQ2_S dispatch: matmul_row_iq2_s_dot_1col\nIQ2_S dispatch: matmul_row_iq2_s_dot_grouped\nIQ2_S dispatch: quantize_x head\nIQ2_S dispatch: quantize_xw head\nIQ2_S dispatch: matmul_reduce head\nIQ2_S dispatch: matmul_row_iq2_s head\nIQ2_S dispatch: matmul_row_iq2_s_1col head\nIQ2_S dispatch: matmul_tile_iq2_s_small head\nIQ2_S dispatch: matmul_tile_iq2_s_bf16_small head\nIQ2_S dispatch: matmul_tile_iq2_s_dot_small head\nIQ2_S dispatch: matmul_row_iq2_s_dot head\nIQ2_S dispatch: matmul_row_iq2_s_dot_1col head\n",
+    "iq3": "IQ3_S backend: 134912 exact embedding values, 4344871 product/control values over F32/F16/BF16/int8 requests (F32/BF16 one-hot exact, reconstructed-input gamma(2n), original-input rounding, path witnesses) [ok]\nIQ3_S dispatch: embed\nIQ3_S dispatch: matmul_tile_small\nIQ3_S dispatch: quantize_x\nIQ3_S dispatch: quantize_xw\nIQ3_S dispatch: matmul_reduce\nIQ3_S dispatch: moe_combine\nIQ3_S dispatch: moe_group\nIQ3_S dispatch: matmul_row_f32\nIQ3_S dispatch: matmul_row_f32_1col\nIQ3_S dispatch: matmul_row_f32_grouped\nIQ3_S dispatch: matmul_row_iq3_s\nIQ3_S dispatch: matmul_row_iq3_s_1col\nIQ3_S dispatch: matmul_row_iq3_s_grouped\nIQ3_S dispatch: matmul_tile_iq3_s_small\nIQ3_S dispatch: matmul_tile_iq3_s_bf16_small\nIQ3_S dispatch: embed_ids\nIQ3_S dispatch: matmul_tile_iq3_s_dot_small\nIQ3_S dispatch: matmul_tile_iq3_s_dot_tall\nIQ3_S dispatch: matmul_row_iq3_s_dot\nIQ3_S dispatch: matmul_row_iq3_s_dot_1col\nIQ3_S dispatch: matmul_row_iq3_s_dot_grouped\nIQ3_S dispatch: matmul_tile_small head\nIQ3_S dispatch: quantize_x head\nIQ3_S dispatch: quantize_xw head\nIQ3_S dispatch: matmul_reduce head\nIQ3_S dispatch: matmul_row_f32 head\nIQ3_S dispatch: matmul_row_iq3_s head\nIQ3_S dispatch: matmul_tile_iq3_s_small head\nIQ3_S dispatch: matmul_tile_iq3_s_bf16_small head\nIQ3_S dispatch: matmul_tile_iq3_s_dot_small head\nIQ3_S dispatch: matmul_row_iq3_s_dot head\n"
+  },
+  "limitations": [
+    "Development screen only; two measured samples per arm, no measured noise band.",
+    "All calls fully covered by monitoring with no declared activity flags. This does not prove absence of all contention.",
+    "Local CPU/Radeon and MI50 native checks passed. Actual changed ISA and full HF were not pursued after the no-gain screen."
+  ]
+}

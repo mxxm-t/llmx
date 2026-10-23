@@ -1,0 +1,219 @@
+{
+  "scope": "Ordinary tiny IQ2_S HF on MI50; no split, released or depth claim",
+  "execution": {
+    "scope": "Focused ordinary tiny IQ2_S full-logit/NLL HF checks on MI50; no timing qualification.",
+    "start": 1792711111.9211645,
+    "guard": {
+      "pci": "0000:c9:00.0",
+      "busy": 0,
+      "vram": 10932224,
+      "power": "auto"
+    },
+    "active_devices": {
+      "/llmx-ldev-ctxcut": [],
+      "/llmx-serve": [
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133"
+      ],
+      "/llmx-health-dashboard": [],
+      "/llmx-xdev-flash-ppl-native-20261016": [
+        "/dev/dri/renderD128",
+        "/dev/dri/renderD129",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/dev/dri/renderD134",
+        "/dev/dri/renderD135",
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137"
+      ],
+      "/llmx-xdev-flash-20261015": [
+        "/dev/dri/renderD136"
+      ],
+      "/open-webui": [],
+      "/cdev-abc-run2": [
+        "/dev/kfd",
+        "/dev/dri"
+      ],
+      "/portainer": []
+    },
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--runtime",
+      "runc",
+      "--name",
+      "llmx-xdev-iq2-tiny-v4-20261023",
+      "--label",
+      "llmx.iq2-tiny=llmx-xdev-iq2-tiny-v4-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "4-7",
+      "--cpus",
+      "4",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD130",
+      "--read-only",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/tiny-hf-v1/tmp:/tmp",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/build:/b:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/direct-grid-v4/source:/source:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "build": {
+      "llmx": "d7829cf93ec1ef5aba972b5b8c26f0043ef89be484df1b8ebbadc401782074ee",
+      "llmx-model-logits": "268879ea9f051d221da9c18ee4e94211d107f2de0422013795d13f503afed3f7",
+      "llmx-iq2-s-test": "dd2cd8012d63b7580d3262dd518081ac7c3db60f35f919270748f709c4ad719e",
+      "llmx-iq3-s-test": "ef93ad360e0d2bbb4fbd1edbbfca1e3079b586131f65d40713ae471ad576db8d",
+      "libllmx-vulkan.a": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193",
+      "generated/llmx-build-info.hpp": "ec6e4591c4c64ab8d983571c3d7a86e0996587cf9b8d8681b9a3a973ef00119e",
+      "CMakeCache.txt": "2e5d404df525314adab25154bf758a0e1566291493997fabb25c5d019a72fad8",
+      "compile_commands.json": "549ccaacc08e5577d5118ba07aed033579bc0113f1e812621fa288ae15b83eda"
+    },
+    "source_archive": "63d128a2708261dbf28296dfd164d27fe6493cef6c0c82d6decb610fbfa9d8db",
+    "calls": [
+      {
+        "dtype": "f32",
+        "status": "passed",
+        "start": 1792711112.1792254,
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--only",
+          "iq2-s",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--no-perf-floor"
+        ],
+        "end": 1792711135.4358232,
+        "exit_code": 0
+      },
+      {
+        "dtype": "f16",
+        "status": "passed",
+        "start": 1792711135.4361715,
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--only",
+          "iq2-s",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--no-perf-floor"
+        ],
+        "end": 1792711158.9390755,
+        "exit_code": 0
+      },
+      {
+        "dtype": "bf16",
+        "status": "passed",
+        "start": 1792711158.939478,
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--only",
+          "iq2-s",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--no-perf-floor"
+        ],
+        "end": 1792711182.6949458,
+        "exit_code": 0
+      },
+      {
+        "dtype": "int8",
+        "status": "passed",
+        "start": 1792711182.6955135,
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--only",
+          "iq2-s",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "int8",
+          "--no-perf-floor"
+        ],
+        "end": 1792711206.2543962,
+        "exit_code": 0
+      }
+    ],
+    "passed": true,
+    "removed": true,
+    "version": "llmx 0.1.0+unknown numerics 509b833272aa2ff4",
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 3767699,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-22T23:18:32.014108114Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "end": 1792711206.4656763,
+    "pins_unchanged": true
+  },
+  "logs": {
+    "bf16.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bf16.stdout": "2df5d8473857b0d4ad4cae4493a4c46d5e55e9d8a940728deb4f12b7f5d14c0e",
+    "execution.json": "d929120003d1818c2e249fbf74d1ded75818f547e10612e0e6e023371f6cccdd",
+    "f16.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "f16.stdout": "c434ebf49208cc39948d7fbcac57c87d8d268c47d880ace9784941c3eb64751c",
+    "f32.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "f32.stdout": "03a225f8f706efccd16d133b058e009e597bfd2b043ae12d62aefc8100d6be4c",
+    "int8.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "int8.stdout": "c434ebf49208cc39948d7fbcac57c87d8d268c47d880ace9784941c3eb64751c"
+  },
+  "results": {
+    "f32": "iq2-s: format-only CLI decode, 412416 field values plus multi-block rows, signed zeros and empty rows/model, exact F32 bytes [ok]\nIQ2_S dense-untied HF: max logit error 0.00000055, bounds [2e-05]; max NLL error 0.00000000, bounds [1e-05]\nIQ2_S dense-tied HF: max logit error 0.00000058, bounds [2e-05]; max NLL error 0.00000001, bounds [1e-05]\nIQ2_S moe HF: max logit error 0.00000055, bounds [2e-05]; max NLL error 0.00000002, bounds [1e-05]\niq2-s: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000058  [ok]\n\n  iq2-s      PASS\n",
+    "f16": "iq2-s: format-only CLI decode, 412416 field values plus multi-block rows, signed zeros and empty rows/model, exact F32 bytes [ok]\nIQ2_S dense-untied HF: max logit error 0.00001509, bounds [0.0007246136665344238]; max NLL error 0.00000138, bounds [0.00010206158915337937]\nIQ2_S dense-tied HF: max logit error 0.00001431, bounds [0.0007246136665344238]; max NLL error 0.00000080, bounds [0.00010206158915337937]\nIQ2_S moe HF: max logit error 0.00001441, bounds [0.0007246136665344238]; max NLL error 0.00000102, bounds [0.00010206158915337937]\niq2-s: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00001509  [ok]\n\n  iq2-s      PASS\n",
+    "bf16": "iq2-s: format-only CLI decode, 412416 field values plus multi-block rows, signed zeros and empty rows/model, exact F32 bytes [ok]\nIQ2_S dense-untied HF: max logit error 0.00092035, bounds [0.004980914294719696]; max NLL error 0.00013015, bounds [0.0009380957376023957]\nIQ2_S dense-tied HF: max logit error 0.00098409, bounds [0.004980914294719696]; max NLL error 0.00005020, bounds [0.0009380957376023957]\nIQ2_S moe HF: max logit error 0.00082351, bounds [0.004980914294719696]; max NLL error 0.00002741, bounds [0.0009380957376023957]\niq2-s: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00098409  [ok]\n\n  iq2-s      PASS\n",
+    "int8": "iq2-s: format-only CLI decode, 412416 field values plus multi-block rows, signed zeros and empty rows/model, exact F32 bytes [ok]\nIQ2_S dense-untied HF: max logit error 0.00001509, bounds [0.0007246136665344238]; max NLL error 0.00000138, bounds [0.00010206158915337937]\nIQ2_S dense-tied HF: max logit error 0.00001431, bounds [0.0007246136665344238]; max NLL error 0.00000080, bounds [0.00010206158915337937]\nIQ2_S moe HF: max logit error 0.00001441, bounds [0.0007246136665344238]; max NLL error 0.00000102, bounds [0.00010206158915337937]\niq2-s: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00001509  [ok]\n\n  iq2-s      PASS\n"
+  }
+}

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## CLI help formatting (2026-10-23, branch fix/cli-help-format-20261023)
+
+- **Goal:** align command help descriptions and continuation lines, make prose ASCII and keep it within 80 columns, while preserving every accepted option and its meaning.
+- **Done:** at base `888ae1310c9385964c93b8f2e719a39f7ec32bc5`, the existing `print_usage` owner now buffers help, puts option descriptions in column 30, wraps at 80 columns and uses ASCII sentences. The shared `model_options` renderer remains one owner. `docs/src/cli-main.md` records the layout. The fresh Release build passes all 66 native CTests. The CPU suite passes all 37 selected components with `perf` excluded; four path-sensitive checks that hit sandbox filesystem error 5 were rerun outside the sandbox and passed. The pinned Qwen3-0.6B Q8_0 fixture produces identical 128 greedy token IDs on a clean build at public main `888ae1310` and this candidate. The fresh binary's 26-call help audit covers the overview and `-h`/`--help` on all 12 commands. Every page is ASCII, semicolon-free, at most 80 columns, and matches the read-only flag matrix. The log and raw captures remain under the ignored build directory.
+- **Left:** exact-head hosted CI and current-main integration on `888ae1310` remain pending.
+- **Gotchas:** only `-h` and `--help` are supported. Keep each command's existing option applicability and aliases. Parsing is unchanged.
+
 ## Completed quant support
 
 | Feature | Status | Qualification and next work |

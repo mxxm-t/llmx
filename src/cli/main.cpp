@@ -1259,9 +1259,69 @@ bool print_usage(const std::string& command, std::ostream& out) {
         command != "quantize" && command != "dequantize" && command != "tokenize" &&
         command != "detokenize" && command != "logits" && command != "perplexity" &&
         command != "bench") return false;
-    out << "llmx " << LLMX_VERSION_STRING << " - ground-up LLM runtime\n\n";
+    std::ostringstream page;
+    auto write_page = [&] {
+        std::istringstream input(page.str());
+        std::vector<std::string> lines;
+        std::string line;
+        while (std::getline(input, line)) lines.push_back(std::move(line));
+        bool first = true;
+        const auto emit_line = [&](const std::string& prefix, const std::string& body) {
+            if (!first) out << '\n';
+            first = false;
+            out << prefix << body;
+        };
+        const auto emit_wrapped = [&](std::string prefix, std::string body) {
+            const std::string continuation(29, ' ');
+            if (prefix.size() >= 80) {
+                emit_line(prefix, body);
+                return;
+            }
+            while (prefix.size() + body.size() > 80) {
+                const std::size_t room = 80 - prefix.size();
+                const std::size_t cut = body.rfind(' ', room);
+                if (cut == std::string::npos || cut == 0) break;
+                emit_line(prefix, body.substr(0, cut));
+                body.erase(0, cut + 1);
+                prefix = continuation;
+            }
+            emit_line(prefix, body);
+        };
+        for (std::size_t i = 0; i < lines.size(); ++i) {
+            line = lines[i];
+            std::size_t indent = 0;
+            while (indent < line.size() && line[indent] == ' ') ++indent;
+            std::string prefix = line.substr(0, indent);
+            std::string body = line.substr(indent);
+            const bool option = indent == 2 && !body.empty() && body[0] == '-';
+            if (option) {
+                const std::size_t separator = body.find("  ");
+                if (separator != std::string::npos) {
+                    prefix = "  " + body.substr(0, separator);
+                    const std::size_t padding = prefix.size() < 29 ? 29 - prefix.size() : 2;
+                    prefix.append(padding, ' ');
+                    body = body.substr(separator);
+                    while (!body.empty() && body[0] == ' ') body.erase(body.begin());
+                }
+                while (i + 1 < lines.size()) {
+                    const std::string& next = lines[i + 1];
+                    const std::size_t next_indent = next.find_first_not_of(' ');
+                    if (next_indent < 20 || next_indent == std::string::npos) break;
+                    body += " " + next.substr(next_indent);
+                    ++i;
+                }
+                emit_wrapped(prefix, std::move(body));
+                continue;
+            }
+            if (indent >= 20 && !body.empty()) prefix.assign(29, ' ');
+            if (body.empty()) emit_line({}, {});
+            else emit_wrapped(std::move(prefix), std::move(body));
+        }
+        out << '\n';
+    };
+    page << "llmx " << LLMX_VERSION_STRING << " - ground-up LLM runtime\n\n";
     if (command.empty()) {
-        out
+        page
             << "Usage: llmx <command> [arguments] [options]\n\n"
             << "Run a model:\n"
             << "  chat        <model>                  Interactive chat with follow-up turns\n"
@@ -1279,10 +1339,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  perplexity  <model> \"<text>\"         Score text or a file\n"
             << "  bench                               Measure kernels or a real model\n\n"
             << "A model is a GGUF file, or the first shard of a GGUF set.\n"
-            << "Downloads require curl 8.4+; no Python runtime is needed.\n\n"
+            << "Downloads require curl 8.4+. No Python runtime is needed.\n\n"
             << "Help:     llmx <command> --help  (or -h)\n"
             << "Version:  llmx --version\n"
             << "Example:  llmx chat model.gguf --threads 6 --temp 0 -n 256\n";
+        write_page();
         return true;
     }
     const infer::Sampling sampling;
@@ -1294,62 +1355,62 @@ bool print_usage(const std::string& command, std::ostream& out) {
         return std::string(backend::kv_type_name(d)) + " (default) or " + backend::kv_type_name(other);
     };
     const auto model_options = [&](bool batch_threads) {
-        out << "\nExecution options:\n"
-            << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan;\n"
-            << "                          several, comma separated, split the model by layers\n"
+        page << "\nExecution options:\n"
+            << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan.\n"
+            << "                          Several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
-            << "  --dtype T               Matmul inputs: auto (default), f16, bf16, f32 or int8;\n"
-            << "                          emulation or a wider fallback is reported per device\n"
+            << "  --dtype T               Matmul inputs: auto (default), f16, bf16, f32 or int8.\n"
+            << "                          Emulation or a wider fallback is reported per device\n"
             << "  --layer-shares A,B      With several devices, their proportions of the layers\n"
             << "  --tensor-width N        Devices each layer is split across: the listed devices\n"
             << "                          form groups of N, the stages of the layer split (default: " << defaults.tensor_width << ")\n"
-            << "  --threads N             CPU workers; 0 takes the fewest of the hardware threads\n"
+            << "  --threads N             CPU workers. 0 takes the fewest of the hardware threads\n"
             << "                          and the CPUs the affinity and the CPU quota allow,\n"
             << "                          at most 64 (default: " << defaults.threads << ")\n";
-        if (batch_threads) out
-            << "  --threads-batch N, -tb  CPU prefill workers; default follows --threads\n";
-        out
-            << "  --ubatch N              Prompt tokens read in one pass; a longer prompt is read in slices (default: " << infer::kDefaultUbatch << ")\n"
+        if (batch_threads) page
+            << "  --threads-batch N, -tb  CPU prefill workers. Default follows --threads\n";
+        page
+            << "  --ubatch N              Prompt tokens read in one pass. A longer prompt is read in slices (default: " << infer::kDefaultUbatch << ")\n"
             << "  --cache-type-k T, -ctk  Key cache: " << cache_types(caches.kv_k) << "\n"
             << "  --cache-type-v T, -ctv  Value cache: " << cache_types(caches.kv_v) << "\n"
             << "  --n-cpu-moe N           Keep the experts of the first N mixture-of-experts layers on the CPU (default: " << defaults.cpu_moe << ")\n"
             << "  --cpu-moe               Keep the experts of all mixture-of-experts layers on the CPU\n"
             << "  --moe-stream-from N     Copy those experts to the device for a prompt of\n"
-            << "                          at least N tokens; 0 disables this (default: " << defaults.moe_stream_from << ").\n"
+            << "                          at least N tokens. Use 0 to disable this (default: " << defaults.moe_stream_from << ").\n"
             << "                          Generated tokens and one-token prompts stay on CPU.\n"
             << "  --lookup-storage S      Bounded lookup tables: auto, device or file (default: " << infer::lookup_storage_name(defaults.lookup_storage) << ")\n"
-            << "                          Device keeps the whole table on the devices, giving up KV room if it must;\n"
-            << "                          file reads the rows from the model file. Auto takes device where it fits\n"
+            << "                          Device keeps the whole table on the devices, giving up KV room if it must.\n"
+            << "                          File reads the rows from the model file. Auto takes device where it fits\n"
             << "                          beside the fitted KV budget, else file. Independent of --load-mode.\n"
             << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n";
     };
     if (command == "chat" || command == "generate") {
         const bool chat = command == "chat";
-        out << (chat ? "Interactive chat with retained conversation history.\n\n"
+        page << (chat ? "Interactive chat with retained conversation history.\n\n"
                      : "Generate from raw text, or with --chat from one user message in the chat template.\n\n")
             << "Usage: llmx " << command << " <model.gguf>"
             << (chat ? " [options]\n" : " \"<prompt>\" [options]\n       llmx generate <model.gguf> --file <path> [options]\n")
             << "\nGeneration options:\n";
-        if (!chat) out
+        if (!chat) page
             << "  --file PATH, -f         UTF-8 prompt file, immediately after the model\n"
             << "  --chat                  Send the prompt as one user message through the model's chat template\n";
-        out
+        page
             << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
-            << "  --ignore-eos            Never end at the end-of-text token; run to -n or --stop\n";
-        if (chat) out
+            << "  --ignore-eos            Never end at the end-of-text token. Run to -n or --stop\n";
+        if (chat) page
             << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
-        out
+        page
             << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n"
             << "\nSampling options:\n"
-            << "  --temp F                Temperature; 0 is greedy (default: " << sampling.temp << ")\n"
+            << "  --temp F                Temperature. 0 is greedy (default: " << sampling.temp << ")\n"
             << "  --topk N                Top-k sampling (default: " << sampling.top_k << ")\n"
             << "  --topp F                Nucleus sampling (default: " << sampling.top_p << ")\n"
             << "  --penalty F             Repetition penalty (default: " << sampling.penalty << ")\n"
             << "  --presence-penalty F    Subtracted from the score of every token already generated, -2 to 2 (default: " << sampling.presence_penalty << ")\n"
             << "  --frequency-penalty F   Subtracted from a generated token's score once for each time, -2 to 2 (default: " << sampling.frequency_penalty << ")\n"
             << "  --min-p F               Drop tokens less likely than F times the likeliest, after --topk and --topp (default: " << sampling.min_p << ")\n"
-            << "  --seed N                RNG seed; 0 keeps the fixed default state\n"
+            << "  --seed N                RNG seed. 0 keeps the fixed default state\n"
             << "\nSpeculative decoding (the output is the same either way):\n"
             << "  --drafter D             Propose several tokens and check them in one pass: off, or sources\n"
             << "                          tried in the order given, comma-separated: lookup (the tokens that\n"
@@ -1359,52 +1420,52 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          lookup,embedded to take the reply's own history first (default: off)\n"
             << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(true);
-        if (chat) out << "\nEnter one message per line; Ctrl+C or end of input exits.\n";
-        out << "\nExample: llmx " << command << " model.gguf"
+        if (chat) page << "\nEnter one message per line. Press Ctrl+C or end of input to exit.\n";
+        page << "\nExample: llmx " << command << " model.gguf"
             << (chat ? "" : " \"The capital of France is\"") << " --temp 0 -n 256\n";
     } else if (command == "serve") {
         const server::Config cfg;
-        out << "Serve concurrent requests with streaming and prefix reuse.\n\n"
+        page << "Serve concurrent requests with streaming and prefix reuse.\n\n"
             << "Usage: llmx serve <model.gguf> [options]\n\n"
             << "Server:\n"
             << "  --host H                Listen address (default: " << cfg.host << ")\n"
-            << "  --port N                Listen port; 0 picks a free one (default: " << cfg.port << ")\n"
+            << "  --port N                Listen port. 0 picks a free one (default: " << cfg.port << ")\n"
             << "  --ctx-size N, -c        Tokens one request may hold, prompt and reply, at most the\n"
             << "                          model's context (default: model context)\n"
             << "  --kv-tokens N           Tokens of conversation memory (KV cache) shared by all requests,\n"
             << "                          fitted to the devices at load (default: what their free memory holds)\n"
-            << "  --timing                Time the rounds and each device's work for /v1/health; slows serving\n"
+            << "  --timing                Time the rounds and each device's work for /v1/health. This slows serving\n"
             << "\nLimits:\n"
             << "  --max-seqs N            Requests served at once (default: " << cfg.max_seqs << ")\n"
-            << "  --max-queue N           Requests waiting for a place, paused ones not counted; more get a 503 (default: " << cfg.max_queue << ")\n"
-            << "  --passes N              Batches the devices work on at once; above 1 needs the model\n"
+            << "  --max-queue N           Requests waiting for a place, paused ones not counted. More get a 503 (default: " << cfg.max_queue << ")\n"
+            << "  --passes N              Batches the devices work on at once. Above 1 needs the model\n"
             << "                          split over several devices (default: one per device of a layer split, else 1)\n"
-            << "  --no-pacing             Serve requests already generating only with the prompts' batches; by default,\n"
+            << "  --no-pacing             Serve requests already generating only with the prompts' batches. By default,\n"
             << "                          on one device or one tensor group, they are served between the parts of a\n"
             << "                          prompt's batch, about every " << (int)server::kServiceGapMs << " ms\n"
             << "  --generating-share X    Instead of that rule, a fixed share of each device's time for requests\n"
-            << "                          already generating while prompts are read, above 0 up to 0.9; 0 keeps\n"
+            << "                          already generating while prompts are read, above 0 up to 0.9. A value of 0 keeps\n"
             << "                          the rule (default: " << cfg.generating_share << ")\n"
             << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt):\n"
-            << "  --host-cache-bytes N    Host memory for prefixes the devices evict; 0 keeps none\n"
+            << "  --host-cache-bytes N    Host memory for prefixes the devices evict. A value of 0 keeps none\n"
             << "                          (default: room for --max-seqs full histories, within half the free\n"
-            << "                          host memory; none when every cache is on the CPU)\n"
-            << "  --disk-cache-bytes N    Disk for what the host cache drops; needs a host cache (default: 0, none)\n"
+            << "                          host memory. None when every cache is on the CPU)\n"
+            << "  --disk-cache-bytes N    Disk for what the host cache drops. Needs a host cache (default: 0, none)\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
             << "  --disk-cache-floor N    Free space the disk keeps after every write\n"
             << "                          (default: the larger of 16 GiB and a twentieth of the disk)\n"
             << "  --disk-cache-keep       Write what memory holds to disk while idle and at a clean exit, and keep it\n"
-            << "                          for the next server; the exit takes " << server::kDiskFlush.count() << " s or more, and prints its bound\n"
+            << "                          for the next server. The exit takes " << server::kDiskFlush.count() << " s or more, and prints its bound\n"
             << "  --disk-cache-max-age TIME  Delete entries unused for longer than TIME: seconds, or a number\n"
-            << "                          followed by s, m, h or d; 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
+            << "                          followed by s, m, h or d. Use 0 for no limit (default: " << (server::DiskOptions{}.max_age / 3600) << "h)\n"
             << "  --disk-cache-adopt WHICH  Which kept entries a server takes over: exact, those of its own build\n"
             << "                          (the default), or proved, also another build's of the same model and\n"
             << "                          placement, each compared at its first use with what this build computes and\n"
-            << "                          deleted where it differs; the comparison covers a conversation's first\n"
+            << "                          deleted where it differs. The comparison covers a conversation's first\n"
             << "                          block and its last stretch, not the rows between\n"
-            << "  --context-overflow HOW  What a prompt that does not fit the context gets: refuse, a 413 with its numbers\n"
-            << "                          (the default), or shift, which drops the oldest turns to half the context;\n"
-            << "                          use shift for chat front ends that do not manage their own context\n"
+            << "  --context-overflow HOW  What to do when a prompt does not fit: refuse with a 413 and its numbers\n"
+            << "                          (default), or shift, which drops the oldest turns to half the context.\n"
+            << "                          Use shift for chat front ends that do not manage their own context\n"
             << "  --state-checkpoints N   Saved conversation states for models with recurrent layers (Qwen 3.5),\n"
             << "                          so a follow-up turn skips re-reading its prompt (default: fitted, up to --max-seqs)\n"
             << "\nSpeculative decoding (replies are the same either way):\n"
@@ -1415,7 +1476,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          model comes last: embedded alone, or lookup,embedded (default: off)\n"
             << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(false);
-        out << "\nRoutes:\n"
+        page << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
             << "  POST /v1/completions          POST /v1/chat/completions\n"
             << "  POST /v1/tokenize             POST /v1/detokenize\n"
@@ -1428,7 +1489,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4\n";
     } else if (command == "pull") {
         const hub::PullOptions pull;
-        out << "Download and verify a GGUF model or complete shard set.\n\n"
+        page << "Download and verify a GGUF model or complete shard set.\n\n"
             << "Usage: llmx pull <owner/repo>:<quant> [options]\n\n"
             << "Options:\n"
             << "  --revision REF          Branch, tag or commit SHA (default: " << pull.revision << ")\n"
@@ -1436,34 +1497,34 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --cache-dir PATH        Cache root (default: <home>/" << hub::cache_in_home << ")\n"
             << "  --parallel N            Streams per file, 1.." << hub::max_parallel_streams << " (default: " << pull.parallel << ")\n\n"
             << "Requires curl 8.4+. HF_TOKEN supplies gated-repo credentials.\n"
-            << "The verified local path goes to stdout; progress goes to stderr.\n\n"
+            << "The verified local path goes to stdout. Progress goes to stderr.\n\n"
             << "Example: llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4\n";
     } else if (command == "logits" || command == "perplexity") {
         const bool ppl = command == "perplexity";
-        out << (ppl ? "Score next-token likelihoods over text or bounded windows.\n\n"
+        page << (ppl ? "Score next-token likelihoods over text or bounded windows.\n\n"
                     : "Print the highest next-token logits after a prompt.\n\n")
             << "Usage: llmx " << command << " <model.gguf> \"<text>\" [options]\n"
             << "       llmx " << command << " <model.gguf> --file <path> [options]\n"
             << (ppl ? "\nScoring options:\n" : "\nOptions:\n")
             << "  --file PATH, -f         UTF-8 input file, immediately after the model\n";
-        if (ppl) out
+        if (ppl) page
             << "  --ctx-size N, -c        Window tokens (default: model context)\n"
             << "  --chunks N              Maximum windows (default: all)\n"
-            << "  --per-token             Score through decode; default uses batched passes\n"
+            << "  --per-token             Score through decode. Default uses batched passes\n"
             << "  --verbose               Show scoring phase, actual worker count and each window's NLL\n";
-        else out
+        else page
             << "  --chat                  Read the text as one user message through the model's chat template\n"
             << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n"
-            << "  --per-token             Read every token through decode steps; default uses batched passes\n";
+            << "  --per-token             Read every token through decode steps. Default uses batched passes\n";
         model_options(ppl);
-        out << "\nExample: llmx " << command << " model.gguf "
+        page << "\nExample: llmx " << command << " model.gguf "
             << (ppl ? "--file corpus.txt --ctx-size 512 --chunks 4\n"
                     : "\"The capital of France is\" --top 10\n");
     } else if (command == "bench") {
         const BenchNumbers bench;
-        out << "Measure synthetic kernels or a real model after warm-up.\n\n"
+        page << "Measure synthetic kernels or a real model after warm-up.\n\n"
             << "Usage: llmx bench [options]\n"
             << "       llmx bench --model <model.gguf> [options]\n\n"
             << "Benchmark options:\n"
@@ -1484,33 +1545,34 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          draft count (default: off)\n"
             << "  --draft-max N           Most drafts the draft timing takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << BenchDrafter{}.draft_max << ")\n";
         model_options(false);
-        out << "\nExecution options other than --device and --threads apply only with --model.\n"
+        page << "\nExecution options other than --device and --threads apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
     } else if (command == "quantize") {
-        out << "Convert raw F32 tensors into a quantized GGUF file.\n\n"
+        page << "Convert raw F32 tensors into a quantized GGUF file.\n\n"
             << "Usage: llmx quantize <model.json> <model.bin> <out.gguf> [q8_0|q4_0]\n\n"
             << "Default quant: " << kQuantType << ". Input row widths must be divisible by 32.\n"
-            << "The JSON describes tensor names/shapes; the binary contains F32 values.\n"
+            << "The JSON describes tensor names and shapes. The binary contains F32 values.\n"
             << "Example: llmx quantize model.json model.bin model.gguf q8_0\n";
     } else if (command == "dequantize") {
-        out << "Export supported GGUF tensors as JSON metadata and F32 values.\n\n"
+        page << "Export supported GGUF tensors as JSON metadata and F32 values.\n\n"
             << "Usage: llmx dequantize <in.gguf> <out.json> <out.bin>\n\n"
             << "Example: llmx dequantize model.gguf model.json model.bin\n";
     } else if (command == "info") {
-        out << "Show GGUF metadata, tensor types and dimensions.\n\n"
+        page << "Show GGUF metadata, tensor types and dimensions.\n\n"
             << "Usage: llmx info <model.gguf>\n\n"
             << "For a sharded model, pass its first shard.\n"
             << "Example: llmx info model.gguf\n";
     } else if (command == "tokenize") {
-        out << "Encode text with the model's tokenizer.\n\n"
+        page << "Encode text with the model's tokenizer.\n\n"
             << "Usage: llmx tokenize <model.gguf> \"<text>\"\n\n"
             << "Example: llmx tokenize model.gguf \"hello world\"\n";
     } else {
-        out << "Decode comma- or whitespace-separated token IDs.\n\n"
+        page << "Decode comma- or whitespace-separated token IDs.\n\n"
             << "Usage: llmx detokenize <model.gguf> <ids>\n\n"
             << "Example: llmx detokenize model.gguf \"1,2,3\"\n";
     }
-    out << "\n-h, --help shows this page. Full reference: docs/USAGE.md\n";
+    page << "\n-h, --help shows this page. Full reference: docs/USAGE.md\n";
+    write_page();
     return true;
 }
 

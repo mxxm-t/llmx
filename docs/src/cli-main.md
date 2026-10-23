@@ -14,7 +14,10 @@ Commands and their entry points:
   spelling as its sole argument, for a focused page with options, defaults and
   an example. Help returns before opening a model or creating a backend;
   positional text in `tokenize`, `logits` and `perplexity` remains text.
-  `print_usage(command, out)` writes the overview or a command's page to the stream it is given and returns false for a name that is no command.
+  `print_usage(command, out)` writes the overview or a command's page to the
+  stream it is given and returns false for a name that is no command. It buffers
+  the page so option descriptions start in column 30 and wrapped help lines stay
+  within 80 ASCII columns.
   Each default it prints comes from its owner: the sampling settings from `infer::Sampling{}`, the execution flags from `ExecOptions{}`, `--ubatch` from `infer::kDefaultUbatch`, the cache types from `infer::ModelOptions{}`, the server's from `server::Config{}`, and `pull`'s from `hub::PullOptions{}`, `hub::max_parallel_streams` and `hub::cache_in_home`.
   The defaults only the CLI has are named once, beside the readers, and the parsers start from them too: `kLogitsTop` for `logits --top`, `kChatSystem` for `chat --system`, `kQuantType` for `quantize` without a type, and `BenchNumbers` for `bench`'s sizes, counts and repeats.
 - `--version`: release version plus the build revision, without loading a model; anything after it is a usage error.

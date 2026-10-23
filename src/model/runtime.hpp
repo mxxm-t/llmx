@@ -295,6 +295,12 @@ public:
         enum class Mode { single, layer, tensor, staged_tensor };
         struct Device { size_t index = 0, member = 0; bool used = false; };
         struct Stage { size_t index = 0; int first_layer = 0, end_layer = 0; std::vector<size_t> members; };
+        struct Lookup {
+            size_t layer = 0, rows = 0, row_bytes = 0, bytes = 0;
+            uint32_t type = 0;
+            bool file_backed = false;
+            std::vector<size_t> members;
+        };
         struct Layer {
             size_t index = 0;
             std::vector<size_t> mixer_members, ffn_members, stream_members;
@@ -308,6 +314,7 @@ public:
         std::vector<Stage> stages;
         std::vector<size_t> embedding_members, head_members;
         std::vector<Layer> layers;
+        std::vector<Lookup> lookups;
     };
 
     // Construct from a model's weights on one backend (the CPU by default) or over several with a placement of every role, each weight put on its host backend by `adopt`, planned here or given the plan plan_model made.
@@ -534,10 +541,9 @@ public:
                 m.local_layer = first.local_layer;
             }
         }
-        topology_ = make_topology();
-
         try {
             resolve_tensors(weights, adopt);
+            topology_ = make_topology();
 
             // Each device whose mixer layers keep KV gets a storage for exactly those layers, with its own block size and pool.
             // Budget: the option's tokens, else the whole context; storage is backed on demand, so a short chat does not allocate it, unless the options back it whole.
@@ -1009,6 +1015,13 @@ private:
             if (stream_device_[l] >= 0) {
                 layer.stream_members = group_members(stream_device_[l]);
                 layer.stream_min_prompt_tokens = std::max<size_t>(place_.stream_from, 2);
+            }
+            if (plan_.layers[l].lookup) {
+                const Weight& weight = home_[l][plan_.layers[l].lookup->role];
+                const size_t rows = weight.row_source ? weight.row_source->rows() : weight.nout;
+                const size_t row_bytes = weight.row_source ? weight.row_source->row_bytes() : quant::row_bytes(weight.type, weight.nin);
+                const size_t bytes = weight.row_source ? weight.row_source->bytes() : backend::size_mul(rows, row_bytes);
+                t.lookups.push_back(Topology::Lookup{l, rows, row_bytes, bytes, weight.type, bool(weight.row_source), layer.mixer_members});
             }
             t.layers.push_back(std::move(layer));
         }

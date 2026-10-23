@@ -53,6 +53,14 @@ delegated to a `backend::Backend`.
   now. The snapshot reports unused backends explicitly and keeps embedding
   and head groups as endpoints. It describes execution placement, not the
   fit's proposed budgets.
+  Its `lookups` entries are the resolved bounded gather tables: layer, row
+  count, packed row bytes, full table bytes, quantization type, `storage`
+  choice (`device` or `file`), and the mixer group's backend members. The
+  runtime builds these once after resolving the lookup role and row source;
+  the server serializes this generic snapshot. `device` means a backend
+  allocation (host memory on CPU), not necessarily VRAM. `file` does not report whether mapped pages are
+  physically resident or warm. This is static placement/size metadata; it
+  contains no lookup hit, miss, I/O or latency counters.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions

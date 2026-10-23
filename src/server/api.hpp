@@ -17,6 +17,7 @@
 #include "core/utf8.hpp"
 #include "inference/chat.hpp"
 #include "model/place.hpp"
+#include "quant/types.hpp"
 #include "server/context_cut.hpp"
 #include "server/http.hpp"
 #include "server/scheduler.hpp"
@@ -314,7 +315,7 @@ private:
         const char* mode = t.mode == infer::Model::Topology::Mode::single ? "single" :
                            t.mode == infer::Model::Topology::Mode::layer ? "layer" :
                            t.mode == infer::Model::Topology::Mode::tensor ? "tensor" : "staged_tensor";
-        std::string devices, stages, layers;
+        std::string devices, stages, layers, lookups;
         for (const auto& d : t.devices) {
             const std::string name = d.index < dtype.devices.size() ? dtype.devices[d.index].name : "device " + n(d.index);
             devices += (devices.empty() ? "" : ",") + std::string("{\"index\":") + n(d.index) + ",\"name\":" + jmini::quote(name) +
@@ -330,9 +331,17 @@ private:
                       ",\"ffn_members\":" + members(l.ffn_members) + ",\"routed\":" + (l.routed ? "true" : "false") +
                       ",\"expert_stream\":" + stream + "}";
         }
+        for (const auto& lookup : t.lookups) {
+            const quant::StorageType* type = quant::storage_type(lookup.type);
+            lookups += (lookups.empty() ? "" : ",") + std::string("{\"layer\":") + n(lookup.layer) + ",\"rows\":" + n(lookup.rows) +
+                       ",\"row_bytes\":" + n(lookup.row_bytes) + ",\"bytes\":" + n(lookup.bytes) +
+                       ",\"type\":" + jmini::quote(type ? type->name : std::to_string(lookup.type)) +
+                       ",\"storage\":" + jmini::quote(lookup.file_backed ? "file" : "device") + ",\"members\":" + members(lookup.members) + "}";
+        }
         return std::string("{\"mode\":\"") + mode + "\",\"mixed_roles\":" + (t.mixed_roles ? "true" : "false") +
                ",\"tensor_width\":" + n(t.tensor_width) + ",\"devices\":[" + devices + "],\"stages\":[" + stages +
-               "],\"embedding_members\":" + members(t.embedding_members) + ",\"head_members\":" + members(t.head_members) + ",\"layers\":[" + layers + "]}";
+               "],\"embedding_members\":" + members(t.embedding_members) + ",\"head_members\":" + members(t.head_members) + ",\"layers\":[" + layers +
+               "],\"lookups\":[" + lookups + "]}";
     }
     // The run's request and resolved dtype, including each device's emulation or wider fallback.
     static std::string dtype_json(const infer::DtypePlan& d) {

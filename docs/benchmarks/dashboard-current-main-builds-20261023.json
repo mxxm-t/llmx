@@ -1,0 +1,120 @@
+{
+  "schema": "llmx.dashboard-current-main-paired-builds.v1",
+  "date": "2026-10-23",
+  "scope": {
+    "worktree_head": "19a312f60d380f7139419c7bfcc24c6ebd08a616",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cmake": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DLLMX_HAS_BACKEND_VULKAN=ON",
+      "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+    ],
+    "build": ["--parallel", "1", "--target", "llmx"],
+    "source_archive_kind": "frozen source archives without Git metadata",
+    "source_unchanged_during_build": true
+  },
+  "builds": {
+    "main": {
+      "record": "build-dashboard-mi50-gate-20261023/main19-build-result.json",
+      "record_sha256": "0c2024e0b56d0c0aa9c31a23d137b041de0eafa88149cb233b987bdea1cde34c",
+      "source_archive_sha256": "b1f7c598541b15a177ae50cce1cef552d03b71ab42a5b29b5dae2ba60260a90e",
+      "version": "llmx 0.1.0+unknown numerics 227a1fd84d620024",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "memory_peak_bytes": 1760243712,
+      "artifacts": {
+        "llmx": "6acd61ad7c891353dd2c7511a648b1ca7013f99e98cc7d1a1be3bf7b8c8b7729",
+        "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "generated/llmx-build-info.hpp": "01e3d573834ce5b6b37623d6d14e01fff8a7f9ec5a06ddf98182dc71a8104556",
+        "CMakeCache.txt": "59b6aa12e1afbdb87cb7f41d540dad6ed2abc1ef50855d4ed2a426cb7184beeb",
+        "compile_commands.json": "8a3be935f8332a231e6ee227a4ff67e3c47b839bb434fc56054d39b4ca01d52b"
+      }
+    },
+    "candidate": {
+      "record": "build-dashboard-mi50-gate-20261023/candidate-main19-build-result.json",
+      "record_sha256": "44ab2bb1cbe263316c07c0c3c316cb58c74f57fe94eef57be3fd54a183733c68",
+      "source_archive_sha256": "dc1dfb7b95ea81dc7d66ff170dc614c79fc1e516daf435b47faa9cacbf066175",
+      "version": "llmx 0.1.0+unknown numerics 81cc4a7a6cc2d0f5",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "memory_peak_bytes": 1731805184,
+      "artifacts": {
+        "llmx": "43407219ed4307b165594179f11e3dedaf1a70ca8d41eb98d00dd550c4867c10",
+        "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "generated/llmx-build-info.hpp": "a1f8e4cd1f50adf4f59fbeb46769b53e32bbbe229ceef87ddbf89a0bf5e1e95a",
+        "CMakeCache.txt": "e4212e300a6a137bae09f85357c76dd4145f30e621932e6dd0fddaf646a7b232",
+        "compile_commands.json": "8a3be935f8332a231e6ee227a4ff67e3c47b839bb434fc56054d39b4ca01d52b"
+      }
+    }
+  },
+  "equivalence": {
+    "same_image_and_cmake_build_flags": true,
+    "generated_config_sha256_equal": true,
+    "compile_commands_sha256_equal": true,
+    "build_info_headers_differ": true,
+    "interpretation": "The two binaries built successfully from the paired frozen archives. CPU and Vulkan output identity passed for both exact binaries as recorded below."
+  },
+  "paused_prefill": {
+    "cpu": {
+      "record": "build-dashboard-mi50-gate-20261023/pause-sync-cpu-result.json",
+      "record_sha256": "aa41c10962ccf10d544603f2a32bcefe7453ee9854d550334ac9562a9083ae0f",
+      "tested_binary_base": "888ae1310c9385964c93b8f2e719a39f7ec32bc5",
+      "passed": true,
+      "seconds": 52.26033425331116
+    },
+    "mi50_vulkan": {
+      "record": "build-dashboard-mi50-gate-20261023/pause-sync-v4-result.json",
+      "record_sha256": "6d88fea1973f76bef47f682c18c427ffafb93a6e1b736f968d34358c599263a7",
+      "tested_main_base": "888ae1310c9385964c93b8f2e719a39f7ec32bc5",
+      "tested_dashboard_candidate": "225b9d9d6f3c98521ac3621f02bd640bba3334f9",
+      "passed": true,
+      "main_partial_prefill_tokens": 217,
+      "candidate_partial_prefill_tokens": 220
+    },
+    "main19_pair_rerun": false,
+    "interpretation": "Paused-prefill passes are prior focused evidence; neither the CPU binary nor the MI50 pair is the main19 paired build above."
+  },
+  "identity": {
+    "required": "128 greedy token IDs match between these exact paired binaries on CPU and Vulkan",
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "prompt_sha256": "72d5385699de73780262517170488315f2d21e7582ffe6084ac4e6797b61effa",
+    "generation": "raw prompt, greedy, EOS ignored, dtype auto, F32 K/V, two threads",
+    "token_count": 128,
+    "ids_sha256": "f49b5f37cec5c46238ddbc503c0940080d12dfe8c2a6e013cbdf30605fa6ac69",
+    "cpu": {
+      "record": "build-dashboard-mi50-gate-20261023/current-main19-cpu-identity-result.json",
+      "record_sha256": "96a288d1d6a023cc32e716ff220c96aecf26d2b913c5024dd1bf37bd40d75a09",
+      "passed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "container_removed": true
+    },
+    "vulkan": {
+      "record": "build-dashboard-mi50-gate-20261023/current-main19-vulkan-identity-result.json",
+      "record_sha256": "37ef284fb69c46122de96136fe4d8e9a86df78321d0ff1ca920102d4ce9a2ad9",
+      "passed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "container_removed": true,
+      "device": "MI50 PCI 0000:cc:00.0, renderD131"
+    },
+    "preflight_attempts": [
+      {
+        "bundle": "identity-v1",
+        "outcome": "Stopped before container creation because it compared CMakeCache.txt byte-for-byte. A read-only comparison found the only difference was SITE:STRING, the two build container hostnames.",
+        "inference_started": false
+      },
+      {
+        "bundle": "identity-v2",
+        "outcome": "Stopped before container creation because Docker's lowercase 'no such object' response did not match the case-sensitive absence check.",
+        "inference_started": false
+      }
+    ],
+    "status": "passed",
+    "passed": true
+  }
+}

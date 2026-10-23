@@ -887,10 +887,16 @@ void loader_checks(const std::string& path, const std::string& device, const std
             auto loaded = std::make_unique<infer::LoadedModel>();
             loaded->file = gguf::read_gguf(path);
             infer::ModelWeights weights = views(loaded->file);
-            size_t payload = 0, table_bytes = 0;
+            size_t payload = 0, table_bytes = 0, table_rows = 0, table_row_bytes = 0;
+            uint32_t table_type = 0;
             for (const auto& t : weights.tensors) {
                 payload += t.bytes;
-                if (t.name == "per_layer_token_embd.weight") table_bytes = t.bytes;
+                if (t.name == "per_layer_token_embd.weight") {
+                    table_bytes = t.bytes;
+                    table_rows = size_t(t.shape[1]);
+                    table_row_bytes = quant::row_bytes(t.type, size_t(t.shape[0]));
+                    table_type = t.type;
+                }
             }
             infer::PlacementRequest request;
             request.names = {device};
@@ -910,6 +916,13 @@ void loader_checks(const std::string& path, const std::string& device, const std
             if (!loaded->tok) throw std::runtime_error("loader: missing tokenizer");
             const bool external = storage == infer::LookupStorage::file;
             if (loaded->model->stage_reads(0) != external) throw std::runtime_error("loader: wrong table storage selected");
+            const auto& topology = loaded->model->topology();
+            if (topology.lookups.size() != 1) throw std::runtime_error("loader: topology lookup count is wrong");
+            const auto& lookup = topology.lookups.front();
+            if (lookup.layer >= topology.layers.size() || lookup.rows != table_rows || lookup.row_bytes != table_row_bytes ||
+                lookup.bytes != table_bytes || lookup.type != table_type || lookup.file_backed != external ||
+                lookup.members != topology.layers[lookup.layer].mixer_members)
+                throw std::runtime_error("loader: topology lookup details are wrong");
             if (!reports || done != total || total != payload - (external ? table_bytes : 0))
                 throw std::runtime_error("loader: whole-table payload count is wrong");
             if (mode == infer::LoadMode::direct)

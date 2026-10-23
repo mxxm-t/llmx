@@ -245,6 +245,23 @@ const idleStart = sample(-20, 100);
 const idleLatest = {...idleStart, t: now, metrics: {...idleStart.metrics, 'requests.now.active': 0}};
 renderChart([sample(-30, 0), idleStart, idleLatest], now, config, []);
 check('idle frozen snapshot is explained without inventing zero', $('throughput-at').textContent === 'No active requests / no new runtime snapshot' && $('throughput-value').textContent === '--');
+renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
+  {layer: 2, rows: 10, row_bytes: 128, bytes: 1280, type: 'Q4_K', storage: 'device', members: [0]}
+]}});
+check('resident lookup names backend allocation without calling it VRAM', $('lookup-storage-view').textContent.includes('Stored in backend allocation(s): CPU'));
+check('lookup table bytes are labeled as logical size', $('lookup-storage-view').textContent.includes('logical table / Q4_K'));
+renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
+  {layer: 2, rows: 10, row_bytes: 128, bytes: 1280, type: 'Q4_K', storage: 'file', members: [0]}
+]}});
+check('file lookup reports unknown physical page residency and upload target', $('lookup-storage-view').textContent.includes('File-backed / physical page residency unknown') && $('lookup-storage-view').textContent.includes('Row upload backends: CPU'));
+renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: []}});
+check('model without bounded lookups has an explicit empty state', $('lookup-storage-view').textContent.includes('No bounded lookup tables'));
+renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}]}});
+check('older health topology without lookup metadata is unavailable', $('lookup-storage-view').textContent.includes('unavailable from this server version'));
+renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
+  {layer: 2, type: '', storage: 'file', members: [0]}
+]}});
+check('incomplete lookup fields stay unavailable without invented rates', $('lookup-storage-view').textContent.includes('Unavailable') && !$('lookup-storage-view').textContent.includes('0%') && !$('lookup-storage-view').textContent.includes('???'));
 globalThis.rateTestResults = outcomes;
 globalThis.layoutMeasurements = measures;
 """
@@ -358,7 +375,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         document = source.replace("</body>", results + "</body>")
         for width in (1440, 390):
             with self.subTest(width=width):
-                self.assertEqual(len(self.run_browser(document, width)), 13)
+                self.assertEqual(len(self.run_browser(document, width)), 19)
 
     def test_shared_runtime_and_request_windows(self):
         source = HTML_FILE.read_text(encoding="utf-8")

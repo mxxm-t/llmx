@@ -438,6 +438,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert set(health) >= {"status", "server", "precision", "topology", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing"} and "timing" not in health, health
         topology = health["topology"]
         assert topology["mode"] in ("single", "layer", "tensor", "staged_tensor") and isinstance(topology["mixed_roles"], bool), topology
+        assert isinstance(topology.get("lookups"), list), topology
         assert topology["tensor_width"] >= 1 and len(topology["devices"]) == len(dtype["devices"]), topology
         assert [d["index"] for d in topology["devices"]] == list(range(len(dtype["devices"]))), topology
         assert [d["name"] for d in topology["devices"]] == [d["device"] for d in dtype["devices"]], topology
@@ -451,6 +452,12 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert all(i < len(topology["devices"]) for i in layer["mixer_members"] + layer["ffn_members"]), topology
             stream = layer["expert_stream"]
             assert stream is None or (stream["members"] and stream["min_prompt_tokens"] >= 2), topology
+        for lookup in topology["lookups"]:
+            assert lookup["storage"] in ("device", "file") and lookup["type"], lookup
+            assert lookup["layer"] < len(topology["layers"]) and lookup["rows"] > 0, lookup
+            assert lookup["row_bytes"] > 0 and lookup["bytes"] == lookup["rows"] * lookup["row_bytes"], lookup
+            assert lookup["members"] == topology["layers"][lookup["layer"]]["mixer_members"], lookup
+            assert all(member < len(topology["devices"]) for member in lookup["members"]), lookup
         # Generating requests are paced by the automatic rule where a stage is fed in pieces, on one device that is not the CPU with nothing beside it, and not elsewhere.
         pacing = health["pacing"]
         device = os.environ.get("LLMX_DEVICE", "cpu")

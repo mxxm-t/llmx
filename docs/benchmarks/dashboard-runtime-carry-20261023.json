@@ -1,0 +1,35 @@
+{
+  "source": "225b9d9d6f3c98521ac3621f02bd640bba3334f9",
+  "binary_sha256": "883cc8a0739c9d0c0651b4b1f21119dd73416c89f3c3d737aff3e0c22dbbf7a4",
+  "remote_logs": "/zpool1/llmx-p2-dashboard-landing-20261023/logs",
+  "logs": {
+    "cpu-ctest-v1.log": "fe3e60c838f6d523c1a41b43500f98db88f4f24909ce390df2ead488e95f86d0",
+    "hub-transport-diagnostic-v2-exec.log": "9b8dbad2a73a6e521f7b9e544cac47beb5b090e6bb0005811140b704b7ce7b02",
+    "cpu-python-v1.log": "eb25700ef3a584995c40ba3bbcac7257ee555825f3dea3b33b14e19debed2010",
+    "cpu-server-v2.log": "bbefde037fe1b6a89a6daac890f25d559e957091754d0dc74c0760fda539e2fb",
+    "device-gates-v2-identity.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "device-gates-v2-ple-api.log": "46c24828db6a4102193f84a341ccd0fb585c47599eef792cc7206905ea39fd1d",
+    "device-gates-v2-server.log": "722b4872f2319ecbc0e37b5f8def8e90b8190804e4664da90a78b67114c1817c",
+    "candidate-version.txt": "c8d5aa8d108c388d211cd7d8019d0389392984476651594d1040f5c870931cef",
+    "candidate-binary.sha256": "bcbcc5de56e50f5dfa4ee4a6234661be49ccf1aaad9e7c90997baf92f362a815"
+  },
+  "native": {
+    "registered": 76,
+    "passed": 65,
+    "device_unavailable_skips": 10,
+    "failed": [
+      "hub-transport"
+    ],
+    "focused_followup": "hub-transport passed with executable temporary storage"
+  },
+  "cpu_suite": "All component summaries passed except server; focused server rerun passed using disk-backed temporary storage.",
+  "mi50_server": "Historical225 component stopped at paused-prefill. Corrected focused pause passed separately. All seven subsequent checks later passed once on current-main19 candidate43407219; see the separately pinned tail continuation record. This is not a full component rerun.",
+  "scope": "Retained tested inputs and binary, not a claim of fresh tests on main19. CLI help and test synchronization are the intervening functional edits.",
+  "mi50_server_tail_followup": {
+    "artifact": "docs/benchmarks/dashboard-server-tail-main19-20261023.json",
+    "binary_sha256": "43407219ed4307b165594179f11e3dedaf1a70ca8d41eb98d00dd550c4867c10",
+    "passed": 7,
+    "total": 7,
+    "scope": "Separate current-main19 continuation; original225 results retain their original binary pin."
+  }
+}

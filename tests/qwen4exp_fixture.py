@@ -582,6 +582,34 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             result = subprocess.run(group, capture_output=True, text=True, timeout=120)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_native_server_lookup_storage(self):
+        if not Path(common.EXE).is_file():
+            if self.require_native:
+                self.fail("llmx executable is required for the server fixture")
+            self.skipTest("llmx executable is unavailable for the server fixture")
+        reference = Path(__file__).resolve().parent / "data" / "qwen4exp_reference.json"
+        document = json.loads(reference.read_text(encoding="utf-8"))
+        state = qwen4exp.state_from_document(document)
+        metadata, tensors = qwen4exp.map_qwen4exp(document["config"], state)
+        table = next(tensor for tensor in tensors if tensor[0] == "per_layer_token_embd.weight")
+        layers = metadata["qwen4exp.ple.layers"][1][1]
+        with tempfile.TemporaryDirectory(prefix="qwen4exp_lookup_health_") as directory:
+            model = Path(directory) / "reference.gguf"
+            qwen4exp.write_qwen4exp(model, document["config"], state)
+            for storage in ("device", "file"):
+                with self.subTest(storage=storage):
+                    srv = server_test.Server(str(model), "--max-seqs", "1", "--kv-tokens", "512",
+                                             "--lookup-storage", storage, "--host-cache-bytes", "0")
+                    try:
+                        topology = srv.get("/v1/health")["topology"]
+                        self.assertEqual(topology["lookups"], [
+                            {"layer": layer, "rows": table[1][1], "row_bytes": table[1][0] * 4,
+                             "bytes": len(table[3]), "type": "F32", "storage": storage,
+                             "members": topology["layers"][layer]["mixer_members"]}
+                            for layer in layers])
+                    finally:
+                        srv.close()
+
     def test_native_server_two_histories_and_followup_match_hf(self):
         if not Path(common.EXE).is_file():
             if self.require_native:

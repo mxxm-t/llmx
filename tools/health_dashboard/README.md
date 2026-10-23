@@ -107,6 +107,18 @@ request. These are backend assignments, not inferred physical GPU numbers or
 VRAM telemetry. Older runtimes without `topology` show placement as unavailable.
 The dashboard does not infer placement from device count.
 
+The Lookup storage card reads `topology.lookups`, when the server exposes it,
+for each bounded table's layer, row count, packed row and logical table bytes
+(row count times packed row size, not replicated allocation), storage
+type, storage choice and layer-group members. `device` means the table is
+resident in backend allocations, including host memory when a listed backend is
+the CPU; it is not a VRAM measurement. `file` means rows are read from the
+model-file source and staged to the listed backends. File mapping and successful
+load do not show whether OS pages are resident or warm, so the card labels
+residency unknown. Older health responses without lookup metadata show an
+unavailable state; models with no bounded lookup tables say so explicitly.
+These are static placement facts, not live lookup hit rates or I/O counters.
+
 Hover a chart to inspect the same timestamp across all four charts. Click to
 hold it, use the arrow keys to move it, or return to the latest sample. The
 selected-window summary shows observed counter changes beside lifetime totals;
@@ -128,7 +140,8 @@ python -m unittest discover -s tools/health_dashboard -v
 These local mock-endpoint tests do not need a model or contact production.
 Browser checks cover desktop/mobile rendering, range selection, pause/resume,
 metrics search, stale data and recovery. They are recorded at the feature
-checkpoint; the native runtime is unchanged.
+checkpoint; focused lookup-storage cases also cover empty, older-API and
+incomplete metadata states.
 
 The Python collector owns upstream polling, health-response validation, the shared
 bounded sample/event history, and the small browser-facing history endpoint. It

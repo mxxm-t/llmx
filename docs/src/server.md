@@ -11,7 +11,14 @@ JSON for the /v1/health topology group.
 Its backend indices map to the resolved dtype device names, its stages and
 layer groups come from the model's validated placement, and its expert-stream
 target means eligible for prompts at the reported threshold rather than active
-on the current request.
+on the current request. `topology.lookups` lists each declared bounded lookup's
+layer, row count, exact packed row size and logical table bytes (rows times row
+size; not replicated allocation), GGUF type, resolved
+`device` or `file` storage, and the layer group's backend members. It is built
+from the model's resolved role and row source after weights are resolved. A
+CPU backend's device allocation is host memory, not VRAM. File-backed metadata
+does not establish physical page residency or warmth; `--load-mode` selects how
+file rows are accessed. Models without lookups return an empty array.
 
 - `http.hpp`: `Listener`, `Connection`, `Request`.
   Blocking BSD or Winsock sockets for the connections, one thread each; a request is read with size limits (413 and 431 past them, 400 for a malformed line), a reply is written whole or as a chunked stream, and a client's disconnect surfaces as a failed write, which throws `ClientGone`, rather than a signal.

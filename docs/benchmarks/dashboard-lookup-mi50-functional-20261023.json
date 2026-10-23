@@ -1,0 +1,86 @@
+{
+  "schema": "dashboard-lookup-mi50-functional-v1",
+  "scope": "Read-only evidence for the bounded MI50 functional gate. No timing or merge claim.",
+  "source": {
+    "baseline": "167c6f8348a173fefff856a4c6f09e2ec6a58f09",
+    "candidate": "9907d1c48b76e431fbed42e5b757e44b6780a163",
+    "candidate_ui_overlay_sha256": "22b3aa9da91c61fb9d6092bcedcfeb38f05bbb849322014297542af1cc0f4671",
+    "overlay_files": [
+      "docs/STATUS.md",
+      "docs/src/server.md",
+      "tools/health_dashboard/README.md",
+      "tools/health_dashboard/index.html",
+      "tools/health_dashboard/test_ui_rates.py"
+    ]
+  },
+  "execution": {
+    "remote_root": "/zpool1/llmx-p2-dashboard-lookup-20261023",
+    "launcher": "gate/run-gate-functional-v2.sh functional",
+    "launch_record_sha256": "6fb6cb0272805d07fe81c3c19b63b075a2543582b477d9460e89528edd054bf8",
+    "exit": 0,
+    "memory_available_bytes_at_start": 30728769536,
+    "cpuset": "2-3",
+    "container_cpus": 2,
+    "memory_limit": "8g",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "vulkan_node": "/dev/dri/renderD130",
+    "gpu_pci": "0000:c9:00.0",
+    "runtime_model": "/zpool1/models/llmx-fixtures/Qwen3-0.6B-Q8_0.gguf",
+    "runtime_model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+  },
+  "builds": {
+    "main": {
+      "version": "llmx 0.1.0+unknown numerics db63f4ba243aad41",
+      "sha256": "73105ebbe106df277f447341d4b5685b8f6b4682679e3ae9de993f7b4b9b9dbb"
+    },
+    "candidate": {
+      "version": "llmx 0.1.0+unknown numerics 7b53351e35a84927",
+      "sha256": "0e63634e26dd9ab6c3df38927aaa3ecdb41ef838465681142fcc65170a1eb7ac"
+    }
+  },
+  "assertions": {
+    "ple_fixture": "All 32 vocabulary logits compared: baseline and candidate are byte-identical for device and file lookup storage; each binary is also byte-identical across the two storage modes.",
+    "focused_tests": [
+      "test_native_model_matches_full_hf_graph",
+      "test_native_server_lookup_storage"
+    ],
+    "focused_tests_result": "2 passed; zero failures/errors",
+    "server_component": "PASS; the component log includes an internal unittest group of 10 plus the subsequent synthetic and released-model integration checks, all reported [ok]."
+  },
+  "qwen3_06b_cpu_output_identity": {
+    "remote_root": "/zpool1/llmx-p2-dashboard-lookup-20261023/identity-cpu-v1",
+    "stage": "CPU; main and candidate used the pinned Qwen3-0.6B-Q8_0 fixture, same raw prompt, greedy ignore-EOS generation of 128 tokens, two threads, auto dtype/load and F32 K/V.",
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "prompt_sha256": "72d5385699de73780262517170488315f2d21e7582ffe6084ac4e6797b61effa",
+    "ids_sha256_both_arms": "f49b5f37cec5c46238ddbc503c0940080d12dfe8c2a6e013cbdf30605fa6ac69",
+    "token_count": 128,
+    "ids_equal": true,
+    "execution": {"exit": 0, "passed": true, "removed": true, "oom_killed": false, "exit_code": 0},
+    "main": {"version": "llmx 0.1.0+unknown numerics db63f4ba243aad41", "executable_sha256": "73105ebbe106df277f447341d4b5685b8f6b4682679e3ae9de993f7b4b9b9dbb", "stdout_sha256": "80bd8e81c176dfeff036cfe485c49fdb6d8270e2b170d405b8153db02b26ff64", "stderr_sha256": "8855c54b10b22a27094b0514979c3911f47ddcbe5a9efb4b3ebec361d3f264ab"},
+    "candidate": {"version": "llmx 0.1.0+unknown numerics 7b53351e35a84927", "executable_sha256": "0e63634e26dd9ab6c3df38927aaa3ecdb41ef838465681142fcc65170a1eb7ac", "stdout_sha256": "96466353be29fec4f4f9dfcd2055819fb1a0260974aa074cb8823fe7f0ef396c", "stderr_sha256": "66b817d6e734e8a2228e0f9d1559ef771e4a5a09a917109305d1013f0d1eb34d"},
+    "execution_json_sha256": "10372ddfc9ace1da3152ea33c41b357cab08455038b74db96b7ffbb005d84173",
+    "result_json_sha256": "b0f18a2cb626adb2a41c4d238e4a89239756836586eafc0a6b0e96567f983572",
+    "run_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "local_copy": "build-dashboard-mi50-gate-20261023/rig-results-functional-v2/cpu-identity-v1"
+  },
+  "evidence": {
+    "local_copy": "build-dashboard-mi50-gate-20261023/rig-results-functional-v2",
+    "functional_tests_log_sha256": "2f8579b50be79b2b013d1f643a809977475dd0a30ec66c9884dbd769ec18268f",
+    "functional_preflight_log_sha256": "d059fb5a5762f8f9b7a54fdbc9c40d25bf38e705f0628a5887401a65bdd39b7e",
+    "render_node_users_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "identity_result_sha256": "4c0a164b9da7dc435b26796048b06db27e42faaf66b56125c90cd6984b5502c9",
+    "identity_stdout_sha256": "c43365cc377436d96f3681632797e15d79348adb32ec2378f05b0cae9c0bd31b",
+    "identity_stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+  },
+  "local_docs_dead_code": {
+    "result": "docs PASS, 0 findings against 21 planted faults; dead-code PASS, 5 listed findings against 18 planted faults.",
+    "log": "../build-dashboard-mi50-gate-20261023/docs-dead-code-cpuidentity.log",
+    "log_sha256": "0e1eb86cc1aa115c30333579c52871fc5c618bd09a2c6d924e54a320656e7513"
+  },
+  "setup_history": "The earlier attempt's logs/functional-vulkan-summary.stderr records RADV initialization failure (amdgpu_get_auth). It is retained. The successful v2 run used /dev/dri/renderD130 with --runtime runc; no source files changed between attempts.",
+  "limitations": [
+    "This is a scoped MI50 functional gate, not a current-main integration merge or hosted-CI result.",
+    "No timing/performance claim was measured.",
+    "The corresponding Qwen3-0.6B Vulkan output identity remains pending, as do any additional platform checks required by landing policy."
+  ]
+}

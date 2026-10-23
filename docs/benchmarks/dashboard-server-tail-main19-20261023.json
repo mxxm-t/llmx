@@ -1,0 +1,120 @@
+{
+  "title": "Dashboard current-main MI50 server tail continuation",
+  "date": "2026-10-23",
+  "scope": "Only the seven real-model checks not reached after the older225 server component failed at paused-prefill. Seven checks now pass once on the current-main19 candidate; not a full server-component or full suite rerun. No source/numerical change.",
+  "runtime": {
+    "binary_sha256": "43407219ed4307b165594179f11e3dedaf1a70ca8d41eb98d00dd550c4867c10",
+    "version": "llmx 0.1.0+unknown numerics 81cc4a7a6cc2d0f5",
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "device": "vulkan:0",
+    "render_node": "/dev/dri/renderD131",
+    "pci": "0000:cc:00.0",
+    "source_root": "/zpool1/llmx-xdev-quant-20261020/dashboard-current-main-20261023/paired-cli-v1/candidate/source"
+  },
+  "test_identity": {
+    "source_commit": "6a045bf8c30db1327cda9d8577ce221041bfa45b",
+    "server_test_lf_sha256": "2ae45c4345abc0dbb4fd92857c47f02dab8431b5a34f78c09dc836a8a5abd669",
+    "method": "Exact source bytes after CRLF-to-LF normalization, verified against the committed server.py. No cross-version AST serialization comparison."
+  },
+  "execution": {
+    "artifact": "build-dashboard-mi50-gate-20261023/server-tail-main19-v2-execution.json",
+    "sha256": "e595c49bf2fac2fe90576d71d846f31e448079970343551688908991f1a7db47",
+    "passed": true,
+    "exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "binary_unchanged": true,
+    "cpu_set": "10-11",
+    "cpu_quota": 2,
+    "memory_limit": "8g",
+    "tmp_backing": {
+      "target": "/zpool1",
+      "fstype": "zfs",
+      "options": "rw,noatime,xattr,noacl,casesensitive"
+    },
+    "duration_seconds": 40.927
+  },
+  "result": {
+    "artifact": "build-dashboard-mi50-gate-20261023/server-tail-main19-v2-result.json",
+    "sha256": "7498af8112a26449798a157a3d4fceff43f5b2fe2ad0093ff444ce80371788ec",
+    "passed_checks": 7,
+    "total_checks": 7,
+    "pins_unchanged": true,
+    "duration_seconds": 38.886,
+    "calls": [
+      {
+        "name": "check_conversation",
+        "status": "passed",
+        "result": 6,
+        "duration_seconds": 6.504
+      },
+      {
+        "name": "check_host_tier",
+        "status": "passed",
+        "result": 960,
+        "duration_seconds": 5.944
+      },
+      {
+        "name": "check_disk_keep",
+        "status": "passed",
+        "result": 1472,
+        "duration_seconds": 8.658
+      },
+      {
+        "name": "check_reprefill",
+        "status": "passed",
+        "result": [
+          640,
+          531
+        ],
+        "duration_seconds": 4.397
+      },
+      {
+        "name": "check_unrelated_donor",
+        "status": "passed",
+        "result": null,
+        "duration_seconds": 2.629
+      },
+      {
+        "name": "check_departed",
+        "status": "passed",
+        "result": null,
+        "duration_seconds": 1.779
+      },
+      {
+        "name": "check_ignore_eos_real",
+        "status": "passed",
+        "result": [
+          13,
+          48
+        ],
+        "duration_seconds": 8.449
+      }
+    ]
+  },
+  "retained_preflight_failure": {
+    "version": "v1",
+    "result": "Stopped before importing/running any server check because serialized AST schema differed between host Python3.12 and container Python3.13.",
+    "harness": "build-dashboard-mi50-gate-20261023/server-tail-v1/continue-server.py",
+    "harness_sha256": "e16efaba6c6fbb2f7355812738571de438503f7923c114af1ac819edbd2f6f39",
+    "pins_sha256": "d026d71e274b7e052c523b6dd64f4449d94d4a301ba03037002f0a04b5614a78",
+    "recovery": "v2 changes only the harness identity guard to exact LF source bytes. Runtime and seven test bodies unchanged; no retry or assertion weakening inside server tests.",
+    "execution_artifact": "build-dashboard-mi50-gate-20261023/server-tail-main19-v1-execution.json",
+    "execution_sha256": "d7d470569786314c700ed021ea596b36a5be7f13d51fe7fb50a4107b88a97973",
+    "log_artifact": "build-dashboard-mi50-gate-20261023/server-tail-main19-v1-run.log",
+    "log_sha256": "4a17f4ff53451f107b409a6b198f372f4819685b325ca31943f286633ac0a675",
+    "exit": 1,
+    "removed": true,
+    "oom_killed": false
+  },
+  "carry": {
+    "older_server_component": "docs/benchmarks/dashboard-runtime-carry-20261023.json",
+    "separate_paused_recovery": "docs/benchmarks/dashboard-paused-prefill-sync-20261023.json",
+    "prior_checks_not_repeated": true
+  },
+  "limits": [
+    "No new timing claim; recorded durations are functional-test wall times.",
+    "The original full server component remains a retained failure; earlier checks, separately recovered pause and this tail have distinct source/binary scopes.",
+    "Hosted CI run39973227434 at6a045bf8c is still pending at this documentation checkpoint. No merge or deployment is claimed."
+  ]
+}

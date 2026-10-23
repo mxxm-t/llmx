@@ -1,0 +1,73 @@
+{
+    "passed":  true,
+    "conclusion":  "success",
+    "run_id":  39973227434,
+    "head_sha":  "6a045bf8c30db1327cda9d8577ce221041bfa45b",
+    "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434",
+    "checked_utc":  "2026-10-23T15:51:09.0949482Z",
+    "jobs":  [
+                 {
+                     "id":  120481069884,
+                     "name":  "Vulkan backend (build, Linux)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:36Z",
+                     "completed_at":  "2026-10-23T15:26:59Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481069884"
+                 },
+                 {
+                     "id":  120481070252,
+                     "name":  "HF reference (CPU)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:36Z",
+                     "completed_at":  "2026-10-23T15:48:28Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481070252"
+                 },
+                 {
+                     "id":  120481070262,
+                     "name":  "CPU (Linux UBSan)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:36Z",
+                     "completed_at":  "2026-10-23T15:29:05Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481070262"
+                 },
+                 {
+                     "id":  120481070397,
+                     "name":  "CPU (windows-2022)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:36Z",
+                     "completed_at":  "2026-10-23T15:28:38Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481070397"
+                 },
+                 {
+                     "id":  120481070453,
+                     "name":  "CPU (Linux TSan)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:35Z",
+                     "completed_at":  "2026-10-23T15:06:04Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481070453"
+                 },
+                 {
+                     "id":  120481070553,
+                     "name":  "CPU (macos-15-intel)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:36Z",
+                     "completed_at":  "2026-10-23T15:39:25Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481070553"
+                 },
+                 {
+                     "id":  120481070679,
+                     "name":  "CPU (ubuntu-24.04)",
+                     "status":  "completed",
+                     "conclusion":  "success",
+                     "started_at":  "2026-10-23T14:51:36Z",
+                     "completed_at":  "2026-10-23T15:20:00Z",
+                     "html_url":  "https://github.com/mxxm-t/llmx/actions/runs/39973227434/job/120481070679"
+                 }
+             ]
+}

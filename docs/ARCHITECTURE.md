@@ -106,6 +106,11 @@ The model layer is one runtime that names no architecture and one module per arc
   on its host when its destination lacks a weight type or an op of its
   feed-forward part; the backend owns the type and op queries over its
   existing kernel support.
+  The runtime's immutable `Model::topology()` snapshot also owns resolved
+  placement and bounded lookup storage facts. Lookup row and table sizes come
+  from the resolved role's validated row source or quantized row layout; the
+  server serializes this snapshot rather than interpreting architecture
+  metadata. A file-backed row source does not report physical page residency.
 - A module (`model/arch/qwen3.hpp` for qwen3 and qwen3moe, `model/arch/qwen35.hpp` for qwen35 and qwen35moe, and `model/arch/qwen4exp.hpp` for qwen4exp) reads its configuration from the file's metadata and declares a plan: its layers, each layer's kind, cache (KV, a recurrent state or none), tensor roles and the ops some backends lack, the arena slots, the residual width, the context length, the K and V geometry with any per-layer F32 auxiliary rows, the recurrent state's common shape with any per-layer F32 state tail, any fixed-width host token history with its padding ID, and the position tables.
   The graph pieces more than one module runs are in `model/arch/blocks.hpp`.
   It supplies its math as backend ops, which the runtime calls once per layer part: `embed`, `mixer`, `ffn` and `head`.

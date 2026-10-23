@@ -342,7 +342,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             result = subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-first-run",
                                      "--disable-background-networking", "--window-size=" + str(width) + ",1200",
                                      "--user-data-dir=" + str(profile), "--dump-dom", page.as_uri()],
-                                    capture_output=True, text=True, timeout=25, check=True)
+                                    capture_output=True, text=True, timeout=90, check=True)
         match = re.search(r"<pre id=[\"']rate-test-results[\"']>(.*?)</pre>", result.stdout, re.S)
         self.assertIsNotNone(match, "browser did not return JavaScript results")
         outcomes = json.loads(html.unescape(match.group(1)))

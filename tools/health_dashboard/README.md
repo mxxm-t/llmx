@@ -93,10 +93,11 @@ including fields introduced by newer server versions.
 Run the focused rate-window regression with
 `python -m unittest tools.health_dashboard.test_ui_rates`. When Chrome or Edge
 is installed, it uses a local headless browser to execute the dashboard's rate
-helpers; otherwise the browser check is skipped. This adds no runtime
-dependency. The same check renders the full page at desktop and narrow widths
-and compares live-card and chart geometry across busy, zero, stale, expired,
-reset, missing-counter and recovery states.
+helpers with a 90-second bound per browser invocation; a timeout fails the test
+and is not retried or skipped. Without Chrome or Edge, the browser check is
+skipped. This adds no runtime dependency. The same check renders the full page
+at desktop and narrow widths and compares live-card and chart geometry across
+busy, zero, stale, expired, reset, missing-counter and recovery states.
 
 The model placement panel shows realized topology when `/v1/health` includes
 `topology`: split mode, tensor width, layer stages and backend names. Expand

@@ -69,6 +69,13 @@
 - **Review:** all 117 tracked Markdown pages are inventoried: 12 changed and 105 unchanged pages carry forward their prior review. Source checks confirm the model registry, server defaults, cache types and dtype reporting. Final docs checks report 0 findings and 21 planted faults; dead-code reports 5 listed findings and 18 planted faults. The CLI-matched archived binary and inventory are recorded in ignored `build-docs-audit/quant-support-review.json`.
 - **Landing:** this docs-only change lands as one fast-forward commit after its applicable docs/dead-code checks. Parent review is complete; no runtime or test code changes, inference reruns or unrelated hosted-job waits are required.
 
+## README weight-format support table (2026-10-23)
+
+- **Done:** the `#quantization-types` table groups floating formats, MXFP4, Q families and IQ families in that order. Q rows are grouped by bit width (Q2_K, Q3_K, Q4, Q5, Q6_K, Q8_0). It uses consistent type-name formatting and support labels, names the exact `Q4_0` and `Q8_0` quantize writers, and keeps the MXFP4 Vulkan capability requirement beside the table. The surrounding prose distinguishes inference support from metadata recognition without repeating table entries; auxiliary `Q8_1` and `Q8_K` names are formatted consistently.
+- **Checks:** an initial attempt using `..\..\build\Release\llmx.exe` was incompatible (`gf91def28fa2d.dirty`; `--help` returned 1). The final focused check used the compatible existing executable: `python -X utf8 tests/run_tests.py --exe ..\iq2-s-20261023\build-iq2-conversion-fix\Release\llmx.exe --only docs,dead-code`. Docs has 0 findings and 21 planted faults; dead-code has 5 listed findings and 18 planted faults. The reused executable is `g70c2eb06324f.dirty`, SHA-256 `D3782BB2A4C70873BEC260145C6F99E6727BB09F7B679DAFEB753264D2F2934D`.
+- **Review and landing:** at base `9a26d7a0b9610ab4b55e8fe9de3229428bd8f93c`, the Markdown inventory contains 122 pages. This change edits only `README.md` and `docs/STATUS.md`; the other 120 pages are hash-identical to base and carry forward the prior review. The docs-only change lands by fast-forward after its focused checks; no inference or unrelated hosted checks are required.
+- **Scope:** documentation only; runtime and qualification status are unchanged.
+
 ## Q2_K and Q3_K published on GitHub main (2026-10-21)
 
 - **Landing:** public main is `e3f6e5ca4e18ef14d4ce7b23d8107a76653f107c`, which adds read-only Q2_K and Q3_K runtime support after the recorded qualification work. The temporary gate branch has been deleted.

@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -77,18 +78,23 @@ public:
 
     // The match that stands in for a model's draft, in tokens; docs/SPECULATIVE.md, section 8, has the measurement it comes from.
     static constexpr size_t kConvincing = 8;
-    // Up to `k` tokens that followed the latest earlier occurrence of the history's last kConvincing tokens, in `out`, or none where they occur nowhere earlier.
-    // An occurrence that overlaps the history's end goes on into the tokens drafted, as a repeating run does.
-    static void convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) {
+    // The longest match a draft's acceptance is told apart by (match_bucket).
+    static constexpr size_t kLongestMatch = 32;
+    // Up to `k` tokens that followed the latest earlier occurrence of the history's last kConvincing tokens, in `out`, an occurrence that overlaps the history's end going on into the tokens drafted.
+    // Returns the match's length, the occurrence extended backwards while it still matches the history's end, at most kLongestMatch, or 0 for none.
+    static size_t convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) {
         out.clear();
         const size_t size = h.size(), n = kConvincing;
-        if (size <= n) return;
+        if (size <= n || !k) return 0;
         const uint32_t last = h[size - 1];
         for (size_t i = size - n; i-- > 0;) {
             if (h[i + n - 1] != last || !std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n - 1), h.end() - (std::ptrdiff_t)n)) continue;
             for (size_t j = i + n; out.size() < k; ++j) out.push_back(j < size ? h[j] : out[j - size]);
-            return;
+            size_t run = n;
+            while (run < kLongestMatch && i + n > run && h[i + n - 1 - run] == h[size - 1 - run]) ++run;
+            return run;
         }
+        return 0;
     }
 };
 
@@ -198,21 +204,47 @@ private:
 // Where a draft comes from: the request's own history ahead of a model proposer (lookup_first), or its proposer.
 enum class Source : uint8_t { lookup, proposer };
 
-// A request's drafting record: an acceptance for each source, so neither's misses rest the other, and the source of the draft its verify in flight feeds.
+// The ranges of a history draft's match length at its start that keep their acceptance apart: 8 to 15, 16 to 31, and 32 or more tokens.
+// Measured on the match profile (docs/SPECULATIVE.md, section 8): a match of 32 kept its 16th draft 0.82 of the time, one of 8 to 11 0.25.
+inline constexpr size_t kMatchBuckets = 3;
+inline size_t match_bucket(size_t match) { return match >= 32 ? 2 : match >= 16 ? 1 : 0; }
+
+// A request's drafting record: an acceptance for the proposer and one for each match bucket of the history's own drafts, so none's misses rest another, and the source and bucket of the draft its verify in flight feeds.
 struct Record {
-    Acceptance of[2];
+    Acceptance lookup[kMatchBuckets], proposer;
     Source drafted = Source::proposer;
-    Acceptance& operator[](Source s) { return of[(size_t)s]; }
-    const Acceptance& operator[](Source s) const { return of[(size_t)s]; }
-    // A verify that fed `fed` drafts of the source `drafted` and kept the first `kept`, the tokens it generated counted against the other source's rest.
+    size_t bucket = 0;
+    // The acceptance of source `s`, a history draft's in match bucket `b`.
+    Acceptance& at(Source s, size_t b) { return s == Source::lookup ? lookup[b] : proposer; }
+    const Acceptance& at(Source s, size_t b) const { return s == Source::lookup ? lookup[b] : proposer; }
+    // The acceptance of the draft in flight.
+    Acceptance& drafting() { return at(drafted, bucket); }
+    // Whether every match bucket of the history's own drafts rests, so no walk of the history can give a draft.
+    bool lookup_resting() const { return lookup[0].resting() && lookup[1].resting() && lookup[2].resting(); }
+    // A verify that fed `fed` drafts of the draft in flight and kept the first `kept`, the tokens it generated counted against every other acceptance's rest.
     void verified(size_t kept, size_t fed) {
-        of[(size_t)drafted].verified(kept, fed);
-        of[1 - (size_t)drafted].stepped(kept + 1);
+        Acceptance& d = drafting();
+        d.verified(kept, fed);
+        for (Acceptance* a : all())
+            if (a != &d) a->stepped(kept + 1);
     }
     // A token generated without drafts.
     void stepped() {
-        for (Acceptance& a : of) a.stepped();
+        for (Acceptance* a : all()) a->stepped();
     }
+    // The drafts fed and kept by position over source `s`, its buckets summed.
+    void tally(Source s, std::vector<size_t>& drafted_at, std::vector<size_t>& kept_at) const {
+        drafted_at.clear();
+        kept_at.clear();
+        for (size_t b = 0; b < (s == Source::lookup ? kMatchBuckets : 1); ++b) {
+            const Acceptance& a = at(s, b);
+            if (drafted_at.size() < a.drafted().size()) drafted_at.resize(a.drafted().size()), kept_at.resize(a.drafted().size());
+            for (size_t i = 0; i < a.drafted().size(); ++i) drafted_at[i] += a.drafted()[i], kept_at[i] += a.kept()[i];
+        }
+    }
+
+private:
+    std::array<Acceptance*, kMatchBuckets + 1> all() { return {&lookup[0], &lookup[1], &lookup[2], &proposer}; }
 };
 
 // How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, and none while it rests (Acceptance).
@@ -222,15 +254,23 @@ inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_
     return std::min({draft_max, tokens_left - 1, context_left - 1, columns});
 }
 
-// A request's draft ahead of its proposer (docs/SPECULATIVE.md, section 8): the convincing continuation of its own `history` (Lookup::convincing), up to the drafts draft_length allows lookup's acceptance, in `out`.
-// It sets the record's source and returns the drafts; with none the source is the proposer's, which the caller asks under that source's acceptance.
+// A request's draft ahead of its proposer (docs/SPECULATIVE.md, section 8): the convincing continuation of its own `history` (Lookup::convincing), up to the drafts draft_length allows the acceptance of its match's bucket, in `out`.
+// It sets the record's source and bucket and returns the drafts; with none the source is the proposer's, which the caller asks under that source's acceptance.
 inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const std::vector<uint32_t>& history,
                            std::vector<uint32_t>& out) {
     out.clear();
     r.drafted = Source::proposer;
-    const size_t k = draft_length(draft_max, tokens_left, context_left, columns, r[Source::lookup]);
-    if (k) Lookup::convincing(history, k, out);
-    if (!out.empty()) r.drafted = Source::lookup;
+    if (r.lookup_resting()) return 0;
+    static const Acceptance fresh;
+    const size_t k = draft_length(draft_max, tokens_left, context_left, columns, fresh);
+    const size_t match = k ? Lookup::convincing(history, k, out) : 0;
+    if (out.empty()) return 0;
+    if (r.lookup[match_bucket(match)].resting()) {
+        out.clear();
+        return 0;
+    }
+    r.drafted = Source::lookup;
+    r.bucket = match_bucket(match);
     return out.size();
 }
 

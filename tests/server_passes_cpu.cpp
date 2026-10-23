@@ -1353,16 +1353,18 @@ std::pair<size_t, size_t> fitted_server(const gguf::GGUFModel& weights, const bp
     request.fit_kv = true;
     request.slots = slots;
     request.decode_rows = seqs;
-    request.draft_rows = arena ? server::Scheduler::draft_rows(drafting) : 0;
-    request.logit_rows = server::logit_rows(slots, logits ? server::Scheduler::logits_a_pass(seqs, drafting) : seqs).size;
-    request.apart_rows = server::Scheduler::apart_rows(seqs, drafting);
+    // Four drafts a request for 16 requests give the 64 draft rows a pass reserves at most.
+    const size_t draft_max = drafting ? 4 : 0;
+    request.draft_rows = arena ? server::Scheduler::draft_rows(seqs, draft_max) : 0;
+    request.logit_rows = server::logit_rows(slots, logits ? server::Scheduler::logits_a_pass(seqs, draft_max) : seqs).size;
+    request.apart_rows = server::Scheduler::apart_rows(seqs, draft_max);
     infer::ModelOptions options;
     options.kv_tokens = size_t(1) << 20;
     options.mark_slots = drafting ? 4 : 0;
-    options.mark_rows = drafting ? 4 : 0;
+    options.mark_rows = drafting ? draft_max + 1 : 0;
     auto model = infer::place_model(infer::gguf_weights(weights), {device}, request, options).model;
     infer::spec::Lookup lookup;
-    server::Scheduler sched(*model, tok, seqs, 64, 0, false, 0, drafting ? &lookup : nullptr, drafting ? 3 : 0, false, {}, server::Pacing::automatic());
+    server::Scheduler sched(*model, tok, seqs, 64, 0, false, 0, drafting ? &lookup : nullptr, draft_max, false, {}, server::Pacing::automatic());
     return {device->taken.load(), model->kv_allocated_bytes() / (model->kv_tokens_total() / kBlock)};
 }
 // A drafter's rows come out of the fitted KV budget and not on top of it: fitted to the same free memory, a drafting server allocates within the room and no more than one without a drafter.
@@ -1770,9 +1772,10 @@ void interleaved(const gguf::GGUFModel& weights, uint32_t vocab) {
 
 int main(int argc, char** argv) {
     try {
-        // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a verify's draft rows, in each logits ring.
-        require(server::Scheduler::logits_a_pass(16, false) == 16 && server::Scheduler::logits_a_pass(16, true) == 16 + server::Scheduler::draft_rows(true) &&
-                    server::Scheduler::draft_rows(false) == 0 && server::Scheduler::draft_rows(true) == 64 && server::Scheduler::apart_rows(16, true) == server::Scheduler::logits_a_pass(16, true),
+        // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a pass's draft rows, at most 64 and at most --draft-max a request, in each logits ring.
+        using S = server::Scheduler;
+        require(S::logits_a_pass(16, 0) == 16 && S::draft_rows(16, 0) == 0 && S::draft_rows(1, 3) == 3 && S::draft_rows(16, 3) == 48 && S::logits_a_pass(16, 3) == 64 &&
+                    S::draft_rows(16, 31) == 64 && S::draft_rows(2, 31) == 62 && S::draft_rows(3, 31) == 64 && S::draft_rows(1, 63) == 63 && S::apart_rows(16, 31) == S::logits_a_pass(16, 31),
                 "the logits rows of a pass with and without drafts");
         reply_room(served(kSplit), (uint32_t)kSplit.vocab);
         // `automatic-group` runs the automatic rule's cases on the tensor group alone.

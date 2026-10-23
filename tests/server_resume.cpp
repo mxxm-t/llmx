@@ -2091,6 +2091,8 @@ void trim_stops_write(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
         const std::string what = std::string("a finished donor trimmed ") + (in_flight ? "while its write is in flight" : "once its write is whole");
         DiskRoot disk(in_flight ? "trim-write" : "trim-written");
         server::DiskOptions options = disk.options(uint64_t(1) << 30);
+        // The job waits for the whole file's read of its 512 rows however slowly the runner reads, so it forks them rather than reading them again beside the read's donor.
+        options.read_wait = std::chrono::seconds(60);
         struct Hold {
             std::mutex m;
             std::condition_variable cv;

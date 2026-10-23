@@ -1919,7 +1919,7 @@ def check_uncapped(model):
 def check_paused_prefill(model):
     """A long uncapped prompt read one token a pass is still prefilling when an earlier uncapped request has to grow and the pool has no room, so it is paused part-way; resumed, its greedy text is the CLI's for the whole prompt and its values those it gives alone."""
     flags = ("--ubatch", "1")
-    # 464 tokens in a pool of 1280: in blocks of 64 or 128 both requests fit at admission, the short one reaches its first growth step before this prompt is read, and that step does not fit beside it.
+    # 464-token prompt in a pool of 1280: with 64- or 128-token blocks, both initial prompt+256 reservations fit; the short request's next 256-token growth does not.
     with open(os.path.join(os.path.dirname(__file__), "data", "wiki.test.raw"), encoding="utf-8") as f:
         long_prompt = f.read()[:1800]
     # A stop string ends the long request a few tokens in, enough to tell which prompt it resumed from.
@@ -1932,10 +1932,34 @@ def check_paused_prefill(model):
     finally:
         srv.close()
     srv = Server(model, "--kv-tokens", "1280", *flags)
+    s = None
+    drainer = None
+    later = None
     try:
-        # The short request streams and is queued first, so the long one is the latest admitted and the one paused.
-        s = srv.open("/v1/completions", {"prompt": "Once upon a time", "temperature": 0, "stream": True})
-        s.recv(64)
+        # Tokenize both prompts before streaming, then witness enough short output to overlap the long prefill with the first growth.
+        short_prompt = "Once upon a time"
+        short_tokens = len(cli_tokenize(model, short_prompt))
+        long_tokens = len(cli_tokenize(model, long_prompt))
+        s = srv.open("/v1/completions", {"prompt": short_prompt, "temperature": 0, "stream": True, "ignore_eos": True})
+        def drain_stream():
+            try:
+                while s.recv(65536):
+                    pass
+            except OSError:
+                pass
+        drainer = threading.Thread(target=drain_stream)
+        drainer.start()
+        growth_witness = 256
+        deadline = time.time() + 900
+        while True:
+            health = srv.get("/v1/health")
+            short = next((item for item in health["requests"]["live"]["items"]
+                          if item["prompt_tokens"] == short_tokens), None)
+            if short and short["phase"] == "generate" and short["published_tokens"] >= growth_witness:
+                break
+            assert time.time() < deadline, ("short request did not reach the 256-token generation witness", health)
+            time.sleep(0.05)
+
         result = []
         failure = []
         def worker():
@@ -1945,11 +1969,27 @@ def check_paused_prefill(model):
                 failure.append(e)
         later = threading.Thread(target=worker)
         later.start()
-        # Once the long request is paused the short one leaves, so the long one resumes now rather than after the short one's whole reply.
-        while later.is_alive() and srv.get("/v1/health")["pressure"]["since_start"]["pauses"] == 0:
+        # Observe the long request paused before it finishes prefill, not just a pool pause elsewhere in the run.
+        deadline = time.time() + 900
+        paused_prefill = None
+        while later.is_alive():
+            health = srv.get("/v1/health")
+            long_live = next((item for item in health["requests"]["live"]["items"]
+                              if item["prompt_tokens"] == long_tokens), None)
+            if long_live and long_live["phase"] == "paused" and 0 < long_live["prefilled_tokens"] < long_tokens:
+                paused_prefill = (health, long_live)
+                break
+            assert time.time() < deadline, ("long prompt was not paused part-way through prefill", health)
             time.sleep(0.05)
+        try:
+            s.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         s.close()
-        later.join()
+        drainer.join(timeout=30)
+        assert not drainer.is_alive(), "short stream reader did not stop after the client closed"
+        later.join(timeout=900)
+        assert not later.is_alive(), "long request did not finish within its 900-second timeout"
         # A post that failed in the worker raises its own error here rather than leaving result empty.
         if failure:
             raise failure[0]
@@ -1961,9 +2001,22 @@ def check_paused_prefill(model):
         assert reply["choices"][0]["finish_reason"] == "stop" and " ." not in text and want.startswith(text + " ."), (text, want)
         same_choice(alone["choices"][0], reply["choices"][0], "a prompt paused while prefilling")
         health = srv.get("/v1/health")
+        assert paused_prefill is not None, health
         assert health["requests"]["now"]["active"] == 0 and health["pressure"]["since_start"]["pauses"] >= 1, health
     finally:
+        if s is not None:
+            try:
+                s.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            s.close()
         srv.close()
+        if drainer is not None:
+            drainer.join(timeout=30)
+            assert not drainer.is_alive(), "short stream reader remained blocked after server shutdown"
+        if later is not None:
+            later.join(timeout=30)
+            assert not later.is_alive(), "long request worker remained blocked after server shutdown"
 
 
 def check_conversation(model, text):

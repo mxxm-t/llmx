@@ -1,0 +1,115 @@
+{
+  "schema": "llmx.dashboard.paused-prefill-sync.v1",
+  "date": "2026-10-23",
+  "scope": {
+    "base_revision": "888ae1310c9385964c93b8f2e719a39f7ec32bc5",
+    "candidate_revision": "225b9d9d6f3c98521ac3621f02bd640bba3334f9",
+    "test": "tests/server.py::check_paused_prefill",
+    "test_sha256": "e196eaa6ad89c0afec7139a6686060f839525b9223d3ff69a830a85f7de32dec",
+    "runtime_change": false
+  },
+  "input_hashes": {
+    "source_pins_json_sha256": "db1e5fb96968fee150a3624223e259322df63d7aa7b14c8c959ce4f4f03ae80e",
+    "main_source_archive_sha256": "39b2b6aa044c0ef64437443f22bd880079025dd05784f269c7b6cf3e812d2ddd",
+    "candidate_source_archive_sha256": "3b9bf2b210692da31b162900c40566b63bc4fd7d2e12828e28f8cc09c5ea3c79",
+    "main_binary_sha256": "a2e70b80cf9183f3b9307288c86cad971559483e3d2a64890f0c723a5594cec8",
+    "candidate_binary_sha256": "883cc8a0739c9d0c0651b4b1f21119dd73416c89f3c3d737aff3e0c22dbbf7a4",
+    "qwen3_0_6b_q8_0_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "vulkan_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "execution": {
+    "device": "MI50 Vulkan device 9",
+    "pci": "0000:CC:00.0",
+    "render_node": "/dev/dri/renderD131",
+    "cpuset": "6-7",
+    "container_removed": true,
+    "test_parameters": {
+      "kv_tokens": 1280,
+      "ubatch": 1,
+      "long_prompt_chars": 1800,
+      "long_prompt_tokens": 464,
+      "short_prompt": "Once upon a time",
+      "short_prompt_tokens": 4,
+      "short_ignore_eos": true,
+      "short_generation_witness_published_tokens_min": 256,
+      "requires_long_phase": "paused",
+      "requires_partial_prefill": true,
+      "stop": [" ."]
+    },
+    "results": {
+      "main": {
+        "passed": true,
+        "elapsed_seconds": 24.035,
+        "short_published_tokens_at_witness": 258,
+        "short_published_tokens_at_long_pause": 329,
+        "long_phase_at_witness": "paused",
+        "long_prefilled_tokens_at_witness": 217,
+        "long_prompt_tokens": 464,
+        "pressure_pauses": 1
+      },
+      "candidate": {
+        "passed": true,
+        "elapsed_seconds": 23.765,
+        "short_published_tokens_at_witness": 257,
+        "short_published_tokens_at_long_pause": 322,
+        "long_phase_at_witness": "paused",
+        "long_prefilled_tokens_at_witness": 220,
+        "long_prompt_tokens": 464,
+        "pressure_pauses": 1
+      }
+    },
+    "assertions": "Both runs passed the existing paused-prefill text, choice, and logprob comparisons; the long request was observed paused after partial prefill.",
+    "result_artifact": {
+      "path": "build-dashboard-mi50-gate-20261023/pause-sync-v4-result.json",
+      "sha256": "6d88fea1973f76bef47f682c18c427ffafb93a6e1b736f968d34358c599263a7"
+    }
+  },
+  "retained_prior_attempts": [
+    {
+      "label": "initial targeted server gate",
+      "outcome": "Candidate paused-prefill check failed with zero pressure pauses; a later paired replay reproduced the zero-pause outcome on both main and candidate.",
+      "artifact": "build-dashboard-mi50-gate-20261023/current-main-landing-identity-v1/device-gates-v2-server.log",
+      "artifact_sha256": "722b4872f2319ecbc0e37b5f8def8e90b8190804e4664da90a78b67114c1817c"
+    },
+    {
+      "label": "pause-sync-v2",
+      "outcome": "Exited before either binary ran: the isolated test copy lacked tools/server_mix_check.py. This is a harness setup failure, not a test result."
+    },
+    {
+      "label": "pause-sync-v3",
+      "outcome": "Both binaries ran and failed the pause witness with zero pressure pauses; that version waited for only one short published token.",
+      "result_artifact": "build-dashboard-mi50-gate-20261023/pause-sync-v3-result.json",
+      "result_sha256": "d61e99a26541f70ffed00aadefc16c732ffd7d4f796cdf608079092ecd4fcf78"
+    }
+  ],
+  "follow_up": {
+    "local_windows_cpu_one_function": {
+      "passed": true,
+      "test": "tests/server.py::check_paused_prefill",
+      "seconds": 52.26033425331116,
+      "device": "cpu",
+      "executable": "worktrees/cli-help-format-20261023/build-cli-landing-20261023/Release/llmx.exe",
+      "executable_sha256": "4dc1bf09fe6fe031e47a49b8c9aa72d4ccf7a0ea0539f0455a3617f3d1bd5e83",
+      "version": "llmx 0.1.0+g888ae1310c93.dirty numerics 227a1fd84d620024",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "test_sha256": "e196eaa6ad89c0afec7139a6686060f839525b9223d3ff69a830a85f7de32dec",
+      "result_artifact": {
+        "path": "build-dashboard-mi50-gate-20261023/pause-sync-cpu-result.json",
+        "sha256": "aa41c10962ccf10d544603f2a32bcefe7453ee9854d550334ac9562a9083ae0f"
+      }
+    },
+    "qwen3_0_6b_q8_0_fixture": {
+      "path": "C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "matches_pinned_model": true
+    },
+    "windows_cpu_binary": {
+      "path": "worktrees/cli-help-format-20261023/llmx.exe",
+      "sha256": "a7936c48d63cc3d1b68f332d8bd3a1ffa4f64496b9872691ffc01288386cbdde",
+      "runtime_base": "888ae1310c9385964c93b8f2e719a39f7ec32bc5"
+    },
+    "docs_check": "pass: 0 findings against the list, 21 planted faults",
+    "dead_code_check": "pass: 5 findings against the list (1 unused, 4 test-only), 18 planted faults",
+    "merge_claimed": false
+  }
+}

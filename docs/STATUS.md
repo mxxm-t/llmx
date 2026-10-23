@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Paused-prefill server test synchronization (2026-10-23, test-only follow-up)
+
+- **CPU and MI50 result:** the focused `check_paused_prefill` passes on the qualified Windows CLI-help build in 52.260 seconds, and on both main `888ae1310` and dashboard `225b9d9d6` MI50 Vulkan binaries. Main published 258 short tokens at the witness; while short was at 329, the 464-token long request was paused after 217 prefill tokens. Candidate published 257 at the witness; while short was at 322, long paused after 220/464. Each MI50 run recorded one pressure pause. All runs passed the existing resumed-text, choice and logprob assertions. Exact pins and result hashes are in [the diagnostic record](benchmarks/dashboard-paused-prefill-sync-20261023.json).
+- **Retained attempts and scope:** the initial gate and its paired replay recorded zero pauses on both binaries. The v2 isolated bundle exited before either arm because it omitted `tools/server_mix_check.py`; this was a setup failure, not a test result. V3 ran both arms but its one-token witness also produced zero pauses. V4 uses a 256-token published-output witness, ignores EOS on the short stream and tokenizes both prompts before opening it. The pool size, growth policy and output comparisons are unchanged. The final pause-count assertion is retained and the test additionally requires the long request to be paused during partial prefill. Docs and dead-code checks pass on this test worktree with zero docs findings and 21 planted faults, and five listed dead-code findings and 18 planted faults. The dashboard feature has not been merged; no merge claim is made here.
+
+
 ## CLI help formatting (2026-10-23, branch fix/cli-help-format-20261023)
 
 - **Goal:** align command help descriptions and continuation lines, make prose ASCII and keep it within 80 columns, while preserving every accepted option and its meaning.

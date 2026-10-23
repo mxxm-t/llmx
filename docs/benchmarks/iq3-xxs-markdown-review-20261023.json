@@ -1,0 +1,637 @@
+{
+  "baseline_commit": "4da595f8044e043af397e2e6f7167429ec14bd16",
+  "head_commit": "4da595f8044e043af397e2e6f7167429ec14bd16",
+  "tracked_markdown_count": 124,
+  "nonignored_untracked_markdown_count": 0,
+  "changed_count": 4,
+  "unchanged_count": 120,
+  "changed": [
+    {
+      "path": "AGENTS.md",
+      "base_blob": "8f2c0469b6a9b041907c1c742078b7b55e8c5f19",
+      "worktree_blob": "072228cb17acfd2c27b43d065f404ec92a1098b1"
+    },
+    {
+      "path": "README.md",
+      "base_blob": "d721a5cb5d156783163067843cd24df050ffeef7",
+      "worktree_blob": "062bd358d2c89dcae6930074b1447062ed9fe06d"
+    },
+    {
+      "path": "docs/PRECISION.md",
+      "base_blob": "f23c7fb5a4e03b920ad4d9088764207d3773b286",
+      "worktree_blob": "a54c8a823fb4537e5a08595b16da2c3bcb936820"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "base_blob": "6cbbd11593a26d904d149c223d442317ea86cfa0",
+      "worktree_blob": "f577ac401966a4562bb7019e4cccd110b937c566"
+    }
+  ],
+  "unchanged": [
+    {
+      "path": "docs/ADDING-AN-ARCHITECTURE.md",
+      "base_blob": "ce09a34c694dbe7dd4a8bd70a9e8b9059b0fe597",
+      "worktree_blob": "ce09a34c694dbe7dd4a8bd70a9e8b9059b0fe597"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "base_blob": "4dcc2d3191c696eefd657f44619d377035798d48",
+      "worktree_blob": "4dcc2d3191c696eefd657f44619d377035798d48"
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "base_blob": "0900d6d5931c816a15605cd017b104344962aed3",
+      "worktree_blob": "0900d6d5931c816a15605cd017b104344962aed3"
+    },
+    {
+      "path": "docs/BUILD.md",
+      "base_blob": "22f64a7e0c2fb4f69fed8539c9c2d67474063d97",
+      "worktree_blob": "22f64a7e0c2fb4f69fed8539c9c2d67474063d97"
+    },
+    {
+      "path": "docs/CACHE-PLAN.md",
+      "base_blob": "9d36ac194478c486a158cda5eeb988c636bebc2e",
+      "worktree_blob": "9d36ac194478c486a158cda5eeb988c636bebc2e"
+    },
+    {
+      "path": "docs/CI.md",
+      "base_blob": "f0e545136da2409c8b73605d2106da476b0ed787",
+      "worktree_blob": "f0e545136da2409c8b73605d2106da476b0ed787"
+    },
+    {
+      "path": "docs/DEVICE-EXECUTION.md",
+      "base_blob": "26a81d55ecf13c92b90b39fd40bfad47bbfd57d5",
+      "worktree_blob": "26a81d55ecf13c92b90b39fd40bfad47bbfd57d5"
+    },
+    {
+      "path": "docs/DISK-TIER.md",
+      "base_blob": "6a3c7042d533adfa9dbc2ddbce979fcac7bffb26",
+      "worktree_blob": "6a3c7042d533adfa9dbc2ddbce979fcac7bffb26"
+    },
+    {
+      "path": "docs/EXECUTION.md",
+      "base_blob": "f3b23584ab34f36d13c232a7ecda3d713f332ca9",
+      "worktree_blob": "f3b23584ab34f36d13c232a7ecda3d713f332ca9"
+    },
+    {
+      "path": "docs/KV-CACHE.md",
+      "base_blob": "a91df5663eb2932007db9ccf4cbad12ad210a877",
+      "worktree_blob": "a91df5663eb2932007db9ccf4cbad12ad210a877"
+    },
+    {
+      "path": "docs/MULTI-DEVICE.md",
+      "base_blob": "eae7b51793dbff212a804dd9005bfb04b30de67a",
+      "worktree_blob": "eae7b51793dbff212a804dd9005bfb04b30de67a"
+    },
+    {
+      "path": "docs/OPERATING.md",
+      "base_blob": "97d15099938bdc1afea5fcc0b2698580cfbf33dd",
+      "worktree_blob": "97d15099938bdc1afea5fcc0b2698580cfbf33dd"
+    },
+    {
+      "path": "docs/QWEN35.md",
+      "base_blob": "9a5870f3a0c45d2255f40870f1eecd8690027449",
+      "worktree_blob": "9a5870f3a0c45d2255f40870f1eecd8690027449"
+    },
+    {
+      "path": "docs/QWEN38-FLASH.md",
+      "base_blob": "65b2ae36517a7eb85c93fdc9d8336c5677a0ff6f",
+      "worktree_blob": "65b2ae36517a7eb85c93fdc9d8336c5677a0ff6f"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "base_blob": "c492e2c1dd4d59ab0784e5b6fc95bc64493a3c21",
+      "worktree_blob": "c492e2c1dd4d59ab0784e5b6fc95bc64493a3c21"
+    },
+    {
+      "path": "docs/ROCM.md",
+      "base_blob": "7819060d3143e111c45a055534cd7d60484418be",
+      "worktree_blob": "7819060d3143e111c45a055534cd7d60484418be"
+    },
+    {
+      "path": "docs/SERVER.md",
+      "base_blob": "03b4477c67b056433fe61e1ae3e86184d444c6bf",
+      "worktree_blob": "03b4477c67b056433fe61e1ae3e86184d444c6bf"
+    },
+    {
+      "path": "docs/SPECULATIVE.md",
+      "base_blob": "c495bdc3c2bece2ad9a4df79644f668a31189d5a",
+      "worktree_blob": "c495bdc3c2bece2ad9a4df79644f668a31189d5a"
+    },
+    {
+      "path": "docs/STATUS-2026-09.md",
+      "base_blob": "7c76cf7000b97e2ce0740ffb9a1977c7100e5ade",
+      "worktree_blob": "7c76cf7000b97e2ce0740ffb9a1977c7100e5ade"
+    },
+    {
+      "path": "docs/TENSOR-SPLIT.md",
+      "base_blob": "8349e7cbada3ad4de8b9343f2c31a0543156007d",
+      "worktree_blob": "8349e7cbada3ad4de8b9343f2c31a0543156007d"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "base_blob": "205474e3092895d09d98052f59c9a0602181b370",
+      "worktree_blob": "205474e3092895d09d98052f59c9a0602181b370"
+    },
+    {
+      "path": "docs/VULKAN.md",
+      "base_blob": "fe70bf26083bf929743555c2ece07374333ffa7c",
+      "worktree_blob": "fe70bf26083bf929743555c2ece07374333ffa7c"
+    },
+    {
+      "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+      "base_blob": "82613f552bc36c1f9a9247fd3d0a7e0ed026905e",
+      "worktree_blob": "82613f552bc36c1f9a9247fd3d0a7e0ed026905e"
+    },
+    {
+      "path": "docs/benchmarks/backend-audit-20260925/README.md",
+      "base_blob": "59c66c121f18fdd953d6a8191c03560f3763eff2",
+      "worktree_blob": "59c66c121f18fdd953d6a8191c03560f3763eff2"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+      "base_blob": "b26abeeaa1640a677f27507f944eb36c5f3585eb",
+      "worktree_blob": "b26abeeaa1640a677f27507f944eb36c5f3585eb"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+      "base_blob": "2b42df75659941a2df949e513be0b64ad06897a0",
+      "worktree_blob": "2b42df75659941a2df949e513be0b64ad06897a0"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+      "base_blob": "5822bb21e7e5fde06cd84dc7655506573bcdac2b",
+      "worktree_blob": "5822bb21e7e5fde06cd84dc7655506573bcdac2b"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+      "base_blob": "51f59dc4eac634694cdb2b80e62bf3eee9516dc7",
+      "worktree_blob": "51f59dc4eac634694cdb2b80e62bf3eee9516dc7"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+      "base_blob": "64760e12c10753993d348c65b68aae374c59cb02",
+      "worktree_blob": "64760e12c10753993d348c65b68aae374c59cb02"
+    },
+    {
+      "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+      "base_blob": "e761d4ddad31913e54c6853da41e39020c4896fc",
+      "worktree_blob": "e761d4ddad31913e54c6853da41e39020c4896fc"
+    },
+    {
+      "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+      "base_blob": "e4eadc7176c7f9bec8bc5539095835f58580005d",
+      "worktree_blob": "e4eadc7176c7f9bec8bc5539095835f58580005d"
+    },
+    {
+      "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+      "base_blob": "ffb03960808d3e9f80a662de90c15d56969da794",
+      "worktree_blob": "ffb03960808d3e9f80a662de90c15d56969da794"
+    },
+    {
+      "path": "docs/benchmarks/expert-types-20261002.md",
+      "base_blob": "6fc934a5daf5de930e543c1f07a49d38c61dc7f7",
+      "worktree_blob": "6fc934a5daf5de930e543c1f07a49d38c61dc7f7"
+    },
+    {
+      "path": "docs/benchmarks/iq3-development-notes-20261023.md",
+      "base_blob": "ed0b5807d87603fc6a04cb7296897b552cffb003",
+      "worktree_blob": "ed0b5807d87603fc6a04cb7296897b552cffb003"
+    },
+    {
+      "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+      "base_blob": "a624045338754fc4b9197dfe2a36ff23ee0697c3",
+      "worktree_blob": "a624045338754fc4b9197dfe2a36ff23ee0697c3"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+      "base_blob": "9192dc0d300a94a5669ae524358e0bd31b89e74f",
+      "worktree_blob": "9192dc0d300a94a5669ae524358e0bd31b89e74f"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+      "base_blob": "98a10fde041055b6f73e84de40c9e9497baf14fe",
+      "worktree_blob": "98a10fde041055b6f73e84de40c9e9497baf14fe"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+      "base_blob": "c2b3afb7af676a651abdffc4163ca58a9143eb60",
+      "worktree_blob": "c2b3afb7af676a651abdffc4163ca58a9143eb60"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+      "base_blob": "620183c135e7f2ca420bd405327cedaad6a49d21",
+      "worktree_blob": "620183c135e7f2ca420bd405327cedaad6a49d21"
+    },
+    {
+      "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+      "base_blob": "d15ab1e479b1f68370520322768cf6798324f7dd",
+      "worktree_blob": "d15ab1e479b1f68370520322768cf6798324f7dd"
+    },
+    {
+      "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+      "base_blob": "4c3f17f998dd881dbf4cd69e0cd7d32ba1a37acc",
+      "worktree_blob": "4c3f17f998dd881dbf4cd69e0cd7d32ba1a37acc"
+    },
+    {
+      "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+      "base_blob": "f68fc00803047e4914828a914faac4cfa85c7a7c",
+      "worktree_blob": "f68fc00803047e4914828a914faac4cfa85c7a7c"
+    },
+    {
+      "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+      "base_blob": "39e4811fb0d872381711160c3741e805eb674505",
+      "worktree_blob": "39e4811fb0d872381711160c3741e805eb674505"
+    },
+    {
+      "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+      "base_blob": "d5f3e5c6f0ccd7d200e7d3bfba42c7850c9201d8",
+      "worktree_blob": "d5f3e5c6f0ccd7d200e7d3bfba42c7850c9201d8"
+    },
+    {
+      "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+      "base_blob": "2d7c2e87ac1ae3c95533e52a18cfdc6e8080b716",
+      "worktree_blob": "2d7c2e87ac1ae3c95533e52a18cfdc6e8080b716"
+    },
+    {
+      "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+      "base_blob": "adb08d19bafa5807381ab03474c1d95d0fc1aa60",
+      "worktree_blob": "adb08d19bafa5807381ab03474c1d95d0fc1aa60"
+    },
+    {
+      "path": "docs/benchmarks/server-investigation-20260929/README.md",
+      "base_blob": "e53df899ac40e16fc3d084f63ff3fdd08d11e8b5",
+      "worktree_blob": "e53df899ac40e16fc3d084f63ff3fdd08d11e8b5"
+    },
+    {
+      "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+      "base_blob": "982b9131eda33817718574dd395c1568175005a1",
+      "worktree_blob": "982b9131eda33817718574dd395c1568175005a1"
+    },
+    {
+      "path": "docs/benchmarks/storage-types-20261002.md",
+      "base_blob": "15cd91ca2337e2e3d215bd8aca4b9aab3a80c148",
+      "worktree_blob": "15cd91ca2337e2e3d215bd8aca4b9aab3a80c148"
+    },
+    {
+      "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+      "base_blob": "b25304a82b664b2d3741a6cdb96873d1d2617047",
+      "worktree_blob": "b25304a82b664b2d3741a6cdb96873d1d2617047"
+    },
+    {
+      "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+      "base_blob": "f149e74f2e432a10b602a305bbf42a000f31aca8",
+      "worktree_blob": "f149e74f2e432a10b602a305bbf42a000f31aca8"
+    },
+    {
+      "path": "docs/research/rocm-20261009.md",
+      "base_blob": "48b58e87d702fe81bd79fbf5295c5a5e8a0af368",
+      "worktree_blob": "48b58e87d702fe81bd79fbf5295c5a5e8a0af368"
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "base_blob": "03dc121898b44b97c489c6a26bff79efd37ba820",
+      "worktree_blob": "03dc121898b44b97c489c6a26bff79efd37ba820"
+    },
+    {
+      "path": "docs/src/backends-cpu-placement.md",
+      "base_blob": "320f9e8eb13e5c65d0864fbd31aadffdda970e66",
+      "worktree_blob": "320f9e8eb13e5c65d0864fbd31aadffdda970e66"
+    },
+    {
+      "path": "docs/src/backends-cpu-q8_dots.md",
+      "base_blob": "cbe2e26d3e39e697e959373636870b1ecfd98cc6",
+      "worktree_blob": "cbe2e26d3e39e697e959373636870b1ecfd98cc6"
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "base_blob": "f045a3dd175e3b144703d38186acf93b289fb7d2",
+      "worktree_blob": "f045a3dd175e3b144703d38186acf93b289fb7d2"
+    },
+    {
+      "path": "docs/src/backends-device_profile.md",
+      "base_blob": "7089aa2a1674cccf256db7d7c7ce220f1f6deead",
+      "worktree_blob": "7089aa2a1674cccf256db7d7c7ce220f1f6deead"
+    },
+    {
+      "path": "docs/src/backends-devices.md",
+      "base_blob": "7825b16c4bb8e43c706082440563cb7923d1a529",
+      "worktree_blob": "7825b16c4bb8e43c706082440563cb7923d1a529"
+    },
+    {
+      "path": "docs/src/backends-kv_storage.md",
+      "base_blob": "d5803e9565da5cf9b703e237a8a4bf58f3c3b093",
+      "worktree_blob": "d5803e9565da5cf9b703e237a8a4bf58f3c3b093"
+    },
+    {
+      "path": "docs/src/backends-vulkan.md",
+      "base_blob": "5ddd0da36b72e51785c25f3cefad13160623f809",
+      "worktree_blob": "5ddd0da36b72e51785c25f3cefad13160623f809"
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "base_blob": "a890df8d521f0f970601f3c3746c189664f56d3d",
+      "worktree_blob": "a890df8d521f0f970601f3c3746c189664f56d3d"
+    },
+    {
+      "path": "docs/src/config.md",
+      "base_blob": "a4f50ec6f8ed04cffa72b1597c99157032ef069d",
+      "worktree_blob": "a4f50ec6f8ed04cffa72b1597c99157032ef069d"
+    },
+    {
+      "path": "docs/src/core-bf16.md",
+      "base_blob": "540d041b8c4ec3c2449b765dafb66a8cfb94761d",
+      "worktree_blob": "540d041b8c4ec3c2449b765dafb66a8cfb94761d"
+    },
+    {
+      "path": "docs/src/core-cgroup.md",
+      "base_blob": "bea87e35e95f7f4283a14589c5c8b3d360da2de2",
+      "worktree_blob": "bea87e35e95f7f4283a14589c5c8b3d360da2de2"
+    },
+    {
+      "path": "docs/src/core-cpus.md",
+      "base_blob": "96eeea36cf9b2d98e4250823d48730bb51785074",
+      "worktree_blob": "96eeea36cf9b2d98e4250823d48730bb51785074"
+    },
+    {
+      "path": "docs/src/core-crc32c.md",
+      "base_blob": "326f2485f6426863be71713e7e5626363d0b422e",
+      "worktree_blob": "326f2485f6426863be71713e7e5626363d0b422e"
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "base_blob": "a82c809636dfb9021c606f30c2970ebff3fdf9bb",
+      "worktree_blob": "a82c809636dfb9021c606f30c2970ebff3fdf9bb"
+    },
+    {
+      "path": "docs/src/core-host_memory.md",
+      "base_blob": "a3cf8d662a48d763fa48beffc23ba337bf3225ff",
+      "worktree_blob": "a3cf8d662a48d763fa48beffc23ba337bf3225ff"
+    },
+    {
+      "path": "docs/src/core-job_threads.md",
+      "base_blob": "18eb1b2636e1af05a16f93cc41b8b884138d966b",
+      "worktree_blob": "18eb1b2636e1af05a16f93cc41b8b884138d966b"
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "base_blob": "6de4af8bc48886867159a06dc1cef5d7b72f88c8",
+      "worktree_blob": "6de4af8bc48886867159a06dc1cef5d7b72f88c8"
+    },
+    {
+      "path": "docs/src/core-list.md",
+      "base_blob": "85b645fb0f9fc9531085c3faf2a6adaf0dea4a0e",
+      "worktree_blob": "85b645fb0f9fc9531085c3faf2a6adaf0dea4a0e"
+    },
+    {
+      "path": "docs/src/core-sha.md",
+      "base_blob": "8d157681e57f7f3b5b74ffa8899a1a88013a60da",
+      "worktree_blob": "8d157681e57f7f3b5b74ffa8899a1a88013a60da"
+    },
+    {
+      "path": "docs/src/core-utf8.md",
+      "base_blob": "3c08533f851338cbcfb05f1d11225123e65edb5e",
+      "worktree_blob": "3c08533f851338cbcfb05f1d11225123e65edb5e"
+    },
+    {
+      "path": "docs/src/format-file_digest.md",
+      "base_blob": "edc86ca34830cbd117a795bacccda20e1d80403e",
+      "worktree_blob": "edc86ca34830cbd117a795bacccda20e1d80403e"
+    },
+    {
+      "path": "docs/src/format-file_reader.md",
+      "base_blob": "91dfd65c3241eefef79081d4b4eda2b0a15c27a2",
+      "worktree_blob": "91dfd65c3241eefef79081d4b4eda2b0a15c27a2"
+    },
+    {
+      "path": "docs/src/format-file_writer.md",
+      "base_blob": "653dfa691361d3dfc8c166cd7ba71cbdf1e1a813",
+      "worktree_blob": "653dfa691361d3dfc8c166cd7ba71cbdf1e1a813"
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "base_blob": "82cec9d5a4a9d7c09929655f25ecd2f931e8bb95",
+      "worktree_blob": "82cec9d5a4a9d7c09929655f25ecd2f931e8bb95"
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "base_blob": "f8104f6ddac76b1079e924770d892e4c95307bd5",
+      "worktree_blob": "f8104f6ddac76b1079e924770d892e4c95307bd5"
+    },
+    {
+      "path": "docs/src/format-mapped_file.md",
+      "base_blob": "302434ec69213e091434a9bca1d27ce6000d6d93",
+      "worktree_blob": "302434ec69213e091434a9bca1d27ce6000d6d93"
+    },
+    {
+      "path": "docs/src/format-output_file.md",
+      "base_blob": "407a2b29592acfa693ce9ce783b2efd9af53c242",
+      "worktree_blob": "407a2b29592acfa693ce9ce783b2efd9af53c242"
+    },
+    {
+      "path": "docs/src/format-raw_convert.md",
+      "base_blob": "d7b424eca32fe8583962a68f2410f985ce302b17",
+      "worktree_blob": "d7b424eca32fe8583962a68f2410f985ce302b17"
+    },
+    {
+      "path": "docs/src/hub.md",
+      "base_blob": "68d3ec4e7eb77f41f57238214d21cc3c940dd6a3",
+      "worktree_blob": "68d3ec4e7eb77f41f57238214d21cc3c940dd6a3"
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "base_blob": "2ed9b45f59af07a15fe46da0a80d9039b4cca512",
+      "worktree_blob": "2ed9b45f59af07a15fe46da0a80d9039b4cca512"
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "base_blob": "382776b75f5b617a606539de90aadc47e8cde065",
+      "worktree_blob": "382776b75f5b617a606539de90aadc47e8cde065"
+    },
+    {
+      "path": "docs/src/inference-load.md",
+      "base_blob": "23d499a9c081071413535b7409519725a9b06add",
+      "worktree_blob": "23d499a9c081071413535b7409519725a9b06add"
+    },
+    {
+      "path": "docs/src/inference-logprobs.md",
+      "base_blob": "48f063053a6063751dce259f4b0f166ae81428cc",
+      "worktree_blob": "48f063053a6063751dce259f4b0f166ae81428cc"
+    },
+    {
+      "path": "docs/src/inference-pair.md",
+      "base_blob": "f4aa1bd4edbcca8f9304640fc36fd9c7dba70407",
+      "worktree_blob": "f4aa1bd4edbcca8f9304640fc36fd9c7dba70407"
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "base_blob": "c70b41eab981e8de0d68173a8009439ef0bb5295",
+      "worktree_blob": "c70b41eab981e8de0d68173a8009439ef0bb5295"
+    },
+    {
+      "path": "docs/src/inference-read_ring.md",
+      "base_blob": "752ecb8be5243802f69d2fd09deeefbfe830489a",
+      "worktree_blob": "752ecb8be5243802f69d2fd09deeefbfe830489a"
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "base_blob": "54cb9f558d3240db1170328b30884e703e0a529e",
+      "worktree_blob": "54cb9f558d3240db1170328b30884e703e0a529e"
+    },
+    {
+      "path": "docs/src/inference-spec.md",
+      "base_blob": "b6846a6320be04443cea03f99b980341f2ce4fad",
+      "worktree_blob": "b6846a6320be04443cea03f99b980341f2ce4fad"
+    },
+    {
+      "path": "docs/src/model-arch-blocks.md",
+      "base_blob": "3110082ba2d17159acf81c7dbe00bdcce3b93eb6",
+      "worktree_blob": "3110082ba2d17159acf81c7dbe00bdcce3b93eb6"
+    },
+    {
+      "path": "docs/src/model-arch-metadata.md",
+      "base_blob": "ebaa653ce084d88bddff59629d35d6707b77e127",
+      "worktree_blob": "ebaa653ce084d88bddff59629d35d6707b77e127"
+    },
+    {
+      "path": "docs/src/model-arch-qwen3.md",
+      "base_blob": "a485ba409bc73163eea8d01bcb5d076c7f86de16",
+      "worktree_blob": "a485ba409bc73163eea8d01bcb5d076c7f86de16"
+    },
+    {
+      "path": "docs/src/model-arch-qwen35.md",
+      "base_blob": "a9737158c4bfeb5ec47cf413589b035f3508af65",
+      "worktree_blob": "a9737158c4bfeb5ec47cf413589b035f3508af65"
+    },
+    {
+      "path": "docs/src/model-arch-qwen4exp.md",
+      "base_blob": "ed6a007d183fb40546e83581f40cbe634ec00b7f",
+      "worktree_blob": "ed6a007d183fb40546e83581f40cbe634ec00b7f"
+    },
+    {
+      "path": "docs/src/model-arch-registry.md",
+      "base_blob": "f49238fd29716998a71441dfbc65bc34f8d34a3e",
+      "worktree_blob": "f49238fd29716998a71441dfbc65bc34f8d34a3e"
+    },
+    {
+      "path": "docs/src/model-architecture.md",
+      "base_blob": "832955ed946c74df5bcf5bd0bdd0fbbfc2719150",
+      "worktree_blob": "832955ed946c74df5bcf5bd0bdd0fbbfc2719150"
+    },
+    {
+      "path": "docs/src/model-history.md",
+      "base_blob": "e44683c27230f904cea192f5cc24ebf89870be12",
+      "worktree_blob": "e44683c27230f904cea192f5cc24ebf89870be12"
+    },
+    {
+      "path": "docs/src/model-kv_cache.md",
+      "base_blob": "54f4381dffd52d9e490bcab423d21d39326f5c2b",
+      "worktree_blob": "54f4381dffd52d9e490bcab423d21d39326f5c2b"
+    },
+    {
+      "path": "docs/src/model-layer_split.md",
+      "base_blob": "35983bccfaba8e07fdcf9009d4fe431dbc805ed5",
+      "worktree_blob": "35983bccfaba8e07fdcf9009d4fe431dbc805ed5"
+    },
+    {
+      "path": "docs/src/model-passes.md",
+      "base_blob": "b0ba977c9a2163d0ca4b6294b80de25d9e6abe07",
+      "worktree_blob": "b0ba977c9a2163d0ca4b6294b80de25d9e6abe07"
+    },
+    {
+      "path": "docs/src/model-place.md",
+      "base_blob": "48e1da16d5e8ed0ffba15ce669c69efa7777b02c",
+      "worktree_blob": "48e1da16d5e8ed0ffba15ce669c69efa7777b02c"
+    },
+    {
+      "path": "docs/src/model-runtime.md",
+      "base_blob": "29010769bfcb9bd46a1abf92da2e6970c29700b0",
+      "worktree_blob": "29010769bfcb9bd46a1abf92da2e6970c29700b0"
+    },
+    {
+      "path": "docs/src/model-shard.md",
+      "base_blob": "6ba6cc11ac5ccf941065f0c489b8c102090f039f",
+      "worktree_blob": "6ba6cc11ac5ccf941065f0c489b8c102090f039f"
+    },
+    {
+      "path": "docs/src/model-weight_rows.md",
+      "base_blob": "18583e4c2e9dd4c0681b29de74f335d4614af72d",
+      "worktree_blob": "18583e4c2e9dd4c0681b29de74f335d4614af72d"
+    },
+    {
+      "path": "docs/src/model-weights.md",
+      "base_blob": "75edfd2b46e34cee47dfb976f8acf48a5d1b8a96",
+      "worktree_blob": "75edfd2b46e34cee47dfb976f8acf48a5d1b8a96"
+    },
+    {
+      "path": "docs/src/quant-iq2-s-grid.md",
+      "base_blob": "f50718330f465f54113591d16fce2ad5b0b24b4b",
+      "worktree_blob": "f50718330f465f54113591d16fce2ad5b0b24b4b"
+    },
+    {
+      "path": "docs/src/quant-iq2-s.md",
+      "base_blob": "9acc7218afec30ebb672a92a2c7c3f1578a84c74",
+      "worktree_blob": "9acc7218afec30ebb672a92a2c7c3f1578a84c74"
+    },
+    {
+      "path": "docs/src/quant-iq3-s-grid.md",
+      "base_blob": "305bdde77dbfdc038d0083ff82f3948eaedec832",
+      "worktree_blob": "305bdde77dbfdc038d0083ff82f3948eaedec832"
+    },
+    {
+      "path": "docs/src/quant-iq3-s.md",
+      "base_blob": "90eb4263ee2136d76d8d60c7b2aa2c457bff94fa",
+      "worktree_blob": "90eb4263ee2136d76d8d60c7b2aa2c457bff94fa"
+    },
+    {
+      "path": "docs/src/quant-iq3-xxs-grid.md",
+      "base_blob": "a2dd52b1697c703329f35c1baff0d436661c2212",
+      "worktree_blob": "a2dd52b1697c703329f35c1baff0d436661c2212"
+    },
+    {
+      "path": "docs/src/quant-iq3-xxs.md",
+      "base_blob": "d2e2fcc352409c26d83eb3434af7d7811ad73ef3",
+      "worktree_blob": "d2e2fcc352409c26d83eb3434af7d7811ad73ef3"
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "base_blob": "767cbdd5c3b079be820c253366e0588614a3b613",
+      "worktree_blob": "767cbdd5c3b079be820c253366e0588614a3b613"
+    },
+    {
+      "path": "docs/src/quant-mxfp4.md",
+      "base_blob": "2bf211c63b9c25fa20a9bef7a97a1e0c0b9ec508",
+      "worktree_blob": "2bf211c63b9c25fa20a9bef7a97a1e0c0b9ec508"
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "base_blob": "b67982150d7e90f8ffe36b9b018a5ead6bae8aef",
+      "worktree_blob": "b67982150d7e90f8ffe36b9b018a5ead6bae8aef"
+    },
+    {
+      "path": "docs/src/quant-types.md",
+      "base_blob": "44b798d1a3691dd7c9d942af505c19b1a3916ab5",
+      "worktree_blob": "44b798d1a3691dd7c9d942af505c19b1a3916ab5"
+    },
+    {
+      "path": "docs/src/server.md",
+      "base_blob": "8ce7cb4cab9e2b1f29ad29756b52ef58f1de333f",
+      "worktree_blob": "8ce7cb4cab9e2b1f29ad29756b52ef58f1de333f"
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "base_blob": "f246b9a1e4fcfc24a355d3f3cef7e6e1a4fe4411",
+      "worktree_blob": "f246b9a1e4fcfc24a355d3f3cef7e6e1a4fe4411"
+    },
+    {
+      "path": "tools/health_dashboard/README.md",
+      "base_blob": "4ee856b673f67fc4670dee9e445ab64ee9056b26",
+      "worktree_blob": "4ee856b673f67fc4670dee9e445ab64ee9056b26"
+    }
+  ],
+  "nonignored_untracked": [],
+  "changed_page_links_missing": [],
+  "comparison": "Git blob IDs after path-aware clean conversion; unchanged pages carry forward prior review and were not semantically reread.",
+  "review": "# IQ3_XXS Markdown checkpoint review\n\nCompared the worktree at `4da595f8044e043af397e2e6f7167429ec14bd16` with base `4da595f8044e043af397e2e6f7167429ec14bd16`.\nGit path-aware blob comparison finds 124 tracked Markdown pages, 4 changed pages and 120 unchanged pages; there are no nonignored untracked Markdown files. The 120 unchanged pages carry forward their prior review and were not reread semantically. Their exact base blob IDs are listed in [unchanged-markdown-blobs.tsv](unchanged-markdown-blobs.tsv); both base/current IDs for every page are in [markdown-inventory.json](markdown-inventory.json).\n\n| Changed page | Review |\n|---|---|\n| `AGENTS.md` | The IQ3_XXS native test description matches current field/operator/range coverage and keeps HF, released-file and performance qualification distinct. |\n| `README.md` | The support table retains IQ3_XXS as in development and preserves the quantization anchor. The table-order change does not claim support. |\n| `docs/PRECISION.md` | The IQ3_XXS values match the frozen calibration JSON. All 90 rows are retained; the routing-changing int8 row is refused. The prose distinguishes reference budgets from candidate qualification and preserves strict F32 limits. |\n| `docs/STATUS.md` | Historical checkpoint wording is dated. The current-MX screen and local CPU/Radeon HF evidence are linked; all 10 tiny-HF modes and the 81 reference-generator tests are reported. MI50, released-file, long-context, split and integration gates remain open. |\n\nLocal Markdown links on changed pages: 0 missing. Source-owner descriptions in `docs/src/quant-iq3-xxs.md`, `docs/src/quant-iq3-xxs-grid.md`, `docs/src/quant-quant.md`, `docs/src/quant-types.md`, `docs/src/backends-vulkan.md` and `docs/USAGE.md` are unchanged from base and accurately distinguish implementation from qualification. The Python component is registered as `iq3-xxs`; its raw-format fixture is separate from the HF family fixture. The calibration JSON and installed `tests/data/dtype_budget.json` IQ3_XXS family match the family identity and frozen values. The 10-run local HF JSON records 1,500 logit cases, 120 NLL checks, five request modes on each backend, and the 81 reference-generator tests.\n\nNo tests, builds or runtime checks were run for this documentation review. IQ3_XXS remains in development; no merge or final-gate claim is made.\n",
+  "root_followup": "Root checked the completed native MI50 range run, selected ordinary MI50 run and all new evidence links. STATUS reflects these later results; other reviewed Markdown hashes remain unchanged."
+}

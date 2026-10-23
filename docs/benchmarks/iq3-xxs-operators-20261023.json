@@ -1,0 +1,87 @@
+{
+  "scope": "IQ3_XXS early CPU/Radeon format and operator checkpoint; not model or performance qualification",
+  "base": "9a26d7a0b9610ab4b55e8fe9de3229428bd8f93c",
+  "build_version": "llmx 0.1.0+g9a26d7a0b961.dirty numerics 227a1fd84d620024",
+  "source_sha256": {
+    "CMakeLists.txt": "a744e76c1c5ac6ed99d52ce20d2d5f5db5045fdd91b2cc3d179aef0bc32be8d2",
+    "cmake/tests.cmake": "66db58839ba4d6eeddd526967a18bbc0f23a5453638ac43337e7fe4246ca123c",
+    "src/backends/vulkan/shaders/embed.comp": "16558bbb9a5f57824fffc4c660e19f9c0ae91e180044bd8f1b3c2b26f6139d5e",
+    "src/backends/vulkan/shaders/iq3_xxs.glsl": "e4125e2cdc58308317561ce482c9fd99acf6416d99ba4a80f075305086058c77",
+    "src/backends/vulkan/shaders/iq3_xxs_dot.glsl": "c37d24c6def278d3ccc6f2573c0b3253e52c41502e66a4e0057263ca30e40f85",
+    "src/backends/vulkan/shaders/matmul_row.comp": "08dd342d6e311af84bc420f4732be1f5ae468e69b14b351feec134b043af3769",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "260f61c64068c1db567b127df28b369f5e0f6ac5f43daad22d32b37564fa6019",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "c33558356601a8b2c8881a14c8ed5f3cd1777a64ec3e50688c7d4a9b8fab8f93",
+    "src/backends/vulkan/shaders/q.glsl": "3e69ce41d2c0793b8a289ca80cfb2d520fee999b6c2afc00c7a915180db49092",
+    "src/backends/vulkan/vulkan_backend.cpp": "75e3996db48ccf96a55cd85d0c59d4a365b2150f5344cd197f84db178d00a4fa",
+    "src/quant/iq3_xxs.hpp": "066ab5ce7ab0043665ee812ca818fee2df0bd2dbe57548dcd29b98ebd0da17db",
+    "src/quant/iq3_xxs_grid.inc": "87b3ce17a9083c5bff57e9c1f044206d5330a27d99c0188878ea5341f96664e1",
+    "src/quant/quant.hpp": "2ae1a5107c379b7cd66e47cd5d66b8988d711dabc7b016ceff0ba98a8d304f3e",
+    "src/quant/types.hpp": "3e88d42ba66279927726c71885932f9960f13dcf7222a165f62cdefdaabb9c38",
+    "tests/backend_errors.cpp": "080119952c42f1ad12e708a2d6f92bc552dd70fb77047bb8e63c92a348094847",
+    "tests/backend_vulkan.cpp": "c8fede65f3c2b3ac94d1bb70b770cda7a824645c969d6b906092480a566cc789",
+    "tests/iq3_xxs.cpp": "03a1ba455e7c74f04b28f2cf07198ea791d47ade7ab990f54605bf72ed673900",
+    "tests/raw_blocks.py": "b91b7985437d413544bb6633613ded156efd755b88e03c588b1805afbcedf189",
+    "tests/spec_decode.py": "31e3f6ddbb1b2dd0b14673a77eae8f80c769f7a6f73e692125b1b1428f44a91e"
+  },
+  "binary_sha256": {
+    "llmx.exe": "c3c0b75783c7f4b4db9990d696a08e608e17f801ae6a7dfc0a018f2aef91a652",
+    "llmx-iq3-xxs-test.exe": "3043d9eecddcc7f37564130cb62fed5de7b22dc22e15cb557b7fecd150f6dfaf",
+    "llmx-iq2-s-test.exe": "feb49392fb63ff2eec81fabdc2114a3552d740d753eebd1b81114c55d6f10eba",
+    "llmx-iq3-s-test.exe": "12dcc59f315468d0b651d3faa9010b9f318401d9051ac879c5ea47f4c096949b",
+    "llmx-backend-errors-test.exe": "b6dab9fa0e9e4b7868cddac33ada3f13a1bd596b8022dde9cdc4fec3e16f9e29"
+  },
+  "local_log_sha256": {
+    "build-iq3-xxs-build-recovery.log": "ec1bcee5de966ad80e5bbdfc8ed34c786f8997e130c66f90e3b1ca1963257ed8",
+    "build-iq3-xxs-build.log": "05979294f7e0ce0bf523a7999293497c860f82d7a3f399f67aefcc7a775f4529",
+    "build-iq3-xxs-checkpoint-docs.log": "edb8eb5bf4b667e2a35c6ec166b0b2efb528b5f1d78e3abac4c888952421645d",
+    "build-iq3-xxs-configure.log": "8f94e7e517727ad4c7a48fdf6b674c3b307adc6cf422a5e7c186ccaaa2064fab",
+    "build-iq3-xxs-cpu-focused.log": "4263cea7b2b069e1cb8c0b08d55705d7096240bb78ae16b89710269670f69c16",
+    "build-iq3-xxs-cpu-recovery.log": "bf4aa6219e1cfac8987b9372e6ed1910394265976cafe11f0edb2cef00014ff7",
+    "build-iq3-xxs-docs-recovery.log": "d782727ab4613087309937be11d0bbb2ab9a000891cfde521049ce4600b2e8eb",
+    "build-iq3-xxs-docs.log": "9947f2d8e99459e575be21fdf5a21ff58ea4697492d60363d8b9bef72ecd1000",
+    "build-iq3-xxs-oracle-recovery-build.log": "77723cc5f862d18b3c5d740e75e4d94ecbd0c4533c30380f8dd9099151412e37",
+    "build-iq3-xxs-radeon-focused.log": "7dfa4491bc85a75cf29ccafb36f80de7a1d167bde9bd95fa9c540f7b70d5d5e0",
+    "build-iq3-xxs-raw-blocks.log": "3c9cc5f0077b96c7a37d9c1bf959445f3fdf8e2912c28916398f4ca683f68720",
+    "build-iq3-xxs-tile-witness-build.log": "77723cc5f862d18b3c5d740e75e4d94ecbd0c4533c30380f8dd9099151412e37",
+    "build-iq3-xxs-tile-witness.log": "2bffa4f56efdc63f848ff418dcc4d7729f6c063e4857ef707f1e9d05f9c31b20",
+    "build-iq3-xxs-tiles-build.log": "77723cc5f862d18b3c5d740e75e4d94ecbd0c4533c30380f8dd9099151412e37",
+    "build-iq3-xxs-tiles.log": "c9b3fed5bae2b7f16f694ea6af6091e499ffd44c930c955a2f1417e36f21b2b4"
+  },
+  "results": {
+    "native_cpu_exact_values": 216576,
+    "independent_python_exact_values": 12032,
+    "raw_blocks_types": 19,
+    "native_cpu_and_radeon": "2/2 pass",
+    "radeon_device": "AMD Radeon VII",
+    "radeon_matrix_paths": [
+      "bf16",
+      "block-int16",
+      "f32"
+    ],
+    "radeon_tile_timestamp_witness": true,
+    "dtype_extent_tile_cases_per_backend": 12,
+    "controls": "embed/embed_ids valid and invalid IDs; grouped/residual/routed; two-pick routed add",
+    "existing_cpu_controls": "backend-errors, IQ2_S and IQ3_S pass"
+  },
+  "retained_failures": [
+    "initial generated-SPIR-V initializer wiring; fixed as separate arrays",
+    "native oracle high-half sign callers; fixed full lane index without runtime change",
+    "new spec comment exceeded two sentences; shortened"
+  ],
+  "not_established": [
+    "MI50 operators",
+    "all dispatch/range boundaries",
+    "released-file HF",
+    "16K raw/chat depth",
+    "split",
+    "performance",
+    "hosted CI"
+  ],
+  "markdown_review": {
+    "pages": 124,
+    "changed_or_new": 11,
+    "unchanged_carried": 113,
+    "report_sha256": "ca52f08399bfafd06a64dd9ad7ecce7de889a73da409e480e665acc3c17863ea",
+    "followup_delta": "STATUS review paragraph only"
+  }
+}

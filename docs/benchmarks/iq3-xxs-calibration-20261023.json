@@ -1,0 +1,697 @@
+{
+  "phase": "Prospective independent IQ3_XXS HF family calibration frozen before narrowed candidate model comparisons.",
+  "scope": "Adds iq3-xxs only; existing families and generic budgets are unchanged. F32 remains strict.",
+  "execution": {
+    "start": 1792741682.6339016,
+    "passed": true,
+    "removed": true,
+    "source_pins_sha256": "8c8de694b0082423829aab22d0e9bcb21473589a4eb842e869c6be40edeaf6da",
+    "launch_sha256": "e293d002f1986fd37d634531e72d589e9898ba979f0dfe74d96e42fefd40f5a6",
+    "payload_sha256": "c3903c65c1e8825a64604e1a25cf8db4df7883cf81d5d40cb6d23e192db1b139",
+    "container": "llmx-iq3-xxs-hf-reference-v1-20261023",
+    "mem_available": 26321743872,
+    "disk_before": {
+      "total": 3622631899136,
+      "used": 3406981758976,
+      "free": 215650140160
+    },
+    "image": {
+      "Id": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "RepoDigests": [
+        "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de"
+      ],
+      "Created": "2026-07-14T02:11:29.203658501Z"
+    },
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-iq3-xxs-hf-reference-v1-20261023",
+      "--label",
+      "llmx.iq3-xxs-hf-reference=v1-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "0-3",
+      "--cpus",
+      "4",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/hf-reference-v1/source:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/hf-reference-v1:/bundle:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/hf-reference-v1/out:/out",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "/bundle/payload.py"
+    ],
+    "container_id": "4fb67a41ce30b353d25cc752f0a3cbc98df360d780c495b8497ab7c0cf9d5353",
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T07:48:02.821301518Z",
+      "FinishedAt": "2026-10-23T07:55:33.229722062Z"
+    },
+    "exit": 0,
+    "payload": {
+      "start": 1792741683.12076,
+      "calls": [
+        {
+          "name": "goldens",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/gen_baseline.py",
+            "iq3-xxs",
+            "--output-dir",
+            "/out/goldens"
+          ],
+          "start": 1792741686.6353035,
+          "exit": 0,
+          "end": 1792741761.0359297,
+          "log_sha256": "5091bfac5d0b95b62a43db9688654eae218bed2b13c09011335000cc152dd6f3"
+        },
+        {
+          "name": "calibration",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/calibrate_dtype.py",
+            "--family",
+            "iq3-xxs",
+            "--output",
+            "/out/calibration/iq3-xxs-budget-proposal.json"
+          ],
+          "start": 1792741761.0368335,
+          "exit": 0,
+          "end": 1792742132.7942376,
+          "log_sha256": "d46c248f7250f4049ddc6da8442dfbcc9fcf6507b5cd4da776152a33fcb2b753"
+        }
+      ],
+      "passed": true,
+      "environment": {
+        "versions": {
+          "torch": "2.5.1+cpu",
+          "transformers": "4.55.2",
+          "numpy": "2.2.6"
+        },
+        "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+        "executable": "/hf/venv/bin/python",
+        "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+        "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+        "torch_threads": 1,
+        "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+        "affinity": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "no_gpu_devices": true,
+        "cgroup": {
+          "cpu.max": "400000 100000\n",
+          "cpuset.cpus.effective": "0-3\n",
+          "memory.max": "8589934592\n",
+          "memory.swap.max": "0\n"
+        }
+      },
+      "goldens": {
+        "baseline_iq3_xxs.json": {
+          "sha256": "09ff34449701ea3cf78c805bdeec264567be2303bbbe6db4b7a20a73b5ae7117",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "aebb772ee5f3d6987529e5f10bceb4351fffd4dd9a51a7ddaea4083f9d253cca",
+              "packed_sha256": "bd0f2ac5a122f43c65b4fe5fae6f486c62b385ed9aeae275ac853fdaaece64cb",
+              "min_routing_gap": null
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "dd54b92060cfbe4418287e27fa2b855129191747fb08b23ee186735d30a2a4a6",
+              "packed_sha256": "d5a29f56fa5ea16834d77b38335359dff09325f2f4a9b9ad7934fd6df62260e2",
+              "min_routing_gap": null
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "76580a948a18eb688444b12dd085dbcb949d16bc0061a45f414f44c2e46d0db8",
+              "packed_sha256": "dd5d00bd2c63981fdcbe27dc8e7f63be01dda9009b36ccd06c3b8c1a97ce4c6c",
+              "min_routing_gap": 0.00040728580751757653
+            }
+          ]
+        },
+        "baseline_iq3_xxs_split.json": {
+          "sha256": "9670481236ed6748862c5c9d0e76ad8852c295c8388aa4ad5e3fc3188be6a32c",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "70ea83c92c0388023dcc702076b9b09a604b677ba8bd4deb983a82d11cbe78c4",
+              "packed_sha256": "329e4d4860a512e90d4a64eadb83e6c3e2249e096a9db25deaafa0f0cec880d2",
+              "min_routing_gap": null
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "89fdd8f858eb15f8cebb7301657f62980ec49f2d217646668319ad27211453d9",
+              "packed_sha256": "73bbb17c995d8c6bbdf0207b2f08e740aa82953eb4112815798cc0ab284c5140",
+              "min_routing_gap": null
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 4,
+                "expert_feed_forward_length": 1024
+              },
+              "weights_sha256": "802f10bc0b9a77c37ad9996ec0e72a9c9f6a7e8fcbb8d06ae74e8ab32dc7bf6a",
+              "packed_sha256": "6c07177e43a75edd83db178896c4e8c59bf913bbfc678c4238192db1afafcc94",
+              "min_routing_gap": null
+            }
+          ]
+        }
+      },
+      "calibration": {
+        "sha256": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398",
+        "dtypes": {
+          "f16": {
+            "max_logit_error": 0.001128077507019043,
+            "max_nll_error": 0.0001128885917065503,
+            "logit_budget": 0.002256155014038086,
+            "nll_budget": 0.0002257771834131006,
+            "accepted": 30,
+            "refused": []
+          },
+          "bf16": {
+            "max_logit_error": 0.008416563272476196,
+            "max_nll_error": 0.0012966771734115312,
+            "logit_budget": 0.016833126544952393,
+            "nll_budget": 0.0025933543468230624,
+            "accepted": 30,
+            "refused": []
+          },
+          "int8": {
+            "max_logit_error": 0.02838907390832901,
+            "max_nll_error": 0.003413287790674957,
+            "logit_budget": 0.05677814781665802,
+            "nll_budget": 0.006826575581349914,
+            "accepted": 29,
+            "refused": [
+              {
+                "fixture": "moe",
+                "split": false,
+                "seed": 0,
+                "config": {
+                  "block_count": 2,
+                  "embedding_length": 256,
+                  "feed_forward_length": 768,
+                  "attention.head_count": 2,
+                  "attention.head_count_kv": 1,
+                  "attention.key_length": 128,
+                  "context_length": 16,
+                  "expert_count": 4,
+                  "expert_used_count": 2,
+                  "expert_feed_forward_length": 768
+                },
+                "weights_sha256": "cc0a40fe15f9e8e72770f7cf85fd92316666dcc830d16e3cc9d94a6b60c4a06e",
+                "packed_sha256": "d3df10b5952393bd7f935fe6c9e51b8cb67e70a42be83be9bcd63da6ba0d5285",
+                "logit_error": 0.011864125728607178,
+                "nll_error": 0.0015552630102391163,
+                "routing": {
+                  "stable": false,
+                  "calls": 18,
+                  "first_change": {
+                    "call": 15,
+                    "original": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ]
+                      ]
+                    },
+                    "rounded": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "status": "refused"
+              }
+            ]
+          }
+        }
+      },
+      "end": 1792742132.8100343,
+      "cgroup_memory_peak": "3249500160\n"
+    },
+    "final_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T07:48:02.821301518Z",
+      "FinishedAt": "2026-10-23T07:55:33.229722062Z"
+    },
+    "end": 1792742134.2839906,
+    "outputs": {
+      "out/calibration/iq3-xxs-budget-proposal.json": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398",
+      "out/calibration.log": "d46c248f7250f4049ddc6da8442dfbcc9fcf6507b5cd4da776152a33fcb2b753",
+      "out/goldens/baseline_iq3_xxs.json": "09ff34449701ea3cf78c805bdeec264567be2303bbbe6db4b7a20a73b5ae7117",
+      "out/goldens/baseline_iq3_xxs_split.json": "9670481236ed6748862c5c9d0e76ad8852c295c8388aa4ad5e3fc3188be6a32c",
+      "out/goldens.log": "5091bfac5d0b95b62a43db9688654eae218bed2b13c09011335000cc152dd6f3",
+      "out/result.json": "ae83e5811734a7c7e607e87b1126d3034dc5ff72d4af12c6c12673c5916559b0"
+    },
+    "disk_after": {
+      "total": 3622631899136,
+      "used": 3406989099008,
+      "free": 215642800128
+    }
+  },
+  "result": {
+    "start": 1792741683.12076,
+    "calls": [
+      {
+        "name": "goldens",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/gen_baseline.py",
+          "iq3-xxs",
+          "--output-dir",
+          "/out/goldens"
+        ],
+        "start": 1792741686.6353035,
+        "exit": 0,
+        "end": 1792741761.0359297,
+        "log_sha256": "5091bfac5d0b95b62a43db9688654eae218bed2b13c09011335000cc152dd6f3"
+      },
+      {
+        "name": "calibration",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/calibrate_dtype.py",
+          "--family",
+          "iq3-xxs",
+          "--output",
+          "/out/calibration/iq3-xxs-budget-proposal.json"
+        ],
+        "start": 1792741761.0368335,
+        "exit": 0,
+        "end": 1792742132.7942376,
+        "log_sha256": "d46c248f7250f4049ddc6da8442dfbcc9fcf6507b5cd4da776152a33fcb2b753"
+      }
+    ],
+    "passed": true,
+    "environment": {
+      "versions": {
+        "torch": "2.5.1+cpu",
+        "transformers": "4.55.2",
+        "numpy": "2.2.6"
+      },
+      "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+      "executable": "/hf/venv/bin/python",
+      "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+      "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+      "torch_threads": 1,
+      "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+      "affinity": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "no_gpu_devices": true,
+      "cgroup": {
+        "cpu.max": "400000 100000\n",
+        "cpuset.cpus.effective": "0-3\n",
+        "memory.max": "8589934592\n",
+        "memory.swap.max": "0\n"
+      }
+    },
+    "goldens": {
+      "baseline_iq3_xxs.json": {
+        "sha256": "09ff34449701ea3cf78c805bdeec264567be2303bbbe6db4b7a20a73b5ae7117",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "aebb772ee5f3d6987529e5f10bceb4351fffd4dd9a51a7ddaea4083f9d253cca",
+            "packed_sha256": "bd0f2ac5a122f43c65b4fe5fae6f486c62b385ed9aeae275ac853fdaaece64cb",
+            "min_routing_gap": null
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "dd54b92060cfbe4418287e27fa2b855129191747fb08b23ee186735d30a2a4a6",
+            "packed_sha256": "d5a29f56fa5ea16834d77b38335359dff09325f2f4a9b9ad7934fd6df62260e2",
+            "min_routing_gap": null
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 2,
+              "expert_feed_forward_length": 768
+            },
+            "weights_sha256": "76580a948a18eb688444b12dd085dbcb949d16bc0061a45f414f44c2e46d0db8",
+            "packed_sha256": "dd5d00bd2c63981fdcbe27dc8e7f63be01dda9009b36ccd06c3b8c1a97ce4c6c",
+            "min_routing_gap": 0.00040728580751757653
+          }
+        ]
+      },
+      "baseline_iq3_xxs_split.json": {
+        "sha256": "9670481236ed6748862c5c9d0e76ad8852c295c8388aa4ad5e3fc3188be6a32c",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "70ea83c92c0388023dcc702076b9b09a604b677ba8bd4deb983a82d11cbe78c4",
+            "packed_sha256": "329e4d4860a512e90d4a64eadb83e6c3e2249e096a9db25deaafa0f0cec880d2",
+            "min_routing_gap": null
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "89fdd8f858eb15f8cebb7301657f62980ec49f2d217646668319ad27211453d9",
+            "packed_sha256": "73bbb17c995d8c6bbdf0207b2f08e740aa82953eb4112815798cc0ab284c5140",
+            "min_routing_gap": null
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 4,
+              "expert_feed_forward_length": 1024
+            },
+            "weights_sha256": "802f10bc0b9a77c37ad9996ec0e72a9c9f6a7e8fcbb8d06ae74e8ab32dc7bf6a",
+            "packed_sha256": "6c07177e43a75edd83db178896c4e8c59bf913bbfc678c4238192db1afafcc94",
+            "min_routing_gap": null
+          }
+        ]
+      }
+    },
+    "calibration": {
+      "sha256": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398",
+      "dtypes": {
+        "f16": {
+          "max_logit_error": 0.001128077507019043,
+          "max_nll_error": 0.0001128885917065503,
+          "logit_budget": 0.002256155014038086,
+          "nll_budget": 0.0002257771834131006,
+          "accepted": 30,
+          "refused": []
+        },
+        "bf16": {
+          "max_logit_error": 0.008416563272476196,
+          "max_nll_error": 0.0012966771734115312,
+          "logit_budget": 0.016833126544952393,
+          "nll_budget": 0.0025933543468230624,
+          "accepted": 30,
+          "refused": []
+        },
+        "int8": {
+          "max_logit_error": 0.02838907390832901,
+          "max_nll_error": 0.003413287790674957,
+          "logit_budget": 0.05677814781665802,
+          "nll_budget": 0.006826575581349914,
+          "accepted": 29,
+          "refused": [
+            {
+              "fixture": "moe",
+              "split": false,
+              "seed": 0,
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "cc0a40fe15f9e8e72770f7cf85fd92316666dcc830d16e3cc9d94a6b60c4a06e",
+              "packed_sha256": "d3df10b5952393bd7f935fe6c9e51b8cb67e70a42be83be9bcd63da6ba0d5285",
+              "logit_error": 0.011864125728607178,
+              "nll_error": 0.0015552630102391163,
+              "routing": {
+                "stable": false,
+                "calls": 18,
+                "first_change": {
+                  "call": 15,
+                  "original": {
+                    "router": "model.layers.1.mlp.gate",
+                    "experts": [
+                      [
+                        2,
+                        3
+                      ],
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        1,
+                        3
+                      ]
+                    ]
+                  },
+                  "rounded": {
+                    "router": "model.layers.1.mlp.gate",
+                    "experts": [
+                      [
+                        2,
+                        3
+                      ],
+                      [
+                        1,
+                        2
+                      ],
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        1,
+                        3
+                      ]
+                    ]
+                  }
+                }
+              },
+              "status": "refused"
+            }
+          ]
+        }
+      }
+    },
+    "end": 1792742132.8100343,
+    "cgroup_memory_peak": "3249500160\n"
+  },
+  "summary": {
+    "f16": {
+      "accepted": 30,
+      "refused": 0,
+      "logit": 0.002256155014038086,
+      "nll": 0.0002257771834131006
+    },
+    "bf16": {
+      "accepted": 30,
+      "refused": 0,
+      "logit": 0.016833126544952393,
+      "nll": 0.0025933543468230624
+    },
+    "int8": {
+      "accepted": 29,
+      "refused": 1,
+      "logit": 0.05677814781665802,
+      "nll": 0.006826575581349914
+    }
+  },
+  "proposal_sha256": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398",
+  "previous_budget_sha256": "48a28c9232b984fb61d75510ad33209f3d935d39974e86700c573f072841cafc",
+  "original_seed_stable": true,
+  "all_rows_retained": true,
+  "installed_budget_sha256": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398",
+  "frozen_at": 1792742307.9855423
+}

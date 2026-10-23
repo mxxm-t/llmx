@@ -1,0 +1,1200 @@
+{
+  "scope": "IQ3_XXS landing timing against public main; performance disposition remains open",
+  "run_completed": true,
+  "performance_pass_claimed": false,
+  "revisions": {
+    "main": {
+      "revision": "272e3bde63b03bc5a10161c9de485bcbdc74c587",
+      "cli_sha256": "74038fa68b638373c1e3935247bba063d05d09517d65614b600821e146a79981",
+      "library_sha256": "3bd3fe0c6eb4fd661f66a820b3bac4eb812ffa66b10bb84071e3dd8a1084d193",
+      "version": "llmx 0.1.0+unknown numerics c4ca60f364d406f9"
+    },
+    "candidate": {
+      "revision": "4da595f8044e043af397e2e6f7167429ec14bd16",
+      "cli_sha256": "a2e70b80cf9183f3b9307288c86cad971559483e3d2a64890f0c723a5594cec8",
+      "library_sha256": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904",
+      "version": "llmx 0.1.0+unknown numerics 227a1fd84d620024"
+    }
+  },
+  "raw_remote": "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/landing-timing-v1/timing-v1",
+  "raw_local": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq3-xxs-landing-prep-20261023\\results-timing-v1",
+  "planned_calls": 96,
+  "warmups": 32,
+  "measured": 64,
+  "models": {
+    "qwen3-q8_0": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 8870.84,
+            "min": 8870.58,
+            "max": 8871.1
+          },
+          "tg128": {
+            "mean": 367.91,
+            "min": 363.16,
+            "max": 372.66
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 8866.415,
+            "min": 8863.31,
+            "max": 8869.52
+          },
+          "tg128": {
+            "mean": 369.48,
+            "min": 368.52,
+            "max": 370.44
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -0.04988253649033103,
+        "tg128": 0.42673479927155533
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            2,
+            3
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.017810643550408845,
+            "tg128": -0.595717275801011
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            4,
+            5
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.08195630950851296,
+            "tg128": 1.4759334728494222
+          }
+        }
+      ]
+    },
+    "qwen3-q4_0": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 8349.96,
+            "min": 8340.65,
+            "max": 8359.27
+          },
+          "tg128": {
+            "mean": 325.81,
+            "min": 322.67,
+            "max": 328.95
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 8355.11,
+            "min": 8347.53,
+            "max": 8362.69
+          },
+          "tg128": {
+            "mean": 323.585,
+            "min": 323.34,
+            "max": 323.83
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.06167694216501207,
+        "tg128": -0.6829133544090205
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            8,
+            9
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.04091266342636235,
+            "tg128": -1.705426356589157
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            10,
+            11
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.0824875759083632,
+            "tg128": 0.3595004183841066
+          }
+        }
+      ]
+    },
+    "qwen3-q5_k_m": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 8123.365,
+            "min": 8115.71,
+            "max": 8131.02
+          },
+          "tg128": {
+            "mean": 327.28999999999996,
+            "min": 322.95,
+            "max": 331.63
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 8122.115,
+            "min": 8118.96,
+            "max": 8125.27
+          },
+          "tg128": {
+            "mean": 333.955,
+            "min": 333.33,
+            "max": 334.58
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -0.015387711865710862,
+        "tg128": 2.0364203000397207
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            14,
+            15
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.11779622485279528,
+            "tg128": 3.214119832791451
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            16,
+            17
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.1483208748717879,
+            "tg128": 0.8895455779030836
+          }
+        }
+      ]
+    },
+    "qwen3-q4_k_m": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 8195.815,
+            "min": 8191.55,
+            "max": 8200.08
+          },
+          "tg128": {
+            "mean": 339.415,
+            "min": 338.97,
+            "max": 339.86
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 8195.915,
+            "min": 8190.34,
+            "max": 8201.49
+          },
+          "tg128": {
+            "mean": 314.71000000000004,
+            "min": 310.56,
+            "max": 318.86
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.0012201349103291292,
+        "tg128": -7.278700116376702
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            20,
+            21
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.01719495419556516,
+            "tg128": -6.179014888483492
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            22,
+            23
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.014771319225304058,
+            "tg128": -8.381272678998153
+          }
+        }
+      ]
+    },
+    "qwen35-q8_0": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 7541.385,
+            "min": 7529.82,
+            "max": 7552.95
+          },
+          "tg128": {
+            "mean": 324.015,
+            "min": 322.57,
+            "max": 325.46
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 7544.495,
+            "min": 7541.34,
+            "max": 7547.65
+          },
+          "tg128": {
+            "mean": 332.005,
+            "min": 331.62,
+            "max": 332.39
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.04123910926174812,
+        "tg128": 2.4659352190484984
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            26,
+            27
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.23679184894194183,
+            "tg128": 3.044300461915239
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            28,
+            29
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.1537147736976885,
+            "tg128": 1.892705708842879
+          }
+        }
+      ]
+    },
+    "qwen35-q4_k_m": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 7031.855,
+            "min": 7022.6,
+            "max": 7041.11
+          },
+          "tg128": {
+            "mean": 296.69500000000005,
+            "min": 294.23,
+            "max": 299.16
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 7034.8099999999995,
+            "min": 7030.65,
+            "max": 7038.97
+          },
+          "tg128": {
+            "mean": 295.905,
+            "min": 291.01,
+            "max": 300.8
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.04202305081659752,
+        "tg128": -0.26626670486529225
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            32,
+            33
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.11462990915045435,
+            "tg128": -2.7242946918037303
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            34,
+            35
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.030392935204814897,
+            "tg128": 2.2329470142405494
+          }
+        }
+      ]
+    },
+    "qwen3-q5_1": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 8370.845,
+            "min": 8366.81,
+            "max": 8374.88
+          },
+          "tg128": {
+            "mean": 331.105,
+            "min": 329.59,
+            "max": 332.62
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 8373.765,
+            "min": 8373.65,
+            "max": 8373.88
+          },
+          "tg128": {
+            "mean": 335.33,
+            "min": 333.63,
+            "max": 337.03
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.034882977763883716,
+        "tg128": 1.2760302623034958
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            38,
+            39
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.08450054441297983,
+            "tg128": 1.3258372918044437
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            40,
+            41
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.014686777601580214,
+            "tg128": 1.2257653448223715
+          }
+        }
+      ]
+    },
+    "qwen3-iq4_nl": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 6717.03,
+            "min": 6711.37,
+            "max": 6722.69
+          },
+          "tg128": {
+            "mean": 260.74,
+            "min": 258.94,
+            "max": 262.54
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 6712.71,
+            "min": 6703.91,
+            "max": 6721.51
+          },
+          "tg128": {
+            "mean": 254.905,
+            "min": 248.75,
+            "max": 261.06
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -0.06431413883813963,
+        "tg128": -2.2378614711973666
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            44,
+            45
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.15108688688003635,
+            "tg128": -0.5637236230669695
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            46,
+            47
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.27935246158903304,
+            "tg128": -3.935274580984016
+          }
+        }
+      ]
+    },
+    "qwen3-f16": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 1538.87,
+            "min": 1534.27,
+            "max": 1543.47
+          },
+          "tg128": {
+            "mean": 218.435,
+            "min": 218.14,
+            "max": 218.73
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 1540.605,
+            "min": 1533.33,
+            "max": 1547.88
+          },
+          "tg128": {
+            "mean": 214.71,
+            "min": 213.05,
+            "max": 216.37
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.11274506618492719,
+        "tg128": -1.7053127932794676
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            50,
+            51
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.8870668135334769,
+            "tg128": -2.3333638947464763
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            52,
+            53
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.6569612626095789,
+            "tg128": -1.0789557902436742
+          }
+        }
+      ]
+    },
+    "qwen3-bf16": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 1530.21,
+            "min": 1527.53,
+            "max": 1532.89
+          },
+          "tg128": {
+            "mean": 315.99,
+            "min": 309.93,
+            "max": 322.05
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 1522.605,
+            "min": 1521.19,
+            "max": 1524.02
+          },
+          "tg128": {
+            "mean": 298.40999999999997,
+            "min": 288.17,
+            "max": 308.65
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -0.49699060913208637,
+        "tg128": -5.563467198329075
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            56,
+            57
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.5786455649133382,
+            "tg128": -7.020940212306003
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            58,
+            59
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.41504913160461676,
+            "tg128": -4.160844589349488
+          }
+        }
+      ]
+    },
+    "qwen3-q5_0": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 8147.88,
+            "min": 8145.75,
+            "max": 8150.01
+          },
+          "tg128": {
+            "mean": 287.235,
+            "min": 286.0,
+            "max": 288.47
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 7823.13,
+            "min": 7490.27,
+            "max": 8155.99
+          },
+          "tg128": {
+            "mean": 273.345,
+            "min": 257.82,
+            "max": 288.87
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -3.9856993475603453,
+        "tg128": -4.835761658572246
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            62,
+            63
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -8.046895620415551,
+            "tg128": -9.853146853146855
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            64,
+            65
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.07337414309920298,
+            "tg128": 0.13866259923041024
+          }
+        }
+      ]
+    },
+    "qwen3-iq4_xs": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 6532.639999999999,
+            "min": 6527.8,
+            "max": 6537.48
+          },
+          "tg128": {
+            "mean": 248.93,
+            "min": 244.98,
+            "max": 252.88
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 6540.969999999999,
+            "min": 6539.5,
+            "max": 6542.44
+          },
+          "tg128": {
+            "mean": 247.57999999999998,
+            "min": 242.94,
+            "max": 252.22
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.12751353204829563,
+        "tg128": -0.5423211344554812
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            68,
+            69
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.030898756095631974,
+            "tg128": -0.8327210384521111
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            70,
+            71
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.22427157694782096,
+            "tg128": -0.260993356532746
+          }
+        }
+      ]
+    },
+    "qwen3-q2_k": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 6394.01,
+            "min": 6391.66,
+            "max": 6396.36
+          },
+          "tg128": {
+            "mean": 242.425,
+            "min": 223.1,
+            "max": 261.75
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 6400.25,
+            "min": 6398.39,
+            "max": 6402.11
+          },
+          "tg128": {
+            "mean": 248.955,
+            "min": 236.74,
+            "max": 261.17
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.09759133939422071,
+        "tg128": 2.6936165824481773
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            74,
+            75
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.031736800305193213,
+            "tg128": 17.064096817570594
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            76,
+            77
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.16349430351425553,
+            "tg128": -9.554918815663793
+          }
+        }
+      ]
+    },
+    "qwen3-q3_k_s": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 6825.335,
+            "min": 6824.58,
+            "max": 6826.09
+          },
+          "tg128": {
+            "mean": 252.79000000000002,
+            "min": 243.85,
+            "max": 261.73
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 6815.235000000001,
+            "min": 6809.59,
+            "max": 6820.88
+          },
+          "tg128": {
+            "mean": 239.6,
+            "min": 215.06,
+            "max": 264.14
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -0.14797808459218187,
+        "tg128": -5.2177696902567465
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            80,
+            81
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.24171963744984426,
+            "tg128": -11.806438384252615
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            82,
+            83
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.05421579056879011,
+            "tg128": 0.9207962404004011
+          }
+        }
+      ]
+    },
+    "iq3-s": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 6958.17,
+            "min": 6953.05,
+            "max": 6963.29
+          },
+          "tg128": {
+            "mean": 276.23,
+            "min": 275.43,
+            "max": 277.03
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 6966.0599999999995,
+            "min": 6953.86,
+            "max": 6978.26
+          },
+          "tg128": {
+            "mean": 264.0,
+            "min": 259.3,
+            "max": 268.7
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": 0.11339188321066729,
+        "tg128": -4.427469862071465
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            86,
+            87
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.1354244904348434,
+            "tg128": -2.4434520567839457
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            88,
+            89
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": 0.3625746974349475,
+            "tg128": -6.400028877738862
+          }
+        }
+      ]
+    },
+    "qwen3-iq2_s": {
+      "complete": true,
+      "planned_calls": 6,
+      "measured_passed": 4,
+      "measured_planned": 4,
+      "arms": {
+        "base": {
+          "pp512": {
+            "mean": 6320.004999999999,
+            "min": 6319.94,
+            "max": 6320.07
+          },
+          "tg128": {
+            "mean": 242.98000000000002,
+            "min": 235.05,
+            "max": 250.91
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "mean": 6297.865,
+            "min": 6295.23,
+            "max": 6300.5
+          },
+          "tg128": {
+            "mean": 248.815,
+            "min": 247.9,
+            "max": 249.73
+          }
+        }
+      },
+      "candidate_vs_main_mean_rate_percent": {
+        "pp512": -0.35031617854731634,
+        "tg128": 2.401432216643329
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            92,
+            93
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.3075978569416771,
+            "tg128": 6.24547968517335
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            94,
+            95
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_vs_main_rate_percent": {
+            "pp512": -0.393033621463057,
+            "tg128": -1.1996333346618315
+          }
+        }
+      ]
+    }
+  },
+  "activity": {
+    "log_present": true,
+    "samples": 202,
+    "intervals": 201,
+    "process_available_intervals": 201,
+    "process_missing_intervals": 0,
+    "disk_available_intervals": 201,
+    "disk_missing_intervals": 0,
+    "monitor_gap_intervals": 0,
+    "flag_interval_counts": {
+      "system_idle": 180,
+      "unrelated_cpu": 201,
+      "disk": 16
+    },
+    "uncovered_calls": [
+      {
+        "index": 95,
+        "uncovered_seconds": 0.8044524192810059
+      }
+    ],
+    "missing_activity_calls": [],
+    "missing_gpu_counter_calls": []
+  },
+  "activity_thresholds": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "limits": [
+    "Two measured observations per arm and file, plus two warmups per file; no causal/noise-band claim from small differences.",
+    "Only first-stage Vulkan existing-path arms; the current-mx screen is separate and is not repeated.",
+    "PP and TG reset independently; P/PP+G/TG sums separate empty-history phases, not decode after that prompt or request latency.",
+    "Every planned call, failure, raw log, and activity sample is retained. Missing observations remain disclosed, not treated as zero.",
+    "Unavailable process or disk counters are reported as unknown; flags use only known values. Per-interval availability and monitor gaps are retained.",
+    "Whole-disk counters are not process-attributed; appeared/disappeared/inaccessible processes and null deltas limit coverage. Missing GPU counters are unknown, not zero."
+  ],
+  "shader_findings": {
+    "common": 205,
+    "unchanged_after_id_compaction": 196,
+    "different_after_id_compaction": [
+      "embed.inc",
+      "embed_ids.inc",
+      "matmul_row_float_x.inc",
+      "matmul_row_float_x_preserve.inc",
+      "matmul_row_mxfp4_float_x.inc",
+      "matmul_tile.inc",
+      "matmul_tile_bf16.inc",
+      "matmul_tile_bf16_preserve.inc",
+      "matmul_tile_preserve.inc"
+    ],
+    "added": [
+      "matmul_row_iq3_xxs.inc",
+      "matmul_row_iq3_xxs_dot.inc",
+      "matmul_row_iq3_xxs_preserve.inc",
+      "matmul_tile_iq3_xxs.inc",
+      "matmul_tile_iq3_xxs_bf16.inc",
+      "matmul_tile_iq3_xxs_bf16_preserve.inc",
+      "matmul_tile_iq3_xxs_dot.inc",
+      "matmul_tile_iq3_xxs_preserve.inc"
+    ],
+    "removed": [],
+    "normalization": "spirv-opt --compact-ids only; no optimization or instruction removal",
+    "tool_version": "SPIRV-Tools v2026.3 v2026.3.rc1-0-gb707790a",
+    "tool_sha256": "d5ae37abd1a642c0cdd38e242fd43e6b20e3ab421d18fd68e9474f2d88888ab5",
+    "limits": "Generated SPIR-V equivalence does not establish host instruction identity or driver ISA identity."
+  },
+  "assessment": [
+    "Existing Q4_K_M, BF16 and IQ3_S decode losses occurred in both pair orders; no waiver.",
+    "Q5_0 and Q3_K_S losses varied strongly by pair order; all samples are retained.",
+    "Concurrent compiler CPU use is measured; causation is not established. Benchmark quota throttling was absent in selected calls.",
+    "Existing Q4_K and BF16 row shaders are identical after ID compaction. Next diagnostic separates GPU dispatch cost from host/scheduling overhead using unchanged binaries.",
+    "Numerical checks remain valid; no runtime changes, new limits or full numerical reruns for this investigation."
+  ],
+  "artifacts": {
+    "results-timing-v1\\audit-summary.json": "50b20243baa016473eddd83e9088d26922996bbfca199201aadae504469cd26d",
+    "results-timing-v1\\complete.json": "b17dd5d7ddfcfc227dd00e7f06527006036d289a85e6b6b0a687265cf6e1a03e",
+    "results-timing-v1\\activity.jsonl": "dbbade93cd120bebe39d25fd750fa8edfa75c49b196037ccbd2968084679725b",
+    "shader-audit.json": "50bc7357a7c4fc30229dac5549eba0b9b6b5b0ba8a4e1f547efbccb399838f39",
+    "shader-normalized-v1\\report.json": "2dde9ca128085e89d924a607733bdcecbd6d0a2d8ed8f2d1d1e5c498144f8c4f",
+    "activity-attribution-v1\\report.md": "b5421511afd796c49828f817bec06eaf76ab497f1a79a47269344d95742ed791",
+    "activity-attribution-v1\\analyze_activity.py": "f69e3ea27e879e5e159efc49509f9ddf0e552ed4cb86e29e88fc3f1f63ad2d15",
+    "normalize-shaders.py": "56af1bd60275b11d28abe451ff66b37239f7046c9c3fa9a404db9dd561700f22",
+    "shader-audit.py": "07ad7d928df58a005654f00423dcd0fee6e42b32320a3ad9c7d7f2fd9bcaf27b"
+  }
+}

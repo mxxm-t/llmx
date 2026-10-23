@@ -1,0 +1,182 @@
+{
+  "kind": "iq3-xxs",
+  "role": "selected-f16",
+  "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+  "rule_owner": "tests/common.py:hf_depth_top1",
+  "rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+  "top_two_tie_margin": 0.1,
+  "reference_report_sha256": "3e7a5ddc329d5b289e8ac1d8b8f3c8fdece71d5ba6e75d1a6a4bb306857925cd",
+  "capture_report_sha256": "a30c2f0d877e4d1ac1dfbc56033d905ef5be0fcefaeb7f3d80876a927ef2b50b",
+  "runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/operators-v1/source",
+  "probe_sha256": "6a561b30659db0a5e19f42ba7830de26154ea3576ded803ad0f2ee570a1deeb0",
+  "variants_requested": "both",
+  "scope": "Selected-policy independent HF depth gate.",
+  "cells": [
+    {
+      "variant": "raw",
+      "counts": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "ties": [
+        {
+          "position": 16419,
+          "actual_top1": 782,
+          "hf_top2_ids": [
+            41,
+            782
+          ],
+          "hf_top2_logits": [
+            13.958353996276855,
+            13.950386047363281
+          ],
+          "hf_gap": 0.007967948913574219,
+          "verdict": "accepted-tie"
+        },
+        {
+          "position": 16880,
+          "actual_top1": 2953,
+          "hf_top2_ids": [
+            3800,
+            2953
+          ],
+          "hf_top2_logits": [
+            17.517047882080078,
+            17.51262855529785
+          ],
+          "hf_gap": 0.0044193267822265625,
+          "verdict": "accepted-tie"
+        }
+      ]
+    },
+    {
+      "variant": "chat",
+      "counts": {
+        "exact": 511,
+        "accepted-tie": 1,
+        "miss": 0
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "ties": [
+        {
+          "position": 16693,
+          "actual_top1": 23,
+          "hf_top2_ids": [
+            16,
+            23
+          ],
+          "hf_top2_logits": [
+            20.6021728515625,
+            20.60157012939453
+          ],
+          "hf_gap": 0.00060272216796875,
+          "verdict": "accepted-tie"
+        }
+      ]
+    }
+  ],
+  "no_misses": true,
+  "execution_sha256": "931d2dcebd3ed9d22f35eca1f41eac9df48cdb25b87765d06c2c0ed82c81a285",
+  "artifacts_verified_locally": true,
+  "row_verdicts_rechecked_locally": true,
+  "reference_execution_sha256": "70187b030e7992bbc70356226bf63528c78375d12e19c6f349908702d9478730",
+  "reference_output_hashes": {
+    "chat.json": "e12cdf7bf80f9bf86620c62c8ac326fbb93e4531c26d6292d303174acdfc9bbd",
+    "chat.npy": "254649b1d6018cd9cad4ec2a702d67b0ec199a90f03e59ac462948b74b71aa67",
+    "raw.json": "31809eecca352bfd1d94c5eeca9d8ca414d84970f7d062186e8524f36ba02e1e",
+    "raw.npy": "d6755ba6bd28a6bfc4ac68911efbdff02312241a2728a6d7ccf8321ca8185896",
+    "report.json": "3e7a5ddc329d5b289e8ac1d8b8f3c8fdece71d5ba6e75d1a6a4bb306857925cd"
+  },
+  "artifact_hashes": {
+    "run.log": "a6d022b3a92721547ae58bf2dba802c6214ef93aec37d516b5c53e41ccc147c9",
+    "comparison.json": "d31b465b09771ce5577f9a9dbea50c51a520d80e6b9bd1dc588e00717b7989c4",
+    "activity.jsonl": "827a7a191aa27ad5fa1ef5814f20d0d7bbc057703c89f0f36ce6cf80b3497a20"
+  },
+  "runtime_commit": "4da595f8044e043af397e2e6f7167429ec14bd16",
+  "passed": true,
+  "removed": true,
+  "start": 1792744790.8649771,
+  "end": 1792744792.8503277,
+  "raw_evidence": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq3-xxs-released-consumers-20261023\\depth-results\\released-depth-v1-selected-f16",
+  "command": [
+    "docker",
+    "create",
+    "--init",
+    "--runtime",
+    "runc",
+    "--name",
+    "llmx-xdev-iq3xxs-depth-v1-selected-f16",
+    "--label",
+    "llmx.iq3xxs-depth=llmx-xdev-iq3xxs-depth-v1-selected-f16",
+    "--network",
+    "none",
+    "--cpuset-cpus",
+    "8-11",
+    "--cpus",
+    "4",
+    "--memory",
+    "8g",
+    "--memory-swap",
+    "8g",
+    "--pids-limit",
+    "256",
+    "--ulimit",
+    "core=0",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,size=256m",
+    "-e",
+    "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+    "-e",
+    "PYTHONDONTWRITEBYTECODE=1",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/operators-v1/source:/source:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/operators-v1/build:/b:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-depth-consumer-v1:/bundle:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-depth-v1-selected-f16:/out",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-reference-v1/released-reference-20261023T081906Z-863223/depth-f16/reference:/reference:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-depth-v1-default:/captures:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-reference-v1/source:/reference-source:ro",
+    "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "python3",
+    "-B",
+    "-u",
+    "/bundle/compare-default-depth.py",
+    "--source",
+    "/reference-source",
+    "--reference",
+    "/reference",
+    "--captures",
+    "/captures",
+    "--kind",
+    "iq3-xxs",
+    "--role",
+    "selected-f16",
+    "--variant",
+    "both",
+    "--output",
+    "/out/comparison.json"
+  ]
+}

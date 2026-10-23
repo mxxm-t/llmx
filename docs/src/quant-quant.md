@@ -25,7 +25,7 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `F32`, `F16`, `BF16`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ2_S`, `IQ3_S`, `IQ4_NL`, `IQ4_XS` and `MXFP4` on first use and never changes after, so no caller sets it up and any thread may read it. The [README support matrix](../../README.md#quantization-types) distinguishes those decoders from backend support and quantize writers.
+  The one registry fills itself with `F32`, `F16`, `BF16`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ3_XXS`, `IQ2_S`, `IQ3_S`, `IQ4_NL`, `IQ4_XS` and `MXFP4` on first use and never changes after, so no caller sets it up and any thread may read it. The [README support matrix](../../README.md#quantization-types) distinguishes those decoders from backend support and quantize writers.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types
@@ -57,3 +57,7 @@ IQ4_XS has read-only CPU and Vulkan support. `iq4_xs_scale` reads each signed si
 IQ2_S decoding is implemented in `iq2_s.hpp`
 ([format owner](quant-iq2-s.md)); its registry entry is read-only.
 CPU/Vulkan read-only inference and the pinned released-file qualification are recorded in [STATUS](../STATUS.md); no quantize writer is added.
+
+IQ3_XXS adds the read-only `dequantize_row_iq3_xxs` entry from `iq3_xxs.hpp`
+([format owner](quant-iq3-xxs.md)). It reuses CPU registry products without a
+new specialized path; Vulkan and model qualification remain separate.

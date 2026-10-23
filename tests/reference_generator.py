@@ -215,6 +215,40 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertEqual(decoded[name], sd.decode(sd.IQ2_S, payload, math.prod(shape)))
         self.assertNotIn("output.weight", decoded)
 
+    def test_iq3_xxs_generator_and_fixture_layout(self):
+        import iq3_xxs
+        import spec_decode as sd
+        with patch.object(generator, "gen_block_family") as generate:
+            generator.main(["iq3-xxs"])
+        generate.assert_called_once_with("iq3-xxs", "IQ3_XXS", iq3_xxs.fixture, generator.OUT_DIR)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            generator.parse_args(["iq3-xxs", "--threads", "2"])
+        with patch.object(iq3_xxs, "block_fixture", return_value="fixture") as build:
+            self.assertEqual(iq3_xxs.fixture(False, True, 7, 32, split=True), "fixture")
+        build.assert_called_once_with(False, True, sd.IQ3_XXS, iq3_xxs.raw_block, 7, 32, True)
+        config, weights, packed = iq3_xxs.fixture(True, False)
+        self.assertEqual((config["embedding_length"], config["feed_forward_length"], config["attention.key_length"]), (256, 768, 128))
+        decoded = {name: values for name, _, _, values in weights}
+        self.assertTrue(packed)
+        for name, shape, kind, payload in packed:
+            self.assertEqual(kind, sd.IQ3_XXS)
+            self.assertEqual(len(payload), math.prod(shape) // 256 * 98)
+            self.assertEqual(decoded[name], sd.decode(sd.IQ3_XXS, payload, math.prod(shape)))
+        self.assertNotIn("output.weight", decoded)
+
+    def test_iq3_xxs_keeps_format_and_hf_scopes(self):
+        import iq3_xxs
+        import common
+        for result in (True, common.SKIPPED):
+            with patch.object(iq3_xxs, "check_format") as convert, patch.object(iq3_xxs, "run_family", return_value=result) as compare:
+                self.assertEqual(iq3_xxs.run(), result)
+                convert.assert_called_once_with()
+                compare.assert_called_once_with("iq3-xxs", "IQ3_XXS", iq3_xxs.fixture, family="iq3-xxs")
+        with patch.object(iq3_xxs, "check_format"), patch.object(common, "f32_cache_skip", return_value=False), \
+                patch("builtins.open", side_effect=FileNotFoundError("missing IQ3_XXS golden")):
+            with self.assertRaisesRegex(FileNotFoundError, "missing IQ3_XXS golden"):
+                iq3_xxs.run()
+
     def test_iq2_s_keeps_format_and_hf_scopes(self):
         import iq2_s
         import common
@@ -1429,16 +1463,29 @@ class DtypeCalibration(unittest.TestCase):
         import q5_1
         import iq4_xs
         import iq2_s
+        import iq3_xxs
         fixture = ({"context_length": 16}, [], [])
         expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
                     for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
-        for family, module in (("q5-1", q5_1), ("iq4-xs", iq4_xs), ("iq2-s", iq2_s)):
+        for family, module in (("q5-1", q5_1), ("iq4-xs", iq4_xs), ("iq2-s", iq2_s), ("iq3-xxs", iq3_xxs)):
             with self.subTest(family=family), patch.object(module, "fixture", return_value=fixture) as source, \
                     patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
                 identities = [(identity["fixture"], identity["split"], identity["seed"])
                               for _, identity in self.calibration.family_models(family)]
                 self.assertEqual(set(identities), expected)
                 self.assertEqual(source.call_count, len(expected))
+
+    def test_iq3_xxs_family_selector(self):
+        torch = SimpleNamespace(__version__="2.5.1+cpu", set_num_threads=MagicMock())
+        transformers = SimpleNamespace(__version__="4.55.2")
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict(sys.modules, {"torch": torch, "transformers": transformers}), \
+                patch.object(self.calibration, "family_budget", return_value={"family": "fixture-only"}) as measure:
+            target = Path(directory) / "calibration.json"
+            self.calibration.main(["--family", "iq3-xxs", "--output", str(target)])
+            measure.assert_called_once_with("iq3-xxs", torch, transformers)
+            self.assertEqual(json.loads(target.read_text()), {"family": "fixture-only"})
+        torch.set_num_threads.assert_called_once_with(1)
 
     def test_q5_0_family_covers_frozen_shapes_variants_and_seeds(self):
         self.assertEqual(self.calibration.SEEDS, (0, 1, 2, 3))

@@ -34,7 +34,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `Q6_K` | Supported | Supported | No |
 | `Q8_0` | Supported | Supported | `Q8_0` |
 | `IQ2_S` | Supported | Supported | No |
-| `IQ3_S` | Supported | Supported | No |
+| `IQ3_XXS`, `IQ3_S` | Supported | Supported | No |
 | `IQ4_NL`, `IQ4_XS` | Supported | Supported | No |
 
 Vulkan `MXFP4` inference requires float-preservation and double-arithmetic support from the device. Each model tensor must be supported by its assigned backend; devices do not fall back to the CPU automatically.

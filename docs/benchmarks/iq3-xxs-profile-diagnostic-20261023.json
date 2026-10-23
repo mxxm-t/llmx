@@ -1,0 +1,2849 @@
+{
+  "audit": {
+    "launch_passed": true,
+    "container_removed": true,
+    "complete_passed": true,
+    "all_static_pins_match": true,
+    "all_timing_freeze_pins_match": true,
+    "execution_plan_matches_launcher": true,
+    "calls": 20,
+    "all_calls_passed": true,
+    "collected_output_files": 80
+  },
+  "pin_audit": {
+    "static_files": {
+      "controls.py": {
+        "expected": "287aad9b1f564229f71b3956a05420158af67ed16f971eb70e911eb7e1fc76fa",
+        "local": "287aad9b1f564229f71b3956a05420158af67ed16f971eb70e911eb7e1fc76fa",
+        "collected": "287aad9b1f564229f71b3956a05420158af67ed16f971eb70e911eb7e1fc76fa",
+        "launcher": "287aad9b1f564229f71b3956a05420158af67ed16f971eb70e911eb7e1fc76fa",
+        "ok": true
+      },
+      "run-performance.py": {
+        "expected": "cec5690c29320589b552ac4b5505d774da04589aa1c84b755c2facdbc47b6b47",
+        "local": "cec5690c29320589b552ac4b5505d774da04589aa1c84b755c2facdbc47b6b47",
+        "collected": "cec5690c29320589b552ac4b5505d774da04589aa1c84b755c2facdbc47b6b47",
+        "launcher": "cec5690c29320589b552ac4b5505d774da04589aa1c84b755c2facdbc47b6b47",
+        "ok": true
+      },
+      "rig-model-timing.py": {
+        "expected": "2ee8e97e87a66fa3e20f1d1f3c2f0c59d2850b6a3cfa1cd6c9c924d6adca813b",
+        "local": "2ee8e97e87a66fa3e20f1d1f3c2f0c59d2850b6a3cfa1cd6c9c924d6adca813b",
+        "collected": "2ee8e97e87a66fa3e20f1d1f3c2f0c59d2850b6a3cfa1cd6c9c924d6adca813b",
+        "launcher": "2ee8e97e87a66fa3e20f1d1f3c2f0c59d2850b6a3cfa1cd6c9c924d6adca813b",
+        "ok": true
+      },
+      "source-pins.json": {
+        "expected": "81725739921f054bdf5caf17463137d2c0de8d7b4d4d7c2fc268b14860ea4c30",
+        "local": "81725739921f054bdf5caf17463137d2c0de8d7b4d4d7c2fc268b14860ea4c30",
+        "collected": "81725739921f054bdf5caf17463137d2c0de8d7b4d4d7c2fc268b14860ea4c30",
+        "launcher": "81725739921f054bdf5caf17463137d2c0de8d7b4d4d7c2fc268b14860ea4c30",
+        "ok": true
+      },
+      "pin-preparation.json": {
+        "expected": "cccb1bec4c7dbdbd7194dd1235d3aae03bd6e6dd314ee511e7488693e903b433",
+        "local": "cccb1bec4c7dbdbd7194dd1235d3aae03bd6e6dd314ee511e7488693e903b433",
+        "collected": "cccb1bec4c7dbdbd7194dd1235d3aae03bd6e6dd314ee511e7488693e903b433",
+        "launcher": "cccb1bec4c7dbdbd7194dd1235d3aae03bd6e6dd314ee511e7488693e903b433",
+        "ok": true
+      },
+      "timing-source-pins.json": {
+        "expected": "809e7280e5c57b6e296f50cf703b8749248809194229545b386bbb42adfd4f57",
+        "local": "809e7280e5c57b6e296f50cf703b8749248809194229545b386bbb42adfd4f57",
+        "collected": "809e7280e5c57b6e296f50cf703b8749248809194229545b386bbb42adfd4f57",
+        "launcher": "809e7280e5c57b6e296f50cf703b8749248809194229545b386bbb42adfd4f57",
+        "ok": true
+      },
+      "model-timing-plan.json": {
+        "expected": "b38aa1c532a2acf1578ee74341ea955b2343374de2a5a1c4064e029d5de507bc",
+        "local": "b38aa1c532a2acf1578ee74341ea955b2343374de2a5a1c4064e029d5de507bc",
+        "collected": "b38aa1c532a2acf1578ee74341ea955b2343374de2a5a1c4064e029d5de507bc",
+        "launcher": "b38aa1c532a2acf1578ee74341ea955b2343374de2a5a1c4064e029d5de507bc",
+        "ok": true
+      },
+      "timing-freeze.json": {
+        "expected": "b4606e46ddb5213a5dd05129e14ccdace7099638898b6f5d2446ab42fa808379",
+        "local": "b4606e46ddb5213a5dd05129e14ccdace7099638898b6f5d2446ab42fa808379",
+        "collected": "b4606e46ddb5213a5dd05129e14ccdace7099638898b6f5d2446ab42fa808379",
+        "launcher": "b4606e46ddb5213a5dd05129e14ccdace7099638898b6f5d2446ab42fa808379",
+        "ok": true
+      },
+      "README.md": {
+        "expected": "b93b2049d5e998bc69fc93f069311c740b2dcaf5e57a8fa53a8c8625eb47a5bd",
+        "local": "b93b2049d5e998bc69fc93f069311c740b2dcaf5e57a8fa53a8c8625eb47a5bd",
+        "collected": "b93b2049d5e998bc69fc93f069311c740b2dcaf5e57a8fa53a8c8625eb47a5bd",
+        "launcher": "b93b2049d5e998bc69fc93f069311c740b2dcaf5e57a8fa53a8c8625eb47a5bd",
+        "ok": true
+      }
+    },
+    "timing_freeze_files": {
+      "source-pins.json": {
+        "expected": "81725739921f054bdf5caf17463137d2c0de8d7b4d4d7c2fc268b14860ea4c30",
+        "actual": "81725739921f054bdf5caf17463137d2c0de8d7b4d4d7c2fc268b14860ea4c30",
+        "ok": true
+      },
+      "pin-preparation.json": {
+        "expected": "cccb1bec4c7dbdbd7194dd1235d3aae03bd6e6dd314ee511e7488693e903b433",
+        "actual": "cccb1bec4c7dbdbd7194dd1235d3aae03bd6e6dd314ee511e7488693e903b433",
+        "ok": true
+      },
+      "timing-source-pins.json": {
+        "expected": "809e7280e5c57b6e296f50cf703b8749248809194229545b386bbb42adfd4f57",
+        "actual": "809e7280e5c57b6e296f50cf703b8749248809194229545b386bbb42adfd4f57",
+        "ok": true
+      },
+      "model-timing-plan.json": {
+        "expected": "b38aa1c532a2acf1578ee74341ea955b2343374de2a5a1c4064e029d5de507bc",
+        "actual": "b38aa1c532a2acf1578ee74341ea955b2343374de2a5a1c4064e029d5de507bc",
+        "ok": true
+      }
+    },
+    "execution_plan": {
+      "launcher": "6744c61ee5bffd88bb2a30b4e90b3806f4bb88a3e619339d97851c2467061bbb",
+      "collected": "6744c61ee5bffd88bb2a30b4e90b3806f4bb88a3e619339d97851c2467061bbb",
+      "ok": true
+    },
+    "binaries": {
+      "base": {
+        "expected": "74038fa68b638373c1e3935247bba063d05d09517d65614b600821e146a79981",
+        "observed": "74038fa68b638373c1e3935247bba063d05d09517d65614b600821e146a79981",
+        "ok": true
+      },
+      "candidate": {
+        "expected": "a2e70b80cf9183f3b9307288c86cad971559483e3d2a64890f0c723a5594cec8",
+        "observed": "a2e70b80cf9183f3b9307288c86cad971559483e3d2a64890f0c723a5594cec8",
+        "ok": true
+      }
+    }
+  },
+  "output_hashes": {
+    "00-base-qwen3-q4_k_m.stderr": "3b85c26709ae461299fe7a6d26a6408875b1578192f2207d53119c3370b9becc",
+    "00-base-qwen3-q4_k_m.stdout": "578cd516470112ba2ebd8f327856840e62c84b73d282b8d33ba04b1dbf49d362",
+    "00-base-qwen3-q4_k_m.usage.json": "47eedcd931d4737d7bd46a69330352e9ac499a82598144ed41b4a1a315397463",
+    "01-candidate-qwen3-q4_k_m.stderr": "0a381229956a000f93270a42d5464a6ec6912b29827bd5ca222e60ed3ca5f19f",
+    "01-candidate-qwen3-q4_k_m.stdout": "976d48cc1547fbab7e4b18fb2a83f29d623b1f4504f0ab17712687c9675ba91b",
+    "01-candidate-qwen3-q4_k_m.usage.json": "21bbb54e404fb3723316a324ce55138d832d32190a1e6578649cbfe85b9ac9cc",
+    "02-base-qwen3-q4_k_m.stderr": "a2f87824256a0e2dac3e27b3c7e5233dce24d6af22cd32cc842844a4d59ca598",
+    "02-base-qwen3-q4_k_m.stdout": "8b8f396abe868527fbf05623f641a23b3bba3b617417bf65fd64cedb55c23852",
+    "02-base-qwen3-q4_k_m.usage.json": "3f18b1831b4f79ee8ec6ac5842c4d9b2f970d8dae2b763324a84c1c90b12a4b5",
+    "03-candidate-qwen3-q4_k_m.stderr": "6a3f274bf6eac257b00e502b248063d19e2e896eff3e1d26237bdc658736595b",
+    "03-candidate-qwen3-q4_k_m.stdout": "9c290048e315b805ef7a1fff61dd17ea0236fa322b2421fb4e863f5e6f74e387",
+    "03-candidate-qwen3-q4_k_m.usage.json": "a695b82f5b9a652530e1d1eb8cdc14983f9fa1ec30a119e391e5e675d3aaa757",
+    "04-candidate-qwen3-q4_k_m.stderr": "0a381229956a000f93270a42d5464a6ec6912b29827bd5ca222e60ed3ca5f19f",
+    "04-candidate-qwen3-q4_k_m.stdout": "f9bba5b044dbd0b5dd337ac0e663dac0ffe43fcfc7b78d61a3b8409817379e49",
+    "04-candidate-qwen3-q4_k_m.usage.json": "139e30095356cd0cb8bce47dcc0369faf0c1dc97bd0bf4af5dac8177ae4b3542",
+    "05-base-qwen3-q4_k_m.stderr": "a2f87824256a0e2dac3e27b3c7e5233dce24d6af22cd32cc842844a4d59ca598",
+    "05-base-qwen3-q4_k_m.stdout": "6088fb78e069ca3e91760b15ee91616b23b26d0febf3b42829f0debcecb4671e",
+    "05-base-qwen3-q4_k_m.usage.json": "56a06109d192bf3b174ac4e4ccb081240a91f27c71e24fa16c0a71526fd4a663",
+    "06-base-qwen3-q4_k_m.stderr": "14b9b345a32e121b27a527733e9c490e7fd4b62f51fcdf0e20799cd00bfc2c76",
+    "06-base-qwen3-q4_k_m.stdout": "97a2de5dfec658fd792030673098f63012060696941aef53630fa59ddacf9062",
+    "06-base-qwen3-q4_k_m.usage.json": "07cef17a85bfda598fdd3c056e38abbaae64160d3519ba1086cc4ed76e7747e7",
+    "07-candidate-qwen3-q4_k_m.stderr": "6a3f274bf6eac257b00e502b248063d19e2e896eff3e1d26237bdc658736595b",
+    "07-candidate-qwen3-q4_k_m.stdout": "008cee5f822fe6db279ab88587f88a279b48df49e2e3a41444275cc5cc330d0d",
+    "07-candidate-qwen3-q4_k_m.usage.json": "7903440b4ba6c11a53fd12f046fc18777278ed17060e1cdde5391669edbdc213",
+    "08-candidate-qwen3-q4_k_m.stderr": "98bb116b63253762c8123ed54bd0fb8a5340b791deca48205556bbecd969f1dd",
+    "08-candidate-qwen3-q4_k_m.stdout": "63307d4cbe32935f6ea24ac80ea9cabeecd080fb9b790c081db06d20e4418801",
+    "08-candidate-qwen3-q4_k_m.usage.json": "567455c830c2ca3b2bf85c0aabc668d8b48671f08aa2a4a40819e13b5a25e1bd",
+    "09-base-qwen3-q4_k_m.stderr": "2b869a14442a87dade5c9941fdc82584d50c5d914498e6c5409749debe43d5ed",
+    "09-base-qwen3-q4_k_m.stdout": "45aa077fc2712f3d720bc1d33e3559284675c63955e569c2c0d395e2cbe0255a",
+    "09-base-qwen3-q4_k_m.usage.json": "2c0ad4d035079cc9cda9f4e1e08c94db20a7bedb1a310128bf08bd6202bdb0f5",
+    "10-base-qwen3-bf16.stderr": "262b986821276ff68baee5e5f5911ec0ceed694a10aca2cf49c1314f119bc035",
+    "10-base-qwen3-bf16.stdout": "05689f17946ea14722f42bb8fdf4087d6d633ee792105e587b63267baf27d119",
+    "10-base-qwen3-bf16.usage.json": "10f583e0db717f5836b27f59ead9a470c5c7d296498a4a84444783a358128076",
+    "11-candidate-qwen3-bf16.stderr": "7214d2bf95651aba39b7dcc8771be2903fae03778616de24b2f4deec41dff09b",
+    "11-candidate-qwen3-bf16.stdout": "4f731f2d4b3a14ec96d4abadc8171faf7fda41f6ebe667fb2d093b1b8d5f88ca",
+    "11-candidate-qwen3-bf16.usage.json": "ef8d3bfeab4c84b40cd950863ea8b8d36b626f12fb45bb511dd19af31e1d6fb6",
+    "12-base-qwen3-bf16.stderr": "943ba6dc6c59660e525addd2f69aa37ab4dbaa44c5a76e7fcef756db2726ac65",
+    "12-base-qwen3-bf16.stdout": "f39126e34557ce8583ca5a156d992a0fa726a639e328a21f26cf9e20fae59f27",
+    "12-base-qwen3-bf16.usage.json": "f9ef9b92e53cff412186cca05be68d35c03ddfb124bdbdd596a90be1f853a2d3",
+    "13-candidate-qwen3-bf16.stderr": "f5c5433c1450e9d128ad2eb4f17e685d0826014af91e2864815cb22081a86164",
+    "13-candidate-qwen3-bf16.stdout": "0e116d8bd3ee8fe8a525934e55679270487a43c55676d8b3efcf68dbd1d47ce5",
+    "13-candidate-qwen3-bf16.usage.json": "44130afce438daac8936b6f99c8584a2bfef1cbd66eca04a158db341813c8719",
+    "14-candidate-qwen3-bf16.stderr": "602e764fdfcf241616eff15a74c60ff46b24dfefcb1f9b6903d215f98f335afb",
+    "14-candidate-qwen3-bf16.stdout": "2ac0c4e460eb3b7e0d2627fd73cc81a921059cae23b468739d93dcaf4641a199",
+    "14-candidate-qwen3-bf16.usage.json": "75e4233178521f794be555fd14d624bb01cdf86f37d8de4ce32b2b37cc0c3905",
+    "15-base-qwen3-bf16.stderr": "ffe20590183c6c59b64854920e2ab5233fcd7975525dd18438d65fb77e7024e3",
+    "15-base-qwen3-bf16.stdout": "432af6325ec08311f106d24ec973794365614bebf8362d2d55905755d8749a5b",
+    "15-base-qwen3-bf16.usage.json": "8620b5824dd32b65889b0b2dffcd97cf61dc61a873d914491f3d0c1569e4bc87",
+    "16-base-qwen3-bf16.stderr": "4aaa74b90c6df73d1401a4f25678eeb7fda026840a9e634dba123f56133800f5",
+    "16-base-qwen3-bf16.stdout": "6bbedd384501b8c54721ab3b54b5394baf08827f772edf0eaeb019396a961cb6",
+    "16-base-qwen3-bf16.usage.json": "1a77594758f9b365d370ec9c22db4ab003b56c04d4735b879005bd7d2edef947",
+    "17-candidate-qwen3-bf16.stderr": "3dae2eef2d894ff5b90a19aacc596bac7ce2d1b7436c1062cc88dad558990611",
+    "17-candidate-qwen3-bf16.stdout": "7670eb790d218a9167d229f79ed16d700660d1247aa681dbcf1095ebe5b2dd2c",
+    "17-candidate-qwen3-bf16.usage.json": "3e8130fd630b9f1cf3de50173fe348e68a42fd17a95c3195b8b8dcc0f9fbdd0f",
+    "18-candidate-qwen3-bf16.stderr": "97aab8553b9c8ae78b91d9473dc786b7f3e73b02155987d63ca78dd9cbac8b78",
+    "18-candidate-qwen3-bf16.stdout": "78044c3298ecca657ad12a14f8f5613600079501115d7e58df8f0f80ca671f25",
+    "18-candidate-qwen3-bf16.usage.json": "2c41480cf82342ec1b195558351df6bd209e026d2d2f0d02fa3a0a88e9061293",
+    "19-base-qwen3-bf16.stderr": "19bf1208e80cfd545225a12f9772d99851efcdd92d80be7ed941d76a000e0758",
+    "19-base-qwen3-bf16.stdout": "4ecea0eb2824839fe76c94ba78f0952db10cdd544dc134a260e4337416789187",
+    "19-base-qwen3-bf16.usage.json": "0466bd344b8507dbbe61e15bdccf3a72d84a9cd7c812157c9432cc90c6066276",
+    "activity.jsonl": "9d2e823f003b281961d2f4023c0121541acdec71ed625c500760f05d8d22cb52",
+    "build-flags.json": "1f3a032c0af6875257179f100b8075c9962186eae1dbc2031f09ae25747e2641",
+    "complete.json": "a0d4181bca9c5547435e64c3ed45f2c839b4e7bea7610dd16e9e740680138c42",
+    "concurrent-owned-containers.json": "505847c62c86039acef984effa885b6b0cdec90ba9cfadc45071a5d0043d945f",
+    "end-verification.json": "8d1141f91e4bcd8d8f64bc74bd9bfbdf9883fb9f7cb8b4f6a732867797b531e1",
+    "gpu-after.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "gpu-before.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "plan.json": "36ab7a4db2101dcf0ad43aba017666c1eed341a7a03b620580a2cc924e7f594f",
+    "preflight.json": "25e4f1148c0fef615bdfba760c334a1620c82a6c23680ea376cbdeacd6b82f2b",
+    "progress.json": "f1662a6faf6870a480c5f1596b30d5ba9f17530cb9be1f7d742eb937874d04f4",
+    "qwen3-bf16-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-bf16-info.stdout": "2d77fcd6fe740237fd53b17b4518b8f9d1ab77fb3b269c538d3f99648e05b3e3",
+    "qwen3-q4_k_m-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q4_k_m-info.stdout": "e8ef4ae33e97e6dcdcbe1befcd3b1010f8cd765617e3e3d20d00a30545aa8924",
+    "source-verification.json": "971e7fa0633012d9cf01ec870bc68ccd24362c6b5c491bf49f287c0ff79e4a43",
+    "vulkan-summary.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "vulkan-summary.txt": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb"
+  },
+  "summary": {
+    "qwen3-q4_k_m": {
+      "base": {
+        "ordinary_indices": [
+          2,
+          5
+        ],
+        "ordinary_pp512_tps": [
+          8217.16,
+          8213.17
+        ],
+        "ordinary_tg128_tps": [
+          362.45,
+          362.71
+        ],
+        "ordinary_mean_pp512_tps": 8215.165,
+        "ordinary_mean_tg128_tps": 362.58,
+        "profiled_indices": [
+          6,
+          9
+        ],
+        "profiled_reported_pp512_tps": [
+          8132.23,
+          8099.75
+        ],
+        "profiled_reported_tg128_tps": [
+          274.82,
+          274.74
+        ],
+        "profile_pp_device_ms": [
+          63.3072,
+          63.3571
+        ],
+        "profile_pp_dispatches": [
+          340,
+          340
+        ],
+        "profile_tg_device_ms": [
+          410.628,
+          410.452
+        ],
+        "profile_tg_dispatches": [
+          37248,
+          37248
+        ],
+        "kernel_statistics": [
+          {
+            "index": 6,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "embed: Driver pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "matmul_row_k4_dot_1col: Driver pipeline hash=11900257808160510680 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+              "matmul_row_k_dot_1col: Driver pipeline hash=256468376946100109 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+              "matmul_tile_q: Driver pipeline hash=18414431842538368149 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+              "matmul_tile_q6: Driver pipeline hash=1808547586136195121 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+              "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+            ]
+          },
+          {
+            "index": 9,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "embed: Driver pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "matmul_row_k4_dot_1col: Driver pipeline hash=11900257808160510680 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+              "matmul_row_k_dot_1col: Driver pipeline hash=256468376946100109 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+              "matmul_tile_q: Driver pipeline hash=18414431842538368149 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+              "matmul_tile_q6: Driver pipeline hash=1808547586136195121 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+              "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+            ]
+          }
+        ]
+      },
+      "candidate": {
+        "ordinary_indices": [
+          3,
+          4
+        ],
+        "ordinary_pp512_tps": [
+          8208.97,
+          8223.23
+        ],
+        "ordinary_tg128_tps": [
+          363.66,
+          363.58
+        ],
+        "ordinary_mean_pp512_tps": 8216.099999999999,
+        "ordinary_mean_tg128_tps": 363.62,
+        "profiled_indices": [
+          7,
+          8
+        ],
+        "profiled_reported_pp512_tps": [
+          8130.16,
+          8122.14
+        ],
+        "profiled_reported_tg128_tps": [
+          275.55,
+          272.8
+        ],
+        "profile_pp_device_ms": [
+          63.1758,
+          63.0621
+        ],
+        "profile_pp_dispatches": [
+          340,
+          340
+        ],
+        "profile_tg_device_ms": [
+          410.827,
+          411.006
+        ],
+        "profile_tg_dispatches": [
+          37248,
+          37248
+        ],
+        "kernel_statistics": [
+          {
+            "index": 7,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "embed: Driver pipeline hash=5813209810873279162 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4976 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3967999186 Instructions=892 Copies=74 Branches=64 Latency=4042 Inverse Throughput=723 VMEM Clause=28 SMEM Clause=21 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=498 SALU=131 VMEM=92 SMEM=24 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "matmul_row_k4_dot_1col: Driver pipeline hash=9436051728067762973 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+              "matmul_row_k_dot_1col: Driver pipeline hash=17355905222882642723 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+              "matmul_tile_q: Driver pipeline hash=5091086271849611969 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+              "matmul_tile_q6: Driver pipeline hash=6601029854692807541 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+              "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+            ]
+          },
+          {
+            "index": 8,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "embed: Driver pipeline hash=5813209810873279162 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4976 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3967999186 Instructions=892 Copies=74 Branches=64 Latency=4042 Inverse Throughput=723 VMEM Clause=28 SMEM Clause=21 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=498 SALU=131 VMEM=92 SMEM=24 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "matmul_row_k4_dot_1col: Driver pipeline hash=9436051728067762973 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+              "matmul_row_k_dot_1col: Driver pipeline hash=17355905222882642723 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+              "matmul_tile_q: Driver pipeline hash=5091086271849611969 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+              "matmul_tile_q6: Driver pipeline hash=6601029854692807541 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+              "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+            ]
+          }
+        ]
+      },
+      "profile_kernel_time_means": {
+        "base": {
+          "pp": {
+            "attention_tile": {
+              "device_ms": 8.53424,
+              "percent": 13.475349999999999
+            },
+            "embed": {
+              "device_ms": 0.03248,
+              "percent": 0.051285399999999995
+            },
+            "gather_rows": {
+              "device_ms": 0.00584,
+              "percent": 0.009221175000000002
+            },
+            "matmul_reduce": {
+              "device_ms": 1.1012,
+              "percent": 1.738765
+            },
+            "matmul_row_k_dot_1col head": {
+              "device_ms": 0.31232000000000004,
+              "percent": 0.4931515
+            },
+            "matmul_tile_q": {
+              "device_ms": 41.04685,
+              "percent": 64.81205
+            },
+            "matmul_tile_q6": {
+              "device_ms": 7.963520000000001,
+              "percent": 12.574200000000001
+            },
+            "norm_rope_kv": {
+              "device_ms": 2.51936,
+              "percent": 3.9780100000000003
+            },
+            "rms_norm_rows": {
+              "device_ms": 0.85704,
+              "percent": 1.353245
+            },
+            "silu_mul": {
+              "device_ms": 0.95928,
+              "percent": 1.51468
+            }
+          },
+          "tg": {
+            "attention_merge": {
+              "device_ms": 23.5781,
+              "percent": 5.743185
+            },
+            "attention_vec": {
+              "device_ms": 39.7232,
+              "percent": 9.675844999999999
+            },
+            "embed": {
+              "device_ms": 1.3189600000000001,
+              "percent": 0.3212745
+            },
+            "gather_rows": {
+              "device_ms": 0.7647999999999999,
+              "percent": 0.18629099999999998
+            },
+            "matmul_row_k4_dot_1col": {
+              "device_ms": 151.1225,
+              "percent": 36.8107
+            },
+            "matmul_row_k_dot_1col": {
+              "device_ms": 44.0165,
+              "percent": 10.7216
+            },
+            "matmul_row_k_dot_1col head": {
+              "device_ms": 38.86425,
+              "percent": 9.466619999999999
+            },
+            "norm_rope_kv": {
+              "device_ms": 33.87465,
+              "percent": 8.25124
+            },
+            "rms_norm_rows": {
+              "device_ms": 56.46615,
+              "percent": 13.75415
+            },
+            "silu_mul": {
+              "device_ms": 20.81065,
+              "percent": 5.069095
+            }
+          }
+        },
+        "candidate": {
+          "pp": {
+            "attention_tile": {
+              "device_ms": 8.52232,
+              "percent": 13.50195
+            },
+            "embed": {
+              "device_ms": 0.03272,
+              "percent": 0.0518381
+            },
+            "gather_rows": {
+              "device_ms": 0.00592,
+              "percent": 0.00937912
+            },
+            "matmul_reduce": {
+              "device_ms": 1.09784,
+              "percent": 1.73932
+            },
+            "matmul_row_k_dot_1col head": {
+              "device_ms": 0.304,
+              "percent": 0.48163100000000003
+            },
+            "matmul_tile_q": {
+              "device_ms": 40.958,
+              "percent": 64.89015
+            },
+            "matmul_tile_q6": {
+              "device_ms": 7.878080000000001,
+              "percent": 12.481300000000001
+            },
+            "norm_rope_kv": {
+              "device_ms": 2.5064,
+              "percent": 3.97093
+            },
+            "rms_norm_rows": {
+              "device_ms": 0.8573599999999999,
+              "percent": 1.358325
+            },
+            "silu_mul": {
+              "device_ms": 0.9563200000000001,
+              "percent": 1.51511
+            }
+          },
+          "tg": {
+            "attention_merge": {
+              "device_ms": 23.78665,
+              "percent": 5.788679999999999
+            },
+            "attention_vec": {
+              "device_ms": 39.9268,
+              "percent": 9.716525
+            },
+            "embed": {
+              "device_ms": 1.36656,
+              "percent": 0.332565
+            },
+            "gather_rows": {
+              "device_ms": 0.7664,
+              "percent": 0.18651
+            },
+            "matmul_row_k4_dot_1col": {
+              "device_ms": 151.0645,
+              "percent": 36.76285
+            },
+            "matmul_row_k_dot_1col": {
+              "device_ms": 44.024699999999996,
+              "percent": 10.713799999999999
+            },
+            "matmul_row_k_dot_1col head": {
+              "device_ms": 38.881299999999996,
+              "percent": 9.46209
+            },
+            "norm_rope_kv": {
+              "device_ms": 33.886399999999995,
+              "percent": 8.24654
+            },
+            "rms_norm_rows": {
+              "device_ms": 56.5465,
+              "percent": 13.761099999999999
+            },
+            "silu_mul": {
+              "device_ms": 20.66665,
+              "percent": 5.029405000000001
+            }
+          }
+        }
+      },
+      "kernel_statistics_differences_ignoring_pipeline_hash": [
+        {
+          "kernel": "embed",
+          "base": "pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0",
+          "candidate": "pipeline hash=5813209810873279162 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4976 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3967999186 Instructions=892 Copies=74 Branches=64 Latency=4042 Inverse Throughput=723 VMEM Clause=28 SMEM Clause=21 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=498 SALU=131 VMEM=92 SMEM=24 VOPD=0",
+          "differences": "Stats differ after ignoring driver pipeline hash."
+        }
+      ]
+    },
+    "qwen3-bf16": {
+      "base": {
+        "ordinary_indices": [
+          12,
+          15
+        ],
+        "ordinary_pp512_tps": [
+          1522.76,
+          1520.3
+        ],
+        "ordinary_tg128_tps": [
+          328.1,
+          327.46
+        ],
+        "ordinary_mean_pp512_tps": 1521.53,
+        "ordinary_mean_tg128_tps": 327.78,
+        "profiled_indices": [
+          16,
+          19
+        ],
+        "profiled_reported_pp512_tps": [
+          1519.57,
+          1506.17
+        ],
+        "profiled_reported_tg128_tps": [
+          256.33,
+          256.46
+        ],
+        "profile_pp_device_ms": [
+          338.7,
+          336.927
+        ],
+        "profile_pp_dispatches": [
+          340,
+          340
+        ],
+        "profile_tg_device_ms": [
+          446.054,
+          445.303
+        ],
+        "profile_tg_dispatches": [
+          35456,
+          35456
+        ],
+        "kernel_statistics": [
+          {
+            "index": 16,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+              "embed_wbf16: Driver pipeline hash=5995873417395788455 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+              "matmul_row_wbf16_1col: Driver pipeline hash=15808326828973044896 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+              "matmul_tile_wbf16: Driver pipeline hash=15431912536518564552 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+            ]
+          },
+          {
+            "index": 19,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+              "embed_wbf16: Driver pipeline hash=5995873417395788455 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+              "matmul_row_wbf16_1col: Driver pipeline hash=15808326828973044896 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+              "matmul_tile_wbf16: Driver pipeline hash=15431912536518564552 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+            ]
+          }
+        ]
+      },
+      "candidate": {
+        "ordinary_indices": [
+          13,
+          14
+        ],
+        "ordinary_pp512_tps": [
+          1529.25,
+          1526.37
+        ],
+        "ordinary_tg128_tps": [
+          326.59,
+          327.02
+        ],
+        "ordinary_mean_pp512_tps": 1527.81,
+        "ordinary_mean_tg128_tps": 326.80499999999995,
+        "profiled_indices": [
+          17,
+          18
+        ],
+        "profiled_reported_pp512_tps": [
+          1496.89,
+          1498.46
+        ],
+        "profiled_reported_tg128_tps": [
+          256.47,
+          256.28
+        ],
+        "profile_pp_device_ms": [
+          337.773,
+          336.681
+        ],
+        "profile_pp_dispatches": [
+          340,
+          340
+        ],
+        "profile_tg_device_ms": [
+          445.569,
+          445.816
+        ],
+        "profile_tg_dispatches": [
+          35456,
+          35456
+        ],
+        "kernel_statistics": [
+          {
+            "index": 17,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+              "embed_wbf16: Driver pipeline hash=10694359396216828399 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+              "matmul_row_wbf16_1col: Driver pipeline hash=14381175060914221996 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+              "matmul_tile_wbf16: Driver pipeline hash=4090076750092824656 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+            ]
+          },
+          {
+            "index": 18,
+            "lines": [
+              "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+              "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+              "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+              "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+              "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+              "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+              "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+              "embed_wbf16: Driver pipeline hash=10694359396216828399 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+              "matmul_row_wbf16_1col: Driver pipeline hash=14381175060914221996 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+              "matmul_tile_wbf16: Driver pipeline hash=4090076750092824656 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+            ]
+          }
+        ]
+      },
+      "profile_kernel_time_means": {
+        "base": {
+          "pp": {
+            "attention_tile": {
+              "device_ms": 8.7092,
+              "percent": 2.57813
+            },
+            "embed_wbf16": {
+              "device_ms": 0.02784,
+              "percent": 0.00824155
+            },
+            "gather_rows": {
+              "device_ms": 0.06856000000000001,
+              "percent": 0.02034304
+            },
+            "matmul_row_wbf16_1col head": {
+              "device_ms": 1.12072,
+              "percent": 0.3317525
+            },
+            "matmul_tile_wbf16": {
+              "device_ms": 319.527,
+              "percent": 94.58775
+            },
+            "norm_rope_kv": {
+              "device_ms": 3.22032,
+              "percent": 0.953135
+            },
+            "rms_norm_rows": {
+              "device_ms": 2.20728,
+              "percent": 0.6527944999999999
+            },
+            "silu_mul": {
+              "device_ms": 2.93232,
+              "percent": 0.867864
+            }
+          },
+          "tg": {
+            "attention_merge": {
+              "device_ms": 23.5589,
+              "percent": 5.2860700000000005
+            },
+            "attention_vec": {
+              "device_ms": 39.52415,
+              "percent": 8.868305
+            },
+            "embed_wbf16": {
+              "device_ms": 0.97992,
+              "percent": 0.2198715
+            },
+            "gather_rows": {
+              "device_ms": 0.7498400000000001,
+              "percent": 0.16824699999999998
+            },
+            "matmul_row_wbf16_1col": {
+              "device_ms": 225.586,
+              "percent": 50.6162
+            },
+            "matmul_row_wbf16_1col head": {
+              "device_ms": 47.188900000000004,
+              "percent": 10.5881
+            },
+            "norm_rope_kv": {
+              "device_ms": 32.69995,
+              "percent": 7.33711
+            },
+            "rms_norm_rows": {
+              "device_ms": 54.7956,
+              "percent": 12.29485
+            },
+            "silu_mul": {
+              "device_ms": 20.59575,
+              "percent": 4.621214999999999
+            }
+          }
+        },
+        "candidate": {
+          "pp": {
+            "attention_tile": {
+              "device_ms": 8.690000000000001,
+              "percent": 2.57691
+            },
+            "embed_wbf16": {
+              "device_ms": 0.02784,
+              "percent": 0.00825559
+            },
+            "gather_rows": {
+              "device_ms": 0.06871999999999999,
+              "percent": 0.020348105
+            },
+            "matmul_row_wbf16_1col head": {
+              "device_ms": 1.11144,
+              "percent": 0.32958350000000003
+            },
+            "matmul_tile_wbf16": {
+              "device_ms": 319.2025,
+              "percent": 94.65545
+            },
+            "norm_rope_kv": {
+              "device_ms": 3.364,
+              "percent": 0.9974335
+            },
+            "rms_norm_rows": {
+              "device_ms": 2.07448,
+              "percent": 0.6149985
+            },
+            "silu_mul": {
+              "device_ms": 2.68816,
+              "percent": 0.797023
+            }
+          },
+          "tg": {
+            "attention_merge": {
+              "device_ms": 23.51145,
+              "percent": 5.275259999999999
+            },
+            "attention_vec": {
+              "device_ms": 39.504000000000005,
+              "percent": 8.863510000000002
+            },
+            "embed_wbf16": {
+              "device_ms": 0.9761599999999999,
+              "percent": 0.21902100000000002
+            },
+            "gather_rows": {
+              "device_ms": 0.74912,
+              "percent": 0.16808
+            },
+            "matmul_row_wbf16_1col": {
+              "device_ms": 225.72699999999998,
+              "percent": 50.64645
+            },
+            "matmul_row_wbf16_1col head": {
+              "device_ms": 47.184,
+              "percent": 10.5867
+            },
+            "norm_rope_kv": {
+              "device_ms": 32.6499,
+              "percent": 7.32566
+            },
+            "rms_norm_rows": {
+              "device_ms": 54.75275,
+              "percent": 12.2849
+            },
+            "silu_mul": {
+              "device_ms": 20.6378,
+              "percent": 4.630520000000001
+            }
+          }
+        }
+      },
+      "kernel_statistics_differences_ignoring_pipeline_hash": []
+    }
+  },
+  "calls": [
+    {
+      "index": 0,
+      "model": "qwen3-q4_k_m",
+      "arm": "base",
+      "phase": "warmup",
+      "profiled": false,
+      "scheduled_direction": "warmup",
+      "derived_direction": "warmup",
+      "label_mismatch": false,
+      "pp512_tps": 8216.74,
+      "tg128_tps": 363.85,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 1.7745,
+      "child_cpu_seconds": 1.1527,
+      "cgroup": {
+        "cpu_pressure_some_us": 9130,
+        "cpu_pressure_full_us": 7937,
+        "usage_usec_delta": 1213198,
+        "nr_periods_delta": 17,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 83.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 10932224,
+      "target_gpu_vram_max_bytes": 586805248,
+      "sampled_benchmark_cpu_ticks": 2,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.12
+        ],
+        [
+          "llmx",
+          906917,
+          0.06
+        ],
+        [
+          "htop",
+          2870193,
+          0.05
+        ]
+      ],
+      "stdout_sha256": "578cd516470112ba2ebd8f327856840e62c84b73d282b8d33ba04b1dbf49d362",
+      "stderr_sha256": "3b85c26709ae461299fe7a6d26a6408875b1578192f2207d53119c3370b9becc",
+      "usage_sha256": "47eedcd931d4737d7bd46a69330352e9ac499a82598144ed41b4a1a315397463"
+    },
+    {
+      "index": 1,
+      "model": "qwen3-q4_k_m",
+      "arm": "candidate",
+      "phase": "warmup",
+      "profiled": false,
+      "scheduled_direction": "warmup",
+      "derived_direction": "warmup",
+      "label_mismatch": false,
+      "pp512_tps": 8205.9,
+      "tg128_tps": 361.26,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 1.5207,
+      "child_cpu_seconds": 0.8742,
+      "cgroup": {
+        "cpu_pressure_some_us": 9323,
+        "cpu_pressure_full_us": 8379,
+        "usage_usec_delta": 928179,
+        "nr_periods_delta": 16,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 94.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 403709952,
+      "target_gpu_vram_max_bytes": 586821632,
+      "sampled_benchmark_cpu_ticks": 54,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.1
+        ],
+        [
+          "htop",
+          2870193,
+          0.05
+        ],
+        [
+          "python3",
+          558337,
+          0.04
+        ]
+      ],
+      "stdout_sha256": "976d48cc1547fbab7e4b18fb2a83f29d623b1f4504f0ab17712687c9675ba91b",
+      "stderr_sha256": "0a381229956a000f93270a42d5464a6ec6912b29827bd5ca222e60ed3ca5f19f",
+      "usage_sha256": "21bbb54e404fb3723316a324ce55138d832d32190a1e6578649cbfe85b9ac9cc"
+    },
+    {
+      "index": 2,
+      "model": "qwen3-q4_k_m",
+      "arm": "base",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 8217.16,
+      "tg128_tps": 362.45,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 1.4706,
+      "child_cpu_seconds": 0.79,
+      "cgroup": {
+        "cpu_pressure_some_us": 10309,
+        "cpu_pressure_full_us": 7313,
+        "usage_usec_delta": 844988,
+        "nr_periods_delta": 14,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 1,
+      "target_gpu_busy_max": 95.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 586813440,
+      "target_gpu_vram_max_bytes": 586813440,
+      "sampled_benchmark_cpu_ticks": 0,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "llmx",
+          906917,
+          0.06
+        ],
+        [
+          "python3",
+          3585,
+          0.05
+        ],
+        [
+          "htop",
+          2870193,
+          0.05
+        ]
+      ],
+      "stdout_sha256": "8b8f396abe868527fbf05623f641a23b3bba3b617417bf65fd64cedb55c23852",
+      "stderr_sha256": "a2f87824256a0e2dac3e27b3c7e5233dce24d6af22cd32cc842844a4d59ca598",
+      "usage_sha256": "3f18b1831b4f79ee8ec6ac5842c4d9b2f970d8dae2b763324a84c1c90b12a4b5"
+    },
+    {
+      "index": 3,
+      "model": "qwen3-q4_k_m",
+      "arm": "candidate",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 8208.97,
+      "tg128_tps": 363.66,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 1.4706,
+      "child_cpu_seconds": 0.7844,
+      "cgroup": {
+        "cpu_pressure_some_us": 7217,
+        "cpu_pressure_full_us": 6297,
+        "usage_usec_delta": 839508,
+        "nr_periods_delta": 15,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 92.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 403709952,
+      "target_gpu_vram_max_bytes": 586821632,
+      "sampled_benchmark_cpu_ticks": 47,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.11
+        ],
+        [
+          "containerd",
+          2424,
+          0.06
+        ],
+        [
+          "llmx",
+          906917,
+          0.06
+        ]
+      ],
+      "stdout_sha256": "9c290048e315b805ef7a1fff61dd17ea0236fa322b2421fb4e863f5e6f74e387",
+      "stderr_sha256": "6a3f274bf6eac257b00e502b248063d19e2e896eff3e1d26237bdc658736595b",
+      "usage_sha256": "a695b82f5b9a652530e1d1eb8cdc14983f9fa1ec30a119e391e5e675d3aaa757"
+    },
+    {
+      "index": 4,
+      "model": "qwen3-q4_k_m",
+      "arm": "candidate",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "reverse",
+      "label_mismatch": true,
+      "pp512_tps": 8223.23,
+      "tg128_tps": 363.58,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 1.4202,
+      "child_cpu_seconds": 0.7696,
+      "cgroup": {
+        "cpu_pressure_some_us": 8819,
+        "cpu_pressure_full_us": 6641,
+        "usage_usec_delta": 820678,
+        "nr_periods_delta": 14,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 1,
+      "target_gpu_busy_max": 84.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 586850304,
+      "target_gpu_vram_max_bytes": 586850304,
+      "sampled_benchmark_cpu_ticks": 0,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "htop",
+          2870193,
+          0.05
+        ],
+        [
+          "python3",
+          3585,
+          0.04
+        ],
+        [
+          "python3",
+          558337,
+          0.02
+        ]
+      ],
+      "stdout_sha256": "f9bba5b044dbd0b5dd337ac0e663dac0ffe43fcfc7b78d61a3b8409817379e49",
+      "stderr_sha256": "0a381229956a000f93270a42d5464a6ec6912b29827bd5ca222e60ed3ca5f19f",
+      "usage_sha256": "139e30095356cd0cb8bce47dcc0369faf0c1dc97bd0bf4af5dac8177ae4b3542"
+    },
+    {
+      "index": 5,
+      "model": "qwen3-q4_k_m",
+      "arm": "base",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "reverse",
+      "label_mismatch": true,
+      "pp512_tps": 8213.17,
+      "tg128_tps": 362.71,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 1.4202,
+      "child_cpu_seconds": 0.7886,
+      "cgroup": {
+        "cpu_pressure_some_us": 7775,
+        "cpu_pressure_full_us": 7081,
+        "usage_usec_delta": 843215,
+        "nr_periods_delta": 14,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 0.0,
+      "target_gpu_busy_nonzero_samples": 0,
+      "target_gpu_vram_min_bytes": 10932224,
+      "target_gpu_vram_max_bytes": 425328640,
+      "sampled_benchmark_cpu_ticks": 0,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.11
+        ],
+        [
+          "pve-firewall",
+          2717,
+          0.06
+        ],
+        [
+          "llmx",
+          906917,
+          0.06
+        ]
+      ],
+      "stdout_sha256": "6088fb78e069ca3e91760b15ee91616b23b26d0febf3b42829f0debcecb4671e",
+      "stderr_sha256": "a2f87824256a0e2dac3e27b3c7e5233dce24d6af22cd32cc842844a4d59ca598",
+      "usage_sha256": "56a06109d192bf3b174ac4e4ccb081240a91f27c71e24fa16c0a71526fd4a663"
+    },
+    {
+      "index": 6,
+      "model": "qwen3-q4_k_m",
+      "arm": "base",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 8132.23,
+      "tg128_tps": 274.82,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 63.3072,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 410.628,
+          "dispatches": 37248
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_q": {
+            "device_ms": 41.0243,
+            "percent": 64.802
+          },
+          "attention_tile": {
+            "device_ms": 8.54864,
+            "percent": 13.5034
+          },
+          "matmul_tile_q6": {
+            "device_ms": 7.94624,
+            "percent": 12.5519
+          },
+          "norm_rope_kv": {
+            "device_ms": 2.51584,
+            "percent": 3.97402
+          },
+          "matmul_reduce": {
+            "device_ms": 1.09648,
+            "percent": 1.732
+          },
+          "silu_mul": {
+            "device_ms": 0.95808,
+            "percent": 1.51338
+          },
+          "rms_norm_rows": {
+            "device_ms": 0.8576,
+            "percent": 1.35466
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 0.32144,
+            "percent": 0.507746
+          },
+          "embed": {
+            "device_ms": 0.0328,
+            "percent": 0.0518109
+          },
+          "gather_rows": {
+            "device_ms": 0.00576,
+            "percent": 0.00909849
+          }
+        },
+        "tg": {
+          "matmul_row_k4_dot_1col": {
+            "device_ms": 151.041,
+            "percent": 36.783
+          },
+          "rms_norm_rows": {
+            "device_ms": 56.5363,
+            "percent": 13.7683
+          },
+          "matmul_row_k_dot_1col": {
+            "device_ms": 44.0418,
+            "percent": 10.7255
+          },
+          "attention_vec": {
+            "device_ms": 39.736,
+            "percent": 9.6769
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 38.8469,
+            "percent": 9.46037
+          },
+          "norm_rope_kv": {
+            "device_ms": 33.948,
+            "percent": 8.26735
+          },
+          "attention_merge": {
+            "device_ms": 23.5829,
+            "percent": 5.74313
+          },
+          "silu_mul": {
+            "device_ms": 20.8082,
+            "percent": 5.06741
+          },
+          "embed": {
+            "device_ms": 1.32064,
+            "percent": 0.321615
+          },
+          "gather_rows": {
+            "device_ms": 0.7656,
+            "percent": 0.186446
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "embed: Driver pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "matmul_row_k4_dot_1col: Driver pipeline hash=11900257808160510680 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+        "matmul_row_k_dot_1col: Driver pipeline hash=256468376946100109 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+        "matmul_tile_q: Driver pipeline hash=18414431842538368149 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+        "matmul_tile_q6: Driver pipeline hash=1808547586136195121 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+        "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+      ],
+      "elapsed_seconds": 2.5228,
+      "child_cpu_seconds": 1.2292,
+      "cgroup": {
+        "cpu_pressure_some_us": 11022,
+        "cpu_pressure_full_us": 8771,
+        "usage_usec_delta": 1284397,
+        "nr_periods_delta": 26,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 88.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 586805248,
+      "target_gpu_vram_max_bytes": 586821632,
+      "sampled_benchmark_cpu_ticks": 24,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.11
+        ],
+        [
+          "htop",
+          2870193,
+          0.06
+        ],
+        [
+          "python3",
+          558337,
+          0.03
+        ]
+      ],
+      "stdout_sha256": "97a2de5dfec658fd792030673098f63012060696941aef53630fa59ddacf9062",
+      "stderr_sha256": "14b9b345a32e121b27a527733e9c490e7fd4b62f51fcdf0e20799cd00bfc2c76",
+      "usage_sha256": "07cef17a85bfda598fdd3c056e38abbaae64160d3519ba1086cc4ed76e7747e7"
+    },
+    {
+      "index": 7,
+      "model": "qwen3-q4_k_m",
+      "arm": "candidate",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 8130.16,
+      "tg128_tps": 275.55,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 63.1758,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 410.827,
+          "dispatches": 37248
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_q": {
+            "device_ms": 40.999,
+            "percent": 64.8967
+          },
+          "attention_tile": {
+            "device_ms": 8.53552,
+            "percent": 13.5107
+          },
+          "matmul_tile_q6": {
+            "device_ms": 7.88656,
+            "percent": 12.4835
+          },
+          "norm_rope_kv": {
+            "device_ms": 2.49952,
+            "percent": 3.95645
+          },
+          "matmul_reduce": {
+            "device_ms": 1.09936,
+            "percent": 1.74016
+          },
+          "silu_mul": {
+            "device_ms": 0.95616,
+            "percent": 1.51349
+          },
+          "rms_norm_rows": {
+            "device_ms": 0.85664,
+            "percent": 1.35596
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 0.304,
+            "percent": 0.481197
+          },
+          "embed": {
+            "device_ms": 0.03312,
+            "percent": 0.0524251
+          },
+          "gather_rows": {
+            "device_ms": 0.00592,
+            "percent": 0.00937067
+          }
+        },
+        "tg": {
+          "matmul_row_k4_dot_1col": {
+            "device_ms": 151.003,
+            "percent": 36.7559
+          },
+          "rms_norm_rows": {
+            "device_ms": 56.5773,
+            "percent": 13.7716
+          },
+          "matmul_row_k_dot_1col": {
+            "device_ms": 44.004,
+            "percent": 10.7111
+          },
+          "attention_vec": {
+            "device_ms": 39.9157,
+            "percent": 9.71593
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 38.8632,
+            "percent": 9.45974
+          },
+          "norm_rope_kv": {
+            "device_ms": 33.8461,
+            "percent": 8.23852
+          },
+          "attention_merge": {
+            "device_ms": 23.7515,
+            "percent": 5.78139
+          },
+          "silu_mul": {
+            "device_ms": 20.7194,
+            "percent": 5.04333
+          },
+          "embed": {
+            "device_ms": 1.38192,
+            "percent": 0.336375
+          },
+          "gather_rows": {
+            "device_ms": 0.76512,
+            "percent": 0.186239
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "embed: Driver pipeline hash=5813209810873279162 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4976 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3967999186 Instructions=892 Copies=74 Branches=64 Latency=4042 Inverse Throughput=723 VMEM Clause=28 SMEM Clause=21 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=498 SALU=131 VMEM=92 SMEM=24 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "matmul_row_k4_dot_1col: Driver pipeline hash=9436051728067762973 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+        "matmul_row_k_dot_1col: Driver pipeline hash=17355905222882642723 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+        "matmul_tile_q: Driver pipeline hash=5091086271849611969 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+        "matmul_tile_q6: Driver pipeline hash=6601029854692807541 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+        "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+      ],
+      "elapsed_seconds": 2.5225,
+      "child_cpu_seconds": 1.2428,
+      "cgroup": {
+        "cpu_pressure_some_us": 9448,
+        "cpu_pressure_full_us": 8535,
+        "usage_usec_delta": 1294054,
+        "nr_periods_delta": 25,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 3,
+      "target_gpu_busy_max": 89.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 10932224,
+      "target_gpu_vram_max_bytes": 586821632,
+      "sampled_benchmark_cpu_ticks": 46,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.15
+        ],
+        [
+          "llmx",
+          906917,
+          0.11
+        ],
+        [
+          "htop",
+          2870193,
+          0.1
+        ]
+      ],
+      "stdout_sha256": "008cee5f822fe6db279ab88587f88a279b48df49e2e3a41444275cc5cc330d0d",
+      "stderr_sha256": "6a3f274bf6eac257b00e502b248063d19e2e896eff3e1d26237bdc658736595b",
+      "usage_sha256": "7903440b4ba6c11a53fd12f046fc18777278ed17060e1cdde5391669edbdc213"
+    },
+    {
+      "index": 8,
+      "model": "qwen3-q4_k_m",
+      "arm": "candidate",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "reverse",
+      "label_mismatch": false,
+      "pp512_tps": 8122.14,
+      "tg128_tps": 272.8,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 63.0621,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 411.006,
+          "dispatches": 37248
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_q": {
+            "device_ms": 40.917,
+            "percent": 64.8836
+          },
+          "attention_tile": {
+            "device_ms": 8.50912,
+            "percent": 13.4932
+          },
+          "matmul_tile_q6": {
+            "device_ms": 7.8696,
+            "percent": 12.4791
+          },
+          "norm_rope_kv": {
+            "device_ms": 2.51328,
+            "percent": 3.98541
+          },
+          "matmul_reduce": {
+            "device_ms": 1.09632,
+            "percent": 1.73848
+          },
+          "silu_mul": {
+            "device_ms": 0.95648,
+            "percent": 1.51673
+          },
+          "rms_norm_rows": {
+            "device_ms": 0.85808,
+            "percent": 1.36069
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 0.304,
+            "percent": 0.482065
+          },
+          "embed": {
+            "device_ms": 0.03232,
+            "percent": 0.0512511
+          },
+          "gather_rows": {
+            "device_ms": 0.00592,
+            "percent": 0.00938757
+          }
+        },
+        "tg": {
+          "matmul_row_k4_dot_1col": {
+            "device_ms": 151.126,
+            "percent": 36.7698
+          },
+          "rms_norm_rows": {
+            "device_ms": 56.5157,
+            "percent": 13.7506
+          },
+          "matmul_row_k_dot_1col": {
+            "device_ms": 44.0454,
+            "percent": 10.7165
+          },
+          "attention_vec": {
+            "device_ms": 39.9379,
+            "percent": 9.71712
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 38.8994,
+            "percent": 9.46444
+          },
+          "norm_rope_kv": {
+            "device_ms": 33.9267,
+            "percent": 8.25456
+          },
+          "attention_merge": {
+            "device_ms": 23.8218,
+            "percent": 5.79597
+          },
+          "silu_mul": {
+            "device_ms": 20.6139,
+            "percent": 5.01548
+          },
+          "embed": {
+            "device_ms": 1.3512,
+            "percent": 0.328755
+          },
+          "gather_rows": {
+            "device_ms": 0.76768,
+            "percent": 0.186781
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "embed: Driver pipeline hash=5813209810873279162 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4976 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3967999186 Instructions=892 Copies=74 Branches=64 Latency=4042 Inverse Throughput=723 VMEM Clause=28 SMEM Clause=21 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=498 SALU=131 VMEM=92 SMEM=24 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "matmul_row_k4_dot_1col: Driver pipeline hash=9436051728067762973 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+        "matmul_row_k_dot_1col: Driver pipeline hash=17355905222882642723 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+        "matmul_tile_q: Driver pipeline hash=5091086271849611969 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+        "matmul_tile_q6: Driver pipeline hash=6601029854692807541 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+        "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+      ],
+      "elapsed_seconds": 2.5221,
+      "child_cpu_seconds": 1.2362,
+      "cgroup": {
+        "cpu_pressure_some_us": 8727,
+        "cpu_pressure_full_us": 7986,
+        "usage_usec_delta": 1290597,
+        "nr_periods_delta": 25,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 586784768,
+      "target_gpu_vram_max_bytes": 586821632,
+      "sampled_benchmark_cpu_ticks": 25,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.12
+        ],
+        [
+          "htop",
+          2870193,
+          0.1
+        ],
+        [
+          "dockerd",
+          2598,
+          0.04
+        ]
+      ],
+      "stdout_sha256": "63307d4cbe32935f6ea24ac80ea9cabeecd080fb9b790c081db06d20e4418801",
+      "stderr_sha256": "98bb116b63253762c8123ed54bd0fb8a5340b791deca48205556bbecd969f1dd",
+      "usage_sha256": "567455c830c2ca3b2bf85c0aabc668d8b48671f08aa2a4a40819e13b5a25e1bd"
+    },
+    {
+      "index": 9,
+      "model": "qwen3-q4_k_m",
+      "arm": "base",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "reverse",
+      "label_mismatch": false,
+      "pp512_tps": 8099.75,
+      "tg128_tps": 274.74,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 63.3571,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 410.452,
+          "dispatches": 37248
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_q": {
+            "device_ms": 41.0694,
+            "percent": 64.8221
+          },
+          "attention_tile": {
+            "device_ms": 8.51984,
+            "percent": 13.4473
+          },
+          "matmul_tile_q6": {
+            "device_ms": 7.9808,
+            "percent": 12.5965
+          },
+          "norm_rope_kv": {
+            "device_ms": 2.52288,
+            "percent": 3.982
+          },
+          "matmul_reduce": {
+            "device_ms": 1.10592,
+            "percent": 1.74553
+          },
+          "silu_mul": {
+            "device_ms": 0.96048,
+            "percent": 1.51598
+          },
+          "rms_norm_rows": {
+            "device_ms": 0.85648,
+            "percent": 1.35183
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 0.3032,
+            "percent": 0.478557
+          },
+          "embed": {
+            "device_ms": 0.03216,
+            "percent": 0.0507599
+          },
+          "gather_rows": {
+            "device_ms": 0.00592,
+            "percent": 0.00934386
+          }
+        },
+        "tg": {
+          "matmul_row_k4_dot_1col": {
+            "device_ms": 151.204,
+            "percent": 36.8384
+          },
+          "rms_norm_rows": {
+            "device_ms": 56.396,
+            "percent": 13.74
+          },
+          "matmul_row_k_dot_1col": {
+            "device_ms": 43.9912,
+            "percent": 10.7177
+          },
+          "attention_vec": {
+            "device_ms": 39.7104,
+            "percent": 9.67479
+          },
+          "matmul_row_k_dot_1col head": {
+            "device_ms": 38.8816,
+            "percent": 9.47287
+          },
+          "norm_rope_kv": {
+            "device_ms": 33.8013,
+            "percent": 8.23513
+          },
+          "attention_merge": {
+            "device_ms": 23.5733,
+            "percent": 5.74324
+          },
+          "silu_mul": {
+            "device_ms": 20.8131,
+            "percent": 5.07078
+          },
+          "embed": {
+            "device_ms": 1.31728,
+            "percent": 0.320934
+          },
+          "gather_rows": {
+            "device_ms": 0.764,
+            "percent": 0.186136
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "embed: Driver pipeline hash=17304956389017990769 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4640 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4203255865 Instructions=830 Copies=64 Branches=58 Latency=4042 Inverse Throughput=722 VMEM Clause=26 SMEM Clause=20 Pre-Sched SGPRs=18 Pre-Sched VGPRs=9 VALU=465 SALU=121 VMEM=84 SMEM=22 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "matmul_row_k4_dot_1col: Driver pipeline hash=11900257808160510680 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1740 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=298309952 Instructions=334 Copies=39 Branches=19 Latency=9332 Inverse Throughput=3480 VMEM Clause=6 SMEM Clause=11 Pre-Sched SGPRs=23 Pre-Sched VGPRs=29 VALU=171 SALU=99 VMEM=10 SMEM=15 VOPD=0",
+        "matmul_row_k_dot_1col: Driver pipeline hash=256468376946100109 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2581960163 Instructions=469 Copies=65 Branches=27 Latency=19583 Inverse Throughput=4755 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=136 VMEM=18 SMEM=23 VOPD=0",
+        "matmul_tile_q: Driver pipeline hash=18414431842538368149 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13576 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3094753935 Instructions=2316 Copies=312 Branches=125 Latency=213044 Inverse Throughput=117348 VMEM Clause=72 SMEM Clause=62 Pre-Sched SGPRs=52 Pre-Sched VGPRs=64 VALU=1281 SALU=478 VMEM=78 SMEM=80 VOPD=0",
+        "matmul_tile_q6: Driver pipeline hash=1808547586136195121 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=13036 LDS size=19456 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=4263670084 Instructions=2231 Copies=372 Branches=118 Latency=226052 Inverse Throughput=129908 VMEM Clause=69 SMEM Clause=59 Pre-Sched SGPRs=43 Pre-Sched VGPRs=84 VALU=1250 SALU=454 VMEM=74 SMEM=78 VOPD=0",
+        "matmul_reduce: Driver pipeline hash=977434494206371669 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0"
+      ],
+      "elapsed_seconds": 2.4738,
+      "child_cpu_seconds": 1.2314,
+      "cgroup": {
+        "cpu_pressure_some_us": 9907,
+        "cpu_pressure_full_us": 9069,
+        "usage_usec_delta": 1285607,
+        "nr_periods_delta": 25,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 3,
+      "target_gpu_busy_max": 96.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 425328640,
+      "target_gpu_vram_max_bytes": 586821632,
+      "sampled_benchmark_cpu_ticks": 81,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.14
+        ],
+        [
+          "htop",
+          2870193,
+          0.11
+        ],
+        [
+          "python3",
+          558337,
+          0.06
+        ]
+      ],
+      "stdout_sha256": "45aa077fc2712f3d720bc1d33e3559284675c63955e569c2c0d395e2cbe0255a",
+      "stderr_sha256": "2b869a14442a87dade5c9941fdc82584d50c5d914498e6c5409749debe43d5ed",
+      "usage_sha256": "2c0ad4d035079cc9cda9f4e1e08c94db20a7bedb1a310128bf08bd6202bdb0f5"
+    },
+    {
+      "index": 10,
+      "model": "qwen3-bf16",
+      "arm": "base",
+      "phase": "warmup",
+      "profiled": false,
+      "scheduled_direction": "warmup",
+      "derived_direction": "warmup",
+      "label_mismatch": false,
+      "pp512_tps": 1516.8,
+      "tg128_tps": 327.68,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 2.3182,
+      "child_cpu_seconds": 1.2325,
+      "cgroup": {
+        "cpu_pressure_some_us": 5791,
+        "cpu_pressure_full_us": 4596,
+        "usage_usec_delta": 1284758,
+        "nr_periods_delta": 20,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 1383387136,
+      "target_gpu_vram_max_bytes": 1489629184,
+      "sampled_benchmark_cpu_ticks": 17,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.11
+        ],
+        [
+          "llmx",
+          906917,
+          0.07
+        ],
+        [
+          "htop",
+          2870193,
+          0.06
+        ]
+      ],
+      "stdout_sha256": "05689f17946ea14722f42bb8fdf4087d6d633ee792105e587b63267baf27d119",
+      "stderr_sha256": "262b986821276ff68baee5e5f5911ec0ceed694a10aca2cf49c1314f119bc035",
+      "usage_sha256": "10f583e0db717f5836b27f59ead9a470c5c7d296498a4a84444783a358128076"
+    },
+    {
+      "index": 11,
+      "model": "qwen3-bf16",
+      "arm": "candidate",
+      "phase": "warmup",
+      "profiled": false,
+      "scheduled_direction": "warmup",
+      "derived_direction": "warmup",
+      "label_mismatch": false,
+      "pp512_tps": 1525.65,
+      "tg128_tps": 327.98,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 2.3188,
+      "child_cpu_seconds": 1.2727,
+      "cgroup": {
+        "cpu_pressure_some_us": 10176,
+        "cpu_pressure_full_us": 7965,
+        "usage_usec_delta": 1325226,
+        "nr_periods_delta": 20,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 1226604544,
+      "target_gpu_vram_max_bytes": 1383387136,
+      "sampled_benchmark_cpu_ticks": 27,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "llmx",
+          906917,
+          0.12
+        ],
+        [
+          "python3",
+          3585,
+          0.11
+        ],
+        [
+          "htop",
+          2870193,
+          0.05
+        ]
+      ],
+      "stdout_sha256": "4f731f2d4b3a14ec96d4abadc8171faf7fda41f6ebe667fb2d093b1b8d5f88ca",
+      "stderr_sha256": "7214d2bf95651aba39b7dcc8771be2903fae03778616de24b2f4deec41dff09b",
+      "usage_sha256": "ef8d3bfeab4c84b40cd950863ea8b8d36b626f12fb45bb511dd19af31e1d6fb6"
+    },
+    {
+      "index": 12,
+      "model": "qwen3-bf16",
+      "arm": "base",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 1522.76,
+      "tg128_tps": 328.1,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 2.2687,
+      "child_cpu_seconds": 1.2014,
+      "cgroup": {
+        "cpu_pressure_some_us": 8514,
+        "cpu_pressure_full_us": 7450,
+        "usage_usec_delta": 1256241,
+        "nr_periods_delta": 20,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 89.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 1204723712,
+      "target_gpu_vram_max_bytes": 1383378944,
+      "sampled_benchmark_cpu_ticks": 73,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.11
+        ],
+        [
+          "containerd",
+          2424,
+          0.06
+        ],
+        [
+          "htop",
+          2870193,
+          0.06
+        ]
+      ],
+      "stdout_sha256": "f39126e34557ce8583ca5a156d992a0fa726a639e328a21f26cf9e20fae59f27",
+      "stderr_sha256": "943ba6dc6c59660e525addd2f69aa37ab4dbaa44c5a76e7fcef756db2726ac65",
+      "usage_sha256": "f9ef9b92e53cff412186cca05be68d35c03ddfb124bdbdd596a90be1f853a2d3"
+    },
+    {
+      "index": 13,
+      "model": "qwen3-bf16",
+      "arm": "candidate",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 1529.25,
+      "tg128_tps": 326.59,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 2.319,
+      "child_cpu_seconds": 1.26,
+      "cgroup": {
+        "cpu_pressure_some_us": 6914,
+        "cpu_pressure_full_us": 6167,
+        "usage_usec_delta": 1314268,
+        "nr_periods_delta": 20,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 3,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 10932224,
+      "target_gpu_vram_max_bytes": 1489629184,
+      "sampled_benchmark_cpu_ticks": 22,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.14
+        ],
+        [
+          "htop",
+          2870193,
+          0.1
+        ],
+        [
+          "llmx",
+          906917,
+          0.07
+        ]
+      ],
+      "stdout_sha256": "0e116d8bd3ee8fe8a525934e55679270487a43c55676d8b3efcf68dbd1d47ce5",
+      "stderr_sha256": "f5c5433c1450e9d128ad2eb4f17e685d0826014af91e2864815cb22081a86164",
+      "usage_sha256": "44130afce438daac8936b6f99c8584a2bfef1cbd66eca04a158db341813c8719"
+    },
+    {
+      "index": 14,
+      "model": "qwen3-bf16",
+      "arm": "candidate",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "reverse",
+      "label_mismatch": true,
+      "pp512_tps": 1526.37,
+      "tg128_tps": 327.02,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 2.3191,
+      "child_cpu_seconds": 1.2168,
+      "cgroup": {
+        "cpu_pressure_some_us": 4560,
+        "cpu_pressure_full_us": 3218,
+        "usage_usec_delta": 1272304,
+        "nr_periods_delta": 19,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 2,
+      "target_gpu_vram_min_bytes": 1383387136,
+      "target_gpu_vram_max_bytes": 1489629184,
+      "sampled_benchmark_cpu_ticks": 13,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.12
+        ],
+        [
+          "htop",
+          2870193,
+          0.1
+        ],
+        [
+          "llmx",
+          906917,
+          0.07
+        ]
+      ],
+      "stdout_sha256": "2ac0c4e460eb3b7e0d2627fd73cc81a921059cae23b468739d93dcaf4641a199",
+      "stderr_sha256": "602e764fdfcf241616eff15a74c60ff46b24dfefcb1f9b6903d215f98f335afb",
+      "usage_sha256": "75e4233178521f794be555fd14d624bb01cdf86f37d8de4ce32b2b37cc0c3905"
+    },
+    {
+      "index": 15,
+      "model": "qwen3-bf16",
+      "arm": "base",
+      "phase": "ordinary",
+      "profiled": false,
+      "scheduled_direction": "forward",
+      "derived_direction": "reverse",
+      "label_mismatch": true,
+      "pp512_tps": 1520.3,
+      "tg128_tps": 327.46,
+      "profile_totals": {},
+      "profile_kernel_times": {
+        "pp": {},
+        "tg": {}
+      },
+      "kernel_statistics": [],
+      "elapsed_seconds": 2.2697,
+      "child_cpu_seconds": 1.2353,
+      "cgroup": {
+        "cpu_pressure_some_us": 6757,
+        "cpu_pressure_full_us": 6177,
+        "usage_usec_delta": 1290506,
+        "nr_periods_delta": 20,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 2,
+      "target_gpu_busy_max": 90.0,
+      "target_gpu_busy_nonzero_samples": 1,
+      "target_gpu_vram_min_bytes": 1226309632,
+      "target_gpu_vram_max_bytes": 1383387136,
+      "sampled_benchmark_cpu_ticks": 66,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.1
+        ],
+        [
+          "htop",
+          2870193,
+          0.05
+        ],
+        [
+          "python3",
+          558337,
+          0.03
+        ]
+      ],
+      "stdout_sha256": "432af6325ec08311f106d24ec973794365614bebf8362d2d55905755d8749a5b",
+      "stderr_sha256": "ffe20590183c6c59b64854920e2ab5233fcd7975525dd18438d65fb77e7024e3",
+      "usage_sha256": "8620b5824dd32b65889b0b2dffcd97cf61dc61a873d914491f3d0c1569e4bc87"
+    },
+    {
+      "index": 16,
+      "model": "qwen3-bf16",
+      "arm": "base",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 1519.57,
+      "tg128_tps": 256.33,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 338.7,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 446.054,
+          "dispatches": 35456
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_wbf16": {
+            "device_ms": 319.256,
+            "percent": 94.2592
+          },
+          "attention_tile": {
+            "device_ms": 8.7104,
+            "percent": 2.57172
+          },
+          "norm_rope_kv": {
+            "device_ms": 3.41888,
+            "percent": 1.00941
+          },
+          "silu_mul": {
+            "device_ms": 3.15376,
+            "percent": 0.931138
+          },
+          "rms_norm_rows": {
+            "device_ms": 2.996,
+            "percent": 0.88456
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 1.13024,
+            "percent": 0.3337
+          },
+          "embed_wbf16": {
+            "device_ms": 0.02752,
+            "percent": 0.0081252
+          },
+          "gather_rows": {
+            "device_ms": 0.0072,
+            "percent": 0.00212578
+          }
+        },
+        "tg": {
+          "matmul_row_wbf16_1col": {
+            "device_ms": 225.934,
+            "percent": 50.6517
+          },
+          "rms_norm_rows": {
+            "device_ms": 54.805,
+            "percent": 12.2866
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 47.1989,
+            "percent": 10.5814
+          },
+          "attention_vec": {
+            "device_ms": 39.5515,
+            "percent": 8.86697
+          },
+          "norm_rope_kv": {
+            "device_ms": 32.6869,
+            "percent": 7.328
+          },
+          "attention_merge": {
+            "device_ms": 23.5544,
+            "percent": 5.28061
+          },
+          "silu_mul": {
+            "device_ms": 20.5965,
+            "percent": 4.61748
+          },
+          "embed_wbf16": {
+            "device_ms": 0.97888,
+            "percent": 0.219453
+          },
+          "gather_rows": {
+            "device_ms": 0.74832,
+            "percent": 0.167764
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+        "embed_wbf16: Driver pipeline hash=5995873417395788455 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+        "matmul_row_wbf16_1col: Driver pipeline hash=15808326828973044896 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+        "matmul_tile_wbf16: Driver pipeline hash=15431912536518564552 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+      ],
+      "elapsed_seconds": 3.5217,
+      "child_cpu_seconds": 1.5925,
+      "cgroup": {
+        "cpu_pressure_some_us": 11816,
+        "cpu_pressure_full_us": 7629,
+        "usage_usec_delta": 1646029,
+        "nr_periods_delta": 31,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 4,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 3,
+      "target_gpu_vram_min_bytes": 10932224,
+      "target_gpu_vram_max_bytes": 1489629184,
+      "sampled_benchmark_cpu_ticks": 140,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.21
+        ],
+        [
+          "htop",
+          2870193,
+          0.15
+        ],
+        [
+          "llmx",
+          906917,
+          0.12
+        ]
+      ],
+      "stdout_sha256": "6bbedd384501b8c54721ab3b54b5394baf08827f772edf0eaeb019396a961cb6",
+      "stderr_sha256": "4aaa74b90c6df73d1401a4f25678eeb7fda026840a9e634dba123f56133800f5",
+      "usage_sha256": "1a77594758f9b365d370ec9c22db4ab003b56c04d4735b879005bd7d2edef947"
+    },
+    {
+      "index": 17,
+      "model": "qwen3-bf16",
+      "arm": "candidate",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "forward",
+      "label_mismatch": false,
+      "pp512_tps": 1496.89,
+      "tg128_tps": 256.47,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 337.773,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 445.569,
+          "dispatches": 35456
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_wbf16": {
+            "device_ms": 318.878,
+            "percent": 94.406
+          },
+          "attention_tile": {
+            "device_ms": 8.67952,
+            "percent": 2.56963
+          },
+          "norm_rope_kv": {
+            "device_ms": 3.60624,
+            "percent": 1.06765
+          },
+          "silu_mul": {
+            "device_ms": 2.92896,
+            "percent": 0.867138
+          },
+          "rms_norm_rows": {
+            "device_ms": 2.41008,
+            "percent": 0.71352
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 1.11136,
+            "percent": 0.329026
+          },
+          "gather_rows": {
+            "device_ms": 0.13104,
+            "percent": 0.0387953
+          },
+          "embed_wbf16": {
+            "device_ms": 0.02784,
+            "percent": 0.00824222
+          }
+        },
+        "tg": {
+          "matmul_row_wbf16_1col": {
+            "device_ms": 225.695,
+            "percent": 50.6533
+          },
+          "rms_norm_rows": {
+            "device_ms": 54.7269,
+            "percent": 12.2825
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 47.1776,
+            "percent": 10.5882
+          },
+          "attention_vec": {
+            "device_ms": 39.4482,
+            "percent": 8.85344
+          },
+          "norm_rope_kv": {
+            "device_ms": 32.6174,
+            "percent": 7.32041
+          },
+          "attention_merge": {
+            "device_ms": 23.488,
+            "percent": 5.27147
+          },
+          "silu_mul": {
+            "device_ms": 20.6934,
+            "percent": 4.64428
+          },
+          "embed_wbf16": {
+            "device_ms": 0.97424,
+            "percent": 0.218651
+          },
+          "gather_rows": {
+            "device_ms": 0.74784,
+            "percent": 0.167839
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+        "embed_wbf16: Driver pipeline hash=10694359396216828399 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+        "matmul_row_wbf16_1col: Driver pipeline hash=14381175060914221996 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+        "matmul_tile_wbf16: Driver pipeline hash=4090076750092824656 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+      ],
+      "elapsed_seconds": 3.522,
+      "child_cpu_seconds": 1.5518,
+      "cgroup": {
+        "cpu_pressure_some_us": 4005,
+        "cpu_pressure_full_us": 3340,
+        "usage_usec_delta": 1604750,
+        "nr_periods_delta": 32,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 3,
+      "target_gpu_busy_max": 98.0,
+      "target_gpu_busy_nonzero_samples": 3,
+      "target_gpu_vram_min_bytes": 1226604544,
+      "target_gpu_vram_max_bytes": 1383387136,
+      "sampled_benchmark_cpu_ticks": 59,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.14
+        ],
+        [
+          "htop",
+          2870193,
+          0.09
+        ],
+        [
+          "llmx",
+          906917,
+          0.07
+        ]
+      ],
+      "stdout_sha256": "7670eb790d218a9167d229f79ed16d700660d1247aa681dbcf1095ebe5b2dd2c",
+      "stderr_sha256": "3dae2eef2d894ff5b90a19aacc596bac7ce2d1b7436c1062cc88dad558990611",
+      "usage_sha256": "3e8130fd630b9f1cf3de50173fe348e68a42fd17a95c3195b8b8dcc0f9fbdd0f"
+    },
+    {
+      "index": 18,
+      "model": "qwen3-bf16",
+      "arm": "candidate",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "reverse",
+      "label_mismatch": false,
+      "pp512_tps": 1498.46,
+      "tg128_tps": 256.28,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 336.681,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 445.816,
+          "dispatches": 35456
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_wbf16": {
+            "device_ms": 319.527,
+            "percent": 94.9049
+          },
+          "attention_tile": {
+            "device_ms": 8.70048,
+            "percent": 2.58419
+          },
+          "norm_rope_kv": {
+            "device_ms": 3.12176,
+            "percent": 0.927217
+          },
+          "silu_mul": {
+            "device_ms": 2.44736,
+            "percent": 0.726908
+          },
+          "rms_norm_rows": {
+            "device_ms": 1.73888,
+            "percent": 0.516477
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 1.11152,
+            "percent": 0.330141
+          },
+          "embed_wbf16": {
+            "device_ms": 0.02784,
+            "percent": 0.00826896
+          },
+          "gather_rows": {
+            "device_ms": 0.0064,
+            "percent": 0.00190091
+          }
+        },
+        "tg": {
+          "matmul_row_wbf16_1col": {
+            "device_ms": 225.759,
+            "percent": 50.6396
+          },
+          "rms_norm_rows": {
+            "device_ms": 54.7786,
+            "percent": 12.2873
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 47.1904,
+            "percent": 10.5852
+          },
+          "attention_vec": {
+            "device_ms": 39.5598,
+            "percent": 8.87358
+          },
+          "norm_rope_kv": {
+            "device_ms": 32.6824,
+            "percent": 7.33091
+          },
+          "attention_merge": {
+            "device_ms": 23.5349,
+            "percent": 5.27905
+          },
+          "silu_mul": {
+            "device_ms": 20.5822,
+            "percent": 4.61676
+          },
+          "embed_wbf16": {
+            "device_ms": 0.97808,
+            "percent": 0.219391
+          },
+          "gather_rows": {
+            "device_ms": 0.7504,
+            "percent": 0.168321
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+        "embed_wbf16: Driver pipeline hash=10694359396216828399 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+        "matmul_row_wbf16_1col: Driver pipeline hash=14381175060914221996 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+        "matmul_tile_wbf16: Driver pipeline hash=4090076750092824656 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+      ],
+      "elapsed_seconds": 3.5717,
+      "child_cpu_seconds": 1.6107,
+      "cgroup": {
+        "cpu_pressure_some_us": 8628,
+        "cpu_pressure_full_us": 7708,
+        "usage_usec_delta": 1663743,
+        "nr_periods_delta": 30,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 4,
+      "target_gpu_busy_max": 100.0,
+      "target_gpu_busy_nonzero_samples": 3,
+      "target_gpu_vram_min_bytes": 10932224,
+      "target_gpu_vram_max_bytes": 1489629184,
+      "sampled_benchmark_cpu_ticks": 36,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.2
+        ],
+        [
+          "htop",
+          2870193,
+          0.12
+        ],
+        [
+          "python3",
+          558337,
+          0.07
+        ]
+      ],
+      "stdout_sha256": "78044c3298ecca657ad12a14f8f5613600079501115d7e58df8f0f80ca671f25",
+      "stderr_sha256": "97aab8553b9c8ae78b91d9473dc786b7f3e73b02155987d63ca78dd9cbac8b78",
+      "usage_sha256": "2c41480cf82342ec1b195558351df6bd209e026d2d2f0d02fa3a0a88e9061293"
+    },
+    {
+      "index": 19,
+      "model": "qwen3-bf16",
+      "arm": "base",
+      "phase": "profiled",
+      "profiled": true,
+      "scheduled_direction": "profile",
+      "derived_direction": "reverse",
+      "label_mismatch": false,
+      "pp512_tps": 1506.17,
+      "tg128_tps": 256.46,
+      "profile_totals": {
+        "pp": {
+          "device_ms": 336.927,
+          "dispatches": 340
+        },
+        "tg": {
+          "device_ms": 445.303,
+          "dispatches": 35456
+        }
+      },
+      "profile_kernel_times": {
+        "pp": {
+          "matmul_tile_wbf16": {
+            "device_ms": 319.798,
+            "percent": 94.9163
+          },
+          "attention_tile": {
+            "device_ms": 8.708,
+            "percent": 2.58454
+          },
+          "norm_rope_kv": {
+            "device_ms": 3.02176,
+            "percent": 0.89686
+          },
+          "silu_mul": {
+            "device_ms": 2.71088,
+            "percent": 0.80459
+          },
+          "rms_norm_rows": {
+            "device_ms": 1.41856,
+            "percent": 0.421029
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 1.1112,
+            "percent": 0.329805
+          },
+          "gather_rows": {
+            "device_ms": 0.12992,
+            "percent": 0.0385603
+          },
+          "embed_wbf16": {
+            "device_ms": 0.02816,
+            "percent": 0.0083579
+          }
+        },
+        "tg": {
+          "matmul_row_wbf16_1col": {
+            "device_ms": 225.238,
+            "percent": 50.5807
+          },
+          "rms_norm_rows": {
+            "device_ms": 54.7862,
+            "percent": 12.3031
+          },
+          "matmul_row_wbf16_1col head": {
+            "device_ms": 47.1789,
+            "percent": 10.5948
+          },
+          "attention_vec": {
+            "device_ms": 39.4968,
+            "percent": 8.86964
+          },
+          "norm_rope_kv": {
+            "device_ms": 32.713,
+            "percent": 7.34622
+          },
+          "attention_merge": {
+            "device_ms": 23.5634,
+            "percent": 5.29153
+          },
+          "silu_mul": {
+            "device_ms": 20.595,
+            "percent": 4.62495
+          },
+          "embed_wbf16": {
+            "device_ms": 0.98096,
+            "percent": 0.22029
+          },
+          "gather_rows": {
+            "device_ms": 0.75136,
+            "percent": 0.16873
+          }
+        }
+      },
+      "kernel_statistics": [
+        "silu_mul: Driver pipeline hash=2140048819827127618 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7812 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4239768330 Instructions=1422 Copies=212 Branches=103 Latency=1806 Inverse Throughput=805 VMEM Clause=10 SMEM Clause=5 Pre-Sched SGPRs=20 Pre-Sched VGPRs=16 VALU=959 SALU=309 VMEM=10 SMEM=9 VOPD=0",
+        "gather_rows: Driver pipeline hash=4645135986033189418 SGPRs=16 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=220 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3318367392 Instructions=42 Copies=3 Branches=1 Latency=967 Inverse Throughput=119 VMEM Clause=3 SMEM Clause=2 Pre-Sched SGPRs=8 Pre-Sched VGPRs=4 VALU=24 SALU=7 VMEM=3 SMEM=3 VOPD=0",
+        "rms_norm_rows: Driver pipeline hash=7585123542915994428 SGPRs=64 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9364 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=509753272 Instructions=1739 Copies=277 Branches=125 Latency=17833 Inverse Throughput=7095 VMEM Clause=27 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=18 VALU=1083 SALU=395 VMEM=27 SMEM=26 VOPD=0",
+        "attention_merge: Driver pipeline hash=12774927396159948612 SGPRs=48 VGPRs=16 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4652 LDS size=3072 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1208015164 Instructions=893 Copies=117 Branches=70 Latency=6595 Inverse Throughput=1545 VMEM Clause=12 SMEM Clause=10 Pre-Sched SGPRs=40 Pre-Sched VGPRs=14 VALU=484 SALU=231 VMEM=12 SMEM=10 VOPD=0",
+        "norm_rope_kv: Driver pipeline hash=11143552960796350454 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1596 LDS size=1024 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3835847332 Instructions=321 Copies=33 Branches=25 Latency=9795 Inverse Throughput=980 VMEM Clause=13 SMEM Clause=16 Pre-Sched SGPRs=23 Pre-Sched VGPRs=7 VALU=75 SALU=111 VMEM=18 SMEM=20 VOPD=0",
+        "attention_tile: Driver pipeline hash=1061511126460883327 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=10480 LDS size=18432 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1636982973 Instructions=2042 Copies=193 Branches=72 Latency=72452 Inverse Throughput=34073 VMEM Clause=7 SMEM Clause=10 Pre-Sched SGPRs=30 Pre-Sched VGPRs=60 VALU=1338 SALU=295 VMEM=12 SMEM=10 VOPD=0",
+        "attention_vec: Driver pipeline hash=15662437833529034830 SGPRs=64 VGPRs=40 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6252 LDS size=9728 Scratch size=0 Subgroups per SIMD=6 Combined inputs=0 Combined outputs=0 Hash=3939383710 Instructions=1198 Copies=129 Branches=75 Latency=12036 Inverse Throughput=2798 VMEM Clause=9 SMEM Clause=12 Pre-Sched SGPRs=34 Pre-Sched VGPRs=39 VALU=683 SALU=295 VMEM=11 SMEM=13 VOPD=0",
+        "embed_wbf16: Driver pipeline hash=5995873417395788455 SGPRs=32 VGPRs=8 Spilled SGPRs=0 Spilled VGPRs=0 Code size=168 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3605420762 Instructions=27 Copies=5 Branches=2 Latency=3448 Inverse Throughput=345 VMEM Clause=2 SMEM Clause=3 Pre-Sched SGPRs=10 Pre-Sched VGPRs=3 VALU=6 SALU=8 VMEM=2 SMEM=4 VOPD=0",
+        "matmul_row_wbf16_1col: Driver pipeline hash=15808326828973044896 SGPRs=32 VGPRs=36 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=7 Combined inputs=0 Combined outputs=0 Hash=3773991619 Instructions=276 Copies=36 Branches=17 Latency=8414 Inverse Throughput=1461 VMEM Clause=9 SMEM Clause=7 Pre-Sched SGPRs=21 Pre-Sched VGPRs=20 VALU=113 SALU=99 VMEM=15 SMEM=10 VOPD=0",
+        "matmul_tile_wbf16: Driver pipeline hash=15431912536518564552 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7704 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3598367678 Instructions=1434 Copies=312 Branches=126 Latency=303011 Inverse Throughput=75753 VMEM Clause=81 SMEM Clause=67 Pre-Sched SGPRs=37 Pre-Sched VGPRs=34 VALU=530 SALU=417 VMEM=81 SMEM=67 VOPD=0"
+      ],
+      "elapsed_seconds": 3.5734,
+      "child_cpu_seconds": 1.5686,
+      "cgroup": {
+        "cpu_pressure_some_us": 9720,
+        "cpu_pressure_full_us": 8798,
+        "usage_usec_delta": 1622882,
+        "nr_periods_delta": 32,
+        "nr_throttled_delta": 0,
+        "throttled_usec_delta": 0
+      },
+      "monitor_sample_count": 4,
+      "target_gpu_busy_max": 93.0,
+      "target_gpu_busy_nonzero_samples": 3,
+      "target_gpu_vram_min_bytes": 491343872,
+      "target_gpu_vram_max_bytes": 1383387136,
+      "sampled_benchmark_cpu_ticks": 76,
+      "sampled_unrelated_process_cpu_seconds": [
+        [
+          "python3",
+          3585,
+          0.21
+        ],
+        [
+          "htop",
+          2870193,
+          0.16
+        ],
+        [
+          "llmx",
+          906917,
+          0.13
+        ]
+      ],
+      "stdout_sha256": "4ecea0eb2824839fe76c94ba78f0952db10cdd544dc134a260e4337416789187",
+      "stderr_sha256": "19bf1208e80cfd545225a12f9772d99851efcdd92d80be7ed941d76a000e0758",
+      "usage_sha256": "0466bd344b8507dbbe61e15bdccf3a72d84a9cd7c812157c9432cc90c6066276"
+    }
+  ],
+  "activity": {
+    "sample_count": 50,
+    "elapsed_seconds": 50.0270549779525,
+    "interval_seconds": 1.0,
+    "process_miss_count": 24,
+    "gpu_before": {
+      "pci": "0000:c9:00.0",
+      "node": "/dev/dri/renderD130",
+      "values": {
+        "gpu_busy_percent": "0",
+        "mem_info_vram_used": "10932224",
+        "power_dpm_force_performance_level": "auto"
+      }
+    },
+    "gpu_after": {
+      "pci": "0000:c9:00.0",
+      "node": "/dev/dri/renderD130",
+      "values": {
+        "gpu_busy_percent": "0",
+        "mem_info_vram_used": "10932224",
+        "power_dpm_force_performance_level": "auto"
+      }
+    },
+    "gpu_target_pci": "0000:c9:00.0",
+    "gpu_target_sysfs_cards": [
+      "card2"
+    ],
+    "gpu_target_paths": [
+      "/sys/devices/pci0000:c0/0000:c0:03.1/0000:c7:00.0/0000:c8:00.0/0000:c9:00.0"
+    ],
+    "gpu_busy_sample_count": 50,
+    "gpu_busy_max": 100.0,
+    "gpu_busy_nonzero_samples": 34,
+    "gpu_vram_min_bytes": 10932224,
+    "gpu_vram_max_bytes": 1489629184,
+    "unrelated_process_cpu_seconds_sampled": [
+      [
+        "python3",
+        3585,
+        2.55
+      ],
+      [
+        "htop",
+        2870193,
+        1.66
+      ],
+      [
+        "llmx",
+        906917,
+        1.28
+      ],
+      [
+        "python3",
+        558337,
+        0.82
+      ],
+      [
+        "dockerd",
+        2598,
+        0.34
+      ],
+      [
+        "containerd",
+        2424,
+        0.3
+      ],
+      [
+        "python3",
+        2756614,
+        0.26
+      ],
+      [
+        "pve-firewall",
+        2717,
+        0.25
+      ],
+      [
+        "pvestatd",
+        2720,
+        0.24
+      ],
+      [
+        "python3",
+        1985917,
+        0.17
+      ],
+      [
+        "systemd",
+        1,
+        0.14
+      ],
+      [
+        "kworker/u64:5-comp_1.1.0",
+        987265,
+        0.13
+      ],
+      [
+        "kworker/u64:2-comp_1.2.0",
+        1137019,
+        0.13
+      ],
+      [
+        "kworker/u64:2-comp_1.1.0",
+        1137019,
+        0.13
+      ],
+      [
+        "kworker/u64:3-comp_1.2.0",
+        1137020,
+        0.13
+      ]
+    ],
+    "limitation": "Monitor samples are approximately one second apart and can miss short-lived work; sampled process CPU is correlational, not causal attribution."
+  },
+  "interpretation": {
+    "direction_label_error": "Original labels 4,5 and 14,15 say forward; raw arm order is ABBA, so derived as reverse. Raw labels are retained per call.",
+    "profile_rate_effect": "Source inspection: --profile passes a diagnostics-backend list into open_model, which makes Vulkan backends diagnostics-enabled before timed rounds. Thus pp/tg printed in profiled invocations are instrumented rates; the later pp/tg device totals come from additional profile passes. Do not compare those rates directly with ordinary calls.",
+    "causal_limit": "Similar device totals do not establish that GPU work explains wall-rate behavior. Activity and pressure measurements are per whole invocation and correlational; they do not identify a causal source."
+  },
+  "source_evidence": {
+    "source_revision": "4da595f8044e043af397e2e6f7167429ec14bd16",
+    "cli_main_cpp_sha256": "b033fccdba206027b922f07428ed905bc237145d12b0b946e9ca36a03f2f058b",
+    "vulkan_backend_cpp_sha256": "75e3996db48ccf96a55cd85d0c59d4a365b2150f5344cd197f84db178d00a4fa",
+    "evidence": "In the candidate-pinned main.cpp, cmd_bench_model passes &devices when profile is set (around line 989), and open_model uses profiled != nullptr || timed for backend diagnostics (line 510). Candidate-pinned Vulkan backend enables queue timestamps when diagnostics is true and the device supports them (line 1793)."
+  },
+  "record_artifacts": {
+    "profile-analysis-v1\\audit.json": "df7388ec6cff4722c5f952b9cbf30b873ad6c819ea9293d4e11228f1f83987be",
+    "profile-analysis-v1\\analyze_profile.py": "7041f6ab58fc586106f02141aceb5985310253fb0f7d63c505300ab528938bb7",
+    "profile-analysis-v1\\report.md": "3012b8b51c4e134d55d42f5d4ab49865f3c0ecd7aa0528469afbb24fda205c43"
+  },
+  "root_checks": "All 20 actual commands match the frozen plan; all launcher artifact hashes verified, exit0, removed and noOOM. Original direction metadata preserved and actual ABBA pairing explicit."
+}

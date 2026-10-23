@@ -1,0 +1,138 @@
+{
+  "kind": "iq3-xxs",
+  "role": "selected-f32",
+  "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+  "rule_owner": "tests/common.py:hf_depth_top1",
+  "rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+  "top_two_tie_margin": 0.1,
+  "reference_report_sha256": "a08e33c7431d9a3e3491cf2023eee0cd602cd9d94e94d51c76ec1a60067821ac",
+  "capture_report_sha256": "db7c8c6b5541ce278c0ddfbb56c6f3d3591af946dad60af653f02a43cd0cc950",
+  "runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/operators-v1/source",
+  "probe_sha256": "c15bae5d812f06093d98cec68fc0aa46cf18cbce0c471410a239a76ac1f00e00",
+  "variants_requested": "both",
+  "scope": "Selected-policy independent HF depth gate.",
+  "cells": [
+    {
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "ties": []
+    },
+    {
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "ties": []
+    }
+  ],
+  "no_misses": true,
+  "execution_sha256": "83fcf7bca04c3a2f1973ef36dd92f2fe0616c51b400472b89942722d6c50b1bc",
+  "artifacts_verified_locally": true,
+  "row_verdicts_rechecked_locally": true,
+  "reference_execution_sha256": "ddfc1eaa90c123af393c1abdc40d5ebf22c22bc835ad83d0ff828bdc2779b3b7",
+  "reference_output_hashes": {
+    "chat.json": "2169c16f62982d71d6b5bfe88f34a5e9cc223cbe14a8ae2c5f215e91de28b2d0",
+    "chat.npy": "9a946534953f1eef1fbfd4803349444940fe01e35ecfdf12f3d8dcd422a81f66",
+    "raw.json": "01c3c84c9339349ed80fead16a5b7d0ecb241633c3227d02076b6359828fe4dd",
+    "raw.npy": "107ed57185e010fd7fd9e33ab3bb7a5cb29150daaef38315626a02005e80e2fb",
+    "report.json": "a08e33c7431d9a3e3491cf2023eee0cd602cd9d94e94d51c76ec1a60067821ac"
+  },
+  "artifact_hashes": {
+    "activity.jsonl": "2e4cc75ebbc26af1692d82651b010efd8cf69cd2d4280a8be09fa37dd6439ca8",
+    "comparison.json": "1d2b8dcb7d68800cbc8467f0e4e30bf05769bb9f8bf656d118ffe9be1701e00d",
+    "run.log": "a8f6f45f0e9d83e1206e7d05bb4a7e43526f959d4f82357c02cc98020f9a697d"
+  },
+  "runtime_commit": "4da595f8044e043af397e2e6f7167429ec14bd16",
+  "passed": true,
+  "removed": true,
+  "start": 1792745934.1144478,
+  "end": 1792745936.1009607,
+  "raw_evidence": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq3-xxs-released-consumers-20261023\\depth-results\\released-depth-v1-selected-f32",
+  "command": [
+    "docker",
+    "create",
+    "--init",
+    "--runtime",
+    "runc",
+    "--name",
+    "llmx-xdev-iq3xxs-depth-v1-selected-f32",
+    "--label",
+    "llmx.iq3xxs-depth=llmx-xdev-iq3xxs-depth-v1-selected-f32",
+    "--network",
+    "none",
+    "--cpuset-cpus",
+    "8-11",
+    "--cpus",
+    "4",
+    "--memory",
+    "8g",
+    "--memory-swap",
+    "8g",
+    "--pids-limit",
+    "256",
+    "--ulimit",
+    "core=0",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,size=256m",
+    "-e",
+    "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+    "-e",
+    "PYTHONDONTWRITEBYTECODE=1",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/operators-v1/source:/source:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/operators-v1/build:/b:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-depth-consumer-v1:/bundle:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-depth-v1-selected-f32:/out",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-reference-v1/released-reference-20261023T081906Z-863223/depth-f32/reference:/reference:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-depth-v1-f32:/captures:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/released-reference-v1/source:/reference-source:ro",
+    "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "python3",
+    "-B",
+    "-u",
+    "/bundle/compare-default-depth.py",
+    "--source",
+    "/reference-source",
+    "--reference",
+    "/reference",
+    "--captures",
+    "/captures",
+    "--kind",
+    "iq3-xxs",
+    "--role",
+    "selected-f32",
+    "--variant",
+    "both",
+    "--output",
+    "/out/comparison.json"
+  ]
+}

@@ -45,6 +45,12 @@ layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #include "lookup_cache.glsl"
 #define IQ3_GRID_WORD(i) lookup_words[i]
 #include "iq3_s.glsl"
+#elif defined(LLMX_IQ3_XXS)
+#define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
+#define LOOKUP_GRID_SIZE 256u
+#include "lookup_cache.glsl"
+#define IQ3_XXS_GRID_WORD(i) lookup_words[i]
+#include "iq3_xxs.glsl"
 #elif defined(LLMX_IQ2_S)
 #define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
 #define LOOKUP_GRID_SIZE 2048u
@@ -111,6 +117,9 @@ void main() {
     // Cache before the empty-group return; all invocations participate once, before any stage.
     lookup_init();
     const uint type = TYPE_IQ3_S;
+#elif defined(LLMX_IQ3_XXS)
+    lookup_init();
+    const uint type = TYPE_IQ3_XXS;
 #elif defined(LLMX_IQ2_S)
     lookup_init();
     const uint type = TYPE_IQ2_S;
@@ -219,6 +228,24 @@ void main() {
                 uint o = (wr * nblocks + k0 / 32u) * Q5_0_BYTES;
                 float d = half_at(QBYTE(o), QBYTE(o + 1u));
                 for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = q5_0_at(o, wseg * WVALS + i, d);
+#ifdef LLMX_IQ3_XXS
+            } else if (type == TYPE_IQ3_XXS) {
+                uint o = (wr * (p.nin / IQ3_XXS_BLOCK) + k0 / IQ3_XXS_BLOCK) * IQ3_XXS_BYTES;
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+                uint first = k0 % IQ3_XXS_BLOCK + wseg * WVALS;
+                uint control = iq3_xxs_control(o, first / 32u);
+                float scaled = iq3_xxs_scale(control, d);
+                for (uint i = 0u; i < WVALS; i += 4u) {
+                    uint j = first + i;
+                    uint word = IQ3_XXS_GRID_WORD(QBYTE(o + 2u + j / 4u));
+                    uint signs = iq3_xxs_signs(control, (j & 31u) / 8u);
+                    for (uint lane = 0u; lane < min(4u, WVALS - i); ++lane) {
+                        uint position = j + lane;
+                        ws[wseg * WVALS + i + lane][wrow] = iq3_xxs_component(word, position & 3u,
+                            (signs >> (position & 7u)) & 1u, scaled);
+                    }
+                }
+#endif
 #ifdef LLMX_IQ2_S
             } else if (type == TYPE_IQ2_S) {
                 uint o = (wr * (p.nin / IQ2_S_BLOCK) + k0 / IQ2_S_BLOCK) * IQ2_S_BYTES;

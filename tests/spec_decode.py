@@ -18,6 +18,7 @@ except ImportError:
 
 F32, F16, Q4_0, Q4_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS, BF16, MXFP4 = 0, 1, 2, 3, 8, 10, 11, 12, 13, 14, 20, 23, 30, 39
 Q5_0, Q5_1, IQ3_S, IQ2_S = 6, 7, 21, 22
+IQ3_XXS = 18
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -34,6 +35,7 @@ TYPES = {
     Q5_K: ("Q5_K", 256, 176),
     Q6_K: ("Q6_K", 256, 210),
     IQ3_S: ("IQ3_S", 256, 110),
+    IQ3_XXS: ("IQ3_XXS", 256, 98),
     IQ2_S: ("IQ2_S", 256, 82),
     IQ4_NL: ("IQ4_NL", 32, 18),
     IQ4_XS: ("IQ4_XS", 256, 136),
@@ -420,6 +422,51 @@ def iq3_s(block):
     return out
 
 
+# IQ3_XXS's 256 four-byte vectors are decoded little-endian bytes
+# from ggml-common.h at 750127a5173ac6c29c2c159a10404bf184c421ab; SHA256
+# 46e35f5a997efdee6c99ce57854c8a0d4f0ff8ca57e5e8a60c0793ea580acf5d.
+# Byte magnitudes stay separate from runtime packed words.
+IQ3_XXS_GRID = bytes.fromhex(
+    "0404040414040404240404040c0c04041c0c04043e0c040404140404141404040c1c0404142404041c3e04042c3e04040c040c041c040c04040c0c04140c0c04"
+    "0c140c042c140c04041c0c04141c0c040c240c04242c0c04043e0c040404140414041404240414040c0c140404141404141414040c1c14041c1c14043e1c1404"
+    "0c2c14043e2c14042c3e14040c041c043e041c04040c1c04140c1c042c141c04043e1c041c0c24043e1c2404242424043e2c24041c3e24042c3e24040c042c04"
+    "3e042c04141c2c04142c2c042c1c340424343404040c3e04240c3e04340c3e041c243e040c343e040c04040c1c04040c040c040c140c040c0c14040c1c14040c"
+    "041c040c141c040c241c040c3e24040c042c040c04040c0c14040c0c0c0c0c0c04140c0c14140c0c0c04140c1c04140c040c140c140c140c0c14140c041c140c"
+    "143e140c04041c0c14041c0c04141c0c0c1c1c0c34241c0c34341c0c0c04240c2c04240c042c240c04142c0c24142c0c34242c0c0c3e2c0c2c04340c14143e0c"
+    "04243e0c04040414140404140c0c04141c0c04140414041414140414341404140c1c0414142404140c040c141c040c142c040c14040c0c14140c0c140c140c14"
+    "041c0c141c340c143e340c14043e0c1404041414140414140c0c14143e0c141404141414141414143e1c1414042414142c2c14140c041c14040c1c14240c1c14"
+    "043e1c14243e1c142c1c24141c2c24141c042c143e142c140c242c14243e2c140c043e141c043e14340c3e142c243e140c04041c040c041c140c041c0c14041c"
+    "1c14041c042c041c2c34041c143e041c04040c1c14040c1c04140c1c0c1c0c1c24240c1c34240c1c0c04141c1c04141c040c141c2c14141c142c141c143e141c"
+    "0c0c1c1c1c1c1c1c041c241c3e24241c143e241c04042c1c34042c1c14142c1c2c2c2c1c240c341c341c341c1c34341c1c1c3e1c04343e1c240404243e0c0424"
+    "2c1c04243e1c04241c2c04243e2c0424243e0c24041414243e1c14240424142404341424343414243e041c242c241c24240424240c2c2424243424242c142c24"
+    "1c242c24043e2c242c043e24040c3e24140c3e24041c3e24140c042c0c24042c043e042c04040c2c34040c2c34140c2c2c2c0c2c240c142c141c142c143e142c"
+    "14041c2c1c2c1c2c040c242c1c14242c3e14242c143e242c14042c2c0c1c2c2c042c342c24143e2c14243e2c241404342424043434240434243404340c140c34"
+    "0c340c343e0c143424341434041c1c34341c1c34242424342c042c34142c2c341c1c34341c043e340c143e341c04043e2c04043e3e04043e040c043e141c043e"
+    "142c043e34140c3e04240c3e140c143e2c24143e142c143e04041c3e2c0c1c3e1c1c1c3e04341c3e0c14243e0c24243e04042c3e14042c3e24142c3e041c343e"
+)
+
+
+# IQ3_XXS combines four 7-bit sign codes and a high scale nibble in each word.
+# The sign code's low seven bits are the signs; its high bit is their parity.
+def iq3_xxs(block):
+    d = f16(block, 0)
+    qs = block[2:66]
+    out = []
+    for ib32 in range(8):
+        word = int.from_bytes(block[66 + 4 * ib32:70 + 4 * ib32], "little")
+        scale = word >> 28
+        db = d * (1 + 2 * scale) / 4
+        for sub in range(4):
+            code = (word >> (7 * sub)) & 127
+            signs = code | ((bin(code).count("1") & 1) << 7)
+            for lane in range(8):
+                index = qs[8 * ib32 + 2 * sub + lane // 4]
+                magnitude = IQ3_XXS_GRID[4 * index + lane % 4]
+                value = db * magnitude
+                out.append(-value if (signs >> lane) & 1 else value)
+    return out
+
+
 # IQ2_S: half d, 32 low index bytes, 32 sign bytes, eight packed high-index bytes and eight scale bytes.
 # Each eight-value vector selects a 10-bit index; a low-first scale nibble covers 16 values, scaling by d * (2 * nibble + 1) / 8 before signs.
 def iq2_s(block):
@@ -440,7 +487,7 @@ PURE = {
     F16: lambda block: [f16(block, 0)],
     BF16: lambda block: [bf16(block, 0)],
     Q8_0: q8_0, Q4_0: q4_0, Q4_1: q4_1, Q5_0: q5_0, Q5_1: q5_1, Q4_K: q4_k, Q5_K: q5_k, Q6_K: q6_k,
-    Q2_K: q2_k, Q3_K: q3_k, IQ3_S: iq3_s, IQ2_S: iq2_s, IQ4_NL: iq4_nl, IQ4_XS: iq4_xs, MXFP4: mxfp4,
+    Q2_K: q2_k, Q3_K: q3_k, IQ3_S: iq3_s, IQ2_S: iq2_s, IQ3_XXS: iq3_xxs, IQ4_NL: iq4_nl, IQ4_XS: iq4_xs, MXFP4: mxfp4,
 }
 
 
@@ -595,6 +642,30 @@ def _np_iq3_s(a):
     return np.where(signs != 0, -values, values)
 
 
+def _np_iq3_xxs(a):
+    grid = np.frombuffer(IQ3_XXS_GRID, dtype=np.uint8).reshape(256, 4)
+    out = np.empty((len(a), 256), dtype=np.float32)
+    for ib32 in range(8):
+        words = np.frombuffer(a[:, 66 + 4 * ib32:70 + 4 * ib32].copy().tobytes(), dtype="<u4")
+        scale = (words >> 28).astype(np.float32)
+        db = _half(a, 0)[:, 0] * (1 + 2 * scale) / 4
+        for sub in range(4):
+            signs = (words >> (7 * sub)) & 127
+            idx0 = a[:, 2 + 8 * ib32 + 2 * sub].astype(np.uint8)
+            idx1 = a[:, 3 + 8 * ib32 + 2 * sub].astype(np.uint8)
+            mag0, mag1 = grid[idx0], grid[idx1]
+            for lane in range(4):
+                out[:, 32 * ib32 + 8 * sub + lane] = db * mag0[:, lane]
+                out[:, 32 * ib32 + 8 * sub + 4 + lane] = db * mag1[:, lane]
+            code = signs
+            sign_byte = code | (np.unpackbits(code.astype(np.uint8)[:, None], axis=1, bitorder="little").sum(axis=1).astype(np.uint32) % 2 << 7)
+            for lane in range(8):
+                sign = ((sign_byte >> lane) & 1) != 0
+                col = 32 * ib32 + 8 * sub + lane
+                out[:, col] = np.where(sign, -out[:, col], out[:, col])
+    return out
+
+
 def _np_iq2_s(a):
     high = np.stack([(a[:, 66 + g // 4] >> (2 * (g % 4))) & 3 for g in range(32)], axis=1)
     indices = a[:, 2:34].astype(np.uint16) + 256 * high.astype(np.uint16)
@@ -608,7 +679,7 @@ def _np_iq2_s(a):
 NUMPY = {
     F32: _np_f32, F16: _np_f16, BF16: _np_bf16,
     Q8_0: _np_q8_0, Q4_0: _np_q4_0, Q4_1: _np_q4_1, Q5_0: _np_q5_0, Q5_1: _np_q5_1, Q4_K: _np_q4_k, Q5_K: _np_q5_k, Q6_K: _np_q6_k,
-    Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ3_S: _np_iq3_s, IQ2_S: _np_iq2_s, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs, MXFP4: _np_mxfp4,
+    Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ3_S: _np_iq3_s, IQ2_S: _np_iq2_s, IQ3_XXS: _np_iq3_xxs, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs, MXFP4: _np_mxfp4,
 }
 
 # Blocks decoded at once, which bounds the temporaries of a large tensor.

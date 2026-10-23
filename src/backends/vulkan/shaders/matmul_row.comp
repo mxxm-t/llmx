@@ -18,10 +18,10 @@
 #if defined(LLMX_I8) && !(defined(LLMX_DOT) && (defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)))
 #error "the 8-bit twin is read by the Q4 and K-quant families through the integer dot"
 #endif
-#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_K23))
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_K23))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
 #endif
-#if defined(LLMX_IQ4) || ((defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S)) && defined(LLMX_DOT))
+#if defined(LLMX_IQ4) || ((defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS)) && defined(LLMX_DOT))
 #define LLMX_LOOKUP_DOT
 #endif
 #include "q.glsl"
@@ -117,6 +117,16 @@ vec4 weight4(uint i) {
 #include "lookup_cache.glsl"
 #define IQ3_GRID_WORD(i) lookup_words[i]
 #include "iq3_s.glsl"
+#elif defined(LLMX_IQ3_XXS)
+#ifdef LLMX_DOT
+#define IQ3_XXS_GRID_WORD(i) floatBitsToUint(wfs[0].wf[i])
+#else
+#define LOOKUP_GRID_SOURCE(i) xq2[(i) >> 1u][(i) & 1u]
+#define LOOKUP_GRID_SIZE 256u
+#include "lookup_cache.glsl"
+#define IQ3_XXS_GRID_WORD(i) lookup_words[i]
+#endif
+#include "iq3_xxs.glsl"
 #elif defined(LLMX_IQ2_S)
 #ifdef LLMX_DOT
 #define IQ2_GRID_WORD(i) floatBitsToUint(wfs[0].wf[i])
@@ -153,7 +163,9 @@ float lookup_input(uint col, uint b, uint j) {
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xq_block(col, b).x;
 }
-#ifdef LLMX_IQ2_S
+#ifdef LLMX_IQ3_XXS
+#include "iq3_xxs_dot.glsl"
+#elif defined(LLMX_IQ2_S)
 #include "iq2_dot.glsl"
 #elif defined(LLMX_IQ3_S)
 #include "iq3_dot.glsl"
@@ -486,7 +498,7 @@ void affine_nibble_dots(uint word, uint high, uint at, XWT lo, XWT hi, inout QDO
 #endif
 
 void main() {
-#if defined(LLMX_IQ3_S) || (defined(LLMX_IQ2_S) && !defined(LLMX_DOT))
+#if defined(LLMX_IQ3_S) || ((defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS)) && !defined(LLMX_DOT))
     // Every invocation reaches the cache barrier, including inactive rows and empty routed groups.
     lookup_init();
 #endif
@@ -502,7 +514,7 @@ void main() {
     if (p.nproj > 1u && wg >= p.start1) pi = 1u;
     if (p.nproj > 2u && wg >= p.start2) pi = 2u;
     uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
-#if !defined(LLMX_IQ3_S) && !defined(LLMX_IQ2_S)
+#if !defined(LLMX_IQ3_S) && !defined(LLMX_IQ2_S) && !defined(LLMX_IQ3_XXS)
     uint type = pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2);
 #endif
     uint wide = pi == 0u ? p.wide0 : (pi == 1u ? p.wide1 : p.wide2);
@@ -760,6 +772,9 @@ void main() {
 #elif defined(LLMX_Q3)
             uint o = (wrow * (p.nin / 256u) + b) * Q3_K_BYTES;
             float weight = q3_k_at(o, local);
+#elif defined(LLMX_IQ3_XXS)
+            uint o = (wrow * (p.nin / IQ3_XXS_BLOCK) + j / IQ3_XXS_BLOCK) * IQ3_XXS_BYTES;
+            float weight = iq3_xxs_at(o, j % IQ3_XXS_BLOCK, half_at(QBYTE(o), QBYTE(o + 1u)));
 #elif defined(LLMX_IQ2_S)
             uint o = (wrow * (p.nin / IQ2_S_BLOCK) + j / IQ2_S_BLOCK) * IQ2_S_BYTES;
             float weight = iq2_s_at(o, j % IQ2_S_BLOCK, half_at(QBYTE(o), QBYTE(o + 1u)));
@@ -824,7 +839,7 @@ void main() {
             for (uint j = 0u; j < 8u; ++j) weights[j] = lookup_pairs(codes, j);
             for (uint c = 0u; c < ncols; ++c) {
                 uint col = XCOL(c), a2 = xa_col(col) / 2u + b * 8u;
-                // IQ2_S is largest: 32 * 1333 * 32767 = 1397709152, within int32.
+                // IQ3_XXS is largest: 32 * 1922 * 32767 = 2015301568, within int32.
                 int sum = 0;
                 for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], xq2[a2 + j], sum);
                 float dx = xq_block(col, b).x, scale = dw * dx;

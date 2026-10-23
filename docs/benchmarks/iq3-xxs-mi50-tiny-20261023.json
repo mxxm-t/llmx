@@ -1,0 +1,4974 @@
+{
+  "scope": "Focused IQ3_XXS ordinary; no full-suite, depth or performance claim.",
+  "start": 1792743062.8213046,
+  "end": 1792743076.9840667,
+  "guard": {
+    "first": {
+      "pci": "0000:c9:00.0",
+      "busy": 0,
+      "vram": 10932224,
+      "power": "auto"
+    },
+    "second": {
+      "pci": "0000:cc:00.0",
+      "busy": 0,
+      "vram": 10919936,
+      "power": "auto"
+    }
+  },
+  "version": "llmx 0.1.0+unknown numerics 227a1fd84d620024",
+  "build": {
+    "llmx": "a2e70b80cf9183f3b9307288c86cad971559483e3d2a64890f0c723a5594cec8",
+    "llmx-model-logits": "c7f6ca9806e76ef040c79505437185ad962eec1ef50f8a3d4a2a2635446564eb",
+    "llmx-iq2-s-test": "4b1dd945b860cafb7cb1ece054d1a0027c6e70f8c0ee5ea90715aed6017bc19b",
+    "llmx-iq3-s-test": "853dcf9a9674ec6bdc67bcdef73a01a2089b9c914e5d1dc8a61e32faf53f7eeb",
+    "llmx-iq3-xxs-test": "af7d94e38c91aba5b93c120feb49549c1a3e03450c54ba92e71762a9a6643adb",
+    "libllmx-vulkan.a": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904",
+    "generated/llmx-build-info.hpp": "01e3d573834ce5b6b37623d6d14e01fff8a7f9ec5a06ddf98182dc71a8104556",
+    "CMakeCache.txt": "0eaa7b972758f68b94a9e8a9ace1980302d90a8a18563cca259b0561ee0ea30b",
+    "compile_commands.json": "8a3be935f8332a231e6ee227a4ff67e3c47b839bb434fc56054d39b4ca01d52b"
+  },
+  "source_manifest_sha256": "8d22e7b420850259c227b7e9ab738d7bb775e8eeeaaa6e57981f9c0d092b0e52",
+  "budget_sha256": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398",
+  "passed": true,
+  "removed": true,
+  "pins_unchanged": true,
+  "prepared_source_unchanged": true,
+  "native_unchanged": true,
+  "result": {
+    "start": 1792743063.3035243,
+    "passed": true,
+    "planned_children": 90,
+    "scope": "Selected IQ3_XXS ordinary: three fixtures; prompts 1/13 x ubatch 1/16; NLL contexts 4/16; F32/F16/BF16/int8/auto. Prior selected TP2 scope plus explicit auto; not full150-case suite.",
+    "golden_sha256": "09ff34449701ea3cf78c805bdeec264567be2303bbbe6db4b7a20a73b5ae7117",
+    "policies": [
+      {
+        "dtype": "f32",
+        "passed": true,
+        "start": 1792743069.1934493,
+        "logits": 12,
+        "nll": 6,
+        "max_logit_error": 8.525447845464384e-07,
+        "max_nll_error": 6.296509091896496e-08,
+        "end": 1792743070.8415022,
+        "paths": [
+          "f32"
+        ]
+      },
+      {
+        "dtype": "f16",
+        "passed": true,
+        "start": 1792743070.8415604,
+        "logits": 12,
+        "nll": 6,
+        "max_logit_error": 3.674366044997823e-05,
+        "max_nll_error": 6.263366103986812e-06,
+        "end": 1792743072.376867,
+        "paths": [
+          "block-int16",
+          "f32"
+        ]
+      },
+      {
+        "dtype": "bf16",
+        "passed": true,
+        "start": 1792743072.3769145,
+        "logits": 12,
+        "nll": 6,
+        "max_logit_error": 0.0025232327613831096,
+        "max_nll_error": 0.00018863296509064043,
+        "end": 1792743073.8567605,
+        "paths": [
+          "bf16",
+          "f32"
+        ]
+      },
+      {
+        "dtype": "int8",
+        "passed": true,
+        "start": 1792743073.8568122,
+        "logits": 12,
+        "nll": 6,
+        "max_logit_error": 3.674366044997823e-05,
+        "max_nll_error": 6.263366103986812e-06,
+        "end": 1792743075.2148259,
+        "paths": [
+          "block-int16",
+          "f32"
+        ]
+      },
+      {
+        "dtype": "auto",
+        "passed": true,
+        "start": 1792743075.214879,
+        "logits": 12,
+        "nll": 6,
+        "max_logit_error": 3.674366044997823e-05,
+        "max_nll_error": 6.263366103986812e-06,
+        "end": 1792743076.591833,
+        "paths": [
+          "block-int16",
+          "f32"
+        ]
+      }
+    ],
+    "fixtures": [
+      {
+        "name": "dense-untied",
+        "model_sha256": "15cd140ef82f834c75ca013fdcc95960106120ca776bda46a2842d06f0155102",
+        "config": {
+          "block_count": 2,
+          "embedding_length": 256,
+          "feed_forward_length": 768,
+          "attention.head_count": 2,
+          "attention.head_count_kv": 1,
+          "attention.key_length": 128,
+          "context_length": 16
+        },
+        "weights_sha256": "aebb772ee5f3d6987529e5f10bceb4351fffd4dd9a51a7ddaea4083f9d253cca",
+        "packed_sha256": "bd0f2ac5a122f43c65b4fe5fae6f486c62b385ed9aeae275ac853fdaaece64cb"
+      },
+      {
+        "name": "dense-tied",
+        "model_sha256": "e6746b9fb9d431d4a5a739eed275568462c02a39893a9f67b6c37d77d496853b",
+        "config": {
+          "block_count": 2,
+          "embedding_length": 256,
+          "feed_forward_length": 768,
+          "attention.head_count": 2,
+          "attention.head_count_kv": 1,
+          "attention.key_length": 128,
+          "context_length": 16
+        },
+        "weights_sha256": "dd54b92060cfbe4418287e27fa2b855129191747fb08b23ee186735d30a2a4a6",
+        "packed_sha256": "d5a29f56fa5ea16834d77b38335359dff09325f2f4a9b9ad7934fd6df62260e2"
+      },
+      {
+        "name": "moe",
+        "model_sha256": "31ffcf7db74faa738a36c1453e0f9c20d3ba653e8c06614cf8a952901b40e3f7",
+        "config": {
+          "block_count": 2,
+          "embedding_length": 256,
+          "feed_forward_length": 768,
+          "attention.head_count": 2,
+          "attention.head_count_kv": 1,
+          "attention.key_length": 128,
+          "context_length": 16,
+          "expert_count": 4,
+          "expert_used_count": 2,
+          "expert_feed_forward_length": 768
+        },
+        "weights_sha256": "76580a948a18eb688444b12dd085dbcb949d16bc0061a45f414f44c2e46d0db8",
+        "packed_sha256": "dd5d00bd2c63981fdcbe27dc8e7f63be01dda9009b36ccd06c3b8c1a97ce4c6c"
+      }
+    ],
+    "end": 1792743076.5919037,
+    "calls": [
+      {
+        "index": 0,
+        "dtype": "f32",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.1935213,
+        "status": "checked",
+        "pid": 20,
+        "end": 1792743069.4212182,
+        "exit": 0,
+        "seconds": 0.22769737243652344,
+        "stdout_sha256": "9d401a8c270c34bd002c66da70fd465be690e2596a34c15e5840e17a4640d7c7",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 6.949558258029231e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 1,
+        "dtype": "f32",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.4598854,
+        "status": "checked",
+        "pid": 28,
+        "end": 1792743069.5253577,
+        "exit": 0,
+        "seconds": 0.06547307968139648,
+        "stdout_sha256": "9d401a8c270c34bd002c66da70fd465be690e2596a34c15e5840e17a4640d7c7",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 6.949558258029231e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 2,
+        "dtype": "f32",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.5292473,
+        "status": "checked",
+        "pid": 32,
+        "end": 1792743069.606162,
+        "exit": 0,
+        "seconds": 0.07691526412963867,
+        "stdout_sha256": "426d0c77871594eaa2e36ebd538fe583cb49092dcb38c740ce7e40acfcdf23b3",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 8.525447845464384e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 3,
+        "dtype": "f32",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.6098368,
+        "status": "checked",
+        "pid": 36,
+        "end": 1792743069.6890194,
+        "exit": 0,
+        "seconds": 0.07918286323547363,
+        "stdout_sha256": "426d0c77871594eaa2e36ebd538fe583cb49092dcb38c740ce7e40acfcdf23b3",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 8.525447845464384e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 4,
+        "dtype": "f32",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.6938725,
+        "status": "checked",
+        "pid": 41,
+        "end": 1792743069.7654684,
+        "exit": 0,
+        "seconds": 0.07159614562988281,
+        "stdout_sha256": "9f7f930124eee5454bd0e62bf1dbdc2877fe715af4f942524eb0aae31b295172",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 2.797653575470349e-08,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 5,
+        "dtype": "f32",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.7699468,
+        "status": "checked",
+        "pid": 45,
+        "end": 1792743069.835201,
+        "exit": 0,
+        "seconds": 0.06525444984436035,
+        "stdout_sha256": "3f3a195bd02e7a1abd259ad313626ff06c6f30d3ebd32524bde4df835d4dba87",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 2.7817738335045306e-08,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 6,
+        "dtype": "f32",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.8392313,
+        "status": "checked",
+        "pid": 49,
+        "end": 1792743069.9127154,
+        "exit": 0,
+        "seconds": 0.07348442077636719,
+        "stdout_sha256": "9e65902498eb15877c71598858789fb87791e646bdd15ffb17af595c723b15fc",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 5.728530883541971e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 7,
+        "dtype": "f32",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.9165683,
+        "status": "checked",
+        "pid": 53,
+        "end": 1792743069.9832244,
+        "exit": 0,
+        "seconds": 0.06665635108947754,
+        "stdout_sha256": "9e65902498eb15877c71598858789fb87791e646bdd15ffb17af595c723b15fc",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 5.728530883541971e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 8,
+        "dtype": "f32",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743069.987467,
+        "status": "checked",
+        "pid": 57,
+        "end": 1792743070.0680652,
+        "exit": 0,
+        "seconds": 0.08059859275817871,
+        "stdout_sha256": "87e01e2e5f85050f314a44f159b432fb64ab13e3f06b16f95d67ce2ab7a13544",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 7.492227554316971e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 9,
+        "dtype": "f32",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.0719378,
+        "status": "checked",
+        "pid": 61,
+        "end": 1792743070.139222,
+        "exit": 0,
+        "seconds": 0.06728458404541016,
+        "stdout_sha256": "87e01e2e5f85050f314a44f159b432fb64ab13e3f06b16f95d67ce2ab7a13544",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 7.492227554316971e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 10,
+        "dtype": "f32",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.1434839,
+        "status": "checked",
+        "pid": 65,
+        "end": 1792743070.2156327,
+        "exit": 0,
+        "seconds": 0.07214879989624023,
+        "stdout_sha256": "b8a9177d191be612997b06550989f444b8cb0a195bbf56548c4c57b2d2d9cf97",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 6.296509091896496e-08,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 11,
+        "dtype": "f32",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.2192433,
+        "status": "checked",
+        "pid": 69,
+        "end": 1792743070.2961042,
+        "exit": 0,
+        "seconds": 0.07686114311218262,
+        "stdout_sha256": "4b24d90654f41224cacaca75e03474c52cf476b6372c48119a11d19213fbc18a",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 3.633896739074771e-09,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 12,
+        "dtype": "f32",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.3001418,
+        "status": "checked",
+        "pid": 73,
+        "end": 1792743070.397196,
+        "exit": 0,
+        "seconds": 0.09705448150634766,
+        "stdout_sha256": "588460067536523d6f92e80816aa76de818fbfb626c1f4e5147ea274b242005e",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 6.171197891313707e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 13,
+        "dtype": "f32",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.400978,
+        "status": "checked",
+        "pid": 80,
+        "end": 1792743070.4742959,
+        "exit": 0,
+        "seconds": 0.0733182430267334,
+        "stdout_sha256": "588460067536523d6f92e80816aa76de818fbfb626c1f4e5147ea274b242005e",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 6.171197891313707e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 14,
+        "dtype": "f32",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.4794822,
+        "status": "checked",
+        "pid": 84,
+        "end": 1792743070.5618277,
+        "exit": 0,
+        "seconds": 0.08234572410583496,
+        "stdout_sha256": "d68c5ff88351e483b1021362ff3fa8cdd4273e86e1f2dd629a567c7fffb0dd5a",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 7.330374717645638e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 15,
+        "dtype": "f32",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.5668411,
+        "status": "checked",
+        "pid": 88,
+        "end": 1792743070.6742911,
+        "exit": 0,
+        "seconds": 0.10745024681091309,
+        "stdout_sha256": "d68c5ff88351e483b1021362ff3fa8cdd4273e86e1f2dd629a567c7fffb0dd5a",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 7.330374717645638e-07,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 16,
+        "dtype": "f32",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.6781301,
+        "status": "checked",
+        "pid": 94,
+        "end": 1792743070.757147,
+        "exit": 0,
+        "seconds": 0.07901716232299805,
+        "stdout_sha256": "b9c30c0eb84a237e3993ece9dfded0fdee2ec3dfb0387ca60642db8d2e268e69",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 1.1111561448728935e-08,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 17,
+        "dtype": "f32",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.7614698,
+        "status": "checked",
+        "pid": 98,
+        "end": 1792743070.8367672,
+        "exit": 0,
+        "seconds": 0.07529759407043457,
+        "stdout_sha256": "310099ad8f188f2bce7d56c8e70cbebff2903b492e3a7c5a20f2a798f86445fd",
+        "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 7.198452500745134e-09,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "index": 18,
+        "dtype": "f16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.841614,
+        "status": "checked",
+        "pid": 102,
+        "end": 1792743070.959286,
+        "exit": 0,
+        "seconds": 0.11767220497131348,
+        "stdout_sha256": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.7523670196538674e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 19,
+        "dtype": "f16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743070.9632926,
+        "status": "checked",
+        "pid": 107,
+        "end": 1792743071.0337677,
+        "exit": 0,
+        "seconds": 0.07047533988952637,
+        "stdout_sha256": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.7523670196538674e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 20,
+        "dtype": "f16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.0376656,
+        "status": "checked",
+        "pid": 111,
+        "end": 1792743071.113226,
+        "exit": 0,
+        "seconds": 0.0755605697631836,
+        "stdout_sha256": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.6540817260722882e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 21,
+        "dtype": "f16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.1177213,
+        "status": "checked",
+        "pid": 115,
+        "end": 1792743071.2406745,
+        "exit": 0,
+        "seconds": 0.12295341491699219,
+        "stdout_sha256": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.6540817260722882e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 22,
+        "dtype": "f16",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.2445805,
+        "status": "checked",
+        "pid": 119,
+        "end": 1792743071.320696,
+        "exit": 0,
+        "seconds": 0.07611584663391113,
+        "stdout_sha256": "a9920699c23a680b82233bbe1e4a78e421b4f48bf423de351c83c21631845ae1",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 3.6697653538197983e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 23,
+        "dtype": "f16",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.3243084,
+        "status": "checked",
+        "pid": 123,
+        "end": 1792743071.3953598,
+        "exit": 0,
+        "seconds": 0.07105183601379395,
+        "stdout_sha256": "0371582520842b9940ef4cd2fe6c3ba1e0e57745d6c466ebc0b2155688d6dd0d",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 4.31822613222721e-08,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 24,
+        "dtype": "f16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.4002666,
+        "status": "checked",
+        "pid": 127,
+        "end": 1792743071.4730442,
+        "exit": 0,
+        "seconds": 0.07277774810791016,
+        "stdout_sha256": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.0364480972294716e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 25,
+        "dtype": "f16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.476885,
+        "status": "checked",
+        "pid": 131,
+        "end": 1792743071.5435371,
+        "exit": 0,
+        "seconds": 0.06665229797363281,
+        "stdout_sha256": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.0364480972294716e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 26,
+        "dtype": "f16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.5478725,
+        "status": "checked",
+        "pid": 135,
+        "end": 1792743071.6260502,
+        "exit": 0,
+        "seconds": 0.07817816734313965,
+        "stdout_sha256": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.674366044997823e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 27,
+        "dtype": "f16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.6299772,
+        "status": "checked",
+        "pid": 139,
+        "end": 1792743071.6983893,
+        "exit": 0,
+        "seconds": 0.06841230392456055,
+        "stdout_sha256": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.674366044997823e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 28,
+        "dtype": "f16",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.7033195,
+        "status": "checked",
+        "pid": 143,
+        "end": 1792743071.7784066,
+        "exit": 0,
+        "seconds": 0.07508730888366699,
+        "stdout_sha256": "beb1793cd697abfd8683830d63833b61f9c7bcbf5eac5b9708b447a2d0942698",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 1.3503490947641694e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 29,
+        "dtype": "f16",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.7827444,
+        "status": "checked",
+        "pid": 147,
+        "end": 1792743071.8506773,
+        "exit": 0,
+        "seconds": 0.06793332099914551,
+        "stdout_sha256": "c34093864776b9ae03d72e79bb3b317d894d958ec0abb7805fcc530e1e98f633",
+        "stderr_sha256": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 6.263366103986812e-06,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 30,
+        "dtype": "f16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.855002,
+        "status": "checked",
+        "pid": 151,
+        "end": 1792743071.9310656,
+        "exit": 0,
+        "seconds": 0.07606387138366699,
+        "stdout_sha256": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+        "stderr_sha256": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.824645614624144e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 31,
+        "dtype": "f16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743071.935004,
+        "status": "checked",
+        "pid": 155,
+        "end": 1792743072.003126,
+        "exit": 0,
+        "seconds": 0.06812238693237305,
+        "stdout_sha256": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+        "stderr_sha256": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.824645614624144e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 32,
+        "dtype": "f16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.0083869,
+        "status": "checked",
+        "pid": 159,
+        "end": 1792743072.0887809,
+        "exit": 0,
+        "seconds": 0.08039426803588867,
+        "stdout_sha256": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+        "stderr_sha256": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.427372932434224e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 33,
+        "dtype": "f16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.0926414,
+        "status": "checked",
+        "pid": 163,
+        "end": 1792743072.2193778,
+        "exit": 0,
+        "seconds": 0.12673664093017578,
+        "stdout_sha256": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+        "stderr_sha256": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.427372932434224e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 34,
+        "dtype": "f16",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.2229006,
+        "status": "checked",
+        "pid": 168,
+        "end": 1792743072.300577,
+        "exit": 0,
+        "seconds": 0.07767653465270996,
+        "stdout_sha256": "c06e46cad1bc56306be6c20048693a02cf79c9774421c0bd68ac41fca1720091",
+        "stderr_sha256": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 2.552111561193726e-06,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 35,
+        "dtype": "f16",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.3048608,
+        "status": "checked",
+        "pid": 172,
+        "end": 1792743072.3727298,
+        "exit": 0,
+        "seconds": 0.06786918640136719,
+        "stdout_sha256": "c145c21d4e9f7ae2efa2cd9e03009f11ae79b6f825b91b860a888b43bb1debd3",
+        "stderr_sha256": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 9.238015481471962e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 36,
+        "dtype": "bf16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.3769665,
+        "status": "checked",
+        "pid": 176,
+        "end": 1792743072.476868,
+        "exit": 0,
+        "seconds": 0.09990167617797852,
+        "stdout_sha256": "ef23f6d34f1e48d89c30099399868a96693373f8b44d7bc7a0dbee148a85b8d4",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0018399612655639608,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 37,
+        "dtype": "bf16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.4808786,
+        "status": "checked",
+        "pid": 182,
+        "end": 1792743072.5508006,
+        "exit": 0,
+        "seconds": 0.06992220878601074,
+        "stdout_sha256": "ef23f6d34f1e48d89c30099399868a96693373f8b44d7bc7a0dbee148a85b8d4",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0018399612655639608,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 38,
+        "dtype": "bf16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.5550442,
+        "status": "checked",
+        "pid": 186,
+        "end": 1792743072.6378899,
+        "exit": 0,
+        "seconds": 0.08284616470336914,
+        "stdout_sha256": "3a7726450402f7a488d9a9e04677b878bfdc80bf2857755212e7a9000636a99b",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0024034406051636203,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 39,
+        "dtype": "bf16",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.6423023,
+        "status": "checked",
+        "pid": 190,
+        "end": 1792743072.7112937,
+        "exit": 0,
+        "seconds": 0.06899166107177734,
+        "stdout_sha256": "3a7726450402f7a488d9a9e04677b878bfdc80bf2857755212e7a9000636a99b",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0024034406051636203,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 40,
+        "dtype": "bf16",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.7165232,
+        "status": "checked",
+        "pid": 194,
+        "end": 1792743072.7919483,
+        "exit": 0,
+        "seconds": 0.07542562484741211,
+        "stdout_sha256": "b70b6cd403adbd4373fc432ebd7ddbe804f7cb66063576a80e591a8a1e485979",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 0.00014286397653595628,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 41,
+        "dtype": "bf16",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.796171,
+        "status": "checked",
+        "pid": 198,
+        "end": 1792743072.8654137,
+        "exit": 0,
+        "seconds": 0.06924295425415039,
+        "stdout_sha256": "2e547c88f7b7cb6533e9bcb0b43de5cbb205cb5e93bed7107ea51b9b011c334e",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 0.00010841181773901809,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 42,
+        "dtype": "bf16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.8699274,
+        "status": "checked",
+        "pid": 202,
+        "end": 1792743072.942862,
+        "exit": 0,
+        "seconds": 0.07293486595153809,
+        "stdout_sha256": "9b1ee2780702ee24cabb8fb6e1656b246f76f4faba3d7ea5da5cea2657922586",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.001962919075012212,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 43,
+        "dtype": "bf16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743072.946797,
+        "status": "checked",
+        "pid": 206,
+        "end": 1792743073.0174236,
+        "exit": 0,
+        "seconds": 0.07062721252441406,
+        "stdout_sha256": "9b1ee2780702ee24cabb8fb6e1656b246f76f4faba3d7ea5da5cea2657922586",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.001962919075012212,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 44,
+        "dtype": "bf16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.021917,
+        "status": "checked",
+        "pid": 210,
+        "end": 1792743073.1056206,
+        "exit": 0,
+        "seconds": 0.08370399475097656,
+        "stdout_sha256": "7c301b1726cf8f0fcf818714adb4b7191b29f7ab37a262271742fca976618044",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0025232327613831096,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 45,
+        "dtype": "bf16",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.1095397,
+        "status": "checked",
+        "pid": 214,
+        "end": 1792743073.1786237,
+        "exit": 0,
+        "seconds": 0.06908392906188965,
+        "stdout_sha256": "7c301b1726cf8f0fcf818714adb4b7191b29f7ab37a262271742fca976618044",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0025232327613831096,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 46,
+        "dtype": "bf16",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.1837966,
+        "status": "checked",
+        "pid": 218,
+        "end": 1792743073.2620406,
+        "exit": 0,
+        "seconds": 0.07824420928955078,
+        "stdout_sha256": "38d04a19a16cf23e449d6226e8f7fb478b259071e1a2a4c08e3fc355e2fc2aa8",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 0.00018863296509064043,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 47,
+        "dtype": "bf16",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.2657025,
+        "status": "checked",
+        "pid": 222,
+        "end": 1792743073.3363957,
+        "exit": 0,
+        "seconds": 0.0706934928894043,
+        "stdout_sha256": "842df2778565eecb351e34cec73fd882aced5ea752ccaf92ceb6b5e846795f6a",
+        "stderr_sha256": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 3.4811366103504326e-05,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 48,
+        "dtype": "bf16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.3405123,
+        "status": "checked",
+        "pid": 226,
+        "end": 1792743073.4174817,
+        "exit": 0,
+        "seconds": 0.07696962356567383,
+        "stdout_sha256": "4f53074efd2e111b757d920e2c15446e98a1227ed42c8b8d75c2b2d5b98c149c",
+        "stderr_sha256": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0023805042686462427,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 49,
+        "dtype": "bf16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.4213824,
+        "status": "checked",
+        "pid": 230,
+        "end": 1792743073.4917583,
+        "exit": 0,
+        "seconds": 0.07037615776062012,
+        "stdout_sha256": "4f53074efd2e111b757d920e2c15446e98a1227ed42c8b8d75c2b2d5b98c149c",
+        "stderr_sha256": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.0023805042686462427,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 50,
+        "dtype": "bf16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.4960227,
+        "status": "checked",
+        "pid": 234,
+        "end": 1792743073.5839827,
+        "exit": 0,
+        "seconds": 0.08796048164367676,
+        "stdout_sha256": "842eadf1957f39739b073ded80adfbae61143c534e7b05696ac5c75350c5b918",
+        "stderr_sha256": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.002280383491516158,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 51,
+        "dtype": "bf16",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.5876968,
+        "status": "checked",
+        "pid": 238,
+        "end": 1792743073.6927211,
+        "exit": 0,
+        "seconds": 0.10502457618713379,
+        "stdout_sha256": "842eadf1957f39739b073ded80adfbae61143c534e7b05696ac5c75350c5b918",
+        "stderr_sha256": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 0.002280383491516158,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 52,
+        "dtype": "bf16",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.6961508,
+        "status": "checked",
+        "pid": 243,
+        "end": 1792743073.7776632,
+        "exit": 0,
+        "seconds": 0.0815126895904541,
+        "stdout_sha256": "3a698d6c32ed3d297d836a66c9b8e6cab39c157b90722e8db198199d64bb009d",
+        "stderr_sha256": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 3.5813888438873676e-05,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 53,
+        "dtype": "bf16",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "bf16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.7809138,
+        "status": "checked",
+        "pid": 247,
+        "end": 1792743073.8533523,
+        "exit": 0,
+        "seconds": 0.07243895530700684,
+        "stdout_sha256": "4773daca85c42724d6df462fde32cdd0bbc8d77d4d3dca981e12584b2ec97c10",
+        "stderr_sha256": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+        "witness": {
+          "dtype": "bf16",
+          "devices": [
+            [
+              "f32",
+              "bf16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 0.00017320619845229146,
+        "bounds": {
+          "logit": 0.016833126544952393,
+          "nll": 0.0025933543468230624
+        }
+      },
+      {
+        "index": 54,
+        "dtype": "int8",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.856843,
+        "status": "checked",
+        "pid": 251,
+        "end": 1792743073.9294426,
+        "exit": 0,
+        "seconds": 0.07259988784790039,
+        "stdout_sha256": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.7523670196538674e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 55,
+        "dtype": "int8",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743073.932993,
+        "status": "checked",
+        "pid": 255,
+        "end": 1792743073.9993646,
+        "exit": 0,
+        "seconds": 0.06637191772460938,
+        "stdout_sha256": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.7523670196538674e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 56,
+        "dtype": "int8",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.0027966,
+        "status": "checked",
+        "pid": 259,
+        "end": 1792743074.0801961,
+        "exit": 0,
+        "seconds": 0.07739996910095215,
+        "stdout_sha256": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.6540817260722882e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 57,
+        "dtype": "int8",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.083831,
+        "status": "checked",
+        "pid": 263,
+        "end": 1792743074.151729,
+        "exit": 0,
+        "seconds": 0.06789851188659668,
+        "stdout_sha256": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.6540817260722882e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 58,
+        "dtype": "int8",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.1570463,
+        "status": "checked",
+        "pid": 267,
+        "end": 1792743074.2337756,
+        "exit": 0,
+        "seconds": 0.07672953605651855,
+        "stdout_sha256": "a9920699c23a680b82233bbe1e4a78e421b4f48bf423de351c83c21631845ae1",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 3.6697653538197983e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 59,
+        "dtype": "int8",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.2370813,
+        "status": "checked",
+        "pid": 271,
+        "end": 1792743074.3039577,
+        "exit": 0,
+        "seconds": 0.06687664985656738,
+        "stdout_sha256": "0371582520842b9940ef4cd2fe6c3ba1e0e57745d6c466ebc0b2155688d6dd0d",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 4.31822613222721e-08,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 60,
+        "dtype": "int8",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.3074422,
+        "status": "checked",
+        "pid": 275,
+        "end": 1792743074.377612,
+        "exit": 0,
+        "seconds": 0.07017016410827637,
+        "stdout_sha256": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.0364480972294716e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 61,
+        "dtype": "int8",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.3820207,
+        "status": "checked",
+        "pid": 279,
+        "end": 1792743074.4470863,
+        "exit": 0,
+        "seconds": 0.06506586074829102,
+        "stdout_sha256": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.0364480972294716e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 62,
+        "dtype": "int8",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.451557,
+        "status": "checked",
+        "pid": 283,
+        "end": 1792743074.528756,
+        "exit": 0,
+        "seconds": 0.07719922065734863,
+        "stdout_sha256": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.674366044997823e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 63,
+        "dtype": "int8",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.5325987,
+        "status": "checked",
+        "pid": 287,
+        "end": 1792743074.6013846,
+        "exit": 0,
+        "seconds": 0.0687861442565918,
+        "stdout_sha256": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.674366044997823e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 64,
+        "dtype": "int8",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.606654,
+        "status": "checked",
+        "pid": 291,
+        "end": 1792743074.6807244,
+        "exit": 0,
+        "seconds": 0.07407069206237793,
+        "stdout_sha256": "beb1793cd697abfd8683830d63833b61f9c7bcbf5eac5b9708b447a2d0942698",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 1.3503490947641694e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 65,
+        "dtype": "int8",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.6842632,
+        "status": "checked",
+        "pid": 295,
+        "end": 1792743074.7506578,
+        "exit": 0,
+        "seconds": 0.06639504432678223,
+        "stdout_sha256": "c34093864776b9ae03d72e79bb3b317d894d958ec0abb7805fcc530e1e98f633",
+        "stderr_sha256": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 6.263366103986812e-06,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 66,
+        "dtype": "int8",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.7541003,
+        "status": "checked",
+        "pid": 299,
+        "end": 1792743074.8273306,
+        "exit": 0,
+        "seconds": 0.07323074340820312,
+        "stdout_sha256": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+        "stderr_sha256": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.824645614624144e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 67,
+        "dtype": "int8",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.8309524,
+        "status": "checked",
+        "pid": 303,
+        "end": 1792743074.8993301,
+        "exit": 0,
+        "seconds": 0.06837797164916992,
+        "stdout_sha256": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+        "stderr_sha256": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.824645614624144e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 68,
+        "dtype": "int8",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.9029872,
+        "status": "checked",
+        "pid": 307,
+        "end": 1792743074.9842093,
+        "exit": 0,
+        "seconds": 0.0812227725982666,
+        "stdout_sha256": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+        "stderr_sha256": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.427372932434224e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 69,
+        "dtype": "int8",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743074.9878993,
+        "status": "checked",
+        "pid": 311,
+        "end": 1792743075.05775,
+        "exit": 0,
+        "seconds": 0.06985092163085938,
+        "stdout_sha256": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+        "stderr_sha256": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.427372932434224e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 70,
+        "dtype": "int8",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.061224,
+        "status": "checked",
+        "pid": 315,
+        "end": 1792743075.138788,
+        "exit": 0,
+        "seconds": 0.07756447792053223,
+        "stdout_sha256": "c06e46cad1bc56306be6c20048693a02cf79c9774421c0bd68ac41fca1720091",
+        "stderr_sha256": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 2.552111561193726e-06,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 71,
+        "dtype": "int8",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "int8",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.1420755,
+        "status": "checked",
+        "pid": 319,
+        "end": 1792743075.211373,
+        "exit": 0,
+        "seconds": 0.06929779052734375,
+        "stdout_sha256": "c145c21d4e9f7ae2efa2cd9e03009f11ae79b6f825b91b860a888b43bb1debd3",
+        "stderr_sha256": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+        "witness": {
+          "dtype": "int8",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 9.238015481471962e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 72,
+        "dtype": "auto",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.2149084,
+        "status": "checked",
+        "pid": 323,
+        "end": 1792743075.2847676,
+        "exit": 0,
+        "seconds": 0.06985974311828613,
+        "stdout_sha256": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.7523670196538674e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 73,
+        "dtype": "auto",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.2882051,
+        "status": "checked",
+        "pid": 327,
+        "end": 1792743075.3563054,
+        "exit": 0,
+        "seconds": 0.0681004524230957,
+        "stdout_sha256": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.7523670196538674e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 74,
+        "dtype": "auto",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.3597786,
+        "status": "checked",
+        "pid": 331,
+        "end": 1792743075.4374802,
+        "exit": 0,
+        "seconds": 0.07770204544067383,
+        "stdout_sha256": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.6540817260722882e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 75,
+        "dtype": "auto",
+        "fixture": "dense-untied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.4410603,
+        "status": "checked",
+        "pid": 335,
+        "end": 1792743075.5080779,
+        "exit": 0,
+        "seconds": 0.06701803207397461,
+        "stdout_sha256": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.6540817260722882e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 76,
+        "dtype": "auto",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.511828,
+        "status": "checked",
+        "pid": 339,
+        "end": 1792743075.5855875,
+        "exit": 0,
+        "seconds": 0.07375979423522949,
+        "stdout_sha256": "a9920699c23a680b82233bbe1e4a78e421b4f48bf423de351c83c21631845ae1",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 3.6697653538197983e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 77,
+        "dtype": "auto",
+        "fixture": "dense-untied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-untied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.5889254,
+        "status": "checked",
+        "pid": 343,
+        "end": 1792743075.6557484,
+        "exit": 0,
+        "seconds": 0.06682324409484863,
+        "stdout_sha256": "0371582520842b9940ef4cd2fe6c3ba1e0e57745d6c466ebc0b2155688d6dd0d",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 4.31822613222721e-08,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 78,
+        "dtype": "auto",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.6591308,
+        "status": "checked",
+        "pid": 347,
+        "end": 1792743075.7315412,
+        "exit": 0,
+        "seconds": 0.07241058349609375,
+        "stdout_sha256": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.0364480972294716e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 79,
+        "dtype": "auto",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.7349722,
+        "status": "checked",
+        "pid": 351,
+        "end": 1792743075.800327,
+        "exit": 0,
+        "seconds": 0.06535530090332031,
+        "stdout_sha256": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.0364480972294716e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 80,
+        "dtype": "auto",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.8040144,
+        "status": "checked",
+        "pid": 355,
+        "end": 1792743075.8803048,
+        "exit": 0,
+        "seconds": 0.07629084587097168,
+        "stdout_sha256": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.674366044997823e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 81,
+        "dtype": "auto",
+        "fixture": "dense-tied",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.8839464,
+        "status": "checked",
+        "pid": 359,
+        "end": 1792743075.9501035,
+        "exit": 0,
+        "seconds": 0.06615757942199707,
+        "stdout_sha256": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 3.674366044997823e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 82,
+        "dtype": "auto",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743075.99098,
+        "status": "checked",
+        "pid": 363,
+        "end": 1792743076.0596645,
+        "exit": 0,
+        "seconds": 0.06868481636047363,
+        "stdout_sha256": "beb1793cd697abfd8683830d63833b61f9c7bcbf5eac5b9708b447a2d0942698",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 1.3503490947641694e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 83,
+        "dtype": "auto",
+        "fixture": "dense-tied",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/dense-tied.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.0631037,
+        "status": "checked",
+        "pid": 367,
+        "end": 1792743076.1342878,
+        "exit": 0,
+        "seconds": 0.07118439674377441,
+        "stdout_sha256": "c34093864776b9ae03d72e79bb3b317d894d958ec0abb7805fcc530e1e98f633",
+        "stderr_sha256": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 6.263366103986812e-06,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 84,
+        "dtype": "auto",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.1375713,
+        "status": "checked",
+        "pid": 371,
+        "end": 1792743076.2063365,
+        "exit": 0,
+        "seconds": 0.06876516342163086,
+        "stdout_sha256": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+        "stderr_sha256": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.824645614624144e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 85,
+        "dtype": "auto",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 1,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "a",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.209752,
+        "status": "checked",
+        "pid": 375,
+        "end": 1792743076.282034,
+        "exit": 0,
+        "seconds": 0.07228231430053711,
+        "stdout_sha256": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+        "stderr_sha256": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.824645614624144e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 86,
+        "dtype": "auto",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 1,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.2858067,
+        "status": "checked",
+        "pid": 379,
+        "end": 1792743076.3594913,
+        "exit": 0,
+        "seconds": 0.0736849308013916,
+        "stdout_sha256": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+        "stderr_sha256": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.427372932434224e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 87,
+        "dtype": "auto",
+        "fixture": "moe",
+        "kind": "logits",
+        "prompt_tokens": 13,
+        "ubatch": 16,
+        "command": [
+          "/b/llmx",
+          "logits",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--top",
+          "257",
+          "--threads",
+          "4",
+          "--ubatch",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.3629682,
+        "status": "checked",
+        "pid": 383,
+        "end": 1792743076.4351842,
+        "exit": 0,
+        "seconds": 0.07221603393554688,
+        "stdout_sha256": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+        "stderr_sha256": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_logit_error": 2.427372932434224e-05,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 88,
+        "dtype": "auto",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 4,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.4385939,
+        "status": "checked",
+        "pid": 387,
+        "end": 1792743076.510162,
+        "exit": 0,
+        "seconds": 0.07156848907470703,
+        "stdout_sha256": "c06e46cad1bc56306be6c20048693a02cf79c9774421c0bd68ac41fca1720091",
+        "stderr_sha256": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 2.552111561193726e-06,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      },
+      {
+        "index": 89,
+        "dtype": "auto",
+        "fixture": "moe",
+        "kind": "nll",
+        "context": 16,
+        "command": [
+          "/b/llmx",
+          "perplexity",
+          "/out/moe.gguf",
+          "abcdefghijklm",
+          "--threads",
+          "4",
+          "-c",
+          "16",
+          "--device",
+          "vulkan:0",
+          "--tensor-width",
+          "1",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "start": 1792743076.5137537,
+        "status": "checked",
+        "pid": 391,
+        "end": 1792743076.5884206,
+        "exit": 0,
+        "seconds": 0.07466745376586914,
+        "stdout_sha256": "c145c21d4e9f7ae2efa2cd9e03009f11ae79b6f825b91b860a888b43bb1debd3",
+        "stderr_sha256": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "passed": true,
+        "max_nll_error": 9.238015481471962e-07,
+        "bounds": {
+          "logit": 0.002256155014038086,
+          "nll": 0.0002257771834131006
+        }
+      }
+    ],
+    "started_children": 90,
+    "not_started_children": 0,
+    "completed_children": 90,
+    "artifacts": {
+      "10.stdout": "b8a9177d191be612997b06550989f444b8cb0a195bbf56548c4c57b2d2d9cf97",
+      "50.stdout": "842eadf1957f39739b073ded80adfbae61143c534e7b05696ac5c75350c5b918",
+      "76.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "36.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "60.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "86.stdout": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+      "20.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "0.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "46.stdout": "38d04a19a16cf23e449d6226e8f7fb478b259071e1a2a4c08e3fc355e2fc2aa8",
+      "71.stdout": "c145c21d4e9f7ae2efa2cd9e03009f11ae79b6f825b91b860a888b43bb1debd3",
+      "31.stdout": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+      "17.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "57.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "41.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "7.stdout": "9e65902498eb15877c71598858789fb87791e646bdd15ffb17af595c723b15fc",
+      "67.stdout": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+      "27.stdout": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+      "81.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "34.stderr": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+      "49.stdout": "4f53074efd2e111b757d920e2c15446e98a1227ed42c8b8d75c2b2d5b98c149c",
+      "74.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "52.stdout": "3a698d6c32ed3d297d836a66c9b8e6cab39c157b90722e8db198199d64bb009d",
+      "89.stdout": "c145c21d4e9f7ae2efa2cd9e03009f11ae79b6f825b91b860a888b43bb1debd3",
+      "12.stdout": "588460067536523d6f92e80816aa76de818fbfb626c1f4e5147ea274b242005e",
+      "79.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "44.stdout": "7c301b1726cf8f0fcf818714adb4b7191b29f7ab37a262271742fca976618044",
+      "2.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "39.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "22.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "84.stdout": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+      "62.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "55.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "68.stdout": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+      "28.stdout": "beb1793cd697abfd8683830d63833b61f9c7bcbf5eac5b9708b447a2d0942698",
+      "15.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "33.stdout": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+      "73.stdout": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+      "8.stdout": "87e01e2e5f85050f314a44f159b432fb64ab13e3f06b16f95d67ce2ab7a13544",
+      "83.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "18.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "25.stdout": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+      "65.stdout": "c34093864776b9ae03d72e79bb3b317d894d958ec0abb7805fcc530e1e98f633",
+      "58.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "5.stdout": "3f3a195bd02e7a1abd259ad313626ff06c6f30d3ebd32524bde4df835d4dba87",
+      "43.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "42.stdout": "9b1ee2780702ee24cabb8fb6e1656b246f76f4faba3d7ea5da5cea2657922586",
+      "4.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "19.stdout": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+      "24.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "82.stdout": "beb1793cd697abfd8683830d63833b61f9c7bcbf5eac5b9708b447a2d0942698",
+      "64.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "59.stdout": "0371582520842b9940ef4cd2fe6c3ba1e0e57745d6c466ebc0b2155688d6dd0d",
+      "32.stderr": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+      "9.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "72.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "54.stdout": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+      "69.stderr": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+      "29.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "14.stdout": "d68c5ff88351e483b1021362ff3fa8cdd4273e86e1f2dd629a567c7fffb0dd5a",
+      "85.stderr": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+      "23.stdout": "0371582520842b9940ef4cd2fe6c3ba1e0e57745d6c466ebc0b2155688d6dd0d",
+      "63.stdout": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+      "3.stdout": "426d0c77871594eaa2e36ebd538fe583cb49092dcb38c740ce7e40acfcdf23b3",
+      "78.stdout": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+      "45.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "38.stdout": "3a7726450402f7a488d9a9e04677b878bfdc80bf2857755212e7a9000636a99b",
+      "53.stderr": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+      "13.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "88.stderr": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+      "35.stdout": "c145c21d4e9f7ae2efa2cd9e03009f11ae79b6f825b91b860a888b43bb1debd3",
+      "dense-tied.gguf": "e6746b9fb9d431d4a5a739eed275568462c02a39893a9f67b6c37d77d496853b",
+      "48.stderr": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+      "75.stdout": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+      "66.stderr": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+      "80.stdout": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+      "26.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "6.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "40.stdout": "b70b6cd403adbd4373fc432ebd7ddbe804f7cb66063576a80e591a8a1e485979",
+      "16.stdout": "b9c30c0eb84a237e3993ece9dfded0fdee2ec3dfb0387ca60642db8d2e268e69",
+      "56.stdout": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+      "70.stderr": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+      "30.stderr": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+      "47.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "1.stdout": "9d401a8c270c34bd002c66da70fd465be690e2596a34c15e5840e17a4640d7c7",
+      "61.stdout": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+      "21.stdout": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+      "87.stderr": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+      "77.stdout": "0371582520842b9940ef4cd2fe6c3ba1e0e57745d6c466ebc0b2155688d6dd0d",
+      "37.stdout": "ef23f6d34f1e48d89c30099399868a96693373f8b44d7bc7a0dbee148a85b8d4",
+      "11.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "51.stderr": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+      "12.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "89.stderr": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+      "52.stderr": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+      "49.stderr": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+      "74.stdout": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+      "34.stdout": "c06e46cad1bc56306be6c20048693a02cf79c9774421c0bd68ac41fca1720091",
+      "62.stdout": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+      "84.stderr": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+      "22.stdout": "a9920699c23a680b82233bbe1e4a78e421b4f48bf423de351c83c21631845ae1",
+      "39.stdout": "3a7726450402f7a488d9a9e04677b878bfdc80bf2857755212e7a9000636a99b",
+      "2.stdout": "426d0c77871594eaa2e36ebd538fe583cb49092dcb38c740ce7e40acfcdf23b3",
+      "79.stdout": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+      "44.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "8.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "73.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "33.stderr": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+      "28.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "15.stdout": "d68c5ff88351e483b1021362ff3fa8cdd4273e86e1f2dd629a567c7fffb0dd5a",
+      "55.stdout": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+      "68.stderr": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+      "43.stdout": "9b1ee2780702ee24cabb8fb6e1656b246f76f4faba3d7ea5da5cea2657922586",
+      "5.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "65.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "58.stdout": "a9920699c23a680b82233bbe1e4a78e421b4f48bf423de351c83c21631845ae1",
+      "18.stdout": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+      "25.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "83.stdout": "c34093864776b9ae03d72e79bb3b317d894d958ec0abb7805fcc530e1e98f633",
+      "36.stdout": "ef23f6d34f1e48d89c30099399868a96693373f8b44d7bc7a0dbee148a85b8d4",
+      "dense-untied.gguf": "15cd140ef82f834c75ca013fdcc95960106120ca776bda46a2842d06f0155102",
+      "76.stdout": "a9920699c23a680b82233bbe1e4a78e421b4f48bf423de351c83c21631845ae1",
+      "50.stderr": "ea31b41e47838c2a7aae4449bb9613ca1ecb35e6531a2d2224c7a84afcc06e3c",
+      "10.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "46.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "0.stdout": "9d401a8c270c34bd002c66da70fd465be690e2596a34c15e5840e17a4640d7c7",
+      "20.stdout": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+      "86.stderr": "6459fb3ba5bcf87f133ab468110cc24b55e5c12cfdb6a0bce9df2c418f5b4a5e",
+      "60.stdout": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+      "57.stdout": "f84122555817765d55548413b5c6d22fb3e347988fba8e58b6797fff73285819",
+      "17.stdout": "310099ad8f188f2bce7d56c8e70cbebff2903b492e3a7c5a20f2a798f86445fd",
+      "31.stderr": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+      "71.stderr": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+      "81.stdout": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+      "27.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "67.stderr": "1e4d8ab5840d4d139afd3e2a21e0cc6d4633cdaa97d74928d72b54bf1bf2b5d0",
+      "7.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "progress.jsonl": "f299544a788357c478d931876ad68a28e3f2c57a21e4e755448e70ca6cc161fa",
+      "41.stdout": "2e547c88f7b7cb6533e9bcb0b43de5cbb205cb5e93bed7107ea51b9b011c334e",
+      "40.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "6.stdout": "9e65902498eb15877c71598858789fb87791e646bdd15ffb17af595c723b15fc",
+      "26.stdout": "5f9ac80b03ab1d5fa770197041605b876308d8878a71e10acb0499bd118dda08",
+      "80.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "66.stdout": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+      "30.stdout": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+      "70.stdout": "c06e46cad1bc56306be6c20048693a02cf79c9774421c0bd68ac41fca1720091",
+      "56.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "16.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "87.stdout": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+      "21.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "61.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "1.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "47.stdout": "842df2778565eecb351e34cec73fd882aced5ea752ccaf92ceb6b5e846795f6a",
+      "51.stdout": "842eadf1957f39739b073ded80adfbae61143c534e7b05696ac5c75350c5b918",
+      "11.stdout": "4b24d90654f41224cacaca75e03474c52cf476b6372c48119a11d19213fbc18a",
+      "37.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "77.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "64.stdout": "beb1793cd697abfd8683830d63833b61f9c7bcbf5eac5b9708b447a2d0942698",
+      "59.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "82.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "19.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "24.stdout": "d71503932cf20d9ea0ea8d1094e87b76cfb21aec5fd091aba1a575d7b0d49380",
+      "4.stdout": "9f7f930124eee5454bd0e62bf1dbdc2877fe715af4f942524eb0aae31b295172",
+      "42.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "29.stdout": "c34093864776b9ae03d72e79bb3b317d894d958ec0abb7805fcc530e1e98f633",
+      "14.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "54.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "69.stdout": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+      "72.stdout": "470bb39c40bf10fe8bd77294ee52693e3dc80bb0a651bc741a20cd0bb9dee889",
+      "9.stdout": "87e01e2e5f85050f314a44f159b432fb64ab13e3f06b16f95d67ce2ab7a13544",
+      "32.stdout": "7f8cea31d457a94fa447f7deb80988c74dc97a8b26dfc2831c4df740caf8bf54",
+      "38.stderr": "bfb8b40a170adda17d0c9759dae52cef069f850323dec7cea32de3360f17202e",
+      "moe.gguf": "31ffcf7db74faa738a36c1453e0f9c20d3ba653e8c06614cf8a952901b40e3f7",
+      "78.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "45.stdout": "7c301b1726cf8f0fcf818714adb4b7191b29f7ab37a262271742fca976618044",
+      "3.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "63.stderr": "0bfb9b044d1c929dedff616a50ecbd2186c28eb742a6588fb3e50f77d9691d29",
+      "23.stderr": "3bbba571591f728d49eba424e1325fd48aac29006ff8f0d685da2864bf1d5f9d",
+      "85.stdout": "57c846c1428dea5d6c0bd21f79c8f69d19912a34225a81ef8a51e28ac3f76b66",
+      "48.stdout": "4f53074efd2e111b757d920e2c15446e98a1227ed42c8b8d75c2b2d5b98c149c",
+      "75.stderr": "95c38129e36e5e68899d9523540584c0a7ff89e46a61b3773ff6fcaf4baf446a",
+      "35.stderr": "04b1c1a1cc37cba824494879d4653c522f9e6fe5e0df9c3e1348247cfb5e4da5",
+      "88.stdout": "c06e46cad1bc56306be6c20048693a02cf79c9774421c0bd68ac41fca1720091",
+      "13.stdout": "588460067536523d6f92e80816aa76de818fbfb626c1f4e5147ea274b242005e",
+      "53.stdout": "4773daca85c42724d6df462fde32cdd0bbc8d77d4d3dca981e12584b2ec97c10"
+    }
+  },
+  "execution_sha256": "f21bc4ea17b3ab136e5b2cbe2cd8c70c0ccef9494e9a557cfc9ddd55b9cf50bf",
+  "raw_root": "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/focused-qualification-v1/ordinary"
+}

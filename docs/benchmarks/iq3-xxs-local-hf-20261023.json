@@ -1,0 +1,348 @@
+{
+  "scope": "Ten full ordinary tiny-model components on CPU and Radeon VII; not MI50, split or released-file qualification.",
+  "tested_runtime": "4da595f8044e043af397e2e6f7167429ec14bd16",
+  "intervening_delta": "No runtime source or product binary changes since operator checkpoint; added fixture/generator wiring, prospective reference data and native test range coverage.",
+  "version": "llmx 0.1.0+g9a26d7a0b961.dirty numerics 227a1fd84d620024",
+  "binary_sha256": "c3c0b75783c7f4b4db9990d696a08e608e17f801ae6a7dfc0a018f2aef91a652",
+  "source_sha256": {
+    "tests/iq3_xxs.py": "66624ce838dcd9b081b25bbc3e2e800403fdb5a8c43c273f483385a271442964",
+    "tests/block_fixture.py": "ce327e86c1941a36c120b43bd2241db958fc3abcf713b408009fd48c27f64a90",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/spec_decode.py": "31e3f6ddbb1b2dd0b14673a77eae8f80c769f7a6f73e692125b1b1428f44a91e",
+    "tests/raw_blocks.py": "b91b7985437d413544bb6633613ded156efd755b88e03c588b1805afbcedf189",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+    "tests/run_tests.py": "5f6130bee9a6a7e3251bcc8601740a67b8a5ba10c4a2c23f209e0fc3cee2a868",
+    "tests/data/baseline_iq3_xxs.json": "09ff34449701ea3cf78c805bdeec264567be2303bbbe6db4b7a20a73b5ae7117",
+    "tests/data/baseline_iq3_xxs_split.json": "9670481236ed6748862c5c9d0e76ad8852c295c8388aa4ad5e3fc3188be6a32c",
+    "tests/data/dtype_budget.json": "2e9b14827341c249fae12dce72b3618d3c17241818ef46d4427a1ebfce7bb398"
+  },
+  "rows": [
+    {
+      "device": "cpu",
+      "requested": "f32",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-f32.log",
+      "log_sha256": "f647bf40deef1022df15afb2bfceb1fdd593e2a2fe0fcb8d284627fac9b75220",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 8.5e-07,
+          "logit_bound": 2e-05,
+          "nll": 4e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 7.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 1e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "logit": 8.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 2e-08,
+          "nll_bound": 1e-05
+        }
+      ]
+    },
+    {
+      "device": "cpu",
+      "requested": "f16",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-f16.log",
+      "log_sha256": "f647bf40deef1022df15afb2bfceb1fdd593e2a2fe0fcb8d284627fac9b75220",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 8.5e-07,
+          "logit_bound": 2e-05,
+          "nll": 4e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 7.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 1e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "logit": 8.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 2e-08,
+          "nll_bound": 1e-05
+        }
+      ]
+    },
+    {
+      "device": "cpu",
+      "requested": "bf16",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-bf16.log",
+      "log_sha256": "c58a733c1e50d2c760861284d494cca3e6f9a70559484e4cd64f355fea9780eb",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 0.00284054,
+          "logit_bound": 0.016833126544952393,
+          "nll": 8.673e-05,
+          "nll_bound": 0.0025933543468230624
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 0.00306638,
+          "logit_bound": 0.016833126544952393,
+          "nll": 0.00045214,
+          "nll_bound": 0.0025933543468230624
+        },
+        {
+          "fixture": "moe",
+          "logit": 0.00308839,
+          "logit_bound": 0.016833126544952393,
+          "nll": 0.0002367,
+          "nll_bound": 0.0025933543468230624
+        }
+      ]
+    },
+    {
+      "device": "cpu",
+      "requested": "int8",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-int8.log",
+      "log_sha256": "f647bf40deef1022df15afb2bfceb1fdd593e2a2fe0fcb8d284627fac9b75220",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 8.5e-07,
+          "logit_bound": 2e-05,
+          "nll": 4e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 7.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 1e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "logit": 8.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 2e-08,
+          "nll_bound": 1e-05
+        }
+      ]
+    },
+    {
+      "device": "cpu",
+      "requested": "auto",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-auto.log",
+      "log_sha256": "f647bf40deef1022df15afb2bfceb1fdd593e2a2fe0fcb8d284627fac9b75220",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 8.5e-07,
+          "logit_bound": 2e-05,
+          "nll": 4e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 7.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 1e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "logit": 8.3e-07,
+          "logit_bound": 2e-05,
+          "nll": 2e-08,
+          "nll_bound": 1e-05
+        }
+      ]
+    },
+    {
+      "device": "vulkan:0",
+      "requested": "f32",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-vulkan-f32-r2.log",
+      "log_sha256": "e31c8b0a4747861ef825d98dcfced7f299bdf16e407b62970e45e1dfb7f9bbf1",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 8.5e-07,
+          "logit_bound": 2e-05,
+          "nll": 3e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 7.5e-07,
+          "logit_bound": 2e-05,
+          "nll": 7e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "logit": 7.8e-07,
+          "logit_bound": 2e-05,
+          "nll": 1e-08,
+          "nll_bound": 1e-05
+        }
+      ]
+    },
+    {
+      "device": "vulkan:0",
+      "requested": "f16",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-vulkan-f16.log",
+      "log_sha256": "fc245249f132e32aeb91da0ccb08373e09b1f18148d7914a66230f07e9f52296",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 3.645e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 5.4e-07,
+          "nll_bound": 0.0002257771834131006
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 3.274e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 4.84e-06,
+          "nll_bound": 0.0002257771834131006
+        },
+        {
+          "fixture": "moe",
+          "logit": 3.741e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 2.46e-06,
+          "nll_bound": 0.0002257771834131006
+        }
+      ]
+    },
+    {
+      "device": "vulkan:0",
+      "requested": "bf16",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-vulkan-bf16.log",
+      "log_sha256": "667bf28b48354573535400232e78e92224d63428ca612af96df675eac7764c04",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 0.00252354,
+          "logit_bound": 0.016833126544952393,
+          "nll": 0.00014286,
+          "nll_bound": 0.0025933543468230624
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 0.00352738,
+          "logit_bound": 0.016833126544952393,
+          "nll": 0.00018863,
+          "nll_bound": 0.0025933543468230624
+        },
+        {
+          "fixture": "moe",
+          "logit": 0.00325239,
+          "logit_bound": 0.016833126544952393,
+          "nll": 0.00017321,
+          "nll_bound": 0.0025933543468230624
+        }
+      ]
+    },
+    {
+      "device": "vulkan:0",
+      "requested": "int8",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-vulkan-int8.log",
+      "log_sha256": "fc245249f132e32aeb91da0ccb08373e09b1f18148d7914a66230f07e9f52296",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 3.645e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 5.4e-07,
+          "nll_bound": 0.0002257771834131006
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 3.274e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 4.84e-06,
+          "nll_bound": 0.0002257771834131006
+        },
+        {
+          "fixture": "moe",
+          "logit": 3.741e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 2.46e-06,
+          "nll_bound": 0.0002257771834131006
+        }
+      ]
+    },
+    {
+      "device": "vulkan:0",
+      "requested": "auto",
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "log": "build-iq3-xxs-hf-vulkan-auto.log",
+      "log_sha256": "fc245249f132e32aeb91da0ccb08373e09b1f18148d7914a66230f07e9f52296",
+      "measurements": [
+        {
+          "fixture": "dense-untied",
+          "logit": 3.645e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 5.4e-07,
+          "nll_bound": 0.0002257771834131006
+        },
+        {
+          "fixture": "dense-tied",
+          "logit": 3.274e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 4.84e-06,
+          "nll_bound": 0.0002257771834131006
+        },
+        {
+          "fixture": "moe",
+          "logit": 3.741e-05,
+          "logit_bound": 0.002256155014038086,
+          "nll": 2.46e-06,
+          "nll_bound": 0.0002257771834131006
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "full_logit_cases": 1500,
+    "nll_checks": 120
+  },
+  "precision": "Bounds selected by completed matrix-path witnesses in the existing consumer, including wider F32 CPU F16/int8 and block-int16 Vulkan int8 fallback.",
+  "retained_failed_attempt": {
+    "log": "build-iq3-xxs-hf-vulkan-f32.log",
+    "sha256": "db89c08eb45cd6ee6f5412979a5fd0051dc1c6e10eb721ad2c692a6d5659cc21",
+    "cause": "Harness invoked nonexistent --require-weight-types; argparse exit2 before inference. Corrected to existing --require-device-types; runtime and limits unchanged."
+  },
+  "reference_generator": {
+    "log": "build-iq3-xxs-reference-generator.log",
+    "sha256": "a114fba098f954d776bf51d46df1315e758c3d2dad9c311e4f66bbb004e02517",
+    "tests": 81,
+    "passed": true
+  }
+}

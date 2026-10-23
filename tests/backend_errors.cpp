@@ -107,7 +107,7 @@ static void check_contracts(backend::CpuBackend& cpu) {
     for (uint32_t id = 0; id <= 43; ++id) {
         const auto* storage = quant::storage_type(id);
         const auto* kernel = quant::Registry::instance().get(id);
-        const bool implemented = id == 0 || id == 1 || id == 2 || id == 3 || id == 6 || id == 7 || id == 8 || id == 10 || id == 11 || id == 12 || id == 13 || id == 14 || id == 20 || id == 21 || id == 22 || id == 23 || id == 30 || id == 39;
+        const bool implemented = id == 0 || id == 1 || id == 2 || id == 3 || id == 6 || id == 7 || id == 8 || id == 10 || id == 11 || id == 12 || id == 13 || id == 14 || id == 18 || id == 20 || id == 21 || id == 22 || id == 23 || id == 30 || id == 39;
         require(bool(kernel) == implemented && cpu.supports_type(id) == implemented,
                 "storage metadata changed execution support");
         if (kernel) {

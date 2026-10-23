@@ -1,0 +1,760 @@
+{
+  "scope": "Early MI50 IQ3_XXS P512/G128 screen against historical mx eefc4e7; not final current-mx performance or HF qualification",
+  "source_commit": "4da595f8044e043af397e2e6f7167429ec14bd16",
+  "build_version": "llmx 0.1.0+unknown numerics 227a1fd84d620024",
+  "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+  "source_manifest_sha256": "8d22e7b420850259c227b7e9ab738d7bb775e8eeeaaa6e57981f9c0d092b0e52",
+  "binary_sha256": {
+    "llmx": "a2e70b80cf9183f3b9307288c86cad971559483e3d2a64890f0c723a5594cec8",
+    "llmx-model-logits": "c7f6ca9806e76ef040c79505437185ad962eec1ef50f8a3d4a2a2635446564eb",
+    "llmx-iq2-s-test": "4b1dd945b860cafb7cb1ece054d1a0027c6e70f8c0ee5ea90715aed6017bc19b",
+    "llmx-iq3-s-test": "853dcf9a9674ec6bdc67bcdef73a01a2089b9c914e5d1dc8a61e32faf53f7eeb",
+    "llmx-iq3-xxs-test": "af7d94e38c91aba5b93c120feb49549c1a3e03450c54ba92e71762a9a6643adb",
+    "libllmx-vulkan.a": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904",
+    "generated/llmx-build-info.hpp": "01e3d573834ce5b6b37623d6d14e01fff8a7f9ec5a06ddf98182dc71a8104556",
+    "CMakeCache.txt": "0eaa7b972758f68b94a9e8a9ace1980302d90a8a18563cca259b0561ee0ea30b",
+    "compile_commands.json": "8a3be935f8332a231e6ee227a4ff67e3c47b839bb434fc56054d39b4ca01d52b"
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "device": {
+    "pci": "0000:c9:00.0",
+    "busy": 0,
+    "vram": 10932224,
+    "power": "auto"
+  },
+  "passed": true,
+  "pins_unchanged": true,
+  "removed": true,
+  "oom": false,
+  "native_operator_output": "IQ3_XXS device: AMD Instinct MI60 / MI50 (RADV VEGA20); tile timestamp witness present\nIQ3_XXS backend: embed/embed_ids valid+invalid, 12 dtype/extent/tile matmul cases plus grouped, residual, routed and k=2 routed-add controls; matrix paths bf16 block-int16 f32 [ok]\n\n",
+  "calls": [
+    {
+      "index": 0,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": null,
+      "arm": "candidate",
+      "warmup": true,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792740974.0560904,
+      "end": 1792740976.177326,
+      "rates": {
+        "pp512": 6685.81,
+        "tg128": 267.29
+      },
+      "pp_phase_seconds": 0.07658010024215464,
+      "tg_phase_seconds": 0.47888061655879377,
+      "pp_plus_tg_phase_seconds": 0.5554607168009484,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 1,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792740976.1779072,
+      "end": 1792740979.6495001,
+      "rates": {
+        "pp512": 3749.54,
+        "tg128": 264.76
+      },
+      "pp_phase_seconds": 0.1365500834769065,
+      "tg_phase_seconds": 0.483456715515939,
+      "pp_plus_tg_phase_seconds": 0.6200067989928455,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 2,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 0,
+      "arm": "candidate",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792740979.64991,
+      "end": 1792740981.3179095,
+      "rates": {
+        "pp512": 6680.42,
+        "tg128": 267.44
+      },
+      "pp_phase_seconds": 0.07664188778549852,
+      "tg_phase_seconds": 0.4786120251271313,
+      "pp_plus_tg_phase_seconds": 0.5552539129126298,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 3,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792740981.3183286,
+      "end": 1792740983.1878016,
+      "rates": {
+        "pp512": 3738.61,
+        "tg128": 265.52
+      },
+      "pp_phase_seconds": 0.1369492939889424,
+      "tg_phase_seconds": 0.48207291352817117,
+      "pp_plus_tg_phase_seconds": 0.6190222075171136,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 4,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792740983.1882038,
+      "end": 1792740985.0580525,
+      "rates": {
+        "pp512": 3745.47,
+        "tg128": 264.52
+      },
+      "pp_phase_seconds": 0.13669846507914896,
+      "tg_phase_seconds": 0.4838953576289128,
+      "pp_plus_tg_phase_seconds": 0.6205938227080617,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 5,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 1,
+      "arm": "candidate",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792740985.058689,
+      "end": 1792740986.726799,
+      "rates": {
+        "pp512": 6686.3,
+        "tg128": 267.75
+      },
+      "pp_phase_seconds": 0.07657448813244994,
+      "tg_phase_seconds": 0.4780578898225957,
+      "pp_plus_tg_phase_seconds": 0.5546323779550457,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 6,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 2,
+      "arm": "candidate",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792740986.7271998,
+      "end": 1792740988.395856,
+      "rates": {
+        "pp512": 6688.45,
+        "tg128": 266.19
+      },
+      "pp_phase_seconds": 0.0765498732890281,
+      "tg_phase_seconds": 0.48085953642135315,
+      "pp_plus_tg_phase_seconds": 0.5574094097103812,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 7,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792740988.3963003,
+      "end": 1792740990.2652087,
+      "rates": {
+        "pp512": 3737.06,
+        "tg128": 265.54
+      },
+      "pp_phase_seconds": 0.13700609570089856,
+      "tg_phase_seconds": 0.4820366046546659,
+      "pp_plus_tg_phase_seconds": 0.6190427003555645,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 8,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "command": [
+        "/ref/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "status": "passed",
+      "start": 1792740990.2658782,
+      "end": 1792740992.1865718,
+      "rates": {
+        "pp512": 3738.1,
+        "tg128": 264.57
+      },
+      "pp_phase_seconds": 0.13696797838474092,
+      "tg_phase_seconds": 0.48380390822844616,
+      "pp_plus_tg_phase_seconds": 0.620771886613187,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    },
+    {
+      "index": 9,
+      "cell": "P512/G128",
+      "p": 512,
+      "g": 128,
+      "block": 3,
+      "arm": "candidate",
+      "warmup": false,
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32",
+        "--dtype",
+        "auto",
+        "--load-mode",
+        "auto"
+      ],
+      "status": "passed",
+      "start": 1792740992.1870768,
+      "end": 1792740993.8548899,
+      "rates": {
+        "pp512": 6673.48,
+        "tg128": 267.61
+      },
+      "pp_phase_seconds": 0.07672159053447378,
+      "tg_phase_seconds": 0.47830798550128917,
+      "pp_plus_tg_phase_seconds": 0.555029576035763,
+      "phase_time_scope": "Derived P/PP + G/TG from printed rates; excludes model load and process startup; not server/request latency."
+    }
+  ],
+  "activity_thresholds": {
+    "system_idle_below_percent": 25,
+    "iowait_above_percent": 5,
+    "unrelated_cpu_at_least_percent": 100,
+    "disk_bytes_per_second_above": 50000000,
+    "sample_gap_above_seconds": 2.5
+  },
+  "artifact_sha256": {
+    "6-candidate.stdout": "55603b71197905d00ddd9097a952840c44fe4d507502e01b6e4589561694a9b8",
+    "iq3-operators.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "8-mx.stdout": "8e23c0f13871415749fca12418a9baf69429f27333319c5b68d526e52772f9b5",
+    "version.stdout": "c8bbe428ae9588c099dc15befa3b7fac7942bb9b3195bf6fe4384d62226383f4",
+    "5-candidate.stdout": "6b4bdc122b6993622b5523b78ee7bcf03ba6fe56e8f0da32dd6cdee3ab007486",
+    "3-mx.stdout": "7e2806be10c7a0d23e2e3c77e373b8db5abc572e42e274ddb244888406df74d1",
+    "2-candidate.stdout": "93f9ac5a439eabe02a6ee02f33f8189d2fd4794d6228be3d8af010b65be5c5ab",
+    "1-mx.stdout": "ef22d14fab4e8236593023d57e840b475970bf6c17187a8948c47ba88b391078",
+    "9-candidate.stderr": "5f9da616a98d4eb78fc9a757061611200883fe40b8d4bc48ecda7eca2fa53923",
+    "7-mx.stdout": "3bc9de119dec45356686a1432a72231c984c97b2308de7c15669c6fdb73b1747",
+    "4-mx.stdout": "d9a6bb93b14e8293ed10d0893546345076c16205b15ef9bd4acf3c05d6e27c8b",
+    "0-candidate.stdout": "7a8e3986bc66203f8248fe7e00bc32ae25df303572cfaafea81555e6aa5ebb86",
+    "device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "5-candidate.stderr": "eadb2131e47bf0e84d6f342be1eb11e7eeed5bdedb438fafbfb92cc59ab613b4",
+    "6-candidate.stderr": "69b6cd1b2a3dc40f6fccaf1881585b1ca479828b97857ae695158fae4088647b",
+    "activity.jsonl": "181c40ae05eb1767caec4b611f238d7e416185dbead5f4c2bc498331f33861a1",
+    "iq3-operators.stdout": "8ee109204f077215e37de1ae2dec977cff39a52092feb4a0ca5de37bb576c62a",
+    "8-mx.stderr": "75c881f1bcbed3a8f20c730c8c27eb15f102e593869a6b6dce06350a3b92eee1",
+    "9-candidate.stdout": "9d00c7f392f25b9882912683c20671d38f9b30c002a270934787627ab0f5e4bd",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "7-mx.stderr": "76fdcf2047fe221b08e40e18075bcaaa81bf1ea8d542802ac4c620c393b94c71",
+    "4-mx.stderr": "18c61fd5dafe054f71847dabf09366ccfe98a3952f379b1b664fb138399dc874",
+    "device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+    "0-candidate.stderr": "c833999f561ea5bf03a0184f27e1786bc7991d2c6c22ee04184bc393bd1e4a04",
+    "3-mx.stderr": "492411f4eb4242087d4eb8efe090008b7996caf6ac8cbc14d5c5916c32707c5c",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "2-candidate.stderr": "1e57778db807d7bc68096ab47145a8d04ae87a91071908f46aa2cdb9852d3ae9",
+    "1-mx.stderr": "d37d0713db6d63d88d88fc84d1518de93472260eb159db48d253513821892d86"
+  },
+  "execution_sha256": "6a329afcc3b826d04756f563cd1f5d1fb8ae06986f2e7da8129f5a1b56b97669",
+  "audit_sha256": "ba6811f399f06186b0052aacef8977ec488ce9fdc8dce642fda10d46fe244d61",
+  "audit": {
+    "source_execution": "../results/screen-v1/execution.json",
+    "source_activity": "../results/screen-v1/activity.jsonl",
+    "scope": "Historical early IQ3_XXS P512/G128 screen against mx eefc4e7321c869496146697d63362f073941aed6; not the newer reference screen.",
+    "identity": {
+      "all_29_artifact_hashes_match": true,
+      "artifact_count": 29,
+      "hash_mismatches": [],
+      "recorded_passed": true,
+      "monitor_exit": 0,
+      "pins_unchanged": true,
+      "recorded_removed": true,
+      "recorded_oom": false
+    },
+    "rates_per_second": {
+      "pp512_candidate_mean": 6682.1625,
+      "pp512_mx_mean": 3739.81,
+      "pp512_aggregate_delta_percent": 78.67652367366259,
+      "tg128_candidate_mean": 267.2475,
+      "tg128_mx_mean": 265.0375,
+      "tg128_aggregate_delta_percent": 0.8338442673206492,
+      "pairs": [
+        {
+          "block": 0,
+          "candidate_call": 2,
+          "mx_call": 3,
+          "candidate": {
+            "pp512": 6680.42,
+            "tg128": 267.44
+          },
+          "mx": {
+            "pp512": 3738.61,
+            "tg128": 265.52
+          },
+          "pp_delta_percent": 78.68726612297084,
+          "tg_delta_percent": 0.723109370292252,
+          "start": 1792740979.64991,
+          "end": 1792740983.1878016
+        },
+        {
+          "block": 1,
+          "candidate_call": 5,
+          "mx_call": 4,
+          "candidate": {
+            "pp512": 6686.3,
+            "tg128": 267.75
+          },
+          "mx": {
+            "pp512": 3745.47,
+            "tg128": 264.52
+          },
+          "pp_delta_percent": 78.516981847405,
+          "tg_delta_percent": 1.2210796915167244,
+          "start": 1792740983.1882038,
+          "end": 1792740986.726799
+        },
+        {
+          "block": 2,
+          "candidate_call": 6,
+          "mx_call": 7,
+          "candidate": {
+            "pp512": 6688.45,
+            "tg128": 266.19
+          },
+          "mx": {
+            "pp512": 3737.06,
+            "tg128": 265.54
+          },
+          "pp_delta_percent": 78.97625406067871,
+          "tg_delta_percent": 0.24478421330118572,
+          "start": 1792740986.7271998,
+          "end": 1792740990.2652087
+        },
+        {
+          "block": 3,
+          "candidate_call": 9,
+          "mx_call": 8,
+          "candidate": {
+            "pp512": 6673.48,
+            "tg128": 267.61
+          },
+          "mx": {
+            "pp512": 3738.1,
+            "tg128": 264.57
+          },
+          "pp_delta_percent": 78.52598913886733,
+          "tg_delta_percent": 1.1490342820425603,
+          "start": 1792740990.2658782,
+          "end": 1792740993.8548899
+        }
+      ],
+      "warmups": [
+        {
+          "call": 0,
+          "arm": "candidate",
+          "rates": {
+            "pp512": 6685.81,
+            "tg128": 267.29
+          }
+        },
+        {
+          "call": 1,
+          "arm": "mx",
+          "rates": {
+            "pp512": 3749.54,
+            "tg128": 264.76
+          }
+        }
+      ]
+    },
+    "activity": {
+      "sample_rows": 24,
+      "intervals": 23,
+      "max_gap_seconds": 1.0075738430023193,
+      "whole_screen_flags": {
+        "system_idle_below_25": 0,
+        "iowait_above_5": 0,
+        "unrelated_cpu_at_least_100": 23,
+        "disk_above_50MBps": 18,
+        "sample_gap_above_2_5s": 0,
+        "target_gpu_busy": 14,
+        "unrelated_gpu_busy": 11
+      },
+      "measured_pair_overlap_interval_count": 18,
+      "measured_pair_overlap_flags": {
+        "system_idle_below_25": 0,
+        "iowait_above_5": 0,
+        "unrelated_cpu_at_least_100": 18,
+        "disk_above_50MBps": 13,
+        "sample_gap_above_2_5s": 0,
+        "target_gpu_busy": 15,
+        "unrelated_gpu_busy": 10
+      },
+      "max_unrelated_cpu_percent": 1103.5410430275717,
+      "max_disk_bytes_per_second": 1032845311.4771999,
+      "other_busy_gpu_ids": [
+        "card0",
+        "card6"
+      ]
+    },
+    "activity_by_call": [
+      {
+        "call": 2,
+        "block": 0,
+        "arm": "candidate",
+        "overlap_intervals": 3,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 3,
+          "disk_above_50MBps": 2,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 3,
+          "unrelated_gpu_busy": 1
+        },
+        "max_unrelated_cpu_percent": 792.1378996429344,
+        "max_disk_bytes_per_second": 1012880990.7998003,
+        "other_busy_gpu_ids": [
+          "card0"
+        ]
+      },
+      {
+        "call": 3,
+        "block": 0,
+        "arm": "mx",
+        "overlap_intervals": 3,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 3,
+          "disk_above_50MBps": 2,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 3,
+          "unrelated_gpu_busy": 2
+        },
+        "max_unrelated_cpu_percent": 792.1378996429344,
+        "max_disk_bytes_per_second": 1012880990.7998003,
+        "other_busy_gpu_ids": [
+          "card0",
+          "card6"
+        ]
+      },
+      {
+        "call": 4,
+        "block": 1,
+        "arm": "mx",
+        "overlap_intervals": 2,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 2,
+          "disk_above_50MBps": 1,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 1,
+          "unrelated_gpu_busy": 1
+        },
+        "max_unrelated_cpu_percent": 509.53532871429155,
+        "max_disk_bytes_per_second": 575929436.5369487,
+        "other_busy_gpu_ids": [
+          "card0"
+        ]
+      },
+      {
+        "call": 5,
+        "block": 1,
+        "arm": "candidate",
+        "overlap_intervals": 3,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 3,
+          "disk_above_50MBps": 3,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 2,
+          "unrelated_gpu_busy": 1
+        },
+        "max_unrelated_cpu_percent": 776.0922498169223,
+        "max_disk_bytes_per_second": 969833658.4437937,
+        "other_busy_gpu_ids": [
+          "card6"
+        ]
+      },
+      {
+        "call": 6,
+        "block": 2,
+        "arm": "candidate",
+        "overlap_intervals": 3,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 3,
+          "disk_above_50MBps": 2,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 3,
+          "unrelated_gpu_busy": 2
+        },
+        "max_unrelated_cpu_percent": 671.4361031726746,
+        "max_disk_bytes_per_second": 834842373.1754372,
+        "other_busy_gpu_ids": [
+          "card0",
+          "card6"
+        ]
+      },
+      {
+        "call": 7,
+        "block": 2,
+        "arm": "mx",
+        "overlap_intervals": 3,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 3,
+          "disk_above_50MBps": 3,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 3,
+          "unrelated_gpu_busy": 1
+        },
+        "max_unrelated_cpu_percent": 819.3584696735363,
+        "max_disk_bytes_per_second": 1022793682.6936765,
+        "other_busy_gpu_ids": [
+          "card6"
+        ]
+      },
+      {
+        "call": 8,
+        "block": 3,
+        "arm": "mx",
+        "overlap_intervals": 3,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 3,
+          "disk_above_50MBps": 2,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 2,
+          "unrelated_gpu_busy": 2
+        },
+        "max_unrelated_cpu_percent": 590.2845657806416,
+        "max_disk_bytes_per_second": 753986523.6079444,
+        "other_busy_gpu_ids": [
+          "card0",
+          "card6"
+        ]
+      },
+      {
+        "call": 9,
+        "block": 3,
+        "arm": "candidate",
+        "overlap_intervals": 2,
+        "flags": {
+          "system_idle_below_25": 0,
+          "iowait_above_5": 0,
+          "unrelated_cpu_at_least_100": 2,
+          "disk_above_50MBps": 2,
+          "sample_gap_above_2_5s": 0,
+          "target_gpu_busy": 1,
+          "unrelated_gpu_busy": 0
+        },
+        "max_unrelated_cpu_percent": 710.6095822517733,
+        "max_disk_bytes_per_second": 1016438267.287217,
+        "other_busy_gpu_ids": []
+      }
+    ],
+    "method_limits": [
+      "All measured pairs retained; no samples discarded.",
+      "Activity is one-second interval data and only overlaps benchmark timings approximately.",
+      "Unrelated CPU percentage converts task delta_ticks at 100 ticks/s; disk rate converts disk sectors at 512 bytes/sector.",
+      "GPU busy on PCI 0000:c9:00.0 is the benchmark target and is expected during either benchmark arm; other busy GPU IDs are unrelated context.",
+      "Activity flags describe overlap and do not establish causality or attribute performance differences."
+    ]
+  },
+  "limitations": [
+    "Historical mx reference, published current master c4d12e2c0094c9028318bed5bb1a30bb48f8a35b is being rebuilt",
+    "Unrelated CPU and disk activity overlaps all measured pairs; other GPUs busy in some intervals",
+    "Small decode difference is not proof of a causal speed gain",
+    "Printed P/PP+G/TG sum is separate phase cost, not end-to-end request latency",
+    "This build predates the added 960 range products and corrected batch-threshold test; those later tests pass locally and await MI50"
+  ]
+}

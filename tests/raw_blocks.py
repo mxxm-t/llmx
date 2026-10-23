@@ -212,6 +212,75 @@ def check_iq3_s():
     print("raw-blocks: IQ3_S %d exact values over all dictionary lanes, isolated fields and half scale edges [ok]" % len(expected))
 
 
+def iq3_xxs_block(d, indices, scales, sign_codes):
+    assert len(indices) == 64 and len(scales) == 8 and len(sign_codes) == 32
+    assert all(0 <= index < 256 for index in indices)
+    assert all(0 <= scale < 16 for scale in scales)
+    assert all(0 <= code < 128 for code in sign_codes)
+    packed = bytearray()
+    for group in range(8):
+        word = scales[group] << 28
+        for sub in range(4):
+            word |= sign_codes[4 * group + sub] << (7 * sub)
+        packed += word.to_bytes(4, "little")
+    return struct.pack("<H", d) + bytes(indices) + bytes(packed)
+
+
+def iq3_xxs_cases():
+    # Every dictionary index reaches both packed selectors and all four lanes.
+    for shift in range(4):
+        yield (0x3C00, [(shift * 64 + g) % 256 for g in range(64)],
+               [g % 16 for g in range(8)], [(g * 13 + shift) % 128 for g in range(32)])
+    # Every scale nibble reaches each 32-value group.
+    for shift in range(16):
+        yield (0x3C00, [(37 * g + shift) % 256 for g in range(64)],
+               [(g + shift) % 16 for g in range(8)], [0] * 32)
+    # Each sign code reaches each of the four subgroups, including the eighth
+    # sign bit, which is the parity of the seven-bit code.
+    for domain in range(4):
+        for rotation in range(4):
+            yield (0x3C00, [(g * 29 + domain) % 256 for g in range(64)],
+                   [g % 16 for g in range(8)],
+                   [domain * 32 + ((g + rotation) % 32) for g in range(32)])
+    for d in HALVES:
+        yield (d, [(37 * g + 11) % 256 for g in range(64)],
+               [0, 1, 2, 4, 8, 13, 14, 15], [1, 2, 3, 7, 15, 31, 63, 127] * 4)
+
+
+def check_iq3_xxs():
+    assert len(sd.IQ3_XXS_GRID) == 1024
+    assert hashlib.sha256(sd.IQ3_XXS_GRID).hexdigest() == "46e35f5a997efdee6c99ce57854c8a0d4f0ff8ca57e5e8a60c0793ea580acf5d"
+    payload, expected = bytearray(), []
+    for d, indices, scales, sign_codes in iq3_xxs_cases():
+        payload += iq3_xxs_block(d, indices, scales, sign_codes)
+        for group in range(8):
+            for sub in range(4):
+                code = sign_codes[4 * group + sub]
+                signs = code | ((bin(code).count("1") & 1) << 7)
+                for lane in range(8):
+                    index = indices[8 * group + 2 * sub + lane // 4]
+                    magnitude = sd.IQ3_XXS_GRID[4 * index + lane % 4]
+                    factor = Fraction(1 + 2 * scales[group], 4) * magnitude
+                    if (signs >> lane) & 1:
+                        factor = -factor
+                    expected.append(cell(lambda h, factor=factor: h(d) * factor))
+    assert_values("IQ3_XXS", expected, sd.decode(sd.IQ3_XXS, payload, len(expected)))
+    assert_numpy_matches("IQ3_XXS", sd.IQ3_XXS, payload, len(expected))
+    unaligned = memoryview(b"x" + payload + b"y")[1:-1]
+    assert_same_bits("IQ3_XXS unaligned blocks", sd.pack_f32(sd.decode(sd.IQ3_XXS, payload, len(expected))),
+                     sd.pack_f32(sd.decode(sd.IQ3_XXS, unaligned, len(expected))))
+    assert_numpy_matches("IQ3_XXS unaligned blocks", sd.IQ3_XXS, unaligned, len(expected))
+    hand = bytearray(iq3_xxs_block(0x3C00, [0] * 64, [0] * 8, [1] + [0] * 31))
+    assert sd.decode(sd.IQ3_XXS, hand, 256)[:8] == [-1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0]
+    try:
+        sd.payload_bytes(sd.IQ3_XXS, 255)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("IQ3_XXS accepted a partial block")
+    print("raw-blocks: IQ3_XXS %d exact values, all dictionary indices/lanes, sign codes, scales and half edges [ok]" % len(expected))
+
+
 def iq2_s_block(d, indices, scales, signs):
     """Pack 32 logical eight-value indices, 16 subscales and 256 independent signs."""
     assert len(indices) == 32 and len(scales) == 16 and len(signs) == 256
@@ -468,7 +537,7 @@ def random_blocks(rng, type_id, count):
     """`count` random blocks of `type_id`, with every f16 scale and min finite."""
     _, _, size = sd.TYPES[type_id]
     halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.IQ3_S: (0,), sd.Q4_K: (0, 2),
-              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,)}.get(type_id, ())
+              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,)}.get(type_id, ())
     out = bytearray()
     for _ in range(count):
         block = bytearray(rng.getrandbits(8) for _ in range(size))
@@ -640,6 +709,7 @@ def run(require=False):
     check_iq4(rng)
     check_iq3_s()
     check_iq2_s()
+    check_iq3_xxs()
     check_mxfp4(rng)
     check_q3_k(rng)
     check_q2_k(rng)

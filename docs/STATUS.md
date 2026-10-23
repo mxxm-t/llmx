@@ -1,5 +1,27 @@
 # llmx - Development Status
 
+## Lookup rows read ahead (2026-10-23, branch feat/lookup-prefetch on feat/split-pacing b9bc503dd, item P of the Flash decode design of 2026-10-20 08:29, ranked first for cold text by F2DEV on 2026-10-23 11:14, lands by fast-forward as two commits)
+
+- **Goal:** Qwen3.8-Flash-Next's per-layer embedding rows, read from the table's file (`--lookup-storage file`), stop holding a decode token and a prompt.
+  The probe of 2026-10-20 measured cold rows read one after another at 10.0 and 8.4 ms a decode token, against 3.8 and 3.3 ms with a token's 16 rows read at once on threads beside layer 0. A prompt read 7.4 and 8.1 ms a prompt token one row at a time, against 3.2 and 3.0 ms on 64 threads.
+  Text a reply repeats, as TG256's, finds its rows in the page cache and gains nothing.
+- **The change:** `WeightRows::start` deals a file read's runs to the table's `kReadThreads` (16) readers and returns at once, and `finish` takes the rows; there is no read of both in one call, the stage calling them apart.
+  `Model::start_lookup` starts a stage's lookups as it begins, and `finish_lookup` takes each just before its layer, so the layers before it record and run meanwhile. No flag.
+- **Done:** the reader and the runtime's two calls, the fit counting the table's read windows once; a read counts as started only once it is under way (F2DEV's review of 16:06); `weight-rows` checks a read started ahead, `finish` without a start, a start over an abandoned read, a start failing at an allocation after its checks leaving `finish` refusing, a scratch dropped mid-read, more runs than readers and a short file at `finish`; docs.
+- **Measured on production's cell (2026-10-23, pleg):**
+  - Setup: Qwen3.8-Flash-Next UD-Q4_K_XL on 2x2 at production's flags (int8, f16 KV, `--lookup-storage file`, lookup and MTP drafting), GPUs 4-7, CPUs 6-13. Main 19a312f60 (build 6acd61ad) against P at 9f9a4c170, the reading code this head carries (build 13565a31), both git archives built the same way. Four servers in ABBA order, each fed 6 slices of about 500 tokens never fed before, with 256 greedy tokens each.
+
+  | Arm | Decode, median of 12 slices | Time to first token, median | Decode per server (median) |
+  |---|---|---|---|
+  | main | 33.34 tok/s | 5.01 s | 30.8, 34.3 |
+  | P | 35.56 tok/s (+6.7%) | 5.13 s | 35.7, 33.8 |
+
+  - A slice fed again to each server gave the same text on both arms.
+  - Why it is a third of the probe's 15 to 25 percent: production on GPUs 0-3 reads the same file through the same page cache, so many of the slices' rows were already cached rather than cold; and LDEV's `llmx-ldev-gate-27b` ran on CPUs 10-11, inside the arms' CPUs, for the whole leg.
+  - The warm-cache figure is the one that stands for production, which shares that page cache (the coordinator, 2026-10-23).
+- **Gates:** the tests commit fails to build on main, which has no `start`, `finish` or `staging_bytes`, and its failed-start check fails on 2cf5a995d and passes here. CTest and the CPU suite passed at 9f9a4c170, docs and dead-code with them, but the placement case whose expectation this head changed, which passes here. Hosted run on github gate/train2-1023.
+- **Gotchas:** the readers are the table's, one set of 15 threads a table (F2DEV's review of 15:25), so a table reads for one scratch at a time; a direct-read table holds a granule window for each of its 16 readers, which the fit counts once for the table (`WeightRows::staging_bytes`), and a buffered one none, its reads landing in the rows.
+
 ## Replies beside a prompt on a pipelined split (2026-10-23, branch feat/split-pacing on main eaa08d839, the interleaved rule, F2DEV's reviews of 2026-10-22 07:41 and 16:18 and the coordinator's approval, lands by fast-forward as one commit)
 
 - **Why:** on production's placement (Qwen3.8-Flash-Next UD-Q4_K_XL, two stages of two MI50s, int8, lookup and MTP drafting) a reply beside an 8017-token prompt at 100k tokens of history got 0.33 to 1.03 tok/s against 58 alone. It rode the prompt's pass, which then wanted logits and held both requests through both stages one after the other, so a token came every 2 x 1.48 s; `--passes 3` changed nothing (devlog FINDING 2026-10-22 07:35).

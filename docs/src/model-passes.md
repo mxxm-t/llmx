@@ -6,9 +6,8 @@ The context and the pass are plain data in `model/runtime.hpp` (`ExecContext`, `
 
 The residual stream crosses devices wherever the placement changes, in two halves: the source copies the rows into its handoff buffer inside its own work (`send`), and the destination waits that submission's ticket and writes them (`receive`); inside a stage both run at once (`cross`).
 
-`prepare_lookup` prepares a layer's external lookup for a single device or a
-tensor group. `single_record` prepares its stage's lookups before recording
-the layer operations; `group_record` prepares each layer before its mixers.
+`start_lookup` starts reading a layer's external lookup rows as its stage begins, and `finish_lookup` takes them just before the layer and uploads them, for a single device or a tensor group.
+`single_record` and `group_record` start every lookup of their stage before recording the layer operations and finish each before its layer's mixers, so the layers before it record and run while the rows are read.
 The architecture's `lookup_ids`
 fills dedicated IDs from the pass and its preceding-token snapshots;
 [WeightRows](model-weight_rows.md) reads packed unique rows and returns their

@@ -48,10 +48,16 @@ void save(const std::filesystem::path& path, const std::vector<uint8_t>& bytes) 
     require(bool(out), "cannot write " + path.string());
 }
 
+// A read started and finished at once, as a stage does across its layers (Model::start_lookup, Model::finish_lookup).
+infer::WeightRows::Rows read_rows(const infer::WeightRows& source, const uint32_t* ids, size_t count, infer::WeightRows::Scratch& scratch) {
+    source.start(ids, count, scratch);
+    return source.finish(scratch);
+}
+
 void check_rows(const infer::WeightRows& source, const std::vector<uint8_t>& original,
                 size_t row_bytes, const std::vector<uint32_t>& ids, size_t capacity) {
     infer::WeightRows::Scratch scratch(source, capacity);
-    const infer::WeightRows::Rows got = source.read(ids.data(), ids.size(), scratch);
+    const infer::WeightRows::Rows got = read_rows(source, ids.data(), ids.size(), scratch);
     std::vector<uint32_t> unique = ids;
     std::sort(unique.begin(), unique.end());
     unique.erase(std::unique(unique.begin(), unique.end()), unique.end());
@@ -96,7 +102,7 @@ int main(int argc, char** argv) {
             allocation.reset();
             owner.reset();
             require(!memory_owner_lifetime.expired(), "memory source did not retain its shared owner");
-            const auto got = owned_memory.read(owned_ids.data(), owned_ids.size(), *memory_owner_scratch);
+            const auto got = read_rows(owned_memory, owned_ids.data(), owned_ids.size(), *memory_owner_scratch);
             require(got.unique == 2 && got.remap[0] == 1 && got.remap[1] == 0 && got.remap[2] == 1,
                     "owned memory source lost request order or duplicates");
             require(got.ids[0] == 0 && got.ids[1] == 5 &&
@@ -125,29 +131,29 @@ int main(int argc, char** argv) {
         require(ids_overflow, "a table with rows outside the ID range was accepted");
 
         infer::WeightRows::Scratch scratch(memory, ids.size());
-        const auto empty = memory.read(nullptr, 0, scratch);
+        const auto empty = read_rows(memory, nullptr, 0, scratch);
         require(!empty.data && !empty.ids && !empty.remap && !empty.unique && !empty.requested && empty.row_bytes == row_bytes,
                 "an empty null-ID request has the wrong result");
-        const auto previous = memory.read(ids.data(), ids.size(), scratch);
+        const auto previous = read_rows(memory, ids.data(), ids.size(), scratch);
         std::vector<uint8_t> before(previous.data, previous.data + previous.unique * row_bytes);
         bool invalid = false;
         try {
             const uint32_t bad_ids[] = {3, uint32_t(rows)};
-            memory.read(bad_ids, 2, scratch);
+            read_rows(memory, bad_ids, 2, scratch);
         } catch (const std::out_of_range&) { invalid = true; }
         require(invalid, "an out-of-range row id was accepted");
         require(std::equal(before.begin(), before.end(), previous.data), "an invalid id changed row output before refusal");
         bool over_capacity = false;
         infer::WeightRows::Scratch short_capacity(memory, 2);
         const uint32_t small_ids[] = {2, 3};
-        const auto small = memory.read(small_ids, 2, short_capacity);
+        const auto small = read_rows(memory, small_ids, 2, short_capacity);
         std::vector<uint8_t> small_before(small.data, small.data + 2 * row_bytes);
-        try { memory.read(ids.data(), ids.size(), short_capacity); }
+        try { read_rows(memory, ids.data(), ids.size(), short_capacity); }
         catch (const std::length_error&) { over_capacity = true; }
         require(over_capacity, "a request past scratch capacity was accepted");
         require(std::equal(small_before.begin(), small_before.end(), small.data), "an over-capacity request changed row output");
         bool missing_ids = false;
-        try { memory.read(nullptr, 1, scratch); }
+        try { read_rows(memory, nullptr, 1, scratch); }
         catch (const std::invalid_argument&) { missing_ids = true; }
         require(missing_ids, "a nonempty null-ID request was accepted");
         const auto file_bytes = [&] {
@@ -167,7 +173,7 @@ int main(int argc, char** argv) {
         catch (const std::invalid_argument&) { bad_file_extent = true; }
         require(bad_file_extent, "a file span beyond the reader extent was accepted");
         bool incompatible = false;
-        try { file.read(ids.data(), ids.size(), scratch); }
+        try { read_rows(file, ids.data(), ids.size(), scratch); }
         catch (const std::invalid_argument&) { incompatible = true; }
         require(incompatible, "memory scratch was reused for a file source");
 
@@ -184,7 +190,7 @@ int main(int argc, char** argv) {
         const infer::WeightRows wide_source(quant::GGML_TYPE_Q8_0, 4096, 4, wide_reader, 11, wide.size());
         check_rows(wide_source, wide, wide_row, {3, 0, 3}, 3);
 
-        // A read started ahead gives at finish the rows read gives, from a file and from memory; finish without a start is refused.
+        // A read started ahead gives at finish the file's rows, from a file and from memory; finish without a start is refused.
         {
             infer::WeightRows::Scratch ahead(file, ids.size());
             file.start(ids.data(), ids.size(), ahead);
@@ -211,7 +217,7 @@ int main(int argc, char** argv) {
             require(mem.unique == 4 && std::equal(mem.data, mem.data + row_bytes, data.data() + 1 * row_bytes), "a memory read started ahead gave other rows");
             // A start that fails once its checks have passed, here at its first allocation, leaves finish refusing, never giving the last read's rows under the new ids.
             infer::WeightRows::Scratch failing(file, ids.size());
-            file.read(ids.data(), ids.size(), failing);
+            read_rows(file, ids.data(), ids.size(), failing);
             const uint32_t others[] = {0, 5};
             bool start_failed = false;
             fail_allocations = true;
@@ -250,7 +256,7 @@ int main(int argc, char** argv) {
             threads.emplace_back([&, t] {
                 try {
                     infer::WeightRows::Scratch local(file, ids.size());
-                    const auto got = file.read(ids.data(), ids.size(), local);
+                    const auto got = read_rows(file, ids.data(), ids.size(), local);
                     bool same = got.unique == 4 && got.remap[0] == got.remap[2] && got.remap[1] != got.remap[0];
                     for (size_t i = 0; i < got.unique && same; ++i)
                         same = got.ids[i] < rows && std::equal(got.data + i * row_bytes, got.data + (i + 1) * row_bytes,
@@ -273,7 +279,7 @@ int main(int argc, char** argv) {
         std::filesystem::resize_file(short_path, 37 + data.size() - 1);
         infer::WeightRows::Scratch short_scratch(short_source, ids.size());
         bool short_read = false;
-        try { short_source.read(ids.data(), ids.size(), short_scratch); }
+        try { read_rows(short_source, ids.data(), ids.size(), short_scratch); }
         catch (const std::runtime_error&) { short_read = true; }
         require(short_read, "a short file read was accepted");
         // Started ahead, the short read fails at finish and leaves no rows.

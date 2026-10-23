@@ -144,10 +144,10 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             const size_t count = backend::size_mul(nrows, lookup.rows_per_token);
             const size_t raw = page_bytes(backend::size_mul(count, lookup.row_bytes));
             const size_t arrays = backend::size_mul(count, 2 * sizeof(size_t) + 2 * sizeof(uint32_t));
-            const size_t io = page_bytes(lookup.io_bytes);
-            return backend::size_add(backend::size_add(raw, arrays), io);
+            return backend::size_add(raw, arrays);
         };
-        lookup_host[l] = backend::size_add(host_capacity(normal_rows), host_capacity(apart_rows));
+        // The table's read windows are the table's, counted once (WeightRows::staging_bytes).
+        lookup_host[l] = backend::size_add(backend::size_add(host_capacity(normal_rows), host_capacity(apart_rows)), page_bytes(lookup.io_bytes));
     }
     // cached[i]: the cache of layers [0, i), the same on every device.
     std::vector<size_t> cached(L + 1, 0);

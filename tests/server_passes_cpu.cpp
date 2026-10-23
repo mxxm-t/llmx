@@ -994,8 +994,20 @@ void pieces_beside_slow_reply(const gguf::GGUFModel& weights, uint32_t vocab) {
     require(s.apart > 0 && device->deep_calls > 0, what + ": " + seen_text + ", against some passes apart and a slice past 800 tokens");
 }
 
-// A prompt beside a reply on a device whose prompt attention has a fixed part of 60 ms a call, past half the 50 ms target, as the 27B's at 211k tokens has (F2DEV, 2026-10-19 05:57): a linear cut kept every slice at one step.
-// The fit's slice after the probe is two steps and the next grows past them, counted from the device's calls; each reply is its reply alone.
+// After the probe doubles, measured host work can reopen the bracket at rounded-half of the current cut or grow it up to double.
+// Only the final prompt tail may be shorter or unaligned.
+bool adaptive_cuts(const std::vector<size_t>& cut) {
+    bool adaptive = cut.size() >= 2 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep;
+    for (size_t i = 1; adaptive && i < cut.size(); ++i) {
+        const size_t lower = std::max(server::kPieceStep, cut[i - 1] / 2 / server::kPieceStep * server::kPieceStep);
+        adaptive = cut[i] > 0 && cut[i] <= 2 * cut[i - 1] &&
+                   (i + 1 == cut.size() || (cut[i] % server::kPieceStep == 0 && cut[i] >= lower));
+    }
+    return adaptive;
+}
+
+// A prompt beside a reply whose prompt attention has a fixed 60 ms a call, past half the target, where a linear cut kept every slice at one step (F2DEV, 2026-10-19 05:57).
+// Held: one step, then two, each reply its reply alone; later cuts follow a runner's measured host time, so their growth is held by the policy tests.
 void pieces_fixed_cost(const gguf::GGUFModel& weights, uint32_t vocab) {
     const std::string what = "a prompt beside a reply whose attention has a fixed part";
     const bpe::Tokenizer tok(weights);
@@ -1027,8 +1039,9 @@ void pieces_fixed_cost(const gguf::GGUFModel& weights, uint32_t vocab) {
     std::string seen_text;
     for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
     std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe" << std::endl;
-    require(cut.size() >= 3 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep && cut[2] > 2 * server::kPieceStep,
-            what + ": slices of " + seen_text + " rows after the probe, against one step, two steps and then more");
+    require(cut.size() >= 2 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep,
+            what + ": slices of " + seen_text + " rows after the probe, against one step and then two");
+    require(s.automatic && s.overlaps > 0 && s.between > 0, what + ": automatic service between measured prompt pieces did not run");
 }
 
 // A prompt beside a reply on staircase attention: 100 ms through 48 rows, 175 through 96, and 300 past.
@@ -1064,15 +1077,7 @@ void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
     std::string seen_text;
     for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
     std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe" << std::endl;
-    // After the probe doubles, measured host work can reopen the bracket at rounded-half of the current cut or grow it up to double.
-    // Only the final prompt tail may be shorter or unaligned; exact timing responses belong to the deterministic policy tests.
-    bool adaptive = cut.size() >= 2 && cut[0] == server::kPieceStep && cut[1] == 2 * server::kPieceStep;
-    for (size_t i = 1; adaptive && i < cut.size(); ++i) {
-        const size_t lower = std::max(server::kPieceStep, cut[i - 1] / 2 / server::kPieceStep * server::kPieceStep);
-        adaptive = cut[i] > 0 && cut[i] <= 2 * cut[i - 1] &&
-                   (i + 1 == cut.size() || (cut[i] % server::kPieceStep == 0 && cut[i] >= lower));
-    }
-    require(adaptive, what + ": slices of " + seen_text + " rows after the probe, against a doubled probe then step-aligned adaptive cuts, with only the final tail allowed short");
+    require(adaptive_cuts(cut), what + ": slices of " + seen_text + " rows after the probe, against a doubled probe then step-aligned adaptive cuts, with only the final tail allowed short");
     require(s.automatic && s.overlaps > 0 && s.between > 0 && s.longest_piece_ms > 0,
             what + ": automatic service between measured prompt pieces did not run");
 }

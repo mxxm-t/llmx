@@ -134,6 +134,38 @@ def simulated_llmx(docs, tokens, context, refuse=None):
 
 
 class ReferenceConsumer(unittest.TestCase):
+    def test_file_exact_ppl_uses_gguf_context(self):
+        import spec_decode as sd
+        with tempfile.TemporaryDirectory(prefix="llmx_file_exact_context_") as directory:
+            root = Path(directory)
+            model = root / "unregistered.gguf"
+            sd.write_gguf(model, {"general.architecture": (8, "qwen3"), "qwen3.context_length": (4, 32768)}, [])
+            digest = consumer.file_sha256(model)
+            docs = {}
+            for filename, original in (("baseline_logits.json", baseline.GOLDEN_LOGITS),
+                                       ("baseline_perplexity.json", baseline.GOLDEN_PPL)):
+                doc = json.loads(Path(original).read_text(encoding="utf-8"))
+                doc["weights"] = {"sha256": digest, "file": model.name}
+                (root / filename).write_text(json.dumps(doc))
+                docs[filename] = doc
+            ppl = docs["baseline_perplexity.json"]
+            def answer(args):
+                if args[0] == "tokenize":
+                    return 0, " ".join(map(str, ppl["token_ids"]))
+                self.assertEqual(args[0], "perplexity")
+                context = int(args[args.index("--ctx-size") + 1]) if "--ctx-size" in args else 0
+                chunks = int(args[args.index("--chunks") + 1]) if "--chunks" in args else 0
+                case = next(case for case in common.ppl_cases(ppl)
+                            if (case["context_size"], case["max_chunks"]) == (context, chunks))
+                return 0, ppl_text(case, tokens=ppl["n_tokens"], context=32768)
+            with patch.object(baseline, "cli", side_effect=answer) as invoked, \
+                    patch.object(baseline, "check_model_logits", return_value=True) as logits, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertTrue(baseline.run_file_exact(str(root), str(model)))
+            self.assertEqual(invoked.call_count, 1 + len(common.ppl_cases(ppl)) * len(common.PPL_MODES))
+            self.assertEqual(logits.call_args.args[2], dict(baseline.FILE_EXACT_BOUNDS, file=model.name))
+            self.assertEqual(baseline.MODEL_CONTEXT, 40960)
+
 
     def setUp(self):
         policy = patch.object(common, "REQUIRED_DEVICE_TYPES", {}, create=True)

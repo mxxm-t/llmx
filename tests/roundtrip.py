@@ -468,6 +468,25 @@ def check_windows_long_paths(d):
     print("roundtrip: Windows paths beyond 260 characters preserve metadata and payload  [ok]")
 
 
+def check_empty_tensors(directory):
+    source, metadata, output = (os.path.join(directory, "empty." + ext) for ext in ("gguf", "json", "bin"))
+    values = struct.pack("<4f", 1.0, -0.0, -2.0, 3.0)
+    for kind in (sd.F32, sd.Q8_0):
+        empty = [("empty_first", [32, 0], kind, b""),
+                 ("empty_middle", [32, 0], kind, b""),
+                 ("empty_last", [32, 0], kind, b"")]
+        mixed = [empty[0], ("first", [4], sd.F32, values), empty[1],
+                 ("second", [4], sd.F32, values), empty[2]]
+        for tensors, expected in ((empty, b""), (mixed, values * 2)):
+            sd.write_gguf(source, {}, tensors)
+            rc, diagnostic = cli(["dequantize", source, metadata, output])
+            assert rc == 0, "empty tensor conversion failed: " + diagnostic
+            assert Path(output).read_bytes() == expected, "empty tensors changed decoded bytes"
+            restored = json.loads(Path(metadata).read_text(encoding="utf-8"))
+            assert restored["tensors"] == [{"name": name, "shape": shape} for name, shape, _, _ in tensors]
+    print("roundtrip: empty F32 and Q8_0 tensors alone and around payload preserve shapes and bytes  [ok]")
+
+
 def run():
     d = tempfile.mkdtemp(prefix="llmx_rt_")
     try:
@@ -511,6 +530,7 @@ def run():
         check_non_ascii_directory(d)
         check_type_names(d)
         check_tensor_extents(d)
+        check_empty_tensors(d)
         check_output_failures(d)
         return True
     finally:

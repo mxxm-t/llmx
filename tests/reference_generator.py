@@ -308,6 +308,60 @@ class ReferenceGenerator(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "lm_head.weight"):
             self._load_file_exact_weights([embedding, ("output.weight",) + embedding[1:]], tied=False, expose_head=False)
 
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which file-exact decodes with")
+    def test_load_reference_uses_explicit_gguf_output_topology(self):
+        import numpy as np
+        import spec_decode as sd
+
+        class Parameter(np.ndarray):
+            def copy_(self, values):
+                self[...] = values
+                return self
+
+        def make_model(*_, **kwargs):
+            embedding = np.zeros((2, 32), dtype=np.float32).view(Parameter)
+            tied = kwargs.get("tie_word_embeddings", True)
+            head = embedding if tied else embedding.copy()
+            parameters = [("model.embed_tokens.weight", embedding)]
+            if not tied:
+                parameters.append(("lm_head.weight", head))
+            model = SimpleNamespace(config=SimpleNamespace(tie_word_embeddings=tied),
+                                    named_parameters=lambda: iter(parameters),
+                                    get_output_embeddings=lambda: SimpleNamespace(weight=head),
+                                    embedding=embedding, head=head)
+            model.cpu = lambda: model
+            model.eval = lambda: model
+            return model
+
+        loader = MagicMock(side_effect=make_model)
+        torch = SimpleNamespace(float32=object(), set_num_threads=MagicMock(),
+                                no_grad=contextlib.nullcontext, from_numpy=lambda values: values,
+                                equal=np.array_equal, int32=np.int32)
+        transformers = SimpleNamespace(AutoTokenizer=SimpleNamespace(from_pretrained=MagicMock()),
+                                       AutoModelForCausalLM=SimpleNamespace(from_pretrained=loader))
+        with tempfile.TemporaryDirectory(prefix="llmx_reference_head_topology_") as directory:
+            for explicit, head_value in ((True, 2.0), (True, 1.0), (False, 1.0)):
+                with self.subTest(explicit=explicit, head_value=head_value):
+                    path = Path(directory) / "unregistered.gguf"
+                    tensors = [("token_embd.weight", [32, 2], sd.F32, struct.pack("<64f", *([1.0] * 64)))]
+                    if explicit:
+                        tensors.insert(0, ("output.weight", [32, 2], sd.F32, struct.pack("<64f", *([head_value] * 64))))
+                    sd.write_gguf(path, {"general.architecture": (8, "qwen3")}, tensors)
+                    args = SimpleNamespace(family=None, weights_gguf=str(path), threads=1,
+                                           repo="Qwen/Qwen3-0.6B", revision="c1899de289a04d12100db370d81485cdf75e47ca")
+                    loader.reset_mock()
+                    with patch.dict(sys.modules, torch=torch, transformers=transformers):
+                        _, _, _, model = generator.load_reference(args)
+                    self.assertEqual(model.config.tie_word_embeddings, not explicit)
+                    self.assertEqual(model.head is model.embedding, not explicit)
+                    self.assertTrue(np.all(model.embedding == 1.0))
+                    self.assertTrue(np.all(model.head == head_value))
+                    expected = dict(revision=args.revision, torch_dtype=torch.float32, attn_implementation="eager")
+                    if explicit:
+                        expected["tie_word_embeddings"] = False
+                    loader.assert_called_once_with(args.repo, **expected)
+                    self.assertEqual(args.weights["tensors"], len(tensors))
+
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:
             pinned, local = (os.path.join(directory, name) for name in ("Qwen3-0.6B-IQ4_XS.gguf", "local.gguf"))

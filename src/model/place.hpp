@@ -77,7 +77,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             if (lookup_role && lookup_role->tensor) {
                 const TensorView& source = weights.tensors[*lookup_role->tensor];
                 if (source.row_source)
-                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->io_bytes()};
+                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->staging_bytes()};
             }
         }
         for (const Role& role : layer.roles)

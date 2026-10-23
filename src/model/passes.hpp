@@ -302,9 +302,8 @@ inline void Model::single_prepare(Pass& p, size_t s) {
     prepare_tokens(p, s);
 }
 
-// Prepare one layer's requested rows once on the group's first member, then upload the packed rows to each member's own buffer.
-// The remapped IDs live in that first member's context scratch until the backends consume their gather calls.
-inline void Model::prepare_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l) {
+// Start reading a layer's requested rows on the group's first member, as its stage begins (WeightRows::start), so the layers before it record and run meanwhile.
+inline void Model::start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l) {
     const auto& lookup = plan_.layers[size_t(l)].lookup;
     if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
     ExecContext::Scratch& owner = p.apart ? ctx.apart[group] : ctx.scratch[group];
@@ -314,8 +313,17 @@ inline void Model::prepare_lookup(ExecContext& ctx, const Pass& p, size_t group,
     step.indices = prepared.ids.data();
     step.indices_size = prepared.ids.size();
     arch_->lookup_ids(step);
-    const WeightRows& source = *home_[size_t(l)][lookup->role].row_source;
-    const auto rows = source.read(prepared.ids.data(), backend::size_mul(p.rows, lookup->rows), *prepared.host);
+    home_[size_t(l)][lookup->role].row_source->start(prepared.ids.data(), backend::size_mul(p.rows, lookup->rows), *prepared.host);
+}
+
+// Take a layer's rows read since start_lookup, just before the layer, and upload the packed rows to each member's own buffer.
+// The remapped IDs live in that first member's context scratch until the backends consume their gather calls.
+inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l) {
+    const auto& lookup = plan_.layers[size_t(l)].lookup;
+    if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
+    ExecContext::Scratch& owner = p.apart ? ctx.apart[group] : ctx.scratch[group];
+    auto& prepared = owner.lookups[size_t(l)];
+    const auto rows = home_[size_t(l)][lookup->role].row_source->finish(*prepared.host);
     for (size_t i = 0; i < rows.requested; ++i) prepared.ids[i] = uint32_t(rows.remap[i]);
     const size_t bytes = backend::size_mul(rows.unique, rows.row_bytes);
     for (size_t m = 0; m < width; ++m) {
@@ -334,7 +342,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
     const Stage& st = stages_[s];
     size_t cur = st.device;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
-    for (int l = st.first; l < st.end; ++l) prepare_lookup(ctx, p, cur, 1, l);
+    for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, st.device, l);
     const auto piece = [&](int l, bool ffn) {
         if (!pace) return;
         backend::Backend& b = *devices_[st.device]->b;
@@ -358,6 +366,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
     }
     for (int l = st.first; l < st.end; l++) {
         if (st.device != cur) { cross(ctx, cur, st.device, 0, p.rows); cur = st.device; }
+        finish_lookup(ctx, p, cur, 1, l);
         arch_->mixer(mixer_part(ctx, p, cur, l));
         if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, cur, l);
         if (p.long_runs && stream_device_[(size_t)l] == (int)cur) {
@@ -452,8 +461,9 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
         if (s == 0) arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all, p.apart), p.ids.data());
         else receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows, p.apart);
     }
+    for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, g, l);
     for (int l = st.first; l < st.end; l++) {
-        prepare_lookup(ctx, p, g, W, l);
+        finish_lookup(ctx, p, g, W, l);
         for (size_t m = 0; m < W; ++m) {
             Step step = mixer_part(ctx, p, g + m, l);
             step.width = W;
@@ -619,7 +629,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             if (result.empty()) result.resize(plan_.layers.size());
             auto& target = result[l];
             if (device % width_ == 0) {
-                target.host = std::make_unique<WeightRows::Scratch>(*source, count, source->io_bytes());
+                target.host = std::make_unique<WeightRows::Scratch>(*source, count);
                 target.ids.resize(count);
             }
             target.data = devices_[device]->b->alloc(mul(count, source->row_bytes()));

@@ -1246,7 +1246,8 @@ private:
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
     void single_prepare(Pass& p, size_t s);
-    void prepare_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);
+    void start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l);
+    void finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);
     void single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace);
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace);

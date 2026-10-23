@@ -1,5 +1,16 @@
 # llmx - Development Status
 
+## Lookup rows read ahead (2026-10-23, branch feat/lookup-prefetch on main 19a312f60, item P of the Flash decode design of 2026-10-20 08:29, ranked first for cold text by F2DEV on 2026-10-23 11:14, in progress)
+
+- **Goal:** Qwen3.8-Flash-Next's per-layer embedding rows, read from the table's file (`--lookup-storage file`), stop holding a decode token and a prompt.
+  The probe of 2026-10-20 measured cold rows read one after another at 10.0 and 8.4 ms a decode token, against 3.8 and 3.3 ms with a token's 16 rows read at once on threads beside layer 0. A prompt read 7.4 and 8.1 ms a prompt token one row at a time, against 3.2 and 3.0 ms on 64 threads.
+  Text a reply repeats, as TG256's, finds its rows in the page cache and gains nothing.
+- **The change:** `WeightRows::start` deals a file read's runs to the table's `kReadThreads` (16) readers and returns at once, and `finish` takes the rows; `read` is the two in turn.
+  `Model::start_lookup` starts a stage's lookups as it begins, and `finish_lookup` takes each just before its layer, so the layers before it record and run meanwhile. No flag.
+- **Done:** the reader and the runtime's two calls, the fit counting each reader's window; `weight-rows` checks a read started ahead, `finish` without a start, a start over an abandoned read, a scratch dropped mid-read, more runs than readers and a short file at `finish`; docs.
+- **Left:** CTest and the suite; the device leg on production's cell (2x2, int8, lookup and MTP drafting): decode and prompt rates on fresh text, each run a new slice so its rows are cold, main and the branch in ABBA order; byte identity of the replies against main; hosted run.
+- **Gotchas:** the readers are the table's, one set of 15 threads a table (F2DEV's review of 15:25), so a table reads for one scratch at a time; a direct-read table holds a granule window for each of its 16 readers, which the fit counts once for the table (`WeightRows::staging_bytes`), and a buffered one none, its reads landing in the rows.
+
 ## CLI help formatting (2026-10-23, branch fix/cli-help-format-20261023)
 
 - **Goal:** align command help descriptions and continuation lines, make prose ASCII and keep it within 80 columns, while preserving every accepted option and its meaning.
